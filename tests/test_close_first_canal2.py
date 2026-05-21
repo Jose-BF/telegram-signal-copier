@@ -1,0 +1,329 @@
+"""
+test_close_first_canal2.py — Estrategia C: TP=BE + time-stop.
+
+Cuando llega CLOSE_FIRST en canal2:
+  - Si precio en profit > +0.5 pts del entry: aplicar lógica clásica
+    (cerrar n//2 a mercado, ya validada en otros tests).
+  - Si NO hay profit (precio <= entry+0.5): rama RESCATE BE:
+        1. Poner TP=BE en LAS 5 posiciones (no cerrar nada a mercado).
+        2. Time-stop 60s: si quedan posiciones abiertas al expirar,
+           cerrar a mercado.
+
+Diseñada tras analizar 5 señales CLOSE_FIRST perdedoras (19+20 mayo):
+en canal2_12691 (el peor de la sesión, −$26.55) el precio rebotó al
+entry en 7 segundos pero la lógica actual ya había cerrado en pérdida
+las 2 con menor recorrido y las 3 restantes hit SL del proveedor.
+
+Tests cubren:
+  1) _close_first_decision (decisor puro)
+  2) _safe_tp_be (TP=BE respetando stops_level del broker)
+"""
+import pytest
+
+import journal
+import listener
+from listener import (_close_first_decision, _safe_tp_be,
+                      _close_first_be_timeout, _close_first_be_rescue)
+from state import Signal
+
+
+class TestCloseFirstDecision:
+    """Decide la rama de CLOSE_FIRST para canal2:
+       'close_half'    → lógica clásica (cerrar mitad a mercado + BE rest).
+       'set_tp_be_all' → rama rescate (TP=BE en todas + time-stop).
+    """
+
+    def test_profit_significativo_close_half(self):
+        # +1.5 pts en profit → la lógica clásica gana (asegurar parciales)
+        assert _close_first_decision(price_vs_entry_pts=1.5) == "close_half"
+
+    def test_profit_justo_en_threshold_close_half(self):
+        # +0.5 pts exacto: no estrictamente >, así que cae al rescate
+        # NOTA decisión: ">" estricto → en threshold exacto NO se considera
+        # profit suficiente. Es la rama segura.
+        assert _close_first_decision(price_vs_entry_pts=0.5) == "set_tp_be_all"
+
+    def test_profit_pequeno_set_tp_be(self):
+        # +0.3 pts no es suficiente — usar rescate
+        assert _close_first_decision(price_vs_entry_pts=0.3) == "set_tp_be_all"
+
+    def test_be_exacto_set_tp_be(self):
+        # 0.0 pts (precio == entry) → rescate
+        assert _close_first_decision(price_vs_entry_pts=0.0) == "set_tp_be_all"
+
+    def test_loss_set_tp_be(self):
+        # En loss claramente → rescate (caso canal2_12691)
+        assert _close_first_decision(price_vs_entry_pts=-0.41) == "set_tp_be_all"
+
+    def test_loss_grande_set_tp_be(self):
+        # Loss grande → rescate (caso canal2_12631 con -3.06)
+        assert _close_first_decision(price_vs_entry_pts=-3.06) == "set_tp_be_all"
+
+    def test_threshold_configurable(self):
+        # Permitir override del threshold (default 0.5)
+        # Con threshold=1.0, +0.7 debe ir a rescate (no a close_half)
+        assert _close_first_decision(price_vs_entry_pts=0.7,
+                                      profit_threshold_pts=1.0) == "set_tp_be_all"
+        assert _close_first_decision(price_vs_entry_pts=1.5,
+                                      profit_threshold_pts=1.0) == "close_half"
+
+
+class TestSafeTpBe:
+    """TP=BE respetando stops_level del broker.
+
+    MT5 rechaza con INVALID_STOPS (10016) si pones TP demasiado cerca del
+    precio actual. Necesitamos garantizar que el TP esté FUERA del
+    stops_level por el lado correcto. Si entry+padding es legal: usar.
+    Si no: usar current_price + stops_level + padding.
+    """
+
+    def test_buy_precio_bajo_entry_tp_en_entry_padding(self):
+        # BUY @ 4488.85, precio actual 4488.38 (en loss), stops_level=1
+        # entry+0.05 = 4488.90 → 0.52 pts por encima del precio ✓
+        # min_legal = 4488.38 + 1 + 0.05 = 4489.43 → entry+pad NO cumple → 4489.43
+        tp = _safe_tp_be("BUY", entry=4488.85, current_price=4488.38,
+                          stops_level_pts=1.0, padding_pts=0.05)
+        assert tp == pytest.approx(4489.43, abs=0.01)
+
+    def test_buy_precio_bajo_entry_grande_stops_level_chico(self):
+        # BUY @ 4488.85, precio 4488.0 (-0.85), stops_level=0.3
+        # entry+0.05 = 4488.90 → 0.90 pts por encima ✓
+        # min_legal = 4488.0 + 0.3 + 0.05 = 4488.35
+        # entry+pad (4488.90) >= min_legal (4488.35) → usar entry+pad
+        tp = _safe_tp_be("BUY", entry=4488.85, current_price=4488.0,
+                          stops_level_pts=0.3, padding_pts=0.05)
+        assert tp == pytest.approx(4488.90, abs=0.01)
+
+    def test_buy_precio_sobre_entry_tp_min_legal(self):
+        # BUY @ 4527.86, precio 4529.01 (en profit pequeno), stops_level=1
+        # entry+0.05 = 4527.91 (POR DEBAJO del precio actual!) → MT5 rechazaria
+        # min_legal = 4529.01 + 1 + 0.05 = 4530.06 → usar este
+        # Pero ojo: si TP > precio, MT5 lo TRATA como TP normal (cierra cuando bid alcanza)
+        # En modo BE rescate queremos cerrar RAPIDO → max(entry+pad, min_legal)
+        tp = _safe_tp_be("BUY", entry=4527.86, current_price=4529.01,
+                          stops_level_pts=1.0, padding_pts=0.05)
+        assert tp == pytest.approx(4530.06, abs=0.01)
+
+    def test_sell_precio_sobre_entry_tp_en_entry_padding(self):
+        # SELL @ 4500.0, precio 4500.5 (en loss para SELL), stops_level=1
+        # entry-0.05 = 4499.95
+        # max_legal = 4500.5 - 1 - 0.05 = 4499.45
+        # entry-pad (4499.95) > max_legal (4499.45) → entry-pad NO cumple (debe ser <=)
+        # → usar max_legal = 4499.45
+        tp = _safe_tp_be("SELL", entry=4500.0, current_price=4500.5,
+                          stops_level_pts=1.0, padding_pts=0.05)
+        assert tp == pytest.approx(4499.45, abs=0.01)
+
+    def test_sell_precio_bajo_entry_tp_min_de_los_dos(self):
+        # SELL en profit (precio < entry): TP por debajo del precio actual
+        # entry-0.05 = 4499.95
+        # max_legal = 4499.0 - 1 - 0.05 = 4497.95
+        # min(entry-pad=4499.95, max_legal=4497.95) = 4497.95
+        tp = _safe_tp_be("SELL", entry=4500.0, current_price=4499.0,
+                          stops_level_pts=1.0, padding_pts=0.05)
+        assert tp == pytest.approx(4497.95, abs=0.01)
+
+    def test_default_padding_005(self):
+        # Sin padding explícito, usa 0.05
+        tp = _safe_tp_be("BUY", entry=4500.0, current_price=4499.0,
+                          stops_level_pts=0.5)
+        # entry+0.05 = 4500.05; min_legal = 4499.0 + 0.5 + 0.05 = 4499.55
+        # max(4500.05, 4499.55) = 4500.05
+        assert tp == pytest.approx(4500.05, abs=0.01)
+
+    def test_stops_level_cero(self):
+        # Algunos brokers no exigen distancia mínima
+        tp = _safe_tp_be("BUY", entry=4500.0, current_price=4499.5,
+                          stops_level_pts=0.0)
+        # entry+0.05 = 4500.05; min_legal = 4499.5 + 0 + 0.05 = 4499.55
+        # max → 4500.05
+        assert tp == pytest.approx(4500.05, abs=0.01)
+
+
+# ───────────────── Time-stop _close_first_be_timeout ──────────────────
+
+@pytest.fixture
+def isolated_journal(tmp_path, monkeypatch):
+    """Redirige el journal a tmp para no contaminar data/ real."""
+    monkeypatch.setattr(journal, "EVENTS_FILE", tmp_path / "events.jsonl")
+    monkeypatch.setattr(journal, "JOURNAL_FILE", tmp_path / "journal.csv")
+    return tmp_path / "events.jsonl"
+
+
+@pytest.fixture
+def captured_closes(monkeypatch):
+    """Captura las llamadas a pending_actions.enqueue_close_position."""
+    calls = []
+
+    def _fake_enqueue_close(signal, ticket, label=""):
+        calls.append({"ticket": ticket, "label": label})
+
+    monkeypatch.setattr(listener.pending_actions, "enqueue_close_position",
+                        _fake_enqueue_close)
+    return calls
+
+
+class TestCloseFirstBeTimeout:
+    """El time-stop de la rama RESCATE BE. Tras N segundos cierra a mercado
+    las posiciones que el precio no llevó a BE.
+
+    Usamos timeout_s=0 → asyncio.sleep(0) cede el loop pero no espera.
+    """
+
+    def _signal(self, status="open", be_armed=True):
+        sig = Signal(channel="canal2", message_id=99001, direction="BUY",
+                     market_ticket=500,
+                     extra_market_tickets=[501, 502, 503, 504])
+        sig.status = status
+        sig.close_first_be_armed = be_armed
+        return sig
+
+    async def test_timeout_cierra_las_que_quedan_abiertas(
+            self, isolated_journal, captured_closes, monkeypatch):
+        sig = self._signal()
+        # 3 de 5 siguen abiertas (el precio no rebotó a BE)
+        monkeypatch.setattr(listener.executor, "position_pnls",
+                            lambda tickets: [(502, -5.0), (503, -5.0),
+                                             (504, -5.1)])
+        await _close_first_be_timeout(sig, 0)
+        # Las 3 abiertas se cierran a mercado
+        assert sorted(c["ticket"] for c in captured_closes) == [502, 503, 504]
+        # Se registran en close_first_tickets (para tag correcto)
+        assert set(sig.close_first_tickets) == {502, 503, 504}
+        # La rama se desarma
+        assert sig.close_first_be_armed is False
+        assert sig.close_first_be_deadline is None
+
+    async def test_timeout_no_cierra_si_todo_resuelto_por_be(
+            self, isolated_journal, captured_closes, monkeypatch):
+        sig = self._signal()
+        # El precio rebotó: todas cerraron por TP-BE antes del timeout
+        monkeypatch.setattr(listener.executor, "position_pnls",
+                            lambda tickets: [])
+        await _close_first_be_timeout(sig, 0)
+        assert captured_closes == []
+        assert sig.close_first_be_armed is False
+
+    async def test_timeout_no_actua_si_desarmado(
+            self, isolated_journal, captured_closes, monkeypatch):
+        # close_first_be_armed=False → el canal mandó CLOSE_ALL mientras
+        # dormíamos. No debe tocar nada.
+        sig = self._signal(be_armed=False)
+        monkeypatch.setattr(listener.executor, "position_pnls",
+                            lambda tickets: [(502, -5.0)])
+        await _close_first_be_timeout(sig, 0)
+        assert captured_closes == []
+
+    async def test_timeout_no_actua_si_senal_cerrada(
+            self, isolated_journal, captured_closes, monkeypatch):
+        # status != open → la señal ya cerró. Desarmar y salir.
+        sig = self._signal(status="closed")
+        monkeypatch.setattr(listener.executor, "position_pnls",
+                            lambda tickets: [(502, -5.0)])
+        await _close_first_be_timeout(sig, 0)
+        assert captured_closes == []
+        assert sig.close_first_be_armed is False
+
+    async def test_timeout_nunca_lanza_excepcion(
+            self, isolated_journal, captured_closes, monkeypatch):
+        # Defensivo: si position_pnls crashea, el time-stop no debe
+        # propagar la excepción (es fire-and-forget).
+        sig = self._signal()
+
+        def _boom(tickets):
+            raise RuntimeError("MT5 down")
+
+        monkeypatch.setattr(listener.executor, "position_pnls", _boom)
+        # No debe lanzar
+        await _close_first_be_timeout(sig, 0)
+
+
+class TestCloseFirstBeRescue:
+    """La función que ARMA el rescate: pone TP=BE en todas las posiciones,
+    marca la señal y lanza el time-stop."""
+
+    def _signal(self):
+        sig = Signal(channel="canal2", message_id=99002, direction="BUY",
+                     market_ticket=600,
+                     extra_market_tickets=[601, 602, 603, 604])
+        sig.status = "open"
+        return sig
+
+    def _pos_info(self):
+        return [
+            {"ticket": 600, "pnl": -1.0, "entry": 4488.79, "tp": 4491,
+             "recorrido": 2.6},
+            {"ticket": 601, "pnl": -1.0, "entry": 4488.91, "tp": 4493,
+             "recorrido": 4.6},
+            {"ticket": 602, "pnl": -1.0, "entry": 4488.91, "tp": 4495,
+             "recorrido": 6.6},
+            {"ticket": 603, "pnl": -1.0, "entry": 4488.90, "tp": 4497,
+             "recorrido": 8.6},
+            {"ticket": 604, "pnl": -1.0, "entry": 4489.02, "tp": 4499,
+             "recorrido": 10.6},
+        ]
+
+    @pytest.fixture
+    def captured_modifies(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(
+            listener.pending_actions, "enqueue_modify_tp",
+            lambda signal, ticket, new_tp, label="": calls.append(
+                {"ticket": ticket, "new_tp": new_tp}))
+        return calls
+
+    @pytest.fixture
+    def no_side_effects(self, monkeypatch):
+        """Neutraliza task spawn + notify para testear _close_first_be_rescue
+        sin lanzar el time-stop real ni mandar Telegram."""
+        def _fake_ensure_future(coro):
+            # cerrar el coroutine evita 'coroutine never awaited'
+            try:
+                coro.close()
+            except Exception:
+                pass
+            return None
+        monkeypatch.setattr(listener.asyncio, "ensure_future",
+                            _fake_ensure_future)
+
+        async def _fake_notify(*a, **k):
+            return None
+        monkeypatch.setattr(listener, "notify", _fake_notify)
+        # stops_level del broker → 1.0 fijo para el test
+        monkeypatch.setattr(listener.mt5_errors if hasattr(listener, "mt5_errors")
+                            else __import__("mt5_errors"),
+                            "get_stops_level_pts", lambda: 1.0)
+
+    async def test_rescue_pone_tp_be_en_todas(
+            self, isolated_journal, captured_modifies, no_side_effects):
+        sig = self._signal()
+        await _close_first_be_rescue(sig, self._pos_info(),
+                                     cur_price=4488.38, entry_avg=4488.91)
+        # TP=BE encolado para las 5 posiciones
+        assert sorted(c["ticket"] for c in captured_modifies) == [
+            600, 601, 602, 603, 604]
+        # Todos al mismo TP=BE (un único nivel común)
+        tps = {c["new_tp"] for c in captured_modifies}
+        assert len(tps) == 1
+        # TP=BE seguro: max(entry+0.05, cur+stops+0.05)
+        # = max(4488.96, 4488.38+1+0.05=4489.43) = 4489.43
+        assert abs(captured_modifies[0]["new_tp"] - 4489.43) < 0.01
+
+    async def test_rescue_arma_la_senal(
+            self, isolated_journal, captured_modifies, no_side_effects):
+        sig = self._signal()
+        await _close_first_be_rescue(sig, self._pos_info(),
+                                     cur_price=4488.38, entry_avg=4488.91)
+        assert sig.close_first_be_armed is True
+        assert sig.close_first_be_deadline is not None
+
+    async def test_rescue_idempotente(
+            self, isolated_journal, captured_modifies, no_side_effects):
+        # Segunda llamada con la rama ya armada → no re-encola nada
+        sig = self._signal()
+        await _close_first_be_rescue(sig, self._pos_info(),
+                                     cur_price=4488.38, entry_avg=4488.91)
+        captured_modifies.clear()
+        await _close_first_be_rescue(sig, self._pos_info(),
+                                     cur_price=4488.38, entry_avg=4488.91)
+        assert captured_modifies == []

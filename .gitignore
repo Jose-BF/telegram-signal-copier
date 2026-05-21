@@ -1,0 +1,55 @@
+# Secretos — NUNCA subir
+.env
+.env.*
+*.env
+*.env.*
+*.key
+*.pem
+secrets/
+
+# Telethon session (contiene tokens de auth)
+*.session
+*.session*
+*.session-journal
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Logs y datos de runtime
+logs/
+*.log
+
+# Eventos y journal: gitignored por defecto, EXCEPTO los ficheros canónicos
+# de producción y de test (los queremos en git para análisis post-sesión).
+# El patrón * sigue ignorando duplicados/backups (trade_events_apr27_pasted.jsonl, etc.)
+data/trade_events*.jsonl
+data/trade_journal*.csv
+!data/trade_events.jsonl
+!data/trade_events_TEST.jsonl
+!data/trade_journal.csv
+!data/trade_journal_TEST.csv
+
+# Datos históricos de ticks (grandes, se regeneran con download_xauusd_2026.py)
+data/ticks_cache/
+data/xauusd_m1_2026.parquet
+data/canal1_signals_2026.parquet
+data/canal2_signals_2026.parquet
+signals_samples/
+
+# Exports de señales legacy (runtime)
+signals_detail.csv
+signals_export.csv
+
+# Los archivos de eventos y journal SÍ se trackean (análisis post-sesión)
+# data/trade_events.jsonl        ← trackeado
+# data/trade_events_TEST.jsonl   ← trackeado
+# data/trade_journal.csv         ← trackeado
+# data/trade_journal_TEST.csv    ← trackeado
+
+# IDE
+.vscode/
+.idea/

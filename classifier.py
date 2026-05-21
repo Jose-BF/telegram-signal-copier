@@ -1,0 +1,545 @@
+"""
+Clasifica mensajes de gestión de operaciones.
+
+Devuelve una LISTA de acciones (un mensaje puede contener varias):
+  - "TP1 hit. Move SL to BE" → [INFORMATIONAL, MOVE_SL_TO_BE]
+  - "Move SL to 4750"        → [MOVE_SL_TO_PRICE]
+  - "Close all"              → [CLOSE_ALL]
+
+Pipeline:
+  1. Regex local (sin coste, batería ampliada con frases reales del histórico).
+  2. Si el regex no encuentra NADA, fallback a Gemini 2.5 Flash con retry+backoff.
+  3. Si Gemini falla todos los intentos → devolvemos INFORMATIONAL pero
+     marcamos `_gemini_failed` para que el journal lo registre.
+"""
+
+import asyncio
+import re
+import json
+import time
+from google import genai
+import config
+
+_client = genai.Client(api_key=config.GOOGLE_API_KEY)
+
+# ───────────────────────────────────────────────────────────────────────────
+# Prompt LEGACY (sin contexto) — usado cuando classify() se llama sin signal.
+# Se mantiene por backward compat, pero CONTEXTUAL es el camino preferido.
+# ───────────────────────────────────────────────────────────────────────────
+_PROMPT_TEMPLATE = """You are a trading signal classifier for a gold (XAUUSD) Telegram channel.
+The message MAY contain MULTIPLE actions. Return a JSON ARRAY of every action present.
+Respond ONLY with valid JSON, no extra text or markdown.
+
+Message: "{msg}"
+
+Available actions:
+- CLOSE_ALL        → close ALL positions for this trade
+- CLOSE_FIRST      → close the FIRST/EARLIEST entries
+- CLOSE_AT_TP      → close position at specific TP (price = tp number 1..5)
+- MOVE_SL_TO_BE    → move stop loss to breakeven / entry / 0% risk
+- MOVE_SL_TO_PRICE → move stop loss to specific price (price = the number)
+- INFORMATIONAL    → no action needed (TP/SL hit announcements, status, commentary)
+
+JSON format: [{{"action": "ACTION", "price": null_or_number, "confidence": 0.0_to_1.0}}, ...]
+
+If purely informational, return [{{"action": "INFORMATIONAL", "price": null, "confidence": 1.0}}].
+If you cannot understand the message, return []."""
+
+
+# ───────────────────────────────────────────────────────────────────────────
+# Prompt CONTEXTUAL — usado cuando hay un Signal asociado (caso normal en
+# producción para mgmt msgs durante un trade activo).
+#
+# Diferencias vs LEGACY:
+#  • Incluye estado del trade (dirección, P&L, posiciones, TPs/SL, tiempo)
+#  • Tiene ejemplos de frases típicas del trader (ambos canales)
+#  • Acciones extendidas: PROTECT_AND_NOTIFY, HIGH_RISK_WARNING, SIGNAL_UPDATED
+#  • Pide reasoning en cada acción para debug/journal
+#  • Bias conservador explícito
+# ───────────────────────────────────────────────────────────────────────────
+_PROMPT_CONTEXTUAL = """You are a trading assistant for XAUUSD signals on Telegram.
+The trader writes both NARRATIVE messages (canal 1, e.g. DT Investing) and
+STRUCTURED notifications (canal 2). Your job: extract any actionable trading
+instruction. Respond ONLY with valid JSON, no markdown.
+
+═══ CURRENT TRADE CONTEXT ═══
+Channel:        {channel}
+Direction:      {direction}
+Entry price:    {entry_price}
+Current TPs:    {tps}
+Current SL:     {sl}
+Open positions: {n_open} of {n_initial} originally opened
+Time elapsed:   {elapsed_min} min
+Floating P&L:   {floating_pnl} USD
+Current price:  {current_price}
+BE armed:       {be_armed}
+
+═══ TRADER'S TYPICAL PHRASES ═══
+EXPLICIT ACTIONS:
+  "Move SL to BE" / "0% risk" / "secure the trade" → MOVE_SL_TO_BE (high conf)
+  "Close all" / "out of trade" / "closing our last entries" → CLOSE_ALL (high conf)
+  "Move SL to 4750" / "adjust stop to 4750" → MOVE_SL_TO_PRICE (price=4750)
+  "Close first entry" / "close early entries" → CLOSE_FIRST (high conf)
+  "Setup is no longer valid" / "trade invalidated" → CLOSE_ALL (high conf)
+
+CHANGED LEVELS (signal still active but TPs/SL different):
+  "Entries have changed, check them again" → SIGNAL_UPDATED (medium conf)
+  "New entry zones" / "different SL now" → SIGNAL_UPDATED
+
+WARNINGS (no direct action, just info):
+  "High risk trade 🚨" → HIGH_RISK_WARNING (the bot already labeled at signal start)
+  "Don't add more entries" / "stay out for now" → INFORMATIONAL
+    (the bot doesn't add positions on its own; future signals processed normally)
+
+INFORMATIONAL (no action):
+  "TP1 hit" / "+50 pips secured" / "running" → INFORMATIONAL
+  "Gold reacted from our zone" / market commentary → INFORMATIONAL
+  "BE has been hit" / "we played it safe" → INFORMATIONAL
+
+CONDITIONAL (CRITICAL — never auto-act on conditions):
+  Any message with structure "If X then Y" / "Watch X, then we will Y" /
+  "If 15M closes above N, we will close" → CONDITIONAL → INFORMATIONAL.
+
+  The bot CANNOT watch sub-timeframe candle closes, sub-second price
+  triggers, or any other condition that's not a direct order. The trader
+  WILL send a follow-up message with the actual order if the condition
+  triggers. UNTIL that follow-up arrives, treat the conditional as
+  pure information.
+
+  Examples (all → INFORMATIONAL, conf 0.95):
+    "If 15M closes above 4700, we will close this trade"
+    "Watch the 15M candle close now"
+    "If gold breaks 4700, setup invalid"
+    "If price closes above X, we will reverse"
+    "If we lose this level we exit"
+
+  KEY DISTINCTION:
+    "we will close" + condition (If/Watch/When) → CONDITIONAL → INFORMATIONAL
+    "we are closing" / "closing now" / "close" (imperative) → CLOSE_ALL
+
+CRITICAL EXAMPLE (caso real canal1_19649, sesion 2026-05-13):
+  Trader message:
+    "Guys, watch the 15M candle close now.
+     If the 15M closes above 4700, we will close this trade around entry
+     and wait for a better re-entry."
+
+  CORRECT:
+    [{{"action": "INFORMATIONAL", "price": null, "confidence": 0.95,
+      "reasoning": "CONDITIONAL: 'If 15M closes above 4700 then we will close' — wait for follow-up order if condition triggers"}}]
+
+  WRONG (lo que el bot regex hizo, perdio -$9.94):
+    [{{"action": "CLOSE_ALL", "confidence": 0.90}}]
+  Why wrong: the regex matched "close this trade" but ignored the "If"
+  prefix. There's NO unconditional close order here — the trader is
+  setting up a watching scenario. The bot must NOT pre-empt the condition.
+
+═══ AMBIGUOUS / PROTECTIVE ═══
+"Secure profits if you're satisfied" / "protect your trade" without explicit
+action → PROTECT_AND_NOTIFY (medium conf, the bot will notify user with
+trade context to decide).
+
+═══ IMPERATIVE vs OPTIONAL (CRITICAL — read carefully) ═══
+The trader sometimes mixes ORDERS and SUGGESTIONS in the same message.
+Distinguish them carefully:
+
+  ORDER (must execute, strong verb):
+    "Set SL at 4685" → MOVE_SL_TO_PRICE (price=4685)
+    "Move SL to BE" → MOVE_SL_TO_BE
+    "Close all now" → CLOSE_ALL
+    "Closing the trade" → CLOSE_ALL
+
+  OPTIONAL (sugiere a sub-grupo de traders, NO ejecutar):
+    "you can close now"  → IGNORE this, NOT a CLOSE_ALL order
+    "feel free to close"  → IGNORE
+    "if you want, exit"  → IGNORE
+    "for those who don't want more risk, you can ..."  → IGNORE the suggestion
+    "anyone who is uncomfortable can close"  → IGNORE
+    "members who are out, ..."  → IGNORE the conditional
+
+KEY RULE: Phrases starting with "you can / if you want / feel free / for
+anyone / for those who" indicate OPTIONAL action for SOME traders, NOT a
+universal order. Extract ONLY the imperative actions, ignore the optional
+suggestions.
+
+CRITICAL EXAMPLE (real case sesion 2026-05-12, lost -$8.58):
+  Trader message:
+    "Give gold a bit more room now.
+     Set SL at **4685.00**.
+     For anyone who doesn't want to take more risk, you can close now."
+
+  CORRECT classification:
+    [{{"action": "MOVE_SL_TO_PRICE", "price": 4685.00, "confidence": 0.95,
+      "reasoning": "Imperative: Set SL at 4685"}}]
+
+  WRONG (what the bot did before this fix):
+    [{{"action": "CLOSE_ALL", ...}}]
+  Why wrong: "you can close" is a suggestion for traders who want out,
+  NOT an order to close all positions. The order is "Set SL at 4685"
+  (give the trade more room).
+
+If a message has both an imperative AND an optional close suggestion,
+ALWAYS prioritize the imperative. The optional close is just info for
+risk-averse subscribers; the bot follows the trader's main directive.
+
+═══ MESSAGE TO CLASSIFY ═══
+"{msg}"
+
+Return JSON array (max 3 actions). Each:
+{{"action": "X", "price": null_or_number, "confidence": 0.0_to_1.0,
+  "reasoning": "brief why (10-15 words)"}}
+
+ACTIONS ALLOWED:
+- CLOSE_ALL, CLOSE_FIRST, CLOSE_AT_TP, MOVE_SL_TO_BE, MOVE_SL_TO_PRICE
+- INFORMATIONAL, PROTECT_AND_NOTIFY, SIGNAL_UPDATED, HIGH_RISK_WARNING
+
+═══ CONFIDENCE GUIDELINES ═══
+- Explicit instruction matching trader's typical phrase: 0.85 - 1.0
+- Implied action / context-dependent: 0.5 - 0.8 (will trigger user notify)
+- Pure commentary: INFORMATIONAL with conf 0.9+
+- Unsure: INFORMATIONAL with conf 0.5
+
+CONSERVATIVE BIAS: when in doubt, INFORMATIONAL > acting wrongly.
+The bot trusts MT5 for actual TP/SL fills — don't suggest closures on
+"TP hit" messages because MT5 already handles those.
+
+If you cannot parse, return [].
+"""
+
+
+def _build_context_block(signal) -> dict:
+    """Construye dict de contexto para format del prompt contextual.
+
+    Si el signal tiene build_context() (caso normal), lo usa.
+    Si no, devuelve dict de placeholders mínimos.
+    """
+    try:
+        ctx = signal.build_context()
+        return {
+            "channel": ctx.channel,
+            "direction": ctx.direction,
+            "entry_price": ctx.entry_price if ctx.entry_price else "n/a",
+            "tps": ctx.tps if ctx.tps else "[]",
+            "sl": ctx.sl if ctx.sl else "n/a",
+            "n_open": ctx.n_open,
+            "n_initial": ctx.n_initial,
+            "elapsed_min": ctx.elapsed_min,
+            "floating_pnl": f"{ctx.floating_pnl_total:+.2f}",
+            "current_price": ctx.current_price if ctx.current_price else "n/a",
+            "be_armed": "yes" if ctx.be_armed else "no",
+        }
+    except Exception as e:
+        print(f"[Classifier] _build_context_block error: {e} — usando placeholders")
+        return {
+            "channel": "unknown", "direction": "?", "entry_price": "n/a",
+            "tps": "[]", "sl": "n/a", "n_open": 0, "n_initial": 0,
+            "elapsed_min": 0, "floating_pnl": "0.00",
+            "current_price": "n/a", "be_armed": "no",
+        }
+
+
+# ─── Regex local ────────────────────────────────────────────────────────────
+
+_NEG_SL_HIT = ("sl hit", "stop loss hit", "sl was", "sl reached")
+
+
+def _regex_classify_all(text: str) -> list[dict]:
+    """Detecta TODAS las acciones presentes en el texto. Lista vacía si nada."""
+    t = text.lower()
+    actions: list[dict] = []
+
+    # 0. Anuncio puro de niveles (TP solos o TP+SL/SP combinados).
+    # Evita que Gemini interprete "TP1 4705.50" como CLOSE_AT_TP @4705.5.
+    # El parser ya extrae los niveles vía parse_canal2 antes del classify,
+    # así que estos mensajes son INFORMATIONAL desde el punto de vista de
+    # acciones — el SL/TPs ya se aplicaron por el camino correcto.
+    # Formatos cubiertos:
+    #   "TP1=4688.41 | TP2=4690.41 | TP3=4692.41"
+    #   "TP1 4688.41"
+    #   "TP1 4705.50  SP 4716.50"  (la línea SP la captura el parser, no aquí)
+    #   "TP1 4705.50  SL 4716.50"
+    if re.fullmatch(r"(?:(?:tp\s*\d+|s[lp])\s*[=:\s]+[\d.]+\s*[|,\s]*)+",
+                    t.strip()):
+        return [{"action": "INFORMATIONAL", "price": None, "confidence": 1.0,
+                 "_reason": "pure_levels_announcement"}]
+
+    # 1. SL a precio explícito — verbos extendidos (move/change/adjust/set/put)
+    m = re.search(
+        r"(?:moving?|move|chang(?:e|ing)|adjust(?:ing)?|set(?:ting)?|put(?:ting)?)"
+        r"\s+(?:my\s+|the\s+|your\s+)?(?:stop.?loss|sl)\s+(?:to|at)\s+([\d.]+)",
+        t,
+    )
+    if m:
+        actions.append({"action": "MOVE_SL_TO_PRICE",
+                        "price": float(m.group(1)), "confidence": 1.0})
+
+    # 1b. Bare "SL 4700" / "SL: 4700" — sin verbo, contexto de gestión
+    if not any(a["action"] == "MOVE_SL_TO_PRICE" for a in actions):
+        m = re.search(r"\bsl\s*[:=]?\s*(\d{3,5}(?:\.\d{1,3})?)\b", t)
+        if m and not any(neg in t for neg in _NEG_SL_HIT):
+            actions.append({"action": "MOVE_SL_TO_PRICE",
+                            "price": float(m.group(1)), "confidence": 0.80})
+
+    # 2. SL a BE / risk-free / breakeven
+    be_phrases = [
+        r"move\s+(?:my\s+|your\s+)?sl\s+to\s+be\b",
+        r"move\s+(?:my\s+|your\s+|the\s+)?stop.?loss\s+to\s+(?:be|breakeven|entry)",
+        r"sl\s+to\s+(?:be|breakeven|entry)\b",
+        r"\b0\s*%?\s*risk\b",
+        r"risk.?free",
+        r"move.*stop.*above.*lowest",
+        r"move.*stop.*below.*highest",
+        r"to\s+breakeven\b",
+        r"\bbe\s+risk.?free\b",
+    ]
+    if any(re.search(p, t) for p in be_phrases):
+        actions.append({"action": "MOVE_SL_TO_BE",
+                        "price": None, "confidence": 0.95})
+
+    # 3. "I am out at BE" / "closing here at BE" → trader cierra todo en BE
+    out_be_phrases = [
+        r"\bout\s+(?:of\s+)?(?:this\s+)?trade\s+at\s+(?:be|breakeven)",
+        r"clos(?:e|ing)\s+(?:here\s+)?at\s+(?:be|breakeven)",
+        r"\bout\s+at\s+(?:be|breakeven)\b",
+        r"\bi\s+am\s+out\s+(?:of\s+)?this\s+trade\b",
+        r"\bi'm\s+out\s+(?:of\s+)?this\s+trade\b",
+    ]
+    if any(re.search(p, t) for p in out_be_phrases):
+        actions.append({"action": "CLOSE_ALL", "price": None,
+                        "confidence": 0.95, "_reason": "out_at_be"})
+
+    # 4. CLOSE_FIRST contextual.
+    # Detecta singular vs plural — semantica DISTINTA con doble_market activo:
+    #   "close first entry"   (singular) → cerrar 1 pos (la peor por P&L)
+    #   "close first entries" (plural)   → cerrar TODAS las kind=market
+    #                                      (Pos A + Pos B), dejar DCAs corriendo
+    # Esto ultimo es lo que el trader pide: "asegura las primeras (markets) y
+    # deja correr las DCAs de abajo, donde hay mas recorrido por hacer".
+    # Caso real canal2_12347 (sesion 2026-05-13): bot cerro solo 1 markets
+    # de 2, manteniendo Pos A en pesimo P&L cuando deberia haber cerrado
+    # ambas y dejar DCAs (que aun no habian llenado).
+    plural_match = re.search(
+        r"close\s+(?:the\s+|your\s+|my\s+)?"
+        r"(?:first|early|oldest|initial)\s+"
+        r"(?:entries|positions|ones)\b", t)
+    singular_match = re.search(
+        r"close\s+(?:the\s+|your\s+|my\s+)?"
+        r"(?:first|early|oldest|initial)\s+"
+        r"(?:entry|position)\b", t)
+    compound_match = re.search(
+        r"close\s+(?:the\s+|your\s+|my\s+)?"
+        r"(?:first|early|oldest|initial)\s+and\s+(?:move|adjust|set)", t)
+    if plural_match:
+        actions.append({"action": "CLOSE_FIRST", "price": None,
+                        "confidence": 0.92, "is_plural": True,
+                        "_reason": "close_first_contextual_plural"})
+    elif singular_match or compound_match:
+        actions.append({"action": "CLOSE_FIRST", "price": None,
+                        "confidence": 0.92, "is_plural": False,
+                        "_reason": "close_first_contextual_singular"})
+
+    # 5. "If you have one entry close it now" → CLOSE_ALL.
+    # Mensaje compañero típico cuando el canal manda "close your first entries
+    # now. If you have one entry close it now." Si CLOSE_FIRST ya disparó
+    # arriba, NO añadimos CLOSE_ALL — el ejecutor de CLOSE_FIRST cubre el
+    # caso n=1 (cierra esa única posición = mismo efecto).
+    if (re.search(
+            r"if\s+you\s+(?:have|got|only\s+have)\s+one\s+entry.*clos(?:e|ing)", t)
+        and not any(a["action"] == "CLOSE_FIRST" for a in actions)):
+        actions.append({"action": "CLOSE_ALL", "price": None,
+                        "confidence": 0.95, "_reason": "single_entry_close"})
+
+    # 6. Cierre total — fraseos genéricos.
+    # IMPORTANTE: si CLOSE_FIRST ya se detectó, NO añadimos CLOSE_ALL aquí.
+    # "close your first entries now" matchea tanto "first entries" (regla 4)
+    # como "close.*entries.*now" (esta regla). La intención del canal es
+    # parcial, no total — CLOSE_FIRST tiene prioridad por especificidad.
+    close_all_phrases = [
+        "close the rest", r"close\s+all\b", "close your entries",
+        r"close.*entries.*now", r"gold\s+is\s+back.*entry",
+        r"close\s+everything", r"close\s+the\s+trade\b",
+        r"close\s+this\s+trade\b", r"close\s+now\b",
+        r"clos(?:e|ing)\s+all\s+positions",
+    ]
+    if any(re.search(p, t) for p in close_all_phrases):
+        if not any(a["action"] in ("CLOSE_ALL", "CLOSE_FIRST") for a in actions):
+            actions.append({"action": "CLOSE_ALL", "price": None, "confidence": 0.90})
+
+    # 7. "Let's close TP1 here" / "Close TP3 here" → CLOSE_AT_TP
+    m = re.search(r"clos(?:e|ing)\s+(?:the\s+)?tp\s*(\d)", t)
+    if m:
+        actions.append({"action": "CLOSE_AT_TP",
+                        "price": int(m.group(1)), "confidence": 0.85})
+
+    # 8. INFORMATIONAL — solo si no detectamos NINGUNA acción real arriba.
+    # Las variantes de SL hit ("already", "just", "was", "has been") las
+    # dejamos como info: el bot detecta el cierre real vía MT5 auto-finalize
+    # del dca_monitor (cuando n_open=0). Defensa en profundidad: además
+    # _SL_HIT_RE del listener detecta estas mismas variantes y dispara
+    # _finalize_signal por si MT5 tarda en reportar el cierre.
+    if not actions:
+        info_phrases = [
+            r"tp\s*\d+\s*(?:hit|reached|secured|done)",
+            r"\bsl\s+(?:was\s+|already\s+|just\s+|has\s+been\s+)?hit\b",
+            r"stop\s+loss\s+(?:was\s+|already\s+|just\s+|has\s+been\s+)?hit",
+            r"\bsl\s+(?:reached|triggered|edited)\b",
+            r"pips?\s+(?:profit|secured|gained|locked)",
+            r"pips?\s+from\s+entry",
+            r"target.*down", r"running\s+in\s+profit",
+            r"strong\s+move", r"stay\s+patient",
+            r"keep\s+the\s+same", r"let.*trade\s+develop",
+            r"trade\s+is\s+now\s+risky",
+            r"secur(?:e|ing)\s+some\s+profits?",
+            r"clos(?:e|ing)\s+some\s+profits?",
+            r"i\s+am\s+clos(?:e|ing)\s+some",
+            r"let.*secure",
+            r"\bin\s+profit\b", r"good\s+move", r"nice\s+move",
+        ]
+        if any(re.search(p, t) for p in info_phrases):
+            actions.append({"action": "INFORMATIONAL",
+                            "price": None, "confidence": 0.90})
+
+    return actions
+
+
+# ─── Gemini con retry+backoff ───────────────────────────────────────────────
+
+def _parse_gemini_json(raw: str) -> list[dict]:
+    """Parsea la respuesta de Gemini, normalizando dict/list a list."""
+    raw = raw.strip()
+    # Limpiar fences markdown si los hay
+    if raw.startswith("```"):
+        raw = re.sub(r"^```(?:json)?\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw)
+    raw = raw.strip()
+    parsed = json.loads(raw)
+    if isinstance(parsed, dict):
+        return [parsed]
+    if isinstance(parsed, list):
+        return parsed
+    raise ValueError(f"Gemini devolvió tipo inesperado: {type(parsed).__name__}")
+
+
+def _gemini_classify(text: str, signal=None, max_retries: int = 3,
+                     base_wait: float = 2.0) -> list[dict]:
+    """Llama a Gemini con backoff exponencial (2s, 4s, 8s).
+
+    Si signal se proporciona, usa el prompt CONTEXTUAL (incluye estado del
+    trade: dirección, P&L, posiciones, TPs/SL, ejemplos del trader).
+    Si no, usa el prompt LEGACY (genérico, backward compat).
+
+    El prompt contextual produce mejor accuracy en mensajes narrativos del
+    canal 1 y maneja casos como typos del canal 2 con awareness del estado.
+    """
+    if signal is not None:
+        ctx_data = _build_context_block(signal)
+        prompt = _PROMPT_CONTEXTUAL.format(msg=text, **ctx_data)
+    else:
+        prompt = _PROMPT_TEMPLATE.format(msg=text)
+
+    last_error: Exception | None = None
+    for attempt in range(max_retries):
+        try:
+            resp = _client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+            )
+            actions = _parse_gemini_json(resp.text or "")
+            if not actions:
+                # Lista vacía es respuesta válida = "no entiendo"
+                return []
+            return actions
+        except Exception as e:  # incluye 503, JSONDecodeError, ValueError
+            last_error = e
+            if attempt < max_retries - 1:
+                wait = base_wait * (2 ** attempt)
+                print(f"[Classifier] Gemini intento {attempt+1}/{max_retries} "
+                      f"falló ({type(e).__name__}): {e} — retry en {wait:.0f}s")
+                time.sleep(wait)
+            else:
+                print(f"[Classifier] Gemini agotó {max_retries} intentos. "
+                      f"Último error: {e}")
+
+    # Fallback final: marcamos para que el journal sepa que perdimos info
+    return [{"action": "INFORMATIONAL", "price": None, "confidence": 0.0,
+             "_gemini_failed": True,
+             "_last_error": str(last_error) if last_error else "unknown"}]
+
+
+# ─── API pública ────────────────────────────────────────────────────────────
+
+def classify(text: str, signal=None) -> list[dict]:
+    """Version SINCRONA. Devuelve la lista de acciones detectadas en el texto.
+
+    Args:
+        text: el mensaje del trader.
+        signal: opcional. Si se proporciona, Gemini recibe el contexto del
+            trade (estado en vivo desde MT5) y usa prompt enriquecido. Si no,
+            Gemini recibe solo el texto (prompt legacy). El regex local NO
+            usa contexto — siempre se aplica primero.
+
+    Lista vacía = mensaje irrelevante / no parseable.
+    Lista con varios elementos = mensaje compuesto (ej: "TP1 hit. Move SL to BE").
+
+    AVISO: si la rama Gemini se ejecuta (regex no matchea), esta funcion
+    BLOQUEA hasta 14s (3 retries con backoff 2/4/8s + tiempo de respuesta).
+    En codigo async usar `classify_async` para no bloquear el event loop
+    (bug C1 fix). Esta version sync se mantiene para tools/scripts y para
+    el regex puro (que es <1ms).
+    """
+    if not text or not text.strip():
+        return []
+
+    actions = _regex_classify_all(text)
+    if actions:
+        return actions
+
+    return _gemini_classify(text, signal=signal)
+
+
+async def classify_async(text: str, signal=None) -> list[dict]:
+    """Version ASYNC de classify.
+
+    Routing:
+      - Canal 1 con signal: SIEMPRE Gemini (skip regex). Razon — el canal 1
+        usa lenguaje narrativo/contextual con muchos condicionales ("if X
+        then Y", "watch the candle close") que el regex pattern-matchea
+        catastroficamente. Caso real canal1_19649 (sesion 2026-05-13): el
+        regex matched "close this trade" dentro de "If 15M closes above
+        4700, we will close this trade" → CLOSE_ALL prematuro, perdida
+        -$9.94. Para canal 1 priorizamos COMPRENSION CONTEXTUAL sobre
+        velocidad — el coste extra de ~3-5s por mgmt_msg es aceptable
+        porque mgmt_msgs son raros (~5-10 por sesion).
+
+      - Canal 2 / sin signal: regex first (rapido, ~1ms). El canal 2 manda
+        ordenes mas directas y cortas que el regex maneja bien.
+
+    Si el regex matchea (canal 2) → retorna sin Gemini.
+    Si no matchea o es canal 1 → Gemini en thread pool (no bloquea loop).
+    """
+    if not text or not text.strip():
+        return []
+
+    # Canal 1: bot CONTEXTUAL — Gemini siempre con contexto del trade.
+    # Excepcion: si signal es None (no hay contexto), fallback a regex
+    # para evitar llamada Gemini sin info util.
+    if signal is not None and getattr(signal, "channel", None) == "canal1":
+        return await asyncio.to_thread(_gemini_classify, text, signal)
+
+    # Canal 2 / signal None: regex first (rapido)
+    actions = _regex_classify_all(text)
+    if actions:
+        return actions
+
+    return await asyncio.to_thread(_gemini_classify, text, signal)
+
+
+def classify_one(text: str) -> dict:
+    """Helper retrocompat: devuelve solo la primera acción.
+
+    Útil si el código consumidor aún no sabe iterar sobre la lista.
+    Si no hay acciones, devuelve INFORMATIONAL.
+    """
+    actions = classify(text)
+    if actions:
+        return actions[0]
+    return {"action": "INFORMATIONAL", "price": None, "confidence": 0.0}
