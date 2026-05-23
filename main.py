@@ -65,15 +65,28 @@ def _should_alert_sustained_disconnect(connected: bool,
             and not already_alerted)
 
 
+def _count_open_signals_unique(state_manager) -> int:
+    """Cuenta senales abiertas sin duplicar aliases del StateManager."""
+    seen: set[int] = set()
+    count = 0
+    for sig in state_manager._signals.values():
+        if sig.status != "open":
+            continue
+        obj_id = id(sig)
+        if obj_id in seen:
+            continue
+        seen.add(obj_id)
+        count += 1
+    return count
+
+
 async def _heartbeat(interval_sec: int = 300):
     """Escribe un evento 'heartbeat' cada N segundos al journal.
     Si el bot se cae en silencio, el log mostrará exactamente cuándo paró."""
     await asyncio.sleep(interval_sec)   # primer beat tras arrancar
     while True:
         from state import state
-        open_signals = sum(
-            1 for s in state._signals.values() if s.status == "open"
-        )
+        open_signals = _count_open_signals_unique(state)
         journal.event("bot", "heartbeat",
                       open_signals=open_signals,
                       utc=datetime.utcnow().isoformat(timespec="seconds"))

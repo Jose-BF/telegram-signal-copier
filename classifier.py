@@ -242,6 +242,51 @@ def _build_context_block(signal) -> dict:
 _NEG_SL_HIT = ("sl hit", "stop loss hit", "sl was", "sl reached")
 
 
+def _canal1_safe_regex_classify(text: str) -> list[dict]:
+    """Regex estrecho para canal1 antes de Gemini.
+
+    Canal1 no puede usar el regex general: ya hubo un bug real donde
+    "If ... we will close" se ejecuto como CLOSE_ALL. Este helper solo cubre
+    ordenes directas, sin condicionales, para que Gemini no sea punto unico de
+    fallo en mensajes mecanicamente obvios.
+    """
+    t = text.lower()
+    if re.search(r"\b(if|when|once|unless)\b", t):
+        return []
+    if re.search(r"\bwatch\b.*\b(close|exit|sl|stop|move)\b", t):
+        return []
+
+    actions: list[dict] = []
+
+    be_phrases = [
+        r"\bmove\s+(?:my\s+|your\s+|the\s+)?sl\s+to\s+be\b",
+        r"\bmove\s+(?:my\s+|your\s+|the\s+)?stop.?loss\s+to\s+(?:be|breakeven|entry)\b",
+        r"\bsl\s+to\s+(?:be|breakeven|entry)\b",
+        r"\b0\s*%?\s*risk\b",
+        r"\brisk.?free\b",
+    ]
+    if any(re.search(p, t) for p in be_phrases):
+        actions.append({"action": "MOVE_SL_TO_BE",
+                        "price": None, "confidence": 0.95,
+                        "_reason": "canal1_safe_direct_be"})
+
+    close_all_phrases = [
+        r"\bclose\s+all\b",
+        r"\bclose\s+everything\b",
+        r"\bclos(?:e|ing)\s+(?:the\s+)?trade\s+now\b",
+        r"\bclos(?:e|ing)\s+(?:my\s+|our\s+|the\s+)?trades?\s+now\b",
+        r"\bclos(?:e|ing)\s+(?:our\s+|the\s+)?last\s+entries\b",
+        r"\bi(?:'m| am)\s+out\s+(?:of\s+)?(?:this\s+|the\s+)?trade\b",
+        r"\bout\s+of\s+(?:this\s+|the\s+)?trade\b",
+    ]
+    if any(re.search(p, t) for p in close_all_phrases):
+        actions.append({"action": "CLOSE_ALL",
+                        "price": None, "confidence": 0.92,
+                        "_reason": "canal1_safe_direct_close"})
+
+    return actions
+
+
 def _regex_classify_all(text: str) -> list[dict]:
     """Detecta TODAS las acciones presentes en el texto. Lista vacía si nada."""
     t = text.lower()
@@ -523,6 +568,9 @@ async def classify_async(text: str, signal=None) -> list[dict]:
     # Excepcion: si signal es None (no hay contexto), fallback a regex
     # para evitar llamada Gemini sin info util.
     if signal is not None and getattr(signal, "channel", None) == "canal1":
+        actions = _canal1_safe_regex_classify(text)
+        if actions:
+            return actions
         return await asyncio.to_thread(_gemini_classify, text, signal)
 
     # Canal 2 / signal None: regex first (rapido)

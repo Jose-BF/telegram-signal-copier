@@ -81,6 +81,7 @@ class TestPositionGone:
     @pytest.mark.parametrize("retcode,name", [
         (10013, "TRADE_RETCODE_INVALID"),
         (10011, "TRADE_RETCODE_ERROR"),
+        (10036, "TRADE_RETCODE_POSITION_CLOSED"),
     ])
     def test_classified_as_position_gone(self, retcode, name):
         assert classify(retcode) == "POSITION_GONE", \

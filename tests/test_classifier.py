@@ -25,6 +25,7 @@ import asyncio
 import pytest
 
 from classifier import _regex_classify_all, classify_one, classify_async
+from state import Signal
 
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
@@ -448,6 +449,64 @@ class TestEdgeCases:
 
 class TestClassifyAsync:
     """Version async de classify para no bloquear el event loop con Gemini."""
+
+    @pytest.mark.asyncio
+    async def test_canal1_safe_move_be_does_not_need_gemini(self, monkeypatch):
+        """REAL 2026-05-22 canal1_19868: mensaje claro, Gemini caido."""
+        calls = []
+
+        def gemini_should_not_run(*args, **kwargs):
+            calls.append(args)
+            raise AssertionError("Gemini no debe ejecutarse para MOVE_SL_TO_BE claro")
+
+        monkeypatch.setattr("classifier._gemini_classify", gemini_should_not_run)
+        sig = Signal(channel="canal1", message_id=19868, direction="SELL")
+
+        result = await classify_async(
+            "Running almost 50+ pips move SL to BE around 4520",
+            signal=sig,
+        )
+
+        assert calls == []
+        assert [a["action"] for a in result] == ["MOVE_SL_TO_BE"]
+
+    @pytest.mark.asyncio
+    async def test_canal1_safe_close_my_trades_now_does_not_need_gemini(self, monkeypatch):
+        """REAL 2026-05-22 canal1_19868: cierre explicito del trader."""
+        monkeypatch.setattr(
+            "classifier._gemini_classify",
+            lambda *a, **kw: (_ for _ in ()).throw(
+                AssertionError("Gemini no debe ejecutarse para cierre claro")
+            ),
+        )
+        sig = Signal(channel="canal1", message_id=19868, direction="SELL")
+
+        result = await classify_async(
+            "I'm closing my trades now in strong profit",
+            signal=sig,
+        )
+
+        assert [a["action"] for a in result] == ["CLOSE_ALL"]
+
+    @pytest.mark.asyncio
+    async def test_canal1_conditional_close_still_uses_gemini(self, monkeypatch):
+        """No reabrir el bug que hizo peligroso usar todo el regex en canal1."""
+        calls = []
+
+        def fake_gemini(text, signal=None, max_retries=3, base_wait=2.0):
+            calls.append((text, signal))
+            return [{"action": "INFORMATIONAL", "price": None, "confidence": 0.9}]
+
+        monkeypatch.setattr("classifier._gemini_classify", fake_gemini)
+        sig = Signal(channel="canal1", message_id=19649, direction="BUY")
+
+        result = await classify_async(
+            "If 15M closes above 4700, we will close this trade.",
+            signal=sig,
+        )
+
+        assert calls, "los condicionales de canal1 deben ir a Gemini contextual"
+        assert result[0]["action"] == "INFORMATIONAL"
 
     @pytest.mark.asyncio
     async def test_async_regex_match_no_gemini(self):

@@ -184,3 +184,29 @@ class TestForensicLifecycleLogging:
                 "label": "close bad leg",
             },
         )]
+
+    def test_log_done_records_modify_position_gone(self, monkeypatch):
+        events = []
+        import journal
+        monkeypatch.setattr(
+            journal, "event",
+            lambda sig, ev, **fields: events.append((sig, ev, fields)))
+
+        q = PendingQueue()
+        act = _make_action(label="BE #12345", new_sl=4700.0)
+        act.attempts = 1
+        act.last_retcode = 10036
+        q._log_done(act)
+
+        assert events == [(
+            "canal2_1",
+            "mt5_modify_skipped_position_gone",
+            {
+                "ticket": 12345,
+                "attempts": 1,
+                "retcode": 10036,
+                "label": "BE #12345",
+                "new_sl": 4700.0,
+                "new_tp": None,
+            },
+        )]

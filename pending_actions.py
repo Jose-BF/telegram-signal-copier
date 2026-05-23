@@ -249,8 +249,9 @@ class PendingQueue:
                     if (act.kind == "MODIFY_SLTP" and act.new_sl is not None
                             and mt5_errors.classify(act.last_retcode) == "OK"):
                         act.signal.sl_by_ticket[act.ticket] = act.new_sl
+                    cls_done = mt5_errors.classify(act.last_retcode)
                     if (act.kind != "MODIFY_SLTP"
-                            or mt5_errors.classify(act.last_retcode) == "OK"):
+                            or cls_done in ("OK", "POSITION_GONE")):
                         self._log_done(act)
                 elif result == "DROP":
                     print(f"[Pending] Descartado (error permanente {act.last_retcode}): {act.label}")
@@ -382,6 +383,11 @@ class PendingQueue:
                 "label": act.label,
             }
             if act.kind == "MODIFY_SLTP":
+                if mt5_errors.classify(act.last_retcode) == "POSITION_GONE":
+                    journal.event(sig_id, "mt5_modify_skipped_position_gone",
+                                  new_sl=act.new_sl, new_tp=act.new_tp,
+                                  **payload)
+                    return
                 journal.event(sig_id, "mt5_modify_confirmed",
                               new_sl=act.new_sl, new_tp=act.new_tp,
                               **payload)

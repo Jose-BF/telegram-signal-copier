@@ -427,6 +427,53 @@ def _edit_already_seen(channel: str, msg) -> bool:
 
 # ─── Helpers de configuración por canal ───────────────────────────────────────
 
+def _msg_text(msg) -> str:
+    return getattr(msg, "text", None) or getattr(msg, "message", None) or ""
+
+
+def _msg_ts_iso(msg) -> str | None:
+    ts = getattr(msg, "edit_date", None) or getattr(msg, "date", None)
+    return ts.isoformat(timespec="seconds") if ts else None
+
+
+async def _process_management_reply_edit(msg, channel: str,
+                                         label: str = "") -> bool:
+    """Procesa edits en replies de gestion.
+
+    En un edit de reply, msg.id es el del reply de gestion. La senal real esta
+    en reply_to_msg_id, por eso state.get(channel, msg.id) lo ignoraba.
+    """
+    reply_to = getattr(msg, "reply_to", None)
+    reply_id = getattr(reply_to, "reply_to_msg_id", None)
+    if not reply_id:
+        return False
+
+    other_channel = "canal1" if channel == "canal2" else "canal2"
+    sig = state.get(channel, reply_id) or state.get(other_channel, reply_id)
+    if sig is None or sig.status != "open":
+        return False
+
+    text = _msg_text(msg)
+    if not text:
+        return True
+
+    if _edit_already_seen(channel, msg):
+        if label:
+            print(f"[{label}] Edit gestion duplicado msg={msg.id} "
+                  f"edit_date={getattr(msg, 'edit_date', None)} ignorado")
+        return True
+
+    tg_ts = _msg_ts_iso(msg)
+    if channel == "canal2":
+        parsed = parse_canal2(text)
+        if parsed.get("tps") or parsed.get("sl"):
+            await _update_signal_from_parsed(sig, parsed, tg_ts=tg_ts)
+
+    cl = await classify_async(text, signal=sig)
+    await _execute_action(sig, cl, raw_text=text, tg_ts=tg_ts)
+    return True
+
+
 def _num_entries_for_channel(channel: str) -> int:
     """Número de entradas (market + limits) configurado para este canal."""
     if channel == "canal1":
@@ -2203,6 +2250,10 @@ async def _process_canal2_new(msg, label: str = "Canal2"):
 
 async def _process_canal2_edit(msg, label: str = "Canal2"):
     text = msg.text or ""
+
+    if await _process_management_reply_edit(msg, "canal2", label):
+        return
+
     sig  = state.get("canal2", msg.id)
 
     if sig is None or sig.status != "open":
@@ -2704,6 +2755,9 @@ async def _process_canal1_edit(msg):
          remotamente en MT5 sin confirmación del usuario es arriesgado,
          puede haber un typo del proveedor). El operador decide en MT5.
     """
+    if await _process_management_reply_edit(msg, "canal1", "Canal1"):
+        return
+
     sig = state.get("canal1", msg.id)
     if sig is None or sig.status != "open":
         return

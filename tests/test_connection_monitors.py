@@ -8,6 +8,7 @@ función pura para testearla sin async loops ni mocks de Telethon/MT5.
 import pytest
 
 import main
+from state import Signal, StateManager
 
 
 class TestShouldAlertSustainedDisconnect:
@@ -55,3 +56,16 @@ class TestShouldAlertSustainedDisconnect:
         assert main._should_alert_sustained_disconnect(
             connected=False, last_state=False, age_s=300.0,
             already_alerted=False, threshold_s=300.0) is True
+
+
+class TestHeartbeatOpenSignalCount:
+    def test_count_open_signals_deduplicates_canal1_aliases(self):
+        st = StateManager()
+        sig = Signal(channel="canal1", message_id=19868, direction="SELL",
+                     status="open")
+        st.add(sig)
+        st.alias(sig, 19869)
+        st.add(Signal(channel="canal2", message_id=12780, direction="BUY",
+                      status="open"))
+
+        assert main._count_open_signals_unique(st) == 2

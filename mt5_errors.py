@@ -23,6 +23,7 @@ STOPS_RELATED = {
 
 # Códigos que indican que la posición ya no existe
 POSITION_GONE = {
+    10036,  # TRADE_RETCODE_POSITION_CLOSED    - posicion ya cerrada
     10013,  # TRADE_RETCODE_INVALID            — operación inválida (pos. cerrada)
     10011,  # TRADE_RETCODE_ERROR              — error general (a veces pos. cerrada)
 }

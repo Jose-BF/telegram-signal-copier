@@ -20,10 +20,13 @@ Batch B cubre tres fallos silenciosos relacionados con mensajes del canal:
 """
 import pytest
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 
 from listener import (
     _classify_deleted_msg_impact,
     _diff_canal1_edit,
+    _process_canal1_edit,
+    _process_canal2_edit,
     _strict_vs_loose_canal1_filter,
 )
 from state import Signal, StateManager
@@ -146,6 +149,80 @@ class TestDiffCanal1Edit:
 
 
 # ─────────── B3 — strict vs loose canal1 signal-text filter ───────────
+
+class TestManagementReplyEdits:
+    """Edits de mensajes de gestion reply->senal deben re-procesarse."""
+
+    def _state_with_open_signal(self, channel="canal1"):
+        st = StateManager()
+        sig = Signal(channel=channel, message_id=100, direction="SELL",
+                     status="open", tps=[99.0], sl=110.0)
+        st.add(sig)
+        st.alias(sig, 101)
+        return st, sig
+
+    @pytest.mark.asyncio
+    async def test_canal1_management_reply_edit_executes_again(self, monkeypatch):
+        st, sig = self._state_with_open_signal("canal1")
+        calls = []
+
+        async def fake_classify(text, signal=None):
+            calls.append(("classify", text, signal))
+            return [{"action": "MOVE_SL_TO_BE", "price": None, "confidence": 0.95}]
+
+        async def fake_execute(signal, cl, raw_text="", tg_ts=None):
+            calls.append(("execute", signal, cl, raw_text, tg_ts))
+
+        monkeypatch.setattr("listener.state", st)
+        monkeypatch.setattr("listener.classify_async", fake_classify)
+        monkeypatch.setattr("listener._execute_action", fake_execute)
+
+        msg = SimpleNamespace(
+            id=102,
+            text="Move SL to BE for 0% risk",
+            message="Move SL to BE for 0% risk",
+            date=datetime.utcnow(),
+            edit_date=datetime.utcnow(),
+            reply_to=SimpleNamespace(reply_to_msg_id=101),
+        )
+
+        await _process_canal1_edit(msg)
+
+        assert calls[0] == ("classify", "Move SL to BE for 0% risk", sig)
+        assert calls[1][0] == "execute"
+        assert calls[1][1] is sig
+
+    @pytest.mark.asyncio
+    async def test_canal2_management_reply_edit_executes_again(self, monkeypatch):
+        st, sig = self._state_with_open_signal("canal2")
+        calls = []
+
+        async def fake_classify(text, signal=None):
+            calls.append(("classify", text, signal))
+            return [{"action": "CLOSE_ALL", "price": None, "confidence": 0.95}]
+
+        async def fake_execute(signal, cl, raw_text="", tg_ts=None):
+            calls.append(("execute", signal, cl, raw_text, tg_ts))
+
+        monkeypatch.setattr("listener.state", st)
+        monkeypatch.setattr("listener.classify_async", fake_classify)
+        monkeypatch.setattr("listener._execute_action", fake_execute)
+
+        msg = SimpleNamespace(
+            id=202,
+            text="Close all now",
+            message="Close all now",
+            date=datetime.utcnow(),
+            edit_date=datetime.utcnow(),
+            reply_to=SimpleNamespace(reply_to_msg_id=101),
+        )
+
+        await _process_canal2_edit(msg)
+
+        assert calls[0] == ("classify", "Close all now", sig)
+        assert calls[1][0] == "execute"
+        assert calls[1][1] is sig
+
 
 class TestStrictVsLooseCanal1Filter:
     """Tras tightening de is_canal1_signal_text (commit d4bf1a6 — bug
