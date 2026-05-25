@@ -91,12 +91,13 @@ def _realized_pl(signal: Signal):
             deals = mt5.history_deals_get(position=ticket)
             if not deals:
                 continue
-            for d in deals:
-                # Filtro defensivo por magic: si por algún error el ticket
-                # estuviera reciclado, descartamos deals ajenos.
-                if d.magic == signal.magic:
+            if any(d.magic == signal.magic for d in deals):
+                # El deal de apertura conserva el magic del bot. Un cierre
+                # manual desde MT5 puede venir con magic=0, pero sigue siendo
+                # parte de esta posicion y debe contar en el P/L realizado.
+                for d in deals:
                     total += d.profit + d.commission + d.swap
-                    found_any = True
+                found_any = True
         return round(total, 2) if found_any else None
     except Exception as e:
         print(f"[Journal] PnL realizado no calculable: {e}")

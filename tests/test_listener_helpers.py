@@ -11,7 +11,9 @@ Cubre:
 
 import pytest
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 
+import listener
 from listener import _should_accept_canal1_text, _standalone_mgmt_route
 from state import Signal
 
@@ -125,3 +127,23 @@ class TestStandaloneMgmtRoute:
     def test_actionable_zero_open_logs(self):
         # Sin señal abierta no hay nada que gestionar.
         assert _standalone_mgmt_route(0, has_actionable=True) == "log"
+
+
+class TestRealizedPl:
+    def test_manual_close_deal_with_zero_magic_is_included(self, monkeypatch):
+        sig = Signal(channel="canal1", message_id=19885, direction="SELL")
+        sig.market_ticket = 111
+
+        deals = [
+            SimpleNamespace(magic=sig.magic, profit=0.0,
+                            commission=0.0, swap=0.0),
+            SimpleNamespace(magic=0, profit=-4.62,
+                            commission=0.0, swap=0.0),
+        ]
+
+        monkeypatch.setattr(
+            "MetaTrader5.history_deals_get",
+            lambda position: deals if position == 111 else [],
+        )
+
+        assert listener._realized_pl(sig) == -4.62
