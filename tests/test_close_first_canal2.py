@@ -23,6 +23,7 @@ import pytest
 import journal
 import listener
 from listener import (_close_first_decision, _safe_tp_be,
+                      _close_all_be_rescue,
                       _close_first_be_timeout, _close_first_be_rescue)
 from state import Signal
 
@@ -327,3 +328,63 @@ class TestCloseFirstBeRescue:
         await _close_first_be_rescue(sig, self._pos_info(),
                                      cur_price=4488.38, entry_avg=4488.91)
         assert captured_modifies == []
+
+
+class TestCloseAllBeRescue:
+    """Guard para CLOSE_ALL semantico de BE/risk-free en loss real."""
+
+    def _signal(self):
+        sig = Signal(channel="canal2", message_id=12847, direction="BUY",
+                     market_ticket=700,
+                     extra_market_tickets=[701, 702, 703, 704])
+        sig.status = "open"
+        return sig
+
+    def _pos_info(self):
+        return [
+            {"ticket": 700, "pnl": -1.2, "entry": 4566.20, "tp": 4569,
+             "recorrido": 3.0},
+            {"ticket": 701, "pnl": -1.2, "entry": 4566.24, "tp": 4571,
+             "recorrido": 5.0},
+        ]
+
+    @pytest.fixture
+    def captured_modifies(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(
+            listener.pending_actions, "enqueue_modify_tp",
+            lambda signal, ticket, new_tp, label="": calls.append(
+                {"ticket": ticket, "new_tp": new_tp, "label": label}))
+        return calls
+
+    @pytest.fixture
+    def no_side_effects(self, monkeypatch):
+        def _fake_ensure_future(coro):
+            try:
+                coro.close()
+            except Exception:
+                pass
+            return None
+        monkeypatch.setattr(listener.asyncio, "ensure_future",
+                            _fake_ensure_future)
+
+        async def _fake_notify(*a, **k):
+            return None
+        monkeypatch.setattr(listener, "notify", _fake_notify)
+        monkeypatch.setattr(listener.mt5_errors if hasattr(listener, "mt5_errors")
+                            else __import__("mt5_errors"),
+                            "get_stops_level_pts", lambda: 1.0)
+
+    async def test_close_all_be_rescue_sets_tp_be_without_market_close(
+            self, isolated_journal, captured_modifies, no_side_effects):
+        sig = self._signal()
+
+        await _close_all_be_rescue(
+            sig, self._pos_info(), cur_price=4565.40,
+            entry_avg=4566.22, raw_text="close breakeven or risk free")
+
+        assert sorted(c["ticket"] for c in captured_modifies) == [700, 701]
+        assert all("CLOSE_ALL_BE_RESCUE" in c["label"]
+                   for c in captured_modifies)
+        assert sig.be_rescue_armed is True
+        assert sig.be_rescue_deadline is not None

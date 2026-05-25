@@ -130,6 +130,13 @@ class Signal:
     close_first_be_armed: bool = False
     close_first_be_deadline: Optional[datetime] = None
 
+    # Rescate BE generico para mensajes "close at breakeven / risk free" que
+    # llegan cuando nuestra entrada real esta en perdida. No es CLOSE_FIRST:
+    # se arma desde CLOSE_ALL semantico y sus cierres se etiquetan aparte.
+    be_rescue_armed: bool = False
+    be_rescue_deadline: Optional[datetime] = None
+    be_rescue_tickets: list = field(default_factory=list)
+
     # Override del TP por ticket. Mapping ticket_id → índice de TP en self.tps.
     # Usado por la lógica `rescue_market` (caso C adverse) para asignar TP4/TP5
     # al ticket de rescate (entrada óptima en precio adverso) sin romper el

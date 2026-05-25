@@ -172,6 +172,15 @@ def _classify_closures(signal: Signal) -> list[dict]:
             ticket_entry = open_deal.price  # precio real de apertura de ESTE ticket (no necesariamente = market fill)
             # PnL realizado de TODOS los deals de esta posición (apertura+cierre)
             pnl_total = sum(d.profit + d.commission + d.swap for d in deals)
+            if ticket in getattr(signal, "be_rescue_tickets", []):
+                out.append({
+                    "ticket": int(ticket),
+                    "exit_price": round(exit_price, 2),
+                    "pnl": round(pnl_total, 2),
+                    "closed_by_tag": "BE_RESCUE_TIMEOUT",
+                    "distance_to_tag": None,
+                })
+                continue
 
             # ── CLOSE_FIRST: ticket cerrado explícitamente por acción de gestión ──
             # Este cierre no corresponde a ningún TP ni SL; es intencional.

@@ -163,6 +163,19 @@ STRATEGY_C2_CLOSE_FIRST_BE_ENABLED   = os.getenv("STRATEGY_C2_CLOSE_FIRST_BE_ENA
 STRATEGY_C2_CLOSE_FIRST_BE_TIMEOUT_S = int(os.getenv("STRATEGY_C2_CLOSE_FIRST_BE_TIMEOUT_S", "60"))
 STRATEGY_C2_CLOSE_FIRST_PROFIT_PTS   = float(os.getenv("STRATEGY_C2_CLOSE_FIRST_PROFIT_PTS", "0.5"))
 
+# Guard semantico para mensajes tipo "close at breakeven / risk free".
+# Si el canal pide cerrar/proteger en BE pero NUESTRA posicion real esta
+# perdiendo mas que esta tolerancia, no cerramos a mercado: armamos TP=BE
+# con time-stop. Los cierres explicitos "close all now" no pasan por este guard.
+STRATEGY_BE_CLOSE_NEGATIVE_GUARD_ENABLED = (
+    os.getenv("STRATEGY_BE_CLOSE_NEGATIVE_GUARD_ENABLED", "1") == "1"
+)
+STRATEGY_BE_CLOSE_NEGATIVE_TOLERANCE_USD = _float(
+    "STRATEGY_BE_CLOSE_NEGATIVE_TOLERANCE_USD", 2.0)
+STRATEGY_BE_CLOSE_RESCUE_TIMEOUT_S = int(os.getenv(
+    "STRATEGY_BE_CLOSE_RESCUE_TIMEOUT_S",
+    str(STRATEGY_C2_CLOSE_FIRST_BE_TIMEOUT_S)))
+
 # ─── Double Market: doble entrada inicial con TPs distintos ─────────────────
 #
 # Cambio 2026-05-13. Inquietud del usuario: "muchas veces se llega a TP1, TP2

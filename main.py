@@ -80,6 +80,64 @@ def _count_open_signals_unique(state_manager) -> int:
     return count
 
 
+def _unique_open_signals(state_manager) -> list:
+    seen: set[int] = set()
+    out = []
+    for sig in state_manager._signals.values():
+        if sig.status != "open":
+            continue
+        obj_id = id(sig)
+        if obj_id in seen:
+            continue
+        seen.add(obj_id)
+        out.append(sig)
+    return out
+
+
+def _should_audit_mt5_reconnect(connected: bool, previous_state,
+                                open_signals: int) -> bool:
+    return connected is True and previous_state is False and open_signals > 0
+
+
+async def _post_mt5_reconnect_audit(disconnected_duration_s: float | None):
+    """Log-only audit tras recuperar MT5 con senales abiertas."""
+    from state import state
+
+    try:
+        for sig in _unique_open_signals(state):
+            tickets = list(sig.all_filled_tickets)
+            try:
+                open_positions = await asyncio.to_thread(
+                    executor.position_pnls, tickets)
+            except Exception as e:
+                open_positions = []
+                journal.anomaly(
+                    f"{sig.channel}_{sig.message_id}", "mt5", "warning",
+                    f"post-reconnect audit fallo leyendo position_pnls: "
+                    f"{type(e).__name__}: {str(e)[:160]}",
+                    disconnected_duration_s=disconnected_duration_s)
+
+            open_tickets = [int(t) for t, _ in open_positions]
+            missing_tickets = [int(t) for t in tickets if t not in open_tickets]
+            journal.event(
+                f"{sig.channel}_{sig.message_id}",
+                "mt5_reconnect_signal_audit",
+                disconnected_duration_s=disconnected_duration_s,
+                known_tickets=[int(t) for t in tickets],
+                open_tickets=open_tickets,
+                missing_tickets=missing_tickets,
+                n_open=len(open_tickets),
+                has_tps=bool(sig.tps),
+                has_sl=sig.sl is not None,
+                status=sig.status,
+            )
+    except Exception as e:
+        journal.anomaly("bot", "mt5", "warning",
+                        f"post-reconnect audit crasheo: "
+                        f"{type(e).__name__}: {str(e)[:200]}",
+                        exc_type=type(e).__name__)
+
+
 async def _heartbeat(interval_sec: int = 300):
     """Escribe un evento 'heartbeat' cada N segundos al journal.
     Si el bot se cae en silencio, el log mostrará exactamente cuándo paró."""
@@ -487,6 +545,16 @@ async def _mt5_connection_monitor(interval_sec: int = 10):
                           utc=now.isoformat(timespec="seconds"))
             if connected:
                 alerted_disconnect = False
+                from state import state
+                open_count = _count_open_signals_unique(state)
+                if _should_audit_mt5_reconnect(
+                        connected, last_state, open_count):
+                    journal.event("bot", "mt5_reconnect_audit_requested",
+                                  open_signals=open_count,
+                                  disconnected_duration_sec=
+                                      round(duration_s, 1) if duration_s else None)
+                    asyncio.create_task(_post_mt5_reconnect_audit(
+                        round(duration_s, 1) if duration_s else None))
             last_state = connected
             last_change = now
             last_periodic_beat = now

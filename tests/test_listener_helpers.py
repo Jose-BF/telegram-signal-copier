@@ -14,7 +14,14 @@ from datetime import datetime, timedelta
 from types import SimpleNamespace
 
 import listener
-from listener import _should_accept_canal1_text, _standalone_mgmt_route
+from listener import (
+    _be_close_negative_decision,
+    _breakeven_close_guard_applies,
+    _canal1_text_applied_summary,
+    _same_direction_overlap_candidate,
+    _should_accept_canal1_text,
+    _standalone_mgmt_route,
+)
 from state import Signal
 
 
@@ -147,3 +154,64 @@ class TestRealizedPl:
         )
 
         assert listener._realized_pl(sig) == -4.62
+
+
+class TestDuplicateSignalObservability:
+    def test_detects_recent_same_direction_open_signal(self):
+        now = datetime.utcnow()
+        existing = Signal(channel="canal2", message_id=12828,
+                          direction="BUY", timestamp=now)
+        new = Signal(channel="canal2", message_id=12829,
+                     direction="BUY", timestamp=now + timedelta(seconds=1))
+
+        match = _same_direction_overlap_candidate(
+            new, [existing, new], window_s=2.0)
+
+        assert match is existing
+
+    def test_ignores_opposite_direction_or_old_signal(self):
+        now = datetime.utcnow()
+        old_same = Signal(channel="canal2", message_id=12820,
+                          direction="BUY",
+                          timestamp=now - timedelta(seconds=10))
+        opposite = Signal(channel="canal2", message_id=12821,
+                          direction="SELL", timestamp=now)
+        new = Signal(channel="canal2", message_id=12829,
+                     direction="BUY", timestamp=now)
+
+        assert _same_direction_overlap_candidate(
+            new, [old_same, opposite, new], window_s=2.0) is None
+
+
+class TestCanal1TextAppliedSummary:
+    def test_marks_levels_without_range_explicitly(self):
+        sig = Signal(channel="canal1", message_id=19880, direction="SELL")
+        sig.entry_mode = "market_only"
+        parsed = {"tps": [4560.5, 4557.0], "sl": 4571.61}
+
+        summary = _canal1_text_applied_summary(sig, parsed)
+
+        assert summary["has_range"] is False
+        assert summary["has_tps"] is True
+        assert summary["has_sl"] is True
+        assert summary["levels_without_range"] is True
+        assert summary["entry_mode"] == "market_only"
+
+
+class TestBreakevenCloseGuard:
+    def test_applies_to_close_this_trade_at_breakeven_when_not_hard_close(self):
+        classification = {"action": "CLOSE_ALL", "confidence": 0.90}
+        text = "Due to bank holiday volume is thin. Let's close this trade overall breakeven now or make it risk free"
+
+        assert _breakeven_close_guard_applies(classification, text) is True
+
+    def test_does_not_apply_to_explicit_close_all(self):
+        classification = {"action": "CLOSE_ALL", "confidence": 0.95}
+
+        assert _breakeven_close_guard_applies(
+            classification, "Close all now") is False
+
+    def test_rescues_only_beyond_negative_tolerance(self):
+        assert _be_close_negative_decision(-6.35, tolerance_usd=2.0) == "rescue_tp_be"
+        assert _be_close_negative_decision(-1.25, tolerance_usd=2.0) == "allow_close"
+        assert _be_close_negative_decision(0.10, tolerance_usd=2.0) == "allow_close"

@@ -69,3 +69,17 @@ class TestHeartbeatOpenSignalCount:
                       status="open"))
 
         assert main._count_open_signals_unique(st) == 2
+
+
+class TestMt5ReconnectAuditDecision:
+    def test_audits_only_reconnect_with_open_signals(self):
+        assert main._should_audit_mt5_reconnect(
+            connected=True, previous_state=False, open_signals=2) is True
+
+    def test_no_audit_without_open_signals(self):
+        assert main._should_audit_mt5_reconnect(
+            connected=True, previous_state=False, open_signals=0) is False
+
+    def test_no_audit_on_disconnect_transition(self):
+        assert main._should_audit_mt5_reconnect(
+            connected=False, previous_state=True, open_signals=2) is False

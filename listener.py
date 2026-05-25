@@ -104,6 +104,109 @@ def _realized_pl(signal: Signal):
         return None
 
 
+def _same_direction_overlap_candidate(new_signal: Signal, open_signals: list,
+                                      window_s: float = 2.0):
+    """Devuelve una senal abierta casi simultanea, mismo canal y direccion.
+
+    Observabilidad pura: no bloquea ni deduplica. Sirve para marcar casos como
+    canal2_12828/canal2_12829, donde dos BUY consecutivos se pisan y una
+    puede quedar naked.
+    """
+    for existing in open_signals:
+        if existing is new_signal:
+            continue
+        if existing.status != "open":
+            continue
+        if existing.channel != new_signal.channel:
+            continue
+        if existing.direction != new_signal.direction:
+            continue
+        delta_s = abs((new_signal.timestamp - existing.timestamp).total_seconds())
+        if delta_s <= window_s:
+            return existing
+    return None
+
+
+def _emit_same_direction_overlap_anomaly(new_signal: Signal,
+                                         window_s: float = 2.0):
+    existing = _same_direction_overlap_candidate(
+        new_signal, state.open_signals(new_signal.channel), window_s)
+    if existing is None:
+        return
+
+    sig_id = _sig_id(new_signal)
+    previous_id = _sig_id(existing)
+    delta_s = abs((new_signal.timestamp - existing.timestamp).total_seconds())
+    journal.event(sig_id, "duplicate_signal_suspected",
+                  previous_signal_id=previous_id,
+                  previous_message_id=existing.message_id,
+                  new_message_id=new_signal.message_id,
+                  direction=new_signal.direction,
+                  delta_s=round(delta_s, 3),
+                  behavior="observability_only")
+    journal.anomaly(sig_id, "channel_msg", "warning",
+                    "senal casi duplicada: mismo canal/direccion dentro de "
+                    f"{window_s:.1f}s; no se bloquea, se marca para analisis",
+                    previous_signal_id=previous_id,
+                    previous_message_id=existing.message_id,
+                    new_message_id=new_signal.message_id,
+                    direction=new_signal.direction,
+                    delta_s=round(delta_s, 3))
+
+
+def _canal1_text_applied_summary(signal: Signal, parsed: dict) -> dict:
+    has_range = "range" in parsed
+    has_tps = bool(parsed.get("tps"))
+    has_sl = parsed.get("sl") is not None
+    return {
+        "source": "canal1_text",
+        "parsed_keys": list(parsed.keys()),
+        "has_range": has_range,
+        "has_tps": has_tps,
+        "has_sl": has_sl,
+        "n_tps": len(parsed.get("tps") or []),
+        "levels_without_range": (not has_range and (has_tps or has_sl)),
+        "entry_mode": signal.entry_mode,
+        "current_n_tps": len(signal.tps),
+        "current_has_sl": signal.sl is not None,
+    }
+
+
+def _breakeven_close_guard_applies(classification: dict, raw_text: str) -> bool:
+    if classification.get("action") != "CLOSE_ALL":
+        return False
+    text = (raw_text or "").lower()
+    if not text:
+        return False
+
+    re = __import__("re")
+    be_or_protect = (
+        re.search(r"\b(?:be|breakeven)\b", text)
+        or re.search(r"risk.?free", text)
+        or re.search(r"\b0\s*%?\s*risk\b", text)
+        or re.search(r"\bprotect(?:ed|ion)?\b", text)
+        or re.search(r"\bsecure\b", text)
+    )
+    if not be_or_protect:
+        return False
+
+    # Hard-close explicito: si el canal dice "close all", obedecemos incluso
+    # si menciona BE. El guard cubre cierres semanticos tipo "close this trade
+    # at breakeven / make it risk free", donde BE puede no ser nuestro BE.
+    hard_close = re.search(
+        r"\bclose\s+(?:all|everything|the\s+rest)\b"
+        r"|\bout\s+of\s+trade\b"
+        r"|\bsetup\s+(?:is\s+)?(?:invalid|invalidated)\b",
+        text,
+    )
+    return hard_close is None
+
+
+def _be_close_negative_decision(floating_pl: float,
+                                tolerance_usd: float = 2.0) -> str:
+    return "rescue_tp_be" if floating_pl < -abs(tolerance_usd) else "allow_close"
+
+
 async def _finalize_signal(signal: Signal, closed_by: str, notes: str = ""):
     """Cierra el trade en el journal con la información disponible.
 
@@ -1501,6 +1604,169 @@ async def _close_first_be_timeout(signal: Signal, timeout_s: int):
             pass
 
 
+async def _be_rescue_timeout(signal: Signal, timeout_s: int):
+    """Time-stop del rescate BE generico para CLOSE_ALL semantico."""
+    sig_id = _sig_id(signal)
+    try:
+        await asyncio.sleep(timeout_s)
+        if not signal.be_rescue_armed:
+            return
+
+        open_positions = await _run(executor.position_pnls,
+                                    signal.all_filled_tickets)
+        still_open = [t for t, _ in open_positions] if open_positions else []
+        if not still_open:
+            journal.event(sig_id, "be_rescue_timeout_resolved",
+                          outcome="all_closed_by_be_before_timeout",
+                          timeout_s=timeout_s)
+            signal.be_rescue_armed = False
+            signal.be_rescue_deadline = None
+            return
+
+        for t in still_open:
+            pending_actions.enqueue_close_position(
+                signal, t, label=f"BE_RESCUE timeout #{t} ({timeout_s}s)")
+        signal.be_rescue_tickets.extend(still_open)
+        journal.event(sig_id, "be_rescue_timeout_executed",
+                      n_closed_at_market=len(still_open),
+                      closed_tickets=still_open,
+                      timeout_s=timeout_s)
+        journal.anomaly(sig_id, "channel_msg", "info",
+                        f"BE rescue: time-stop {timeout_s}s expiro sin "
+                        f"rebote; {len(still_open)} posiciones cerradas "
+                        "a mercado",
+                        n_closed=len(still_open), timeout_s=timeout_s)
+        signal.be_rescue_armed = False
+        signal.be_rescue_deadline = None
+    except Exception as e:
+        print(f"[BE_RESCUE-timeout] error: {type(e).__name__}: {e}")
+        try:
+            journal.anomaly(sig_id, "channel_msg", "warning",
+                            f"_be_rescue_timeout crasheo: "
+                            f"{type(e).__name__}: {str(e)[:200]}",
+                            exc_type=type(e).__name__)
+        except Exception:
+            pass
+
+
+async def _close_all_be_rescue(signal: Signal, pos_info: list,
+                               cur_price: float, entry_avg: float,
+                               raw_text: str = ""):
+    """Rescate BE para CLOSE_ALL que realmente significa breakeven/risk-free.
+
+    Si el canal pide cerrar en BE pero nuestra cuenta esta perdiendo mas que
+    el umbral, no materializamos la perdida de inmediato: ponemos TP=BE en
+    las posiciones abiertas y armamos un time-stop corto.
+    """
+    sig_id = _sig_id(signal)
+    if signal.be_rescue_armed:
+        print(f"[BE_RESCUE] {sig_id} ya armado - ignorado")
+        journal.event(sig_id, "be_rescue_rearm_skipped")
+        return
+
+    try:
+        import mt5_errors
+        stops_level_pts = await _run(mt5_errors.get_stops_level_pts)
+    except Exception:
+        stops_level_pts = 0.0
+
+    tp_be = _safe_tp_be(signal.direction, entry_avg, cur_price,
+                        stops_level_pts or 0.0)
+    tickets = [p["ticket"] for p in pos_info]
+    for t in tickets:
+        pending_actions.enqueue_modify_tp(
+            signal, t, tp_be,
+            label=f"CLOSE_ALL_BE_RESCUE #{t} tp={tp_be:.2f}")
+
+    timeout_s = config.STRATEGY_BE_CLOSE_RESCUE_TIMEOUT_S
+    signal.be_rescue_armed = True
+    signal.be_rescue_deadline = datetime.utcnow() + timedelta(seconds=timeout_s)
+    asyncio.ensure_future(_be_rescue_timeout(signal, timeout_s))
+
+    journal.event(sig_id, "close_all_be_rescue_armed",
+                  tp_be=tp_be,
+                  entry_avg=round(entry_avg, 2),
+                  current_price=cur_price,
+                  tickets=tickets,
+                  timeout_s=timeout_s,
+                  raw_snippet=(raw_text or "")[:160])
+    journal.anomaly(sig_id, "channel_msg", "warning",
+                    "CLOSE_ALL semantico de breakeven/risk-free llego con "
+                    "P/L real negativo; armado rescate TP=BE en vez de "
+                    "cerrar a mercado",
+                    tp_be=tp_be, n_positions=len(tickets),
+                    timeout_s=timeout_s)
+    try:
+        await notify(
+            f"BE rescue armado - {sig_id}\n"
+            f"\n"
+            f"El canal pidio cerrar/proteger en breakeven, pero nuestra "
+            f"entrada real estaba en perdida.\n"
+            f"Accion: TP=BE {tp_be:.2f} en {len(tickets)} posiciones.\n"
+            f"Time-stop: {timeout_s}s si no rebota."
+        )
+    except Exception as e:
+        print(f"[BE_RESCUE notify] error: {e}")
+
+
+async def _maybe_handle_breakeven_close_negative(
+        signal: Signal, classification: dict, raw_text: str, ctx=None) -> bool:
+    if not config.STRATEGY_BE_CLOSE_NEGATIVE_GUARD_ENABLED:
+        return False
+    if not _breakeven_close_guard_applies(classification, raw_text):
+        return False
+
+    try:
+        ctx = ctx or signal.build_context()
+        pl = float(ctx.floating_pnl_total or 0.0)
+        decision = _be_close_negative_decision(
+            pl, config.STRATEGY_BE_CLOSE_NEGATIVE_TOLERANCE_USD)
+        journal.event(_sig_id(signal), "be_close_negative_guard",
+                      floating_pl=pl,
+                      tolerance_usd=config.STRATEGY_BE_CLOSE_NEGATIVE_TOLERANCE_USD,
+                      decision=decision,
+                      raw_snippet=(raw_text or "")[:160])
+        if decision == "allow_close":
+            return False
+
+        open_positions = await _run(executor.position_pnls,
+                                    signal.all_filled_tickets)
+        if not open_positions:
+            return False
+        cur_price = ctx.current_price
+        entries = []
+        pos_info = []
+        for idx, (ticket, pnl) in enumerate(open_positions):
+            entry = await _run(executor.entry_price, ticket)
+            if entry is not None:
+                entries.append(entry)
+            tp_obj = signal.tp_for_position(idx)
+            recorrido = abs(tp_obj - cur_price) if (
+                tp_obj is not None and cur_price is not None) else 0.0
+            pos_info.append({"ticket": ticket, "pnl": pnl, "entry": entry,
+                             "tp": tp_obj, "recorrido": recorrido})
+        if cur_price is None or not entries:
+            journal.anomaly(_sig_id(signal), "channel_msg", "warning",
+                            "BE close guard no pudo armar rescate: faltan "
+                            "precio actual o entries; se permite CLOSE_ALL",
+                            has_current_price=cur_price is not None,
+                            n_entries=len(entries))
+            return False
+
+        await _close_all_be_rescue(signal, pos_info, cur_price,
+                                   sum(entries) / len(entries),
+                                   raw_text=raw_text)
+        logger.log_action(signal, "CLOSE_ALL_BE_RESCUE")
+        return True
+    except Exception as e:
+        print(f"[BE_CLOSE_GUARD] error: {type(e).__name__}: {e}")
+        journal.anomaly(_sig_id(signal), "channel_msg", "warning",
+                        f"BE close guard fallo; se permite CLOSE_ALL: "
+                        f"{type(e).__name__}: {str(e)[:160]}",
+                        exc_type=type(e).__name__)
+        return False
+
+
 async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
                            tg_ts: str | None = None):
     """Orquesta la ejecución de TODAS las acciones detectadas en un mensaje.
@@ -1708,6 +1974,9 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
         print(f"[Acción] decision_context error: {e}")
 
     if action == "CLOSE_ALL":
+        if await _maybe_handle_breakeven_close_negative(
+                signal, classification, raw_text, locals().get("ctx")):
+            return
         # El cierre se encola con reintento — si falla por transient, reintenta;
         # si no hay posición (ya cerrada por SL/TP), se considera hecho.
         for t in signal.all_filled_tickets:
@@ -2228,6 +2497,7 @@ async def _process_canal2_new(msg, label: str = "Canal2"):
         adverse_action=config.STRATEGY_C2_ADVERSE_ACTION,
     )
     state.add(sig)
+    _emit_same_direction_overlap_anomaly(sig)
     journal.begin_trade(
         _sig_id(sig),
         channel="canal2",
@@ -3297,6 +3567,8 @@ async def _handle_canal1_text(msg, text: str):
     )
     _tg_ts = msg.date.isoformat(timespec="seconds") if msg.date else None
     await _update_signal_from_parsed(sig, parsed, tg_ts=_tg_ts)
+    journal.event(sig_id, "canal1_text_applied",
+                  **_canal1_text_applied_summary(sig, parsed))
     logger.log_signal(sig, parsed)
 
     # ── DEFENSA POST-PROCESAMIENTO ─────────────────────────────────────
