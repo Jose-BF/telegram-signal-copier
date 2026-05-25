@@ -23,10 +23,12 @@ Detener el wrapper: Ctrl+C (cierra el bot también).
 """
 
 import os
+import json
 import signal
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Forzar UTF-8 en stdout/stderr para no crashear con caracteres no-ASCII
@@ -38,6 +40,7 @@ if hasattr(sys.stderr, "reconfigure"):
 
 REPO_DIR = Path(__file__).resolve().parent.parent
 MAIN_PY  = REPO_DIR / "main.py"
+RECONCILE_STATUS_FILE = REPO_DIR / "data" / "reconcile_status.json"
 POLL_SEC = 60   # cada cuánto comprobar commits nuevos
 RESTART_GRACE_SEC = 10  # tiempo para SIGTERM antes de SIGKILL
 RELAUNCH_DELAY_SEC = 5  # espera entre fin del bot y relanzamiento
@@ -89,7 +92,19 @@ def _stop_bot(proc: subprocess.Popen) -> None:
         proc.wait()
 
 
-def _regenerate_ledger() -> None:
+def _write_reconcile_status(status: dict) -> None:
+    try:
+        RECONCILE_STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        RECONCILE_STATUS_FILE.write_text(
+            json.dumps(status, ensure_ascii=False, indent=2, default=str) + "\n",
+            encoding="utf-8",
+        )
+    except Exception as e:
+        print(f"[Watch] no pude escribir reconcile_status.json: {e}",
+              flush=True)
+
+
+def _regenerate_ledger() -> bool:
     """Ejecuta reconcile.py para regenerar data/ledger.jsonl.
 
     El ledger cruza el journal del bot con el historial de MT5 y produce
@@ -100,18 +115,52 @@ def _regenerate_ledger() -> None:
     El bot esta parado cuando esto corre (push_session_data se llama tras
     parar/reiniciar) → MT5 esta libre. Best-effort: si falla, log y sigue.
     """
+    started = time.time()
+    ledger_file = REPO_DIR / "data" / "ledger.jsonl"
+    status = {
+        "ok": False,
+        "started_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "finished_at": None,
+        "duration_s": None,
+        "returncode": None,
+        "stdout": "",
+        "stderr": "",
+        "ledger_exists": ledger_file.exists(),
+        "ledger_size_bytes": ledger_file.stat().st_size if ledger_file.exists() else 0,
+        "command": [sys.executable, "reconcile.py", "--quiet"],
+    }
     try:
         rec = subprocess.run(
             [sys.executable, "reconcile.py", "--quiet"],
             cwd=REPO_DIR, capture_output=True, text=True, timeout=180,
         )
+        status.update({
+            "ok": rec.returncode == 0,
+            "returncode": rec.returncode,
+            "stdout": rec.stdout or "",
+            "stderr": rec.stderr or "",
+        })
         if rec.returncode == 0:
             print("[Watch] ledger reconciliado regenerado.", flush=True)
         else:
             print(f"[Watch] reconcile.py fallo (rc={rec.returncode}): "
-                  f"{(rec.stderr or '')[:200]}", flush=True)
+                  f"{(rec.stderr or rec.stdout or '')[:1000]}", flush=True)
     except Exception as e:
+        status.update({
+            "ok": False,
+            "exception_type": type(e).__name__,
+            "stderr": str(e),
+        })
         print(f"[Watch] error ejecutando reconcile.py: {e}", flush=True)
+    finally:
+        status["finished_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        status["duration_s"] = round(time.time() - started, 2)
+        status["ledger_exists"] = ledger_file.exists()
+        status["ledger_size_bytes"] = (
+            ledger_file.stat().st_size if ledger_file.exists() else 0
+        )
+        _write_reconcile_status(status)
+    return bool(status["ok"])
 
 
 def _push_session_data() -> None:
@@ -128,6 +177,7 @@ def _push_session_data() -> None:
     files = [
         "data/trade_events.jsonl",
         "data/ledger.jsonl",
+        "data/reconcile_status.json",
         "data/trade_events_TEST.jsonl",
         "data/trade_journal.csv",
         "data/trade_journal_TEST.csv",
