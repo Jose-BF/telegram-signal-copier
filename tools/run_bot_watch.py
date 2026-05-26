@@ -10,7 +10,7 @@ Funcionamiento:
   2. Cada 60s hace `git fetch` y compara HEAD local vs origin/main.
   3. Si hay commits nuevos:
        - Para el bot (SIGTERM, espera 10s, SIGKILL si no responde).
-       - Hace `git pull --ff-only`.
+       - Hace `git pull --ff-only origin main`.
        - Vuelve a lanzar el bot.
   4. Si el bot termina inesperadamente, lo relanza tras 5s.
 
@@ -58,6 +58,10 @@ def _local_head() -> str:
 
 def _remote_head() -> str:
     return _git("rev-parse", "origin/main").stdout.strip()
+
+
+def _pull_main_ff(capture: bool = True) -> subprocess.CompletedProcess:
+    return _git("pull", "--ff-only", "origin", "main", capture=capture)
 
 
 def _spawn_bot() -> subprocess.Popen:
@@ -221,7 +225,7 @@ def main() -> int:
     print(f"[Watch] HEAD local={last_local[:8]} remote={last_remote[:8]}", flush=True)
     if last_local != last_remote:
         print("[Watch] El local está desfasado — pull antes de arrancar.", flush=True)
-        _git("pull", "--ff-only", capture=False)
+        _pull_main_ff(capture=False)
         last_local = _local_head()
 
     proc = _spawn_bot()
@@ -249,7 +253,7 @@ def main() -> int:
                           f"{remote[:8]}. Reinicio.", flush=True)
                     _stop_bot(proc)
                     _push_session_data()  # sube datos antes del pull
-                    pull = _git("pull", "--ff-only")
+                    pull = _pull_main_ff()
                     print(pull.stdout, end="", flush=True)
                     if pull.returncode != 0:
                         print(f"[Watch] git pull falló:\n{pull.stderr}", flush=True)

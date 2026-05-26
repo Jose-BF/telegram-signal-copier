@@ -74,3 +74,18 @@ def test_push_session_data_adds_reconcile_status(monkeypatch):
     watch._push_session_data()
 
     assert "data/reconcile_status.json" in added
+
+
+def test_pull_main_ff_uses_explicit_origin_main(monkeypatch):
+    calls = []
+
+    def fake_git(*args, capture=True):
+        calls.append((args, capture))
+        return subprocess.CompletedProcess(args=args, returncode=0,
+                                           stdout="", stderr="")
+
+    monkeypatch.setattr(watch, "_git", fake_git)
+
+    watch._pull_main_ff(capture=False)
+
+    assert calls == [(("pull", "--ff-only", "origin", "main"), False)]
