@@ -27350,3 +27350,9 @@
 {"ts": "2026-05-26T11:10:22.504+00:00", "sig": "bot", "ev": "telegram_connection_change", "connected": true, "previous_state": null, "previous_state_duration_sec": null, "utc": "2026-05-26T11:10:22"}
 {"ts": "2026-05-26T11:10:22.506+00:00", "sig": "bot", "ev": "mt5_connection_change", "connected": true, "previous_state": null, "previous_state_duration_sec": null, "utc": "2026-05-26T11:10:22"}
 {"ts": "2026-05-26T11:10:26.634+00:00", "sig": "bot", "ev": "poller_started", "interval_s": 0.5, "msg_limit": 10, "channels": ["canal2", "canal1"]}
+{"ts": "2026-05-26T11:11:12.040+00:00", "sig": "bot", "ev": "session_started", "git_commit": "b9f9904", "git_branch": "main", "git_dirty": true, "started_utc": "2026-05-26T11:11:12"}
+{"ts": "2026-05-26T11:11:12.048+00:00", "sig": "canal1_19888", "ev": "signal_resync_from_mt5", "market_ticket": 1347591221, "extra_market_tickets": [1347591240, 1347591245, 1347591250], "market_price": 4534.12, "n_dcas": 0, "sl": 4549.0, "tp": 4531.0, "opened_at": "2026-05-26T11:11:12", "elapsed_min": 0.0, "time_stop_at": "2026-05-26T12:11:12", "be_at_tp_index": null}
+{"ts": "2026-05-26T11:11:12.165+00:00", "sig": "canal1_19888", "ev": "floating_pl_snapshot", "pl": -4.9, "n_open": 4, "current_price": 4535.59, "avg_entry": 4534.15, "elapsed_s": 0.0}
+{"ts": "2026-05-26T11:11:12.735+00:00", "sig": "bot", "ev": "telegram_connection_change", "connected": true, "previous_state": null, "previous_state_duration_sec": null, "utc": "2026-05-26T11:11:12"}
+{"ts": "2026-05-26T11:11:12.737+00:00", "sig": "bot", "ev": "mt5_connection_change", "connected": true, "previous_state": null, "previous_state_duration_sec": null, "utc": "2026-05-26T11:11:12"}
+{"ts": "2026-05-26T11:11:16.856+00:00", "sig": "bot", "ev": "poller_started", "interval_s": 0.5, "msg_limit": 10, "channels": ["canal2", "canal1"]}
