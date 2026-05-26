@@ -44,7 +44,9 @@ builtins.print = _timestamped_print
 import config
 import executor
 import journal
+import pending_actions
 from listener import client, poll_loop
+from parser import predict_sl_from_entry
 
 
 def _should_alert_sustained_disconnect(connected: bool,
@@ -151,6 +153,60 @@ async def _heartbeat(interval_sec: int = 300):
         await asyncio.sleep(interval_sec)
 
 
+def _should_apply_naked_protective_sl(sig) -> bool:
+    return (
+        config.STRATEGY_NAKED_PROTECTIVE_SL_ENABLED
+        and sig.status == "open"
+        and not sig.tps
+        and sig.sl is None
+        and sig.market_fill_price is not None
+        and bool(sig.all_filled_tickets)
+        and not getattr(sig, "_naked_protective_sl_applied", False)
+    )
+
+
+async def _apply_naked_protective_sl(sig, elapsed_s: float):
+    if not _should_apply_naked_protective_sl(sig):
+        return None
+
+    sl = predict_sl_from_entry(
+        sig.direction,
+        sig.market_fill_price,
+        config.STRATEGY_NAKED_PROTECTIVE_SL_OFFSET_USD,
+    )
+    sig.sl = sl
+    sig.levels_predicted = True
+    sig._naked_protective_sl_applied = True
+
+    tickets = list(sig.all_filled_tickets)
+    for ticket in tickets:
+        pending_actions.enqueue_modify_sl(
+            sig,
+            ticket,
+            sl,
+            label=f"NAKED_PROTECTIVE_SL #{ticket}",
+        )
+
+    sig_id = f"{sig.channel}_{sig.message_id}"
+    journal.event(sig_id, "naked_protective_sl_applied",
+                  channel=sig.channel,
+                  direction=sig.direction,
+                  tickets=tickets,
+                  entry=sig.market_fill_price,
+                  sl=sl,
+                  offset_usd=config.STRATEGY_NAKED_PROTECTIVE_SL_OFFSET_USD,
+                  elapsed_s=round(elapsed_s, 1))
+    journal.anomaly(sig_id, "naked", "warning",
+                    "SL provisional aplicado por watchdog a signal naked",
+                    channel=sig.channel,
+                    direction=sig.direction,
+                    tickets=tickets,
+                    entry=sig.market_fill_price,
+                    sl=sl,
+                    elapsed_s=round(elapsed_s, 1))
+    return sl
+
+
 async def _naked_signal_watchdog(check_interval_s: int = 60,
                                   alert_after_s: int = 120):
     """Vigila senales abiertas sin SL/TP aplicados en el bot.
@@ -200,6 +256,7 @@ async def _naked_signal_watchdog(check_interval_s: int = 60,
                               ticket=sig.market_ticket,
                               entry=sig.market_fill_price,
                               elapsed_s=round(elapsed, 1))
+                protective_sl = await _apply_naked_protective_sl(sig, elapsed)
                 # Migrado a anomaly() — _notify_critical dispara la alerta
                 # de Telegram automáticamente (T3 del plan). El bloque
                 # manual de notify queda eliminado.
@@ -210,7 +267,8 @@ async def _naked_signal_watchdog(check_interval_s: int = 60,
                                 direction=sig.direction,
                                 ticket=sig.market_ticket,
                                 entry=sig.market_fill_price,
-                                elapsed_s=round(elapsed, 1))
+                                elapsed_s=round(elapsed, 1),
+                                protective_sl=protective_sl)
 
                 # Marcar para no re-alertar
                 sig._naked_alerted = True

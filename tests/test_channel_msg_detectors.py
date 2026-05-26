@@ -22,11 +22,13 @@ import pytest
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 
+import listener
 from listener import (
     _classify_deleted_msg_impact,
     _diff_canal1_edit,
     _process_canal1_edit,
     _process_canal2_edit,
+    _process_canal2_new,
     _strict_vs_loose_canal1_filter,
 )
 from state import Signal, StateManager
@@ -192,6 +194,7 @@ class TestManagementReplyEdits:
         assert calls[1][0] == "execute"
         assert calls[1][1] is sig
 
+
     @pytest.mark.asyncio
     async def test_canal2_management_reply_edit_executes_again(self, monkeypatch):
         st, sig = self._state_with_open_signal("canal2")
@@ -222,6 +225,49 @@ class TestManagementReplyEdits:
         assert calls[0] == ("classify", "Close all now", sig)
         assert calls[1][0] == "execute"
         assert calls[1][1] is sig
+
+
+class TestCanal2DuplicateAlias:
+    @pytest.mark.asyncio
+    async def test_near_duplicate_new_message_aliases_existing_naked_signal(
+            self, monkeypatch):
+        st = StateManager()
+        existing = Signal(channel="canal2", message_id=12828,
+                          direction="BUY",
+                          timestamp=datetime.utcnow() - timedelta(seconds=1),
+                          market_ticket=1342891209,
+                          market_fill_price=4563.06)
+        st.add(existing)
+        events = []
+        anomalies = []
+
+        async def fail_run(*args, **kwargs):
+            raise AssertionError("duplicate alias must not open MT5 order")
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(listener, "_run", fail_run)
+        monkeypatch.setattr(listener.journal, "event",
+                            lambda sig, ev, **kw: events.append((sig, ev, kw)))
+        monkeypatch.setattr(listener.journal, "anomaly",
+                            lambda sig, category, severity, detail, **kw:
+                            anomalies.append((sig, category, severity, detail, kw)))
+        listener._seen_new_msg_ids.clear()
+        listener._seen_new_msgs_order.clear()
+
+        msg = SimpleNamespace(
+            id=12829,
+            text="XAU USD BUY NOW",
+            date=datetime.utcnow(),
+            reply_to=None,
+        )
+
+        await _process_canal2_new(msg)
+
+        assert st.get("canal2", 12829) is existing
+        assert any(ev == "canal2_duplicate_alias_registered"
+                   for _, ev, _ in events)
+        assert any(category == "channel_msg" and severity == "warning"
+                   for _, category, severity, _, _ in anomalies)
 
 
 class TestStrictVsLooseCanal1Filter:

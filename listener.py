@@ -154,6 +154,58 @@ def _emit_same_direction_overlap_anomaly(new_signal: Signal,
                     delta_s=round(delta_s, 3))
 
 
+def _canal2_duplicate_alias_candidate(message_id: int, direction: str,
+                                      timestamp: datetime, parsed: dict,
+                                      open_signals: list,
+                                      window_s: float):
+    """Find an older naked canal2 signal that should receive this msg as alias.
+
+    This is stricter than observability-only duplicate detection: we only alias
+    plain BUY/SELL NOW triggers, and only when the existing signal has no
+    range/TP/SL yet. The goal is to avoid doubling exposure while still letting
+    edits for the newer message_id update the already-open position.
+    """
+    if any(k in parsed for k in ("range", "tps", "sl")):
+        return None
+
+    probe = Signal(channel="canal2", message_id=message_id,
+                   direction=direction, timestamp=timestamp)
+    existing = _same_direction_overlap_candidate(probe, open_signals, window_s)
+    if existing is None:
+        return None
+    if existing.range_low is not None or existing.tps or existing.sl is not None:
+        return None
+    return existing
+
+
+def _register_canal2_duplicate_alias(existing: Signal, alias_message_id: int,
+                                     raw_text: str, timestamp: datetime,
+                                     window_s: float):
+    state.alias(existing, alias_message_id)
+    sig_id = _sig_id(existing)
+    alias_sig_id = f"canal2_{alias_message_id}"
+    delta_s = abs((timestamp - existing.timestamp).total_seconds())
+    journal.event(sig_id, "canal2_duplicate_alias_registered",
+                  alias_message_id=alias_message_id,
+                  alias_signal_id=alias_sig_id,
+                  direction=existing.direction,
+                  delta_s=round(delta_s, 3),
+                  raw_text=(raw_text or "")[:160],
+                  behavior="alias_without_new_order")
+    journal.event(alias_sig_id, "canal2_duplicate_alias_to_existing",
+                  existing_signal_id=sig_id,
+                  direction=existing.direction,
+                  delta_s=round(delta_s, 3))
+    journal.anomaly(sig_id, "channel_msg", "warning",
+                    "canal2 duplicate BUY/SELL NOW aliased to existing naked "
+                    "signal; skipped new market order",
+                    alias_message_id=alias_message_id,
+                    alias_signal_id=alias_sig_id,
+                    direction=existing.direction,
+                    delta_s=round(delta_s, 3),
+                    window_s=window_s)
+
+
 def _canal1_text_applied_summary(signal: Signal, parsed: dict) -> dict:
     has_range = "range" in parsed
     has_tps = bool(parsed.get("tps"))
@@ -2390,6 +2442,20 @@ async def _process_canal2_new(msg, label: str = "Canal2"):
         return
 
     direction = parsed["direction"]
+    duplicate_ts = datetime.utcnow()
+    duplicate = _canal2_duplicate_alias_candidate(
+        msg.id, direction, duplicate_ts, parsed,
+        state.open_signals("canal2"),
+        config.STRATEGY_C2_DUPLICATE_ALIAS_WINDOW_S,
+    )
+    if duplicate is not None:
+        _register_canal2_duplicate_alias(
+            duplicate, msg.id, text, duplicate_ts,
+            config.STRATEGY_C2_DUPLICATE_ALIAS_WINDOW_S,
+        )
+        print(f"[{label}] Canal2 duplicate alias: msg={msg.id} -> "
+              f"{_sig_id(duplicate)} (no new order)")
+        return
 
     # ── FILTRO 1: Skip RE-ENTER / 14h SELL (estrategias del análisis) ──
     skip, reason = strategies.should_skip_signal(text, direction, "canal2")

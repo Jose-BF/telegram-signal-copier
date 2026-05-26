@@ -203,6 +203,19 @@ STRATEGY_DOUBLE_MARKET_TP_INDEX = int(os.getenv("STRATEGY_DOUBLE_MARKET_TP_INDEX
 #                           0 = cerrar automáticamente (modo legacy).
 STRATEGY_TIME_STOP_NOTIFY_ONLY = os.getenv("STRATEGY_TIME_STOP_NOTIFY_ONLY", "1") == "1"
 
+# Si una senal queda abierta sin TP/SL por fallo de canal/Telegram, el watchdog
+# aplica un SL provisional desde entry. No pone TP: evita limitar ganadoras.
+STRATEGY_NAKED_PROTECTIVE_SL_ENABLED = (
+    os.getenv("STRATEGY_NAKED_PROTECTIVE_SL_ENABLED", "1") == "1"
+)
+STRATEGY_NAKED_PROTECTIVE_SL_OFFSET_USD = _float(
+    "STRATEGY_NAKED_PROTECTIVE_SL_OFFSET_USD", 10.0)
+
+# Canal2 a veces publica dos BUY/SELL NOW casi seguidos y edita solo el
+# segundo. En esa ventana aliasamos el segundo message_id al trade ya abierto.
+STRATEGY_C2_DUPLICATE_ALIAS_WINDOW_S = _float(
+    "STRATEGY_C2_DUPLICATE_ALIAS_WINDOW_S", 3.0)
+
 # Tolerancia (en USD) para clasificar A_inside cuando el entry está cerca de
 # un extremo del rango. Si |entry - rango| ≤ tolerancia → tratamos como A.
 # Evita que 0.45$ de diferencia por ruido de spread caiga en B_favorable o

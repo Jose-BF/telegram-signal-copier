@@ -83,3 +83,46 @@ class TestMt5ReconnectAuditDecision:
     def test_no_audit_on_disconnect_transition(self):
         assert main._should_audit_mt5_reconnect(
             connected=False, previous_state=True, open_signals=2) is False
+
+
+class TestNakedProtectiveSl:
+    def test_should_apply_only_when_open_naked_and_has_entry(self):
+        sig = Signal(channel="canal2", message_id=12780, direction="BUY",
+                     market_ticket=100, market_fill_price=4529.89)
+        assert main._should_apply_naked_protective_sl(sig) is True
+
+        sig.sl = 4519.89
+        assert main._should_apply_naked_protective_sl(sig) is False
+
+        sig.sl = None
+        sig.market_ticket = None
+        assert main._should_apply_naked_protective_sl(sig) is False
+
+    @pytest.mark.asyncio
+    async def test_apply_naked_protective_sl_to_all_open_tickets(self,
+                                                                monkeypatch):
+        sig = Signal(channel="canal2", message_id=12780, direction="BUY",
+                     market_ticket=100,
+                     extra_market_tickets=[101, 102],
+                     market_fill_price=4529.89)
+        modifies = []
+        events = []
+
+        monkeypatch.setattr(main.pending_actions, "enqueue_modify_sl",
+                            lambda signal, ticket, new_sl, label="":
+                            modifies.append((signal, ticket, new_sl, label)))
+        monkeypatch.setattr(main.journal, "event",
+                            lambda sig_id, ev, **kw:
+                            events.append((sig_id, ev, kw)))
+        monkeypatch.setattr(main.journal, "anomaly",
+                            lambda *args, **kwargs: None)
+
+        await main._apply_naked_protective_sl(sig, elapsed_s=130.0)
+
+        assert sig.sl == 4519.89
+        assert sig.levels_predicted is True
+        assert getattr(sig, "_naked_protective_sl_applied") is True
+        assert [ticket for _, ticket, _, _ in modifies] == [100, 101, 102]
+        assert all(new_sl == 4519.89 for _, _, new_sl, _ in modifies)
+        assert any(ev == "naked_protective_sl_applied"
+                   for _, ev, _ in events)
