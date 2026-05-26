@@ -22,6 +22,7 @@ import pytest
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 
+import config
 import listener
 from listener import (
     _classify_deleted_msg_impact,
@@ -266,6 +267,71 @@ class TestCanal2DuplicateAlias:
         assert st.get("canal2", 12829) is existing
         assert any(ev == "canal2_duplicate_alias_registered"
                    for _, ev, _ in events)
+        assert any(category == "channel_msg" and severity == "warning"
+                   for _, category, severity, _, _ in anomalies)
+
+
+class TestCanal2OrphanEditRecovery:
+    @pytest.mark.asyncio
+    async def test_fresh_entry_edit_without_state_recovers_as_new_signal(
+            self, monkeypatch):
+        st = StateManager()
+        recovered = []
+        events = []
+
+        async def fake_process_new(msg, label="Canal2", dedup=True):
+            recovered.append((msg.id, label, dedup))
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(listener, "_process_canal2_new", fake_process_new)
+        monkeypatch.setattr(listener.journal, "event",
+                            lambda sig, ev, **kw: events.append((sig, ev, kw)))
+        monkeypatch.setattr(config, "STRATEGY_C2_ORPHAN_EDIT_MAX_AGE_S", 180.0,
+                            raising=False)
+
+        msg = SimpleNamespace(
+            id=12879,
+            text="XAU USD BUY NOW\n\n4509.5 - 4505.5",
+            date=datetime.utcnow() - timedelta(seconds=18),
+            edit_date=datetime.utcnow(),
+            reply_to=None,
+        )
+
+        await _process_canal2_edit(msg)
+
+        assert recovered == [(12879, "Canal2_recover", False)]
+        assert any(ev == "canal2_orphan_entry_edit_recovered"
+                   for _, ev, _ in events)
+
+    @pytest.mark.asyncio
+    async def test_stale_entry_edit_without_state_is_not_recovered(
+            self, monkeypatch):
+        st = StateManager()
+        recovered = []
+        anomalies = []
+
+        async def fake_process_new(msg, label="Canal2", dedup=True):
+            recovered.append(msg.id)
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(listener, "_process_canal2_new", fake_process_new)
+        monkeypatch.setattr(listener.journal, "anomaly",
+                            lambda sig, category, severity, detail, **kw:
+                            anomalies.append((sig, category, severity, detail, kw)))
+        monkeypatch.setattr(config, "STRATEGY_C2_ORPHAN_EDIT_MAX_AGE_S", 180.0,
+                            raising=False)
+
+        msg = SimpleNamespace(
+            id=12000,
+            text="XAU USD SELL NOW\n\n4515 - 4519",
+            date=datetime.utcnow() - timedelta(minutes=20),
+            edit_date=datetime.utcnow(),
+            reply_to=None,
+        )
+
+        await _process_canal2_edit(msg)
+
+        assert recovered == []
         assert any(category == "channel_msg" and severity == "warning"
                    for _, category, severity, _, _ in anomalies)
 

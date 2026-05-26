@@ -89,3 +89,25 @@ def test_pull_main_ff_uses_explicit_origin_main(monkeypatch):
     watch._pull_main_ff(capture=False)
 
     assert calls == [(("pull", "--ff-only", "origin", "main"), False)]
+
+
+def test_pull_main_and_refresh_heads_returns_remote_after_self_data_push(
+        monkeypatch):
+    calls = []
+
+    def fake_pull(capture=True):
+        calls.append(("pull", capture))
+        return subprocess.CompletedProcess(args=["git"], returncode=0,
+                                           stdout="Already up to date.\n",
+                                           stderr="")
+
+    monkeypatch.setattr(watch, "_pull_main_ff", fake_pull)
+    monkeypatch.setattr(watch, "_local_head", lambda: "self_data_commit")
+    monkeypatch.setattr(watch, "_remote_head", lambda: "self_data_commit")
+
+    pull, local, remote = watch._pull_main_and_refresh_heads()
+
+    assert pull.returncode == 0
+    assert local == "self_data_commit"
+    assert remote == "self_data_commit"
+    assert calls == [("pull", True)]

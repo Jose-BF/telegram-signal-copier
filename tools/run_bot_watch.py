@@ -64,6 +64,11 @@ def _pull_main_ff(capture: bool = True) -> subprocess.CompletedProcess:
     return _git("pull", "--ff-only", "origin", "main", capture=capture)
 
 
+def _pull_main_and_refresh_heads() -> tuple[subprocess.CompletedProcess, str, str]:
+    pull = _pull_main_ff()
+    return pull, _local_head(), _remote_head()
+
+
 def _spawn_bot() -> subprocess.Popen:
     print(f"[Watch] Lanzando bot: python {MAIN_PY}", flush=True)
     # Usamos el mismo intérprete que ejecuta este script.
@@ -253,13 +258,11 @@ def main() -> int:
                           f"{remote[:8]}. Reinicio.", flush=True)
                     _stop_bot(proc)
                     _push_session_data()  # sube datos antes del pull
-                    pull = _pull_main_ff()
+                    pull, last_local, last_remote = _pull_main_and_refresh_heads()
                     print(pull.stdout, end="", flush=True)
                     if pull.returncode != 0:
                         print(f"[Watch] git pull falló:\n{pull.stderr}", flush=True)
                         # Aun así relanzamos con el código que haya
-                    last_local = _local_head()
-                    last_remote = remote
                     proc = _spawn_bot()
 
             time.sleep(2)

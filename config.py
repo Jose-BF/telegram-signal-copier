@@ -216,6 +216,12 @@ STRATEGY_NAKED_PROTECTIVE_SL_OFFSET_USD = _float(
 STRATEGY_C2_DUPLICATE_ALIAS_WINDOW_S = _float(
     "STRATEGY_C2_DUPLICATE_ALIAS_WINDOW_S", 3.0)
 
+# Si perdemos el NewMessage de Canal2 durante un restart pero recibimos un edit
+# fresco con BUY/SELL NOW, se puede recuperar como entrada. Cutoff defensivo
+# para no abrir senales viejas al arrancar tras una caida larga.
+STRATEGY_C2_ORPHAN_EDIT_MAX_AGE_S = _float(
+    "STRATEGY_C2_ORPHAN_EDIT_MAX_AGE_S", 180.0)
+
 # Tolerancia (en USD) para clasificar A_inside cuando el entry está cerca de
 # un extremo del rango. Si |entry - rango| ≤ tolerancia → tratamos como A.
 # Evita que 0.45$ de diferencia por ruido de spread caiga en B_favorable o

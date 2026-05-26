@@ -206,6 +206,32 @@ def _register_canal2_duplicate_alias(existing: Signal, alias_message_id: int,
                     window_s=window_s)
 
 
+def _message_age_seconds(msg) -> float | None:
+    ts = getattr(msg, "date", None) or getattr(msg, "edit_date", None)
+    if ts is None:
+        return None
+    if getattr(ts, "tzinfo", None) is not None:
+        ts = ts.replace(tzinfo=None)
+    return (datetime.utcnow() - ts).total_seconds()
+
+
+def _should_recover_canal2_orphan_entry_edit(msg, text: str,
+                                             max_age_s: float):
+    if msg.reply_to and msg.reply_to.reply_to_msg_id:
+        return False, _message_age_seconds(msg)
+    if not is_canal2_entry(text):
+        return False, _message_age_seconds(msg)
+
+    parsed = parse_canal2(text)
+    if "direction" not in parsed:
+        return False, _message_age_seconds(msg)
+
+    age_s = _message_age_seconds(msg)
+    if age_s is None:
+        return False, None
+    return age_s <= max_age_s, age_s
+
+
 def _canal1_text_applied_summary(signal: Signal, parsed: dict) -> dict:
     has_range = "range" in parsed
     has_tps = bool(parsed.get("tps"))
@@ -2404,11 +2430,11 @@ _execute_action = _execute_actions
 
 # ─── Canal 2 procesado (reutilizable) ─────────────────────────────────────────
 
-async def _process_canal2_new(msg, label: str = "Canal2"):
+async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
     # Dedup: el poller activo y el event handler pueden ver el mismo mensaje.
     # _new_msg_already_seen marca como visto atómicamente — el que llega primero
     # procesa; el segundo retorna aquí sin hacer nada.
-    if _new_msg_already_seen("canal2", msg.id):
+    if dedup and _new_msg_already_seen("canal2", msg.id):
         return
 
     text = msg.text or ""
@@ -2593,7 +2619,36 @@ async def _process_canal2_edit(msg, label: str = "Canal2"):
 
     sig  = state.get("canal2", msg.id)
 
-    if sig is None or sig.status != "open":
+    if sig is None:
+        if not is_canal2_entry(text):
+            return
+        if _edit_already_seen("canal2", msg):
+            print(f"[{label}] Edit huérfano duplicado msg={msg.id} "
+                  f"edit_date={getattr(msg, 'edit_date', None)} — ignorado")
+            return
+
+        max_age_s = config.STRATEGY_C2_ORPHAN_EDIT_MAX_AGE_S
+        recover, age_s = _should_recover_canal2_orphan_entry_edit(
+            msg, text, max_age_s)
+        sig_id = f"canal2_{msg.id}"
+        if recover:
+            journal.event(sig_id, "canal2_orphan_entry_edit_recovered",
+                          age_s=round(age_s, 1) if age_s is not None else None,
+                          max_age_s=max_age_s,
+                          raw_text=text[:500])
+            await _process_canal2_new(msg, label=f"{label}_recover",
+                                      dedup=False)
+        else:
+            journal.anomaly(
+                sig_id, "channel_msg", "warning",
+                "canal2 entry edit sin Signal en memoria ignorado por stale",
+                age_s=round(age_s, 1) if age_s is not None else None,
+                max_age_s=max_age_s,
+                raw_text=text[:500],
+            )
+        return
+
+    if sig.status != "open":
         return
     if not is_canal2_entry(text):
         return
