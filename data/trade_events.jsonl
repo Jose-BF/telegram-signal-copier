@@ -27468,3 +27468,7 @@
 {"ts": "2026-05-26T11:20:25.039+00:00", "sig": "canal2_12865", "ev": "mt5_modify_confirmed", "new_sl": 4531.79, "new_tp": null, "ticket": 1347663591, "attempts": 1, "retcode": 10009, "label": "BE #1347663591 \u2192 4531.79"}
 {"ts": "2026-05-26T11:20:25.160+00:00", "sig": "canal2_12865", "ev": "mt5_modify_confirmed", "new_sl": 4531.79, "new_tp": null, "ticket": 1347663596, "attempts": 1, "retcode": 10009, "label": "BE #1347663596 \u2192 4531.79"}
 {"ts": "2026-05-26T11:20:25.284+00:00", "sig": "canal2_12865", "ev": "mt5_modify_confirmed", "new_sl": 4531.79, "new_tp": null, "ticket": 1347663597, "attempts": 1, "retcode": 10009, "label": "BE #1347663597 \u2192 4531.79"}
+{"ts": "2026-05-26T11:21:19.429+00:00", "sig": "bot", "ev": "session_started", "git_commit": "84de36a", "git_branch": "main", "git_dirty": true, "started_utc": "2026-05-26T11:21:19"}
+{"ts": "2026-05-26T11:21:20.279+00:00", "sig": "bot", "ev": "telegram_connection_change", "connected": true, "previous_state": null, "previous_state_duration_sec": null, "utc": "2026-05-26T11:21:20"}
+{"ts": "2026-05-26T11:21:20.281+00:00", "sig": "bot", "ev": "mt5_connection_change", "connected": true, "previous_state": null, "previous_state_duration_sec": null, "utc": "2026-05-26T11:21:20"}
+{"ts": "2026-05-26T11:21:24.429+00:00", "sig": "bot", "ev": "poller_started", "interval_s": 0.5, "msg_limit": 10, "channels": ["canal2", "canal1"]}
