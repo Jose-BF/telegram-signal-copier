@@ -28103,3 +28103,7 @@
 {"ts": "2026-05-27T00:47:17.541+00:00", "sig": "bot", "ev": "telegram_connection_change", "connected": true, "previous_state": null, "previous_state_duration_sec": null, "utc": "2026-05-27T00:47:17"}
 {"ts": "2026-05-27T00:47:17.543+00:00", "sig": "bot", "ev": "mt5_connection_change", "connected": true, "previous_state": null, "previous_state_duration_sec": null, "utc": "2026-05-27T00:47:17"}
 {"ts": "2026-05-27T00:47:21.796+00:00", "sig": "bot", "ev": "poller_started", "interval_s": 0.5, "msg_limit": 10, "channels": ["canal2", "canal1"]}
+{"ts": "2026-05-27T00:48:15.953+00:00", "sig": "bot", "ev": "session_started", "git_commit": "cf0e0d1", "git_branch": "main", "git_dirty": true, "started_utc": "2026-05-27T00:48:15"}
+{"ts": "2026-05-27T00:48:17.478+00:00", "sig": "bot", "ev": "telegram_connection_change", "connected": true, "previous_state": null, "previous_state_duration_sec": null, "utc": "2026-05-27T00:48:17"}
+{"ts": "2026-05-27T00:48:17.482+00:00", "sig": "bot", "ev": "mt5_connection_change", "connected": true, "previous_state": null, "previous_state_duration_sec": null, "utc": "2026-05-27T00:48:17"}
+{"ts": "2026-05-27T00:48:21.639+00:00", "sig": "bot", "ev": "poller_started", "interval_s": 0.5, "msg_limit": 10, "channels": ["canal2", "canal1"]}
