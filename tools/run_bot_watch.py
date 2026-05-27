@@ -44,6 +44,8 @@ RECONCILE_STATUS_FILE = REPO_DIR / "data" / "reconcile_status.json"
 POLL_SEC = 60   # cada cuánto comprobar commits nuevos
 RESTART_GRACE_SEC = 10  # tiempo para SIGTERM antes de SIGKILL
 RELAUNCH_DELAY_SEC = 5  # espera entre fin del bot y relanzamiento
+WATCHER_RELOAD_EXIT_CODE = 75
+WATCHER_SELF_UPDATE_PATHS = {"tools/run_bot_watch.py", "run_bot.bat"}
 
 
 def _git(*args: str, capture: bool = True) -> subprocess.CompletedProcess:
@@ -81,6 +83,17 @@ def _remote_update_is_data_only(old_rev: str, new_rev: str) -> bool:
     if not subjects:
         return False
     return all(subject.startswith("data:") for subject in subjects)
+
+
+def _paths_changed_between(old_rev: str, new_rev: str,
+                           watched_paths: set[str]) -> bool:
+    diff = _git("diff", "--name-only", f"{old_rev}..{new_rev}")
+    if diff.returncode != 0:
+        return False
+    changed = {line.strip().replace("\\", "/")
+               for line in (diff.stdout or "").splitlines()
+               if line.strip()}
+    return bool(changed.intersection(watched_paths))
 
 
 def _refresh_heads_after_session_data_push() -> tuple[str, str]:
@@ -291,6 +304,8 @@ def main() -> int:
                               f"Sin reinicio.", flush=True)
                         last_remote = remote
                         continue
+                    watcher_self_update = _paths_changed_between(
+                        last_remote, remote, WATCHER_SELF_UPDATE_PATHS)
                     print(f"[Watch] Commit nuevo detectado: {last_remote[:8]} -> "
                           f"{remote[:8]}. Reinicio.", flush=True)
                     _stop_bot(proc)
@@ -300,6 +315,10 @@ def main() -> int:
                     if pull.returncode != 0:
                         print(f"[Watch] git pull falló:\n{pull.stderr}", flush=True)
                         # Aun así relanzamos con el código que haya
+                    if pull.returncode == 0 and watcher_self_update:
+                        print("[Watch] Watcher actualizado. Saliendo para "
+                              "que run_bot.bat lo relance.", flush=True)
+                        return WATCHER_RELOAD_EXIT_CODE
                     proc = _spawn_bot()
 
             time.sleep(2)

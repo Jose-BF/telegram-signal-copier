@@ -158,3 +158,33 @@ def test_remote_update_with_code_commit_requires_restart(monkeypatch):
     monkeypatch.setattr(watch, "_git", fake_git)
 
     assert watch._remote_update_is_data_only("old", "new") is False
+
+
+def test_paths_changed_between_detects_watcher_update(monkeypatch):
+    def fake_git(*args, capture=True):
+        assert args == ("diff", "--name-only", "old..new")
+        return subprocess.CompletedProcess(
+            args=args, returncode=0,
+            stdout="listener.py\n"
+                   "tools/run_bot_watch.py\n",
+            stderr="")
+
+    monkeypatch.setattr(watch, "_git", fake_git)
+
+    assert watch._paths_changed_between(
+        "old", "new", {"tools/run_bot_watch.py"}) is True
+
+
+def test_paths_changed_between_ignores_unrelated_files(monkeypatch):
+    def fake_git(*args, capture=True):
+        assert args == ("diff", "--name-only", "old..new")
+        return subprocess.CompletedProcess(
+            args=args, returncode=0,
+            stdout="listener.py\n"
+                   "executor.py\n",
+            stderr="")
+
+    monkeypatch.setattr(watch, "_git", fake_git)
+
+    assert watch._paths_changed_between(
+        "old", "new", {"tools/run_bot_watch.py"}) is False
