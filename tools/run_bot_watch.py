@@ -69,6 +69,20 @@ def _pull_main_and_refresh_heads() -> tuple[subprocess.CompletedProcess, str, st
     return pull, _local_head(), _remote_head()
 
 
+def _remote_update_is_data_only(old_rev: str, new_rev: str) -> bool:
+    """True if every commit between refs is a watcher data upload."""
+    if old_rev == new_rev:
+        return True
+    log = _git("log", "--format=%s", f"{old_rev}..{new_rev}")
+    if log.returncode != 0:
+        return False
+    subjects = [line.strip() for line in (log.stdout or "").splitlines()
+                if line.strip()]
+    if not subjects:
+        return False
+    return all(subject.startswith("data:") for subject in subjects)
+
+
 def _refresh_heads_after_session_data_push() -> tuple[str, str]:
     """Refresh refs after this watcher may have pushed a data commit."""
     _git("fetch", "origin", "main")
@@ -247,6 +261,7 @@ def main() -> int:
         print("[Watch] El local está desfasado — pull antes de arrancar.", flush=True)
         _pull_main_ff(capture=False)
         last_local = _local_head()
+        last_remote = _remote_head()
 
     proc = _spawn_bot()
     last_check = time.time()
@@ -270,6 +285,12 @@ def main() -> int:
                 _git("fetch", "origin", "main")
                 remote = _remote_head()
                 if remote != last_remote:
+                    if _remote_update_is_data_only(last_remote, remote):
+                        print(f"[Watch] Solo commits de datos: "
+                              f"{last_remote[:8]} -> {remote[:8]}. "
+                              f"Sin reinicio.", flush=True)
+                        last_remote = remote
+                        continue
                     print(f"[Watch] Commit nuevo detectado: {last_remote[:8]} -> "
                           f"{remote[:8]}. Reinicio.", flush=True)
                     _stop_bot(proc)

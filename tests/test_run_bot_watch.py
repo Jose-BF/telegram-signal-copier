@@ -130,3 +130,31 @@ def test_refresh_after_session_data_push_updates_last_remote(monkeypatch):
     assert local == "data_commit"
     assert remote == "data_commit"
     assert calls == [(("fetch", "origin", "main"), True)]
+
+
+def test_remote_update_data_only_does_not_require_restart(monkeypatch):
+    def fake_git(*args, capture=True):
+        assert args == ("log", "--format=%s", "old..new")
+        return subprocess.CompletedProcess(
+            args=args, returncode=0,
+            stdout="data: sesion 2026-05-27 03:10:29\n"
+                   "data: sesion 2026-05-27 03:09:29\n",
+            stderr="")
+
+    monkeypatch.setattr(watch, "_git", fake_git)
+
+    assert watch._remote_update_is_data_only("old", "new") is True
+
+
+def test_remote_update_with_code_commit_requires_restart(monkeypatch):
+    def fake_git(*args, capture=True):
+        assert args == ("log", "--format=%s", "old..new")
+        return subprocess.CompletedProcess(
+            args=args, returncode=0,
+            stdout="data: sesion 2026-05-27 03:10:29\n"
+                   "fix: track ambiguous market fills\n",
+            stderr="")
+
+    monkeypatch.setattr(watch, "_git", fake_git)
+
+    assert watch._remote_update_is_data_only("old", "new") is False
