@@ -28099,3 +28099,7 @@
 {"ts": "2026-05-27T00:43:51.097+00:00", "sig": "canal2_12887", "ev": "pos_summary", "n_positions": 1, "positions": [{"ticket": 1348595935, "type": "market_a", "tp_override_idx": null, "pl": -0.33, "close_price": 4519.4}], "entry_mode": null, "had_double_market": false}
 {"ts": "2026-05-27T00:43:51.097+00:00", "sig": "canal2_12887", "ev": "signal_closed", "tag": "MANUAL", "total_pl": -0.09}
 {"ts": "2026-05-27T00:46:04.658+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-05-27T00:46:04"}
+{"ts": "2026-05-27T00:47:16.889+00:00", "sig": "bot", "ev": "session_started", "git_commit": "8f86b9a", "git_branch": "main", "git_dirty": true, "started_utc": "2026-05-27T00:47:16"}
+{"ts": "2026-05-27T00:47:17.541+00:00", "sig": "bot", "ev": "telegram_connection_change", "connected": true, "previous_state": null, "previous_state_duration_sec": null, "utc": "2026-05-27T00:47:17"}
+{"ts": "2026-05-27T00:47:17.543+00:00", "sig": "bot", "ev": "mt5_connection_change", "connected": true, "previous_state": null, "previous_state_duration_sec": null, "utc": "2026-05-27T00:47:17"}
+{"ts": "2026-05-27T00:47:21.796+00:00", "sig": "bot", "ev": "poller_started", "interval_s": 0.5, "msg_limit": 10, "channels": ["canal2", "canal1"]}
