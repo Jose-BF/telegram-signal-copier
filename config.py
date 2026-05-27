@@ -222,6 +222,17 @@ STRATEGY_C2_DUPLICATE_ALIAS_WINDOW_S = _float(
 STRATEGY_C2_ORPHAN_EDIT_MAX_AGE_S = _float(
     "STRATEGY_C2_ORPHAN_EDIT_MAX_AGE_S", 180.0)
 
+# Si MT5 devuelve un retcode ambiguo en una apertura market pero incluye
+# order/ticket (visto: 10012 Request timeout), comprobamos si la posicion
+# existe antes de declarar fallo. No reintenta la orden: evita duplicados.
+STRATEGY_MARKET_OPEN_ORDER_PROBE_ENABLED = (
+    os.getenv("STRATEGY_MARKET_OPEN_ORDER_PROBE_ENABLED", "1") == "1"
+)
+STRATEGY_MARKET_OPEN_ORDER_PROBE_ATTEMPTS = int(
+    os.getenv("STRATEGY_MARKET_OPEN_ORDER_PROBE_ATTEMPTS", "5"))
+STRATEGY_MARKET_OPEN_ORDER_PROBE_SLEEP_S = _float(
+    "STRATEGY_MARKET_OPEN_ORDER_PROBE_SLEEP_S", 0.5)
+
 # Tolerancia (en USD) para clasificar A_inside cuando el entry está cerca de
 # un extremo del rango. Si |entry - rango| ≤ tolerancia → tratamos como A.
 # Evita que 0.45$ de diferencia por ruido de spread caiga en B_favorable o

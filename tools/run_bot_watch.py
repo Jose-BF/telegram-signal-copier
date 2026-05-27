@@ -69,6 +69,21 @@ def _pull_main_and_refresh_heads() -> tuple[subprocess.CompletedProcess, str, st
     return pull, _local_head(), _remote_head()
 
 
+def _refresh_heads_after_session_data_push() -> tuple[str, str]:
+    """Refresh refs after this watcher may have pushed a data commit."""
+    _git("fetch", "origin", "main")
+    local = _local_head()
+    remote = _remote_head()
+    if local == remote:
+        return local, remote
+
+    pull, local, remote = _pull_main_and_refresh_heads()
+    if pull.returncode != 0:
+        print(f"[Watch] git pull tras subir datos fallo:\n{pull.stderr}",
+              flush=True)
+    return local, remote
+
+
 def _spawn_bot() -> subprocess.Popen:
     print(f"[Watch] Lanzando bot: python {MAIN_PY}", flush=True)
     # Usamos el mismo intérprete que ejecuta este script.
@@ -243,6 +258,7 @@ def main() -> int:
                 print(f"[Watch] Bot terminó con código {proc.returncode}. "
                       f"Relanzo en {RELAUNCH_DELAY_SEC}s.", flush=True)
                 _push_session_data()  # sube datos antes de relanzar
+                last_local, last_remote = _refresh_heads_after_session_data_push()
                 time.sleep(RELAUNCH_DELAY_SEC)
                 proc = _spawn_bot()
                 continue

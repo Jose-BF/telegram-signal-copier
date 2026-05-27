@@ -4,6 +4,7 @@ El listener las ejecuta en un executor thread para no bloquear el loop async.
 """
 
 import re
+import time
 
 import MetaTrader5 as mt5
 from typing import Optional
@@ -83,6 +84,29 @@ def _result_ctx(res) -> dict:
         "ask": getattr(res, "ask", None),
         "request_id": getattr(res, "request_id", None),
     }
+
+
+def _probe_position_from_non_done_result(res):
+    """Return MT5 position if a non-DONE market result actually opened one."""
+    if not config.STRATEGY_MARKET_OPEN_ORDER_PROBE_ENABLED:
+        return None
+
+    ticket = getattr(res, "order", None)
+    if not ticket:
+        return None
+
+    attempts = max(1, int(config.STRATEGY_MARKET_OPEN_ORDER_PROBE_ATTEMPTS))
+    sleep_s = max(0.0, float(config.STRATEGY_MARKET_OPEN_ORDER_PROBE_SLEEP_S))
+    for attempt in range(attempts):
+        try:
+            pos = mt5.positions_get(ticket=ticket)
+        except Exception:
+            pos = None
+        if pos:
+            return pos[0]
+        if attempt < attempts - 1 and sleep_s:
+            time.sleep(sleep_s)
+    return None
 
 
 def _emit_anomaly(sig_id: str, category: str, severity: str,
@@ -288,6 +312,30 @@ def open_market_with_fill(direction: str, lot: float,
         print(f"[MT5] market order fallo: retcode={res.retcode} comment={res.comment!r} "
               f"deal={res.deal} order={res.order} volume={res.volume} price={res.price} "
               f"bid={res.bid} ask={res.ask}")
+        pos = _probe_position_from_non_done_result(res)
+        if pos is not None:
+            recovered_ticket = getattr(pos, "ticket", None) or res.order
+            fill_price = (
+                getattr(pos, "price_open", None)
+                or getattr(res, "price", None)
+                or price
+            )
+            _emit_event(sig_id, "market_fill_recovered_from_non_done",
+                        retcode=res.retcode,
+                        comment=getattr(res, "comment", None),
+                        ticket=recovered_ticket,
+                        order=res.order,
+                        fill_price=round(float(fill_price), 2))
+            _emit_anomaly(sig_id or "bot", "fill", "warning",
+                          f"market order retcode={res.retcode} pero "
+                          f"positions_get encontro posicion abierta; "
+                          f"trackeando ticket={recovered_ticket}",
+                          retcode=res.retcode,
+                          comment=getattr(res, "comment", None),
+                          order=res.order,
+                          ticket=recovered_ticket,
+                          fill_price=round(float(fill_price), 2))
+            return (int(recovered_ticket), float(fill_price))
         # Batch D: DONE_PARTIAL = 10009 NO existe en MT5 (DONE es 10009).
         # Pero retcodes 10008 (PLACED) y 10010 (DONE_PARTIAL real) pueden
         # significar que abrieron volumen parcial y nosotros perdemos la

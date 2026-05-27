@@ -577,6 +577,12 @@ _seen_new_msg_ids: set[tuple] = set()
 _seen_new_msgs_order: list[tuple] = []
 _SEEN_NEW_MAX = 500
 
+# Canal2 puede editar el mensaje mientras la apertura market original sigue
+# bloqueada en MT5. Esos edits no son huerfanos reales: se cachean y se aplican
+# cuando la apertura termina, evitando duplicar la entrada.
+_canal2_opening_msg_ids: set[int] = set()
+_deferred_canal2_entry_edits: dict[int, dict] = {}
+
 
 def _new_msg_already_seen(channel: str, msg_id: int) -> bool:
     """True si este mensaje nuevo ya fue despachado. Lo marca como visto si no."""
@@ -589,6 +595,30 @@ def _new_msg_already_seen(channel: str, msg_id: int) -> bool:
         old = _seen_new_msgs_order.pop(0)
         _seen_new_msg_ids.discard(old)
     return False
+
+
+def _canal2_open_started(msg_id: int) -> None:
+    _canal2_opening_msg_ids.add(msg_id)
+
+
+def _canal2_open_finished(msg_id: int) -> None:
+    _canal2_opening_msg_ids.discard(msg_id)
+
+
+def _canal2_open_in_progress(msg_id: int) -> bool:
+    return msg_id in _canal2_opening_msg_ids
+
+
+def _defer_canal2_entry_edit(msg, text: str) -> None:
+    edit_ts = getattr(msg, "edit_date", None) or getattr(msg, "date", None)
+    _deferred_canal2_entry_edits[msg.id] = {
+        "text": text,
+        "tg_ts": edit_ts.isoformat(timespec="seconds") if edit_ts else None,
+    }
+
+
+def _pop_deferred_canal2_entry_edit(msg_id: int):
+    return _deferred_canal2_entry_edits.pop(msg_id, None)
 
 
 def _edit_already_seen(channel: str, msg) -> bool:
@@ -2536,10 +2566,12 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
     magic = config.magic_for("canal2")
     # open_market_with_fill devuelve (ticket, fill_price) en una sola llamada MT5
     # — evita el round-trip extra de entry_price() (~5ms ahorrados en hot path).
+    _canal2_open_started(msg.id)
     result = await _run(executor.open_market_with_fill, direction, effective_lot,
                         parsed.get("sl"), parsed["tps"][0] if parsed.get("tps") else None,
                         f"c2_{msg.id}", magic)
     if not result:
+        _canal2_open_finished(msg.id)
         journal.event(sig_id_pre, "market_fill_failed",
                       reason="executor.open_market returned None")
         journal.anomaly(sig_id_pre, "fill", "critical",
@@ -2608,6 +2640,18 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
     # Abre posiciones market extra (modo scale_out, o doble market legacy).
     await _open_extra_legs(sig, msg.id)
     await _update_signal_from_parsed(sig, parsed)
+    deferred = _pop_deferred_canal2_entry_edit(msg.id)
+    if deferred:
+        deferred_parsed = parse_canal2(deferred["text"])
+        journal.event(
+            _sig_id(sig),
+            "canal2_deferred_entry_edit_applied",
+            parsed_keys=sorted(deferred_parsed.keys()),
+            tg_ts=deferred.get("tg_ts"),
+        )
+        await _update_signal_from_parsed(
+            sig, deferred_parsed, tg_ts=deferred.get("tg_ts"))
+    _canal2_open_finished(msg.id)
     logger.log_signal(sig, parsed)
 
 
@@ -2625,6 +2669,17 @@ async def _process_canal2_edit(msg, label: str = "Canal2"):
         if _edit_already_seen("canal2", msg):
             print(f"[{label}] Edit huérfano duplicado msg={msg.id} "
                   f"edit_date={getattr(msg, 'edit_date', None)} — ignorado")
+            return
+
+        if _canal2_open_in_progress(msg.id):
+            _defer_canal2_entry_edit(msg, text)
+            journal.event(
+                f"canal2_{msg.id}",
+                "canal2_orphan_entry_edit_deferred",
+                reason="market_open_in_progress",
+                raw_text=text[:500],
+                tg_ts=_msg_ts_iso(msg),
+            )
             return
 
         max_age_s = config.STRATEGY_C2_ORPHAN_EDIT_MAX_AGE_S

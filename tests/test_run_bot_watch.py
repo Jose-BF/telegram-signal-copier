@@ -111,3 +111,22 @@ def test_pull_main_and_refresh_heads_returns_remote_after_self_data_push(
     assert local == "self_data_commit"
     assert remote == "self_data_commit"
     assert calls == [("pull", True)]
+
+
+def test_refresh_after_session_data_push_updates_last_remote(monkeypatch):
+    calls = []
+
+    def fake_git(*args, capture=True):
+        calls.append((args, capture))
+        return subprocess.CompletedProcess(args=args, returncode=0,
+                                           stdout="", stderr="")
+
+    monkeypatch.setattr(watch, "_git", fake_git)
+    monkeypatch.setattr(watch, "_local_head", lambda: "data_commit")
+    monkeypatch.setattr(watch, "_remote_head", lambda: "data_commit")
+
+    local, remote = watch._refresh_heads_after_session_data_push()
+
+    assert local == "data_commit"
+    assert remote == "data_commit"
+    assert calls == [(("fetch", "origin", "main"), True)]

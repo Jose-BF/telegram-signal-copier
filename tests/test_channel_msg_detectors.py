@@ -25,7 +25,10 @@ from types import SimpleNamespace
 import config
 import listener
 from listener import (
+    _canal2_open_finished,
+    _canal2_open_started,
     _classify_deleted_msg_impact,
+    _pop_deferred_canal2_entry_edit,
     _diff_canal1_edit,
     _process_canal1_edit,
     _process_canal2_edit,
@@ -301,6 +304,114 @@ class TestCanal2OrphanEditRecovery:
 
         assert recovered == [(12879, "Canal2_recover", False)]
         assert any(ev == "canal2_orphan_entry_edit_recovered"
+                   for _, ev, _ in events)
+
+    @pytest.mark.asyncio
+    async def test_entry_edit_during_market_open_is_deferred_not_recovered(
+            self, monkeypatch):
+        st = StateManager()
+        recovered = []
+        events = []
+
+        async def fake_process_new(msg, label="Canal2", dedup=True):
+            recovered.append((msg.id, label, dedup))
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(listener, "_process_canal2_new", fake_process_new)
+        monkeypatch.setattr(listener.journal, "event",
+                            lambda sig, ev, **kw: events.append((sig, ev, kw)))
+        listener._seen_edits.clear()
+        listener._seen_edits_order.clear()
+        listener._deferred_canal2_entry_edits.clear()
+        _canal2_open_started(12887)
+
+        msg = SimpleNamespace(
+            id=12887,
+            text=("XAU USD SELL NOW\n\n4517 - 4522\n\n"
+                  "TP1 4514\nTP2 4511\nSL 4524"),
+            date=datetime.utcnow() - timedelta(seconds=15),
+            edit_date=datetime.utcnow(),
+            reply_to=None,
+        )
+
+        try:
+            await _process_canal2_edit(msg)
+        finally:
+            _canal2_open_finished(12887)
+
+        deferred = _pop_deferred_canal2_entry_edit(12887)
+        assert recovered == []
+        assert deferred is not None
+        assert "TP1 4514" in deferred["text"]
+        assert any(ev == "canal2_orphan_entry_edit_deferred"
+                   for _, ev, _ in events)
+
+    @pytest.mark.asyncio
+    async def test_successful_new_signal_applies_deferred_entry_edit(
+            self, monkeypatch):
+        st = StateManager()
+        parsed_updates = []
+        events = []
+
+        async def fake_run(fn, *args):
+            return fn(*args)
+
+        async def fake_update(sig, parsed, tg_ts=None):
+            parsed_updates.append((parsed, tg_ts))
+
+        async def fake_open_extra_legs(sig, msg_id):
+            return None
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(listener, "_run", fake_run)
+        monkeypatch.setattr(listener, "compute_market_context",
+                            lambda symbol: None)
+        monkeypatch.setattr(listener.executor, "open_market_with_fill",
+                            lambda *args, **kwargs: (1348595935, 4519.02))
+        monkeypatch.setattr(listener.executor, "current_tick_safe",
+                            lambda: {"bid": 4518.9, "ask": 4519.1,
+                                     "spread": 0.2})
+        monkeypatch.setattr(listener, "_open_extra_legs", fake_open_extra_legs)
+        monkeypatch.setattr(listener, "_update_signal_from_parsed",
+                            fake_update)
+        monkeypatch.setattr(listener, "_emit_same_direction_overlap_anomaly",
+                            lambda sig: None)
+        monkeypatch.setattr(listener, "_log_strategy_snapshot",
+                            lambda *args, **kwargs: None)
+        monkeypatch.setattr(listener.logger, "log_signal",
+                            lambda sig, parsed: None)
+        monkeypatch.setattr(listener.journal, "event",
+                            lambda sig, ev, **kw: events.append((sig, ev, kw)))
+        monkeypatch.setattr(listener.journal, "begin_trade",
+                            lambda *args, **kwargs: None)
+        listener._seen_new_msg_ids.clear()
+        listener._seen_new_msgs_order.clear()
+        listener._deferred_canal2_entry_edits.clear()
+
+        edit_msg = SimpleNamespace(
+            id=12887,
+            text=("XAU USD SELL NOW\n\n4517 - 4522\n\n"
+                  "TP1 4514\nTP2 4511\nSL 4524"),
+            date=datetime.utcnow(),
+            edit_date=datetime.utcnow(),
+            reply_to=None,
+        )
+        listener._defer_canal2_entry_edit(edit_msg, edit_msg.text)
+
+        msg = SimpleNamespace(
+            id=12887,
+            text="XAU USD SELL NOW",
+            date=datetime.utcnow(),
+            reply_to=None,
+        )
+
+        await _process_canal2_new(msg)
+
+        assert st.get("canal2", 12887) is not None
+        assert _pop_deferred_canal2_entry_edit(12887) is None
+        assert any("tps" in parsed and parsed.get("sl") == 4524.0
+                   for parsed, _ in parsed_updates)
+        assert any(ev == "canal2_deferred_entry_edit_applied"
                    for _, ev, _ in events)
 
     @pytest.mark.asyncio

@@ -16,12 +16,14 @@ cubrimos los pocos helpers PUROS con logica de decision:
   - _classify_position_pnls_query(raw): "ok" | "empty" | "mt5_down"
 """
 import pytest
+from types import SimpleNamespace
 
 from executor import (
     _slippage_severity,
     _classify_position_pnls_query,
     _sig_id_from_order_comment,
 )
+import executor
 
 
 class TestSlippageSeverity:
@@ -91,3 +93,66 @@ class TestSigIdFromOrderComment:
 
     def test_close_comment_has_no_signal_id(self):
         assert _sig_id_from_order_comment("bot_close") is None
+
+
+class TestOpenMarketAmbiguousResult:
+    def test_recovers_timeout_result_when_mt5_position_exists(
+            self, monkeypatch):
+        sent = []
+        events = []
+        anomalies = []
+
+        monkeypatch.setattr(executor.config,
+                            "STRATEGY_MARKET_OPEN_ORDER_PROBE_ENABLED",
+                            True, raising=False)
+        monkeypatch.setattr(executor.config,
+                            "STRATEGY_MARKET_OPEN_ORDER_PROBE_ATTEMPTS",
+                            1, raising=False)
+        monkeypatch.setattr(executor.config,
+                            "STRATEGY_MARKET_OPEN_ORDER_PROBE_SLEEP_S",
+                            0.0, raising=False)
+        monkeypatch.setattr(executor, "_emit_event",
+                            lambda sig, ev, **kw: events.append((sig, ev, kw)))
+        monkeypatch.setattr(executor, "_emit_anomaly",
+                            lambda sig, category, severity, detail, **kw:
+                            anomalies.append((sig, category, severity, detail, kw)))
+
+        tick = SimpleNamespace(bid=4517.16, ask=4517.36)
+        monkeypatch.setattr(executor.mt5, "symbol_info_tick",
+                            lambda symbol: tick)
+        monkeypatch.setattr(executor.mt5, "symbol_select",
+                            lambda symbol, enable: True)
+
+        timeout_res = SimpleNamespace(
+            retcode=10012,
+            comment="Request timeout",
+            order=1348595935,
+            deal=0,
+            volume=0,
+            price=0,
+            bid=0,
+            ask=0,
+            request_id=1039404759,
+        )
+
+        def fake_order_send(req):
+            sent.append(req)
+            return timeout_res
+
+        position = SimpleNamespace(ticket=1348595935, price_open=4519.02)
+        monkeypatch.setattr(executor.mt5, "order_send", fake_order_send)
+        monkeypatch.setattr(executor.mt5, "positions_get",
+                            lambda ticket=None: [position]
+                            if ticket == 1348595935 else [])
+        monkeypatch.setattr(executor.mt5, "history_deals_get",
+                            lambda position=None: None)
+
+        result = executor.open_market_with_fill(
+            "SELL", 0.01, comment="c2_12887", magic=20260422)
+
+        assert result == (1348595935, 4519.02)
+        assert len(sent) == 1
+        assert any(ev == "market_fill_recovered_from_non_done"
+                   for _, ev, _ in events)
+        assert any(category == "fill" and severity == "warning"
+                   for _, category, severity, _, _ in anomalies)
