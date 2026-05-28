@@ -233,6 +233,58 @@ class TestManagementReplyEdits:
         assert calls[1][1] is sig
 
 
+class TestCanal1SignalTextEdits:
+    @pytest.mark.asyncio
+    async def test_material_tp_edit_reapplies_levels_to_mt5(self, monkeypatch):
+        st = StateManager()
+        sig = Signal(channel="canal1", message_id=19935, direction="BUY",
+                     status="open", tps=[4433.0, 4435.0, 4437.0, 4439.0],
+                     sl=4420.0, market_ticket=1354050001)
+        st.add(sig)
+        st.alias(sig, 19936)
+        parsed = {
+            "direction": "BUY",
+            "tps": [4435.0, 4440.0, 4445.0, 4450.0],
+            "sl": 4420.0,
+        }
+        updates = []
+        events = []
+        anomalies = []
+
+        async def fake_update(signal, parsed_arg, tg_ts=None):
+            updates.append((signal, parsed_arg, tg_ts))
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(listener, "parse_canal1_text", lambda _text: parsed)
+        monkeypatch.setattr(listener, "_update_signal_from_parsed", fake_update)
+        monkeypatch.setattr(listener.journal, "event",
+                            lambda sig_id, ev, **kw:
+                            events.append((sig_id, ev, kw)))
+        monkeypatch.setattr(listener.journal, "anomaly",
+                            lambda sig_id, category, severity, detail, **kw:
+                            anomalies.append((sig_id, category, severity,
+                                              detail, kw)))
+        listener._seen_edits.clear()
+        listener._seen_edits_order.clear()
+
+        edit_ts = datetime.utcnow()
+        msg = SimpleNamespace(
+            id=19936,
+            text="BUY GOLD NOW edited levels",
+            message="BUY GOLD NOW edited levels",
+            date=edit_ts,
+            edit_date=edit_ts,
+            reply_to=None,
+        )
+
+        await _process_canal1_edit(msg)
+
+        assert updates == [(sig, parsed, edit_ts.isoformat(timespec="seconds"))]
+        assert any(ev == "canal1_text_edit_auto_applied"
+                   for _, ev, _ in events)
+        assert anomalies == []
+
+
 class TestCanal2DuplicateAlias:
     @pytest.mark.asyncio
     async def test_near_duplicate_new_message_aliases_existing_naked_signal(

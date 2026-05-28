@@ -3265,9 +3265,8 @@ async def _process_canal1_edit(msg):
       1. Solo si el msg_id pertenece a una señal/alias canal1 viva.
       2. Re-parsear el texto del edit.
       3. _diff_canal1_edit decide si hubo cambio material.
-      4. Si sí → emitir warning anomaly (no auto-apply: cambiar SL/TP
-         remotamente en MT5 sin confirmación del usuario es arriesgado,
-         puede haber un typo del proveedor). El operador decide en MT5.
+      4. Si cambian TPs/SL, reaplicar con el mismo validador del texto
+         inicial. Si cambia direccion o solo rango, avisar sin actuar.
     """
     if await _process_management_reply_edit(msg, "canal1", "Canal1"):
         return
@@ -3298,6 +3297,22 @@ async def _process_canal1_edit(msg):
                   text_preview=text[:250].replace("\n", " | "))
 
     if not diff["material_change"]:
+        return
+
+    if ((diff["sl_changed"] or diff["tps_changed"])
+            and not diff["direction_changed"]):
+        tg_edit_ts = (
+            msg.edit_date.isoformat(timespec="seconds")
+            if msg.edit_date else None
+        )
+        journal.event(sig_id, "canal1_text_edit_auto_applied",
+                      source_msg_id=msg.id,
+                      sl_changed=diff["sl_changed"],
+                      tps_changed=diff["tps_changed"],
+                      range_changed=diff["range_changed"],
+                      previous=diff["previous"],
+                      new=diff["new"])
+        await _update_signal_from_parsed(sig, parsed, tg_ts=tg_edit_ts)
         return
 
     # Cambio material → anomaly + notify rico (la posición MT5 sigue con
