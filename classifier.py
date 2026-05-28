@@ -261,8 +261,10 @@ def _canal1_safe_regex_classify(text: str) -> list[dict]:
     be_phrases = [
         r"\bmove\s+(?:my\s+|your\s+|the\s+)?sl\s+to\s+be\b",
         r"\bmove\s+(?:my\s+|your\s+|the\s+)?stop.?loss\s+to\s+(?:be|breakeven|entry)\b",
+        r"\bset(?:ting)?\s+(?:sl\s+to\s+)?(?:be|breakeven)\b",
         r"\bsl\s+to\s+(?:be|breakeven|entry)\b",
         r"\b0\s*%?\s*risk\b",
+        r"\bzero\s+risk\b",
         r"\brisk.?free\b",
     ]
     if any(re.search(p, t) for p in be_phrases):
@@ -328,8 +330,10 @@ def _regex_classify_all(text: str) -> list[dict]:
     be_phrases = [
         r"move\s+(?:my\s+|your\s+)?sl\s+to\s+be\b",
         r"move\s+(?:my\s+|your\s+|the\s+)?stop.?loss\s+to\s+(?:be|breakeven|entry)",
+        r"set(?:ting)?\s+(?:sl\s+to\s+)?(?:be|breakeven)\b",
         r"sl\s+to\s+(?:be|breakeven|entry)\b",
         r"\b0\s*%?\s*risk\b",
+        r"\bzero\s+risk\b",
         r"risk.?free",
         r"move.*stop.*above.*lowest",
         r"move.*stop.*below.*highest",

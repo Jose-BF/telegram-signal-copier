@@ -162,6 +162,10 @@ class TestMoveSlToBe:
         actions = _actions("SL to BE")
         assert "MOVE_SL_TO_BE" in [a["action"] for a in actions]
 
+    def test_take_partials_set_breakeven_zero_risk(self):
+        actions = _actions("Take partials\n\nSet breakeven for zero risk")
+        assert "MOVE_SL_TO_BE" in [a["action"] for a in actions]
+
 
 # ─── 3. "I am out at BE" → CLOSE_ALL ────────────────────────────────────────
 

@@ -206,6 +206,52 @@ def _register_canal2_duplicate_alias(existing: Signal, alias_message_id: int,
                     window_s=window_s)
 
 
+def _canal1_duplicate_sticker_candidate(message_id: int, direction: str,
+                                        timestamp: datetime,
+                                        open_signals: list,
+                                        window_s: float):
+    probe = Signal(channel="canal1", message_id=message_id,
+                   direction=direction, timestamp=timestamp)
+    existing = _same_direction_overlap_candidate(probe, open_signals, window_s)
+    if existing is None:
+        return None
+    if existing.range_low is not None or existing.tps or existing.sl is not None:
+        return None
+    return existing
+
+
+def _register_canal1_duplicate_sticker_alias(existing: Signal,
+                                             alias_message_id: int,
+                                             sticker_id: int,
+                                             timestamp: datetime,
+                                             window_s: float):
+    state.alias(existing, alias_message_id)
+    sig_id = _sig_id(existing)
+    alias_sig_id = f"canal1_{alias_message_id}"
+    delta_s = abs((timestamp - existing.timestamp).total_seconds())
+    journal.event(sig_id, "canal1_duplicate_sticker_alias_registered",
+                  alias_message_id=alias_message_id,
+                  alias_signal_id=alias_sig_id,
+                  direction=existing.direction,
+                  sticker_id=sticker_id,
+                  delta_s=round(delta_s, 3),
+                  behavior="alias_without_new_order")
+    journal.event(alias_sig_id, "canal1_duplicate_sticker_alias_to_existing",
+                  existing_signal_id=sig_id,
+                  direction=existing.direction,
+                  sticker_id=sticker_id,
+                  delta_s=round(delta_s, 3))
+    journal.anomaly(sig_id, "channel_msg", "warning",
+                    "canal1 duplicate sticker aliased to existing naked "
+                    "signal; skipped new market order",
+                    alias_message_id=alias_message_id,
+                    alias_signal_id=alias_sig_id,
+                    direction=existing.direction,
+                    sticker_id=sticker_id,
+                    delta_s=round(delta_s, 3),
+                    window_s=window_s)
+
+
 def _message_age_seconds(msg) -> float | None:
     ts = getattr(msg, "date", None) or getattr(msg, "edit_date", None)
     if ts is None:
@@ -599,6 +645,13 @@ def _new_msg_already_seen(channel: str, msg_id: int) -> bool:
 
 def _canal2_open_started(msg_id: int) -> None:
     _canal2_opening_msg_ids.add(msg_id)
+
+
+def _canal2_open_claim(msg_id: int) -> bool:
+    if msg_id in _canal2_opening_msg_ids:
+        return False
+    _canal2_opening_msg_ids.add(msg_id)
+    return True
 
 
 def _canal2_open_finished(msg_id: int) -> None:
@@ -2559,17 +2612,31 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
 
     # Contexto de mercado (ATR M5x14 + range reciente + precio): permite al
     # análisis posterior separar fallos de ejecución vs régimen adverso.
-    ctx = await _run(compute_market_context, config.MT5_SYMBOL)
+    if not _canal2_open_claim(msg.id):
+        journal.event(sig_id_pre, "canal2_entry_open_already_in_progress",
+                      reason="duplicate_new_or_recovered_edit",
+                      raw_text=text[:500])
+        return
+
+    try:
+        ctx = await _run(compute_market_context, config.MT5_SYMBOL)
+    except Exception:
+        _canal2_open_finished(msg.id)
+        raise
     if ctx:
         journal.event(sig_id_pre, "market_context", **ctx)
 
     magic = config.magic_for("canal2")
     # open_market_with_fill devuelve (ticket, fill_price) en una sola llamada MT5
     # — evita el round-trip extra de entry_price() (~5ms ahorrados en hot path).
-    _canal2_open_started(msg.id)
-    result = await _run(executor.open_market_with_fill, direction, effective_lot,
-                        parsed.get("sl"), parsed["tps"][0] if parsed.get("tps") else None,
-                        f"c2_{msg.id}", magic)
+    try:
+        result = await _run(
+            executor.open_market_with_fill, direction, effective_lot,
+            parsed.get("sl"), parsed["tps"][0] if parsed.get("tps") else None,
+            f"c2_{msg.id}", magic)
+    except Exception:
+        _canal2_open_finished(msg.id)
+        raise
     if not result:
         _canal2_open_finished(msg.id)
         journal.event(sig_id_pre, "market_fill_failed",
@@ -3397,6 +3464,21 @@ async def _handle_canal1_sticker(msg):
         return
 
     # ── POST-SL para Canal 1 ──
+    duplicate_ts = datetime.utcnow()
+    duplicate = _canal1_duplicate_sticker_candidate(
+        msg.id, direction, duplicate_ts,
+        state.open_signals("canal1"),
+        config.STRATEGY_C1_DUPLICATE_STICKER_WINDOW_S,
+    )
+    if duplicate is not None:
+        _register_canal1_duplicate_sticker_alias(
+            duplicate, msg.id, sticker_id, duplicate_ts,
+            config.STRATEGY_C1_DUPLICATE_STICKER_WINDOW_S,
+        )
+        print(f"[Canal1] Duplicate sticker alias: msg={msg.id} -> "
+              f"{_sig_id(duplicate)} (no new order)")
+        return
+
     max_tp_idx = strategies.max_tp_index_for_signal("canal1")
 
     print(f"\n[Canal1] Sticker {direction} (msg={msg.id})"

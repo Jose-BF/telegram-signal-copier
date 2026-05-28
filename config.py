@@ -216,6 +216,11 @@ STRATEGY_NAKED_PROTECTIVE_SL_OFFSET_USD = _float(
 STRATEGY_C2_DUPLICATE_ALIAS_WINDOW_S = _float(
     "STRATEGY_C2_DUPLICATE_ALIAS_WINDOW_S", 3.0)
 
+# Canal1 a veces publica dos stickers iguales casi seguidos y luego manda el
+# texto de niveles solo para el segundo. Abrimos una vez y aliasamos el duplicado.
+STRATEGY_C1_DUPLICATE_STICKER_WINDOW_S = _float(
+    "STRATEGY_C1_DUPLICATE_STICKER_WINDOW_S", 5.0)
+
 # Si perdemos el NewMessage de Canal2 durante un restart pero recibimos un edit
 # fresco con BUY/SELL NOW, se puede recuperar como entrada. Cutoff defensivo
 # para no abrir senales viejas al arrancar tras una caida larga.

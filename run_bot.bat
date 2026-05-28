@@ -55,8 +55,11 @@ echo [%date% %time%] === SALIDA codigo=%EXITCODE% === >> logs\bot_runtime.log
 
 REM El watcher ya sube los datos en cada reinicio. Aqui solo hacemos un
 REM "ultimo backup" por si murio sin oportunidad de subir.
+python -c "import tools.run_bot_watch as w; raise SystemExit(0 if w._regenerate_ledger() else 1)" 2>nul
+if errorlevel 1 echo [Watch] reconcile final fallo; ledger puede quedar desfasado.
 git add -f data\trade_events.jsonl data\trade_events_TEST.jsonl 2>nul
 git add -f data\trade_journal.csv data\trade_journal_TEST.csv 2>nul
+git add -f data\ledger.jsonl data\reconcile_status.json 2>nul
 git diff --cached --quiet
 if errorlevel 1 (
     git commit -m "data: sesion %date% %time% (watcher exit)" 2>nul

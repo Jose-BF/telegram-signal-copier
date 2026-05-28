@@ -25,9 +25,11 @@ from types import SimpleNamespace
 import config
 import listener
 from listener import (
+    _canal2_open_in_progress,
     _canal2_open_finished,
     _canal2_open_started,
     _classify_deleted_msg_impact,
+    _handle_canal1_sticker,
     _pop_deferred_canal2_entry_edit,
     _diff_canal1_edit,
     _process_canal1_edit,
@@ -415,6 +417,63 @@ class TestCanal2OrphanEditRecovery:
                    for _, ev, _ in events)
 
     @pytest.mark.asyncio
+    async def test_new_signal_marks_open_in_progress_before_first_await(
+            self, monkeypatch):
+        st = StateManager()
+        marker_seen_during_context = []
+
+        def fake_market_context(_symbol):
+            marker_seen_during_context.append(
+                _canal2_open_in_progress(12914))
+            return None
+
+        async def fake_run(fn, *args):
+            return fn(*args)
+
+        async def fake_open_extra_legs(sig, msg_id):
+            return None
+
+        async def fake_update(sig, parsed, tg_ts=None):
+            return None
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(listener, "_run", fake_run)
+        monkeypatch.setattr(listener, "compute_market_context",
+                            fake_market_context)
+        monkeypatch.setattr(listener.executor, "open_market_with_fill",
+                            lambda *args, **kwargs: (1352996249, 4494.45))
+        monkeypatch.setattr(listener.executor, "current_tick_safe",
+                            lambda: {"bid": 4494.4, "ask": 4494.6,
+                                     "spread": 0.2})
+        monkeypatch.setattr(listener, "_open_extra_legs", fake_open_extra_legs)
+        monkeypatch.setattr(listener, "_update_signal_from_parsed",
+                            fake_update)
+        monkeypatch.setattr(listener, "_emit_same_direction_overlap_anomaly",
+                            lambda sig: None)
+        monkeypatch.setattr(listener, "_log_strategy_snapshot",
+                            lambda *args, **kwargs: None)
+        monkeypatch.setattr(listener.logger, "log_signal",
+                            lambda sig, parsed: None)
+        monkeypatch.setattr(listener.journal, "event", lambda *a, **kw: None)
+        monkeypatch.setattr(listener.journal, "begin_trade",
+                            lambda *args, **kwargs: None)
+        listener._seen_new_msg_ids.clear()
+        listener._seen_new_msgs_order.clear()
+        listener._canal2_opening_msg_ids.clear()
+
+        msg = SimpleNamespace(
+            id=12914,
+            text="XAU USD SELL NOW",
+            date=datetime.utcnow(),
+            reply_to=None,
+        )
+
+        await _process_canal2_new(msg)
+
+        assert marker_seen_during_context == [True]
+        assert not _canal2_open_in_progress(12914)
+
+    @pytest.mark.asyncio
     async def test_stale_entry_edit_without_state_is_not_recovered(
             self, monkeypatch):
         st = StateManager()
@@ -445,6 +504,68 @@ class TestCanal2OrphanEditRecovery:
         assert recovered == []
         assert any(category == "channel_msg" and severity == "warning"
                    for _, category, severity, _, _ in anomalies)
+
+
+class TestCanal1DuplicateSticker:
+    @pytest.mark.asyncio
+    async def test_duplicate_sticker_aliases_existing_signal_without_new_order(
+            self, monkeypatch):
+        st = StateManager()
+        orders = []
+        events = []
+        buy_sticker_id = 777
+
+        async def fake_run(fn, *args):
+            return fn(*args)
+
+        def fake_open_market_with_fill(direction, lot, sl, tp, comment, magic):
+            orders.append(comment)
+            return (1353614545, 4448.11)
+
+        async def fake_open_extra_legs(sig, msg_id):
+            return None
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(config, "CANAL1_BUY_STICKER_ID", buy_sticker_id,
+                            raising=False)
+        monkeypatch.setattr(config, "CANAL1_SELL_STICKER_ID", 778,
+                            raising=False)
+        monkeypatch.setattr(config, "STRATEGY_C1_DUPLICATE_STICKER_WINDOW_S",
+                            5.0, raising=False)
+        monkeypatch.setattr(listener, "_run", fake_run)
+        monkeypatch.setattr(listener, "compute_market_context",
+                            lambda _symbol: None)
+        monkeypatch.setattr(listener.executor, "open_market_with_fill",
+                            fake_open_market_with_fill)
+        monkeypatch.setattr(listener.executor, "current_tick_safe",
+                            lambda: {"bid": 4448.0, "ask": 4448.2,
+                                     "spread": 0.2})
+        monkeypatch.setattr(listener, "_open_extra_legs", fake_open_extra_legs)
+        monkeypatch.setattr(listener, "_log_strategy_snapshot",
+                            lambda *args, **kwargs: None)
+        monkeypatch.setattr(listener.journal, "event",
+                            lambda sig, ev, **kw: events.append((sig, ev, kw)))
+        monkeypatch.setattr(listener.journal, "begin_trade",
+                            lambda *args, **kwargs: None)
+
+        msg1 = SimpleNamespace(
+            id=19920,
+            sticker=SimpleNamespace(id=buy_sticker_id),
+            date=datetime.utcnow(),
+        )
+        msg2 = SimpleNamespace(
+            id=19921,
+            sticker=SimpleNamespace(id=buy_sticker_id),
+            date=datetime.utcnow() + timedelta(seconds=2),
+        )
+
+        await _handle_canal1_sticker(msg1)
+        await _handle_canal1_sticker(msg2)
+
+        assert orders == ["c1_19920"]
+        assert st.get("canal1", 19921) is st.get("canal1", 19920)
+        assert any(ev == "canal1_duplicate_sticker_alias_registered"
+                   for _, ev, _ in events)
 
 
 class TestStrictVsLooseCanal1Filter:
