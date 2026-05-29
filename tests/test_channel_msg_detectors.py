@@ -30,11 +30,13 @@ from listener import (
     _canal2_open_started,
     _classify_deleted_msg_impact,
     _handle_canal1_sticker,
+    _open_canal1_from_text,
     _pop_deferred_canal2_entry_edit,
     _diff_canal1_edit,
     _process_canal1_edit,
     _process_canal2_edit,
     _process_canal2_new,
+    _should_skip_stale_entry_signal,
     _strict_vs_loose_canal1_filter,
 )
 from state import Signal, StateManager
@@ -555,6 +557,107 @@ class TestCanal2OrphanEditRecovery:
 
         assert recovered == []
         assert any(category == "channel_msg" and severity == "warning"
+                   for _, category, severity, _, _ in anomalies)
+
+
+class TestStaleEntryGuard:
+    def test_entry_signal_older_than_cutoff_is_stale(self):
+        msg = SimpleNamespace(
+            id=13083,
+            date=datetime.utcnow() - timedelta(seconds=420),
+            edit_date=None,
+            reply_to=None,
+        )
+
+        skip, age_s = _should_skip_stale_entry_signal(msg, max_age_s=120.0)
+
+        assert skip is True
+        assert age_s >= 419
+
+    def test_entry_signal_without_timestamp_is_not_stale(self):
+        msg = SimpleNamespace(id=13083, date=None, edit_date=None,
+                              reply_to=None)
+
+        skip, age_s = _should_skip_stale_entry_signal(msg, max_age_s=120.0)
+
+        assert skip is False
+        assert age_s is None
+
+    @pytest.mark.asyncio
+    async def test_stale_canal2_new_signal_does_not_open_market(
+            self, monkeypatch):
+        st = StateManager()
+        events = []
+        anomalies = []
+
+        async def fail_run(*args, **kwargs):
+            raise AssertionError("stale entry must not call MT5")
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(listener, "_run", fail_run)
+        monkeypatch.setattr(config, "STRATEGY_ENTRY_MAX_TG_DELAY_S",
+                            120.0, raising=False)
+        monkeypatch.setattr(listener.journal, "event",
+                            lambda sig, ev, **kw: events.append((sig, ev, kw)))
+        monkeypatch.setattr(listener.journal, "anomaly",
+                            lambda sig, category, severity, detail, **kw:
+                            anomalies.append((sig, category, severity, detail, kw)))
+        listener._seen_new_msg_ids.clear()
+        listener._seen_new_msgs_order.clear()
+
+        msg = SimpleNamespace(
+            id=13083,
+            text="XAU USD BUY NOW\n\n4515 - 4511\n\nTP1 4518\nSL 4510",
+            date=datetime.utcnow() - timedelta(minutes=70),
+            reply_to=None,
+        )
+
+        await _process_canal2_new(msg)
+
+        assert st.get("canal2", 13083) is None
+        assert any(ev == "signal_skipped" and
+                   kw.get("reason") == "stale_entry_signal"
+                   for _, ev, kw in events)
+        assert any(category == "channel_msg" and severity == "critical"
+                   for _, category, severity, _, _ in anomalies)
+
+    @pytest.mark.asyncio
+    async def test_stale_canal1_text_only_signal_does_not_open_market(
+            self, monkeypatch):
+        events = []
+        anomalies = []
+
+        async def fail_run(*args, **kwargs):
+            raise AssertionError("stale text-only signal must not call MT5")
+
+        monkeypatch.setattr(listener, "_run", fail_run)
+        monkeypatch.setattr(config, "STRATEGY_ENTRY_MAX_TG_DELAY_S",
+                            120.0, raising=False)
+        monkeypatch.setattr(listener.journal, "event",
+                            lambda sig, ev, **kw: events.append((sig, ev, kw)))
+        monkeypatch.setattr(listener.journal, "anomaly",
+                            lambda sig, category, severity, detail, **kw:
+                            anomalies.append((sig, category, severity, detail, kw)))
+
+        msg = SimpleNamespace(
+            id=19998,
+            text="BUY GOLD NOW 4518-24\nTP1 4529\nSL 4505",
+            date=datetime.utcnow() - timedelta(minutes=50),
+            reply_to=None,
+        )
+
+        result = await _open_canal1_from_text(msg, {
+            "direction": "BUY",
+            "range": (4518.0, 4524.0),
+            "tps": [4529.0],
+            "sl": 4505.0,
+        })
+
+        assert result is None
+        assert any(ev == "signal_skipped" and
+                   kw.get("trigger") == "text_only"
+                   for _, ev, kw in events)
+        assert any(category == "channel_msg" and severity == "critical"
                    for _, category, severity, _, _ in anomalies)
 
 

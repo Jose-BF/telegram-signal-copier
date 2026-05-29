@@ -12,6 +12,8 @@ Primera vez (sin sticker IDs de Canal 1):
 import asyncio
 import builtins
 import io
+import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -151,6 +153,34 @@ async def _heartbeat(interval_sec: int = 300):
                       open_signals=open_signals,
                       utc=datetime.utcnow().isoformat(timespec="seconds"))
         await asyncio.sleep(interval_sec)
+
+
+def _write_runtime_heartbeat(path: Path | None = None) -> None:
+    path = path or Path(config.BOT_RUNTIME_HEARTBEAT_FILE)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "pid": os.getpid(),
+        "utc": datetime.utcnow().isoformat(timespec="milliseconds"),
+    }
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(payload, ensure_ascii=False) + "\n",
+                   encoding="utf-8")
+    tmp.replace(path)
+
+
+async def _runtime_heartbeat(interval_sec: float | None = None):
+    interval = (
+        float(interval_sec)
+        if interval_sec is not None
+        else float(config.BOT_RUNTIME_HEARTBEAT_SEC)
+    )
+    interval = max(1.0, interval)
+    while True:
+        try:
+            _write_runtime_heartbeat()
+        except Exception as e:
+            print(f"[Heartbeat] runtime heartbeat write failed: {e}")
+        await asyncio.sleep(interval)
 
 
 def _should_apply_naked_protective_sl(sig) -> bool:
@@ -950,6 +980,7 @@ async def main():
     print(f"[Telegram] Escuchando Canal 2 (ID={config.CANAL_2_ID})")
     print("\n  Bot activo. Ctrl+C para detener.\n")
 
+    asyncio.ensure_future(_runtime_heartbeat())
     asyncio.ensure_future(_heartbeat())
     asyncio.ensure_future(_telegram_connection_monitor())
     asyncio.ensure_future(_mt5_connection_monitor())

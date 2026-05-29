@@ -22,6 +22,8 @@ __pycache__/
 # Logs y datos de runtime
 logs/
 *.log
+data/runtime_heartbeat.json
+data/runtime_heartbeat.json.tmp
 
 # Eventos y journal: gitignored por defecto, EXCEPTO los ficheros canónicos
 # de producción y de test (los queremos en git para análisis post-sesión).

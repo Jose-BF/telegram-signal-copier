@@ -261,6 +261,36 @@ def _message_age_seconds(msg) -> float | None:
     return (datetime.utcnow() - ts).total_seconds()
 
 
+def _should_skip_stale_entry_signal(msg, max_age_s: float):
+    age_s = _message_age_seconds(msg)
+    if age_s is None or max_age_s <= 0:
+        return False, age_s
+    return age_s > max_age_s, age_s
+
+
+def _log_stale_entry_skip(sig_id: str, channel: str, msg, trigger: str,
+                          max_age_s: float, age_s: float | None,
+                          direction: str | None = None,
+                          text: str = "") -> None:
+    preview = (text or "")[:250].replace("\n", " | ")
+    payload = {
+        "reason": "stale_entry_signal",
+        "channel": channel,
+        "trigger": trigger,
+        "direction": direction,
+        "age_s": round(age_s, 1) if age_s is not None else None,
+        "max_age_s": max_age_s,
+        "tg_ts": _msg_ts_iso(msg),
+        "text_preview": preview,
+    }
+    journal.event(sig_id, "signal_skipped", **payload)
+    journal.anomaly(
+        sig_id, "channel_msg", "critical",
+        "senal de entrada Telegram llego demasiado tarde; no se abre market",
+        **payload,
+    )
+
+
 def _should_recover_canal2_orphan_entry_edit(msg, text: str,
                                              max_age_s: float):
     if msg.reply_to and msg.reply_to.reply_to_msg_id:
@@ -2567,6 +2597,16 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
         return
 
     # ── FILTRO 1: Skip RE-ENTER / 14h SELL (estrategias del análisis) ──
+    max_entry_age_s = config.STRATEGY_ENTRY_MAX_TG_DELAY_S
+    stale, age_s = _should_skip_stale_entry_signal(msg, max_entry_age_s)
+    if stale:
+        print(f"\n[{label}] SENAL STALE ignorada ({direction}, msg={msg.id}): "
+              f"age={age_s:.1f}s > {max_entry_age_s:.1f}s")
+        _log_stale_entry_skip(
+            f"canal2_{msg.id}", "canal2", msg, "text",
+            max_entry_age_s, age_s, direction=direction, text=text)
+        return
+
     skip, reason = strategies.should_skip_signal(text, direction, "canal2")
     if skip:
         print(f"\n[{label}] ❌ SEÑAL IGNORADA ({direction}, msg={msg.id}): {reason}")
@@ -3494,6 +3534,16 @@ async def _handle_canal1_sticker(msg):
               f"{_sig_id(duplicate)} (no new order)")
         return
 
+    max_entry_age_s = config.STRATEGY_ENTRY_MAX_TG_DELAY_S
+    stale, age_s = _should_skip_stale_entry_signal(msg, max_entry_age_s)
+    if stale:
+        print(f"\n[Canal1] STICKER STALE ignorado ({direction}, msg={msg.id}): "
+              f"age={age_s:.1f}s > {max_entry_age_s:.1f}s")
+        _log_stale_entry_skip(
+            sig_id, "canal1", msg, "sticker",
+            max_entry_age_s, age_s, direction=direction)
+        return
+
     max_tp_idx = strategies.max_tp_index_for_signal("canal1")
 
     print(f"\n[Canal1] Sticker {direction} (msg={msg.id})"
@@ -3651,6 +3701,16 @@ async def _open_canal1_from_text(msg, parsed: dict):
 
     # ── POST-SL para Canal 1 ──
     max_tp_idx = strategies.max_tp_index_for_signal("canal1")
+
+    max_entry_age_s = config.STRATEGY_ENTRY_MAX_TG_DELAY_S
+    stale, age_s = _should_skip_stale_entry_signal(msg, max_entry_age_s)
+    if stale:
+        print(f"\n[Canal1] TEXTO-only STALE ignorado ({direction}, msg={msg.id}): "
+              f"age={age_s:.1f}s > {max_entry_age_s:.1f}s")
+        _log_stale_entry_skip(
+            sig_id_pre, "canal1", msg, "text_only",
+            max_entry_age_s, age_s, direction=direction, text=_msg_text(msg))
+        return None
 
     print(f"\n[Canal1] Texto-only {direction} (msg={msg.id}, sticker no llego)"
           f"{f' [post-SL: TP cap idx {max_tp_idx}]' if max_tp_idx is not None else ''}")

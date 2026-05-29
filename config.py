@@ -50,6 +50,12 @@ def magic_for(channel: str) -> int:
 # Trading
 LOT_SIZE = _float("LOT_SIZE", 0.01)
 
+# Heartbeat de runtime para el watcher externo. Si el proceso queda vivo pero
+# congelado, tools/run_bot_watch.py reinicia el bot al ver este fichero viejo.
+BOT_RUNTIME_HEARTBEAT_SEC = _float("BOT_RUNTIME_HEARTBEAT_SEC", 15.0)
+BOT_RUNTIME_HEARTBEAT_FILE = os.getenv(
+    "BOT_RUNTIME_HEARTBEAT_FILE", "data/runtime_heartbeat.json")
+
 
 # ─── Estrategias derivadas del análisis del JSON ─────────────────────────────
 #
@@ -226,6 +232,11 @@ STRATEGY_C1_DUPLICATE_STICKER_WINDOW_S = _float(
 # para no abrir senales viejas al arrancar tras una caida larga.
 STRATEGY_C2_ORPHAN_EDIT_MAX_AGE_S = _float(
     "STRATEGY_C2_ORPHAN_EDIT_MAX_AGE_S", 180.0)
+
+# Cutoff global para abrir entradas market nuevas desde mensajes atrasados de
+# Telegram. Updates/replies de senales ya abiertas se siguen procesando.
+STRATEGY_ENTRY_MAX_TG_DELAY_S = _float(
+    "STRATEGY_ENTRY_MAX_TG_DELAY_S", 120.0)
 
 # Si MT5 devuelve un retcode ambiguo en una apertura market pero incluye
 # order/ticket (visto: 10012 Request timeout), comprobamos si la posicion

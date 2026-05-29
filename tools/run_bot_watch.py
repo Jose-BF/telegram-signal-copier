@@ -41,11 +41,17 @@ if hasattr(sys.stderr, "reconfigure"):
 REPO_DIR = Path(__file__).resolve().parent.parent
 MAIN_PY  = REPO_DIR / "main.py"
 RECONCILE_STATUS_FILE = REPO_DIR / "data" / "reconcile_status.json"
+RUNTIME_HEARTBEAT_FILE = Path(os.getenv(
+    "BOT_RUNTIME_HEARTBEAT_FILE",
+    str(REPO_DIR / "data" / "runtime_heartbeat.json"),
+))
 POLL_SEC = 60   # cada cuánto comprobar commits nuevos
 RESTART_GRACE_SEC = 10  # tiempo para SIGTERM antes de SIGKILL
 RELAUNCH_DELAY_SEC = 5  # espera entre fin del bot y relanzamiento
 WATCHER_RELOAD_EXIT_CODE = 75
 WATCHER_SELF_UPDATE_PATHS = {"tools/run_bot_watch.py", "run_bot.bat"}
+WATCHDOG_HEARTBEAT_TIMEOUT_SEC = float(os.getenv(
+    "WATCHDOG_HEARTBEAT_TIMEOUT_SEC", "180"))
 
 
 def _git(*args: str, capture: bool = True) -> subprocess.CompletedProcess:
@@ -111,7 +117,37 @@ def _refresh_heads_after_session_data_push() -> tuple[str, str]:
     return local, remote
 
 
+def _clear_runtime_heartbeat(path: Path = RUNTIME_HEARTBEAT_FILE) -> None:
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        print(f"[Watch] no pude limpiar heartbeat runtime: {e}", flush=True)
+
+
+def _runtime_heartbeat_age_s(path: Path = RUNTIME_HEARTBEAT_FILE,
+                             now: float | None = None) -> float | None:
+    try:
+        stat = path.stat()
+    except FileNotFoundError:
+        return None
+    now = time.time() if now is None else now
+    return max(0.0, now - stat.st_mtime)
+
+
+def _runtime_heartbeat_is_stale(heartbeat_age_s: float | None,
+                                process_uptime_s: float,
+                                timeout_s: float) -> bool:
+    if timeout_s <= 0:
+        return False
+    if heartbeat_age_s is None:
+        return process_uptime_s > timeout_s
+    return heartbeat_age_s > timeout_s
+
+
 def _spawn_bot() -> subprocess.Popen:
+    _clear_runtime_heartbeat()
     print(f"[Watch] Lanzando bot: python {MAIN_PY}", flush=True)
     # Usamos el mismo intérprete que ejecuta este script.
     # creationflags en Windows para poder mandar Ctrl-Break al subproceso.
@@ -277,6 +313,7 @@ def main() -> int:
         last_remote = _remote_head()
 
     proc = _spawn_bot()
+    bot_started_at = time.time()
     last_check = time.time()
 
     try:
@@ -289,10 +326,29 @@ def main() -> int:
                 last_local, last_remote = _refresh_heads_after_session_data_push()
                 time.sleep(RELAUNCH_DELAY_SEC)
                 proc = _spawn_bot()
+                bot_started_at = time.time()
+                continue
+
+            now = time.time()
+            heartbeat_age_s = _runtime_heartbeat_age_s(now=now)
+            uptime_s = now - bot_started_at
+            if _runtime_heartbeat_is_stale(
+                    heartbeat_age_s, uptime_s, WATCHDOG_HEARTBEAT_TIMEOUT_SEC):
+                if heartbeat_age_s is None:
+                    detail = "no hay heartbeat runtime"
+                else:
+                    detail = f"heartbeat viejo ({heartbeat_age_s:.1f}s)"
+                print(f"[Watch] Bot congelado: {detail}. Reinicio.", flush=True)
+                _stop_bot(proc)
+                _push_session_data()
+                last_local, last_remote = _refresh_heads_after_session_data_push()
+                time.sleep(RELAUNCH_DELAY_SEC)
+                proc = _spawn_bot()
+                bot_started_at = time.time()
+                last_check = bot_started_at
                 continue
 
             # Cada POLL_SEC comprobar commits nuevos
-            now = time.time()
             if now - last_check >= POLL_SEC:
                 last_check = now
                 _git("fetch", "origin", "main")
@@ -320,6 +376,7 @@ def main() -> int:
                               "que run_bot.bat lo relance.", flush=True)
                         return WATCHER_RELOAD_EXIT_CODE
                     proc = _spawn_bot()
+                    bot_started_at = time.time()
 
             time.sleep(2)
     except KeyboardInterrupt:
