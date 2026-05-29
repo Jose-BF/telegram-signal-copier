@@ -47,6 +47,7 @@ builtins.print = _timestamped_print
 import config
 import executor
 import journal
+import live_auditor
 import pending_actions
 from listener import client, poll_loop
 from parser import predict_sl_from_entry
@@ -1041,6 +1042,7 @@ async def main():
     asyncio.ensure_future(_naked_signal_watchdog())
     asyncio.ensure_future(_pending_correction_watchdog())
     asyncio.ensure_future(_position_reconciler())
+    live_auditor.start()
     # Poller activo: bypass del updateChannelTooLong de Telethon.
     # Entrega mensajes y edits de Canal 2 en ~1s en lugar de 60-600s.
     asyncio.ensure_future(poll_loop())

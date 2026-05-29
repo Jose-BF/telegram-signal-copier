@@ -59,6 +59,19 @@ BOT_FREEZE_TRACEBACK_SEC = _float("BOT_FREEZE_TRACEBACK_SEC", 120.0)
 BOT_FREEZE_TRACEBACK_FILE = os.getenv(
     "BOT_FREEZE_TRACEBACK_FILE", "logs/freeze_traceback.log")
 
+# Auditor pasivo en vivo. No toca MT5: cruza state/MT5/pending_actions y deja
+# snapshots/anomalies en el journal para poder auditar cada operacion despues.
+LIVE_AUDITOR_ENABLED = os.getenv("LIVE_AUDITOR_ENABLED", "1") == "1"
+LIVE_AUDITOR_INTERVAL_S = _float("LIVE_AUDITOR_INTERVAL_S", 5.0)
+LIVE_AUDITOR_SNAPSHOT_EVERY_S = _float("LIVE_AUDITOR_SNAPSHOT_EVERY_S", 60.0)
+LIVE_AUDITOR_LEVEL_APPLY_GRACE_S = _float(
+    "LIVE_AUDITOR_LEVEL_APPLY_GRACE_S", 15.0)
+LIVE_AUDITOR_NAKED_AFTER_S = _float("LIVE_AUDITOR_NAKED_AFTER_S", 120.0)
+LIVE_AUDITOR_NO_POSITION_AFTER_S = _float(
+    "LIVE_AUDITOR_NO_POSITION_AFTER_S", 90.0)
+LIVE_AUDITOR_PENDING_STUCK_AFTER_S = _float(
+    "LIVE_AUDITOR_PENDING_STUCK_AFTER_S", 30.0)
+
 
 # ─── Estrategias derivadas del análisis del JSON ─────────────────────────────
 #

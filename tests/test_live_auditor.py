@@ -1,0 +1,217 @@
+from datetime import datetime
+from types import SimpleNamespace
+
+from state import Signal
+from live_auditor import AuditSettings, LiveAuditor
+from pending_actions import PendingAction, PendingQueue, snapshot
+
+
+class FakeJournal:
+    def __init__(self):
+        self.events = []
+        self.anomalies = []
+
+    def event(self, signal_id, ev, **fields):
+        self.events.append({"sig": signal_id, "ev": ev, **fields})
+
+    def anomaly(self, signal_id, category, severity, detail, **ctx):
+        self.anomalies.append({
+            "sig": signal_id,
+            "category": category,
+            "severity": severity,
+            "detail": detail,
+            **ctx,
+        })
+
+
+def _signal():
+    sig = Signal(
+        channel="canal2",
+        message_id=13111,
+        direction="SELL",
+        timestamp=datetime(2026, 5, 29, 15, 4, 14),
+        market_ticket=1365772408,
+        extra_market_tickets=[1365772471],
+        market_fill_price=4575.36,
+        range_low=4575.0,
+        range_high=4579.0,
+        tps=[4572.0, 4570.0],
+        sl=4583.0,
+    )
+    sig.status = "open"
+    return sig
+
+
+def _pos(ticket, *, sl=0.0, tp=0.0, comment="c2_13111"):
+    return SimpleNamespace(
+        ticket=ticket,
+        magic=20260422,
+        sl=sl,
+        tp=tp,
+        comment=comment,
+        price_open=4575.36,
+    )
+
+
+def test_audit_snapshot_records_levels_missing_in_mt5():
+    journal = FakeJournal()
+    auditor = LiveAuditor(
+        settings=AuditSettings(
+            level_apply_grace_s=0,
+            naked_after_s=999,
+            no_position_after_s=90,
+            pending_stuck_after_s=30,
+            snapshot_every_s=0,
+        ),
+        journal=journal,
+    )
+
+    auditor.audit_cycle(
+        signals=[_signal()],
+        positions=[_pos(1365772408), _pos(1365772471)],
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 5, 0),
+    )
+
+    snapshots = [e for e in journal.events if e["ev"] == "audit_snapshot"]
+    assert len(snapshots) == 1
+    assert snapshots[0]["state_tickets"] == [1365772408, 1365772471]
+    assert snapshots[0]["mt5_open_tickets"] == [1365772408, 1365772471]
+    assert snapshots[0]["tickets_without_sl"] == [1365772408, 1365772471]
+    assert snapshots[0]["tickets_without_tp"] == [1365772408, 1365772471]
+
+    issue = journal.anomalies[0]
+    assert issue["sig"] == "canal2_13111"
+    assert issue["category"] == "levels"
+    assert issue["severity"] == "warning"
+    assert issue["code"] == "levels_not_applied"
+    assert issue["tickets_without_sl"] == [1365772408, 1365772471]
+    assert issue["tickets_without_tp"] == [1365772408, 1365772471]
+
+
+def test_orphan_mt5_position_with_bot_magic_is_detected():
+    journal = FakeJournal()
+    auditor = LiveAuditor(
+        settings=AuditSettings(snapshot_every_s=0),
+        journal=journal,
+    )
+
+    auditor.audit_cycle(
+        signals=[],
+        positions=[_pos(999, sl=4583.0, tp=4572.0, comment="c2_13111")],
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 5, 0),
+    )
+
+    issue = journal.anomalies[0]
+    assert issue["sig"] == "bot"
+    assert issue["category"] == "mt5"
+    assert issue["severity"] == "critical"
+    assert issue["code"] == "mt5_orphan_position"
+    assert issue["ticket"] == 999
+    assert issue["parsed_signal_id"] == "canal2_13111"
+
+
+def test_audit_issue_resolution_is_logged_once_levels_are_applied():
+    journal = FakeJournal()
+    auditor = LiveAuditor(
+        settings=AuditSettings(
+            level_apply_grace_s=0,
+            naked_after_s=999,
+            no_position_after_s=90,
+            pending_stuck_after_s=30,
+            snapshot_every_s=0,
+        ),
+        journal=journal,
+    )
+    sig = _signal()
+
+    auditor.audit_cycle(
+        signals=[sig],
+        positions=[_pos(1365772408), _pos(1365772471)],
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 5, 0),
+    )
+    auditor.audit_cycle(
+        signals=[sig],
+        positions=[
+            _pos(1365772408, sl=4583.0, tp=4572.0),
+            _pos(1365772471, sl=4583.0, tp=4570.0),
+        ],
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 5, 5),
+    )
+
+    resolved = [e for e in journal.events if e["ev"] == "audit_issue_resolved"]
+    assert len(resolved) == 1
+    assert resolved[0]["sig"] == "canal2_13111"
+    assert resolved[0]["code"] == "levels_not_applied"
+
+
+def test_pending_action_stuck_is_detected_for_audit():
+    journal = FakeJournal()
+    auditor = LiveAuditor(
+        settings=AuditSettings(
+            pending_stuck_after_s=30,
+            snapshot_every_s=0,
+        ),
+        journal=journal,
+    )
+    sig = _signal()
+
+    auditor.audit_cycle(
+        signals=[sig],
+        positions=[
+            _pos(1365772408, sl=4583.0, tp=4572.0),
+            _pos(1365772471, sl=4583.0, tp=4570.0),
+        ],
+        pending_actions=[{
+            "sig_id": "canal2_13111",
+            "kind": "MODIFY_SLTP",
+            "ticket": 1365772408,
+            "age_s": 45.0,
+            "attempts": 200,
+            "last_retcode": 10016,
+            "label": "SL->85.0 #1365772408",
+        }],
+        now=datetime(2026, 5, 29, 15, 5, 0),
+    )
+
+    issue = journal.anomalies[0]
+    assert issue["sig"] == "canal2_13111"
+    assert issue["category"] == "mt5"
+    assert issue["severity"] == "warning"
+    assert issue["code"] == "pending_action_stuck"
+    assert issue["ticket"] == 1365772408
+    assert issue["age_s"] == 45.0
+
+
+def test_pending_actions_snapshot_is_read_only_and_serializable():
+    sig = _signal()
+    q = PendingQueue()
+    q._actions.append(PendingAction(
+        kind="MODIFY_SLTP",
+        ticket=1365772408,
+        signal=sig,
+        new_sl=4585.0,
+        new_tp=None,
+        created_at=100.0,
+        attempts=7,
+        last_retcode=10016,
+        label="SL->4585 #1365772408",
+    ))
+
+    result = snapshot(queue_obj=q, now=145.25)
+
+    assert result == [{
+        "sig_id": "canal2_13111",
+        "kind": "MODIFY_SLTP",
+        "ticket": 1365772408,
+        "new_sl": 4585.0,
+        "new_tp": None,
+        "age_s": 45.2,
+        "attempts": 7,
+        "last_retcode": 10016,
+        "label": "SL->4585 #1365772408",
+    }]
+    assert len(q._actions) == 1

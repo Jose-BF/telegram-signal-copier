@@ -476,6 +476,28 @@ def _runner_done_callback(task):
 queue = PendingQueue()
 
 
+def snapshot(queue_obj: PendingQueue | None = None,
+             now: float | None = None) -> list[dict]:
+    """Snapshot read-only de la cola para auditoria externa."""
+    q = queue_obj or queue
+    ts = time.time() if now is None else now
+    out = []
+    for act in list(q._actions):
+        sig_id = f"{act.signal.channel}_{act.signal.message_id}"
+        out.append({
+            "sig_id": sig_id,
+            "kind": act.kind,
+            "ticket": act.ticket,
+            "new_sl": act.new_sl,
+            "new_tp": act.new_tp,
+            "age_s": round(ts - act.created_at, 1),
+            "attempts": act.attempts,
+            "last_retcode": act.last_retcode,
+            "label": act.label,
+        })
+    return out
+
+
 # ─── Helpers de alto nivel ─────────────────────────────────────────────────────
 
 def enqueue_modify_sl(signal: Signal, ticket: int, new_sl: float, label: str = ""):
