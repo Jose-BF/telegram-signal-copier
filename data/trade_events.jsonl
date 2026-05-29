@@ -33406,3 +33406,8 @@
 {"ts": "2026-05-29T14:25:35.782+00:00", "sig": "canal2_13101", "ev": "handler_entry", "kind": "poll_new", "channel": "canal2", "msg_type": "text", "sticker_id": null, "text_preview": "200 pips in 15 minutes", "has_reply": true, "reply_to_msg_id": 13092, "tg_ts": "2026-05-29T14:25:24+00:00", "handler_entry_ts": "2026-05-29T14:25:35.782", "telegram_to_handler_ms": 11782}
 {"ts": "2026-05-29T14:26:32.063+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-05-29T14:26:32"}
 {"ts": "2026-05-29T14:31:32.070+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-05-29T14:31:32"}
+{"ts": "2026-05-29T14:37:20.278+00:00", "sig": "bot", "ev": "session_started", "git_commit": "e29edb0", "git_branch": "main", "git_dirty": true, "started_utc": "2026-05-29T14:37:20"}
+{"ts": "2026-05-29T14:37:21.291+00:00", "sig": "bot", "ev": "telegram_connection_change", "connected": true, "previous_state": null, "previous_state_duration_sec": null, "utc": "2026-05-29T14:37:21"}
+{"ts": "2026-05-29T14:37:21.293+00:00", "sig": "bot", "ev": "mt5_connection_change", "connected": true, "previous_state": null, "previous_state_duration_sec": null, "utc": "2026-05-29T14:37:21"}
+{"ts": "2026-05-29T14:37:25.444+00:00", "sig": "bot", "ev": "poller_started", "interval_s": 0.5, "msg_limit": 10, "channels": ["canal2", "canal1"]}
+{"ts": "2026-05-29T14:42:21.295+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-05-29T14:42:21"}
