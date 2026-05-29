@@ -47,6 +47,71 @@ def _sig_id(signal: Signal) -> str:
     return f"{signal.channel}_{signal.message_id}"
 
 
+def _management_price_reference(signal: Signal) -> float | None:
+    """Precio de referencia para expandir shorthand de gestion en XAUUSD."""
+    candidates = [
+        signal.market_fill_price,
+        signal.range_low,
+        signal.range_high,
+        signal.sl,
+        *list(signal.tps or []),
+    ]
+    for value in candidates:
+        try:
+            price = float(value)
+        except (TypeError, ValueError):
+            continue
+        if 1000 <= price <= 9999:
+            return price
+    return None
+
+
+def _normalize_management_sl_price(signal: Signal, price, raw_text: str = ""):
+    """Normaliza precios abreviados de gestion: "SL to 85" -> 4585.
+
+    Gold Standard a veces envia niveles cortos despues de una senal de XAUUSD
+    ("Move SL to 75", "Move SL to 85"). En MT5 eso nunca puede ser 75.0/85.0:
+    se interpreta contra la centena del precio real de la senal.
+    """
+    try:
+        price_f = float(price)
+    except (TypeError, ValueError):
+        return None
+
+    if 1000 <= price_f <= 9999:
+        return price_f
+
+    sig_id = _sig_id(signal)
+    ref = _management_price_reference(signal)
+    if ref is None:
+        journal.anomaly(sig_id, "channel_msg", "warning",
+                        "MOVE_SL_TO_PRICE con precio no absoluto y sin "
+                        "referencia XAUUSD; accion ignorada",
+                        raw_price=price_f, raw_snippet=raw_text[:120])
+        return None
+
+    if 0 <= price_f < 100:
+        base = int(ref / 100) * 100
+        normalized = base + price_f
+        if abs(normalized - ref) > 50:
+            normalized += 100 if normalized < ref else -100
+        normalized = round(normalized, 3)
+        journal.event(sig_id, "mgmt_price_normalized",
+                      action="MOVE_SL_TO_PRICE",
+                      raw_price=price_f,
+                      normalized_price=normalized,
+                      reference_price=ref,
+                      raw_snippet=raw_text[:120])
+        return normalized
+
+    journal.anomaly(sig_id, "channel_msg", "warning",
+                    "MOVE_SL_TO_PRICE con precio implausible para XAUUSD; "
+                    "accion ignorada",
+                    raw_price=price_f, reference_price=ref,
+                    raw_snippet=raw_text[:120])
+    return None
+
+
 def _log_strategy_snapshot(signal: Signal, *, num_entries: int | None = None,
                            time_stop_min: int | None = None):
     """Registra la config efectiva de la senal para analisis posterior."""
@@ -2130,6 +2195,14 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
     action = classification.get("action", "INFORMATIONAL")
     price  = classification.get("price")
     conf   = classification.get("confidence", 0)
+
+    if action == "MOVE_SL_TO_PRICE" and price is not None:
+        price = _normalize_management_sl_price(signal, price, raw_text)
+        if price is None:
+            print(f"[Accion] MOVE_SL_TO_PRICE ignorada: precio invalido "
+                  f"en mensaje {raw_text[:80]!r}")
+            return
+        classification = {**classification, "price": price}
 
     if action == "INFORMATIONAL":
         # Si Gemini falló y devolvió INFORMATIONAL como fallback, registramos
