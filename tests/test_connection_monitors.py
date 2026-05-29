@@ -71,6 +71,37 @@ class TestHeartbeatOpenSignalCount:
         assert main._count_open_signals_unique(st) == 2
 
 
+class TestFreezeTracebackWatchdog:
+    def test_traceback_watchdog_disabled_when_timeout_zero(self):
+        assert main._freeze_traceback_enabled(0) is False
+
+    def test_arm_traceback_dump_reschedules_faulthandler(self, monkeypatch,
+                                                         tmp_path):
+        calls = []
+
+        monkeypatch.setattr(main.faulthandler,
+                            "cancel_dump_traceback_later",
+                            lambda: calls.append(("cancel",)))
+        monkeypatch.setattr(main.faulthandler,
+                            "dump_traceback_later",
+                            lambda timeout, repeat, file, exit:
+                            calls.append((timeout, repeat, file, exit)))
+        main._freeze_traceback_file_handle = None
+
+        armed = main._arm_freeze_traceback_dump(
+            timeout_sec=123.0,
+            path=tmp_path / "freeze_traceback.log",
+        )
+
+        assert armed is True
+        assert calls[0] == ("cancel",)
+        assert calls[1][0] == 123.0
+        assert calls[1][1] is False
+        assert calls[1][3] is False
+        assert not calls[1][2].closed
+        main._freeze_traceback_file_handle.close()
+
+
 class TestMt5ReconnectAuditDecision:
     def test_audits_only_reconnect_with_open_signals(self):
         assert main._should_audit_mt5_reconnect(

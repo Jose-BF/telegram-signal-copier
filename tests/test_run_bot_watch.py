@@ -1,6 +1,8 @@
 import json
 import subprocess
 
+import pytest
+
 import tools.run_bot_watch as watch
 
 
@@ -51,6 +53,27 @@ def test_regenerate_ledger_writes_success_status(tmp_path, monkeypatch):
     assert status["returncode"] == 0
     assert status["ledger_exists"] is True
     assert status["ledger_size_bytes"] == ledger.stat().st_size
+
+
+def test_regenerate_ledger_records_keyboard_interrupt_before_reraising(
+        tmp_path, monkeypatch):
+    monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
+    monkeypatch.setattr(watch, "RECONCILE_STATUS_FILE",
+                        tmp_path / "data" / "reconcile_status.json")
+
+    def fake_run(*args, **kwargs):
+        raise KeyboardInterrupt("ctrl-break")
+
+    monkeypatch.setattr(watch.subprocess, "run", fake_run)
+
+    with pytest.raises(KeyboardInterrupt):
+        watch._regenerate_ledger()
+
+    status = json.loads((tmp_path / "data" / "reconcile_status.json").read_text())
+    assert status["ok"] is False
+    assert status["returncode"] is None
+    assert status["exception_type"] == "KeyboardInterrupt"
+    assert "ctrl-break" in status["stderr"]
 
 
 def test_push_session_data_adds_reconcile_status(monkeypatch):

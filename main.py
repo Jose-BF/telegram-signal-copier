@@ -11,6 +11,7 @@ Primera vez (sin sticker IDs de Canal 1):
 
 import asyncio
 import builtins
+import faulthandler
 import io
 import json
 import os
@@ -49,6 +50,9 @@ import journal
 import pending_actions
 from listener import client, poll_loop
 from parser import predict_sl_from_entry
+
+_freeze_traceback_file_handle = None
+_freeze_traceback_file_path: Path | None = None
 
 
 def _should_alert_sustained_disconnect(connected: bool,
@@ -168,6 +172,51 @@ def _write_runtime_heartbeat(path: Path | None = None) -> None:
     tmp.replace(path)
 
 
+def _freeze_traceback_enabled(timeout_sec: float) -> bool:
+    return (
+        timeout_sec > 0
+        and hasattr(faulthandler, "cancel_dump_traceback_later")
+        and hasattr(faulthandler, "dump_traceback_later")
+    )
+
+
+def _freeze_traceback_file(path: Path):
+    global _freeze_traceback_file_handle, _freeze_traceback_file_path
+
+    if (_freeze_traceback_file_handle is not None
+            and not _freeze_traceback_file_handle.closed
+            and _freeze_traceback_file_path == path):
+        return _freeze_traceback_file_handle
+
+    if (_freeze_traceback_file_handle is not None
+            and not _freeze_traceback_file_handle.closed):
+        _freeze_traceback_file_handle.close()
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _freeze_traceback_file_path = path
+    _freeze_traceback_file_handle = path.open(
+        "a", encoding="utf-8", buffering=1)
+    return _freeze_traceback_file_handle
+
+
+def _arm_freeze_traceback_dump(timeout_sec: float | None = None,
+                               path: Path | None = None) -> bool:
+    timeout = (
+        float(timeout_sec)
+        if timeout_sec is not None
+        else float(config.BOT_FREEZE_TRACEBACK_SEC)
+    )
+    if not _freeze_traceback_enabled(timeout):
+        return False
+
+    trace_path = path or Path(config.BOT_FREEZE_TRACEBACK_FILE)
+    f = _freeze_traceback_file(trace_path)
+    faulthandler.cancel_dump_traceback_later()
+    faulthandler.dump_traceback_later(
+        timeout, repeat=False, file=f, exit=False)
+    return True
+
+
 async def _runtime_heartbeat(interval_sec: float | None = None):
     interval = (
         float(interval_sec)
@@ -178,6 +227,7 @@ async def _runtime_heartbeat(interval_sec: float | None = None):
     while True:
         try:
             _write_runtime_heartbeat()
+            _arm_freeze_traceback_dump()
         except Exception as e:
             print(f"[Heartbeat] runtime heartbeat write failed: {e}")
         await asyncio.sleep(interval)

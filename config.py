@@ -55,6 +55,9 @@ LOT_SIZE = _float("LOT_SIZE", 0.01)
 BOT_RUNTIME_HEARTBEAT_SEC = _float("BOT_RUNTIME_HEARTBEAT_SEC", 15.0)
 BOT_RUNTIME_HEARTBEAT_FILE = os.getenv(
     "BOT_RUNTIME_HEARTBEAT_FILE", "data/runtime_heartbeat.json")
+BOT_FREEZE_TRACEBACK_SEC = _float("BOT_FREEZE_TRACEBACK_SEC", 120.0)
+BOT_FREEZE_TRACEBACK_FILE = os.getenv(
+    "BOT_FREEZE_TRACEBACK_FILE", "logs/freeze_traceback.log")
 
 
 # ─── Estrategias derivadas del análisis del JSON ─────────────────────────────

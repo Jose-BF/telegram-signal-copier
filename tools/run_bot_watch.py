@@ -232,13 +232,15 @@ def _regenerate_ledger() -> bool:
         else:
             print(f"[Watch] reconcile.py fallo (rc={rec.returncode}): "
                   f"{(rec.stderr or rec.stdout or '')[:1000]}", flush=True)
-    except Exception as e:
+    except BaseException as e:
         status.update({
             "ok": False,
             "exception_type": type(e).__name__,
             "stderr": str(e),
         })
         print(f"[Watch] error ejecutando reconcile.py: {e}", flush=True)
+        if isinstance(e, (KeyboardInterrupt, SystemExit)):
+            raise
     finally:
         status["finished_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
         status["duration_s"] = round(time.time() - started, 2)
