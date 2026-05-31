@@ -55,6 +55,8 @@ LEDGER_FILE = DATA_DIR / "ledger.jsonl"
 
 # Tolerancia (USD) para considerar que journal y MT5 "cuadran".
 RECONCILE_TOLERANCE_USD = 0.50
+MT5_TIME_OFFSET_TOLERANCE_S = 600
+MT5_TIME_OFFSET_MAX_HOURS = 12
 
 
 # ─── Parsing de comments MT5 ───────────────────────────────────────────────────
@@ -138,10 +140,12 @@ def _append_level_history(journal_row: dict, event: dict, status: str):
         base["retcode"] = retcode
     if event.get("attempts") is not None:
         base["attempts"] = event.get("attempts")
-    if event.get("new_sl") is not None:
-        bucket["sl_history"].append({**base, "sl": event.get("new_sl")})
-    if event.get("new_tp") is not None:
-        bucket["tp_history"].append({**base, "tp": event.get("new_tp")})
+    sl_value = event.get("new_sl") if "new_sl" in event else event.get("sl")
+    tp_value = event.get("new_tp") if "new_tp" in event else event.get("tp")
+    if sl_value is not None:
+        bucket["sl_history"].append({**base, "sl": sl_value})
+    if tp_value is not None:
+        bucket["tp_history"].append({**base, "tp": tp_value})
 
 
 def _parse_iso(ts: str | None):
@@ -154,6 +158,82 @@ def _parse_iso(ts: str | None):
     if dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)
     return dt
+
+
+def _journal_time_references(journal: dict) -> list[datetime]:
+    refs: list[datetime] = []
+    for ev in journal.get("timeline") or []:
+        if ev.get("event") not in ("market_filled", "signal_received"):
+            continue
+        dt = _parse_iso(ev.get("ts"))
+        if dt is not None:
+            refs.append(dt)
+    signal_dt = _parse_iso(journal.get("signal_dt_utc"))
+    if signal_dt is not None:
+        refs.append(signal_dt)
+    return refs
+
+
+def _infer_mt5_time_offset_s(journal: dict, mt5_positions: list[dict]) -> int | None:
+    """Detecta offset horario MT5 vs journal solo si la evidencia es clara.
+
+    En algunos terminals MT5 el deal.time llega en hora de servidor pero el
+    reconciliador lo trata como UTC. Para backtesting tick-a-tick necesitamos
+    el horario real del journal. No tocamos nada si no hay una diferencia casi
+    exacta de horas completas contra market_filled/signal_received.
+    """
+    raw_opens = [
+        _parse_iso(p.get("open_dt_utc"))
+        for p in mt5_positions
+        if p.get("open_dt_utc")
+    ]
+    raw_opens = [dt for dt in raw_opens if dt is not None]
+    refs = _journal_time_references(journal)
+    if not raw_opens or not refs:
+        return None
+
+    first_open = min(raw_opens)
+    best: tuple[float, int] | None = None
+    for ref in refs:
+        delta_s = (first_open - ref).total_seconds()
+        if delta_s < 1800:
+            continue
+        hours = round(delta_s / 3600)
+        if hours < 1 or hours > MT5_TIME_OFFSET_MAX_HOURS:
+            continue
+        offset_s = hours * 3600
+        residual = abs(delta_s - offset_s)
+        if residual > MT5_TIME_OFFSET_TOLERANCE_S:
+            continue
+        if best is None or residual < best[0]:
+            best = (residual, offset_s)
+    return best[1] if best else None
+
+
+def _shift_iso_utc(ts: str | None, offset_s: int) -> str | None:
+    dt = _parse_iso(ts)
+    if dt is None:
+        return ts
+    shifted = (dt - timedelta(seconds=offset_s)).astimezone(timezone.utc)
+    return shifted.isoformat(timespec="seconds")
+
+
+def _normalize_mt5_position_times(journal: dict,
+                                  mt5_positions: list[dict]) -> tuple[list[dict], int | None]:
+    offset_s = _infer_mt5_time_offset_s(journal, mt5_positions)
+    normalized = [dict(p) for p in mt5_positions]
+    if offset_s is None:
+        return normalized, None
+
+    for pos in normalized:
+        if pos.get("open_dt_utc"):
+            pos["open_dt_mt5_raw"] = pos["open_dt_utc"]
+            pos["open_dt_utc"] = _shift_iso_utc(pos["open_dt_utc"], offset_s)
+        if pos.get("close_dt_utc"):
+            pos["close_dt_mt5_raw"] = pos["close_dt_utc"]
+            pos["close_dt_utc"] = _shift_iso_utc(pos["close_dt_utc"], offset_s)
+        pos["mt5_time_offset_s"] = offset_s
+    return normalized, offset_s
 
 
 def _derive_post_time_stop_outcome(journal: dict, positions: list[dict],
@@ -275,6 +355,7 @@ def load_journal_index(path: Path) -> dict:
         "mt5_close_result",
         "mt5_cancel_requested",
         "mt5_cancel_result",
+        "mt5_position_snapshot",
     }
 
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -426,6 +507,8 @@ def load_journal_index(path: Path) -> dict:
             _append_level_history(d, e, "confirmed")
         elif ev == "mt5_action_failed":
             _append_level_history(d, e, "failed")
+        elif ev == "mt5_position_snapshot":
+            _append_level_history(d, e, "snapshot")
 
         if ev.startswith("mt5_"):
             d["order_lifecycle"].append({
@@ -605,7 +688,8 @@ def reconcile_signal(sig_id: str, journal: dict | None,
                      mt5_positions: list | None) -> dict:
     """Produce una fila del ledger cruzando journal y MT5 para una senal."""
     journal = journal or {}
-    mt5_positions = mt5_positions or []
+    mt5_positions, mt5_time_offset_s = _normalize_mt5_position_times(
+        journal, mt5_positions or [])
 
     flags = []
 
@@ -705,6 +789,7 @@ def reconcile_signal(sig_id: str, journal: dict | None,
         "signal_dt_utc": journal.get("signal_dt_utc"),
         "open_dt_utc": open_dt,
         "close_dt_utc": close_dt,
+        "mt5_time_offset_s": mt5_time_offset_s,
         "duration_min": duration_min,
         "status": status,
         # Posiciones reales de MT5

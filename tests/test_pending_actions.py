@@ -13,6 +13,8 @@ Cubre:
 
 import asyncio
 import time
+from types import SimpleNamespace
+
 import pytest
 
 from pending_actions import (
@@ -111,6 +113,8 @@ class TestC4LogFailureDoesNotResetTask:
 
     @pytest.mark.asyncio
     async def test_log_failure_preserves_task_reference(self):
+        import journal
+
         q = PendingQueue()
         # Setup minimo: simulamos un runner activo con un task dummy
         async def dummy_run():
@@ -121,7 +125,11 @@ class TestC4LogFailureDoesNotResetTask:
         # Simulamos una accion que va a fallar — encolamos y llamamos
         # _log_failure manualmente con cualquier reason
         act = _make_action()
-        q._log_failure(act, reason="test_regression_c4")
+        token = journal._test_context.set(True)
+        try:
+            q._log_failure(act, reason="test_regression_c4")
+        finally:
+            journal._test_context.reset(token)
 
         # CRITICAL: _log_failure NO debe haber tocado self._task
         assert q._task is original_task, (
@@ -164,9 +172,13 @@ class TestForensicLifecycleLogging:
     def test_log_done_records_close_result(self, monkeypatch):
         events = []
         import journal
+        import pending_actions
         monkeypatch.setattr(
             journal, "event",
             lambda sig, ev, **fields: events.append((sig, ev, fields)))
+        monkeypatch.setattr(
+            pending_actions.mt5, "positions_get",
+            lambda ticket: [])
 
         q = PendingQueue()
         act = _make_action(label="close bad leg", kind="CLOSE_POSITION")
@@ -183,7 +195,58 @@ class TestForensicLifecycleLogging:
                 "retcode": 10009,
                 "label": "close bad leg",
             },
+        ), (
+            "canal2_1",
+            "mt5_position_snapshot",
+            {
+                "ticket": 12345,
+                "after_action": "CLOSE_POSITION",
+                "retcode": 10009,
+                "label": "close bad leg",
+                "requested_sl": None,
+                "requested_tp": None,
+                "position_exists": False,
+            },
         )]
+
+    def test_log_done_records_post_modify_position_snapshot(self, monkeypatch):
+        events = []
+        import journal
+        import pending_actions
+        monkeypatch.setattr(
+            journal, "event",
+            lambda sig, ev, **fields: events.append((sig, ev, fields)))
+        monkeypatch.setattr(
+            pending_actions.mt5, "positions_get",
+            lambda ticket: [SimpleNamespace(
+                ticket=ticket,
+                symbol="XAUUSD",
+                magic=20260422,
+                type=0,
+                volume=0.01,
+                price_open=4700.0,
+                price_current=4701.25,
+                sl=4700.0,
+                tp=4708.5,
+                profit=1.25,
+                comment="c2_1",
+            )])
+
+        q = PendingQueue()
+        act = _make_action(label="BE #12345", new_sl=4700.0, new_tp=4708.5)
+        act.attempts = 2
+        act.last_retcode = 10009
+        q._log_done(act)
+
+        assert events[0][1] == "mt5_modify_confirmed"
+        snapshot = events[1]
+        assert snapshot[0] == "canal2_1"
+        assert snapshot[1] == "mt5_position_snapshot"
+        assert snapshot[2]["after_action"] == "MODIFY_SLTP"
+        assert snapshot[2]["position_exists"] is True
+        assert snapshot[2]["sl"] == 4700.0
+        assert snapshot[2]["tp"] == 4708.5
+        assert snapshot[2]["price_current"] == 4701.25
 
     def test_log_done_records_modify_position_gone(self, monkeypatch):
         events = []

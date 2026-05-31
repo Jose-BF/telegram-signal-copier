@@ -543,8 +543,57 @@ class TestReconcileForensicLifecycle:
                                self._base(timeline=timeline), mt5_pos)
         assert row["post_time_stop_outcome"] == "sl_after_time_stop"
 
+    def test_mt5_server_time_offset_is_normalized_from_market_fill(self):
+        timeline = [
+            {"ts": "2026-05-29T16:30:12+00:00",
+             "event": "market_filled"}
+        ]
+        mt5_pos = [_pos("market_a", 8.5)]
+        mt5_pos[0]["open_dt_utc"] = "2026-05-29T19:30:12+00:00"
+        mt5_pos[0]["close_dt_utc"] = "2026-05-29T19:42:12+00:00"
+
+        row = reconcile_signal(
+            "canal1_19822",
+            self._base(signal_dt_utc="2026-05-29T16:30:11+00:00",
+                       timeline=timeline),
+            mt5_pos,
+        )
+
+        assert row["mt5_time_offset_s"] == 10800
+        assert row["open_dt_utc"] == "2026-05-29T16:30:12+00:00"
+        assert row["close_dt_utc"] == "2026-05-29T16:42:12+00:00"
+        assert row["positions"][0]["open_dt_mt5_raw"] == "2026-05-29T19:30:12+00:00"
+        assert row["positions"][0]["close_dt_mt5_raw"] == "2026-05-29T19:42:12+00:00"
+
 
 class TestLoadJournalForensicEvents:
+    def test_position_snapshot_enters_timeline_and_level_history(
+            self, tmp_path):
+        path = tmp_path / "events.jsonl"
+        rows = [
+            {"ts": "2026-05-21T11:00:00+00:00", "sig": "canal2_12747",
+             "ev": "signal_received", "direction": "BUY"},
+            {"ts": "2026-05-21T11:01:02+00:00", "sig": "canal2_12747",
+             "ev": "mt5_position_snapshot", "ticket": 111,
+             "after_action": "MODIFY_SLTP", "label": "BE #111",
+             "position_exists": True, "sl": 4525.0, "tp": 4548.0},
+        ]
+        path.write_text("\n".join(json.dumps(r) for r in rows),
+                        encoding="utf-8")
+
+        idx = reconcile.load_journal_index(path)
+        row = idx["canal2_12747"]
+        hist = row["ticket_level_history"]["111"]
+
+        assert row["timeline"][-1] == {
+            "ts": "2026-05-21T11:01:02+00:00",
+            "event": "mt5_position_snapshot",
+        }
+        assert row["order_lifecycle"][-1]["ev"] == "mt5_position_snapshot"
+        assert hist["sl_history"][0]["status"] == "snapshot"
+        assert hist["sl_history"][0]["sl"] == 4525.0
+        assert hist["tp_history"][0]["tp"] == 4548.0
+
     def test_failed_modify_keeps_legacy_last_retcode_in_level_history(
             self, tmp_path):
         path = tmp_path / "events.jsonl"

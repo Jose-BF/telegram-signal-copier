@@ -27,6 +27,7 @@ Uso típico desde el listener:
     journal.finalize_trade(sig_id, closed_by="SL", total_pnl_usd=-22.5, ...)
 """
 
+import asyncio
 import contextvars
 import csv
 import json
@@ -115,6 +116,7 @@ CSV_FIELDS = [
 _file_lock = Lock()         # protege escrituras a disco
 _trades_lock = Lock()       # protege el dict en memoria
 _trades: dict[str, dict] = {}   # signal_id -> dict acumulador
+_notify_loop: Optional[asyncio.AbstractEventLoop] = None
 
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
@@ -190,18 +192,44 @@ def anomaly(signal_id: str, category: str, severity: str,
         _notify_critical(signal_id, category, detail, ctx)
 
 
+def set_notify_loop(loop: Optional[asyncio.AbstractEventLoop]):
+    """Registra el loop principal para notificar desde threads auxiliares."""
+    global _notify_loop
+    _notify_loop = loop
+
+
 def _notify_critical(signal_id: str, category: str, detail: str, ctx: dict):
     """Dispara notify() para una anomalía crítica. Defensivo: nunca lanza
     al caller (try/except). Import lazy de listener.notify para evitar
     import circular journal→listener (listener importa journal)."""
     try:
-        import asyncio
         from listener import notify
         lines = "\n".join(f"  {k}: {v}" for k, v in ctx.items()) if ctx else ""
         text = (f"🚨 [CRITICAL] {category} — {signal_id}\n"
                 f"{detail}\n"
                 f"{lines}".rstrip())
-        asyncio.create_task(notify(text))
+
+        def schedule(loop: asyncio.AbstractEventLoop):
+            try:
+                loop.create_task(notify(text))
+            except Exception as e:
+                print(f"[journal.anomaly] notify schedule failed: {e}")
+
+        try:
+            running_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            running_loop = None
+
+        if running_loop is not None and running_loop.is_running():
+            schedule(running_loop)
+            return
+
+        loop = _notify_loop
+        if loop is not None and loop.is_running():
+            loop.call_soon_threadsafe(schedule, loop)
+            return
+
+        print("[journal.anomaly] no asyncio loop available for critical notify")
     except Exception as e:
         print(f"[journal.anomaly] _notify_critical failed: {e}")
 

@@ -371,6 +371,55 @@ class PendingQueue:
         except Exception:
             pass
 
+    def _position_snapshot(self, act: PendingAction) -> dict:
+        base = {
+            "ticket": act.ticket,
+            "after_action": act.kind,
+            "retcode": act.last_retcode,
+            "label": act.label,
+            "requested_sl": act.new_sl,
+            "requested_tp": act.new_tp,
+        }
+        try:
+            positions = mt5.positions_get(ticket=act.ticket)
+            if positions is None:
+                base.update({
+                    "position_exists": None,
+                    "snapshot_error": str(mt5.last_error()),
+                })
+                return base
+            if not positions:
+                base["position_exists"] = False
+                return base
+
+            pos = positions[0]
+            base.update({
+                "position_exists": True,
+                "symbol": getattr(pos, "symbol", None),
+                "magic": getattr(pos, "magic", None),
+                "position_type": getattr(pos, "type", None),
+                "volume": getattr(pos, "volume", None),
+                "price_open": getattr(pos, "price_open", None),
+                "price_current": getattr(pos, "price_current", None),
+                "sl": getattr(pos, "sl", None),
+                "tp": getattr(pos, "tp", None),
+                "profit": getattr(pos, "profit", None),
+                "comment": getattr(pos, "comment", None),
+            })
+            return base
+        except Exception as e:
+            base.update({
+                "position_exists": None,
+                "snapshot_error": f"{type(e).__name__}: {str(e)[:160]}",
+            })
+            return base
+
+    def _log_position_snapshot(self, sig_id: str, act: PendingAction, journal):
+        if act.kind not in ("MODIFY_SLTP", "CLOSE_POSITION"):
+            return
+        journal.event(sig_id, "mt5_position_snapshot",
+                      **self._position_snapshot(act))
+
     def _log_done(self, act: PendingAction):
         """Journal forense: accion MT5 confirmada o ya innecesaria."""
         try:
@@ -391,8 +440,10 @@ class PendingQueue:
                 journal.event(sig_id, "mt5_modify_confirmed",
                               new_sl=act.new_sl, new_tp=act.new_tp,
                               **payload)
+                self._log_position_snapshot(sig_id, act, journal)
             elif act.kind == "CLOSE_POSITION":
                 journal.event(sig_id, "mt5_close_result", **payload)
+                self._log_position_snapshot(sig_id, act, journal)
             elif act.kind == "CANCEL_PENDING":
                 journal.event(sig_id, "mt5_cancel_result", **payload)
         except Exception:

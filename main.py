@@ -996,6 +996,8 @@ async def main():
     print("  Telegram Signal Copier")
     print("=" * 60)
 
+    journal.set_notify_loop(asyncio.get_running_loop())
+
     # Marca de sesión — versión del código que ejecuta este arranque.
     # El reconcile asocia cada trade con el session_started cuya ventana
     # lo cubre → cada fila del ledger carga su `bot_version`.
@@ -1052,6 +1054,7 @@ async def main():
     finally:
         journal.event("bot", "session_closed",
                       ended_utc=datetime.utcnow().isoformat(timespec="seconds"))
+        journal.set_notify_loop(None)
         executor.shutdown()
         print("\nBot detenido.")
 

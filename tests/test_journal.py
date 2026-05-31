@@ -9,6 +9,9 @@ monkeypatch para NO contaminar data/trade_events.jsonl real (problema
 visto con test_pending_actions que escribia al journal de produccion).
 """
 import json
+import sys
+import types
+import asyncio
 
 import pytest
 
@@ -85,6 +88,47 @@ class TestAnomaly:
         assert ev["category"] == "outcome"
         assert ev["severity"] == "warning"
         assert ev["pl"] == -41.9
+
+    @pytest.mark.asyncio
+    async def test_notify_critical_uses_running_loop(self, isolated_journal,
+                                                     monkeypatch):
+        calls = []
+
+        async def fake_notify(text):
+            calls.append(text)
+
+        monkeypatch.setitem(sys.modules, "listener",
+                            types.SimpleNamespace(notify=fake_notify))
+        journal.set_notify_loop(None)
+
+        journal._notify_critical("s1", "mt5", "critical issue", {"ticket": 1})
+        await asyncio.sleep(0)
+
+        assert len(calls) == 1
+        assert "[CRITICAL] mt5" in calls[0]
+        assert "ticket: 1" in calls[0]
+
+    @pytest.mark.asyncio
+    async def test_notify_critical_from_worker_thread_uses_registered_loop(
+            self, isolated_journal, monkeypatch):
+        calls = []
+
+        async def fake_notify(text):
+            calls.append(text)
+
+        monkeypatch.setitem(sys.modules, "listener",
+                            types.SimpleNamespace(notify=fake_notify))
+        journal.set_notify_loop(asyncio.get_running_loop())
+
+        await asyncio.to_thread(
+            journal._notify_critical,
+            "s2", "naked", "thread issue", {"ticket": 2})
+        await asyncio.sleep(0.05)
+
+        assert len(calls) == 1
+        assert "[CRITICAL] naked" in calls[0]
+        assert "ticket: 2" in calls[0]
+        journal.set_notify_loop(None)
 
 
 # ─── health_verdict() ────────────────────────────────────────────────────────
