@@ -1,13 +1,13 @@
 {
   "ok": true,
-  "started_at": "2026-05-29T20:25:48+00:00",
-  "finished_at": "2026-05-29T20:25:51+00:00",
-  "duration_s": 2.93,
+  "started_at": "2026-06-01T12:05:45+00:00",
+  "finished_at": "2026-06-01T12:05:48+00:00",
+  "duration_s": 3.3,
   "returncode": 0,
-  "stdout": "\n>>> Ledger escrito: C:\\Users\\bot\\telegram-signal-copier\\data\\ledger.jsonl (266 trades)\n",
+  "stdout": "\n>>> Ledger escrito: C:\\Users\\bot\\telegram-signal-copier\\data\\ledger.jsonl (275 trades)\n",
   "stderr": "",
   "ledger_exists": true,
-  "ledger_size_bytes": 1713678,
+  "ledger_size_bytes": 1879796,
   "command": [
     "C:\\Program Files\\Python311\\python.exe",
     "reconcile.py",
