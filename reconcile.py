@@ -268,6 +268,23 @@ def _derive_post_time_stop_outcome(journal: dict, positions: list[dict],
     return "flat_after_time_stop"
 
 
+def _analysis_exclusions(journal: dict) -> list[dict]:
+    """Operational incidents that should not count as strategy edge."""
+    exclusions = []
+    for event in journal.get("order_lifecycle") or []:
+        retcode = event.get("retcode", event.get("last_retcode"))
+        if retcode == 10027:
+            exclusions.append({
+                "code": "mt5_client_autotrading_disabled",
+                "retcode": retcode,
+                "ts": event.get("ts"),
+                "source_event": event.get("ev"),
+                "detail": event.get("comment") or event.get("detail"),
+            })
+            break
+    return exclusions
+
+
 def _with_forensic_position_history(positions: list[dict],
                                     journal: dict) -> list[dict]:
     histories = journal.get("ticket_level_history") or {}
@@ -752,6 +769,11 @@ def reconcile_signal(sig_id: str, journal: dict | None,
     if journal.get("n_market_b_filled", 0) > 0 and "market_b" not in roles:
         flags.append("MARKET_B_PERDIDO_journal_lo_registro_MT5_no")
 
+    analysis_exclusions = _analysis_exclusions(journal)
+    if any(e.get("code") == "mt5_client_autotrading_disabled"
+           for e in analysis_exclusions):
+        flags.append("MT5_AUTOTRADING_DISABLED_excluir_de_metricas_strategy")
+
     # ── TP maximo tocado (del journal tp_hit) ──
     tp_hits = journal.get("tp_hit_indices") or set()
     max_tp_touched = max(tp_hits) if tp_hits else None
@@ -816,6 +838,8 @@ def reconcile_signal(sig_id: str, journal: dict | None,
         "flags": flags,
         "anomalies": anomalies,
         "health": health_verdict(anomalies),
+        "analysis_excluded": bool(analysis_exclusions),
+        "analysis_exclusions": analysis_exclusions,
         "post_time_stop_outcome": post_time_stop_outcome,
         "entry_quality": journal.get("entry_quality"),
         "market_context": journal.get("market_context"),

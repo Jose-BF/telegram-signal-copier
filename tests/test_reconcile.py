@@ -565,6 +565,25 @@ class TestReconcileForensicLifecycle:
         assert row["positions"][0]["open_dt_mt5_raw"] == "2026-05-29T19:30:12+00:00"
         assert row["positions"][0]["close_dt_mt5_raw"] == "2026-05-29T19:42:12+00:00"
 
+    def test_autotrading_disabled_marks_trade_excluded_from_analysis(self):
+        order_lifecycle = [
+            {"ts": "2026-06-01T07:20:00+00:00",
+             "ev": "mt5_order_result",
+             "retcode": 10027,
+             "comment": "AutoTrading disabled by client"},
+        ]
+
+        row = reconcile_signal(
+            "canal2_13111",
+            self._base(order_lifecycle=order_lifecycle),
+            [],
+        )
+
+        assert row["analysis_excluded"] is True
+        assert row["analysis_exclusions"][0]["code"] == "mt5_client_autotrading_disabled"
+        assert row["analysis_exclusions"][0]["retcode"] == 10027
+        assert any("MT5_AUTOTRADING_DISABLED" in f for f in row["flags"])
+
 
 class TestLoadJournalForensicEvents:
     def test_position_snapshot_enters_timeline_and_level_history(

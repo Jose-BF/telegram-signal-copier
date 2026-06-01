@@ -38,8 +38,16 @@ def load_ledger(path: Path) -> list:
             if l.strip()]
 
 
+def metric_universe(rows: list, *, include_excluded: bool = False) -> tuple[list, list]:
+    excluded = [r for r in rows if r.get("analysis_excluded")]
+    if include_excluded:
+        return rows, excluded
+    return [r for r in rows if not r.get("analysis_excluded")], excluded
+
+
 def main():
     since = None
+    include_excluded = "--include-excluded" in sys.argv
     for i, a in enumerate(sys.argv):
         if a == "--since" and i + 1 < len(sys.argv):
             since = sys.argv[i + 1]
@@ -47,12 +55,14 @@ def main():
     rows = load_ledger(LEDGER_FILE)
     if since:
         rows = [r for r in rows if (r.get("signal_dt_utc") or "") >= since]
+    metric_rows, excluded_rows = metric_universe(
+        rows, include_excluded=include_excluded)
 
     # Universo de analisis: trades cerrados y reconciliables (P&L fiable).
-    closed = [r for r in rows if r["status"] == "closed"]
+    closed = [r for r in metric_rows if r["status"] == "closed"]
     fiables = [r for r in closed if r.get("pnl_mt5_complete")]
     parciales = [r for r in closed if not r.get("pnl_mt5_complete")]
-    open_r = [r for r in rows if r["status"] == "open"]
+    open_r = [r for r in metric_rows if r["status"] == "open"]
 
     print("=" * 72)
     print("  INFORME DEL LEDGER RECONCILIADO" + (f"  (desde {since})" if since else ""))
@@ -63,6 +73,9 @@ def main():
     print(f"  Cerrados formato viejo:  {len(parciales)}  "
           f"(P&L parcial — no entran a las metricas)")
     print(f"  Abiertos:                {len(open_r)}")
+    if excluded_rows:
+        suffix = " (incluidos por --include-excluded)" if include_excluded else ""
+        print(f"  Excluidos estrategia:    {len(excluded_rows)}{suffix}")
 
     if not fiables:
         print("\nSin trades reconciliables en el rango. Nada que medir.")
