@@ -120,20 +120,46 @@ def _emit_anomaly(sig_id: str, category: str, severity: str,
         pass
 
 
+def _account_matches_config(info) -> bool:
+    if not info:
+        return False
+    try:
+        login_ok = int(getattr(info, "login", 0)) == int(config.MT5_LOGIN)
+    except (TypeError, ValueError):
+        login_ok = False
+    server = getattr(info, "server", None)
+    server_ok = (
+        not server
+        or str(server).lower() == str(config.MT5_SERVER).lower()
+    )
+    return login_ok and server_ok
+
+
 def init() -> bool:
     if not mt5.initialize():
         print(f"[MT5] initialize() falló: {mt5.last_error()}")
         return False
-    if not mt5.login(config.MT5_LOGIN, password=config.MT5_PASSWORD, server=config.MT5_SERVER):
-        print(f"[MT5] login() falló: {mt5.last_error()}")
-        return False
+
+    # Evita llamar mt5.login() si el terminal ya está en la cuenta correcta.
+    # En MT5, la opción "Disable algorithmic trading when the account has been
+    # changed" puede apagar Algo Trading cuando se fuerza un login al arrancar.
+    # Si ya estamos en la cuenta esperada, no provocamos ese cambio.
+    info = mt5.account_info()
+    if _account_matches_config(info):
+        print(f"[MT5] Cuenta ya activa: {info.login} | {getattr(info, 'server', '')}")
+    else:
+        if not mt5.login(config.MT5_LOGIN, password=config.MT5_PASSWORD, server=config.MT5_SERVER):
+            print(f"[MT5] login() falló: {mt5.last_error()}")
+            return False
+        info = mt5.account_info()
+
     # Asegura que el símbolo esté en Market Watch. Sin esto, symbol_info_tick()
     # devuelve None aunque el símbolo exista en el broker. Causa real del crash
     # "No se puede obtener precio de XAUUSD" tras un reinicio del terminal.
     if not mt5.symbol_select(config.MT5_SYMBOL, True):
         print(f"[MT5] No se pudo añadir {config.MT5_SYMBOL} a Market Watch: {mt5.last_error()}")
         return False
-    info = mt5.account_info()
+    info = info or mt5.account_info()
     print(f"[MT5] Conectado: {info.name} | Balance: {info.balance} {info.currency}")
     print(f"[MT5] {config.MT5_SYMBOL} añadido a Market Watch")
     return True
