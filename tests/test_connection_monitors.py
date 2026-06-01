@@ -116,6 +116,46 @@ class TestMt5ReconnectAuditDecision:
             connected=False, previous_state=True, open_signals=2) is False
 
 
+class TestMt5TradePermissionAlert:
+    def test_alerts_when_terminal_connected_but_autotrading_disabled(self):
+        assert main._should_alert_mt5_trade_disabled(
+            connected=True,
+            trade_allowed=False,
+            tradeapi_disabled=False,
+            already_alerted=False,
+        ) is True
+
+    def test_alerts_when_python_trade_api_disabled(self):
+        assert main._should_alert_mt5_trade_disabled(
+            connected=True,
+            trade_allowed=True,
+            tradeapi_disabled=True,
+            already_alerted=False,
+        ) is True
+
+    def test_no_alert_when_already_alerted(self):
+        assert main._should_alert_mt5_trade_disabled(
+            connected=True,
+            trade_allowed=False,
+            tradeapi_disabled=False,
+            already_alerted=True,
+        ) is False
+
+    def test_no_alert_when_disconnected_or_status_unknown(self):
+        assert main._should_alert_mt5_trade_disabled(
+            connected=False,
+            trade_allowed=False,
+            tradeapi_disabled=False,
+            already_alerted=False,
+        ) is False
+        assert main._should_alert_mt5_trade_disabled(
+            connected=True,
+            trade_allowed=None,
+            tradeapi_disabled=None,
+            already_alerted=False,
+        ) is False
+
+
 class TestNakedProtectiveSl:
     def test_should_apply_only_when_open_naked_and_has_entry(self):
         sig = Signal(channel="canal2", message_id=12780, direction="BUY",

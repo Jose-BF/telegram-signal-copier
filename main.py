@@ -108,6 +108,16 @@ def _should_audit_mt5_reconnect(connected: bool, previous_state,
     return connected is True and previous_state is False and open_signals > 0
 
 
+def _should_alert_mt5_trade_disabled(connected: bool,
+                                     trade_allowed,
+                                     tradeapi_disabled,
+                                     already_alerted: bool) -> bool:
+    """True si MT5 está conectado pero no acepta trading algorítmico."""
+    if connected is not True or already_alerted:
+        return False
+    return trade_allowed is False or tradeapi_disabled is True
+
+
 async def _post_mt5_reconnect_audit(disconnected_duration_s: float | None):
     """Log-only audit tras recuperar MT5 con senales abiertas."""
     from state import state
@@ -653,6 +663,7 @@ async def _mt5_connection_monitor(interval_sec: int = 10):
     last_change = datetime.utcnow()
     last_periodic_beat = datetime.utcnow()
     alerted_disconnect = False
+    alerted_trade_disabled = False
     DISCONNECT_ALERT_THRESHOLD_S = 60   # 1 min — MT5 down es más grave
     PERIODIC_BEAT_S = 3600
 
@@ -663,6 +674,10 @@ async def _mt5_connection_monitor(interval_sec: int = 10):
         try:
             info = await asyncio.to_thread(_mt5.terminal_info)
             connected = bool(info and getattr(info, "connected", False))
+            trade_allowed = getattr(info, "trade_allowed", None) if info else None
+            tradeapi_disabled = (
+                getattr(info, "tradeapi_disabled", None) if info else None
+            )
         except Exception as e:
             print(f"[MT5 Monitor] error terminal_info: {e}")
             await asyncio.sleep(interval_sec)
@@ -679,6 +694,8 @@ async def _mt5_connection_monitor(interval_sec: int = 10):
             journal.event("bot", "mt5_connection_change",
                           connected=connected,
                           previous_state=last_state,
+                          trade_allowed=trade_allowed,
+                          tradeapi_disabled=tradeapi_disabled,
                           previous_state_duration_sec=
                               round(duration_s, 1) if duration_s else None,
                           utc=now.isoformat(timespec="seconds"))
@@ -702,9 +719,37 @@ async def _mt5_connection_monitor(interval_sec: int = 10):
             uptime = (now - last_change).total_seconds()
             journal.event("bot", "mt5_connection_beat",
                           connected=connected,
+                          trade_allowed=trade_allowed,
+                          tradeapi_disabled=tradeapi_disabled,
                           uptime_in_state_sec=round(uptime, 0),
                           utc=now.isoformat(timespec="seconds"))
             last_periodic_beat = now
+
+        trade_disabled = (
+            trade_allowed is False or tradeapi_disabled is True
+        )
+        if connected and not trade_disabled and alerted_trade_disabled:
+            journal.event("bot", "mt5_trade_permission_restored",
+                          trade_allowed=trade_allowed,
+                          tradeapi_disabled=tradeapi_disabled,
+                          utc=now.isoformat(timespec="seconds"))
+            alerted_trade_disabled = False
+
+        if _should_alert_mt5_trade_disabled(
+                connected, trade_allowed, tradeapi_disabled,
+                alerted_trade_disabled):
+            journal.anomaly(
+                "bot", "mt5", "critical",
+                "MT5 conectado pero AutoTrading/API trading está desactivado "
+                "— las órdenes serán rechazadas con retcode 10027",
+                connected=connected,
+                trade_allowed=trade_allowed,
+                tradeapi_disabled=tradeapi_disabled,
+                terminal_name=getattr(info, "name", None) if info else None,
+                terminal_company=getattr(info, "company", None) if info else None,
+                last_error=str(_mt5.last_error()),
+            )
+            alerted_trade_disabled = True
 
         age_in_state = (now - last_change).total_seconds()
         if _should_alert_sustained_disconnect(
