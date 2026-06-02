@@ -268,6 +268,53 @@ def _derive_post_time_stop_outcome(journal: dict, positions: list[dict],
     return "flat_after_time_stop"
 
 
+def _latest_confirmed_level(history: list[dict], field: str):
+    for item in reversed(history or []):
+        if item.get("status") not in ("confirmed", "snapshot"):
+            continue
+        if item.get(field) is not None:
+            return item.get(field)
+    return None
+
+
+def _same_level_or_none(values: list):
+    values = [v for v in values if v is not None]
+    if not values:
+        return None
+    first = values[0]
+    if all(v == first for v in values):
+        return first
+    return None
+
+
+def _derive_effective_levels(journal: dict, positions: list[dict]) -> tuple:
+    source = {"sl": None, "tps": None}
+    if journal.get("sl") is not None:
+        effective_sl = journal.get("sl")
+        source["sl"] = "journal"
+    else:
+        effective_sl = _same_level_or_none([
+            _latest_confirmed_level(p.get("sl_history"), "sl")
+            for p in positions
+        ])
+        source["sl"] = "mt5_confirmed" if effective_sl is not None else None
+
+    if journal.get("tps"):
+        effective_tps = list(journal.get("tps"))
+        source["tps"] = "journal"
+    else:
+        effective_tps = [
+            _latest_confirmed_level(p.get("tp_history"), "tp")
+            for p in positions
+        ]
+        effective_tps = [tp for tp in effective_tps if tp is not None]
+        if not effective_tps:
+            effective_tps = None
+        source["tps"] = "mt5_confirmed" if effective_tps else None
+
+    return effective_sl, effective_tps, source
+
+
 def _analysis_exclusions(journal: dict) -> list[dict]:
     """Operational incidents that should not count as strategy edge."""
     exclusions = []
@@ -791,6 +838,8 @@ def reconcile_signal(sig_id: str, journal: dict | None,
             duration_min = round((c - o).total_seconds() / 60, 1)
 
     positions_for_ledger = _with_forensic_position_history(mt5_positions, journal)
+    effective_sl, effective_tps, effective_levels_source = _derive_effective_levels(
+        journal, positions_for_ledger)
     post_time_stop_outcome = _derive_post_time_stop_outcome(
         journal, positions_for_ledger, status)
     anomalies = list(journal.get("anomalies", []))
@@ -830,6 +879,9 @@ def reconcile_signal(sig_id: str, journal: dict | None,
         "range": journal.get("range"),
         "tps": journal.get("tps"),
         "sl": journal.get("sl"),
+        "effective_tps": effective_tps,
+        "effective_sl": effective_sl,
+        "effective_levels_source": effective_levels_source,
         "max_tp_idx_touched": max_tp_touched,
         # Estado del journal
         "journal_tag": journal.get("journal_tag"),

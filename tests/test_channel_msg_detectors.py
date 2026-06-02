@@ -235,6 +235,83 @@ class TestManagementReplyEdits:
         assert calls[1][1] is sig
 
 
+class TestManagementActionDedup:
+    def test_same_action_and_text_inside_window_is_duplicate(self, monkeypatch):
+        listener._seen_management_actions.clear()
+        first = datetime(2026, 6, 2, 12, 0, 0)
+        second = datetime(2026, 6, 2, 12, 0, 5)
+
+        assert listener._management_action_already_seen(
+            "canal2_13228", "MOVE_SL_TO_BE",
+            "+70 pips\nClose your first entries", None, now=first) is False
+        assert listener._management_action_already_seen(
+            "canal2_13228", "MOVE_SL_TO_BE",
+            "+70 pips Close your first entries", None, now=second) is True
+
+    def test_different_action_same_text_is_not_duplicate(self):
+        listener._seen_management_actions.clear()
+        now = datetime(2026, 6, 2, 12, 0, 0)
+
+        assert listener._management_action_already_seen(
+            "canal2_13228", "MOVE_SL_TO_BE",
+            "Close your first entries", None, now=now) is False
+        assert listener._management_action_already_seen(
+            "canal2_13228", "CLOSE_FIRST",
+            "Close your first entries", None, now=now) is False
+
+    def test_same_action_after_window_is_processed_again(self):
+        listener._seen_management_actions.clear()
+        first = datetime(2026, 6, 2, 12, 0, 0)
+        later = datetime(2026, 6, 2, 12, 1, 0)
+
+        assert listener._management_action_already_seen(
+            "canal2_13228", "MOVE_SL_TO_PRICE",
+            "Move SL to 4533", 4533.0, now=first) is False
+        assert listener._management_action_already_seen(
+            "canal2_13228", "MOVE_SL_TO_PRICE",
+            "Move SL to 4533", 4533.0, now=later) is False
+
+    @pytest.mark.asyncio
+    async def test_execute_actions_logs_and_skips_duplicate(self, monkeypatch):
+        listener._seen_management_actions.clear()
+        sig = Signal(channel="canal2", message_id=13228, direction="BUY",
+                     status="open")
+        executed = []
+        events = []
+        mgmt = []
+
+        async def fake_execute_one(signal, classification, raw_text=""):
+            executed.append((signal, classification, raw_text))
+
+        monkeypatch.setattr(listener, "_execute_one_action", fake_execute_one)
+        monkeypatch.setattr(listener.journal, "append_mgmt",
+                            lambda *a, **kw: mgmt.append((a, kw)))
+        monkeypatch.setattr(listener.journal, "event",
+                            lambda sig_id, ev, **kw:
+                            events.append((sig_id, ev, kw)))
+
+        classification = {
+            "action": "MOVE_SL_TO_BE",
+            "price": None,
+            "confidence": 0.95,
+            "_reason": "regex",
+        }
+        raw_text = "Move your SL to BE"
+
+        await listener._execute_actions(sig, [classification], raw_text=raw_text,
+                                        tg_ts="2026-06-02T12:00:00")
+        await listener._execute_actions(sig, [classification], raw_text=raw_text,
+                                        tg_ts="2026-06-02T12:00:05")
+
+        assert len(executed) == 1
+        assert len(mgmt) == 1
+        assert [ev for _, ev, _ in events].count("mgmt_msg") == 1
+        duplicates = [row for row in events
+                      if row[1] == "mgmt_msg_duplicate_skipped"]
+        assert len(duplicates) == 1
+        assert duplicates[0][2]["action"] == "MOVE_SL_TO_BE"
+
+
 class TestCanal1SignalTextEdits:
     @pytest.mark.asyncio
     async def test_material_tp_edit_reapplies_levels_to_mt5(self, monkeypatch):

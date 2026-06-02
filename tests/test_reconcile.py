@@ -636,3 +636,52 @@ class TestLoadJournalForensicEvents:
         assert hist["sl_history"][0]["status"] == "requested"
         assert hist["sl_history"][1]["status"] == "failed"
         assert hist["sl_history"][1]["retcode"] == 10016
+
+    def test_effective_levels_fallback_to_confirmed_mt5_levels(self):
+        journal = {
+            "channel": "canal2",
+            "direction": "SELL",
+            "signal_dt_utc": "2026-06-02T13:45:21+00:00",
+            "journal_total_pl": 0.0,
+            "has_signal_closed": True,
+            "n_market_filled": 1,
+            "n_market_b_filled": 0,
+            "n_dca_filled": 0,
+            "n_scale_out_legs": 1,
+            "tp_hit_indices": set(),
+            "anomalies": [],
+            "ticket_level_history": {
+                111: {
+                    "sl_history": [
+                        {"ts": "2026-06-02T13:45:54+00:00",
+                         "sl": 4516.0, "status": "confirmed"}
+                    ],
+                    "tp_history": [
+                        {"ts": "2026-06-02T13:45:54+00:00",
+                         "tp": 4506.0, "status": "confirmed"}
+                    ],
+                },
+                222: {
+                    "sl_history": [
+                        {"ts": "2026-06-02T13:45:54+00:00",
+                         "sl": 4516.0, "status": "confirmed"}
+                    ],
+                    "tp_history": [
+                        {"ts": "2026-06-02T13:45:54+00:00",
+                         "tp": 4504.0, "status": "confirmed"}
+                    ],
+                },
+            },
+        }
+        mt5_pos = [_pos("market_a", 0.0), _pos("scale_out_leg", 0.0)]
+        mt5_pos[0]["ticket"] = 111
+        mt5_pos[1]["ticket"] = 222
+
+        row = reconcile_signal("canal2_13254", journal, mt5_pos)
+
+        assert row["sl"] is None
+        assert row["tps"] is None
+        assert row["effective_sl"] == 4516.0
+        assert row["effective_tps"] == [4506.0, 4504.0]
+        assert row["effective_levels_source"]["sl"] == "mt5_confirmed"
+        assert row["effective_levels_source"]["tps"] == "mt5_confirmed"

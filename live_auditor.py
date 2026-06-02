@@ -27,6 +27,7 @@ class AuditSettings:
     level_apply_grace_s: float = 15.0
     naked_after_s: float = 120.0
     no_position_after_s: float = 90.0
+    no_position_missing_grace_s: float = 45.0
     pending_stuck_after_s: float = 30.0
 
 
@@ -86,6 +87,7 @@ class LiveAuditor:
         self.now_fn = now_fn or datetime.utcnow
         self._levels_seen_at: dict[str, datetime] = {}
         self._last_snapshot_at: dict[str, datetime] = {}
+        self._missing_positions_since: dict[str, datetime] = {}
         self._active_issues: dict[tuple, tuple[str, str]] = {}
 
     def audit_cycle(
@@ -199,6 +201,17 @@ class LiveAuditor:
         has_state_levels = bool(sig.tps) or sig.sl is not None
         if has_state_levels and sig_id not in self._levels_seen_at:
             self._levels_seen_at[sig_id] = now
+        if mt5_open_tickets:
+            self._missing_positions_since.pop(sig_id, None)
+        elif state_tickets:
+            self._missing_positions_since.setdefault(sig_id, now)
+        else:
+            self._missing_positions_since.pop(sig_id, None)
+        missing_since = self._missing_positions_since.get(sig_id)
+        missing_for_s = (
+            (now - missing_since).total_seconds()
+            if missing_since is not None else 0.0
+        )
 
         self._maybe_emit_snapshot(
             sig_id, now,
@@ -227,7 +240,9 @@ class LiveAuditor:
         )
 
         issues: list[tuple] = []
-        if state_tickets and not mt5_open_tickets and age_s >= self.settings.no_position_after_s:
+        if (state_tickets and not mt5_open_tickets
+                and age_s >= self.settings.no_position_after_s
+                and missing_for_s >= self.settings.no_position_missing_grace_s):
             key = (sig_id, "signal_without_mt5_position")
             issues.append((
                 key, sig_id, "mt5", "warning",
@@ -237,6 +252,7 @@ class LiveAuditor:
                     "state_tickets": state_tickets,
                     "missing_tickets": missing_tickets,
                     "age_s": round(age_s, 1),
+                    "missing_for_s": round(missing_for_s, 1),
                 },
             ))
 
@@ -351,6 +367,8 @@ def settings_from_config() -> AuditSettings:
         level_apply_grace_s=float(config.LIVE_AUDITOR_LEVEL_APPLY_GRACE_S),
         naked_after_s=float(config.LIVE_AUDITOR_NAKED_AFTER_S),
         no_position_after_s=float(config.LIVE_AUDITOR_NO_POSITION_AFTER_S),
+        no_position_missing_grace_s=float(
+            config.LIVE_AUDITOR_NO_POSITION_MISSING_GRACE_S),
         pending_stuck_after_s=float(config.LIVE_AUDITOR_PENDING_STUCK_AFTER_S),
     )
 

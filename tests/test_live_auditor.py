@@ -186,6 +186,53 @@ def test_pending_action_stuck_is_detected_for_audit():
     assert issue["age_s"] == 45.0
 
 
+def test_missing_position_waits_for_disappearance_grace():
+    journal = FakeJournal()
+    auditor = LiveAuditor(
+        settings=AuditSettings(
+            snapshot_every_s=0,
+            no_position_after_s=0,
+            no_position_missing_grace_s=45,
+        ),
+        journal=journal,
+    )
+    sig = _signal()
+
+    auditor.audit_cycle(
+        signals=[sig],
+        positions=[
+            _pos(1365772408, sl=4583.0, tp=4572.0),
+            _pos(1365772471, sl=4583.0, tp=4570.0),
+        ],
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 5, 0),
+    )
+    auditor.audit_cycle(
+        signals=[sig],
+        positions=[],
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 5, 5),
+    )
+
+    assert not [
+        a for a in journal.anomalies
+        if a.get("code") == "signal_without_mt5_position"
+    ]
+
+    auditor.audit_cycle(
+        signals=[sig],
+        positions=[],
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 5, 51),
+    )
+
+    issue = [
+        a for a in journal.anomalies
+        if a.get("code") == "signal_without_mt5_position"
+    ][0]
+    assert issue["missing_for_s"] == 46.0
+
+
 def test_pending_actions_snapshot_is_read_only_and_serializable():
     sig = _signal()
     q = PendingQueue()

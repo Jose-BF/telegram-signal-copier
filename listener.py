@@ -718,6 +718,14 @@ _seen_new_msg_ids: set[tuple] = set()
 _seen_new_msgs_order: list[tuple] = []
 _SEEN_NEW_MAX = 500
 
+# Dedup de acciones de gestion ya clasificadas. Telegram puede entregar el
+# mismo reply/edit por poller y handler, o repetirlo en segundos. Las acciones
+# idempotentes generan retcode=10025 y ensucian el expediente; las de cierre
+# pueden provocar ruido peor. Mantenemos una ventana corta por signal+texto+accion.
+_seen_management_actions: dict[tuple, datetime] = {}
+_MGMT_DUP_WINDOW_S = 45.0
+_MGMT_DUP_MAX = 1000
+
 # Canal2 puede editar el mensaje mientras la apertura market original sigue
 # bloqueada en MT5. Esos edits no son huerfanos reales: se cachean y se aplican
 # cuando la apertura termina, evitando duplicar la entrada.
@@ -786,6 +794,39 @@ def _edit_already_seen(channel: str, msg) -> bool:
 
 
 # ─── Helpers de configuración por canal ───────────────────────────────────────
+
+def _normalise_management_text(raw_text: str) -> str:
+    return " ".join((raw_text or "").split()).lower()[:240]
+
+
+def _management_price_key(price):
+    if price is None:
+        return None
+    try:
+        return round(float(price), 5)
+    except (TypeError, ValueError):
+        return str(price)
+
+
+def _management_action_already_seen(sig_id: str, action: str, raw_text: str,
+                                    price=None, *, now: datetime | None = None,
+                                    window_s: float = _MGMT_DUP_WINDOW_S) -> bool:
+    text_key = _normalise_management_text(raw_text)
+    if not text_key:
+        return False
+    now = now or datetime.utcnow()
+    key = (sig_id, action or "", text_key, _management_price_key(price))
+    last = _seen_management_actions.get(key)
+    if last is not None and (now - last).total_seconds() <= window_s:
+        return True
+    _seen_management_actions[key] = now
+    if len(_seen_management_actions) > _MGMT_DUP_MAX:
+        cutoff_s = window_s * 4
+        for old_key, seen_at in list(_seen_management_actions.items()):
+            if (now - seen_at).total_seconds() > cutoff_s:
+                del _seen_management_actions[old_key]
+    return False
+
 
 def _msg_text(msg) -> str:
     return getattr(msg, "text", None) or getattr(msg, "message", None) or ""
@@ -2061,6 +2102,15 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
 
         action_name = cl.get("action", "")
         confidence = cl.get("confidence") or 0.0
+        if _management_action_already_seen(
+                sig_id, action_name, raw_text, cl.get("price")):
+            journal.event(sig_id, "mgmt_msg_duplicate_skipped",
+                          action=action_name,
+                          price=cl.get("price"),
+                          confidence=confidence,
+                          raw_snippet=raw_text[:120],
+                          tg_ts=tg_ts)
+            continue
 
         # ── GEMINI FAILED GATE (fix C1) ─────────────────────────────────
         # Si Gemini fallo los 3 retries y devolvio el fallback INFORMATIONAL
