@@ -198,6 +198,35 @@ class TestReconcileSignal:
         assert row["pnl_mt5_complete"] is False
         assert any("MARKET_B_PERDIDO" in f for f in row["flags"])
 
+    def test_journal_closed_but_mt5_position_still_open_is_degraded(self):
+        """Caso real canal2_13288: el bot cerro 4/5 y marco signal_closed,
+        pero una leg seguia viva en MT5."""
+        journal = {
+            "channel": "canal2", "direction": "SELL",
+            "signal_dt_utc": "2026-06-03T09:32:21+00:00",
+            "journal_total_pl": 0.0, "has_signal_closed": True,
+            "n_market_filled": 1, "n_market_b_filled": 0,
+            "n_dca_filled": 0, "n_scale_out_legs": 3,
+            "tp_hit_indices": set(), "anomalies": [],
+        }
+        mt5_pos = [
+            _pos("market_a", 0.0),
+            _pos("scale_out_leg", 0.0),
+            _pos("scale_out_leg", 0.0),
+            _pos("scale_out_leg", 0.0),
+            _pos("scale_out_leg", 0.0, closed=False),
+        ]
+
+        row = reconcile_signal("canal2_13288", journal, mt5_pos)
+
+        assert row["status"] == "partial"
+        assert row["n_open"] == 1
+        assert any("journal_cerro_pero_MT5_tiene_pos_abierta" in f
+                   for f in row["flags"])
+        assert row["health"] == "degraded"
+        assert any(a.get("code") == "journal_closed_with_mt5_open_position"
+                   for a in row["anomalies"])
+
     def test_sin_posicion(self):
         """Senal recibida pero nunca abrio en MT5."""
         journal = {

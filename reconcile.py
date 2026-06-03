@@ -803,7 +803,12 @@ def reconcile_signal(sig_id: str, journal: dict | None,
     # ── Deteccion de anomalias ──
     if journal and not journal.get("has_signal_closed") and status == "closed":
         flags.append("HUERFANO_journal_sin_signal_closed")
-    if journal and journal.get("has_signal_closed") and status == "open":
+    journal_closed_with_mt5_open = (
+        bool(journal)
+        and bool(journal.get("has_signal_closed"))
+        and status in ("open", "partial")
+    )
+    if journal_closed_with_mt5_open:
         flags.append("journal_cerro_pero_MT5_tiene_pos_abierta")
     if not journal and mt5_positions:
         flags.append("posicion_MT5_sin_senal_en_journal")
@@ -843,6 +848,17 @@ def reconcile_signal(sig_id: str, journal: dict | None,
     post_time_stop_outcome = _derive_post_time_stop_outcome(
         journal, positions_for_ledger, status)
     anomalies = list(journal.get("anomalies", []))
+    if journal_closed_with_mt5_open:
+        anomalies.append({
+            "ts": close_dt,
+            "category": "outcome",
+            "severity": "warning",
+            "detail": "journal marked signal closed while MT5 still had open positions",
+            "derived": True,
+            "code": "journal_closed_with_mt5_open_position",
+            "n_open": n_open,
+            "status": status,
+        })
     if post_time_stop_outcome == "sl_after_time_stop":
         anomalies.append({
             "ts": close_dt,

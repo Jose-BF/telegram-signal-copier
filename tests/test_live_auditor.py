@@ -112,6 +112,77 @@ def test_orphan_mt5_position_with_bot_magic_is_detected():
     assert issue["parsed_signal_id"] == "canal2_13111"
 
 
+def test_orphan_scale_out_leg_matching_open_signal_is_adopted():
+    journal = FakeJournal()
+    auditor = LiveAuditor(
+        settings=AuditSettings(snapshot_every_s=0),
+        journal=journal,
+    )
+    sig = _signal()
+    orphan = _pos(1365772499, comment="c2_13111_B2")
+    orphan.price_open = 4575.12
+
+    auditor.audit_cycle(
+        signals=[sig],
+        positions=[
+            _pos(1365772408, sl=4583.0, tp=4572.0),
+            _pos(1365772471, sl=4583.0, tp=4570.0),
+            orphan,
+        ],
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 5, 0),
+    )
+
+    assert sig.extra_market_tickets == [1365772471, 1365772499]
+    assert sig.extra_market_fill_prices[-1] == 4575.12
+    adopted = [
+        e for e in journal.events
+        if e["ev"] == "mt5_orphan_position_adopted"
+    ]
+    assert len(adopted) == 1
+    assert adopted[0]["sig"] == "canal2_13111"
+    assert adopted[0]["ticket"] == 1365772499
+    assert not [
+        a for a in journal.anomalies
+        if a.get("code") == "mt5_orphan_position"
+    ]
+
+
+def test_orphan_scale_out_leg_waits_for_open_tracking_grace():
+    journal = FakeJournal()
+    auditor = LiveAuditor(
+        settings=AuditSettings(
+            snapshot_every_s=0,
+            orphan_adoption_grace_s=2.0,
+        ),
+        journal=journal,
+    )
+    sig = _signal()
+    sig.timestamp = datetime(2026, 5, 29, 15, 5, 0)
+    orphan = _pos(1365772499, comment="c2_13111_B2")
+
+    auditor.audit_cycle(
+        signals=[sig],
+        positions=[
+            _pos(1365772408, sl=4583.0, tp=4572.0),
+            _pos(1365772471, sl=4583.0, tp=4570.0),
+            orphan,
+        ],
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 5, 0, 500000),
+    )
+
+    assert sig.extra_market_tickets == [1365772471]
+    assert not [
+        e for e in journal.events
+        if e["ev"] == "mt5_orphan_position_adopted"
+    ]
+    assert not [
+        a for a in journal.anomalies
+        if a.get("code") == "mt5_orphan_position"
+    ]
+
+
 def test_audit_issue_resolution_is_logged_once_levels_are_applied():
     journal = FakeJournal()
     auditor = LiveAuditor(

@@ -1,11 +1,14 @@
-"""Auditor pasivo de operaciones vivas.
+"""Auditor de operaciones vivas.
 
 Cruza el estado interno del bot, las posiciones reales de MT5 y la cola de
-acciones pendientes. No envia ordenes ni modifica posiciones: solo deja
-evidencia estructurada en el journal para analisis posterior.
+acciones pendientes. No envia ordenes ni modifica posiciones. Si MT5 confirma
+una posicion del bot que el estado perdio, pero el comentario la mapea de forma
+inequivoca a una Signal abierta, la adopta para que la gestion normal no la
+deje fuera.
 """
 
 import asyncio
+import re
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -24,6 +27,7 @@ from state import Signal, state
 class AuditSettings:
     interval_s: float = 5.0
     snapshot_every_s: float = 60.0
+    orphan_adoption_grace_s: float = 2.0
     level_apply_grace_s: float = 15.0
     naked_after_s: float = 120.0
     no_position_after_s: float = 90.0
@@ -65,6 +69,25 @@ def _position_signal_id(pos) -> str | None:
         return None
     channel, message_id = parsed
     return f"{channel}_{message_id}"
+
+
+def _scale_out_leg_number(pos) -> int | None:
+    comment = str(getattr(pos, "comment", "") or "")
+    match = re.search(r"_B(\d+)\b", comment)
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except ValueError:
+        return None
+
+
+def _position_open_price(pos):
+    try:
+        price = getattr(pos, "price_open", None)
+        return float(price) if price is not None else None
+    except (TypeError, ValueError):
+        return None
 
 
 def _age_seconds(sig: Signal, now: datetime) -> float:
@@ -112,14 +135,31 @@ class LiveAuditor:
         }
         state_by_ticket: dict[int, str] = {}
         state_sig_ids: set[str] = set()
+        signals_by_id: dict[str, Signal] = {}
         for sig in open_signals:
             sig_id = _sig_id(sig)
+            signals_by_id[sig_id] = sig
             state_sig_ids.add(sig_id)
             for ticket in sig.all_filled_tickets:
                 state_by_ticket[int(ticket)] = sig_id
 
         current_issues: set[tuple] = set()
         bot_magics = {config.MT5_MAGIC_CANAL1, config.MT5_MAGIC_CANAL2}
+        suppress_orphan_issue_tickets: set[int] = set()
+
+        for pos in positions:
+            magic = getattr(pos, "magic", None)
+            ticket = int(getattr(pos, "ticket", 0) or 0)
+            if magic not in bot_magics or ticket in state_by_ticket:
+                continue
+            parsed_sig_id = _position_signal_id(pos)
+            sig = signals_by_id.get(parsed_sig_id or "")
+            if sig and _scale_out_leg_number(pos) is not None:
+                if _age_seconds(sig, now) < self.settings.orphan_adoption_grace_s:
+                    suppress_orphan_issue_tickets.add(ticket)
+                    continue
+                if self._adopt_orphan_position(sig, pos):
+                    state_by_ticket[ticket] = parsed_sig_id or _sig_id(sig)
 
         for sig in open_signals:
             for key, sig_id, category, severity, detail, ctx in self._audit_signal(
@@ -132,6 +172,8 @@ class LiveAuditor:
             magic = getattr(pos, "magic", None)
             ticket = int(getattr(pos, "ticket", 0) or 0)
             if magic not in bot_magics or ticket in state_by_ticket:
+                continue
+            if ticket in suppress_orphan_issue_tickets:
                 continue
             parsed_sig_id = _position_signal_id(pos)
             key = ("bot", "mt5_orphan_position", ticket)
@@ -168,6 +210,48 @@ class LiveAuditor:
             )
 
         self._emit_resolved_issues(current_issues, now)
+
+    def _adopt_orphan_position(self, sig: Signal, pos) -> bool:
+        ticket = int(getattr(pos, "ticket", 0) or 0)
+        if not ticket:
+            return False
+        if ticket in [int(t) for t in sig.all_filled_tickets]:
+            return False
+
+        leg_num = _scale_out_leg_number(pos)
+        if leg_num is None:
+            return False
+
+        insert_at = max(0, leg_num - 1)
+        insert_at = min(insert_at, len(sig.extra_market_tickets))
+        fill_price = _position_open_price(pos)
+        sig.extra_market_tickets.insert(insert_at, ticket)
+        sig.extra_market_fill_prices.insert(insert_at, fill_price)
+
+        sig_id = _sig_id(sig)
+        self.journal.event(
+            sig_id,
+            "mt5_orphan_position_adopted",
+            ticket=ticket,
+            adopted_as="extra_market_ticket",
+            leg=leg_num,
+            insert_at=insert_at,
+            comment=getattr(pos, "comment", None),
+            magic=getattr(pos, "magic", None),
+            price_open=fill_price,
+            state_tickets_after=list(sig.all_filled_tickets),
+        )
+        self.journal.anomaly(
+            sig_id,
+            "mt5",
+            "warning",
+            "MT5 tenia una leg scale_out fuera del estado; adoptada en Signal",
+            code="mt5_orphan_position_adopted",
+            ticket=ticket,
+            leg=leg_num,
+            comment=getattr(pos, "comment", None),
+        )
+        return True
 
     def _audit_signal(
         self,
