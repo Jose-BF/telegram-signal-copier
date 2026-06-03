@@ -40566,3 +40566,14 @@
 {"ts": "2026-06-03T19:48:38.868+00:00", "sig": "bot", "ev": "session_started", "git_commit": "6652767", "git_branch": "main", "git_dirty": true, "started_utc": "2026-06-03T19:48:38"}
 {"ts": "2026-06-03T19:48:43.237+00:00", "sig": "bot", "ev": "telegram_connection_change", "connected": true, "previous_state": null, "previous_state_duration_sec": null, "utc": "2026-06-03T19:48:43"}
 {"ts": "2026-06-03T19:48:43.239+00:00", "sig": "bot", "ev": "mt5_connection_change", "connected": true, "previous_state": null, "trade_allowed": true, "tradeapi_disabled": false, "previous_state_duration_sec": null, "utc": "2026-06-03T19:48:43"}
+{"ts": "2026-06-03T19:49:06.215+00:00", "sig": "bot", "ev": "session_started", "git_commit": "f1df910", "git_branch": "main", "git_dirty": true, "started_utc": "2026-06-03T19:49:06"}
+{"ts": "2026-06-03T19:49:09.624+00:00", "sig": "bot", "ev": "telegram_connection_change", "connected": true, "previous_state": null, "previous_state_duration_sec": null, "utc": "2026-06-03T19:49:09"}
+{"ts": "2026-06-03T19:49:09.628+00:00", "sig": "bot", "ev": "mt5_connection_change", "connected": true, "previous_state": null, "trade_allowed": true, "tradeapi_disabled": false, "previous_state_duration_sec": null, "utc": "2026-06-03T19:49:09"}
+{"ts": "2026-06-03T19:49:13.874+00:00", "sig": "bot", "ev": "poller_started", "interval_s": 0.5, "msg_limit": 10, "channels": ["canal2", "canal1"]}
+{"ts": "2026-06-03T19:54:09.641+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-03T19:54:09"}
+{"ts": "2026-06-03T19:59:09.660+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-03T19:59:09"}
+{"ts": "2026-06-03T20:04:09.657+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-03T20:04:09"}
+{"ts": "2026-06-03T20:09:09.677+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-03T20:09:09"}
+{"ts": "2026-06-03T20:14:09.679+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-03T20:14:09"}
+{"ts": "2026-06-03T20:19:09.685+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-03T20:19:09"}
+{"ts": "2026-06-03T20:24:09.669+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-03T20:24:09"}
