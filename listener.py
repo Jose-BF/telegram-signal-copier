@@ -426,6 +426,109 @@ def _be_close_negative_decision(floating_pl: float,
     return "rescue_tp_be" if floating_pl < -abs(tolerance_usd) else "allow_close"
 
 
+def _open_mt5_positions_for_signal(signal: Signal) -> list[dict] | None:
+    """Return live MT5 positions that belong to this Signal.
+
+    None means MT5 could not be queried. Empty list means verified clear.
+    """
+    import MetaTrader5 as _mt5
+
+    positions = _mt5.positions_get()
+    if positions is None:
+        return None
+
+    sig_id = _sig_id(signal)
+    open_positions = []
+    for pos in positions:
+        if getattr(pos, "magic", None) != signal.magic:
+            continue
+        parsed = executor._parse_signal_id_from_comment(
+            getattr(pos, "comment", "") or "")
+        if not parsed:
+            continue
+        parsed_sig_id = f"{parsed[0]}_{parsed[1]}"
+        if parsed_sig_id != sig_id:
+            continue
+        ticket = getattr(pos, "ticket", None)
+        open_positions.append({
+            "ticket": int(ticket) if ticket is not None else None,
+            "comment": getattr(pos, "comment", None),
+            "magic": getattr(pos, "magic", None),
+            "symbol": getattr(pos, "symbol", None),
+            "volume": getattr(pos, "volume", None),
+            "price_open": getattr(pos, "price_open", None),
+            "sl": getattr(pos, "sl", None),
+            "tp": getattr(pos, "tp", None),
+        })
+    return open_positions
+
+
+async def _finalize_integrity_allows(signal: Signal, closed_by: str) -> bool:
+    sig_id = _sig_id(signal)
+    try:
+        open_positions = await _run(_open_mt5_positions_for_signal, signal)
+    except Exception as e:
+        signal.status = "open"
+        journal.event(sig_id, "signal_integrity_snapshot",
+                      phase="before_finalize",
+                      can_finalize=False,
+                      reason="mt5_positions_query_exception",
+                      closed_by=closed_by,
+                      error_type=type(e).__name__,
+                      error=str(e)[:200])
+        journal.anomaly(
+            sig_id, "mt5", "critical",
+            "No pude verificar posiciones abiertas antes de cerrar la senal",
+            code="finalize_integrity_check_failed",
+            phase="before_finalize",
+            closed_by=closed_by,
+            error_type=type(e).__name__,
+            error=str(e)[:200],
+        )
+        return False
+
+    if open_positions is None:
+        signal.status = "open"
+        journal.event(sig_id, "signal_integrity_snapshot",
+                      phase="before_finalize",
+                      can_finalize=False,
+                      reason="mt5_positions_query_none",
+                      closed_by=closed_by)
+        journal.anomaly(
+            sig_id, "mt5", "critical",
+            "MT5 no devolvio posiciones al verificar cierre de senal",
+            code="finalize_integrity_check_failed",
+            phase="before_finalize",
+            closed_by=closed_by,
+        )
+        return False
+
+    if open_positions:
+        open_tickets = [p.get("ticket") for p in open_positions]
+        signal.status = "open"
+        journal.event(sig_id, "signal_integrity_snapshot",
+                      phase="before_finalize",
+                      can_finalize=False,
+                      reason="mt5_positions_still_open",
+                      closed_by=closed_by,
+                      open_tickets=open_tickets,
+                      open_positions=open_positions,
+                      state_tickets=list(signal.all_filled_tickets))
+        journal.anomaly(
+            sig_id, "outcome", "critical",
+            "Finalize bloqueado: MT5 aun tiene posiciones vivas de esta senal",
+            code="finalize_blocked_mt5_positions_open",
+            phase="before_finalize",
+            closed_by=closed_by,
+            open_tickets=open_tickets,
+            open_positions=open_positions,
+            state_tickets=list(signal.all_filled_tickets),
+        )
+        return False
+
+    return True
+
+
 async def _finalize_signal(signal: Signal, closed_by: str, notes: str = ""):
     """Cierra el trade en el journal con la información disponible.
 
@@ -440,6 +543,9 @@ async def _finalize_signal(signal: Signal, closed_by: str, notes: str = ""):
     """
     try:
         sig_id = _sig_id(signal)
+        if not await _finalize_integrity_allows(signal, closed_by):
+            return
+
         now = datetime.utcnow()
         duration_s = (now - signal.timestamp).total_seconds()
         # Pequeña espera para que el deal de cierre llegue al historial de MT5
