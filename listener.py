@@ -13,6 +13,7 @@ Canal 1 flujo:
 """
 
 import asyncio
+import hashlib
 from datetime import datetime, timedelta
 
 from telethon import TelegramClient, events
@@ -45,6 +46,145 @@ from market_context import compute_market_context
 def _sig_id(signal: Signal) -> str:
     """Identificador único para journal. Mismo formato que state._key()."""
     return f"{signal.channel}_{signal.message_id}"
+
+
+def _text_sha1(text: str | None) -> str | None:
+    if text is None:
+        return None
+    return hashlib.sha1(text.encode("utf-8", errors="replace")).hexdigest()
+
+
+def _iso_or_none(value) -> str | None:
+    if value is None:
+        return None
+    try:
+        return value.isoformat(timespec="seconds")
+    except TypeError:
+        return value.isoformat()
+    except Exception:
+        return str(value)
+
+
+def _telegram_raw_payload(msg, channel: str, update_kind: str) -> dict:
+    text = getattr(msg, "text", None) or getattr(msg, "message", None) or ""
+    reply_to = getattr(msg, "reply_to", None)
+    reply_id = getattr(reply_to, "reply_to_msg_id", None)
+    sticker_id = None
+    if getattr(msg, "sticker", None):
+        try:
+            sticker_id = msg.sticker.id
+        except Exception:
+            sticker_id = None
+
+    return {
+        "channel": channel,
+        "message_id": getattr(msg, "id", None),
+        "update_kind": update_kind,
+        "date_utc": _iso_or_none(getattr(msg, "date", None)),
+        "edit_date_utc": _iso_or_none(getattr(msg, "edit_date", None)),
+        "is_edit": update_kind == "edit",
+        "is_reply": reply_id is not None,
+        "reply_to_msg_id": reply_id,
+        "has_text": bool(text),
+        "text": text,
+        "text_len": len(text),
+        "text_sha1": _text_sha1(text) if text else None,
+        "has_media": bool(
+            getattr(msg, "sticker", None)
+            or getattr(msg, "photo", None)
+            or getattr(msg, "document", None)
+        ),
+        "sticker_id": sticker_id,
+        "has_photo": bool(getattr(msg, "photo", None)),
+        "has_document": bool(getattr(msg, "document", None)),
+    }
+
+
+def _classification_source(classification: dict) -> str:
+    if classification.get("_gemini_failed"):
+        return "gemini_failed"
+    if classification.get("_reason"):
+        return "regex"
+    return "gemini"
+
+
+def _log_telegram_understood(
+    sig_id: str,
+    *,
+    channel: str,
+    message_id: int | None,
+    kind: str,
+    parser: str,
+    raw_text: str = "",
+    parsed: dict | None = None,
+    classifications=None,
+    target_signal_id: str | None = None,
+    tg_ts: str | None = None,
+    is_edit: bool = False,
+    is_reply: bool = False,
+    reply_to_msg_id: int | None = None,
+) -> None:
+    try:
+        parsed = parsed or {}
+        if isinstance(classifications, dict):
+            classifications = [classifications]
+        classifications = list(classifications or [])
+        rng = parsed.get("range")
+        range_low = range_high = None
+        if isinstance(rng, (list, tuple)) and len(rng) >= 2:
+            range_low, range_high = rng[0], rng[1]
+
+        confidences = [
+            float(c.get("confidence"))
+            for c in classifications
+            if c.get("confidence") is not None
+        ]
+        sources = sorted({
+            _classification_source(c)
+            for c in classifications
+        })
+        actions = [c.get("action") for c in classifications]
+        requires_review = any(
+            c.get("_gemini_failed")
+            or (
+                c.get("action") not in ("INFORMATIONAL", None)
+                and not c.get("_reason")
+                and float(c.get("confidence") or 0.0) < 0.8
+            )
+            for c in classifications
+        )
+
+        journal.event(
+            sig_id,
+            "telegram_understood",
+            channel=channel,
+            message_id=message_id,
+            target_signal_id=target_signal_id,
+            kind=kind,
+            parser=parser,
+            parsed_keys=list(parsed.keys()),
+            direction=parsed.get("direction"),
+            range_low=range_low,
+            range_high=range_high,
+            tps=list(parsed.get("tps") or []),
+            n_tps=len(parsed.get("tps") or []),
+            sl=parsed.get("sl"),
+            actions=actions,
+            parser_sources=sources,
+            confidence_min=min(confidences) if confidences else None,
+            confidence_max=max(confidences) if confidences else None,
+            gemini_failed=any(c.get("_gemini_failed") for c in classifications),
+            requires_review=requires_review,
+            is_edit=is_edit,
+            is_reply=is_reply,
+            reply_to_msg_id=reply_to_msg_id,
+            tg_ts=tg_ts,
+            raw_text_len=len(raw_text or ""),
+            raw_text_sha1=_text_sha1(raw_text or ""),
+            coverage_status="not_evaluated",
+        )
+    except Exception as e:
+        print(f"[TelegramPerception] telegram_understood error: {e}")
 
 
 def _management_price_reference(signal: Signal) -> float | None:
@@ -2189,6 +2329,17 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
 
     sig_id = _sig_id(signal)
     sl_hit_detected = False
+    _log_telegram_understood(
+        sig_id,
+        channel=signal.channel,
+        message_id=signal.message_id,
+        kind="management",
+        parser="classifier",
+        raw_text=raw_text,
+        classifications=classifications,
+        target_signal_id=sig_id,
+        tg_ts=tg_ts,
+    )
 
     # Captura SL hit para post-SL momentum (point 4): solo una vez aunque haya
     # varias acciones en el mismo mensaje.
@@ -2792,6 +2943,19 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
             # predict_levels y el TP en MT5 queda desalineado del canal.
             parsed_in_reply = parse_canal2(text)
             _tg_ts = msg.date.isoformat(timespec="seconds") if msg.date else None
+            _log_telegram_understood(
+                _sig_id(sig),
+                channel="canal2",
+                message_id=msg.id,
+                kind="reply_levels",
+                parser="parse_canal2",
+                raw_text=text,
+                parsed=parsed_in_reply,
+                target_signal_id=_sig_id(sig),
+                tg_ts=_tg_ts,
+                is_reply=True,
+                reply_to_msg_id=reply_id,
+            )
             if parsed_in_reply.get("tps") or parsed_in_reply.get("sl"):
                 print(f"[{label}] Reply con niveles reales: {[k for k in ('tps','sl') if k in parsed_in_reply]}")
                 await _update_signal_from_parsed(sig, parsed_in_reply, tg_ts=_tg_ts)
@@ -2806,6 +2970,16 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
         return
 
     parsed = parse_canal2(text)
+    _log_telegram_understood(
+        f"canal2_{msg.id}",
+        channel="canal2",
+        message_id=msg.id,
+        kind="entry_signal",
+        parser="parse_canal2",
+        raw_text=text,
+        parsed=parsed,
+        tg_ts=_msg_ts_iso(msg),
+    )
     if "direction" not in parsed:
         return
 
@@ -3052,6 +3226,18 @@ async def _process_canal2_edit(msg, label: str = "Canal2"):
 
     parsed = parse_canal2(text)
     _tg_edit_ts = msg.edit_date.isoformat(timespec="seconds") if msg.edit_date else None
+    _log_telegram_understood(
+        _sig_id(sig),
+        channel="canal2",
+        message_id=msg.id,
+        kind="levels_update",
+        parser="parse_canal2",
+        raw_text=text,
+        parsed=parsed,
+        target_signal_id=_sig_id(sig),
+        tg_ts=_tg_edit_ts,
+        is_edit=True,
+    )
     print(f"[{label}] Edit señal {msg.id}: {list(parsed.keys())} tg_edit={_tg_edit_ts}")
     await _update_signal_from_parsed(sig, parsed, tg_ts=_tg_edit_ts)
 
@@ -3110,6 +3296,8 @@ def _msg_diag(msg, channel: str, kind: str):
             has_reply = True
             reply_to = msg.reply_to.reply_to_msg_id
 
+        _j.event(f"{channel}_{msg.id}", "telegram_raw",
+                 **_telegram_raw_payload(msg, channel, kind))
         _j.event(f"{channel}_{msg.id}", "handler_entry",
                  kind=kind,
                  channel=channel,
@@ -3556,6 +3744,18 @@ async def _process_canal1_edit(msg):
     diff = _diff_canal1_edit(sig, parsed)
 
     sig_id = _sig_id(sig)
+    _log_telegram_understood(
+        sig_id,
+        channel="canal1",
+        message_id=msg.id,
+        kind="levels_update",
+        parser="parse_canal1_text",
+        raw_text=text,
+        parsed=parsed,
+        target_signal_id=sig_id,
+        tg_ts=_msg_ts_iso(msg),
+        is_edit=True,
+    )
     journal.event(sig_id, "canal1_text_edited",
                   source_msg_id=msg.id,
                   material_change=diff["material_change"],
@@ -3742,6 +3942,16 @@ async def _handle_canal1_sticker(msg):
         return
 
     # ── FILTRO: RE-ENTER no aplica al sticker (HIGH RISK tampoco) ──
+    _log_telegram_understood(
+        sig_id,
+        channel="canal1",
+        message_id=msg.id,
+        kind="entry_signal",
+        parser="sticker_id",
+        parsed={"direction": direction},
+        tg_ts=_msg_ts_iso(msg),
+    )
+
     skip, reason = strategies.should_skip_signal("", direction, "canal1")
     if skip:
         print(f"\n[Canal1] ❌ SEÑAL IGNORADA ({direction}, msg={msg.id}): {reason}")
@@ -4097,6 +4307,17 @@ async def _handle_canal1_text(msg, text: str):
                   text_preview=text[:250].replace("\n", " | "))
 
     parsed = parse_canal1_text(text)
+    _log_telegram_understood(
+        sig_id,
+        channel="canal1",
+        message_id=msg.id,
+        kind="levels_update",
+        parser="parse_canal1_text",
+        raw_text=text,
+        parsed=parsed,
+        target_signal_id=sig_id,
+        tg_ts=_msg_ts_iso(msg),
+    )
 
     # Si el parser NO extrajo tps/sl del texto del canal, hay un bug del
     # parser para este formato concreto. Logueamos antes de aplicar para
