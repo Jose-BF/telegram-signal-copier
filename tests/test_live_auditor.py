@@ -304,6 +304,41 @@ def test_missing_position_waits_for_disappearance_grace():
     assert issue["missing_for_s"] == 46.0
 
 
+def test_scale_out_missing_expected_legs_is_detected_after_grace():
+    journal = FakeJournal()
+    auditor = LiveAuditor(
+        settings=AuditSettings(
+            snapshot_every_s=0,
+            expected_legs_after_s=15,
+        ),
+        journal=journal,
+    )
+    sig = _signal()
+    sig.entry_mode = "scale_out"
+
+    auditor.audit_cycle(
+        signals=[sig],
+        positions=[
+            _pos(1365772408, sl=4583.0, tp=4572.0),
+            _pos(1365772471, sl=4583.0, tp=4570.0),
+        ],
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 5, 0),
+    )
+
+    issue = [
+        a for a in journal.anomalies
+        if a.get("code") == "scale_out_missing_expected_legs"
+    ][0]
+    assert issue["sig"] == "canal2_13111"
+    assert issue["category"] == "fill"
+    assert issue["severity"] == "critical"
+    assert issue["expected_legs"] == 5
+    assert issue["state_legs"] == 2
+    assert issue["missing_legs"] == 3
+    assert issue["state_tickets"] == [1365772408, 1365772471]
+
+
 def test_pending_actions_snapshot_is_read_only_and_serializable():
     sig = _signal()
     q = PendingQueue()

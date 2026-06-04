@@ -28,6 +28,7 @@ class AuditSettings:
     interval_s: float = 5.0
     snapshot_every_s: float = 60.0
     orphan_adoption_grace_s: float = 2.0
+    expected_legs_after_s: float = 15.0
     level_apply_grace_s: float = 15.0
     naked_after_s: float = 120.0
     no_position_after_s: float = 90.0
@@ -88,6 +89,16 @@ def _position_open_price(pos):
         return float(price) if price is not None else None
     except (TypeError, ValueError):
         return None
+
+
+def _expected_scale_out_legs(sig: Signal) -> int | None:
+    if getattr(sig, "entry_mode", None) != "scale_out":
+        return None
+    if sig.channel == "canal1":
+        return int(config.STRATEGY_C1_NUM_ENTRIES)
+    if sig.channel == "canal2":
+        return int(config.STRATEGY_C2_NUM_ENTRIES)
+    return None
 
 
 def _age_seconds(sig: Signal, now: datetime) -> float:
@@ -324,6 +335,25 @@ class LiveAuditor:
         )
 
         issues: list[tuple] = []
+        expected_legs = _expected_scale_out_legs(sig)
+        if (expected_legs is not None
+                and age_s >= self.settings.expected_legs_after_s
+                and len(state_tickets) < expected_legs):
+            key = (sig_id, "scale_out_missing_expected_legs")
+            issues.append((
+                key, sig_id, "fill", "critical",
+                "Signal scale_out tiene menos tickets registrados de los esperados",
+                {
+                    "code": "scale_out_missing_expected_legs",
+                    "expected_legs": expected_legs,
+                    "state_legs": len(state_tickets),
+                    "missing_legs": expected_legs - len(state_tickets),
+                    "state_tickets": state_tickets,
+                    "mt5_open_tickets": mt5_open_tickets,
+                    "age_s": round(age_s, 1),
+                },
+            ))
+
         if (state_tickets and not mt5_open_tickets
                 and age_s >= self.settings.no_position_after_s
                 and missing_for_s >= self.settings.no_position_missing_grace_s):
@@ -454,6 +484,8 @@ def settings_from_config() -> AuditSettings:
         no_position_missing_grace_s=float(
             config.LIVE_AUDITOR_NO_POSITION_MISSING_GRACE_S),
         pending_stuck_after_s=float(config.LIVE_AUDITOR_PENDING_STUCK_AFTER_S),
+        expected_legs_after_s=float(
+            config.LIVE_AUDITOR_EXPECTED_LEGS_AFTER_S),
     )
 
 
