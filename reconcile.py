@@ -338,10 +338,17 @@ def _with_forensic_position_history(positions: list[dict],
     out = []
     for p in positions:
         row = dict(p)
-        key = _ticket_key(row.get("ticket")) or ""
-        hist = histories.get(key)
-        if hist is None and key.isdigit():
-            hist = histories.get(int(key))
+        keys = [
+            _ticket_key(row.get("position_id")),
+            _ticket_key(row.get("ticket")),
+        ]
+        hist = None
+        for key in [k for k in keys if k]:
+            hist = histories.get(key)
+            if hist is None and key.isdigit():
+                hist = histories.get(int(key))
+            if hist is not None:
+                break
         hist = hist or {}
         row["sl_history"] = hist.get("sl_history", row.get("sl_history", []))
         row["tp_history"] = hist.get("tp_history", row.get("tp_history", []))

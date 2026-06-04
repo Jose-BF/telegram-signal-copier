@@ -537,6 +537,30 @@ class TestReconcileForensicLifecycle:
         assert row["positions"][0]["sl_history"][0]["sl"] == 4525.0
         assert row["positions"][0]["tp_history"][0]["tp"] == 4548.0
 
+    def test_ticket_history_matches_mt5_position_id_not_deal_ticket(self):
+        journal = self._base(ticket_level_history={
+            111: {
+                "sl_history": [
+                    {"ts": "2026-05-21T11:24:00+00:00",
+                     "sl": 4525.0, "source": "SL #111",
+                     "status": "confirmed"}
+                ],
+                "tp_history": [
+                    {"ts": "2026-05-21T11:24:00+00:00",
+                     "tp": 4548.0, "source": "TP #111",
+                     "status": "confirmed"}
+                ],
+            }
+        })
+        mt5_pos = [_pos("market_a", -10.0)]
+        mt5_pos[0]["position_id"] = 111
+        mt5_pos[0]["ticket"] = 999  # deal ticket, no position ticket
+
+        row = reconcile_signal("canal1_19822", journal, mt5_pos)
+
+        assert row["positions"][0]["sl_history"][0]["sl"] == 4525.0
+        assert row["positions"][0]["tp_history"][0]["tp"] == 4548.0
+
     def test_strategy_snapshot_is_propagated_to_ledger_row(self):
         snapshot = {"entry_mode": "scale_out", "num_entries": 4,
                     "time_stop_min": 60, "adverse_action": "rescue_market"}

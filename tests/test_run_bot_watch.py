@@ -55,6 +55,33 @@ def test_regenerate_ledger_writes_success_status(tmp_path, monkeypatch):
     assert status["ledger_size_bytes"] == ledger.stat().st_size
 
 
+def test_regenerate_replay_trades_writes_success_status(tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    replay = data_dir / "replay_trades.jsonl"
+
+    monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
+    monkeypatch.setattr(watch, "REPLAY_STATUS_FILE",
+                        data_dir / "replay_status.json")
+
+    def fake_run(*args, **kwargs):
+        assert args[0] == [watch.sys.executable, "replay_builder.py", "--quiet"]
+        replay.write_text("{}\n", encoding="utf-8")
+        return subprocess.CompletedProcess(
+            args=args[0], returncode=0, stdout="replay ok", stderr="")
+
+    monkeypatch.setattr(watch.subprocess, "run", fake_run)
+
+    ok = watch._regenerate_replay_trades()
+
+    assert ok is True
+    status = json.loads((data_dir / "replay_status.json").read_text())
+    assert status["ok"] is True
+    assert status["returncode"] == 0
+    assert status["replay_exists"] is True
+    assert status["replay_size_bytes"] == replay.stat().st_size
+
+
 def test_regenerate_ledger_records_keyboard_interrupt_before_reraising(
         tmp_path, monkeypatch):
     monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
@@ -80,6 +107,7 @@ def test_push_session_data_adds_reconcile_status(monkeypatch):
     added = []
 
     monkeypatch.setattr(watch, "_regenerate_ledger", lambda: False)
+    monkeypatch.setattr(watch, "_regenerate_replay_trades", lambda: False)
 
     def fake_git(*args, capture=True):
         if args[:2] == ("add", "-f"):
@@ -97,6 +125,8 @@ def test_push_session_data_adds_reconcile_status(monkeypatch):
     watch._push_session_data()
 
     assert "data/reconcile_status.json" in added
+    assert "data/replay_status.json" in added
+    assert "data/replay_trades.jsonl" in added
 
 
 def test_pull_main_ff_uses_explicit_origin_main(monkeypatch):

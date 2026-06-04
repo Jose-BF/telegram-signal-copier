@@ -41,6 +41,7 @@ if hasattr(sys.stderr, "reconfigure"):
 REPO_DIR = Path(__file__).resolve().parent.parent
 MAIN_PY  = REPO_DIR / "main.py"
 RECONCILE_STATUS_FILE = REPO_DIR / "data" / "reconcile_status.json"
+REPLAY_STATUS_FILE = REPO_DIR / "data" / "replay_status.json"
 RUNTIME_HEARTBEAT_FILE = Path(os.getenv(
     "BOT_RUNTIME_HEARTBEAT_FILE",
     str(REPO_DIR / "data" / "runtime_heartbeat.json"),
@@ -252,6 +253,74 @@ def _regenerate_ledger() -> bool:
     return bool(status["ok"])
 
 
+def _write_replay_status(status: dict) -> None:
+    try:
+        REPLAY_STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        REPLAY_STATUS_FILE.write_text(
+            json.dumps(status, ensure_ascii=False, indent=2, default=str) + "\n",
+            encoding="utf-8",
+        )
+    except Exception as e:
+        print(f"[Watch] no pude escribir replay_status.json: {e}",
+              flush=True)
+
+
+def _regenerate_replay_trades() -> bool:
+    """Regenera data/replay_trades.jsonl desde ledger + journal.
+
+    Es un artefacto derivado: si falla no debe impedir relanzar el bot, pero
+    deja status explicito para que sepamos si la sesion quedo simulable.
+    """
+    started = time.time()
+    replay_file = REPO_DIR / "data" / "replay_trades.jsonl"
+    status = {
+        "ok": False,
+        "started_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "finished_at": None,
+        "duration_s": None,
+        "returncode": None,
+        "stdout": "",
+        "stderr": "",
+        "replay_exists": replay_file.exists(),
+        "replay_size_bytes": replay_file.stat().st_size if replay_file.exists() else 0,
+        "command": [sys.executable, "replay_builder.py", "--quiet"],
+    }
+    try:
+        rec = subprocess.run(
+            [sys.executable, "replay_builder.py", "--quiet"],
+            cwd=REPO_DIR, capture_output=True, text=True, timeout=60,
+        )
+        status.update({
+            "ok": rec.returncode == 0,
+            "returncode": rec.returncode,
+            "stdout": rec.stdout or "",
+            "stderr": rec.stderr or "",
+        })
+        if rec.returncode == 0:
+            print("[Watch] replay_trades regenerado.", flush=True)
+        else:
+            print(f"[Watch] replay_builder.py fallo (rc={rec.returncode}): "
+                  f"{(rec.stderr or rec.stdout or '')[:1000]}", flush=True)
+    except BaseException as e:
+        status.update({
+            "ok": False,
+            "exception_type": type(e).__name__,
+            "stderr": str(e),
+        })
+        print(f"[Watch] error ejecutando replay_builder.py: {e}", flush=True)
+        if isinstance(e, (KeyboardInterrupt, SystemExit)):
+            raise
+    finally:
+        status["finished_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        status["duration_s"] = round(time.time() - started, 2)
+        status["replay_exists"] = replay_file.exists()
+        status["replay_size_bytes"] = (
+            replay_file.stat().st_size if replay_file.exists() else 0
+        )
+        _write_replay_status(status)
+    return bool(status["ok"])
+
+
 def _push_session_data() -> None:
     """Sube data/trade_events.jsonl + ledger + journal a GitHub si hay cambios.
 
@@ -262,11 +331,15 @@ def _push_session_data() -> None:
 
     Antes de subir, regenera el ledger reconciliado (reconcile.py).
     """
-    _regenerate_ledger()
+    ledger_ok = _regenerate_ledger()
+    if ledger_ok:
+        _regenerate_replay_trades()
     files = [
         "data/trade_events.jsonl",
         "data/ledger.jsonl",
         "data/reconcile_status.json",
+        "data/replay_trades.jsonl",
+        "data/replay_status.json",
         "data/trade_events_TEST.jsonl",
         "data/trade_journal.csv",
         "data/trade_journal_TEST.csv",
