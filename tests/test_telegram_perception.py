@@ -121,3 +121,39 @@ async def test_execute_actions_emits_management_understanding(monkeypatch):
     assert payload["confidence_min"] == 0.95
     assert payload["requires_review"] is False
     assert len(executed) == 1
+
+
+def test_management_understanding_flags_uncovered_close_fragment(monkeypatch):
+    events = []
+    monkeypatch.setattr(
+        listener.journal,
+        "event",
+        lambda sig_id, ev, **kw: events.append((sig_id, ev, kw)),
+    )
+
+    listener._log_telegram_understood(
+        "canal1_20090",
+        channel="canal1",
+        message_id=20092,
+        kind="management",
+        parser="classifier",
+        raw_text=(
+            "Back in profits move sl to be on time if you are happy "
+            "for today close for now in profit"
+        ),
+        classifications=[{
+            "action": "MOVE_SL_TO_BE",
+            "price": None,
+            "confidence": 0.95,
+            "reasoning": "Imperative instruction to move SL to BE.",
+        }],
+        target_signal_id="canal1_20090",
+        is_reply=True,
+        reply_to_msg_id=20091,
+    )
+
+    payload = events[0][2]
+    assert payload["actions"] == ["MOVE_SL_TO_BE"]
+    assert payload["coverage_status"] == "partial"
+    assert payload["unhandled_text_fragments"] == ["close for now in profit"]
+    assert payload["requires_review"] is True

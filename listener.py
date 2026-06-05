@@ -14,6 +14,7 @@ Canal 1 flujo:
 
 import asyncio
 import hashlib
+import re
 from datetime import datetime, timedelta
 
 from telethon import TelegramClient, events
@@ -108,6 +109,28 @@ def _classification_source(classification: dict) -> str:
     return "gemini"
 
 
+def _unhandled_management_fragments(raw_text: str, actions: list[str]) -> list[str]:
+    if not raw_text:
+        return []
+    if any(str(action or "").startswith("CLOSE_") for action in actions):
+        return []
+
+    text = " ".join(raw_text.lower().split())
+    patterns = [
+        r"\bclose\s+for\s+now(?:\s+in\s+profit)?\b",
+        r"\bclose\s+(?:your\s+|my\s+|the\s+)?first\s+(?:entries|entry)\b",
+        r"\bclose\s+(?:all|everything|the\s+trade|this\s+trade)\b",
+        r"\bclose\s+tp\s*\d+\b",
+        r"\bout\s+(?:this\s+|of\s+this\s+|of\s+the\s+)?trade\b",
+    ]
+    fragments = []
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match and match.group(0) not in fragments:
+            fragments.append(match.group(0))
+    return fragments
+
+
 def _log_telegram_understood(
     sig_id: str,
     *,
@@ -144,6 +167,11 @@ def _log_telegram_understood(
             for c in classifications
         })
         actions = [c.get("action") for c in classifications]
+        unhandled_fragments = []
+        coverage_status = "not_evaluated"
+        if kind == "management" and raw_text:
+            unhandled_fragments = _unhandled_management_fragments(raw_text, actions)
+            coverage_status = "partial" if unhandled_fragments else "covered"
         requires_review = any(
             c.get("_gemini_failed")
             or (
@@ -152,7 +180,7 @@ def _log_telegram_understood(
                 and float(c.get("confidence") or 0.0) < 0.8
             )
             for c in classifications
-        )
+        ) or bool(unhandled_fragments)
 
         journal.event(
             sig_id,
@@ -181,7 +209,8 @@ def _log_telegram_understood(
             tg_ts=tg_ts,
             raw_text_len=len(raw_text or ""),
             raw_text_sha1=_text_sha1(raw_text or ""),
-            coverage_status="not_evaluated",
+            coverage_status=coverage_status,
+            unhandled_text_fragments=unhandled_fragments,
         )
     except Exception as e:
         print(f"[TelegramPerception] telegram_understood error: {e}")
