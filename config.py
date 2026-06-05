@@ -16,6 +16,21 @@ def _float(key: str, default: float) -> float:
     val = os.getenv(key)
     return float(val) if val else default
 
+
+SUPPORTED_ENTRY_MODES = {"scale_out", "market_only"}
+DEPRECATED_ENTRY_MODES = {"intra_dca", "extremes"}
+
+
+def normalize_entry_mode(value: str | None, default: str = "scale_out") -> str:
+    """Normaliza el modo de entrada soportado por el runtime vivo actual."""
+    fallback = default if default in SUPPORTED_ENTRY_MODES else "scale_out"
+    mode = (value or "").strip().lower()
+    if mode in SUPPORTED_ENTRY_MODES:
+        return mode
+    if mode in DEPRECATED_ENTRY_MODES:
+        return fallback
+    return fallback
+
 # Telegram
 TELEGRAM_API_ID   = _int("TELEGRAM_API_ID")
 TELEGRAM_API_HASH = _require("TELEGRAM_API_HASH")
@@ -139,7 +154,7 @@ STRATEGY_POST_SL_MAX_DURATION_S = int(os.getenv("STRATEGY_POST_SL_MAX_DURATION_S
 #
 # Decisiones acordadas tras descartar simulación masiva:
 #   • Lote conservador 0.01 (sin partial close por ahora)
-#   • Ambos canales con intra_dca y 5 entradas máx (market + 4 limits en rango)
+#   • Histórico: intra_dca con limits. Runtime actual: scale_out sin limits.
 #   • TPs ESCALONADOS por orden de apertura (target_tp_index=-1):
 #       ticket 1 → TP1, ticket 2 → TP2, …, ticket 5 → TP5
 #   • Sin BE automático: el classifier aplica los mensajes de gestión del canal
@@ -154,8 +169,8 @@ STRATEGY_POST_SL_MAX_DURATION_S = int(os.getenv("STRATEGY_POST_SL_MAX_DURATION_S
 # golpe (sin DCA, sin doble market). TPs escalonados: pos k -> TPk. Cada
 # posicion se cierra en su TP -> "scaling out" / cierres parciales.
 # Canal 1 suele tener 4 TPs -> 4 legs -> 0.04 lote total.
-# Rollback: STRATEGY_C1_ENTRY_MODE=intra_dca recupera el comportamiento DCA.
-STRATEGY_C1_ENTRY_MODE      = os.getenv("STRATEGY_C1_ENTRY_MODE", "scale_out")
+# Valores legacy DCA en .env se normalizan a scale_out en runtime.
+STRATEGY_C1_ENTRY_MODE      = normalize_entry_mode(os.getenv("STRATEGY_C1_ENTRY_MODE", "scale_out"))
 STRATEGY_C1_NUM_ENTRIES     = int(os.getenv("STRATEGY_C1_NUM_ENTRIES", "4"))
 STRATEGY_C1_TARGET_TP_INDEX = int(os.getenv("STRATEGY_C1_TARGET_TP_INDEX", "-1"))  # -1 = escalonado
 STRATEGY_C1_TIME_STOP_MIN   = int(os.getenv("STRATEGY_C1_TIME_STOP_MIN", "60"))    # notify only
@@ -168,8 +183,8 @@ STRATEGY_C1_BE_TP_INDEX     = int(os.getenv("STRATEGY_C1_BE_TP_INDEX", "-1"))   
 # BE@TP1 ACTIVADO (default 0): al tocar TP1, BE mueve el SL de las legs
 # restantes a su entry -> asegura TP1 y el resto corre sin riesgo. El
 # escalonado lo activa target_tp_index=-1.
-# Rollback: STRATEGY_C2_ENTRY_MODE=intra_dca recupera el comportamiento DCA.
-STRATEGY_C2_ENTRY_MODE      = os.getenv("STRATEGY_C2_ENTRY_MODE", "scale_out")
+# Valores legacy DCA en .env se normalizan a scale_out en runtime.
+STRATEGY_C2_ENTRY_MODE      = normalize_entry_mode(os.getenv("STRATEGY_C2_ENTRY_MODE", "scale_out"))
 STRATEGY_C2_NUM_ENTRIES     = int(os.getenv("STRATEGY_C2_NUM_ENTRIES", "5"))
 STRATEGY_C2_TARGET_TP_INDEX = int(os.getenv("STRATEGY_C2_TARGET_TP_INDEX", "-1"))  # -1 = escalonado
 STRATEGY_C2_BE_TP_INDEX     = int(os.getenv("STRATEGY_C2_BE_TP_INDEX", "0"))       # 0 = BE en TP1
@@ -311,7 +326,7 @@ STRATEGY_DCA_DEFER_TIMEOUT_S = _float("STRATEGY_DCA_DEFER_TIMEOUT_S", 3.0)
 # después del "BUY NOW"), evaluamos dónde quedó el precio respecto al rango:
 #
 #   • Caso A (dentro del rango ± STRATEGY_RANGE_TOLERANCE_USD):
-#     aplica SL/TPs reales, abre los limits del entry_mode (intra_dca).
+#     aplica SL/TPs reales y continua con scale_out/monitor si procede.
 #
 #   • Caso B (fuera FAVORABLE — la posición ya está en profit):
 #     misma acción que A para C1 y C2 (b1) — abrir DCAs y aplicar SL/TPs.
@@ -322,8 +337,8 @@ STRATEGY_DCA_DEFER_TIMEOUT_S = _float("STRATEGY_DCA_DEFER_TIMEOUT_S", 3.0)
 #                              actual (entrada óptima); SL común; TPs por
 #                              calidad: original→TP1, rescue→último TP.
 #                              ⭐ Default consensuado para semana de prueba.
-#     - "close"              → cierra el market, no abre limits (legacy safety)
-#     - "hold_with_limits"   → mantiene market + abre limits del rango
+#     - "close"              → cierra el market (legacy safety)
+#     - "hold_with_limits"   → legacy desactivado; se trata como hold_no_limits
 #     - "hold_no_limits"     → mantiene market sin limits (SL del proveedor)
 #     - "hold_sl_to_extreme" → mantiene market con SL al extremo del rango
 STRATEGY_C1_ADVERSE_ACTION = os.getenv("STRATEGY_C1_ADVERSE_ACTION", "rescue_market")

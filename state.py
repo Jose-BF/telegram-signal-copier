@@ -74,7 +74,7 @@ class Signal:
     extra_market_fill_prices: list = field(default_factory=list)
 
     # Flags
-    dca_placed: bool = False
+    dca_placed: bool = False  # Nombre legacy; ahora protege el arranque del monitor.
     levels_predicted: bool = False  # TPs/SL vienen del predictor, no del canal
     status: str = "open"  # "open" | "closed"
 
@@ -95,10 +95,10 @@ class Signal:
     is_high_risk: bool = False
 
     # ─── Estrategias por canal (validadas IS/OOS 2026 con M1 real) ──────────
-    # Modo de entrada (None = legacy):
-    #   "market_only" → 1 sola posición a mercado (canal 1 sin rango)
-    #   "extremes"    → 1 market + 1 limit en extremo opuesto del rango (canal 1 con rango)
-    #   "intra_dca"   → N posiciones equiespaciadas dentro del rango (canal 2)
+    # Modo de entrada vivo:
+    #   "scale_out"   → N posiciones a mercado con TPs escalonados
+    #   "market_only" → 1 sola posición a mercado
+    # Valores legacy ("extremes", "intra_dca") se normalizan en config.
     entry_mode: Optional[str] = None
 
     # Índice (0-based) del TP que cierra TODAS las posiciones (TP único por canal).
@@ -159,8 +159,8 @@ class Signal:
     # Acción a aplicar cuando llega el rango y la posición market quedó FUERA
     # ADVERSA del rango (caso C). Se setea desde config.STRATEGY_Cx_ADVERSE_ACTION
     # en el listener al crear la señal. Por defecto "close" (= safety legacy).
-    #   "close"               — cierra market, no abre limits.
-    #   "hold_with_limits"    — mantiene market + abre limits (DCA puro).
+    #   "close"               — cierra market.
+    #   "hold_with_limits"    — legacy desactivado; se trata como hold_no_limits.
     #   "hold_no_limits"      — mantiene market sin limits.
     #   "hold_sl_to_extreme"  — mantiene market con SL al extremo del rango.
     adverse_action: str = "close"
@@ -189,7 +189,7 @@ class Signal:
 
     @property
     def all_filled_tickets(self) -> list:
-        """Todos los tickets abiertos: market principal + markets extra + DCAs.
+        """Todos los tickets abiertos: market principal + legs extra.
 
         Orden: [market_ticket, *extra_market_tickets, *dca_tickets].
         El index dentro de esta lista se usa en tp_for_position() para asignar
@@ -222,9 +222,9 @@ class Signal:
         Modo target_tp_index: TODAS al mismo TP fijo.
 
         Modo escalonado (default): posición i → tps[i] con cap opcional.
-            market → TP1, DCA1 → TP2, DCA2 → TP3, etc.
+            leg 0 → TP1, leg 1 → TP2, leg 2 → TP3, etc.
 
-        position_index: 0 = market, 1+ = DCAs.
+        position_index: 0 = market, 1+ = legs extra.
         n_total_open: reservado (ya no usado), mantenido por compatibilidad.
         """
         if not self.tps:

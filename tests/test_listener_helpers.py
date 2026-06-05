@@ -215,3 +215,54 @@ class TestBreakevenCloseGuard:
         assert _be_close_negative_decision(-6.35, tolerance_usd=2.0) == "rescue_tp_be"
         assert _be_close_negative_decision(-1.25, tolerance_usd=2.0) == "allow_close"
         assert _be_close_negative_decision(0.10, tolerance_usd=2.0) == "allow_close"
+
+
+class TestRuntimeTradeMonitor:
+    @pytest.mark.asyncio
+    async def test_place_dca_starts_monitor_without_legacy_levels(self, monkeypatch):
+        sig = Signal(channel="canal2", message_id=12888, direction="BUY")
+        sig.market_ticket = 123
+        sig.entry_mode = "intra_dca"
+        sig.range_low = 4795.0
+        sig.range_high = 4799.0
+        sig.be_at_tp_index = 0
+
+        started = []
+        monkeypatch.setattr(
+            listener.dca_monitor,
+            "start",
+            lambda signal, levels: started.append((signal, levels)),
+        )
+        monkeypatch.setattr(
+            listener.executor,
+            "entry_price",
+            lambda ticket: pytest.fail("legacy DCA must not read entry_price"),
+        )
+
+        await listener._place_dca(sig)
+
+        assert sig.dca_placed is True
+        assert started == [(sig, [])]
+
+    @pytest.mark.asyncio
+    async def test_place_dca_skips_monitor_without_be_or_time_stop(self, monkeypatch):
+        sig = Signal(channel="canal2", message_id=12889, direction="SELL")
+        sig.market_ticket = 456
+        sig.entry_mode = "intra_dca"
+        sig.range_low = 4795.0
+        sig.range_high = 4799.0
+
+        monkeypatch.setattr(
+            listener.dca_monitor,
+            "start",
+            lambda signal, levels: pytest.fail("monitor should be skipped"),
+        )
+        monkeypatch.setattr(
+            listener.executor,
+            "entry_price",
+            lambda ticket: pytest.fail("legacy DCA must not read entry_price"),
+        )
+
+        await listener._place_dca(sig)
+
+        assert sig.dca_placed is True

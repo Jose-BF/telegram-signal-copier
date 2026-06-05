@@ -3,12 +3,12 @@ Handlers de Telethon para Canal 1 y Canal 2.
 
 Canal 2 flujo:
   NewMessage (sin reply)  → señal inicial → mercado inmediato
-  MessageEdited           → añade rango/TPs/SL → coloca límites DCA
+  MessageEdited           -> anade rango/TPs/SL -> aplica SL/TP y monitor
   NewMessage (con reply)  → mensaje de gestión → acción
 
 Canal 1 flujo:
   NewMessage sticker      → mercado inmediato (dirección por file_id)
-  NewMessage texto        → añade rango/TPs/SL → coloca límites DCA
+  NewMessage texto        -> anade rango/TPs/SL -> aplica SL/TP y monitor
   NewMessage (con reply)  → mensaje de gestión → acción
 """
 
@@ -29,8 +29,6 @@ import strategies
 from classifier import classify, classify_async
 from parser import (
     correct_tp_typos,
-    dca_equispaced_prices,
-    far_extreme_price,
     is_canal1_signal_text,
     is_canal2_entry,
     levels_consistent_with_direction,
@@ -1157,102 +1155,30 @@ def _num_entries_for_channel(channel: str) -> int:
     return config.STRATEGY_C2_NUM_ENTRIES
 
 
-# ─── DCA ──────────────────────────────────────────────────────────────────────
+# --- Monitor de trade vivo ---------------------------------------------------
 
 async def _place_dca(signal: Signal):
-    """Coloca las entradas adicionales según `entry_mode` de la señal.
+    """Arranca el monitor vivo de BE/time-stop sin generar niveles DCA.
 
-    Estrategias validadas IS/OOS 2026 (analyze_real_price_2026.py):
-
-      • "extremes"  (Canal 1 con rango): solo 1 limit en extremo opuesto.
-                    La 2ª entrada se abre solo si el precio se va en contra.
-                    Validado: $+1187 IS / $+1509 OOS (DT Investing).
-
-      • "intra_dca" (Canal 2): N-1 limits equiespaciados dentro del rango.
-                    El monitor los abre como market cuando el precio los toca.
-                    Validado: $+901 IS / $+611 OOS con BE@TP1 (Gold Standard).
-
-      • "market_only" o sin rango: no coloca DCA. Solo arranca monitor si
-                                   time_stop o BE están configurados.
-
-    El monitor también vigila BE move (mover SL→entry al tocar TP_be) y
-    time-stop (cierre forzoso si no se ha tocado TP1 en N min).
-
-    IMPORTANTE — race condition: esta función puede ser llamada simultáneamente
-    desde el edit handler y el reply handler (canal 2). Fijamos dca_placed=True
-    de forma SÍNCRONA antes de cualquier `await` para que si dos corrutinas
-    llegan a la vez, solo la primera prosiga y la segunda retorne inmediatamente.
-    (asyncio es single-thread cooperativo: lo que ocurre antes del primer await
-    es atómico desde el punto de vista de otras corrutinas.)
+    El nombre se mantiene temporalmente por compatibilidad con Signal.dca_placed
+    y con los handlers existentes. El runtime activo usa scale_out; las legs
+    adicionales se abren a mercado en _open_extra_legs().
     """
     if signal.dca_placed:
         return
-    signal.dca_placed = True  # ← ATÓMICO: antes de cualquier await
+    signal.dca_placed = True
 
     needs_monitor_anyway = (
         signal.time_stop_at is not None or signal.be_at_tp_index is not None
     )
-
-    # Sin rango: nada que escalonar. Arranca monitor solo si BE/time-stop activos.
-    if signal.range_low is None:
-        if needs_monitor_anyway:
-            print(f"[DCA Monitor] Sin rango. Monitor solo para BE/time-stop "
-                  f"(be@idx={signal.be_at_tp_index}, ts={signal.time_stop_at})")
-            dca_monitor.start(signal, [])
+    if not needs_monitor_anyway:
+        print("[Trade Monitor] Sin BE/time-stop configurados; monitor omitido.")
         return
 
-    # Lee el precio real del market inicial (filtra niveles adversos)
-    entry = await _run(executor.entry_price, signal.market_ticket) if signal.market_ticket else None
-
-    # Determina niveles según entry_mode
-    mode = signal.entry_mode or "market_only"
-
-    if mode == "extremes":
-        far = far_extreme_price(signal.direction, signal.range_low, signal.range_high)
-        # Solo añadimos el extremo lejano si el entry no está ya allí
-        if entry is not None:
-            adverse = (signal.direction == "BUY" and far < entry) or \
-                      (signal.direction == "SELL" and far > entry)
-            levels = [far] if adverse else []
-        else:
-            levels = [far]
-        kind_label = "EXTREMES (1 limit en extremo opuesto)"
-
-    elif mode == "intra_dca":
-        n_entries = _num_entries_for_channel(signal.channel)
-        # ── NO capar n_entries por len(signal.tps) ───────────────────────
-        # Cambio 2026-05-15 (Commit C reestructuracion DCA):
-        # ANTES capeabamos n_entries al numero de TPs reales del canal para
-        # "evitar posiciones con TP duplicado". PERO el canal manda los TPs
-        # en oleadas (primero TP1 solo, luego los 5 completos). Si capamos
-        # cuando solo hay 1 TP -> calculamos 0 DCAs -> cuando llegan los TPs
-        # completos los niveles ya estan congelados. canal2_12379 perdio
-        # -$16.49 asi (1 TP -> 0 DCAs -> SL completo sin promediar).
-        #
-        # AHORA: calculamos SIEMPRE los n_entries completos. El monitor
-        # gestiona los TPs faltantes con el guard dca_deferred_dup_tp, que
-        # ahora tiene timeout (si tras Xs no llegan mas TPs, abre igual con
-        # el ultimo TP disponible — duplicado aceptable vs perder el DCA).
-        levels = dca_equispaced_prices(
-            signal.direction, signal.range_low, signal.range_high,
-            n_entries, entry_price=entry,
-        )
-        kind_label = f"INTRA-DCA ({n_entries} entradas equiespaciadas, ch={signal.channel})"
-
-    else:  # market_only o fallback desconocido
-        levels = []
-        kind_label = "MARKET-ONLY (sin DCA)"
-
-    if not levels and not needs_monitor_anyway:
-        print(f"[DCA Monitor] {kind_label}: sin niveles adversos "
-              f"(entry={entry}, rango={signal.range_low}-{signal.range_high}). "
-              f"Sin BE/TS configurados → no arranca monitor.")
-        return
-
-    print(f"[DCA Monitor] {kind_label} | Entry={entry} | Niveles: {levels} "
-          f"| time_stop={signal.time_stop_at} | be_at_tp_idx={signal.be_at_tp_index}")
-    dca_monitor.start(signal, levels)
-
+    print(f"[Trade Monitor] Activo para BE/time-stop "
+          f"(be@idx={signal.be_at_tp_index}, ts={signal.time_stop_at})")
+    dca_monitor.start(signal, [])
+    return
 
 async def _open_extra_legs(sig: Signal, msg_id: int) -> None:
     """Abre las posiciones market ADICIONALES a la inicial, segun el modo.
@@ -1513,18 +1439,16 @@ async def _handle_range_arrival_safety(signal: Signal, lo: float, hi: float) -> 
 
     Casos:
       A_inside     → continuar normal (return False).
-      B_favorable  → continuar normal: los limits del DCA quedan al lado adverso
-                     (filtrados por entry_price en _place_dca), listos para
-                     promediar si el precio retrocede al rango.
+      B_favorable  → continuar normal: aplica SL/TP y monitor BE/time-stop si procede.
       C_adverse    → aplicar `signal.adverse_action`:
         - rescue_market      → mantener market original + abrir un market nuevo
                                 en precio actual (entrada óptima de rescate);
                                 SL común; el rescue recibe el ÚLTIMO TP via
                                 tp_overrides (mejor entrada → mayor recorrido).
                                 ⭐ Default consensuado.
-        - close              → cerrar market + cancelar pending. No DCA. (legacy)
-        - hold_with_limits   → mantener market y abre limits del rango
-        - hold_no_limits     → mantener market sin DCA. SL del proveedor.
+        - close              → cerrar market + cancelar pending. (legacy)
+        - hold_with_limits   → legacy desactivado; se trata como hold_no_limits.
+        - hold_no_limits     → mantener market sin limits. SL del proveedor.
         - hold_sl_to_extreme → mantener market con SL movido al extremo
     """
     if signal.range_safety_applied:
@@ -1559,7 +1483,7 @@ async def _handle_range_arrival_safety(signal: Signal, lo: float, hi: float) -> 
     journal.update_trade(sig_id, range_decision=case)
 
     if case in ("A_inside", "B_favorable"):
-        return False  # flujo normal: aplica SL/TP, abre limits del entry_mode
+        return False  # flujo normal: aplica SL/TP y arranca monitor si procede
 
     # ── Caso C adverso ──
     action = signal.adverse_action
@@ -1617,7 +1541,7 @@ async def _handle_range_arrival_safety(signal: Signal, lo: float, hi: float) -> 
                     print(f"[Layered] rescue omitido (precio favorable). SL del "
                           f"proveedor {signal.sl} ya es válido para entry "
                           f"{entry:.2f} → mantengo.")
-                signal.entry_mode = "market_only"  # sin DCA — solo el original
+                signal.entry_mode = "market_only"  # solo el original
                 return False
 
             effective_lot = signal.effective_lot
@@ -1633,7 +1557,7 @@ async def _handle_range_arrival_safety(signal: Signal, lo: float, hi: float) -> 
                 # tps reales lleguen, _apply_sl_tp respeta este override).
                 # Usamos un índice grande; _apply_sl_tp lo recortará a len-1.
                 signal.tp_overrides[rescue_ticket] = 99
-                signal.entry_mode = "market_only"  # NO abrir DCAs adicionales
+                signal.entry_mode = "market_only"  # no abrir legs adicionales
                 print(f"[Layered] caso C → rescue_market #{rescue_ticket} a "
                       f"{current_price:.2f} (override TP=último, lot={effective_lot})")
                 journal.event(sig_id, "rescue_market_opened",
@@ -1662,12 +1586,13 @@ async def _handle_range_arrival_safety(signal: Signal, lo: float, hi: float) -> 
         return True
 
     elif action == "hold_with_limits":
-        print(f"[Layered] caso C → hold + limits ({signal.entry_mode})")
-        return False  # flujo normal aplica SL/TP y abre limits
+        print("[Layered] caso C -> hold_with_limits legacy desactivado; mantengo sin limits")
+        signal.entry_mode = "market_only"
+        return False  # flujo normal aplica SL/TP y arranca monitor si procede
 
     elif action == "hold_no_limits":
         print(f"[Layered] caso C → hold sin limits")
-        signal.entry_mode = "market_only"  # bloquea DCA en _place_dca
+        signal.entry_mode = "market_only"
         return False  # SL/TP del proveedor se aplican normal
 
     elif action == "hold_sl_to_extreme":
@@ -1677,7 +1602,7 @@ async def _handle_range_arrival_safety(signal: Signal, lo: float, hi: float) -> 
         print(f"[Layered] caso C → hold con SL→extremo {extreme_sl} (overrides "
               f"provider {signal.sl})")
         signal.sl = extreme_sl
-        signal.entry_mode = "market_only"  # sin DCA
+        signal.entry_mode = "market_only"
         return False
 
     else:
@@ -2011,7 +1936,7 @@ async def _update_signal_from_parsed(signal: Signal, parsed: dict,
     if sltp_changed:
         await _apply_sl_tp(signal)
 
-    # Arranca el monitor DCA en cuanto tengamos el rango
+    # Arranca el monitor de BE/time-stop en cuanto tengamos el rango.
     if not signal.dca_placed and signal.range_low is not None:
         await _place_dca(signal)
 
