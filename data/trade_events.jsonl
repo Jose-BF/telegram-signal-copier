@@ -44820,3 +44820,529 @@
 {"ts": "2026-06-06T08:22:16.223+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T08:22:16"}
 {"ts": "2026-06-06T08:27:16.223+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T08:27:16"}
 {"ts": "2026-06-06T08:27:20.385+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 36067.0, "utc": "2026-06-06T08:27:20"}
+{"ts": "2026-06-06T08:28:53.804+00:00", "sig": "bot", "ev": "session_started", "git_commit": "7e74adf", "git_branch": "main", "git_dirty": true, "started_utc": "2026-06-06T08:28:53"}
+{"ts": "2026-06-06T08:28:58.945+00:00", "sig": "bot", "ev": "telegram_connection_change", "connected": true, "previous_state": null, "previous_state_duration_sec": null, "utc": "2026-06-06T08:28:58"}
+{"ts": "2026-06-06T08:28:58.957+00:00", "sig": "bot", "ev": "mt5_connection_change", "connected": true, "previous_state": null, "trade_allowed": true, "tradeapi_disabled": false, "previous_state_duration_sec": null, "utc": "2026-06-06T08:28:58"}
+{"ts": "2026-06-06T08:29:03.304+00:00", "sig": "bot", "ev": "poller_started", "interval_s": 0.5, "msg_limit": 10, "channels": ["canal2", "canal1"]}
+{"ts": "2026-06-06T08:33:58.955+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T08:33:58"}
+{"ts": "2026-06-06T08:38:58.963+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T08:38:58"}
+{"ts": "2026-06-06T08:43:58.977+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T08:43:58"}
+{"ts": "2026-06-06T08:48:58.968+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T08:48:58"}
+{"ts": "2026-06-06T08:53:58.980+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T08:53:58"}
+{"ts": "2026-06-06T08:58:58.969+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T08:58:58"}
+{"ts": "2026-06-06T09:03:58.981+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T09:03:58"}
+{"ts": "2026-06-06T09:08:58.983+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T09:08:58"}
+{"ts": "2026-06-06T09:13:58.979+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T09:13:58"}
+{"ts": "2026-06-06T09:18:59.005+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T09:18:59"}
+{"ts": "2026-06-06T09:23:59.008+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T09:23:59"}
+{"ts": "2026-06-06T09:28:58.994+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T09:28:58"}
+{"ts": "2026-06-06T09:28:59.858+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 3601.0, "utc": "2026-06-06T09:28:59"}
+{"ts": "2026-06-06T09:29:06.617+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 3608.0, "utc": "2026-06-06T09:29:06"}
+{"ts": "2026-06-06T09:33:59.007+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T09:33:59"}
+{"ts": "2026-06-06T09:38:59.025+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T09:38:59"}
+{"ts": "2026-06-06T09:43:59.031+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T09:43:59"}
+{"ts": "2026-06-06T09:48:59.027+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T09:48:59"}
+{"ts": "2026-06-06T09:53:59.050+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T09:53:59"}
+{"ts": "2026-06-06T09:58:59.054+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T09:58:59"}
+{"ts": "2026-06-06T10:03:59.056+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T10:03:59"}
+{"ts": "2026-06-06T10:08:59.061+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T10:08:59"}
+{"ts": "2026-06-06T10:13:59.072+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T10:13:59"}
+{"ts": "2026-06-06T10:18:59.073+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T10:18:59"}
+{"ts": "2026-06-06T10:23:59.078+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T10:23:59"}
+{"ts": "2026-06-06T10:28:59.081+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T10:28:59"}
+{"ts": "2026-06-06T10:29:00.155+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 7201.0, "utc": "2026-06-06T10:29:00"}
+{"ts": "2026-06-06T10:29:13.270+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 7214.0, "utc": "2026-06-06T10:29:13"}
+{"ts": "2026-06-06T10:33:59.089+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T10:33:59"}
+{"ts": "2026-06-06T10:38:59.104+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T10:38:59"}
+{"ts": "2026-06-06T10:43:59.120+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T10:43:59"}
+{"ts": "2026-06-06T10:48:59.134+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T10:48:59"}
+{"ts": "2026-06-06T10:53:59.136+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T10:53:59"}
+{"ts": "2026-06-06T10:58:59.145+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T10:58:59"}
+{"ts": "2026-06-06T11:03:59.139+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T11:03:59"}
+{"ts": "2026-06-06T11:08:59.145+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T11:08:59"}
+{"ts": "2026-06-06T11:13:59.156+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T11:13:59"}
+{"ts": "2026-06-06T11:18:59.169+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T11:18:59"}
+{"ts": "2026-06-06T11:23:59.184+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T11:23:59"}
+{"ts": "2026-06-06T11:28:59.203+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T11:28:59"}
+{"ts": "2026-06-06T11:29:00.995+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 10802.0, "utc": "2026-06-06T11:29:00"}
+{"ts": "2026-06-06T11:29:19.850+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 10821.0, "utc": "2026-06-06T11:29:19"}
+{"ts": "2026-06-06T11:33:59.209+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T11:33:59"}
+{"ts": "2026-06-06T11:38:59.214+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T11:38:59"}
+{"ts": "2026-06-06T11:43:59.229+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T11:43:59"}
+{"ts": "2026-06-06T11:48:59.243+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T11:48:59"}
+{"ts": "2026-06-06T11:53:59.256+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T11:53:59"}
+{"ts": "2026-06-06T11:58:59.245+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T11:58:59"}
+{"ts": "2026-06-06T12:03:59.250+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T12:03:59"}
+{"ts": "2026-06-06T12:08:59.263+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T12:08:59"}
+{"ts": "2026-06-06T12:13:59.262+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T12:13:59"}
+{"ts": "2026-06-06T12:18:59.281+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T12:18:59"}
+{"ts": "2026-06-06T12:23:59.289+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T12:23:59"}
+{"ts": "2026-06-06T12:28:59.279+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T12:28:59"}
+{"ts": "2026-06-06T12:29:01.184+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 14402.0, "utc": "2026-06-06T12:29:01"}
+{"ts": "2026-06-06T12:29:26.194+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 14427.0, "utc": "2026-06-06T12:29:26"}
+{"ts": "2026-06-06T12:33:59.293+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T12:33:59"}
+{"ts": "2026-06-06T12:38:59.313+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T12:38:59"}
+{"ts": "2026-06-06T12:43:59.314+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T12:43:59"}
+{"ts": "2026-06-06T12:48:59.323+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T12:48:59"}
+{"ts": "2026-06-06T12:53:59.329+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T12:53:59"}
+{"ts": "2026-06-06T12:58:59.342+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T12:58:59"}
+{"ts": "2026-06-06T13:03:59.351+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T13:03:59"}
+{"ts": "2026-06-06T13:08:59.352+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T13:08:59"}
+{"ts": "2026-06-06T13:13:59.349+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T13:13:59"}
+{"ts": "2026-06-06T13:18:59.365+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T13:18:59"}
+{"ts": "2026-06-06T13:23:59.363+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T13:23:59"}
+{"ts": "2026-06-06T13:28:59.376+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T13:28:59"}
+{"ts": "2026-06-06T13:29:01.856+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 18003.0, "utc": "2026-06-06T13:29:01"}
+{"ts": "2026-06-06T13:29:32.413+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 18033.0, "utc": "2026-06-06T13:29:32"}
+{"ts": "2026-06-06T13:33:59.378+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T13:33:59"}
+{"ts": "2026-06-06T13:38:59.383+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T13:38:59"}
+{"ts": "2026-06-06T13:43:59.398+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T13:43:59"}
+{"ts": "2026-06-06T13:48:59.409+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T13:48:59"}
+{"ts": "2026-06-06T13:53:59.415+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T13:53:59"}
+{"ts": "2026-06-06T13:58:59.416+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T13:58:59"}
+{"ts": "2026-06-06T14:03:59.434+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T14:03:59"}
+{"ts": "2026-06-06T14:08:59.449+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T14:08:59"}
+{"ts": "2026-06-06T14:13:59.467+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T14:13:59"}
+{"ts": "2026-06-06T14:18:59.480+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T14:18:59"}
+{"ts": "2026-06-06T14:23:59.491+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T14:23:59"}
+{"ts": "2026-06-06T14:28:59.487+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T14:28:59"}
+{"ts": "2026-06-06T14:29:01.998+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 21603.0, "utc": "2026-06-06T14:29:01"}
+{"ts": "2026-06-06T14:29:39.083+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 21640.0, "utc": "2026-06-06T14:29:39"}
+{"ts": "2026-06-06T14:33:59.481+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T14:33:59"}
+{"ts": "2026-06-06T14:38:59.495+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T14:38:59"}
+{"ts": "2026-06-06T14:43:59.519+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T14:43:59"}
+{"ts": "2026-06-06T14:48:59.517+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T14:48:59"}
+{"ts": "2026-06-06T14:53:59.536+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T14:53:59"}
+{"ts": "2026-06-06T14:58:59.528+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T14:58:59"}
+{"ts": "2026-06-06T15:03:59.531+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T15:03:59"}
+{"ts": "2026-06-06T15:08:59.535+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T15:08:59"}
+{"ts": "2026-06-06T15:13:59.534+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T15:13:59"}
+{"ts": "2026-06-06T15:18:59.531+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T15:18:59"}
+{"ts": "2026-06-06T15:23:59.541+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T15:23:59"}
+{"ts": "2026-06-06T15:28:59.555+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T15:28:59"}
+{"ts": "2026-06-06T15:29:02.307+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 25203.0, "utc": "2026-06-06T15:29:02"}
+{"ts": "2026-06-06T15:29:45.520+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 25247.0, "utc": "2026-06-06T15:29:45"}
+{"ts": "2026-06-06T15:33:59.548+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T15:33:59"}
+{"ts": "2026-06-06T15:38:59.563+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T15:38:59"}
+{"ts": "2026-06-06T15:43:59.561+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T15:43:59"}
+{"ts": "2026-06-06T15:48:59.556+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T15:48:59"}
+{"ts": "2026-06-06T15:53:59.551+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T15:53:59"}
+{"ts": "2026-06-06T15:58:59.555+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T15:58:59"}
+{"ts": "2026-06-06T16:03:59.542+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T16:03:59"}
+{"ts": "2026-06-06T16:08:59.563+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T16:08:59"}
+{"ts": "2026-06-06T16:13:59.572+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T16:13:59"}
+{"ts": "2026-06-06T16:18:59.563+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T16:18:59"}
+{"ts": "2026-06-06T16:23:59.578+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T16:23:59"}
+{"ts": "2026-06-06T16:28:59.594+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T16:28:59"}
+{"ts": "2026-06-06T16:29:02.666+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 28804.0, "utc": "2026-06-06T16:29:02"}
+{"ts": "2026-06-06T16:29:51.332+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 28852.0, "utc": "2026-06-06T16:29:51"}
+{"ts": "2026-06-06T16:33:59.593+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T16:33:59"}
+{"ts": "2026-06-06T16:38:59.597+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T16:38:59"}
+{"ts": "2026-06-06T16:43:59.609+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T16:43:59"}
+{"ts": "2026-06-06T16:48:59.606+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T16:48:59"}
+{"ts": "2026-06-06T16:53:59.616+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T16:53:59"}
+{"ts": "2026-06-06T16:58:59.628+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T16:58:59"}
+{"ts": "2026-06-06T17:03:59.624+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T17:03:59"}
+{"ts": "2026-06-06T17:08:59.641+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T17:08:59"}
+{"ts": "2026-06-06T17:13:59.649+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T17:13:59"}
+{"ts": "2026-06-06T17:18:59.646+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T17:18:59"}
+{"ts": "2026-06-06T17:23:59.662+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T17:23:59"}
+{"ts": "2026-06-06T17:28:59.667+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T17:28:59"}
+{"ts": "2026-06-06T17:29:03.157+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 32404.0, "utc": "2026-06-06T17:29:03"}
+{"ts": "2026-06-06T17:29:57.095+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 32458.0, "utc": "2026-06-06T17:29:57"}
+{"ts": "2026-06-06T17:33:59.680+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T17:33:59"}
+{"ts": "2026-06-06T17:38:59.690+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T17:38:59"}
+{"ts": "2026-06-06T17:43:59.694+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T17:43:59"}
+{"ts": "2026-06-06T17:48:59.686+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T17:48:59"}
+{"ts": "2026-06-06T17:53:59.691+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T17:53:59"}
+{"ts": "2026-06-06T17:58:59.691+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T17:58:59"}
+{"ts": "2026-06-06T18:03:59.700+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T18:03:59"}
+{"ts": "2026-06-06T18:08:59.718+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T18:08:59"}
+{"ts": "2026-06-06T18:13:59.739+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T18:13:59"}
+{"ts": "2026-06-06T18:18:59.748+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T18:18:59"}
+{"ts": "2026-06-06T18:23:59.761+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T18:23:59"}
+{"ts": "2026-06-06T18:28:59.773+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T18:28:59"}
+{"ts": "2026-06-06T18:29:03.348+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 36004.0, "utc": "2026-06-06T18:29:03"}
+{"ts": "2026-06-06T18:30:03.448+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 36064.0, "utc": "2026-06-06T18:30:03"}
+{"ts": "2026-06-06T18:33:59.778+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T18:33:59"}
+{"ts": "2026-06-06T18:38:59.786+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T18:38:59"}
+{"ts": "2026-06-06T18:43:59.788+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T18:43:59"}
+{"ts": "2026-06-06T18:48:59.792+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T18:48:59"}
+{"ts": "2026-06-06T18:53:59.813+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T18:53:59"}
+{"ts": "2026-06-06T18:58:59.818+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T18:58:59"}
+{"ts": "2026-06-06T19:03:59.809+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T19:03:59"}
+{"ts": "2026-06-06T19:08:59.829+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T19:08:59"}
+{"ts": "2026-06-06T19:13:59.837+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T19:13:59"}
+{"ts": "2026-06-06T19:18:59.834+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T19:18:59"}
+{"ts": "2026-06-06T19:23:59.835+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T19:23:59"}
+{"ts": "2026-06-06T19:28:59.840+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T19:28:59"}
+{"ts": "2026-06-06T19:29:03.617+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 39605.0, "utc": "2026-06-06T19:29:03"}
+{"ts": "2026-06-06T19:30:09.161+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 39670.0, "utc": "2026-06-06T19:30:09"}
+{"ts": "2026-06-06T19:33:59.851+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T19:33:59"}
+{"ts": "2026-06-06T19:38:59.857+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T19:38:59"}
+{"ts": "2026-06-06T19:43:59.860+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T19:43:59"}
+{"ts": "2026-06-06T19:48:59.868+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T19:48:59"}
+{"ts": "2026-06-06T19:53:59.868+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T19:53:59"}
+{"ts": "2026-06-06T19:58:59.853+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T19:58:59"}
+{"ts": "2026-06-06T20:03:59.863+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T20:03:59"}
+{"ts": "2026-06-06T20:08:59.876+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T20:08:59"}
+{"ts": "2026-06-06T20:13:59.881+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T20:13:59"}
+{"ts": "2026-06-06T20:18:59.899+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T20:18:59"}
+{"ts": "2026-06-06T20:23:59.899+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T20:23:59"}
+{"ts": "2026-06-06T20:28:59.908+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T20:28:59"}
+{"ts": "2026-06-06T20:29:03.635+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 43205.0, "utc": "2026-06-06T20:29:03"}
+{"ts": "2026-06-06T20:30:15.263+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 43276.0, "utc": "2026-06-06T20:30:15"}
+{"ts": "2026-06-06T20:33:59.917+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T20:33:59"}
+{"ts": "2026-06-06T20:38:59.940+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T20:38:59"}
+{"ts": "2026-06-06T20:43:59.943+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T20:43:59"}
+{"ts": "2026-06-06T20:48:59.953+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T20:48:59"}
+{"ts": "2026-06-06T20:53:59.963+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T20:53:59"}
+{"ts": "2026-06-06T20:58:59.989+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T20:58:59"}
+{"ts": "2026-06-06T21:03:59.999+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T21:03:59"}
+{"ts": "2026-06-06T21:09:00.011+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T21:09:00"}
+{"ts": "2026-06-06T21:14:00.038+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T21:14:00"}
+{"ts": "2026-06-06T21:19:00.042+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T21:19:00"}
+{"ts": "2026-06-06T21:24:00.059+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T21:24:00"}
+{"ts": "2026-06-06T21:29:00.072+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T21:29:00"}
+{"ts": "2026-06-06T21:29:04.297+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 46805.0, "utc": "2026-06-06T21:29:04"}
+{"ts": "2026-06-06T21:30:23.259+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 46884.0, "utc": "2026-06-06T21:30:23"}
+{"ts": "2026-06-06T21:34:00.093+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T21:34:00"}
+{"ts": "2026-06-06T21:39:00.105+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T21:39:00"}
+{"ts": "2026-06-06T21:44:00.116+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T21:44:00"}
+{"ts": "2026-06-06T21:49:00.126+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T21:49:00"}
+{"ts": "2026-06-06T21:54:00.140+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T21:54:00"}
+{"ts": "2026-06-06T21:59:00.150+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T21:59:00"}
+{"ts": "2026-06-06T22:04:00.157+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T22:04:00"}
+{"ts": "2026-06-06T22:09:00.169+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T22:09:00"}
+{"ts": "2026-06-06T22:14:00.182+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T22:14:00"}
+{"ts": "2026-06-06T22:19:00.190+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T22:19:00"}
+{"ts": "2026-06-06T22:24:00.206+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T22:24:00"}
+{"ts": "2026-06-06T22:29:00.218+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T22:29:00"}
+{"ts": "2026-06-06T22:29:04.876+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 50406.0, "utc": "2026-06-06T22:29:04"}
+{"ts": "2026-06-06T22:30:29.155+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 50490.0, "utc": "2026-06-06T22:30:29"}
+{"ts": "2026-06-06T22:34:00.232+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T22:34:00"}
+{"ts": "2026-06-06T22:39:00.230+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T22:39:00"}
+{"ts": "2026-06-06T22:44:00.257+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T22:44:00"}
+{"ts": "2026-06-06T22:49:00.265+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T22:49:00"}
+{"ts": "2026-06-06T22:54:00.285+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T22:54:00"}
+{"ts": "2026-06-06T22:59:00.281+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T22:59:00"}
+{"ts": "2026-06-06T23:04:00.279+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T23:04:00"}
+{"ts": "2026-06-06T23:09:00.282+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T23:09:00"}
+{"ts": "2026-06-06T23:14:00.280+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T23:14:00"}
+{"ts": "2026-06-06T23:19:00.294+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T23:19:00"}
+{"ts": "2026-06-06T23:24:00.303+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T23:24:00"}
+{"ts": "2026-06-06T23:29:00.299+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T23:29:00"}
+{"ts": "2026-06-06T23:29:09.706+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 54011.0, "utc": "2026-06-06T23:29:09"}
+{"ts": "2026-06-06T23:30:35.218+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 54096.0, "utc": "2026-06-06T23:30:35"}
+{"ts": "2026-06-06T23:34:00.294+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T23:34:00"}
+{"ts": "2026-06-06T23:39:00.314+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T23:39:00"}
+{"ts": "2026-06-06T23:44:00.325+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T23:44:00"}
+{"ts": "2026-06-06T23:49:00.345+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T23:49:00"}
+{"ts": "2026-06-06T23:54:00.356+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T23:54:00"}
+{"ts": "2026-06-06T23:59:00.371+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-06T23:59:00"}
+{"ts": "2026-06-07T00:04:00.390+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T00:04:00"}
+{"ts": "2026-06-07T00:09:00.389+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T00:09:00"}
+{"ts": "2026-06-07T00:14:00.399+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T00:14:00"}
+{"ts": "2026-06-07T00:19:00.395+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T00:19:00"}
+{"ts": "2026-06-07T00:24:00.398+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T00:24:00"}
+{"ts": "2026-06-07T00:29:00.396+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T00:29:00"}
+{"ts": "2026-06-07T00:29:09.998+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 57611.0, "utc": "2026-06-07T00:29:09"}
+{"ts": "2026-06-07T00:30:41.236+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 57702.0, "utc": "2026-06-07T00:30:41"}
+{"ts": "2026-06-07T00:34:00.395+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T00:34:00"}
+{"ts": "2026-06-07T00:39:00.397+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T00:39:00"}
+{"ts": "2026-06-07T00:44:00.415+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T00:44:00"}
+{"ts": "2026-06-07T00:49:00.422+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T00:49:00"}
+{"ts": "2026-06-07T00:54:00.437+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T00:54:00"}
+{"ts": "2026-06-07T00:59:00.442+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T00:59:00"}
+{"ts": "2026-06-07T01:04:00.443+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T01:04:00"}
+{"ts": "2026-06-07T01:09:00.422+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T01:09:00"}
+{"ts": "2026-06-07T01:14:00.431+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T01:14:00"}
+{"ts": "2026-06-07T01:19:00.445+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T01:19:00"}
+{"ts": "2026-06-07T01:24:00.444+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T01:24:00"}
+{"ts": "2026-06-07T01:29:00.447+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T01:29:00"}
+{"ts": "2026-06-07T01:29:10.686+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 61212.0, "utc": "2026-06-07T01:29:10"}
+{"ts": "2026-06-07T01:30:47.108+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 61308.0, "utc": "2026-06-07T01:30:47"}
+{"ts": "2026-06-07T01:34:00.459+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T01:34:00"}
+{"ts": "2026-06-07T01:39:00.460+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T01:39:00"}
+{"ts": "2026-06-07T01:44:00.452+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T01:44:00"}
+{"ts": "2026-06-07T01:49:00.449+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T01:49:00"}
+{"ts": "2026-06-07T01:54:00.461+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T01:54:00"}
+{"ts": "2026-06-07T01:59:00.466+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T01:59:00"}
+{"ts": "2026-06-07T02:04:00.468+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T02:04:00"}
+{"ts": "2026-06-07T02:04:30.438+00:00", "sig": "bot", "ev": "mt5_connection_change", "connected": false, "previous_state": true, "trade_allowed": true, "tradeapi_disabled": false, "previous_state_duration_sec": 63331.5, "utc": "2026-06-07T02:04:30"}
+{"ts": "2026-06-07T02:05:30.616+00:00", "sig": "bot", "ev": "anomaly", "category": "mt5", "severity": "critical", "detail": "MT5 desconectado >60s \u2014 operaciones del bot bloqueadas", "disconnect_age_s": 60.2}
+{"ts": "2026-06-07T02:05:30.860+00:00", "sig": "bot", "ev": "notify_sent", "method": "bot_api", "chat_id": "722496093", "status": 200, "text_preview": "\ud83d\udea8 [CRITICAL] mt5 \u2014 bot | MT5 desconectado >60s \u2014 operaciones del bot bloqueadas |   disconnect_age_s: 60.2", "text_len": 102}
+{"ts": "2026-06-07T02:09:00.479+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T02:09:00"}
+{"ts": "2026-06-07T02:14:00.499+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T02:14:00"}
+{"ts": "2026-06-07T02:18:51.974+00:00", "sig": "bot", "ev": "mt5_connection_change", "connected": true, "previous_state": false, "trade_allowed": true, "tradeapi_disabled": false, "previous_state_duration_sec": 861.5, "utc": "2026-06-07T02:18:51"}
+{"ts": "2026-06-07T02:19:00.517+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T02:19:00"}
+{"ts": "2026-06-07T02:24:00.530+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T02:24:00"}
+{"ts": "2026-06-07T02:29:00.544+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T02:29:00"}
+{"ts": "2026-06-07T02:29:15.632+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 64817.0, "utc": "2026-06-07T02:29:15"}
+{"ts": "2026-06-07T02:34:00.556+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T02:34:00"}
+{"ts": "2026-06-07T02:39:00.558+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T02:39:00"}
+{"ts": "2026-06-07T02:44:00.575+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T02:44:00"}
+{"ts": "2026-06-07T02:49:00.584+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T02:49:00"}
+{"ts": "2026-06-07T02:54:00.586+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T02:54:00"}
+{"ts": "2026-06-07T02:59:00.588+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T02:59:00"}
+{"ts": "2026-06-07T03:04:00.599+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T03:04:00"}
+{"ts": "2026-06-07T03:09:00.605+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T03:09:00"}
+{"ts": "2026-06-07T03:14:00.614+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T03:14:00"}
+{"ts": "2026-06-07T03:18:58.225+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 3606.0, "utc": "2026-06-07T03:18:58"}
+{"ts": "2026-06-07T03:19:00.620+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T03:19:00"}
+{"ts": "2026-06-07T03:24:00.619+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T03:24:00"}
+{"ts": "2026-06-07T03:29:00.644+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T03:29:00"}
+{"ts": "2026-06-07T03:29:18.903+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 68420.0, "utc": "2026-06-07T03:29:18"}
+{"ts": "2026-06-07T03:34:01.234+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T03:34:01"}
+{"ts": "2026-06-07T03:39:01.253+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T03:39:01"}
+{"ts": "2026-06-07T03:44:01.251+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T03:44:01"}
+{"ts": "2026-06-07T03:49:01.267+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T03:49:01"}
+{"ts": "2026-06-07T03:54:01.267+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T03:54:01"}
+{"ts": "2026-06-07T03:59:01.277+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T03:59:01"}
+{"ts": "2026-06-07T04:04:01.281+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T04:04:01"}
+{"ts": "2026-06-07T04:09:01.284+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T04:09:01"}
+{"ts": "2026-06-07T04:14:01.291+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T04:14:01"}
+{"ts": "2026-06-07T04:19:01.297+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T04:19:01"}
+{"ts": "2026-06-07T04:19:07.906+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 7216.0, "utc": "2026-06-07T04:19:07"}
+{"ts": "2026-06-07T04:24:01.306+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T04:24:01"}
+{"ts": "2026-06-07T04:29:01.304+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T04:29:01"}
+{"ts": "2026-06-07T04:29:19.629+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 72021.0, "utc": "2026-06-07T04:29:19"}
+{"ts": "2026-06-07T04:34:01.310+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T04:34:01"}
+{"ts": "2026-06-07T04:39:01.323+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T04:39:01"}
+{"ts": "2026-06-07T04:44:01.336+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T04:44:01"}
+{"ts": "2026-06-07T04:49:01.332+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T04:49:01"}
+{"ts": "2026-06-07T04:54:01.336+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T04:54:01"}
+{"ts": "2026-06-07T04:59:01.339+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T04:59:01"}
+{"ts": "2026-06-07T05:04:01.353+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T05:04:01"}
+{"ts": "2026-06-07T05:09:01.369+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T05:09:01"}
+{"ts": "2026-06-07T05:14:01.397+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T05:14:01"}
+{"ts": "2026-06-07T05:19:01.402+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T05:19:01"}
+{"ts": "2026-06-07T05:19:14.042+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 10822.0, "utc": "2026-06-07T05:19:14"}
+{"ts": "2026-06-07T05:24:01.438+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T05:24:01"}
+{"ts": "2026-06-07T05:29:01.450+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T05:29:01"}
+{"ts": "2026-06-07T05:29:20.538+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 75622.0, "utc": "2026-06-07T05:29:20"}
+{"ts": "2026-06-07T05:34:01.473+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T05:34:01"}
+{"ts": "2026-06-07T05:39:01.487+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T05:39:01"}
+{"ts": "2026-06-07T05:44:01.501+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T05:44:01"}
+{"ts": "2026-06-07T05:49:01.524+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T05:49:01"}
+{"ts": "2026-06-07T05:54:01.540+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T05:54:01"}
+{"ts": "2026-06-07T05:59:01.545+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T05:59:01"}
+{"ts": "2026-06-07T06:04:01.545+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T06:04:01"}
+{"ts": "2026-06-07T06:09:01.555+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T06:09:01"}
+{"ts": "2026-06-07T06:14:01.566+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T06:14:01"}
+{"ts": "2026-06-07T06:19:01.567+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T06:19:01"}
+{"ts": "2026-06-07T06:19:20.231+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 14428.0, "utc": "2026-06-07T06:19:20"}
+{"ts": "2026-06-07T06:24:01.572+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T06:24:01"}
+{"ts": "2026-06-07T06:29:01.575+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T06:29:01"}
+{"ts": "2026-06-07T06:29:21.062+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 79222.0, "utc": "2026-06-07T06:29:21"}
+{"ts": "2026-06-07T06:34:01.584+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T06:34:01"}
+{"ts": "2026-06-07T06:39:01.585+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T06:39:01"}
+{"ts": "2026-06-07T06:44:01.583+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T06:44:01"}
+{"ts": "2026-06-07T06:49:01.575+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T06:49:01"}
+{"ts": "2026-06-07T06:54:01.591+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T06:54:01"}
+{"ts": "2026-06-07T06:59:01.605+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T06:59:01"}
+{"ts": "2026-06-07T07:04:01.609+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T07:04:01"}
+{"ts": "2026-06-07T07:09:01.609+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T07:09:01"}
+{"ts": "2026-06-07T07:14:01.589+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T07:14:01"}
+{"ts": "2026-06-07T07:19:01.600+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T07:19:01"}
+{"ts": "2026-06-07T07:19:26.174+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 18034.0, "utc": "2026-06-07T07:19:26"}
+{"ts": "2026-06-07T07:24:01.619+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T07:24:01"}
+{"ts": "2026-06-07T07:29:01.642+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T07:29:01"}
+{"ts": "2026-06-07T07:29:21.197+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 82822.0, "utc": "2026-06-07T07:29:21"}
+{"ts": "2026-06-07T07:34:01.637+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T07:34:01"}
+{"ts": "2026-06-07T07:39:01.660+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T07:39:01"}
+{"ts": "2026-06-07T07:44:01.676+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T07:44:01"}
+{"ts": "2026-06-07T07:49:01.686+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T07:49:01"}
+{"ts": "2026-06-07T07:54:01.694+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T07:54:01"}
+{"ts": "2026-06-07T07:59:01.699+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T07:59:01"}
+{"ts": "2026-06-07T08:04:01.712+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T08:04:01"}
+{"ts": "2026-06-07T08:09:01.710+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T08:09:01"}
+{"ts": "2026-06-07T08:14:01.713+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T08:14:01"}
+{"ts": "2026-06-07T08:19:01.741+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T08:19:01"}
+{"ts": "2026-06-07T08:19:32.269+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 21640.0, "utc": "2026-06-07T08:19:32"}
+{"ts": "2026-06-07T08:24:01.741+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T08:24:01"}
+{"ts": "2026-06-07T08:29:01.747+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T08:29:01"}
+{"ts": "2026-06-07T08:29:21.302+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 86422.0, "utc": "2026-06-07T08:29:21"}
+{"ts": "2026-06-07T08:34:01.750+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T08:34:01"}
+{"ts": "2026-06-07T08:39:01.768+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T08:39:01"}
+{"ts": "2026-06-07T08:44:01.788+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T08:44:01"}
+{"ts": "2026-06-07T08:49:01.784+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T08:49:01"}
+{"ts": "2026-06-07T08:54:01.784+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T08:54:01"}
+{"ts": "2026-06-07T08:59:01.777+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T08:59:01"}
+{"ts": "2026-06-07T09:04:01.785+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T09:04:01"}
+{"ts": "2026-06-07T09:09:01.802+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T09:09:01"}
+{"ts": "2026-06-07T09:14:01.804+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T09:14:01"}
+{"ts": "2026-06-07T09:19:01.797+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T09:19:01"}
+{"ts": "2026-06-07T09:19:38.196+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 25246.0, "utc": "2026-06-07T09:19:38"}
+{"ts": "2026-06-07T09:24:01.803+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T09:24:01"}
+{"ts": "2026-06-07T09:29:01.819+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T09:29:01"}
+{"ts": "2026-06-07T09:29:26.222+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 90027.0, "utc": "2026-06-07T09:29:26"}
+{"ts": "2026-06-07T09:34:01.822+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T09:34:01"}
+{"ts": "2026-06-07T09:39:01.815+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T09:39:01"}
+{"ts": "2026-06-07T09:44:01.813+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T09:44:01"}
+{"ts": "2026-06-07T09:49:01.815+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T09:49:01"}
+{"ts": "2026-06-07T09:54:01.790+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T09:54:01"}
+{"ts": "2026-06-07T09:59:01.817+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T09:59:01"}
+{"ts": "2026-06-07T10:04:01.820+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T10:04:01"}
+{"ts": "2026-06-07T10:09:01.835+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T10:09:01"}
+{"ts": "2026-06-07T10:14:01.848+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T10:14:01"}
+{"ts": "2026-06-07T10:19:01.858+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T10:19:01"}
+{"ts": "2026-06-07T10:19:45.528+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 28854.0, "utc": "2026-06-07T10:19:45"}
+{"ts": "2026-06-07T10:24:01.855+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T10:24:01"}
+{"ts": "2026-06-07T10:29:01.858+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T10:29:01"}
+{"ts": "2026-06-07T10:29:27.173+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 93628.0, "utc": "2026-06-07T10:29:27"}
+{"ts": "2026-06-07T10:34:01.864+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T10:34:01"}
+{"ts": "2026-06-07T10:39:01.872+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T10:39:01"}
+{"ts": "2026-06-07T10:44:01.886+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T10:44:01"}
+{"ts": "2026-06-07T10:49:01.892+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T10:49:01"}
+{"ts": "2026-06-07T10:54:01.887+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T10:54:01"}
+{"ts": "2026-06-07T10:59:01.899+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T10:59:01"}
+{"ts": "2026-06-07T11:04:01.893+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T11:04:01"}
+{"ts": "2026-06-07T11:09:01.895+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T11:09:01"}
+{"ts": "2026-06-07T11:14:01.895+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T11:14:01"}
+{"ts": "2026-06-07T11:19:01.903+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T11:19:01"}
+{"ts": "2026-06-07T11:19:51.822+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 32460.0, "utc": "2026-06-07T11:19:51"}
+{"ts": "2026-06-07T11:24:01.916+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T11:24:01"}
+{"ts": "2026-06-07T11:29:01.932+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T11:29:01"}
+{"ts": "2026-06-07T11:29:27.868+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 97229.0, "utc": "2026-06-07T11:29:27"}
+{"ts": "2026-06-07T11:34:01.953+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T11:34:01"}
+{"ts": "2026-06-07T11:39:01.973+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T11:39:01"}
+{"ts": "2026-06-07T11:44:01.982+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T11:44:01"}
+{"ts": "2026-06-07T11:49:02.001+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T11:49:02"}
+{"ts": "2026-06-07T11:54:02.016+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T11:54:02"}
+{"ts": "2026-06-07T11:59:02.020+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T11:59:02"}
+{"ts": "2026-06-07T12:04:02.023+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T12:04:02"}
+{"ts": "2026-06-07T12:09:02.019+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T12:09:02"}
+{"ts": "2026-06-07T12:14:02.028+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T12:14:02"}
+{"ts": "2026-06-07T12:19:02.029+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T12:19:02"}
+{"ts": "2026-06-07T12:19:57.958+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 36066.0, "utc": "2026-06-07T12:19:57"}
+{"ts": "2026-06-07T12:24:02.043+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T12:24:02"}
+{"ts": "2026-06-07T12:29:02.056+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T12:29:02"}
+{"ts": "2026-06-07T12:29:32.844+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 100834.0, "utc": "2026-06-07T12:29:32"}
+{"ts": "2026-06-07T12:34:02.072+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T12:34:02"}
+{"ts": "2026-06-07T12:39:02.092+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T12:39:02"}
+{"ts": "2026-06-07T12:44:02.099+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T12:44:02"}
+{"ts": "2026-06-07T12:49:02.089+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T12:49:02"}
+{"ts": "2026-06-07T12:54:02.093+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T12:54:02"}
+{"ts": "2026-06-07T12:59:02.091+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T12:59:02"}
+{"ts": "2026-06-07T13:04:02.110+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T13:04:02"}
+{"ts": "2026-06-07T13:09:02.120+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T13:09:02"}
+{"ts": "2026-06-07T13:14:02.120+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T13:14:02"}
+{"ts": "2026-06-07T13:19:02.129+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T13:19:02"}
+{"ts": "2026-06-07T13:20:05.334+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 39673.0, "utc": "2026-06-07T13:20:05"}
+{"ts": "2026-06-07T13:24:02.127+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T13:24:02"}
+{"ts": "2026-06-07T13:29:02.137+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T13:29:02"}
+{"ts": "2026-06-07T13:29:33.252+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 104434.0, "utc": "2026-06-07T13:29:33"}
+{"ts": "2026-06-07T13:34:02.161+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T13:34:02"}
+{"ts": "2026-06-07T13:39:02.163+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T13:39:02"}
+{"ts": "2026-06-07T13:44:02.163+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T13:44:02"}
+{"ts": "2026-06-07T13:49:02.168+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T13:49:02"}
+{"ts": "2026-06-07T13:54:02.185+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T13:54:02"}
+{"ts": "2026-06-07T13:59:01.189+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T13:59:01"}
+{"ts": "2026-06-07T14:04:01.199+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T14:04:01"}
+{"ts": "2026-06-07T14:09:01.197+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T14:09:01"}
+{"ts": "2026-06-07T14:14:01.209+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T14:14:01"}
+{"ts": "2026-06-07T14:19:01.224+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T14:19:01"}
+{"ts": "2026-06-07T14:20:10.627+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 43279.0, "utc": "2026-06-07T14:20:10"}
+{"ts": "2026-06-07T14:24:01.241+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T14:24:01"}
+{"ts": "2026-06-07T14:29:01.250+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T14:29:01"}
+{"ts": "2026-06-07T14:29:37.855+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 108039.0, "utc": "2026-06-07T14:29:37"}
+{"ts": "2026-06-07T14:34:01.255+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T14:34:01"}
+{"ts": "2026-06-07T14:39:01.267+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T14:39:01"}
+{"ts": "2026-06-07T14:44:01.278+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T14:44:01"}
+{"ts": "2026-06-07T14:49:01.286+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T14:49:01"}
+{"ts": "2026-06-07T14:54:01.295+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T14:54:01"}
+{"ts": "2026-06-07T14:59:01.293+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T14:59:01"}
+{"ts": "2026-06-07T15:04:01.295+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T15:04:01"}
+{"ts": "2026-06-07T15:09:01.283+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T15:09:01"}
+{"ts": "2026-06-07T15:14:01.297+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T15:14:01"}
+{"ts": "2026-06-07T15:19:01.290+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T15:19:01"}
+{"ts": "2026-06-07T15:20:16.494+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 46885.0, "utc": "2026-06-07T15:20:16"}
+{"ts": "2026-06-07T15:24:01.298+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T15:24:01"}
+{"ts": "2026-06-07T15:29:01.305+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T15:29:01"}
+{"ts": "2026-06-07T15:29:38.508+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 111640.0, "utc": "2026-06-07T15:29:38"}
+{"ts": "2026-06-07T15:34:01.314+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T15:34:01"}
+{"ts": "2026-06-07T15:39:01.330+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T15:39:01"}
+{"ts": "2026-06-07T15:44:01.349+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T15:44:01"}
+{"ts": "2026-06-07T15:49:01.360+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T15:49:01"}
+{"ts": "2026-06-07T15:54:01.360+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T15:54:01"}
+{"ts": "2026-06-07T15:59:01.357+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T15:59:01"}
+{"ts": "2026-06-07T16:04:01.368+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T16:04:01"}
+{"ts": "2026-06-07T16:09:01.376+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T16:09:01"}
+{"ts": "2026-06-07T16:14:01.375+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T16:14:01"}
+{"ts": "2026-06-07T16:19:01.383+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T16:19:01"}
+{"ts": "2026-06-07T16:20:22.581+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 50491.0, "utc": "2026-06-07T16:20:22"}
+{"ts": "2026-06-07T16:24:01.393+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T16:24:01"}
+{"ts": "2026-06-07T16:29:01.410+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T16:29:01"}
+{"ts": "2026-06-07T16:29:39.156+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 115240.0, "utc": "2026-06-07T16:29:39"}
+{"ts": "2026-06-07T16:34:01.437+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T16:34:01"}
+{"ts": "2026-06-07T16:39:01.450+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T16:39:01"}
+{"ts": "2026-06-07T16:44:01.443+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T16:44:01"}
+{"ts": "2026-06-07T16:49:01.449+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T16:49:01"}
+{"ts": "2026-06-07T16:54:01.443+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T16:54:01"}
+{"ts": "2026-06-07T16:59:01.466+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T16:59:01"}
+{"ts": "2026-06-07T17:04:01.471+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T17:04:01"}
+{"ts": "2026-06-07T17:09:01.494+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T17:09:01"}
+{"ts": "2026-06-07T17:14:01.502+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T17:14:01"}
+{"ts": "2026-06-07T17:19:01.506+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T17:19:01"}
+{"ts": "2026-06-07T17:20:28.710+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 54097.0, "utc": "2026-06-07T17:20:28"}
+{"ts": "2026-06-07T17:24:01.519+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T17:24:01"}
+{"ts": "2026-06-07T17:29:01.537+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T17:29:01"}
+{"ts": "2026-06-07T17:29:39.199+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 118840.0, "utc": "2026-06-07T17:29:39"}
+{"ts": "2026-06-07T17:34:01.542+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T17:34:01"}
+{"ts": "2026-06-07T17:39:01.542+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T17:39:01"}
+{"ts": "2026-06-07T17:44:01.545+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T17:44:01"}
+{"ts": "2026-06-07T17:49:01.536+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T17:49:01"}
+{"ts": "2026-06-07T17:54:01.547+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T17:54:01"}
+{"ts": "2026-06-07T17:59:01.560+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T17:59:01"}
+{"ts": "2026-06-07T18:04:01.554+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T18:04:01"}
+{"ts": "2026-06-07T18:09:01.563+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T18:09:01"}
+{"ts": "2026-06-07T18:14:01.556+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T18:14:01"}
+{"ts": "2026-06-07T18:19:01.561+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T18:19:01"}
+{"ts": "2026-06-07T18:20:35.196+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 57703.0, "utc": "2026-06-07T18:20:35"}
+{"ts": "2026-06-07T18:24:01.555+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T18:24:01"}
+{"ts": "2026-06-07T18:29:01.571+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T18:29:01"}
+{"ts": "2026-06-07T18:29:39.365+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 122440.0, "utc": "2026-06-07T18:29:39"}
+{"ts": "2026-06-07T18:34:01.573+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T18:34:01"}
+{"ts": "2026-06-07T18:39:01.583+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T18:39:01"}
+{"ts": "2026-06-07T18:44:01.587+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T18:44:01"}
+{"ts": "2026-06-07T18:49:01.594+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T18:49:01"}
+{"ts": "2026-06-07T18:54:01.599+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T18:54:01"}
+{"ts": "2026-06-07T18:59:01.611+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T18:59:01"}
+{"ts": "2026-06-07T19:04:01.600+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T19:04:01"}
+{"ts": "2026-06-07T19:09:01.608+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T19:09:01"}
+{"ts": "2026-06-07T19:14:01.606+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T19:14:01"}
+{"ts": "2026-06-07T19:19:01.616+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T19:19:01"}
+{"ts": "2026-06-07T19:20:41.290+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 61309.0, "utc": "2026-06-07T19:20:41"}
+{"ts": "2026-06-07T19:24:01.629+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T19:24:01"}
+{"ts": "2026-06-07T19:29:01.648+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T19:29:01"}
+{"ts": "2026-06-07T19:29:39.424+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 126040.0, "utc": "2026-06-07T19:29:39"}
+{"ts": "2026-06-07T19:34:01.651+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T19:34:01"}
+{"ts": "2026-06-07T19:39:01.656+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T19:39:01"}
+{"ts": "2026-06-07T19:44:01.660+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T19:44:01"}
+{"ts": "2026-06-07T19:49:01.679+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T19:49:01"}
+{"ts": "2026-06-07T19:54:01.675+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T19:54:01"}
+{"ts": "2026-06-07T19:59:01.689+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T19:59:01"}
+{"ts": "2026-06-07T20:04:01.688+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T20:04:01"}
+{"ts": "2026-06-07T20:09:01.695+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T20:09:01"}
+{"ts": "2026-06-07T20:14:01.699+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T20:14:01"}
+{"ts": "2026-06-07T20:19:01.697+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T20:19:01"}
+{"ts": "2026-06-07T20:20:48.460+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 64916.0, "utc": "2026-06-07T20:20:48"}
+{"ts": "2026-06-07T20:24:03.000+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T20:24:03"}
+{"ts": "2026-06-07T20:29:03.002+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T20:29:03"}
+{"ts": "2026-06-07T20:29:39.586+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 129641.0, "utc": "2026-06-07T20:29:39"}
+{"ts": "2026-06-07T20:34:03.009+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T20:34:03"}
+{"ts": "2026-06-07T20:39:03.025+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T20:39:03"}
+{"ts": "2026-06-07T20:44:03.029+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T20:44:03"}
+{"ts": "2026-06-07T20:49:03.029+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T20:49:03"}
+{"ts": "2026-06-07T20:54:03.021+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T20:54:03"}
+{"ts": "2026-06-07T20:59:03.032+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T20:59:03"}
+{"ts": "2026-06-07T21:04:03.034+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T21:04:03"}
+{"ts": "2026-06-07T21:09:03.045+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T21:09:03"}
+{"ts": "2026-06-07T21:14:03.046+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T21:14:03"}
+{"ts": "2026-06-07T21:19:03.055+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T21:19:03"}
+{"ts": "2026-06-07T21:20:54.189+00:00", "sig": "bot", "ev": "mt5_connection_beat", "connected": true, "trade_allowed": true, "tradeapi_disabled": false, "uptime_in_state_sec": 68522.0, "utc": "2026-06-07T21:20:54"}
+{"ts": "2026-06-07T21:24:03.076+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T21:24:03"}
+{"ts": "2026-06-07T21:29:03.068+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T21:29:03"}
+{"ts": "2026-06-07T21:29:39.701+00:00", "sig": "bot", "ev": "telegram_connection_beat", "connected": true, "uptime_in_state_sec": 133241.0, "utc": "2026-06-07T21:29:39"}
+{"ts": "2026-06-07T21:34:03.080+00:00", "sig": "bot", "ev": "heartbeat", "open_signals": 0, "utc": "2026-06-07T21:34:03"}
