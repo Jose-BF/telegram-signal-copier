@@ -266,3 +266,56 @@ class TestRuntimeTradeMonitor:
         await listener._place_dca(sig)
 
         assert sig.dca_placed is True
+
+
+class TestPollerTelegramBackoff:
+    @pytest.mark.asyncio
+    async def test_transient_get_history_error_backs_off_next_poll(
+            self, monkeypatch):
+        for attr in ("_poller_history_backoff_until",
+                     "_poller_history_failures"):
+            if hasattr(listener, attr):
+                getattr(listener, attr).clear()
+
+        class FakeClient:
+            def __init__(self):
+                self.calls = 0
+
+            async def get_messages(self, channel_id, limit):
+                self.calls += 1
+                raise RuntimeError(
+                    "Telegram is having internal issues ServerError: "
+                    "RPCError -500: No workers running "
+                    "(caused by GetHistoryRequest)"
+                )
+
+        fake_client = FakeClient()
+        events = []
+        monkeypatch.setattr(listener, "client", fake_client)
+        monkeypatch.setattr(
+            listener, "_poller_now_monotonic", lambda: 100.0,
+            raising=False,
+        )
+        monkeypatch.setattr(
+            listener.journal,
+            "event",
+            lambda sig, ev, **fields: events.append((sig, ev, fields)),
+        )
+
+        await listener._poll_channel(123, "canal2")
+        await listener._poll_channel(123, "canal2")
+
+        assert fake_client.calls == 1
+        assert events == [
+            ("bot", "poller_telegram_history_backoff", {
+                "channel": "canal2",
+                "phase": "active_poll",
+                "failures": 1,
+                "cooldown_s": 15.0,
+                "error": (
+                    "Telegram is having internal issues ServerError: "
+                    "RPCError -500: No workers running "
+                    "(caused by GetHistoryRequest)"
+                ),
+            })
+        ]

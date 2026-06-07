@@ -71,6 +71,63 @@ class TestHeartbeatOpenSignalCount:
         assert main._count_open_signals_unique(st) == 2
 
 
+class TestTelegramRunBackoff:
+    @pytest.mark.asyncio
+    async def test_retries_transient_history_error_without_exiting(
+            self, monkeypatch):
+        class FakeClient:
+            def __init__(self):
+                self.attempts = 0
+                self.connects = 0
+
+            async def run_until_disconnected(self):
+                self.attempts += 1
+                if self.attempts == 1:
+                    raise RuntimeError(
+                        "Telegram is having internal issues ServerError: "
+                        "RPCError -500: No workers running "
+                        "(caused by GetHistoryRequest)"
+                    )
+
+            def is_connected(self):
+                return True
+
+            async def connect(self):
+                self.connects += 1
+
+        fake_client = FakeClient()
+        sleeps = []
+        events = []
+
+        async def fake_sleep(seconds):
+            sleeps.append(seconds)
+
+        monkeypatch.setattr(main, "client", fake_client)
+        monkeypatch.setattr(main.asyncio, "sleep", fake_sleep)
+        monkeypatch.setattr(
+            main.journal,
+            "event",
+            lambda sig, ev, **fields: events.append((sig, ev, fields)),
+        )
+
+        await main._run_until_disconnected_with_backoff()
+
+        assert fake_client.attempts == 2
+        assert fake_client.connects == 0
+        assert sleeps == [15.0]
+        assert events == [
+            ("bot", "telegram_run_until_disconnected_backoff", {
+                "failures": 1,
+                "cooldown_s": 15.0,
+                "error": (
+                    "Telegram is having internal issues ServerError: "
+                    "RPCError -500: No workers running "
+                    "(caused by GetHistoryRequest)"
+                ),
+            })
+        ]
+
+
 class TestFreezeTracebackWatchdog:
     def test_traceback_watchdog_disabled_when_timeout_zero(self):
         assert main._freeze_traceback_enabled(0) is False

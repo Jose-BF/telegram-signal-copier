@@ -49,11 +49,13 @@ import executor
 import journal
 import live_auditor
 import pending_actions
-from listener import client, poll_loop
+from listener import client, poll_loop, _is_transient_telegram_history_error
 from parser import predict_sl_from_entry
 
 _freeze_traceback_file_handle = None
 _freeze_traceback_file_path: Path | None = None
+_TELEGRAM_RUN_BACKOFF_BASE_S = 15.0
+_TELEGRAM_RUN_BACKOFF_MAX_S = 120.0
 
 
 def _should_alert_sustained_disconnect(connected: bool,
@@ -87,6 +89,52 @@ def _count_open_signals_unique(state_manager) -> int:
         seen.add(obj_id)
         count += 1
     return count
+
+
+def _telegram_run_backoff_seconds(failures: int) -> float:
+    exponent = max(0, failures - 1)
+    return min(
+        _TELEGRAM_RUN_BACKOFF_MAX_S,
+        _TELEGRAM_RUN_BACKOFF_BASE_S * (2 ** exponent),
+    )
+
+
+async def _run_until_disconnected_with_backoff() -> None:
+    failures = 0
+    while True:
+        try:
+            await client.run_until_disconnected()
+            return
+        except Exception as e:
+            if not _is_transient_telegram_history_error(e):
+                raise
+
+            failures += 1
+            cooldown_s = _telegram_run_backoff_seconds(failures)
+            error = str(e)
+            print(
+                "[Telegram] Error temporal GetHistoryRequest; "
+                f"reintento en {cooldown_s:.0f}s: {error}"
+            )
+            journal.event(
+                "bot",
+                "telegram_run_until_disconnected_backoff",
+                failures=failures,
+                cooldown_s=cooldown_s,
+                error=error,
+            )
+            await asyncio.sleep(cooldown_s)
+
+            try:
+                if not client.is_connected():
+                    await client.connect()
+            except Exception as reconnect_error:
+                journal.event(
+                    "bot",
+                    "telegram_reconnect_after_history_error_failed",
+                    failures=failures,
+                    error=str(reconnect_error),
+                )
 
 
 def _unique_open_signals(state_manager) -> list:
@@ -1095,7 +1143,7 @@ async def main():
     asyncio.ensure_future(poll_loop())
 
     try:
-        await client.run_until_disconnected()
+        await _run_until_disconnected_with_backoff()
     finally:
         journal.event("bot", "session_closed",
                       ended_utc=datetime.utcnow().isoformat(timespec="seconds"))

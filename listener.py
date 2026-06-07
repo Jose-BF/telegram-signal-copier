@@ -15,6 +15,7 @@ Canal 1 flujo:
 import asyncio
 import hashlib
 import re
+import time
 from datetime import datetime, timedelta
 
 from telethon import TelegramClient, events
@@ -4546,6 +4547,76 @@ _POLL_MSG_LIMIT  = 10    # últimos N mensajes a revisar por canal en cada ciclo
 # Usamos un sentinel en lugar de None para distinguir "aún no visto" vs
 # "visto y sin editar" (edit_date=None es válido en mensajes sin editar).
 _POLLER_UNSEEN = object()
+_POLLER_HISTORY_BACKOFF_BASE_S = 15.0
+_POLLER_HISTORY_BACKOFF_MAX_S = 120.0
+_poller_history_backoff_until: dict[str, float] = {}
+_poller_history_failures: dict[str, int] = {}
+
+
+def _poller_now_monotonic() -> float:
+    return time.monotonic()
+
+
+def _is_transient_telegram_history_error(exc: Exception) -> bool:
+    text = f"{type(exc).__name__}: {exc} {exc!r}"
+    if "GetHistoryRequest" not in text:
+        return False
+    transient_markers = (
+        "No workers running",
+        "RPCError -500",
+        "ServerError",
+        "internal issues",
+    )
+    return any(marker in text for marker in transient_markers)
+
+
+def _poller_history_backoff_seconds(failures: int) -> float:
+    exponent = max(0, failures - 1)
+    return min(
+        _POLLER_HISTORY_BACKOFF_MAX_S,
+        _POLLER_HISTORY_BACKOFF_BASE_S * (2 ** exponent),
+    )
+
+
+def _poller_in_history_backoff(channel_name: str) -> bool:
+    until = _poller_history_backoff_until.get(channel_name, 0.0)
+    return _poller_now_monotonic() < until
+
+
+def _poller_record_history_backoff(
+        channel_name: str, phase: str, exc: Exception) -> None:
+    failures = _poller_history_failures.get(channel_name, 0) + 1
+    cooldown_s = _poller_history_backoff_seconds(failures)
+    _poller_history_failures[channel_name] = failures
+    _poller_history_backoff_until[channel_name] = (
+        _poller_now_monotonic() + cooldown_s
+    )
+    error = str(exc)
+    print(
+        f"[Poller] Telegram GetHistory temporal {channel_name}; "
+        f"backoff {cooldown_s:.0f}s: {error}"
+    )
+    journal.event(
+        "bot",
+        "poller_telegram_history_backoff",
+        channel=channel_name,
+        phase=phase,
+        failures=failures,
+        cooldown_s=cooldown_s,
+        error=error,
+    )
+
+
+def _poller_clear_history_backoff(channel_name: str) -> None:
+    failures = _poller_history_failures.pop(channel_name, 0)
+    _poller_history_backoff_until.pop(channel_name, None)
+    if failures:
+        journal.event(
+            "bot",
+            "poller_telegram_history_recovered",
+            channel=channel_name,
+            failures=failures,
+        )
 _poller_msg_state: dict[tuple, object] = {}  # (channel, msg_id) → edit_date
 
 
@@ -4560,9 +4631,16 @@ async def _poll_channel(channel_id: int, channel_name: str):
     La dedup global (_new_msg_already_seen, _edit_already_seen) garantiza
     que si Telethon también dispara el mismo evento, se descarta sin trabajo.
     """
+    if _poller_in_history_backoff(channel_name):
+        return
+
     try:
         msgs = await client.get_messages(channel_id, limit=_POLL_MSG_LIMIT)
+        _poller_clear_history_backoff(channel_name)
     except Exception as e:
+        if _is_transient_telegram_history_error(e):
+            _poller_record_history_backoff(channel_name, "active_poll", e)
+            return
         print(f"[Poller] Error get_messages {channel_name}: {e}")
         return
 
@@ -4628,8 +4706,11 @@ async def poll_loop():
     # ── Fase 1: scan inicial ────────────────────────────────────────────────
     print("[Poller] Scan inicial — marcando mensajes recientes como vistos...")
     for channel_id, channel_name in watched:
+        if _poller_in_history_backoff(channel_name):
+            continue
         try:
             msgs = await client.get_messages(channel_id, limit=_POLL_MSG_LIMIT)
+            _poller_clear_history_backoff(channel_name)
             for msg in msgs:
                 key = (channel_name, msg.id)
                 _poller_msg_state[key] = msg.edit_date
@@ -4640,6 +4721,9 @@ async def poll_loop():
             print(f"[Poller] {channel_name}: {len(msgs)} mensajes marcados "
                   f"(sin procesar — señales previas)")
         except Exception as e:
+            if _is_transient_telegram_history_error(e):
+                _poller_record_history_backoff(channel_name, "initial_scan", e)
+                continue
             print(f"[Poller] Error scan inicial {channel_name}: {e}")
 
     print(f"[Poller] Activo. Polling cada {_POLL_INTERVAL_S}s | "
