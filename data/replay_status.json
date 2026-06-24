@@ -1,13 +1,13 @@
 {
   "ok": true,
-  "started_at": "2026-06-16T00:34:21+00:00",
-  "finished_at": "2026-06-16T00:34:21+00:00",
-  "duration_s": 0.31,
+  "started_at": "2026-06-24T18:50:32+00:00",
+  "finished_at": "2026-06-24T18:50:32+00:00",
+  "duration_s": 0.55,
   "returncode": 0,
   "stdout": "",
   "stderr": "",
   "replay_exists": true,
-  "replay_size_bytes": 2829848,
+  "replay_size_bytes": 3710428,
   "command": [
     "C:\\Users\\josea\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe",
     "replay_builder.py",
