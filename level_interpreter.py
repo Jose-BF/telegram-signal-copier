@@ -1,0 +1,220 @@
+"""Interpretacion global de niveles de entrada.
+
+Politica de ejecucion:
+  - una entrada con direccion no se descarta por niveles incompletos o raros;
+  - los niveles incoherentes se sustituyen por valores provisionales;
+  - los valores oficiales posteriores siguen pasando por el validador existente.
+"""
+
+from __future__ import annotations
+
+from copy import deepcopy
+
+from parser import (
+    correct_tp_typos,
+    levels_consistent_with_direction,
+    predict_levels,
+    validate_range_vs_entry,
+)
+
+
+FALLBACK_RANGE_WIDTH_USD = 5.0
+MAX_PROVIDER_RANGE_WIDTH_USD = 20.0
+MAX_TP_DISTANCE_USD = 80.0
+
+
+def _round_price(value: float) -> float:
+    return round(float(value), 2)
+
+
+def expected_entry_from_range(direction: str, rng: tuple[float, float] | None):
+    if not rng:
+        return None
+    lo, hi = rng
+    return hi if direction == "BUY" else lo
+
+
+def synthetic_range_from_entry(direction: str, entry: float,
+                               width: float = FALLBACK_RANGE_WIDTH_USD):
+    entry = _round_price(entry)
+    width = float(width)
+    if direction == "BUY":
+        return (_round_price(entry - width), entry)
+    return (entry, _round_price(entry + width))
+
+
+def _range_is_usable(direction: str, rng: tuple[float, float],
+                     reference_price: float | None) -> tuple[bool, str | None]:
+    lo, hi = rng
+    width = hi - lo
+    if width <= 0:
+        return False, f"invalid_range_width={width:g}"
+    if width > MAX_PROVIDER_RANGE_WIDTH_USD:
+        return False, f"range_width_too_wide={width:g}"
+    if reference_price is not None:
+        validation = validate_range_vs_entry(direction, reference_price, lo, hi)
+        if not validation["ok"]:
+            return False, validation["reason"]
+    return True, None
+
+
+def _tp_is_usable(direction: str, entry: float, tp: float) -> bool:
+    if abs(tp - entry) > MAX_TP_DISTANCE_USD:
+        return False
+    if direction == "BUY":
+        return tp > entry
+    return tp < entry
+
+
+def _fallback_tp(direction: str, entry: float, index: int) -> float:
+    offsets = (3, 5, 7, 9, 14, 20)
+    off = offsets[index] if index < len(offsets) else offsets[-1] + 5 * (index - len(offsets) + 1)
+    return _round_price(entry + off if direction == "BUY" else entry - off)
+
+
+def interpret_entry_levels(channel: str, direction: str, parsed: dict,
+                           reference_price: float | None = None) -> dict:
+    """Devuelve niveles seguros para abrir/aplicar una entrada.
+
+    `parsed` contiene lo que saco el parser del canal. `reference_price` es el
+    mejor precio contextual disponible: tick pre-open, fill real, o None.
+    """
+    direction = (direction or parsed.get("direction") or "").upper()
+    normalized = deepcopy(parsed or {})
+    if direction:
+        normalized["direction"] = direction
+
+    corrections: list[dict] = []
+    raw_range = normalized.get("range")
+    entry = _round_price(reference_price) if reference_price is not None else None
+
+    usable_range = None
+    if raw_range:
+        raw_range = (_round_price(raw_range[0]), _round_price(raw_range[1]))
+        ok, reason = _range_is_usable(direction, raw_range, entry)
+        if ok:
+            usable_range = raw_range
+        else:
+            corrections.append({
+                "field": "range",
+                "kind": "rebuilt_from_reference",
+                "original": list(raw_range),
+                "reason": reason,
+            })
+
+    if usable_range is None:
+        if entry is None and raw_range:
+            entry = expected_entry_from_range(direction, raw_range)
+        if entry is not None:
+            usable_range = synthetic_range_from_entry(direction, entry)
+            normalized["range"] = usable_range
+            if not any(c["field"] == "range" for c in corrections):
+                corrections.append({
+                    "field": "range",
+                    "kind": "inferred_from_reference",
+                    "original": None,
+                    "corrected": list(usable_range),
+                    "reason": "missing_range",
+                })
+            else:
+                corrections[-1]["corrected"] = list(usable_range)
+        elif raw_range:
+            usable_range = raw_range
+            normalized["range"] = usable_range
+    else:
+        normalized["range"] = usable_range
+
+    if entry is None:
+        entry = expected_entry_from_range(direction, usable_range)
+
+    predicted = None
+    if usable_range:
+        predicted = predict_levels(direction, usable_range[0], usable_range[1])
+
+    raw_tps = list(normalized.get("tps") or [])
+    if entry is not None and raw_tps:
+        corrected_tps, typo_corrections = correct_tp_typos(
+            direction, entry, raw_tps, max_dist_usd=MAX_TP_DISTANCE_USD)
+        if typo_corrections:
+            corrections.append({
+                "field": "tps",
+                "kind": "typo_corrected",
+                "original": raw_tps,
+                "corrected": corrected_tps,
+                "details": typo_corrections,
+            })
+        raw_tps = corrected_tps
+
+    final_tps: list[float] = []
+    predicted_tps = list((predicted or {}).get("tps") or [])
+    if raw_tps and entry is not None:
+        for idx, tp in enumerate(raw_tps):
+            tp = _round_price(tp)
+            if _tp_is_usable(direction, entry, tp):
+                final_tps.append(tp)
+            else:
+                fallback = (predicted_tps[idx] if idx < len(predicted_tps)
+                            else _fallback_tp(direction, entry, idx))
+                final_tps.append(fallback)
+                corrections.append({
+                    "field": "tps",
+                    "kind": "tp_replaced",
+                    "index": idx,
+                    "original": tp,
+                    "corrected": fallback,
+                    "reason": "tp_inconsistent_with_direction",
+                })
+        if len(final_tps) < len(predicted_tps):
+            final_tps.extend(predicted_tps[len(final_tps):])
+    elif predicted_tps:
+        final_tps = predicted_tps
+        corrections.append({
+            "field": "tps",
+            "kind": "inferred",
+            "original": None,
+            "corrected": final_tps,
+            "reason": "missing_tps",
+        })
+    if final_tps:
+        normalized["tps"] = final_tps
+
+    raw_sl = normalized.get("sl")
+    final_sl = None
+    if raw_sl is not None and entry is not None:
+        raw_sl = _round_price(raw_sl)
+        validation = levels_consistent_with_direction(
+            direction, entry, tps=None, sl=raw_sl)
+        if validation["sl_ok"]:
+            final_sl = raw_sl
+        else:
+            final_sl = (predicted or {}).get("sl")
+            if final_sl is None and entry is not None:
+                fallback_range = synthetic_range_from_entry(direction, entry)
+                final_sl = predict_levels(
+                    direction, fallback_range[0], fallback_range[1])["sl"]
+            corrections.append({
+                "field": "sl",
+                "kind": "sl_replaced",
+                "original": raw_sl,
+                "corrected": final_sl,
+                "reason": validation["sl_problem"],
+            })
+    elif (predicted or {}).get("sl") is not None:
+        final_sl = predicted["sl"]
+        corrections.append({
+            "field": "sl",
+            "kind": "inferred",
+            "original": None,
+            "corrected": final_sl,
+            "reason": "missing_sl",
+        })
+    if final_sl is not None:
+        normalized["sl"] = _round_price(final_sl)
+
+    return {
+        "channel": channel,
+        "direction": direction,
+        "parsed": normalized,
+        "corrections": corrections,
+        "provisional": bool(corrections),
+    }

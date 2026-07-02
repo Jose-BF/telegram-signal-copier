@@ -73,7 +73,7 @@ def _extract_tps(text: str) -> list[float]:
     """
     # \d{3,5} → precio entre 100 y 99999 (XAUUSD ronda 2000-4000)
     # (?:\.\d{1,3})? → hasta 3 decimales opcionales
-    pattern = r"TP\s*\d+\s*[:\s=\s]\s*(\d{3,5}(?:\.\d{1,3})?)\b"
+    pattern = r"\bTP\s*\d*\s*[:\s=\s]\s*(\d{3,5}(?:\.\d{1,3})?)\b"
     results = []
     for m in re.finditer(pattern, text, re.IGNORECASE):
         try:
@@ -92,7 +92,9 @@ def _extract_sl(text: str) -> Optional[float]:
     Si el canal usara otro alias futuro, añadirlo aquí en vez de en el
     classifier — el parser es la fuente canónica para extracción de niveles.
     """
-    m = re.search(r"\b(?:SL|SP)\s*[:\s]\s*(\d{3,5}(?:\.\d{1,3})?)\b",
+    m = re.search(
+        r"\b(?:SL|SP|STOP\s*LOSS)\s*(?:[:=\s]|\bis\b|\bat\b|\bto\b)+"
+        r"\s*(\d{3,5}(?:\.\d{1,3})?)\b",
                   text, re.IGNORECASE)
     if not m:
         return None

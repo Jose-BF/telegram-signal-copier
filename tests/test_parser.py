@@ -359,6 +359,17 @@ class TestParseCanal2:
         assert result["tps"] == [4705.5]
         assert result["sl"] == 4720.0
 
+    def test_bare_tp_and_sl_reply(self):
+        # Caso real nuevo canal 2551: "TP 3991.5 SL 3978"
+        result = parse_canal2("TP 3991.5 SL 3978")
+        assert result["tps"] == [3991.5]
+        assert result["sl"] == 3978.0
+
+    def test_sl_is_phrase(self):
+        # Caso real nuevo canal 2551: "SL is 3975 Most got an entry..."
+        result = parse_canal2("SL is 3975 Most got an entry of 3985")
+        assert result["sl"] == 3975.0
+
 
 # ─── parse_canal1_text ──────────────────────────────────────────────────────
 

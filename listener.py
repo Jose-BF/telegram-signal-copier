@@ -17,6 +17,7 @@ import hashlib
 import re
 import time
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 
 from telethon import TelegramClient, events
 
@@ -28,6 +29,7 @@ import dca_monitor
 import pending_actions
 import strategies
 from classifier import classify, classify_async
+from level_interpreter import interpret_entry_levels
 from parser import (
     correct_tp_typos,
     is_canal1_signal_text,
@@ -63,6 +65,53 @@ def _iso_or_none(value) -> str | None:
         return value.isoformat()
     except Exception:
         return str(value)
+
+
+def _entry_reference_from_tick(direction: str, tick: dict | None):
+    """Precio contextual para inferir niveles antes/despues del fill."""
+    if not tick:
+        return None
+    direction = (direction or "").upper()
+    bid = tick.get("bid")
+    ask = tick.get("ask")
+    if direction == "BUY" and ask:
+        return ask
+    if direction == "SELL" and bid:
+        return bid
+    if bid and ask:
+        return (bid + ask) / 2
+    return bid or ask
+
+
+def _log_entry_level_interpretation(sig_id: str, channel: str, original: dict,
+                                    interpreted: dict,
+                                    reference_price=None) -> None:
+    corrections = interpreted.get("corrections") or []
+    if not corrections:
+        return
+    journal.event(
+        sig_id,
+        "entry_levels_interpreted",
+        channel=channel,
+        reference_price=reference_price,
+        original=original,
+        interpreted=interpreted.get("parsed"),
+        corrections=corrections,
+        provisional=interpreted.get("provisional", False),
+    )
+
+
+async def _apply_interpreted_entry_levels(signal: Signal, parsed: dict,
+                                          channel: str,
+                                          reference_price=None,
+                                          tg_ts: str | None = None) -> dict:
+    interpreted = interpret_entry_levels(
+        channel, signal.direction, parsed, reference_price=reference_price)
+    _log_entry_level_interpretation(
+        _sig_id(signal), channel, parsed, interpreted, reference_price)
+    await _update_signal_from_parsed(
+        signal, interpreted["parsed"], tg_ts=tg_ts)
+    return interpreted["parsed"]
 
 
 def _telegram_raw_payload(msg, channel: str, update_kind: str) -> dict:
@@ -391,24 +440,20 @@ def _canal2_duplicate_alias_candidate(message_id: int, direction: str,
                                       timestamp: datetime, parsed: dict,
                                       open_signals: list,
                                       window_s: float):
-    """Find an older naked canal2 signal that should receive this msg as alias.
+    """Find an older canal2 signal that should receive this msg as alias.
 
     This is stricter than observability-only duplicate detection: we only alias
-    plain BUY/SELL NOW triggers, and only when the existing signal has no
-    range/TP/SL yet. The goal is to avoid doubling exposure while still letting
-    edits for the newer message_id update the already-open position.
+    plain BUY/SELL NOW triggers. The goal is to avoid doubling exposure while
+    still letting edits for the newer message_id update the already-open
+    position. Entry levels may already be provisional, so they are not used as
+    a dedupe blocker.
     """
     if any(k in parsed for k in ("range", "tps", "sl")):
         return None
 
     probe = Signal(channel="canal2", message_id=message_id,
                    direction=direction, timestamp=timestamp)
-    existing = _same_direction_overlap_candidate(probe, open_signals, window_s)
-    if existing is None:
-        return None
-    if existing.range_low is not None or existing.tps or existing.sl is not None:
-        return None
-    return existing
+    return _same_direction_overlap_candidate(probe, open_signals, window_s)
 
 
 def _register_canal2_duplicate_alias(existing: Signal, alias_message_id: int,
@@ -430,7 +475,7 @@ def _register_canal2_duplicate_alias(existing: Signal, alias_message_id: int,
                   direction=existing.direction,
                   delta_s=round(delta_s, 3))
     journal.anomaly(sig_id, "channel_msg", "warning",
-                    "canal2 duplicate BUY/SELL NOW aliased to existing naked "
+                    "canal2 duplicate BUY/SELL NOW aliased to existing "
                     "signal; skipped new market order",
                     alias_message_id=alias_message_id,
                     alias_signal_id=alias_sig_id,
@@ -445,12 +490,7 @@ def _canal1_duplicate_sticker_candidate(message_id: int, direction: str,
                                         window_s: float):
     probe = Signal(channel="canal1", message_id=message_id,
                    direction=direction, timestamp=timestamp)
-    existing = _same_direction_overlap_candidate(probe, open_signals, window_s)
-    if existing is None:
-        return None
-    if existing.range_low is not None or existing.tps or existing.sl is not None:
-        return None
-    return existing
+    return _same_direction_overlap_candidate(probe, open_signals, window_s)
 
 
 def _register_canal1_duplicate_sticker_alias(existing: Signal,
@@ -475,7 +515,7 @@ def _register_canal1_duplicate_sticker_alias(existing: Signal,
                   sticker_id=sticker_id,
                   delta_s=round(delta_s, 3))
     journal.anomaly(sig_id, "channel_msg", "warning",
-                    "canal1 duplicate sticker aliased to existing naked "
+                    "canal1 duplicate sticker aliased to existing "
                     "signal; skipped new market order",
                     alias_message_id=alias_message_id,
                     alias_signal_id=alias_sig_id,
@@ -1049,6 +1089,44 @@ def _defer_canal2_entry_edit(msg, text: str) -> None:
 
 def _pop_deferred_canal2_entry_edit(msg_id: int):
     return _deferred_canal2_entry_edits.pop(msg_id, None)
+
+
+def _merge_canal2_entry_parsed(base: dict, update: dict) -> dict:
+    """Fusiona una entrada pendiente con un edit/reply de correccion.
+
+    Canal 2 a menudo manda niveles en oleadas: un reply puede traer solo TP1
+    y SL corregido. Conservamos los TPs restantes del mensaje base cuando el
+    update trae una lista parcial.
+    """
+    merged = dict(base or {})
+    if "direction" in update and "direction" not in merged:
+        merged["direction"] = update["direction"]
+    if "range" in update:
+        merged["range"] = update["range"]
+    if "tps" in update:
+        if merged.get("tps") and len(update["tps"]) < len(merged["tps"]):
+            merged["tps"] = list(update["tps"]) + list(merged["tps"][len(update["tps"]):])
+        else:
+            merged["tps"] = list(update["tps"])
+    if "sl" in update:
+        merged["sl"] = update["sl"]
+    return merged
+
+
+def _format_canal2_entry_text(parsed: dict, high_risk: bool = False) -> str:
+    """Reconstruye una entrada canal2 parseable desde niveles ya fusionados."""
+    direction = parsed["direction"]
+    prefix = "HIGH RISK " if high_risk else ""
+    lines = [f"{prefix}XAU USD {direction} NOW"]
+    if parsed.get("range"):
+        lo, hi = parsed["range"]
+        first, second = (hi, lo) if direction == "BUY" else (lo, hi)
+        lines.append(f"{first:g} - {second:g}")
+    for idx, tp in enumerate(parsed.get("tps") or [], start=1):
+        lines.append(f"TP{idx} {tp:g}")
+    if parsed.get("sl") is not None:
+        lines.append(f"SL {parsed['sl']:g}")
+    return "\n".join(lines)
 
 
 def _edit_already_seen(channel: str, msg) -> bool:
@@ -2970,7 +3048,24 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
         print(f"\n[{label}] ❌ SEÑAL IGNORADA ({direction}, msg={msg.id}): {reason}")
         return
 
-    # ── FILTRO 2: Lot multiplier (HIGH RISK → lot/2) ──
+    # ── FILTRO 2: Validacion de niveles antes de abrir ──
+    if msg.id in _deferred_canal2_entry_edits:
+        deferred = _deferred_canal2_entry_edits[msg.id]
+        deferred_parsed = parse_canal2(deferred["text"])
+        merged = _merge_canal2_entry_parsed(parsed, deferred_parsed)
+        parsed = merged
+        text = _format_canal2_entry_text(
+            merged, high_risk=strategies.is_high_risk_signal(text))
+        direction = parsed["direction"]
+        _pop_deferred_canal2_entry_edit(msg.id)
+        journal.event(
+            f"canal2_{msg.id}",
+            "canal2_deferred_entry_edit_applied",
+            parsed_keys=sorted(deferred_parsed.keys()),
+            tg_ts=deferred.get("tg_ts"),
+            before_open=True,
+        )
+
     lot_mult, lot_reason = strategies.lot_multiplier_for_signal(text)
     if lot_mult <= 0:
         print(f"\n[{label}] ❌ SEÑAL IGNORADA ({direction}, msg={msg.id}): lot_mult=0")
@@ -3023,6 +3118,14 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
         raise
     if ctx:
         journal.event(sig_id_pre, "market_context", **ctx)
+
+    pre_open_tick = await _run(executor.current_tick_safe)
+    reference_price = _entry_reference_from_tick(direction, pre_open_tick)
+    interpreted = interpret_entry_levels(
+        "canal2", direction, parsed, reference_price=reference_price)
+    _log_entry_level_interpretation(
+        sig_id_pre, "canal2", parsed, interpreted, reference_price)
+    parsed = interpreted["parsed"]
 
     magic = config.magic_for("canal2")
     # open_market_with_fill devuelve (ticket, fill_price) en una sola llamada MT5
@@ -3078,7 +3181,7 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
         market_fill_price=fill_price,
         lot_multiplier=lot_mult,
         max_tp_index=max_tp_idx,
-        is_high_risk=(lot_mult != 1.0),
+        is_high_risk=strategies.is_high_risk_signal(text),
         time_stop_at=c2_time_stop,
         entry_mode=config.STRATEGY_C2_ENTRY_MODE,
         target_tp_index=c2_target_tp,
@@ -3104,7 +3207,8 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
     )
     # Abre posiciones market extra (modo scale_out, o doble market legacy).
     await _open_extra_legs(sig, msg.id)
-    await _update_signal_from_parsed(sig, parsed)
+    parsed = await _apply_interpreted_entry_levels(
+        sig, parsed, "canal2", reference_price=fill_price)
     deferred = _pop_deferred_canal2_entry_edit(msg.id)
     if deferred:
         deferred_parsed = parse_canal2(deferred["text"])
@@ -3114,8 +3218,10 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
             parsed_keys=sorted(deferred_parsed.keys()),
             tg_ts=deferred.get("tg_ts"),
         )
-        await _update_signal_from_parsed(
-            sig, deferred_parsed, tg_ts=deferred.get("tg_ts"))
+        await _apply_interpreted_entry_levels(
+            sig, deferred_parsed, "canal2",
+            reference_price=sig.market_fill_price,
+            tg_ts=deferred.get("tg_ts"))
     _canal2_open_finished(msg.id)
     logger.log_signal(sig, parsed)
 
@@ -3194,7 +3300,10 @@ async def _process_canal2_edit(msg, label: str = "Canal2"):
         is_edit=True,
     )
     print(f"[{label}] Edit señal {msg.id}: {list(parsed.keys())} tg_edit={_tg_edit_ts}")
-    await _update_signal_from_parsed(sig, parsed, tg_ts=_tg_edit_ts)
+    await _apply_interpreted_entry_levels(
+        sig, parsed, "canal2",
+        reference_price=sig.market_fill_price,
+        tg_ts=_tg_edit_ts)
 
 
 # ─── Canal 2 handlers ─────────────────────────────────────────────────────────
@@ -3736,7 +3845,11 @@ async def _process_canal1_edit(msg):
                       range_changed=diff["range_changed"],
                       previous=diff["previous"],
                       new=diff["new"])
-        await _update_signal_from_parsed(sig, parsed, tg_ts=tg_edit_ts)
+        await _apply_interpreted_entry_levels(
+            sig, parsed, "canal1",
+            reference_price=sig.market_fill_price,
+            tg_ts=tg_edit_ts,
+        )
         return
 
     # Cambio material → anomaly + notify rico (la posición MT5 sigue con
@@ -4016,7 +4129,10 @@ async def _handle_canal1_sticker(msg):
     )
     # Abre posiciones market extra (modo scale_out, o doble market legacy).
     await _open_extra_legs(sig, msg.id)
-    print(f"[Canal1] Mercado abierto, esperando texto con TP/SL...")
+    await _apply_interpreted_entry_levels(
+        sig, {"direction": direction}, "canal1", reference_price=fill_price)
+    print(f"[Canal1] Mercado abierto con niveles provisionales, "
+          f"esperando texto oficial con TP/SL...")
 
 
 def _should_accept_canal1_text(sig, now=None) -> bool:
@@ -4304,10 +4420,14 @@ async def _handle_canal1_text(msg, text: str):
         time_stop_min=config.STRATEGY_C1_TIME_STOP_MIN,
     )
     _tg_ts = msg.date.isoformat(timespec="seconds") if msg.date else None
-    await _update_signal_from_parsed(sig, parsed, tg_ts=_tg_ts)
+    parsed_to_apply = await _apply_interpreted_entry_levels(
+        sig, parsed, "canal1",
+        reference_price=sig.market_fill_price,
+        tg_ts=_tg_ts,
+    )
     journal.event(sig_id, "canal1_text_applied",
-                  **_canal1_text_applied_summary(sig, parsed))
-    logger.log_signal(sig, parsed)
+                  **_canal1_text_applied_summary(sig, parsed_to_apply))
+    logger.log_signal(sig, parsed_to_apply)
 
     # ── DEFENSA POST-PROCESAMIENTO ─────────────────────────────────────
     # Si tras procesar el texto la signal sigue SIN tps NI sl, la posicion

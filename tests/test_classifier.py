@@ -166,6 +166,18 @@ class TestMoveSlToBe:
         actions = _actions("Take partials\n\nSet breakeven for zero risk")
         assert "MOVE_SL_TO_BE" in [a["action"] for a in actions]
 
+    def test_make_stop_loss_price_without_to(self):
+        actions = _actions("For those with better entries make your stop loss 4099")
+        sl = next(a for a in actions if a["action"] == "MOVE_SL_TO_PRICE")
+        assert sl["price"] == 4099.0
+
+    def test_moving_stop_loss_back_up_to_price(self):
+        actions = _actions(
+            "We have already Hit TP3 I am moving my stop loss back up to 4042"
+        )
+        sl = next(a for a in actions if a["action"] == "MOVE_SL_TO_PRICE")
+        assert sl["price"] == 4042.0
+
 
 # ─── 3. "I am out at BE" → CLOSE_ALL ────────────────────────────────────────
 
@@ -238,6 +250,13 @@ class TestCloseFirst:
         cf = next(a for a in actions if a["action"] == "CLOSE_FIRST")
         assert cf.get("is_plural") is True
         assert cf["_reason"] == "close_first_contextual_plural"
+
+    def test_close_first_entries_typo_entires(self):
+        actions = _actions(
+            "I am closing my first entires in a loss, taking profit from my best entries"
+        )
+        cf = next(a for a in actions if a["action"] == "CLOSE_FIRST")
+        assert cf.get("is_plural") is True
 
     def test_close_first_entry_marks_singular(self):
         """'first entry' (singular) → is_plural=False. Logica legacy
@@ -330,6 +349,7 @@ class TestInformationalFallback:
     @pytest.mark.parametrize("text", [
         "TP1 hit", "TP2 hit", "TP3 hit", "TP4 hit", "TP5 hit",
         "TP1 reached", "TP2 secured", "TP3 done",
+        "TP2 ✅", "TP5 smashed", "TP5 tapped", "TP6 SMASHED +350 pips",
     ])
     def test_tp_hit_variants(self, text):
         actions = _actions(text)
@@ -374,6 +394,14 @@ class TestInformationalFallback:
 
     def test_pips_secured(self):
         actions = _actions("+50 pips secured")
+        assert actions[0]["action"] == "INFORMATIONAL"
+
+    def test_plain_pips_count(self):
+        actions = _actions("+50 pips")
+        assert actions[0]["action"] == "INFORMATIONAL"
+
+    def test_running_pips_count(self):
+        actions = _actions("Running +200 pips")
         assert actions[0]["action"] == "INFORMATIONAL"
 
     def test_running_in_profit(self):

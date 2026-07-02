@@ -4,7 +4,7 @@ strategies.py — Lógica central de filtros y modificadores de señal.
 Concentra TODAS las decisiones derivadas del análisis del JSON (1492 señales 2025+):
 
   • Skip RE-ENTER          → +$328 EV vs baseline (point 2)
-  • HIGH RISK lot/2        → mantiene EV positivo con menor variance (point 1)
+  • HIGH RISK full lot     → se etiqueta, pero no reduce lotaje
   • TIME-STOP 60min        → +$3.842 EV vs baseline, corta perdedoras (point 7)
   • Post-SL momentum TP4   → P(TP5)=29% pero EV mejor capando en TP4 (point 4)
 
@@ -99,15 +99,13 @@ def should_skip_signal(text: str, direction: str, channel: str,
 def lot_multiplier_for_signal(text: str) -> tuple[float, str]:
     """Devuelve el multiplicador de lotaje para esta señal y el motivo.
 
-    HIGH RISK → lot/2 (config.STRATEGY_HIGH_RISK_LOT_MULT, default 0.5)
-                Avg $+5.88/sig en sample HIGH RISK vs $+11.75 con lot completo.
-                Mantenemos el conservador por sample size (n=16).
+    HIGH RISK → lot completo. Se mantiene el reason para trazabilidad, pero
+                ya no se reduce ni se salta la señal por config antigua.
 
     Default → 1.0 (lot base sin cambios).
     """
     if is_high_risk_signal(text):
-        mult = config.STRATEGY_HIGH_RISK_LOT_MULT
-        return mult, f"HIGH RISK (lot x{mult})"
+        return 1.0, "HIGH RISK (lot x1.0)"
     return 1.0, ""
 
 

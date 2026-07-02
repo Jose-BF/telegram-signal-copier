@@ -108,11 +108,10 @@ LIVE_AUDITOR_EXPECTED_LEGS_AFTER_S = _float(
 # Skip RE-ENTER signals (point 2): WR=52% vs 65% baseline → +$328 EV
 STRATEGY_SKIP_REENTER = os.getenv("STRATEGY_SKIP_REENTER", "1") == "1"
 
-# HIGH RISK lot multiplier (point 1):
-#   1.0 = lot completo (avg $+11.75/sig, n=16, alta variance)
-#   0.5 = lot/2 (avg $+5.88/sig, recomendado por sample pequeño) ⭐
-#   0.0 = ignorar señal HIGH RISK
-STRATEGY_HIGH_RISK_LOT_MULT = _float("STRATEGY_HIGH_RISK_LOT_MULT", 0.5)
+# HIGH RISK: se etiqueta para auditoria, pero ya no reduce lotaje.
+# La variable queda solo por compatibilidad con .env antiguos; strategies.py
+# fuerza lot x1.0 para evitar que una VM vieja siga reduciendo sin querer.
+STRATEGY_HIGH_RISK_LOT_MULT = _float("STRATEGY_HIGH_RISK_LOT_MULT", 1.0)
 
 # TIME-STOP defensivo en minutos (point 7): cierra posiciones que llevan
 # >N min sin haber tocado TP/SL → corta perdedoras antes de que se conviertan

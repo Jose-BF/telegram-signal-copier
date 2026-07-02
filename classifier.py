@@ -312,12 +312,23 @@ def _regex_classify_all(text: str) -> list[dict]:
     # 1. SL a precio explícito — verbos extendidos (move/change/adjust/set/put)
     m = re.search(
         r"(?:moving?|move|chang(?:e|ing)|adjust(?:ing)?|set(?:ting)?|put(?:ting)?)"
-        r"\s+(?:my\s+|the\s+|your\s+)?(?:stop.?loss|sl)\s+(?:to|at)\s+([\d.]+)",
+        r"\s+(?:my\s+|the\s+|your\s+)?(?:stop.?loss|sl)"
+        r"(?:\s+\w+){0,3}?\s+(?:to|at)\s+([\d.]+)",
         t,
     )
     if m:
         actions.append({"action": "MOVE_SL_TO_PRICE",
                         "price": float(m.group(1)), "confidence": 1.0})
+
+    if not any(a["action"] == "MOVE_SL_TO_PRICE" for a in actions):
+        m = re.search(
+            r"\bmake\s+(?:my\s+|the\s+|your\s+)?(?:stop.?loss|sl)\s+"
+            r"(\d{3,5}(?:\.\d{1,3})?)\b",
+            t,
+        )
+        if m:
+            actions.append({"action": "MOVE_SL_TO_PRICE",
+                            "price": float(m.group(1)), "confidence": 0.92})
 
     # 1b. Bare "SL 4700" / "SL: 4700" — sin verbo, contexto de gestión
     if not any(a["action"] == "MOVE_SL_TO_PRICE" for a in actions):
@@ -367,15 +378,15 @@ def _regex_classify_all(text: str) -> list[dict]:
     # de 2, manteniendo Pos A en pesimo P&L cuando deberia haber cerrado
     # ambas y dejar DCAs (que aun no habian llenado).
     plural_match = re.search(
-        r"close\s+(?:the\s+|your\s+|my\s+)?"
+        r"clos(?:e|ing)\s+(?:the\s+|your\s+|my\s+)?"
         r"(?:first|early|oldest|initial)\s+"
-        r"(?:entries|positions|ones)\b", t)
+        r"(?:entries|entires|positions|ones)\b", t)
     singular_match = re.search(
-        r"close\s+(?:the\s+|your\s+|my\s+)?"
+        r"clos(?:e|ing)\s+(?:the\s+|your\s+|my\s+)?"
         r"(?:first|early|oldest|initial)\s+"
         r"(?:entry|position)\b", t)
     compound_match = re.search(
-        r"close\s+(?:the\s+|your\s+|my\s+)?"
+        r"clos(?:e|ing)\s+(?:the\s+|your\s+|my\s+)?"
         r"(?:first|early|oldest|initial)\s+and\s+(?:move|adjust|set)", t)
     if plural_match:
         actions.append({"action": "CLOSE_FIRST", "price": None,
@@ -427,10 +438,11 @@ def _regex_classify_all(text: str) -> list[dict]:
     # _finalize_signal por si MT5 tarda en reportar el cierre.
     if not actions:
         info_phrases = [
-            r"tp\s*\d+\s*(?:hit|reached|secured|done)",
+            r"tp\s*\d+\s*(?:hit|reached|secured|done|smashed|tapped|✅)",
             r"\bsl\s+(?:was\s+|already\s+|just\s+|has\s+been\s+)?hit\b",
             r"stop\s+loss\s+(?:was\s+|already\s+|just\s+|has\s+been\s+)?hit",
             r"\bsl\s+(?:reached|triggered|edited)\b",
+            r"\+?\d+\s*(?:/\s*\d+\s*)?pips?\b",
             r"pips?\s+(?:profit|secured|gained|locked)",
             r"pips?\s+from\s+entry",
             r"target.*down", r"running\s+in\s+profit",

@@ -138,17 +138,17 @@ class TestLotMultiplier:
         assert mult == 1.0
         assert reason == ""
 
-    def test_high_risk_uses_config_multiplier(self, monkeypatch):
-        # Default config = 0.5
+    def test_high_risk_uses_full_lot_even_if_config_is_half(self, monkeypatch):
         monkeypatch.setattr(config, "STRATEGY_HIGH_RISK_LOT_MULT", 0.5)
         mult, reason = lot_multiplier_for_signal("HIGH RISK trade incoming")
-        assert mult == 0.5
+        assert mult == 1.0
         assert "HIGH RISK" in reason
 
-    def test_high_risk_zero_means_skip(self, monkeypatch):
+    def test_high_risk_zero_config_no_longer_skips(self, monkeypatch):
         monkeypatch.setattr(config, "STRATEGY_HIGH_RISK_LOT_MULT", 0.0)
         mult, reason = lot_multiplier_for_signal("HIGH RISK")
-        assert mult == 0.0
+        assert mult == 1.0
+        assert "HIGH RISK" in reason
 
     def test_high_risk_full_lot(self, monkeypatch):
         monkeypatch.setattr(config, "STRATEGY_HIGH_RISK_LOT_MULT", 1.0)

@@ -548,6 +548,160 @@ class TestCanal2OrphanEditRecovery:
                    for _, ev, _ in events)
 
     @pytest.mark.asyncio
+    async def test_invalid_initial_sl_opens_with_interpreted_sl(
+            self, monkeypatch):
+        st = StateManager()
+        events = []
+        orders = []
+        parsed_updates = []
+
+        async def fake_run(fn, *args):
+            return fn(*args)
+
+        async def fake_update(sig, parsed, tg_ts=None):
+            parsed_updates.append((parsed, tg_ts))
+
+        async def fake_open_extra_legs(sig, msg_id):
+            return None
+
+        def fake_open_market_with_fill(direction, lot, sl, tp, comment, magic):
+            orders.append({
+                "direction": direction, "lot": lot, "sl": sl,
+                "tp": tp, "comment": comment, "magic": magic,
+            })
+            return (2571001, 4030.7)
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(listener, "_run", fake_run)
+        monkeypatch.setattr(listener, "compute_market_context",
+                            lambda symbol: None)
+        monkeypatch.setattr(listener.executor, "open_market_with_fill",
+                            fake_open_market_with_fill)
+        monkeypatch.setattr(listener.executor, "current_tick_safe",
+                            lambda: {"bid": 4030.6, "ask": 4030.8,
+                                     "spread": 0.2})
+        monkeypatch.setattr(listener, "_open_extra_legs", fake_open_extra_legs)
+        monkeypatch.setattr(listener, "_update_signal_from_parsed",
+                            fake_update)
+        monkeypatch.setattr(listener, "_emit_same_direction_overlap_anomaly",
+                            lambda sig: None)
+        monkeypatch.setattr(listener, "_log_strategy_snapshot",
+                            lambda *args, **kwargs: None)
+        monkeypatch.setattr(listener.logger, "log_signal",
+                            lambda sig, parsed: None)
+        monkeypatch.setattr(listener.journal, "event",
+                            lambda sig, ev, **kw: events.append((sig, ev, kw)))
+        monkeypatch.setattr(listener.journal, "begin_trade",
+                            lambda *args, **kwargs: None)
+        listener._seen_new_msg_ids.clear()
+        listener._seen_new_msgs_order.clear()
+
+        msg = SimpleNamespace(
+            id=2571,
+            text=("XAU USD SELL NOW\n\n4030.5 - 4035.5\n\n"
+                  "TP1 4027.5\nTP2 4025.5\nTP3 4023\n"
+                  "TP4 4021\nTP5 4017\nTP6 4000\nSL 4022"),
+            date=datetime.utcnow(),
+            reply_to=None,
+        )
+
+        await _process_canal2_new(msg)
+
+        assert st.get("canal2", 2571) is not None
+        assert orders == [{
+            "direction": "SELL", "lot": config.LOT_SIZE, "sl": 4039.5,
+            "tp": 4027.5, "comment": "c2_2571",
+            "magic": config.magic_for("canal2"),
+        }]
+        assert any(parsed.get("sl") == 4039.5
+                   for parsed, _ in parsed_updates)
+        assert any(ev == "entry_levels_interpreted"
+                   and kw["corrections"][0]["field"] == "sl"
+                   for _, ev, kw in events)
+
+    @pytest.mark.asyncio
+    async def test_invalid_sl_reply_updates_provisional_levels(
+            self, monkeypatch):
+        st = StateManager()
+        events = []
+        orders = []
+        parsed_updates = []
+
+        async def fake_run(fn, *args):
+            return fn(*args)
+
+        async def fake_update(sig, parsed, tg_ts=None):
+            parsed_updates.append((parsed, tg_ts))
+
+        async def fake_open_extra_legs(sig, msg_id):
+            return None
+
+        def fake_open_market_with_fill(direction, lot, sl, tp, comment, magic):
+            orders.append({
+                "direction": direction, "lot": lot, "sl": sl,
+                "tp": tp, "comment": comment, "magic": magic,
+            })
+            return (2571001, 4030.7)
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(listener, "_run", fake_run)
+        monkeypatch.setattr(listener, "compute_market_context",
+                            lambda symbol: None)
+        monkeypatch.setattr(listener.executor, "open_market_with_fill",
+                            fake_open_market_with_fill)
+        monkeypatch.setattr(listener.executor, "current_tick_safe",
+                            lambda: {"bid": 4030.6, "ask": 4030.8,
+                                     "spread": 0.2})
+        monkeypatch.setattr(listener, "_open_extra_legs", fake_open_extra_legs)
+        monkeypatch.setattr(listener, "_update_signal_from_parsed",
+                            fake_update)
+        monkeypatch.setattr(listener, "_emit_same_direction_overlap_anomaly",
+                            lambda sig: None)
+        monkeypatch.setattr(listener, "_log_strategy_snapshot",
+                            lambda *args, **kwargs: None)
+        monkeypatch.setattr(listener.logger, "log_signal",
+                            lambda sig, parsed: None)
+        monkeypatch.setattr(listener.journal, "event",
+                            lambda sig, ev, **kw: events.append((sig, ev, kw)))
+        monkeypatch.setattr(listener.journal, "begin_trade",
+                            lambda *args, **kwargs: None)
+        listener._seen_new_msg_ids.clear()
+        listener._seen_new_msgs_order.clear()
+
+        msg = SimpleNamespace(
+            id=2571,
+            text=("XAU USD SELL NOW\n\n4030.5 - 4035.5\n\n"
+                  "TP1 4027.5\nTP2 4025.5\nTP3 4023\n"
+                  "TP4 4021\nTP5 4017\nTP6 4000\nSL 4022"),
+            date=datetime.utcnow(),
+            reply_to=None,
+        )
+        await _process_canal2_new(msg)
+
+        assert st.get("canal2", 2571) is not None
+
+        reply = SimpleNamespace(
+            id=2572,
+            text="TP1 4027.5 SL 4038.5",
+            date=datetime.utcnow() + timedelta(seconds=20),
+            reply_to=SimpleNamespace(reply_to_msg_id=2571),
+        )
+        await _process_canal2_new(reply)
+
+        assert st.get("canal2", 2571) is not None
+        assert orders == [{
+            "direction": "SELL", "lot": config.LOT_SIZE, "sl": 4039.5,
+            "tp": 4027.5, "comment": "c2_2571",
+            "magic": config.magic_for("canal2"),
+        }]
+        assert any(parsed.get("sl") == 4039.5 and len(parsed.get("tps", [])) == 6
+                   for parsed, _ in parsed_updates)
+        assert any(parsed.get("sl") == 4038.5 and parsed.get("tps") == [4027.5]
+                   for parsed, _ in parsed_updates)
+        assert any(ev == "entry_levels_interpreted"
+                   for _, ev, _ in events)
+
+    @pytest.mark.asyncio
     async def test_new_signal_marks_open_in_progress_before_first_await(
             self, monkeypatch):
         st = StateManager()
@@ -594,7 +748,8 @@ class TestCanal2OrphanEditRecovery:
 
         msg = SimpleNamespace(
             id=12914,
-            text="XAU USD SELL NOW",
+            text=("XAU USD SELL NOW\n\n4490 - 4495\n\n"
+                  "TP1 4487\nTP2 4485\nTP3 4483\nSL 4499"),
             date=datetime.utcnow(),
             reply_to=None,
         )
@@ -635,6 +790,60 @@ class TestCanal2OrphanEditRecovery:
         assert recovered == []
         assert any(category == "channel_msg" and severity == "warning"
                    for _, category, severity, _, _ in anomalies)
+
+
+class TestGlobalEntryLevelInterpretation:
+    @pytest.mark.asyncio
+    async def test_canal1_sticker_applies_inferred_levels_after_fill(
+            self, monkeypatch):
+        st = StateManager()
+        events = []
+        parsed_updates = []
+
+        async def fake_run(fn, *args):
+            return fn(*args)
+
+        async def fake_update(sig, parsed, tg_ts=None):
+            parsed_updates.append((parsed, tg_ts))
+
+        async def fake_open_extra_legs(sig, msg_id):
+            return None
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(config, "CANAL1_BUY_STICKER_ID", 999)
+        monkeypatch.setattr(listener, "_run", fake_run)
+        monkeypatch.setattr(listener, "compute_market_context",
+                            lambda symbol: None)
+        monkeypatch.setattr(listener.executor, "open_market_with_fill",
+                            lambda *args, **kwargs: (2100001, 4018.7))
+        monkeypatch.setattr(listener.executor, "current_tick_safe",
+                            lambda: {"bid": 4018.5, "ask": 4018.7,
+                                     "spread": 0.2})
+        monkeypatch.setattr(listener, "_open_extra_legs", fake_open_extra_legs)
+        monkeypatch.setattr(listener, "_update_signal_from_parsed",
+                            fake_update)
+        monkeypatch.setattr(listener, "_log_strategy_snapshot",
+                            lambda *args, **kwargs: None)
+        monkeypatch.setattr(listener.journal, "event",
+                            lambda sig, ev, **kw: events.append((sig, ev, kw)))
+        monkeypatch.setattr(listener.journal, "begin_trade",
+                            lambda *args, **kwargs: None)
+
+        msg = SimpleNamespace(
+            id=2100,
+            sticker=SimpleNamespace(id=999),
+            date=datetime.utcnow(),
+            reply_to=None,
+        )
+
+        await _handle_canal1_sticker(msg)
+
+        assert st.get("canal1", 2100) is not None
+        assert any(parsed.get("range") == (4013.7, 4018.7)
+                   and parsed.get("sl") == 4009.7
+                   for parsed, _ in parsed_updates)
+        assert any(ev == "entry_levels_interpreted"
+                   for _, ev, _ in events)
 
 
 class TestStaleEntryGuard:
