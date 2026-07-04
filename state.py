@@ -201,7 +201,14 @@ class Signal:
             tickets.append(self.market_ticket)
         tickets.extend(self.extra_market_tickets)
         tickets.extend(self.dca_tickets)
-        return tickets
+        deduped = []
+        seen = set()
+        for ticket in tickets:
+            if ticket in seen:
+                continue
+            seen.add(ticket)
+            deduped.append(ticket)
+        return deduped
 
     @property
     def magic(self) -> int:

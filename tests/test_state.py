@@ -191,6 +191,25 @@ class TestAllFilledTickets:
                      extra_market_tickets=[200])
         assert sig.all_filled_tickets == [100, 200]
 
+    def test_duplicate_tickets_are_deduplicated_preserving_order(self):
+        """Una adopcion huerfana no debe duplicar PnL ni cierres."""
+        sig = Signal(channel="canal1", message_id=20637, direction="SELL",
+                     market_ticket=1518373761,
+                     extra_market_tickets=[
+                         1518373810,
+                         1518373914,
+                         1518373914,
+                         1518374849,
+                     ],
+                     dca_tickets=[1518374849])
+
+        assert sig.all_filled_tickets == [
+            1518373761,
+            1518373810,
+            1518373914,
+            1518374849,
+        ]
+
     def test_double_market_with_tp_override(self):
         """Market B usa tp_overrides para asignar TP escalonado distinto.
         Aqui validamos que el override funciona como en rescue_market."""

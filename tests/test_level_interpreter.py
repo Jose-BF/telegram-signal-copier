@@ -60,3 +60,37 @@ class TestInterpretEntryLevels:
         assert result["parsed"]["tps"] == [4696.0, 4698.0, 4700.0, 4702.0]
         assert any(c["field"] == "tps" and c["kind"] == "typo_corrected"
                    for c in result["corrections"])
+
+    def test_tp_below_actual_buy_fill_uses_fill_based_fallback(self):
+        parsed = {
+            "direction": "BUY",
+            "range": (4088.0, 4090.0),
+            "tps": [4095.0, 4099.0, 4105.0, 4110.0],
+            "sl": 4070.0,
+        }
+
+        result = interpret_entry_levels(
+            "canal1", "BUY", parsed, reference_price=4095.13)
+
+        assert result["parsed"]["tps"] == [4098.13, 4099.0, 4105.0, 4110.0]
+        assert all(tp > 4095.13 for tp in result["parsed"]["tps"])
+        assert any(c["field"] == "tps" and c["index"] == 0
+                   for c in result["corrections"])
+
+    def test_replaced_buy_tp_keeps_sequence_monotonic(self):
+        parsed = {
+            "direction": "BUY",
+            "range": (4085.0, 4088.0),
+            "tps": [4091.0, 4095.0, 4100.0, 4005.0],
+            "sl": 4070.0,
+        }
+
+        result = interpret_entry_levels(
+            "canal1", "BUY", parsed, reference_price=4089.50)
+
+        tps = result["parsed"]["tps"]
+        assert tps[:3] == [4091.0, 4095.0, 4100.0]
+        assert tps[3] > tps[2]
+        assert all(tp > 4089.50 for tp in tps)
+        assert any(c["field"] == "tps" and c["index"] == 3
+                   for c in result["corrections"])

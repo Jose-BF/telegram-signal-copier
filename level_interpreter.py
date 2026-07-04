@@ -21,6 +21,7 @@ from parser import (
 FALLBACK_RANGE_WIDTH_USD = 5.0
 MAX_PROVIDER_RANGE_WIDTH_USD = 20.0
 MAX_TP_DISTANCE_USD = 80.0
+MIN_REBUILT_TP_STEP_USD = 2.0
 
 
 def _round_price(value: float) -> float:
@@ -66,10 +67,38 @@ def _tp_is_usable(direction: str, entry: float, tp: float) -> bool:
     return tp < entry
 
 
+def _tp_keeps_sequence(direction: str, previous: float | None,
+                       tp: float) -> bool:
+    if previous is None:
+        return True
+    if direction == "BUY":
+        return tp > previous
+    return tp < previous
+
+
 def _fallback_tp(direction: str, entry: float, index: int) -> float:
     offsets = (3, 5, 7, 9, 14, 20)
     off = offsets[index] if index < len(offsets) else offsets[-1] + 5 * (index - len(offsets) + 1)
     return _round_price(entry + off if direction == "BUY" else entry - off)
+
+
+def _sequence_safe_tp(direction: str, entry: float, index: int,
+                      previous: float | None,
+                      predicted_tps: list[float]) -> float:
+    candidates = []
+    if index < len(predicted_tps):
+        candidates.append(_round_price(predicted_tps[index]))
+    candidates.append(_fallback_tp(direction, entry, index))
+
+    for candidate in candidates:
+        if (_tp_is_usable(direction, entry, candidate)
+                and _tp_keeps_sequence(direction, previous, candidate)):
+            return candidate
+
+    anchor = previous if previous is not None else entry
+    if direction == "BUY":
+        return _round_price(anchor + MIN_REBUILT_TP_STEP_USD)
+    return _round_price(anchor - MIN_REBUILT_TP_STEP_USD)
 
 
 def interpret_entry_levels(channel: str, direction: str, parsed: dict,
@@ -150,11 +179,13 @@ def interpret_entry_levels(channel: str, direction: str, parsed: dict,
     if raw_tps and entry is not None:
         for idx, tp in enumerate(raw_tps):
             tp = _round_price(tp)
-            if _tp_is_usable(direction, entry, tp):
+            previous_tp = final_tps[-1] if final_tps else None
+            if (_tp_is_usable(direction, entry, tp)
+                    and _tp_keeps_sequence(direction, previous_tp, tp)):
                 final_tps.append(tp)
             else:
-                fallback = (predicted_tps[idx] if idx < len(predicted_tps)
-                            else _fallback_tp(direction, entry, idx))
+                fallback = _sequence_safe_tp(
+                    direction, entry, idx, previous_tp, predicted_tps)
                 final_tps.append(fallback)
                 corrections.append({
                     "field": "tps",
@@ -165,7 +196,15 @@ def interpret_entry_levels(channel: str, direction: str, parsed: dict,
                     "reason": "tp_inconsistent_with_direction",
                 })
         if len(final_tps) < len(predicted_tps):
-            final_tps.extend(predicted_tps[len(final_tps):])
+            for idx in range(len(final_tps), len(predicted_tps)):
+                previous_tp = final_tps[-1] if final_tps else None
+                candidate = _round_price(predicted_tps[idx])
+                if (_tp_is_usable(direction, entry, candidate)
+                        and _tp_keeps_sequence(direction, previous_tp, candidate)):
+                    final_tps.append(candidate)
+                else:
+                    final_tps.append(_sequence_safe_tp(
+                        direction, entry, idx, previous_tp, predicted_tps))
     elif predicted_tps:
         final_tps = predicted_tps
         corrections.append({
