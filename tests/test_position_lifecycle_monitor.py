@@ -15,7 +15,24 @@ usan los numeros REALES de esas dos operaciones.
 
 import pytest
 
-from position_lifecycle_monitor import _decide_close_tag
+from position_lifecycle_monitor import (
+    _decide_close_tag,
+    _should_emit_periodic_snapshot,
+)
+
+
+def test_periodic_snapshot_sampling_respects_interval():
+    assert _should_emit_periodic_snapshot(
+        now_ts=100.0, last_ts=0.0, interval_s=120.0) is False
+    assert _should_emit_periodic_snapshot(
+        now_ts=120.0, last_ts=0.0, interval_s=120.0) is True
+    assert _should_emit_periodic_snapshot(
+        now_ts=121.0, last_ts=0.0, interval_s=120.0) is True
+
+
+def test_periodic_snapshot_sampling_can_be_disabled_for_tests():
+    assert _should_emit_periodic_snapshot(
+        now_ts=100.0, last_ts=99.9, interval_s=0.0) is True
 
 
 class TestDecideCloseTag:

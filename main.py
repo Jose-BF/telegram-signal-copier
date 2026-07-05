@@ -205,17 +205,23 @@ async def _post_mt5_reconnect_audit(disconnected_duration_s: float | None):
                         exc_type=type(e).__name__)
 
 
-async def _heartbeat(interval_sec: int = 300):
+async def _heartbeat(interval_sec: float | None = None):
     """Escribe un evento 'heartbeat' cada N segundos al journal.
     Si el bot se cae en silencio, el log mostrará exactamente cuándo paró."""
-    await asyncio.sleep(interval_sec)   # primer beat tras arrancar
+    interval = (
+        float(interval_sec)
+        if interval_sec is not None
+        else float(config.BOT_JOURNAL_HEARTBEAT_SEC)
+    )
+    interval = max(1.0, interval)
+    await asyncio.sleep(interval)   # primer beat tras arrancar
     while True:
         from state import state
         open_signals = _count_open_signals_unique(state)
         journal.event("bot", "heartbeat",
                       open_signals=open_signals,
                       utc=datetime.utcnow().isoformat(timespec="seconds"))
-        await asyncio.sleep(interval_sec)
+        await asyncio.sleep(interval)
 
 
 def _write_runtime_heartbeat(path: Path | None = None) -> None:
@@ -640,7 +646,7 @@ async def _telegram_connection_monitor(interval_sec: int = 5):
     last_periodic_beat = datetime.utcnow()
     alerted_disconnect = False
     DISCONNECT_ALERT_THRESHOLD_S = 300   # 5 min — antes era silencio total
-    PERIODIC_BEAT_S = 3600  # cada hora un "sigo en este estado"
+    PERIODIC_BEAT_S = float(config.BOT_CONNECTION_BEAT_SEC)
 
     while True:
         try:
@@ -713,7 +719,7 @@ async def _mt5_connection_monitor(interval_sec: int = 10):
     alerted_disconnect = False
     alerted_trade_disabled = False
     DISCONNECT_ALERT_THRESHOLD_S = 60   # 1 min — MT5 down es más grave
-    PERIODIC_BEAT_S = 3600
+    PERIODIC_BEAT_S = float(config.BOT_CONNECTION_BEAT_SEC)
 
     print(f"[MT5 Monitor] activo. Check cada {interval_sec}s, alerta "
           f"tras {DISCONNECT_ALERT_THRESHOLD_S}s desconectado.")

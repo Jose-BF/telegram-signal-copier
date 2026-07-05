@@ -87,6 +87,27 @@ def test_closed_trade_with_complete_levels_is_replay_ready():
     assert replay["levels"]["effective_sl"] == 4508.0
 
 
+def test_replay_ready_does_not_depend_on_non_causal_telemetry_events():
+    events = [
+        {"ts": "2026-06-03T08:59:58+00:00", "sig": "bot",
+         "ev": "heartbeat", "open_signals": 0},
+        {"ts": "2026-06-03T09:00:00+00:00", "sig": "canal2_13265",
+         "ev": "signal_received", "direction": "SELL", "raw_text": "SELL NOW"},
+        {"ts": "2026-06-03T09:00:01+00:00", "sig": "canal2_13265",
+         "ev": "market_filled", "ticket": 111, "price": 4500.10},
+        {"ts": "2026-06-03T09:01:00+00:00", "sig": "canal2_13265",
+         "ev": "audit_snapshot", "state_tickets": [111]},
+        {"ts": "2026-06-03T09:01:30+00:00", "sig": "canal2_13265",
+         "ev": "floating_pl_snapshot", "pl": 0.4},
+    ]
+
+    replay = build_replay_trades.build_replay_trade(_ledger_row(), events)
+
+    assert replay["replay_ready"] is True
+    assert replay["tickets"][0]["fill_event"]["ev"] == "market_filled"
+    assert replay["gaps"] == []
+
+
 def test_position_id_is_used_as_operational_ticket_for_event_matching():
     position = _closed_position(ticket=999)
     position["position_id"] = 111

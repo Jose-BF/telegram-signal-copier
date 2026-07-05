@@ -55,6 +55,14 @@ def _should_alert_null_tick_streak(streak: int, already_alerted: bool,
     return (streak >= threshold) and (not already_alerted)
 
 
+def _should_emit_periodic_snapshot(now_ts: float, last_ts: float,
+                                   interval_s: float) -> bool:
+    """True when non-causal telemetry may emit another periodic snapshot."""
+    if interval_s <= 0:
+        return True
+    return (now_ts - last_ts) >= interval_s
+
+
 def _signal_still_alive(signal: Signal) -> bool:
     """True si la señal sigue abierta y tiene posiciones que vigilar."""
     return signal.status == "open"
@@ -516,7 +524,7 @@ async def run(signal: Signal, levels: list[float]):
     # — esencial para distinguir "skill win" (low drawdown, clean) de
     # "lucky win" (deep drawdown, recuperó por suerte).
     last_pl_snapshot_ts = 0.0
-    PL_SNAPSHOT_INTERVAL_S = 30.0
+    PL_SNAPSHOT_INTERVAL_S = float(config.POSITION_MONITOR_PL_SNAPSHOT_INTERVAL_S)
 
     # Polling rate del monitor: 10ms (antes era 50ms).
     # XAUUSD genera ticks cada 50-200ms en horas activas. Con 50ms de sleep
@@ -617,7 +625,9 @@ async def run(signal: Signal, levels: list[float]):
                     # Para reconstruir la curva del trade tick-a-tick y
                     # distinguir SKILL vs LUCK. Un win con drawdown profundo
                     # NO es lo mismo que un win clean. Esto lo cuantifica.
-                    if now_ts - last_pl_snapshot_ts >= PL_SNAPSHOT_INTERVAL_S:
+                    if _should_emit_periodic_snapshot(
+                            now_ts, last_pl_snapshot_ts,
+                            PL_SNAPSHOT_INTERVAL_S):
                         last_pl_snapshot_ts = now_ts
                         _j.event(sig_id, "floating_pl_snapshot",
                                  pl=round(summary["pl"], 2),
