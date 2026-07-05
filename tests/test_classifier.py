@@ -606,3 +606,49 @@ class TestClassifyAsync:
         # Sanity check del resultado
         actions, _ = results
         assert actions[0]["action"] == "INFORMATIONAL"
+
+
+class TestGeminiRichContract:
+    def test_parse_gemini_rich_contract_normalizes_actions(self):
+        from classifier import _parse_gemini_json
+
+        raw = """
+        {
+          "message_role": "direct_order",
+          "actions": [
+            {
+              "type": "MOVE_SL_TO_PRICE",
+              "price": 4180.0,
+              "confidence": 0.92,
+              "evidence": "Adjust SL to 4180"
+            }
+          ],
+          "is_conditional": false,
+          "is_optional": false
+        }
+        """
+
+        result = _parse_gemini_json(raw)
+
+        assert len(result) == 1
+        assert result[0]["action"] == "MOVE_SL_TO_PRICE"
+        assert result[0]["price"] == 4180.0
+        assert result[0]["confidence"] == 0.92
+        assert result[0]["message_role"] == "direct_order"
+        assert result[0]["evidence"] == "Adjust SL to 4180"
+
+    def test_parse_gemini_summary_contract_becomes_non_executable_action(self):
+        from classifier import _parse_gemini_json
+
+        raw = """
+        {
+          "message_role": "daily_summary",
+          "actions": [],
+          "summary": {"trades": 3, "wins": 2, "be": 1}
+        }
+        """
+
+        result = _parse_gemini_json(raw)
+
+        assert result[0]["action"] == "DAILY_SUMMARY"
+        assert result[0]["summary"] == {"trades": 3, "wins": 2, "be": 1}

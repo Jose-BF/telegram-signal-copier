@@ -123,6 +123,90 @@ async def test_execute_actions_emits_management_understanding(monkeypatch):
     assert len(executed) == 1
 
 
+@pytest.mark.asyncio
+async def test_execute_actions_firewall_logs_conditional_plan_without_execution(monkeypatch):
+    events = []
+    executed = []
+    monkeypatch.setattr(
+        listener.journal,
+        "event",
+        lambda sig_id, ev, **kw: events.append((sig_id, ev, kw)),
+    )
+    monkeypatch.setattr(listener.journal, "append_mgmt", lambda *a, **kw: None)
+
+    async def fake_execute_one(signal, classification, raw_text=""):
+        executed.append((signal, classification, raw_text))
+
+    monkeypatch.setattr(listener, "_execute_one_action", fake_execute_one)
+    listener._seen_management_actions.clear()
+    sig = Signal(channel="canal1", message_id=20708, direction="BUY")
+
+    await listener._execute_actions(
+        sig,
+        [{
+            "action": "CONDITIONAL_PLAN",
+            "confidence": 0.95,
+            "is_conditional": True,
+            "message_role": "conditional_plan",
+        }],
+        raw_text="If M5 closes below 4325 we close this trade.",
+        tg_ts="2026-07-03T18:40:00",
+    )
+
+    assert executed == []
+    firewall = [row for row in events
+                if row[1] == "interpretation_firewall_decision"][0]
+    assert firewall[2]["action"] == "CONDITIONAL_PLAN"
+    assert firewall[2]["policy"] == "log_only"
+    assert firewall[2]["will_execute"] is False
+    assert firewall[2]["reason"] == "conditional_plan"
+
+
+@pytest.mark.asyncio
+async def test_execute_actions_firewall_notify_review_for_reentry(monkeypatch):
+    events = []
+    executed = []
+    notified = []
+    monkeypatch.setattr(
+        listener.journal,
+        "event",
+        lambda sig_id, ev, **kw: events.append((sig_id, ev, kw)),
+    )
+    monkeypatch.setattr(listener.journal, "append_mgmt", lambda *a, **kw: None)
+
+    async def fake_execute_one(signal, classification, raw_text=""):
+        executed.append((signal, classification, raw_text))
+
+    async def fake_notify_ambiguous(signal, classification, raw_text):
+        notified.append((signal, classification, raw_text))
+
+    monkeypatch.setattr(listener, "_execute_one_action", fake_execute_one)
+    monkeypatch.setattr(listener, "notify_ambiguous_decision", fake_notify_ambiguous)
+    listener._seen_management_actions.clear()
+    sig = Signal(channel="canal1", message_id=20124, direction="SELL")
+
+    await listener._execute_actions(
+        sig,
+        [{
+            "action": "REENTRY_SIGNAL",
+            "confidence": 0.91,
+            "message_role": "direct_order",
+            "evidence": "Reenter now SL to 4336.00",
+        }],
+        raw_text="Reenter now SL to 4336.00",
+        tg_ts="2026-06-08T15:05:06",
+    )
+
+    assert executed == []
+    assert len(notified) == 1
+    firewall = [row for row in events
+                if row[1] == "interpretation_firewall_decision"][0]
+    assert firewall[2]["action"] == "REENTRY_SIGNAL"
+    assert firewall[2]["policy"] == "notify_review"
+    assert firewall[2]["will_execute"] is False
+    assert firewall[2]["requires_review"] is True
+
+
 def test_management_understanding_flags_uncovered_close_fragment(monkeypatch):
     events = []
     monkeypatch.setattr(
@@ -156,4 +240,34 @@ def test_management_understanding_flags_uncovered_close_fragment(monkeypatch):
     assert payload["actions"] == ["MOVE_SL_TO_BE"]
     assert payload["coverage_status"] == "partial"
     assert payload["unhandled_text_fragments"] == ["close for now in profit"]
+    assert payload["requires_review"] is True
+
+
+def test_management_understanding_flags_new_review_intents(monkeypatch):
+    events = []
+    monkeypatch.setattr(
+        listener.journal,
+        "event",
+        lambda sig_id, ev, **kw: events.append((sig_id, ev, kw)),
+    )
+
+    listener._log_telegram_understood(
+        "canal1_20124",
+        channel="canal1",
+        message_id=20127,
+        kind="management",
+        parser="classifier",
+        raw_text="Reenter now SL to 4336.00",
+        classifications=[{
+            "action": "REENTRY_SIGNAL",
+            "confidence": 0.91,
+            "message_role": "direct_order",
+        }],
+        target_signal_id="canal1_20124",
+        is_reply=True,
+        reply_to_msg_id=20124,
+    )
+
+    payload = events[0][2]
+    assert payload["actions"] == ["REENTRY_SIGNAL"]
     assert payload["requires_review"] is True

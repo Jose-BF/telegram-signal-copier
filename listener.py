@@ -29,6 +29,10 @@ import position_lifecycle_monitor
 import pending_actions
 import strategies
 from classifier import classify, classify_async
+from interpretation_firewall import (
+    firewall_decision,
+    normalize_classifier_outputs,
+)
 from level_interpreter import interpret_entry_levels
 from parser import (
     correct_tp_typos,
@@ -157,6 +161,31 @@ def _classification_source(classification: dict) -> str:
     return "gemini"
 
 
+def _classification_requires_review(classification: dict) -> bool:
+    action = classification.get("action")
+    if classification.get("_gemini_failed"):
+        return True
+    if classification.get("requires_review"):
+        return True
+    if classification.get("is_conditional") or classification.get("is_optional"):
+        return True
+    if action in {
+        "REENTRY_SIGNAL",
+        "ENTRY_UPDATE",
+        "SIGNAL_RETRACTED",
+        "AMBIGUOUS",
+        "UNKNOWN",
+        "PROTECT_AND_NOTIFY",
+        "SIGNAL_UPDATED",
+    }:
+        return True
+    return (
+        action not in ("INFORMATIONAL", None)
+        and not classification.get("_reason")
+        and float(classification.get("confidence") or 0.0) < 0.8
+    )
+
+
 def _unhandled_management_fragments(raw_text: str, actions: list[str]) -> list[str]:
     if not raw_text:
         return []
@@ -220,15 +249,10 @@ def _log_telegram_understood(
         if kind == "management" and raw_text:
             unhandled_fragments = _unhandled_management_fragments(raw_text, actions)
             coverage_status = "partial" if unhandled_fragments else "covered"
-        requires_review = any(
-            c.get("_gemini_failed")
-            or (
-                c.get("action") not in ("INFORMATIONAL", None)
-                and not c.get("_reason")
-                and float(c.get("confidence") or 0.0) < 0.8
-            )
-            for c in classifications
-        ) or bool(unhandled_fragments)
+        requires_review = (
+            any(_classification_requires_review(c) for c in classifications)
+            or bool(unhandled_fragments)
+        )
 
         journal.event(
             sig_id,
@@ -2357,6 +2381,7 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
     """
     if isinstance(classifications, dict):
         classifications = [classifications]
+    classifications = normalize_classifier_outputs(classifications)
     if not classifications:
         return
 
@@ -2439,6 +2464,44 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
                             "del canal sin clasificar, requiere revisión "
                             "manual",
                             raw_snippet=raw_text[:120])
+            continue
+
+        firewall = firewall_decision(signal, cl, raw_text=raw_text)
+        journal.event(sig_id, "interpretation_firewall_decision",
+                      action=action_name,
+                      price=cl.get("price"),
+                      confidence=confidence,
+                      policy=firewall.policy,
+                      will_execute=firewall.will_execute,
+                      reason=firewall.reason,
+                      requires_review=firewall.requires_review,
+                      message_role=cl.get("message_role"),
+                      execution_policy=cl.get("execution_policy"),
+                      is_conditional=bool(cl.get("is_conditional")),
+                      is_optional=bool(cl.get("is_optional")),
+                      evidence=cl.get("evidence"),
+                      tg_ts=tg_ts,
+                      raw_snippet=raw_text[:120])
+        if not firewall.will_execute:
+            if firewall.requires_review:
+                try:
+                    await notify_ambiguous_decision(signal, cl, raw_text)
+                except Exception as e:
+                    print(f"[Notify firewall] error: {e}")
+            journal.append_mgmt(
+                sig_id,
+                classified=f"{action_name}_{firewall.policy.upper()}",
+                applied=False,
+            )
+            journal.event(sig_id, "mgmt_msg",
+                          action=action_name, price=cl.get("price"),
+                          confidence=confidence,
+                          will_apply=False,
+                          firewall_policy=firewall.policy,
+                          firewall_reason=firewall.reason,
+                          requires_review=firewall.requires_review,
+                          raw_snippet=raw_text[:120],
+                          tg_ts=tg_ts)
             continue
 
         # ── LOW CONFIDENCE GATE (fix C1) ────────────────────────────────

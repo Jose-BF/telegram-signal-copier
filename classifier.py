@@ -19,6 +19,7 @@ import json
 import time
 from google import genai
 import config
+from interpretation_firewall import normalize_classifier_outputs
 
 _client = genai.Client(api_key=config.GOOGLE_API_KEY)
 
@@ -81,24 +82,30 @@ EXPLICIT ACTIONS:
   "Move SL to 4750" / "adjust stop to 4750" → MOVE_SL_TO_PRICE (price=4750)
   "Close first entry" / "close early entries" → CLOSE_FIRST (high conf)
   "Setup is no longer valid" / "trade invalidated" → CLOSE_ALL (high conf)
+  "Reenter now SL to 4336" → REENTRY_SIGNAL (review; do not invent entries)
 
 CHANGED LEVELS (signal still active but TPs/SL different):
-  "Entries have changed, check them again" → SIGNAL_UPDATED (medium conf)
-  "New entry zones" / "different SL now" → SIGNAL_UPDATED
+  "TP1 was shared wrong. Please change TP1 to 4134" → LEVEL_CORRECTION
+  "TP1 4296.50 SL 4308" as reply to a signal → LEVEL_UPDATE
+  "Entries have changed, check them again" → ENTRY_UPDATE
+  "New entry zones" / "different SL now" → ENTRY_UPDATE
 
 WARNINGS (no direct action, just info):
   "High risk trade 🚨" → HIGH_RISK_WARNING (the bot already labeled at signal start)
-  "Don't add more entries" / "stay out for now" → INFORMATIONAL
+  "Don't add more entries" / "stay out for now" → MARKET_COMMENTARY
     (the bot doesn't add positions on its own; future signals processed normally)
 
-INFORMATIONAL (no action):
-  "TP1 hit" / "+50 pips secured" / "running" → INFORMATIONAL
-  "Gold reacted from our zone" / market commentary → INFORMATIONAL
-  "BE has been hit" / "we played it safe" → INFORMATIONAL
+NON-EXECUTABLE INTENTS (classify precisely; no direct MT5 action):
+  "TP1 hit" / "TP4 smashed" → TP_HIT_ANNOUNCEMENT
+  "SL HIT" / "stop loss hit" → SL_HIT_ANNOUNCEMENT
+  "+50 pips" / "running 90+ pips" → PROGRESS_UPDATE
+  "Out at breakeven" / "B/E" as result/summary → BE_ANNOUNCEMENT
+  Daily/weekly recaps → DAILY_SUMMARY or WEEKLY_SUMMARY
+  Gold reacted from our zone / market commentary → MARKET_COMMENTARY
 
 CONDITIONAL (CRITICAL — never auto-act on conditions):
   Any message with structure "If X then Y" / "Watch X, then we will Y" /
-  "If 15M closes above N, we will close" → CONDITIONAL → INFORMATIONAL.
+  "If 15M closes above N, we will close" → CONDITIONAL_PLAN.
 
   The bot CANNOT watch sub-timeframe candle closes, sub-second price
   triggers, or any other condition that's not a direct order. The trader
@@ -106,7 +113,7 @@ CONDITIONAL (CRITICAL — never auto-act on conditions):
   triggers. UNTIL that follow-up arrives, treat the conditional as
   pure information.
 
-  Examples (all → INFORMATIONAL, conf 0.95):
+  Examples (all → CONDITIONAL_PLAN, conf 0.95):
     "If 15M closes above 4700, we will close this trade"
     "Watch the 15M candle close now"
     "If gold breaks 4700, setup invalid"
@@ -114,7 +121,7 @@ CONDITIONAL (CRITICAL — never auto-act on conditions):
     "If we lose this level we exit"
 
   KEY DISTINCTION:
-    "we will close" + condition (If/Watch/When) → CONDITIONAL → INFORMATIONAL
+    "we will close" + condition (If/Watch/When) → CONDITIONAL_PLAN
     "we are closing" / "closing now" / "close" (imperative) → CLOSE_ALL
 
 CRITICAL EXAMPLE (caso real canal1_19649, sesion 2026-05-13):
@@ -124,8 +131,10 @@ CRITICAL EXAMPLE (caso real canal1_19649, sesion 2026-05-13):
      and wait for a better re-entry."
 
   CORRECT:
-    [{{"action": "INFORMATIONAL", "price": null, "confidence": 0.95,
-      "reasoning": "CONDITIONAL: 'If 15M closes above 4700 then we will close' — wait for follow-up order if condition triggers"}}]
+    {{"message_role": "conditional_plan", "actions": [],
+      "is_conditional": true, "is_optional": false,
+      "requires_review": false,
+      "reasoning": "If 15M closes above 4700 then close; wait for follow-up order"}}
 
   WRONG (lo que el bot regex hizo, perdio -$9.94):
     [{{"action": "CLOSE_ALL", "confidence": 0.90}}]
@@ -135,8 +144,7 @@ CRITICAL EXAMPLE (caso real canal1_19649, sesion 2026-05-13):
 
 ═══ AMBIGUOUS / PROTECTIVE ═══
 "Secure profits if you're satisfied" / "protect your trade" without explicit
-action → PROTECT_AND_NOTIFY (medium conf, the bot will notify user with
-trade context to decide).
+action → OPTIONAL_SUGGESTION or AMBIGUOUS/UNKNOWN (review; no direct MT5 action).
 
 ═══ IMPERATIVE vs OPTIONAL (CRITICAL — read carefully) ═══
 The trader sometimes mixes ORDERS and SUGGESTIONS in the same message.
@@ -184,25 +192,45 @@ risk-averse subscribers; the bot follows the trader's main directive.
 ═══ MESSAGE TO CLASSIFY ═══
 "{msg}"
 
-Return JSON array (max 3 actions). Each:
-{{"action": "X", "price": null_or_number, "confidence": 0.0_to_1.0,
-  "reasoning": "brief why (10-15 words)"}}
+Return ONE JSON object, no markdown. The bot will normalize this contract and
+run every action through a firewall before MT5:
+{{
+  "message_role": "direct_order|conditional_plan|optional_suggestion|daily_summary|weekly_summary|progress_update|market_commentary|media_companion|unknown",
+  "actions": [
+    {{
+      "type": "CLOSE_ALL|CLOSE_FIRST|CLOSE_AT_TP|MOVE_SL_TO_BE|MOVE_SL_TO_PRICE|LEVEL_UPDATE|LEVEL_CORRECTION|ENTRY_UPDATE|REENTRY_SIGNAL|CONDITIONAL_PLAN|OPTIONAL_SUGGESTION|TP_HIT_ANNOUNCEMENT|SL_HIT_ANNOUNCEMENT|BE_ANNOUNCEMENT|PROGRESS_UPDATE|DAILY_SUMMARY|WEEKLY_SUMMARY|MARKET_COMMENTARY|HIGH_RISK_WARNING|UNKNOWN",
+      "price": null_or_number,
+      "confidence": 0.0_to_1.0,
+      "target": "all_open_positions|first_entries|single_position|none",
+      "evidence": "exact words that justify this interpretation"
+    }}
+  ],
+  "is_conditional": true_or_false,
+  "is_optional": true_or_false,
+  "requires_review": true_or_false,
+  "reasoning": "brief why"
+}}
 
-ACTIONS ALLOWED:
-- CLOSE_ALL, CLOSE_FIRST, CLOSE_AT_TP, MOVE_SL_TO_BE, MOVE_SL_TO_PRICE
-- INFORMATIONAL, PROTECT_AND_NOTIFY, SIGNAL_UPDATED, HIGH_RISK_WARNING
+Use precise non-executable intents instead of INFORMATIONAL when possible:
+TP_HIT_ANNOUNCEMENT, SL_HIT_ANNOUNCEMENT, BE_ANNOUNCEMENT, PROGRESS_UPDATE,
+DAILY_SUMMARY, WEEKLY_SUMMARY, MARKET_COMMENTARY, CONDITIONAL_PLAN,
+OPTIONAL_SUGGESTION, REENTRY_SIGNAL.
 
 ═══ CONFIDENCE GUIDELINES ═══
 - Explicit instruction matching trader's typical phrase: 0.85 - 1.0
 - Implied action / context-dependent: 0.5 - 0.8 (will trigger user notify)
-- Pure commentary: INFORMATIONAL with conf 0.9+
-- Unsure: INFORMATIONAL with conf 0.5
+- Pure commentary: MARKET_COMMENTARY with conf 0.9+
+- Unsure: UNKNOWN with conf 0.0 and requires_review=true
 
-CONSERVATIVE BIAS: when in doubt, INFORMATIONAL > acting wrongly.
+CONSERVATIVE BIAS: when in doubt, UNKNOWN or MARKET_COMMENTARY > acting wrongly.
 The bot trusts MT5 for actual TP/SL fills — don't suggest closures on
 "TP hit" messages because MT5 already handles those.
 
-If you cannot parse, return [].
+If you cannot parse, return {{"message_role": "unknown", "actions": [
+  {{"type": "UNKNOWN", "price": null, "confidence": 0.0,
+    "target": "none", "evidence": ""}}
+], "is_conditional": false, "is_optional": false,
+"requires_review": true, "reasoning": "Could not parse confidently"}}.
 """
 
 
@@ -474,9 +502,9 @@ def _parse_gemini_json(raw: str) -> list[dict]:
     raw = raw.strip()
     parsed = json.loads(raw)
     if isinstance(parsed, dict):
-        return [parsed]
+        return normalize_classifier_outputs(parsed)
     if isinstance(parsed, list):
-        return parsed
+        return normalize_classifier_outputs(parsed)
     raise ValueError(f"Gemini devolvió tipo inesperado: {type(parsed).__name__}")
 
 
