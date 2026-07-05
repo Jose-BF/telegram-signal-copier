@@ -45,6 +45,8 @@ REPLAY_STATUS_FILE = REPO_DIR / "data" / "replay_status.json"
 SIMULATION_AUDIT_STATUS_FILE = REPO_DIR / "data" / "simulation_audit_status.json"
 TICK_CACHE_STATUS_FILE = REPO_DIR / "data" / "tick_cache_status.json"
 WEEKLY_REPLAY_READINESS_FILE = REPO_DIR / "data" / "weekly_replay_readiness.json"
+TICK_REPLAY_AUDIT_FILE = REPO_DIR / "data" / "tick_replay_audit.jsonl"
+TICK_REPLAY_STATUS_FILE = REPO_DIR / "data" / "tick_replay_status.json"
 RUNTIME_HEARTBEAT_FILE = Path(os.getenv(
     "BOT_RUNTIME_HEARTBEAT_FILE",
     str(REPO_DIR / "data" / "runtime_heartbeat.json"),
@@ -437,6 +439,36 @@ def _regenerate_weekly_replay_readiness() -> bool:
         return False
 
 
+def _regenerate_tick_replay_audit() -> bool:
+    """Genera auditoria observed tick replay por ticket MT5.
+
+    tick_replay_validator.py devuelve rc=1 cuando hay mismatches o bloqueos.
+    Eso no es crash: esos ficheros son el chivato que necesitamos subir para
+    saber exactamente que ticket no se pudo reproducir contra bid/ask ticks.
+    """
+    try:
+        rec = subprocess.run(
+            [sys.executable, "tick_replay_validator.py", "--quiet"],
+            cwd=REPO_DIR, capture_output=True, text=True, timeout=120,
+        )
+        if rec.returncode == 0:
+            print("[Watch] tick_replay_audit OK.", flush=True)
+            return True
+        if TICK_REPLAY_AUDIT_FILE.exists() and TICK_REPLAY_STATUS_FILE.exists():
+            print("[Watch] tick_replay_audit generado con bloqueos/mismatches.",
+                  flush=True)
+            return True
+        print(f"[Watch] tick_replay_validator.py fallo (rc={rec.returncode}): "
+              f"{(rec.stderr or rec.stdout or '')[:1000]}", flush=True)
+        return False
+    except BaseException as e:
+        print(f"[Watch] error ejecutando tick_replay_validator.py: {e}",
+              flush=True)
+        if isinstance(e, (KeyboardInterrupt, SystemExit)):
+            raise
+        return False
+
+
 def _push_session_data() -> None:
     """Sube data/trade_events.jsonl + ledger + journal a GitHub si hay cambios.
 
@@ -455,6 +487,7 @@ def _push_session_data() -> None:
             if audit_ok:
                 _regenerate_tick_cache_status()
                 _regenerate_weekly_replay_readiness()
+                _regenerate_tick_replay_audit()
     files = [
         "data/trade_events.jsonl",
         "data/ledger.jsonl",
@@ -465,6 +498,8 @@ def _push_session_data() -> None:
         "data/simulation_audit_status.json",
         "data/tick_cache_status.json",
         "data/weekly_replay_readiness.json",
+        "data/tick_replay_audit.jsonl",
+        "data/tick_replay_status.json",
         "data/trade_events_TEST.jsonl",
         "data/trade_journal.csv",
         "data/trade_journal_TEST.csv",

@@ -158,6 +158,33 @@ def test_regenerate_weekly_readiness_accepts_blocked_report(
     assert watch._regenerate_weekly_replay_readiness() is True
 
 
+def test_regenerate_tick_replay_audit_accepts_blocked_report(
+        tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    audit = data_dir / "tick_replay_audit.jsonl"
+    status = data_dir / "tick_replay_status.json"
+
+    monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
+    monkeypatch.setattr(watch, "TICK_REPLAY_AUDIT_FILE", audit)
+    monkeypatch.setattr(watch, "TICK_REPLAY_STATUS_FILE", status)
+
+    def fake_run(*args, **kwargs):
+        assert args[0] == [
+            watch.sys.executable,
+            "tick_replay_validator.py",
+            "--quiet",
+        ]
+        audit.write_text('{"status": "blocked"}\n', encoding="utf-8")
+        status.write_text('{"summary": {"blocked": 1}}\n', encoding="utf-8")
+        return subprocess.CompletedProcess(
+            args=args[0], returncode=1, stdout="", stderr="")
+
+    monkeypatch.setattr(watch.subprocess, "run", fake_run)
+
+    assert watch._regenerate_tick_replay_audit() is True
+
+
 def test_regenerate_ledger_records_keyboard_interrupt_before_reraising(
         tmp_path, monkeypatch):
     monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
@@ -187,6 +214,7 @@ def test_push_session_data_adds_reconcile_status(monkeypatch):
     monkeypatch.setattr(watch, "_regenerate_simulation_audit", lambda: False)
     monkeypatch.setattr(watch, "_regenerate_tick_cache_status", lambda: False)
     monkeypatch.setattr(watch, "_regenerate_weekly_replay_readiness", lambda: False)
+    monkeypatch.setattr(watch, "_regenerate_tick_replay_audit", lambda: False)
 
     def fake_git(*args, capture=True):
         if args[:2] == ("add", "-f"):
@@ -210,6 +238,8 @@ def test_push_session_data_adds_reconcile_status(monkeypatch):
     assert "data/simulation_audit.jsonl" in added
     assert "data/tick_cache_status.json" in added
     assert "data/weekly_replay_readiness.json" in added
+    assert "data/tick_replay_audit.jsonl" in added
+    assert "data/tick_replay_status.json" in added
 
 
 def test_pull_main_ff_uses_explicit_origin_main(monkeypatch):
