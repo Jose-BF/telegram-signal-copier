@@ -42,6 +42,7 @@ REPO_DIR = Path(__file__).resolve().parent.parent
 MAIN_PY  = REPO_DIR / "main.py"
 RECONCILE_STATUS_FILE = REPO_DIR / "data" / "reconcile_status.json"
 REPLAY_STATUS_FILE = REPO_DIR / "data" / "replay_status.json"
+SIMULATION_AUDIT_STATUS_FILE = REPO_DIR / "data" / "simulation_audit_status.json"
 RUNTIME_HEARTBEAT_FILE = Path(os.getenv(
     "BOT_RUNTIME_HEARTBEAT_FILE",
     str(REPO_DIR / "data" / "runtime_heartbeat.json"),
@@ -265,6 +266,18 @@ def _write_replay_status(status: dict) -> None:
               flush=True)
 
 
+def _write_simulation_audit_status(status: dict) -> None:
+    try:
+        SIMULATION_AUDIT_STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        SIMULATION_AUDIT_STATUS_FILE.write_text(
+            json.dumps(status, ensure_ascii=False, indent=2, default=str) + "\n",
+            encoding="utf-8",
+        )
+    except Exception as e:
+        print(f"[Watch] no pude escribir simulation_audit_status.json: {e}",
+              flush=True)
+
+
 def _regenerate_replay_trades() -> bool:
     """Regenera data/replay_trades.jsonl desde ledger + journal.
 
@@ -321,6 +334,58 @@ def _regenerate_replay_trades() -> bool:
     return bool(status["ok"])
 
 
+def _regenerate_simulation_audit() -> bool:
+    """Regenera data/simulation_audit.jsonl desde replay_trades.jsonl."""
+    started = time.time()
+    audit_file = REPO_DIR / "data" / "simulation_audit.jsonl"
+    status = {
+        "ok": False,
+        "started_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "finished_at": None,
+        "duration_s": None,
+        "returncode": None,
+        "stdout": "",
+        "stderr": "",
+        "audit_exists": audit_file.exists(),
+        "audit_size_bytes": audit_file.stat().st_size if audit_file.exists() else 0,
+        "command": [sys.executable, "replay_validator.py", "--quiet"],
+    }
+    try:
+        rec = subprocess.run(
+            [sys.executable, "replay_validator.py", "--quiet"],
+            cwd=REPO_DIR, capture_output=True, text=True, timeout=60,
+        )
+        status.update({
+            "ok": rec.returncode == 0,
+            "returncode": rec.returncode,
+            "stdout": rec.stdout or "",
+            "stderr": rec.stderr or "",
+        })
+        if rec.returncode == 0:
+            print("[Watch] simulation_audit regenerado.", flush=True)
+        else:
+            print(f"[Watch] replay_validator.py fallo (rc={rec.returncode}): "
+                  f"{(rec.stderr or rec.stdout or '')[:1000]}", flush=True)
+    except BaseException as e:
+        status.update({
+            "ok": False,
+            "exception_type": type(e).__name__,
+            "stderr": str(e),
+        })
+        print(f"[Watch] error ejecutando replay_validator.py: {e}", flush=True)
+        if isinstance(e, (KeyboardInterrupt, SystemExit)):
+            raise
+    finally:
+        status["finished_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        status["duration_s"] = round(time.time() - started, 2)
+        status["audit_exists"] = audit_file.exists()
+        status["audit_size_bytes"] = (
+            audit_file.stat().st_size if audit_file.exists() else 0
+        )
+        _write_simulation_audit_status(status)
+    return bool(status["ok"])
+
+
 def _push_session_data() -> None:
     """Sube data/trade_events.jsonl + ledger + journal a GitHub si hay cambios.
 
@@ -333,13 +398,17 @@ def _push_session_data() -> None:
     """
     ledger_ok = _regenerate_ledger()
     if ledger_ok:
-        _regenerate_replay_trades()
+        replay_ok = _regenerate_replay_trades()
+        if replay_ok:
+            _regenerate_simulation_audit()
     files = [
         "data/trade_events.jsonl",
         "data/ledger.jsonl",
         "data/reconcile_status.json",
         "data/replay_trades.jsonl",
         "data/replay_status.json",
+        "data/simulation_audit.jsonl",
+        "data/simulation_audit_status.json",
         "data/trade_events_TEST.jsonl",
         "data/trade_journal.csv",
         "data/trade_journal_TEST.csv",

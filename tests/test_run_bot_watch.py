@@ -82,6 +82,34 @@ def test_regenerate_replay_trades_writes_success_status(tmp_path, monkeypatch):
     assert status["replay_size_bytes"] == replay.stat().st_size
 
 
+def test_regenerate_simulation_audit_writes_success_status(tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    audit = data_dir / "simulation_audit.jsonl"
+
+    monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
+    monkeypatch.setattr(watch, "SIMULATION_AUDIT_STATUS_FILE",
+                        data_dir / "simulation_audit_status.json")
+
+    def fake_run(*args, **kwargs):
+        assert args[0] == [watch.sys.executable, "replay_validator.py", "--quiet"]
+        audit.write_text("{}\n", encoding="utf-8")
+        return subprocess.CompletedProcess(
+            args=args[0], returncode=0, stdout="audit ok", stderr="")
+
+    monkeypatch.setattr(watch.subprocess, "run", fake_run)
+
+    ok = watch._regenerate_simulation_audit()
+
+    assert ok is True
+    status = json.loads(
+        (data_dir / "simulation_audit_status.json").read_text())
+    assert status["ok"] is True
+    assert status["returncode"] == 0
+    assert status["audit_exists"] is True
+    assert status["audit_size_bytes"] == audit.stat().st_size
+
+
 def test_regenerate_ledger_records_keyboard_interrupt_before_reraising(
         tmp_path, monkeypatch):
     monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
@@ -108,6 +136,7 @@ def test_push_session_data_adds_reconcile_status(monkeypatch):
 
     monkeypatch.setattr(watch, "_regenerate_ledger", lambda: False)
     monkeypatch.setattr(watch, "_regenerate_replay_trades", lambda: False)
+    monkeypatch.setattr(watch, "_regenerate_simulation_audit", lambda: False)
 
     def fake_git(*args, capture=True):
         if args[:2] == ("add", "-f"):
@@ -127,6 +156,8 @@ def test_push_session_data_adds_reconcile_status(monkeypatch):
     assert "data/reconcile_status.json" in added
     assert "data/replay_status.json" in added
     assert "data/replay_trades.jsonl" in added
+    assert "data/simulation_audit_status.json" in added
+    assert "data/simulation_audit.jsonl" in added
 
 
 def test_pull_main_ff_uses_explicit_origin_main(monkeypatch):
