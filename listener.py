@@ -946,6 +946,92 @@ async def notify(text: str):
 # un resumen completo del estado del trade + lo que el trader dice + propuesta
 # de Gemini para que decida. Mobile-friendly, todo en pantalla.
 
+
+def _fmt_level(value) -> str:
+    if value is None:
+        return "n/a"
+    try:
+        return f"{float(value):.2f}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _fmt_signed_money(value) -> str:
+    try:
+        return f"{float(value):+.2f}"
+    except (TypeError, ValueError):
+        return "n/a"
+
+
+def _human_channel(channel: str) -> str:
+    mapping = {
+        "canal1": "Canal 1",
+        "canal2": "Canal 2",
+    }
+    return mapping.get(str(channel or "").lower(), str(channel or "Canal ?"))
+
+
+def _human_review_action(action: str) -> str:
+    mapping = {
+        "REENTRY_SIGNAL": "Posible reentrada o cambio de plan",
+        "ENTRY_UPDATE": "Cambio de entrada o niveles",
+        "SIGNAL_UPDATED": "Cambio amplio de la senal",
+        "PROTECT_AND_NOTIFY": "Proteger operacion",
+        "MOVE_SL_TO_BE": "Mover SL a BE",
+        "MOVE_SL_TO_PRICE": "Mover SL a precio",
+        "CLOSE_ALL": "Cerrar todo",
+        "CLOSE_FIRST": "Cerrar primeras posiciones",
+        "UNKNOWN": "Mensaje no claro",
+        "AMBIGUOUS": "Lectura ambigua",
+    }
+    return mapping.get(str(action or "").upper(), str(action or "Revision"))
+
+
+def _compact_trader_message(raw_text: str, limit: int = 160) -> str:
+    text = " ".join((raw_text or "").strip().split())
+    if not text:
+        return "(sin texto)"
+    if len(text) <= limit:
+        return text
+    return text[:limit - 3].rstrip() + "..."
+
+
+def format_review_notification(ctx, classification: dict, raw_text: str) -> str:
+    """Formato corto para decisiones manuales desde MT5."""
+    action = str(classification.get("action") or "UNKNOWN").upper()
+    confidence = classification.get("confidence")
+    try:
+        confidence_str = f"{float(confidence):.2f}"
+    except (TypeError, ValueError):
+        confidence_str = "n/a"
+
+    try:
+        elapsed_str = f"{float(ctx.elapsed_min):.0f} min activa"
+    except (TypeError, ValueError):
+        elapsed_str = "tiempo n/a"
+
+    be_str = "si" if getattr(ctx, "be_armed", False) else "no"
+
+    lines = [
+        "REVISION NECESARIA",
+        f"{_human_channel(ctx.channel)} | {ctx.direction} | {elapsed_str}",
+        (f"Resultado: {_fmt_signed_money(ctx.floating_pnl_total)} | "
+         f"{ctx.n_open}/{ctx.n_initial} abiertas"),
+        (f"Precio: {_fmt_level(ctx.current_price)} | "
+         f"Entrada: {_fmt_level(ctx.entry_price)}"),
+        f"SL: {_fmt_level(ctx.sl)} | BE: {be_str}",
+        "",
+        "Mensaje recibido:",
+        f"\"{_compact_trader_message(raw_text)}\"",
+        "",
+        "Lectura del bot:",
+        f"{_human_review_action(action)} ({action}, conf {confidence_str})",
+        "Estado: No ejecuto automatico.",
+        "Decision manual: revisar en MT5 si procede.",
+    ]
+    return "\n".join(lines)
+
+
 async def notify_ambiguous_decision(signal: "Signal", classification: dict,
                                     raw_text: str):
     """Resumen contextual al usuario cuando hay duda de qué hacer.
@@ -1015,6 +1101,7 @@ async def notify_ambiguous_decision(signal: "Signal", classification: dict,
             f"(Bot NO actuará — decide y ejecuta tú en MT5.\n"
             f"En próxima fase añadiremos respuesta automática)"
         )
+        text = format_review_notification(ctx, classification, raw_text)
         print(f"[Notify Ambig] enviado resumen para {ctx.signal_id} "
               f"action={action} conf={conf:.2f}")
         try:

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 import listener
-from state import Signal
+from state import Signal, TradeContext
 
 
 def test_msg_diag_emits_telegram_raw_event(monkeypatch):
@@ -271,3 +271,89 @@ def test_management_understanding_flags_new_review_intents(monkeypatch):
     payload = events[0][2]
     assert payload["actions"] == ["REENTRY_SIGNAL"]
     assert payload["requires_review"] is True
+
+
+def test_review_notification_format_is_human_first_and_compact():
+    ctx = TradeContext(
+        channel="canal1",
+        signal_id="canal1_20700",
+        direction="SELL",
+        entry_price=4328.5,
+        tps=[4320.0, 4314.0],
+        sl=4336.0,
+        n_initial=4,
+        n_open=2,
+        open_tickets_pnl=[(11, 2.1), (12, 2.1)],
+        floating_pnl_total=4.2,
+        elapsed_min=18.4,
+        current_price=4321.5,
+        be_armed=False,
+    )
+
+    text = listener.format_review_notification(
+        ctx,
+        {
+            "action": "REENTRY_SIGNAL",
+            "confidence": 0.91,
+            "reasoning": "Re-entry instruction needs manual handling.",
+        },
+        "Reenter now SL to 4336.00",
+    )
+
+    first_lines = "\n".join(text.splitlines()[:3])
+    assert "canal1_20700" not in first_lines
+    assert "Canal 1" in first_lines
+    assert "SELL" in first_lines
+    assert "+4.20" in text
+    assert "2/4 abiertas" in text
+    assert "4321.50" in text
+    assert "4336.00" in text
+    assert "Reenter now SL to 4336.00" in text
+    assert "No ejecuto automatico" in text
+    assert "Opciones" not in text
+    assert len(text.splitlines()) <= 14
+
+
+@pytest.mark.asyncio
+async def test_notify_ambiguous_decision_sends_compact_review(monkeypatch):
+    sent = []
+    events = []
+    ctx = TradeContext(
+        channel="canal2",
+        signal_id="canal2_33001",
+        direction="BUY",
+        entry_price=4310.0,
+        tps=[4318.0],
+        sl=4302.0,
+        n_initial=5,
+        n_open=4,
+        open_tickets_pnl=[],
+        floating_pnl_total=-3.5,
+        elapsed_min=7.2,
+        current_price=4308.3,
+        be_armed=True,
+    )
+    sig = Signal(channel="canal2", message_id=33001, direction="BUY")
+    async def fake_notify(text):
+        sent.append(text)
+
+    monkeypatch.setattr(sig, "build_context", lambda: ctx)
+    monkeypatch.setattr(listener, "notify", fake_notify)
+    monkeypatch.setattr(
+        listener.journal,
+        "event",
+        lambda sig_id, ev, **kw: events.append((sig_id, ev, kw)),
+    )
+
+    await listener.notify_ambiguous_decision(
+        sig,
+        {"action": "UNKNOWN", "confidence": 0.0, "reasoning": "unclear"},
+        "Maybe protect here but wait for confirmation",
+    )
+
+    assert len(sent) == 1
+    assert sent[0].startswith("REVISION NECESARIA\nCanal 2 | BUY")
+    assert "canal2_33001" not in "\n".join(sent[0].splitlines()[:3])
+    assert "Opciones" not in sent[0]
+    assert "Decision manual: revisar en MT5 si procede." in sent[0]
+    assert events[0][1] == "ambiguous_decision_notified"
