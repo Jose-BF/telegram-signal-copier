@@ -1,6 +1,6 @@
 import json
 
-import replay_validator
+import accounting_replay_validator
 
 
 def _ticket(ticket=101, pnl=1.25, **overrides):
@@ -46,7 +46,7 @@ def _trade(**overrides):
 
 
 def test_exact_trade_matches_mt5_to_the_cent():
-    audit = replay_validator.validate_trade(_trade())
+    audit = accounting_replay_validator.validate_trade(_trade())
 
     assert audit["sig_id"] == "canal1_20700"
     assert audit["stage"] == "accounting_replay"
@@ -61,7 +61,7 @@ def test_exact_trade_matches_mt5_to_the_cent():
 
 
 def test_missing_signal_closed_is_reconstructed_from_mt5_tickets():
-    audit = replay_validator.validate_trade(
+    audit = accounting_replay_validator.validate_trade(
         _trade(
             pnl_real_mt5=3.00,
             pnl_journal=None,
@@ -84,7 +84,7 @@ def test_missing_signal_closed_is_reconstructed_from_mt5_tickets():
 
 
 def test_mismatch_when_ticket_sum_does_not_match_real_mt5_pnl():
-    audit = replay_validator.validate_trade(
+    audit = accounting_replay_validator.validate_trade(
         _trade(
             pnl_real_mt5=3.01,
             tickets=[_ticket(101, 1.25), _ticket(102, 1.75)],
@@ -99,7 +99,7 @@ def test_mismatch_when_ticket_sum_does_not_match_real_mt5_pnl():
 
 
 def test_missing_ticket_pnl_blocks_responsible_reconstruction():
-    audit = replay_validator.validate_trade(
+    audit = accounting_replay_validator.validate_trade(
         _trade(tickets=[_ticket(101, None)])
     )
 
@@ -111,7 +111,7 @@ def test_missing_ticket_pnl_blocks_responsible_reconstruction():
 
 
 def test_price_based_estimate_is_marked_as_estimated():
-    audit = replay_validator.validate_trade(
+    audit = accounting_replay_validator.validate_trade(
         _trade(
             pnl_real_mt5=1.00,
             tickets=[
@@ -137,7 +137,7 @@ def test_price_based_estimate_is_marked_as_estimated():
 
 def test_cli_writes_one_audit_row_per_input_trade(tmp_path):
     input_path = tmp_path / "replay_trades.jsonl"
-    output_path = tmp_path / "simulation_audit.jsonl"
+    output_path = tmp_path / "accounting_replay_audit.jsonl"
     rows = [
         _trade(sig_id="canal1_20700"),
         _trade(
@@ -154,7 +154,7 @@ def test_cli_writes_one_audit_row_per_input_trade(tmp_path):
         encoding="utf-8",
     )
 
-    exit_code = replay_validator.main([
+    exit_code = accounting_replay_validator.main([
         "--input",
         str(input_path),
         "--output",

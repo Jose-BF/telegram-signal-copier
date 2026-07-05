@@ -4,7 +4,7 @@
 
 **Goal:** Convertir el sistema de logs en uno estructurado — `anomaly()` con categoría/severidad + el ledger como expediente completo por trade — para que la detección de patrones y anomalías sea una línea de pandas.
 
-**Architecture:** Aditivo sobre infra existente. Un solo almacén (`trade_events.jsonl`); `reconcile.py` enriquecido como punto único de consolidación; la `notify()` actual se reusa, no se duplica.
+**Architecture:** Aditivo sobre infra existente. Un solo almacén (`trade_events.jsonl`); `reconcile_mt5_ledger.py` enriquecido como punto único de consolidación; la `notify()` actual se reusa, no se duplica.
 
 **Tech Stack:** Python 3.14, pytest (con `monkeypatch`/`tmp_path` para aislar el journal), `MetaTrader5`. Pandas solo en consumo (analizar el ledger), no en runtime.
 
@@ -21,12 +21,12 @@
 | `listener.py` | MODIFY | migrar 3 puntos (`canal1_text_processed_but_naked`, BE-trailing, `msg_dropped` accionable) a `anomaly()`; emitir `market_context` justo tras `signal_received` en los 3 handlers de entrada |
 | `pending_actions.py` | MODIFY | en `_log_failure`, emitir `anomaly()` con severidad según retcode (`10036`→`info`, estructural→`critical`) |
 | `market_context.py` | CREATE | helper puro `compute_market_context(symbol) -> dict` (ATR M5×14, recent 5m range) — separado para testear con MT5 mocked |
-| `reconcile.py` | MODIFY | extender `reconcile_signal` con helpers de rollup para cada campo nuevo del expediente |
+| `reconcile_mt5_ledger.py` | MODIFY | extender `reconcile_signal` con helpers de rollup para cada campo nuevo del expediente |
 | `tests/test_journal.py` | CREATE | tests de `anomaly()` y `health_verdict()` (con journal aislado en `tmp_path`) |
 | `tests/test_market_context.py` | CREATE | tests del cómputo de market_context (MT5 mocked) |
-| `tests/test_reconcile.py` | EXTEND | tests del enriquecimiento del ledger (anomalies/health/management/timeline/per-leg) |
+| `tests/test_reconcile_mt5_ledger.py` | EXTEND | tests del enriquecimiento del ledger (anomalies/health/management/timeline/per-leg) |
 
-`dca_monitor.py` no se toca (su único punto candidato es el auto-BE, que no es anomalía).
+`position_lifecycle_monitor.py` no se toca (su único punto candidato es el auto-BE, que no es anomalía).
 
 ---
 
@@ -549,12 +549,12 @@ de mercado adverso' en cada trade."
 ## Task 5: Enriquecer el ledger Pt. 1 — anomalies + health + bot_version + entry_quality + market_context
 
 **Files:**
-- Modify: `reconcile.py` (helpers de rollup + extender la fila)
-- Modify: `tests/test_reconcile.py` (tests del enriquecimiento)
+- Modify: `reconcile_mt5_ledger.py` (helpers de rollup + extender la fila)
+- Modify: `tests/test_reconcile_mt5_ledger.py` (tests del enriquecimiento)
 
 **Diseño:** `load_journal_index` ya recoge eventos. Se extiende para que el índice por sig_id capture también: lista de eventos `ev="anomaly"`, el `layered_decision`, el `market_context`. Y un nuevo índice global del `session_started` cuya ventana cubre cada signal_dt. `reconcile_signal` añade los campos al dict de salida.
 
-- [ ] **Paso 5.1 — Tests fallando** — añadir al `tests/test_reconcile.py` un nuevo class:
+- [ ] **Paso 5.1 — Tests fallando** — añadir al `tests/test_reconcile_mt5_ledger.py` un nuevo class:
 
 ```python
 class TestReconcileSignalEnrichedV1:
@@ -613,11 +613,11 @@ class TestReconcileSignalEnrichedV1:
 - [ ] **Paso 5.2 — Correr tests (red)**
 
 ```
-pytest tests/test_reconcile.py::TestReconcileSignalEnrichedV1 -q
+pytest tests/test_reconcile_mt5_ledger.py::TestReconcileSignalEnrichedV1 -q
 ```
 Esperado: KeyError o assert fallido — los campos no existen en la fila.
 
-- [ ] **Paso 5.3 — Implementar en `reconcile.py`**:
+- [ ] **Paso 5.3 — Implementar en `reconcile_mt5_ledger.py`**:
 
 A) En `load_journal_index`, al setear el dict por sig_id, añadir claves vacías:
 ```python
@@ -691,19 +691,19 @@ D) En `reconcile_signal`, añadir al dict de retorno (al final, antes de `"recon
 "bot_version": journal.get("bot_version"),
 ```
 
-E) Import al top de reconcile.py: `from journal import health_verdict`.
+E) Import al top de reconcile_mt5_ledger.py: `from journal import health_verdict`.
 
 - [ ] **Paso 5.4 — Correr tests (green)**
 
 ```
-pytest tests/test_reconcile.py -q
+pytest tests/test_reconcile_mt5_ledger.py -q
 ```
 Esperado: nuevos passed + los anteriores siguen verde.
 
 - [ ] **Paso 5.5 — Regenerar el ledger contra datos reales (smoke real)**
 
 ```
-python reconcile.py 2>&1 | tail -8
+python reconcile_mt5_ledger.py 2>&1 | tail -8
 ```
 Esperado: `>>> Ledger escrito: ... (N trades)` sin errores. Las filas nuevas pueden tener `anomalies: []`, `health: "ok"`, etc. para trades viejos pre-migración — correcto.
 
@@ -711,7 +711,7 @@ Esperado: `>>> Ledger escrito: ... (N trades)` sin errores. Las filas nuevas pue
 
 ```
 git checkout -- data/trade_events.jsonl 2>/dev/null
-git add reconcile.py tests/test_reconcile.py
+git add reconcile_mt5_ledger.py tests/test_reconcile_mt5_ledger.py
 git commit -m "feat(ledger): enriquecimiento Pt.1 — anomalies+health+ctx
 
 Cada fila del ledger gana: anomalies[] (rollup de ev=anomaly por sig),
@@ -727,8 +727,8 @@ Aditivo: campos existentes intactos. Tests + smoke contra journal real."
 ## Task 6: Enriquecer el ledger Pt. 2 — per-leg + management + signal_text + timeline
 
 **Files:**
-- Modify: `reconcile.py`
-- Modify: `tests/test_reconcile.py`
+- Modify: `reconcile_mt5_ledger.py`
+- Modify: `tests/test_reconcile_mt5_ledger.py`
 
 **Diseño:** completar el expediente con los campos restantes.
 
@@ -737,7 +737,7 @@ Aditivo: campos existentes intactos. Tests + smoke contra journal real."
 - **signal_text**: del primer evento `signal_received` (canal2 trae `raw_text`; canal1 stick trae texto vacío y se rellena con `canal1_text_processing.text_preview`).
 - **timeline**: lista filtrada de hitos. Set fijo: `signal_received`, `market_filled`, `range_arrived`, `tp_hit`, `signal_closed`, `naked_signal_detected`, `mt5_action_failed`, `canal1_parser_incomplete`. Sólo `{ts, event}`.
 
-- [ ] **Paso 6.1 — Tests** (añadir al test_reconcile.py):
+- [ ] **Paso 6.1 — Tests** (añadir al test_reconcile_mt5_ledger.py):
 
 ```python
 class TestReconcileSignalEnrichedV2:
@@ -785,11 +785,11 @@ class TestReconcileSignalEnrichedV2:
 - [ ] **Paso 6.2 — Correr tests (red)**
 
 ```
-pytest tests/test_reconcile.py::TestReconcileSignalEnrichedV2 -q
+pytest tests/test_reconcile_mt5_ledger.py::TestReconcileSignalEnrichedV2 -q
 ```
 Esperado: assert/KeyError — campos no existen.
 
-- [ ] **Paso 6.3 — Implementar en `reconcile.py`**
+- [ ] **Paso 6.3 — Implementar en `reconcile_mt5_ledger.py`**
 
 A) `load_journal_index` — añadir al `setdefault`:
 ```python
@@ -840,7 +840,7 @@ D) **per-leg sl_history** — v1 mínima viable: en `load_mt5_positions`, para c
 - [ ] **Paso 6.4 — Correr tests + smoke**
 
 ```
-pytest tests/ -q && python reconcile.py 2>&1 | tail -4
+pytest tests/ -q && python reconcile_mt5_ledger.py 2>&1 | tail -4
 ```
 Esperado: todos green; ledger regenerado sin errores.
 
@@ -863,7 +863,7 @@ print({k: (v if not isinstance(v, list) else f"[{len(v)} items]")
 
 ```
 git checkout -- data/trade_events.jsonl 2>/dev/null
-git add reconcile.py tests/test_reconcile.py
+git add reconcile_mt5_ledger.py tests/test_reconcile_mt5_ledger.py
 git commit -m "feat(ledger): enriquecimiento Pt.2 — management+signal+timeline
 
 Cada fila del ledger gana: signal_text (raw del canal), management[]

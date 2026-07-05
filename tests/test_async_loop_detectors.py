@@ -2,7 +2,7 @@
 test_async_loop_detectors.py — Helpers PUROS de Batch E.
 
 Batch E cubre fallos silenciosos de los async loops (pending_actions y
-dca_monitor) — sitios donde el bot puede quedar girando indefinidamente
+position_lifecycle_monitor) — sitios donde el bot puede quedar girando indefinidamente
 sin ejecutar nada y sin alerta:
 
   - Null-tick streak: si mt5.symbol_info_tick devuelve None repetidamente
@@ -17,7 +17,9 @@ sin ejecutar nada y sin alerta:
 import pytest
 
 from pending_actions import _should_alert_null_tick_streak
-from dca_monitor import _should_alert_null_tick_streak as _dca_should_alert
+from position_lifecycle_monitor import (
+    _should_alert_null_tick_streak as _position_monitor_should_alert,
+)
 
 
 class TestPendingActionsNullTickStreak:
@@ -42,20 +44,20 @@ class TestPendingActionsNullTickStreak:
             streak=300, already_alerted=False, threshold=300) is True
 
 
-class TestDcaMonitorNullTickStreak:
-    """Mismo patron — el helper en dca_monitor es identico (extraido
+class TestPositionLifecycleMonitorNullTickStreak:
+    """Mismo patron — el helper en position_lifecycle_monitor es identico (extraido
     compartido). Tests aqui para confirmar."""
 
     def test_streak_bajo_no_alerta(self):
-        assert _dca_should_alert(
+        assert _position_monitor_should_alert(
             streak=10, already_alerted=False, threshold=100) is False
 
     def test_streak_alto_no_alertado(self):
-        assert _dca_should_alert(
+        assert _position_monitor_should_alert(
             streak=150, already_alerted=False, threshold=100) is True
 
     def test_ya_alertado_no_re_alerta(self):
-        assert _dca_should_alert(
+        assert _position_monitor_should_alert(
             streak=200, already_alerted=True, threshold=100) is False
 
 

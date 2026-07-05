@@ -311,7 +311,7 @@ STRATEGY_RANGE_TOLERANCE_USD = _float("STRATEGY_RANGE_TOLERANCE_USD", 1.0)
 STRATEGY_DCA_MIN_SEPARATION_USD = _float("STRATEGY_DCA_MIN_SEPARATION_USD", 0.25)
 STRATEGY_DCA_MIN_SEPARATION_PCT = _float("STRATEGY_DCA_MIN_SEPARATION_PCT", 0.05)
 
-# Timeout (segundos) del defer anti-TP-duplicado en dca_monitor. Cuando un
+# Timeout (segundos) del defer anti-TP-duplicado en position_lifecycle_monitor. Cuando un
 # nivel DCA se toca pero aun no hay TP escalonado para esa posicion (el canal
 # manda TPs en oleadas), el monitor DIFIERE la apertura esperando mas TPs.
 # Si tras este timeout no llegan, abre IGUAL con el ultimo TP disponible

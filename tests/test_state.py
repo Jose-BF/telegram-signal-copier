@@ -233,12 +233,12 @@ class TestAllFilledTickets:
     def test_double_market_dca_skip_b_slot_idx(self):
         """Logica del calculo de override para DCAs cuando hay doble market.
 
-        Replica `dca_monitor` (lineas que asignan tp_override_idx):
+        Replica `position_lifecycle_monitor` (lineas que asignan tp_override_idx):
         Sin doble market: DCA[0]=tps[1]=TP2, DCA[1]=tps[2]=TP3.
         Con doble market (B en TP3=idx2): DCA[0]=tps[1]=TP2, DCA[1]=tps[3]=TP4
         (saltamos el slot de B para evitar duplicado).
         """
-        # Replica de la logica de dca_monitor _compute_tp_idx (inline):
+        # Replica de la logica de position_lifecycle_monitor _compute_tp_idx (inline):
         def compute_dca_override(tps, position_index, b_idx, has_double_market):
             if not has_double_market or not tps:
                 return None

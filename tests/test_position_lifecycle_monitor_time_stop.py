@@ -2,7 +2,7 @@
 Regresiones del time-stop notify-only.
 
 El time-stop actual NO debe cerrar automaticamente; solo notifica y deja
-evidencia estructurada para analisis posterior en reconcile.py.
+evidencia estructurada para analisis posterior en reconcile_mt5_ledger.py.
 """
 
 import sys
@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 
-import dca_monitor
+import position_lifecycle_monitor
 from state import Signal
 
 
@@ -28,7 +28,7 @@ async def test_notify_time_stop_emits_outcome_anomaly_without_closing(
     monkeypatch.setitem(sys.modules, "listener",
                         SimpleNamespace(notify=fake_notify))
     monkeypatch.setattr(
-        dca_monitor, "_floating_pl_summary",
+        position_lifecycle_monitor, "_floating_pl_summary",
         lambda _sig: {
             "pl": -41.9,
             "n_open": 4,
@@ -36,9 +36,9 @@ async def test_notify_time_stop_emits_outcome_anomaly_without_closing(
             "current_price": 4529.25,
             "avg_entry": 4538.4,
         })
-    monkeypatch.setattr(dca_monitor, "_next_tp_for_signal",
+    monkeypatch.setattr(position_lifecycle_monitor, "_next_tp_for_signal",
                         lambda _sig: 4548.0)
-    monkeypatch.setattr(dca_monitor, "_build_time_stop_recommendation",
+    monkeypatch.setattr(position_lifecycle_monitor, "_build_time_stop_recommendation",
                         lambda *_args: "mark for analysis")
 
     import journal
@@ -55,7 +55,7 @@ async def test_notify_time_stop_emits_outcome_anomaly_without_closing(
     sig = Signal(channel="canal1", message_id=19822, direction="BUY")
     sig.time_stop_at = datetime.utcnow()
 
-    await dca_monitor._notify_time_stop(sig, elapsed_min=60.0)
+    await position_lifecycle_monitor._notify_time_stop(sig, elapsed_min=60.0)
 
     assert sig.status == "open"
     assert sig.time_stop_at is None

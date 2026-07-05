@@ -117,7 +117,7 @@ evento descriptivo original por compatibilidad de logs históricos):
 
 ### Capa 2 — El ledger como expediente completo por trade
 
-`reconcile.py` se extiende para que cada fila del ledger lleve todo lo
+`reconcile_mt5_ledger.py` se extiende para que cada fila del ledger lleve todo lo
 necesario para diagnosticar el trade sin reconstruir nada externo.
 
 #### Esquema de la fila del ledger (campos nuevos en negrita conceptual)
@@ -252,9 +252,9 @@ def health_verdict(anomalies: list[dict]) -> str:
     return "ok"
 ```
 
-#### Cómo se construye cada campo nuevo en `reconcile.py`
+#### Cómo se construye cada campo nuevo en `reconcile_mt5_ledger.py`
 
-`reconcile.py` ya itera por `signal_id` y junta journal+MT5. Se extiende:
+`reconcile_mt5_ledger.py` ya itera por `signal_id` y junta journal+MT5. Se extiende:
 
 1. `anomalies[]` ← eventos `ev="anomaly"` del journal filtrados por sig.
 2. `management[]` ← eventos `mgmt_msg` del journal cross-ref con eventos
@@ -276,7 +276,7 @@ Bot: anomaly() ─┬→ trade_events.jsonl (ev="anomaly", esquema fijo)
                 └→ notify() si severity=critical → notify_sent (con sev+cat)
 Bot: event(otros) ──→ trade_events.jsonl
 MT5: history_deals_get ─┐
-                        ├──→ reconcile.py ──→ ledger.jsonl (case file por trade)
+                        ├──→ reconcile_mt5_ledger.py ──→ ledger.jsonl (case file por trade)
 trade_events.jsonl ─────┘
 ```
 
@@ -286,7 +286,7 @@ trade_events.jsonl ─────┘
   a stderr, continúa.
 - Cómputo de `market_context`: si MT5 está desconectado o falla la query
   → captura excepción, `market_context: null`. No bloquea la apertura.
-- `reconcile.py` enriquecido: cada nuevo cross-reference es defensivo
+- `reconcile_mt5_ledger.py` enriquecido: cada nuevo cross-reference es defensivo
   (try/except por sección). Una sección que falla no rompe la fila —
   solo la deja con `null` o `[]` en ese campo.
 
@@ -318,7 +318,7 @@ trade_events.jsonl ─────┘
 - **Compatibilidad:** los campos existentes del ledger se mantienen
   (incluido `flags`). Los nuevos campos se añaden — consumidores
   existentes (tests, scripts) no se rompen.
-- **Idempotencia:** `reconcile.py` regenera el ledger entero — el
+- **Idempotencia:** `reconcile_mt5_ledger.py` regenera el ledger entero — el
   enriquecimiento hereda esa propiedad.
 - **Rendimiento:** `market_context` añade ~5-10ms por `signal_received`
   (1 llamada extra a MT5) — aceptable.

@@ -25,7 +25,7 @@ if sys.platform == "win32":
 from mt5_tick_simulator import (
     MT5Session, Strategy, simulate, SYMBOL, LOT, DATA_DIR
 )
-from tick_cache import TickCache
+from mt5_tick_cache import TickCache
 from mt5_tick_analysis import load_signals
 
 PARQUET_C1 = DATA_DIR / "canal1_signals_2026.parquet"

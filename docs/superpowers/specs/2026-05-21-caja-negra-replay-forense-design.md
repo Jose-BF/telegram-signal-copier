@@ -10,7 +10,7 @@ Completar la observabilidad del bot sin cambiar ninguna decision de trading.
 La meta es que cada operacion pueda reconstruirse desde tres fuentes:
 
 - `data/trade_events.jsonl`: decisiones y acciones del bot, en orden.
-- Historial MT5 via `reconcile.py`: fills, cierres y P&L real.
+- Historial MT5 via `reconcile_mt5_ledger.py`: fills, cierres y P&L real.
 - Ticks MT5 via `copy_ticks_range`: replay de precio bid/ask entre entrada y cierre.
 
 El resultado debe permitir responder, trade por trade, por que se gano o se
@@ -26,7 +26,7 @@ pasado con reglas alternativas.
 
 ## Diagnostico
 
-`reconcile.py` ya es la base correcta: cruza journal con historial MT5 y genera
+`reconcile_mt5_ledger.py` ya es la base correcta: cruza journal con historial MT5 y genera
 `data/ledger.jsonl`. El problema es que el ledger todavia no contiene toda la
 cadena causal:
 
@@ -76,7 +76,7 @@ memoria humana.
 
 ### 3. Historial SL/TP en ledger
 
-`reconcile.py` debe consumir los eventos MT5 nuevos y rellenar por posicion:
+`reconcile_mt5_ledger.py` debe consumir los eventos MT5 nuevos y rellenar por posicion:
 
 ```json
 "sl_history": [

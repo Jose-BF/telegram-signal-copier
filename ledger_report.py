@@ -1,7 +1,7 @@
 """
 ledger_report.py — Métricas sobre el ledger reconciliado.
 
-Lee `data/ledger.jsonl` (generado por reconcile.py) y produce el informe
+Lee `data/ledger.jsonl` (generado por reconcile_mt5_ledger.py) y produce el informe
 que antes requeria una auditoria manual de 2 horas:
 
   • P&L real por dia / canal / direccion (verificado contra MT5)
@@ -37,7 +37,7 @@ def parse_ledger_text(text: str) -> list:
 
 def load_ledger(path: Path) -> list:
     if not path.exists():
-        print(f"ERROR: no existe {path}. Ejecuta primero: python reconcile.py")
+        print(f"ERROR: no existe {path}. Ejecuta primero: python reconcile_mt5_ledger.py")
         sys.exit(1)
     return parse_ledger_text(path.read_text(encoding="utf-8"))
 

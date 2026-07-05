@@ -18,7 +18,7 @@ from typing import Iterable
 
 DATA_DIR = Path(__file__).parent / "data"
 DEFAULT_REPLAY_FILE = DATA_DIR / "replay_trades.jsonl"
-DEFAULT_AUDIT_FILE = DATA_DIR / "simulation_audit.jsonl"
+DEFAULT_AUDIT_FILE = DATA_DIR / "accounting_replay_audit.jsonl"
 SCHEMA_VERSION = 1
 CENT = Decimal("0.01")
 

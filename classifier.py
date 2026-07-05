@@ -433,7 +433,7 @@ def _regex_classify_all(text: str) -> list[dict]:
     # 8. INFORMATIONAL — solo si no detectamos NINGUNA acción real arriba.
     # Las variantes de SL hit ("already", "just", "was", "has been") las
     # dejamos como info: el bot detecta el cierre real vía MT5 auto-finalize
-    # del dca_monitor (cuando n_open=0). Defensa en profundidad: además
+    # del position_lifecycle_monitor (cuando n_open=0). Defensa en profundidad: además
     # _SL_HIT_RE del listener detecta estas mismas variantes y dispara
     # _finalize_signal por si MT5 tarda en reportar el cierre.
     if not actions:

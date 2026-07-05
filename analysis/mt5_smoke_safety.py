@@ -15,7 +15,7 @@ if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8")
 
 from mt5_tick_simulator import MT5Session, Strategy, simulate, SYMBOL, LOT, DATA_DIR
-from tick_cache import TickCache
+from mt5_tick_cache import TickCache
 
 
 def main():

@@ -12,7 +12,7 @@ from pathlib import Path
 REPO_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_INPUT = REPO_DIR / "data" / "replay_trades.jsonl"
 DEFAULT_CACHE_DIR = REPO_DIR / "data" / "ticks_cache"
-DEFAULT_STATUS = REPO_DIR / "data" / "tick_cache_status.json"
+DEFAULT_STATUS = REPO_DIR / "data" / "replay_tick_cache_status.json"
 
 
 def _parse_dt(value: str | None) -> datetime | None:
@@ -173,7 +173,7 @@ def ensure_missing_days(
     symbol: str,
     verbose: bool,
 ) -> dict:
-    from tick_cache import TickCache
+    from mt5_tick_cache import TickCache
 
     source = MT5TickSource(symbol)
     try:

@@ -1,5 +1,5 @@
 """
-test_reconcile.py — Suite de regresion para reconcile.py.
+test_reconcile_mt5_ledger.py — Suite de regresion para reconcile_mt5_ledger.py.
 
 Cubre las funciones puras del reconciliador:
   - parse_sig_role: del comment de un deal MT5 → (sig_id, role)
@@ -10,7 +10,7 @@ Y el sync-wait contra la race del historial MT5:
   - _fetch_deals_synced: reintenta history_deals_get hasta que el
     terminal MT5 termina de sincronizar (mocks de mt5 + time.sleep).
 
-reconcile.py es la fuente de verdad del sistema de logs — su correccion
+reconcile_mt5_ledger.py es la fuente de verdad del sistema de logs — su correccion
 es critica. Estos tests usan casos REALES de comments MT5.
 """
 
@@ -19,8 +19,8 @@ from types import SimpleNamespace
 
 import pytest
 
-import reconcile
-from reconcile import (
+import reconcile_mt5_ledger
+from reconcile_mt5_ledger import (
     parse_sig_role,
     close_reason_from_comment,
     reconcile_signal,
@@ -310,8 +310,8 @@ class TestFetchDealsSynced:
             calls.append(i)
             return snapshots[i]
 
-        monkeypatch.setattr(reconcile.mt5, "history_deals_get", fake_get)
-        monkeypatch.setattr(reconcile.time, "sleep", lambda *_a: None)
+        monkeypatch.setattr(reconcile_mt5_ledger.mt5, "history_deals_get", fake_get)
+        monkeypatch.setattr(reconcile_mt5_ledger.time, "sleep", lambda *_a: None)
         return calls
 
     def test_race_espera_y_devuelve_el_set_completo(self, monkeypatch):
@@ -326,7 +326,7 @@ class TestFetchDealsSynced:
             (old, today),                # call 2: aparece, pero conteo crecio
             (old, today),                # call 3: conteo estable → se acepta
         ])
-        result = reconcile._fetch_deals_synced(
+        result = reconcile_mt5_ledger._fetch_deals_synced(
             None, None, {"canal1_99999"}, quiet=True)
         assert len(result) == 2          # set COMPLETO, no el parcial de 1
         assert {parse_sig_role(d.comment)[0] for d in result} == {
@@ -338,7 +338,7 @@ class TestFetchDealsSynced:
         confirmacion (oraculo cumplido + conteo estable)."""
         full = (_deal("c1_11111"), _deal("c2_22222"))
         calls = self._patch(monkeypatch, [full, full])
-        result = reconcile._fetch_deals_synced(
+        result = reconcile_mt5_ledger._fetch_deals_synced(
             None, None, {"canal2_22222"}, quiet=True)
         assert len(result) == 2
         assert len(calls) == 2           # 1 inicial + 1 confirmacion
@@ -348,7 +348,7 @@ class TestFetchDealsSynced:
         criterio de corte es que el conteo de deals deje de crecer."""
         deals = (_deal("c1_11111"),)
         calls = self._patch(monkeypatch, [deals, deals])
-        result = reconcile._fetch_deals_synced(None, None, None, quiet=True)
+        result = reconcile_mt5_ledger._fetch_deals_synced(None, None, None, quiet=True)
         assert len(result) == 1
         assert len(calls) == 2
 
@@ -358,7 +358,7 @@ class TestFetchDealsSynced:
         sin excepcion ni bucle infinito."""
         partial = (_deal("c1_11111"),)   # canal1_99999 no aparece JAMAS
         calls = self._patch(monkeypatch, [partial])
-        result = reconcile._fetch_deals_synced(
+        result = reconcile_mt5_ledger._fetch_deals_synced(
             None, None, {"canal1_99999"}, quiet=True)
         assert len(result) == 1          # devuelve lo que hay, no se cuelga
         assert len(calls) >= 12          # agoto los reintentos
@@ -405,12 +405,12 @@ class TestLoadMt5PositionsDealDetail:
             comment="[tp 4180.00]",
         )
         monkeypatch.setattr(
-            reconcile,
+            reconcile_mt5_ledger,
             "_fetch_deals_synced",
             lambda *_args, **_kwargs: [open_deal, close_deal],
         )
 
-        positions = reconcile.load_mt5_positions(
+        positions = reconcile_mt5_ledger.load_mt5_positions(
             None, None, {"canal1_20700"}, quiet=True)
 
         pos = positions["canal1_20700"][0]
@@ -432,7 +432,7 @@ class TestLoadMt5PositionsDealDetail:
 class TestReconcileSignalEnrichedV1:
     """Rollup de anomalies+health+entry_quality+market_context+bot_version
     en cada fila del ledger. El journal dict ya viene enriquecido por
-    load_journal_index (cubierto por integración al correr reconcile.py)."""
+    load_journal_index (cubierto por integración al correr reconcile_mt5_ledger.py)."""
 
     def _base_journal(self, **overrides):
         base = {
@@ -716,7 +716,7 @@ class TestLoadJournalForensicEvents:
         path.write_text("\n".join(json.dumps(r) for r in rows),
                         encoding="utf-8")
 
-        idx = reconcile.load_journal_index(path)
+        idx = reconcile_mt5_ledger.load_journal_index(path)
         row = idx["canal2_12747"]
         hist = row["ticket_level_history"]["111"]
 
@@ -746,7 +746,7 @@ class TestLoadJournalForensicEvents:
         path.write_text("\n".join(json.dumps(r) for r in rows),
                         encoding="utf-8")
 
-        idx = reconcile.load_journal_index(path)
+        idx = reconcile_mt5_ledger.load_journal_index(path)
         hist = idx["canal2_12747"]["ticket_level_history"]["111"]
 
         assert hist["sl_history"][0]["status"] == "requested"

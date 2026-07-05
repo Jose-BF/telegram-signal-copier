@@ -229,7 +229,7 @@ class TestRuntimeTradeMonitor:
 
         started = []
         monkeypatch.setattr(
-            listener.dca_monitor,
+            listener.position_lifecycle_monitor,
             "start",
             lambda signal, levels: started.append((signal, levels)),
         )
@@ -253,7 +253,7 @@ class TestRuntimeTradeMonitor:
         sig.range_high = 4799.0
 
         monkeypatch.setattr(
-            listener.dca_monitor,
+            listener.position_lifecycle_monitor,
             "start",
             lambda signal, levels: pytest.fail("monitor should be skipped"),
         )

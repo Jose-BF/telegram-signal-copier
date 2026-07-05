@@ -23,5 +23,5 @@ live configuration path while preserving the current `scale_out` behavior.
 ## Verification
 
 - `python -m pytest -q tests/test_config_runtime.py`
-- `python -m pytest -q tests/test_config_runtime.py tests/test_listener_helpers.py tests/test_state.py tests/test_dca_monitor.py tests/test_dca_monitor_time_stop.py tests/test_pending_actions.py tests/test_reconcile.py`
+- `python -m pytest -q tests/test_config_runtime.py tests/test_listener_helpers.py tests/test_state.py tests/test_position_lifecycle_monitor.py tests/test_position_lifecycle_monitor_time_stop.py tests/test_pending_actions.py tests/test_reconcile_mt5_ledger.py`
 - `python -m pytest -q`

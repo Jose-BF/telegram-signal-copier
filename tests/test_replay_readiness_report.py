@@ -1,6 +1,6 @@
 import json
 
-import weekly_replay_readiness
+import replay_readiness_report
 
 
 def _ticket(ticket=101):
@@ -57,7 +57,7 @@ def test_trade_is_ready_when_core_replay_inputs_exist(tmp_path):
     cache_dir.mkdir()
     (cache_dir / "2026-07-06.parquet").write_bytes(b"ticks")
 
-    row = weekly_replay_readiness.assess_trade(
+    row = replay_readiness_report.assess_trade(
         _trade(), _audit(), cache_dir=cache_dir, pad_minutes=0)
 
     assert row["ready"] is True
@@ -67,7 +67,7 @@ def test_trade_is_ready_when_core_replay_inputs_exist(tmp_path):
 
 
 def test_missing_tick_cache_blocks_full_replay(tmp_path):
-    row = weekly_replay_readiness.assess_trade(
+    row = replay_readiness_report.assess_trade(
         _trade(), _audit(), cache_dir=tmp_path / "ticks_cache", pad_minutes=0)
 
     assert row["ready"] is False
@@ -82,7 +82,7 @@ def test_missing_deal_detail_blocks_full_replay(tmp_path):
     ticket = _ticket()
     ticket.pop("open_deal")
 
-    row = weekly_replay_readiness.assess_trade(
+    row = replay_readiness_report.assess_trade(
         _trade(tickets=[ticket]), _audit(), cache_dir=cache_dir, pad_minutes=0)
 
     assert row["ready"] is False
@@ -91,15 +91,15 @@ def test_missing_deal_detail_blocks_full_replay(tmp_path):
 
 def test_cli_writes_weekly_readiness_report(tmp_path):
     replay_path = tmp_path / "replay_trades.jsonl"
-    audit_path = tmp_path / "simulation_audit.jsonl"
-    output_path = tmp_path / "weekly_replay_readiness.json"
+    audit_path = tmp_path / "accounting_replay_audit.jsonl"
+    output_path = tmp_path / "replay_readiness_report.json"
     cache_dir = tmp_path / "ticks_cache"
     cache_dir.mkdir()
     (cache_dir / "2026-07-06.parquet").write_bytes(b"ticks")
     replay_path.write_text(json.dumps(_trade()) + "\n", encoding="utf-8")
     audit_path.write_text(json.dumps(_audit()) + "\n", encoding="utf-8")
 
-    exit_code = weekly_replay_readiness.main([
+    exit_code = replay_readiness_report.main([
         "--replay",
         str(replay_path),
         "--audit",

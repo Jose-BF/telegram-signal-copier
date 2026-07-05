@@ -60,7 +60,7 @@ Input:
 
 Output propuesto:
 
-- `data/simulation_audit.jsonl`
+- `data/accounting_replay_audit.jsonl`
 
 Cada fila debe incluir:
 
@@ -172,7 +172,7 @@ Investigacion del 2026-07-04 sobre `origin/main`:
 ## Cambios de modelo necesarios
 
 1. Introducir `exact_replay_ready`, separado de `simulation_ready`.
-2. Crear `simulation_audit.jsonl` como artefacto de auditoria.
+2. Crear `accounting_replay_audit.jsonl` como artefacto de auditoria.
 3. Extender el ledger con componentes de deal cuando sea posible:
    `profit`, `swap`, `commission`, `fee`, `time_msc`.
 4. Intentar replay para todos los trades, incluso si faltan ticks o eventos.
@@ -193,7 +193,7 @@ Investigacion del 2026-07-04 sobre `origin/main`:
 La primera version del Replay Validator debe:
 
 - leer `data/replay_trades.jsonl`,
-- producir `data/simulation_audit.jsonl`,
+- producir `data/accounting_replay_audit.jsonl`,
 - calcular replay contable por posicion,
 - comparar contra `pnl_real_mt5`,
 - exigir `diff == 0.00` para estado `exact`,

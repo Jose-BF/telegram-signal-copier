@@ -1,7 +1,7 @@
 import json
 from datetime import date
 
-from tools import cache_replay_ticks
+from tools import ensure_replay_tick_cache
 
 
 def _trade(sig_id, open_dt, close_dt):
@@ -26,7 +26,7 @@ def test_required_dates_include_padded_trade_windows():
         ),
     ]
 
-    days = cache_replay_ticks.required_dates(trades, pad_minutes=2)
+    days = ensure_replay_tick_cache.required_dates(trades, pad_minutes=2)
 
     assert days == [
         date(2026, 7, 6),
@@ -40,7 +40,7 @@ def test_cache_status_marks_missing_and_cached_days(tmp_path):
     cache_dir.mkdir()
     (cache_dir / "2026-07-06.parquet").write_bytes(b"cached")
 
-    status = cache_replay_ticks.build_status(
+    status = ensure_replay_tick_cache.build_status(
         [_trade("canal1_1", "2026-07-06T10:00:00+00:00",
                 "2026-07-07T10:00:00+00:00")],
         cache_dir=cache_dir,
@@ -55,7 +55,7 @@ def test_cache_status_marks_missing_and_cached_days(tmp_path):
 
 def test_dry_run_cli_writes_tick_cache_status(tmp_path):
     replay_path = tmp_path / "replay_trades.jsonl"
-    status_path = tmp_path / "tick_cache_status.json"
+    status_path = tmp_path / "replay_tick_cache_status.json"
     cache_dir = tmp_path / "ticks_cache"
     replay_path.write_text(
         json.dumps(_trade(
@@ -66,7 +66,7 @@ def test_dry_run_cli_writes_tick_cache_status(tmp_path):
         encoding="utf-8",
     )
 
-    exit_code = cache_replay_ticks.main([
+    exit_code = ensure_replay_tick_cache.main([
         "--input",
         str(replay_path),
         "--status",

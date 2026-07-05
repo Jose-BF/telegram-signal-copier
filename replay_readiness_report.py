@@ -9,14 +9,14 @@ from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
-from tools import cache_replay_ticks
+from tools import ensure_replay_tick_cache
 
 
 DATA_DIR = Path(__file__).parent / "data"
 DEFAULT_REPLAY_FILE = DATA_DIR / "replay_trades.jsonl"
-DEFAULT_AUDIT_FILE = DATA_DIR / "simulation_audit.jsonl"
+DEFAULT_AUDIT_FILE = DATA_DIR / "accounting_replay_audit.jsonl"
 DEFAULT_TICK_CACHE_DIR = DATA_DIR / "ticks_cache"
-DEFAULT_OUTPUT = DATA_DIR / "weekly_replay_readiness.json"
+DEFAULT_OUTPUT = DATA_DIR / "replay_readiness_report.json"
 SCHEMA_VERSION = 1
 
 
@@ -106,7 +106,7 @@ def _audit_blockers_and_warnings(audit: dict | None) -> tuple[list[str], list[st
 def _tick_days(trade: dict, pad_minutes: int) -> list[str]:
     return [
         day.isoformat()
-        for day in cache_replay_ticks.required_dates(
+        for day in ensure_replay_tick_cache.required_dates(
             [trade],
             pad_minutes=pad_minutes,
         )
@@ -225,7 +225,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.quiet:
         summary = report["summary"]
-        print(f"Weekly replay readiness: {summary['total']} trades")
+        print(f"Replay readiness report: {summary['total']} trades")
         print(f"Ready: {summary['ready']}")
         print(f"Blocked: {summary['blocked']}")
         print(f"Output: {args.output}")

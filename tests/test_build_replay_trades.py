@@ -1,6 +1,6 @@
 import json
 
-import replay_builder
+import build_replay_trades
 
 
 def _closed_position(ticket=111, role="market_a", pnl=3.25):
@@ -74,7 +74,7 @@ def test_closed_trade_with_complete_levels_is_replay_ready():
          "bid": 4500.08, "ask": 4500.10, "spread": 0.02},
     ]
 
-    replay = replay_builder.build_replay_trade(_ledger_row(), events)
+    replay = build_replay_trades.build_replay_trade(_ledger_row(), events)
 
     assert replay["schema_version"] == 1
     assert replay["sig_id"] == "canal2_13265"
@@ -96,7 +96,7 @@ def test_position_id_is_used_as_operational_ticket_for_event_matching():
          "ev": "market_filled", "ticket": 111, "price": 4500.10},
     ]
 
-    replay = replay_builder.build_replay_trade(row, events)
+    replay = build_replay_trades.build_replay_trade(row, events)
 
     ticket = replay["tickets"][0]
     assert ticket["position_ticket"] == 111
@@ -124,7 +124,7 @@ def test_ticket_preserves_mt5_deal_detail():
         ],
     })
 
-    replay = replay_builder.build_replay_trade(
+    replay = build_replay_trades.build_replay_trade(
         _ledger_row(positions=[position]), [])
 
     ticket = replay["tickets"][0]
@@ -155,7 +155,7 @@ def test_level_history_is_recovered_from_order_lifecycle_by_position_id():
         ],
     )
 
-    replay = replay_builder.build_replay_trade(row, [])
+    replay = build_replay_trades.build_replay_trade(row, [])
 
     ticket = replay["tickets"][0]
     assert replay["simulation_ready"] is True
@@ -186,7 +186,7 @@ def test_journal_closed_with_mt5_open_position_blocks_replay():
         flags=["journal_cerro_pero_MT5_tiene_pos_abierta"],
     )
 
-    replay = replay_builder.build_replay_trade(row, [])
+    replay = build_replay_trades.build_replay_trade(row, [])
 
     assert replay["simulation_ready"] is False
     assert replay["replay_ready"] is False
@@ -203,7 +203,7 @@ def test_closed_mt5_trade_without_signal_closed_is_simulable_but_not_audit_ready
         reconciled_ok=None,
     )
 
-    replay = replay_builder.build_replay_trade(row, [])
+    replay = build_replay_trades.build_replay_trade(row, [])
 
     assert replay["simulation_ready"] is True
     assert replay["replay_ready"] is False
@@ -214,7 +214,7 @@ def test_closed_mt5_trade_without_signal_closed_is_simulable_but_not_audit_ready
 def test_write_replay_trades_outputs_jsonl(tmp_path):
     output = tmp_path / "replay.jsonl"
 
-    replay_builder.write_replay_trades([_ledger_row()], {}, output)
+    build_replay_trades.write_replay_trades([_ledger_row()], {}, output)
 
     rows = [json.loads(line) for line in output.read_text().splitlines()]
     assert len(rows) == 1

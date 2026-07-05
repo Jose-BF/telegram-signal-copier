@@ -12,14 +12,14 @@ from typing import Iterable
 
 import pandas as pd
 
-from tools import cache_replay_ticks
+from tools import ensure_replay_tick_cache
 
 
 DATA_DIR = Path(__file__).parent / "data"
 DEFAULT_REPLAY_FILE = DATA_DIR / "replay_trades.jsonl"
 DEFAULT_TICK_CACHE_DIR = DATA_DIR / "ticks_cache"
-DEFAULT_OUTPUT = DATA_DIR / "tick_replay_audit.jsonl"
-DEFAULT_STATUS = DATA_DIR / "tick_replay_status.json"
+DEFAULT_OUTPUT = DATA_DIR / "observed_tick_replay_audit.jsonl"
+DEFAULT_STATUS = DATA_DIR / "observed_tick_replay_status.json"
 SCHEMA_VERSION = 1
 PRICE_EPSILON = 0.01
 
@@ -236,7 +236,7 @@ def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
 def _required_tick_days(trade: dict, pad_minutes: int) -> list[str]:
     return [
         day.isoformat()
-        for day in cache_replay_ticks.required_dates(
+        for day in ensure_replay_tick_cache.required_dates(
             [trade],
             pad_minutes=pad_minutes,
         )

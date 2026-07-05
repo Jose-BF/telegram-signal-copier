@@ -1,5 +1,5 @@
 """
-test_dca_monitor.py — Suite de regresion para dca_monitor._decide_close_tag.
+test_position_lifecycle_monitor.py — Suite de regresion para position_lifecycle_monitor._decide_close_tag.
 
 _decide_close_tag decide el motivo de cierre de UNA posicion (TP / SL /
 LOSS_BE / MANUAL) cruzando el precio de salida con los niveles. Alimenta el
@@ -15,7 +15,7 @@ usan los numeros REALES de esas dos operaciones.
 
 import pytest
 
-from dca_monitor import _decide_close_tag
+from position_lifecycle_monitor import _decide_close_tag
 
 
 class TestDecideCloseTag:

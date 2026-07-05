@@ -11,9 +11,9 @@ reconstruido desde tickets MT5 cuadra con el PnL real, y con que confianza".
 
 ## Alcance
 
-1. Crear `replay_validator.py`.
+1. Crear `accounting_replay_validator.py`.
 2. Leer `data/replay_trades.jsonl`.
-3. Escribir `data/simulation_audit.jsonl`.
+3. Escribir `data/accounting_replay_audit.jsonl`.
 4. Generar una fila por senal, sin descartar ninguna en silencio.
 5. Clasificar cada senal como:
    - `exact`: tickets completos y diferencia `0.00`.

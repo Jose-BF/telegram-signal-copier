@@ -4,7 +4,7 @@
 
 **Goal:** Add forensic-grade logging and ledger reconstruction without changing trading behavior.
 
-**Architecture:** The bot remains event-sourced through `journal.event()`. MT5 request/result and strategy snapshot events are appended to `trade_events.jsonl`; `reconcile.py` consumes them into per-position lifecycle fields and derived time-stop outcomes.
+**Architecture:** The bot remains event-sourced through `journal.event()`. MT5 request/result and strategy snapshot events are appended to `trade_events.jsonl`; `reconcile_mt5_ledger.py` consumes them into per-position lifecycle fields and derived time-stop outcomes.
 
 **Tech Stack:** Python, pytest, MetaTrader5 Python API, JSONL ledger.
 
@@ -16,7 +16,7 @@
 - Modify: `journal.py`
 - Modify: `listener.py`
 - Test: `tests/test_journal.py`
-- Test: `tests/test_reconcile.py`
+- Test: `tests/test_reconcile_mt5_ledger.py`
 
 - [ ] Add `outcome` to `journal.CATEGORIES`.
 - [ ] Emit `strategy_snapshot` when canal1/canal2 `Signal` objects are created.
@@ -46,8 +46,8 @@
 ### Task 4: Ledger lifecycle reconstruction
 
 **Files:**
-- Modify: `reconcile.py`
-- Test: `tests/test_reconcile.py`
+- Modify: `reconcile_mt5_ledger.py`
+- Test: `tests/test_reconcile_mt5_ledger.py`
 
 - [ ] Parse lifecycle events into `{ticket: {"sl_history": [], "tp_history": []}}`.
 - [ ] Attach histories to `positions[*]` in `reconcile_signal()`.
@@ -57,8 +57,8 @@
 ### Task 5: Time-stop outcome marker
 
 **Files:**
-- Modify: `dca_monitor.py`
-- Test: `tests/test_dca_monitor.py`
+- Modify: `position_lifecycle_monitor.py`
+- Test: `tests/test_position_lifecycle_monitor.py`
 
 - [ ] When notify-only time-stop fires, emit `journal.anomaly(..., category="outcome", severity="warning")`.
 - [ ] Preserve current notify-only behavior exactly.
@@ -68,7 +68,7 @@
 **Files:**
 - No production files unless tests reveal small fixes.
 
-- [ ] Run targeted tests for journal/reconcile/pending/executor/dca.
+- [ ] Run targeted tests for journal/reconcile/pending/executor/position lifecycle.
 - [ ] Run full `pytest -q`.
 - [ ] Confirm `data/trade_events.jsonl` and `data/ledger.jsonl` are not staged.
 - [ ] Commit with a descriptive English message.

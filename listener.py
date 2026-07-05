@@ -25,7 +25,7 @@ import config
 import executor
 import journal
 import logger
-import dca_monitor
+import position_lifecycle_monitor
 import pending_actions
 import strategies
 from classifier import classify, classify_async
@@ -1256,7 +1256,7 @@ async def _place_dca(signal: Signal):
 
     print(f"[Trade Monitor] Activo para BE/time-stop "
           f"(be@idx={signal.be_at_tp_index}, ts={signal.time_stop_at})")
-    dca_monitor.start(signal, [])
+    position_lifecycle_monitor.start(signal, [])
     return
 
 async def _open_extra_legs(sig: Signal, msg_id: int) -> None:
@@ -2023,7 +2023,7 @@ async def _update_signal_from_parsed(signal: Signal, parsed: dict,
 # ─── Acciones de gestión ──────────────────────────────────────────────────────
 
 # Detecta variantes de "SL hit" en mensajes del canal. Defensa en profundidad:
-# si MT5 cierra primero por su SL, dca_monitor.run() lo detecta vía n_open=0
+# si MT5 cierra primero por su SL, position_lifecycle_monitor.run() lo detecta vía n_open=0
 # y finaliza. Si el mensaje del canal llega antes que MT5 reporte el cierre
 # (o si MT5 no llegó a aplicar el SL por freeze level), este regex dispara
 # _finalize_signal aquí. Cubre las redacciones reales vistas en JSONL:
@@ -2742,7 +2742,7 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
             # entries distintos (intra_dca).
             #
             # GUARD anti-Invalid-stops (sesion 2026-05-13, canal2_12347):
-            # mismo guard que dca_monitor._arm_be. Si la posicion esta del
+            # mismo guard que position_lifecycle_monitor._arm_be. Si la posicion esta del
             # lado adverso al BE (ej. SELL con ask >= entry), MT5 rechaza
             # con 10016 y la cola reintenta hasta el cap de 30s. Caso real
             # tras mensaje "Make your trade risk free" cuando precio ya
@@ -3472,8 +3472,8 @@ def _scale_out_fill_summary(n_legs_attempted: int,
     return {"severity": severity, "fill_ratio": ratio}
 
 
-def _dca_monitor_task_anomaly_severity(exc):
-    """Decide si una task de dca_monitor.run() terminada merece anomaly.
+def _position_lifecycle_monitor_task_anomaly_severity(exc):
+    """Decide si una task de position_lifecycle_monitor.run() terminada merece anomaly.
 
     asyncio.create_task() NO re-lanza excepciones — la task muere en
     silencio y la señal queda sin vigilancia (TPs, SL, time-stop). Esta
@@ -4900,7 +4900,7 @@ if config.TEST_CHANNEL_ID:
         # journal.event/begin_trade/finalize_trade que dispare por debajo
         # ruteará a trade_events_TEST.jsonl / trade_journal_TEST.csv en
         # vez de los ficheros de producción. asyncio.create_task copia el
-        # contexto, así que dca_monitor heredará el flag automáticamente.
+        # contexto, así que position_lifecycle_monitor heredará el flag automáticamente.
         token = journal._test_context.set(True)
         try:
             msg  = event.message

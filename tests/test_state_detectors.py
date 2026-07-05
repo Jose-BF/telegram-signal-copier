@@ -13,7 +13,7 @@ Tres categorías de fallos:
         - 50-99%      → warning  (parcial razonable, pero merece review)
         - 100%        → no anomaly (caso normal)
 
-  C2. DCA monitor crash: dca_monitor.start crea una asyncio.Task que corre
+  C2. Position lifecycle monitor crash: position_lifecycle_monitor.start crea una asyncio.Task que corre
       indefinidamente. Si run() lanza unhandled exception, la task muere
       en silencio (asyncio.create_task no re-lanza). Helper decide si una
       task terminada merece anomaly.
@@ -29,7 +29,7 @@ from datetime import datetime
 
 from listener import (
     _scale_out_fill_summary,
-    _dca_monitor_task_anomaly_severity,
+    _position_lifecycle_monitor_task_anomaly_severity,
     _detect_state_add_overwrite,
 )
 from state import Signal, StateManager
@@ -72,31 +72,31 @@ class TestScaleOutFillSummary:
         assert result["severity"] is None
 
 
-# ────────────── C2 — DCA monitor task crash detector ──────────────
+# ────────────── C2 — Position lifecycle monitor task crash detector ──────────────
 
-class TestDcaMonitorTaskAnomalySeverity:
-    """Cuando una task de dca_monitor.run() termina, decidir si emitir
+class TestPositionLifecycleMonitorTaskAnomalySeverity:
+    """Cuando una task de position_lifecycle_monitor.run() termina, decidir si emitir
     anomaly. Solo emitimos si HUBO excepción NO esperada (CancelledError
     se ignora porque es shutdown ordenado)."""
 
     def test_normal_completion_no_anomaly(self):
         # No exception → run() terminó normalmente. La señal cerró bien.
-        assert _dca_monitor_task_anomaly_severity(None) is None
+        assert _position_lifecycle_monitor_task_anomaly_severity(None) is None
 
     def test_cancelled_es_normal(self):
         # CancelledError es shutdown del bot, no es bug.
         exc = asyncio.CancelledError()
-        assert _dca_monitor_task_anomaly_severity(exc) is None
+        assert _position_lifecycle_monitor_task_anomaly_severity(exc) is None
 
     def test_otras_excepciones_son_critical(self):
         # Cualquier otra excepción durante run() = bug grave, el monitor
         # murió y la señal queda sin vigilancia (TPs/SL/time-stop).
         exc = RuntimeError("MT5 connection refused")
-        assert _dca_monitor_task_anomaly_severity(exc) == "critical"
+        assert _position_lifecycle_monitor_task_anomaly_severity(exc) == "critical"
 
     def test_value_error_critical(self):
         exc = ValueError("bad ticket id")
-        assert _dca_monitor_task_anomaly_severity(exc) == "critical"
+        assert _position_lifecycle_monitor_task_anomaly_severity(exc) == "critical"
 
 
 # ───────── C3 — state.add overwrite detector ─────────

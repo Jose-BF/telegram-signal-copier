@@ -526,7 +526,7 @@ async def _position_reconciler(check_interval_s: int = 60,
     """Reconcilia el estado interno del bot con MT5 — CAUSA RAIZ de los
     trades huerfanos.
 
-    Problema: el auto-finalize del dca_monitor solo dispara con n_open==0
+    Problema: el auto-finalize del position_lifecycle_monitor solo dispara con n_open==0
     exacto Y depende de que el monitor de esa senal siga vivo. Si el
     monitor murio (crash/restart) o un cierre se escapo, la senal queda
     'open' para siempre en el journal. Caso real canal1_19684: el trader
@@ -822,12 +822,12 @@ def _resync_orphan_positions():
       1. Query MT5 por posiciones con nuestros magic numbers
       2. Las agrupa por signal_id (parsing comments c1_X / c2_X / DCA_cN_X)
       3. Reconstruye Signal skeleton mínimos en state
-      4. Arranca dca_monitor para cada uno → auto-finalize detecta cierres
+      4. Arranca position_lifecycle_monitor para cada uno → auto-finalize detecta cierres
 
     Esto resuelve los ghost signals (señales que quedaban open forever
     porque el bot reinició entre apertura y cierre por TP/SL en MT5).
     """
-    import dca_monitor
+    import position_lifecycle_monitor
     from state import Signal, state
 
     try:
@@ -925,7 +925,7 @@ def _resync_orphan_positions():
         # Arranca monitor solo para que auto-finalize detecte cuando MT5 cierre
         # las posiciones. Sin niveles DCA pendientes (ya están todos abiertos).
         try:
-            dca_monitor.start(sig, [])
+            position_lifecycle_monitor.start(sig, [])
         except Exception as e:
             print(f"  ! error arrancando monitor para {sig_id}: {e}")
 
@@ -1066,7 +1066,7 @@ def _git_info() -> dict:
     """Devuelve info git de la sesión actual (commit, branch, dirty).
     Best-effort: si git falla devuelve None en cada campo. Va al evento
     session_started para que cada trade del ledger pueda saber qué
-    versión del código lo ejecutó (rollup en reconcile.py)."""
+    versión del código lo ejecutó (rollup en reconcile_mt5_ledger.py)."""
     import subprocess
 
     def _run(args):

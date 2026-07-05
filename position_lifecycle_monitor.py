@@ -1,28 +1,29 @@
 """
-Monitor de DCA por precio en tiempo real.
-Escanea el tick cada 0.5s y abre órdenes a mercado cuando el precio
-alcanza cada nivel dentro del rango, en vez de usar órdenes límite.
+Monitor de ciclo de vida de posiciones abiertas.
+Escanea ticks en tiempo real para proteger y cerrar correctamente las
+posiciones asociadas a una senal ya aceptada por el bot.
 
-Implementa tres mecanismos defensivos:
+Implementa estos mecanismos defensivos:
 
-  1. DCA fill: abre market a cada nivel cuando el precio lo toca.
+  1. Legacy DCA fill: conserva compatibilidad con senales antiguas o
+     recuperadas que todavia tengan niveles pendientes.
 
   2. BE move (validado IS/OOS 2026 para Canal 2):
      Cuando el precio toca el TP indicado por `signal.be_at_tp_index`,
      mueve el SL de TODAS las posiciones a su entry price respectivo.
-     Reduce DD OOS de $1050 → $893 en intra_dca/4p TP4 (Gold Standard).
+     Reduce DD OOS de $1050 a $893 en intra_dca/4p TP4 (Gold Standard).
 
-  3. TIME-STOP defensivo (point 7 del análisis original):
-     Si la señal sigue abierta tras `signal.time_stop_at` UTC sin haber
+  3. TIME-STOP defensivo (point 7 del analisis original):
+     Si la senal sigue abierta tras `signal.time_stop_at` UTC sin haber
      tocado SL ni TP, hay dos modos:
 
        a) STRATEGY_TIME_STOP_NOTIFY_ONLY=1 (default, semana de prueba):
-          NOTIFICA al usuario por Telegram con un resumen de la situación
-          y una recomendación contextual. NO cierra. El usuario decide.
+          NOTIFICA al usuario por Telegram con un resumen de la situacion
+          y una recomendacion contextual. NO cierra. El usuario decide.
 
        b) STRATEGY_TIME_STOP_NOTIFY_ONLY=0 (legacy):
-          Cierra TODAS las posiciones acumuladas. Datos históricos:
-          TIME-STOP 60min sobre 1492 señales 2025+ → +$5.552 vs +$1.710.
+          Cierra TODAS las posiciones acumuladas. Datos historicos:
+          TIME-STOP 60min sobre 1492 senales 2025+ -> +$5.552 vs +$1.710.
 """
 
 import asyncio
@@ -49,7 +50,7 @@ def _should_alert_null_tick_streak(streak: int, already_alerted: bool,
 
     Misma semantica que pending_actions._should_alert_null_tick_streak —
     duplicado intencional para evitar import cruzado raro (pending_actions
-    importa de dca_monitor indirectamente via listener).
+    importa de position_lifecycle_monitor indirectamente via listener).
     """
     return (streak >= threshold) and (not already_alerted)
 
@@ -61,7 +62,7 @@ def _signal_still_alive(signal: Signal) -> bool:
 
 def _close_all_positions(signal: Signal, reason: str):
     """Encola el cierre de TODAS las posiciones de la señal con motivo."""
-    print(f"[DCA Monitor] [TIME-STOP] {reason} -> cerrando todas las posiciones de "
+    print(f"[Position Monitor] [TIME-STOP] {reason} -> cerrando todas las posiciones de "
           f"senal {signal.message_id}")
 
     for t in signal.all_filled_tickets:
@@ -214,7 +215,7 @@ def _classify_closures(signal: Signal) -> list[dict]:
                 "distance_to_tag": dist,
             })
     except Exception as e:
-        print(f"[DCA Monitor] _classify_closures error: {e}")
+        print(f"[Position Monitor] _classify_closures error: {e}")
     return out
 
 
@@ -311,11 +312,11 @@ async def _notify_time_stop(signal: Signal, elapsed_min: float):
 
     NO cierra. Marca `signal.time_stop_at = None` para no renotificar.
     """
-    # Lazy import para evitar circular: dca_monitor ↔ listener
+    # Lazy import para evitar circular: position_lifecycle_monitor ↔ listener
     try:
         from listener import notify
     except Exception as e:
-        print(f"[DCA Monitor] No pude importar notify(): {e}")
+        print(f"[Position Monitor] No pude importar notify(): {e}")
         notify = None
 
     summary = _floating_pl_summary(signal)
@@ -358,7 +359,7 @@ async def _notify_time_stop(signal: Signal, elapsed_min: float):
         f"\n"
         f"_(El bot NO cerrará automáticamente — decide tú.)_"
     )
-    print(f"[DCA Monitor] [TIME-STOP NOTIFY] señal {signal.message_id} elapsed={elapsed_min:.1f}min "
+    print(f"[Position Monitor] [TIME-STOP NOTIFY] señal {signal.message_id} elapsed={elapsed_min:.1f}min "
           f"pl=${summary['pl']:+.2f}")
     if notify is not None:
         await notify(text)
@@ -382,7 +383,7 @@ async def _notify_time_stop(signal: Signal, elapsed_min: float):
                         pl=round(summary["pl"], 2),
                         n_open=summary["n_open"])
     except Exception as e:
-        print(f"[DCA Monitor] journal.event time_stop_notified error: {e}")
+        print(f"[Position Monitor] journal.event time_stop_notified error: {e}")
 
 
 async def _arm_be(signal: Signal):
@@ -425,7 +426,7 @@ async def _arm_be(signal: Signal):
     for t in signal.all_filled_tickets:
         entry = await loop.run_in_executor(None, lambda tt=t: executor.entry_price(tt))
         if entry is None:
-            print(f"[DCA Monitor] BE: ticket {t} sin entry price legible, omitido")
+            print(f"[Position Monitor] BE: ticket {t} sin entry price legible, omitido")
             continue
 
         # Validar BE contra precio actual antes de encolar
@@ -433,7 +434,7 @@ async def _arm_be(signal: Signal):
             if signal.direction == "SELL":
                 # BE valido: entry > current_ask + min_dist
                 if entry <= tick.ask + min_dist:
-                    print(f"[DCA Monitor] BE SKIP ticket {t}: SELL entry={entry:.2f} "
+                    print(f"[Position Monitor] BE SKIP ticket {t}: SELL entry={entry:.2f} "
                           f"<= ask {tick.ask:.2f} + {min_dist:.2f} (MT5 rechazaria). "
                           f"Mantengo SL del proveedor.")
                     skipped_invalid += 1
@@ -441,7 +442,7 @@ async def _arm_be(signal: Signal):
             else:  # BUY
                 # BE valido: entry < current_bid - min_dist
                 if entry >= tick.bid - min_dist:
-                    print(f"[DCA Monitor] BE SKIP ticket {t}: BUY entry={entry:.2f} "
+                    print(f"[Position Monitor] BE SKIP ticket {t}: BUY entry={entry:.2f} "
                           f">= bid {tick.bid:.2f} - {min_dist:.2f} (MT5 rechazaria). "
                           f"Mantengo SL del proveedor.")
                     skipped_invalid += 1
@@ -451,7 +452,7 @@ async def _arm_be(signal: Signal):
             signal, t, entry, label=f"BE→{entry:.2f} #{t}"
         )
         moved += 1
-    print(f"[DCA Monitor] BE armado: {moved} posiciones movidas a entry "
+    print(f"[Position Monitor] BE armado: {moved} posiciones movidas a entry "
           f"({skipped_invalid} skipped por precio adverso)")
     try:
         import journal
@@ -460,7 +461,7 @@ async def _arm_be(signal: Signal):
                       n_skipped_invalid=skipped_invalid,
                       trigger_tp_idx=signal.be_at_tp_index)
     except Exception as e:
-        print(f"[DCA Monitor] journal.event be_armed error: {e}")
+        print(f"[Position Monitor] journal.event be_armed error: {e}")
 
 
 async def run(signal: Signal, levels: list[float]):
@@ -484,7 +485,7 @@ async def run(signal: Signal, levels: list[float]):
     symbol = config.MT5_SYMBOL
     be_trigger = signal.be_trigger_price()
 
-    print(f"[DCA Monitor] Iniciado señal {signal.message_id}. "
+    print(f"[Position Monitor] Iniciado señal {signal.message_id}. "
           f"Niveles: {pending} | time_stop={signal.time_stop_at} | "
           f"be_trigger={be_trigger} (idx={signal.be_at_tp_index})")
 
@@ -558,7 +559,7 @@ async def run(signal: Signal, levels: list[float]):
                         notes=f"elapsed={elapsed_min:.1f}min legacy auto-close"
                     )
                 except Exception as e:
-                    print(f"[DCA Monitor] _finalize_signal time-stop error: {e}")
+                    print(f"[Position Monitor] _finalize_signal time-stop error: {e}")
                 break
 
         tick = await asyncio.to_thread(mt5.symbol_info_tick, symbol)
@@ -636,7 +637,7 @@ async def run(signal: Signal, levels: list[float]):
                     for c in closures:
                         by_tag[c["closed_by_tag"]] = by_tag.get(c["closed_by_tag"], 0) + 1
                     summary_str = ", ".join(f"{tag}×{n}" for tag, n in by_tag.items())
-                    print(f"[DCA Monitor] Auto-finalize señal {signal.message_id}: "
+                    print(f"[Position Monitor] Auto-finalize señal {signal.message_id}: "
                           f"n_open=0 ({summary_str if summary_str else 'no_history'})")
                     signal.status = "closed"
                     try:
@@ -655,7 +656,7 @@ async def run(signal: Signal, levels: list[float]):
                             notes=f"auto-finalize: {summary_str}"
                         )
                     except Exception as fe:
-                        print(f"[DCA Monitor] auto-finalize error: {fe}")
+                        print(f"[Position Monitor] auto-finalize error: {fe}")
                         # Batch E: la senal esta marcada status=closed pero
                         # _finalize_signal fallo → no se loguea
                         # positions_closed_by_mt5, no hay PnL, el trade
@@ -675,7 +676,7 @@ async def run(signal: Signal, levels: list[float]):
                     break
             except Exception as e:
                 # Errores aquí no deben matar el monitor — solo log y seguir
-                print(f"[DCA Monitor] update_extremes error: {e}")
+                print(f"[Position Monitor] update_extremes error: {e}")
 
         # ── TP HIT INSTRUMENTATION ──────────────────────────────────────
         # Emite evento `tp_hit` la primera vez que el precio toca cada TP
@@ -719,7 +720,7 @@ async def run(signal: Signal, levels: list[float]):
                 tp_hit = ((direction == "BUY"  and price_for_tp >= be_trigger) or
                           (direction == "SELL" and price_for_tp <= be_trigger))
                 if tp_hit:
-                    print(f"[DCA Monitor] BE TRIGGER tocado @ {price_for_tp:.2f} "
+                    print(f"[Position Monitor] BE TRIGGER tocado @ {price_for_tp:.2f} "
                           f"(TP{signal.be_at_tp_index+1}={be_trigger}) → arma BE")
                     await _arm_be(signal)
                     signal.be_armed = True
@@ -761,7 +762,7 @@ async def run(signal: Signal, levels: list[float]):
                     elapsed_defer = now_t - defer_since[next_level]
 
                     if elapsed_defer < config.STRATEGY_DCA_DEFER_TIMEOUT_S:
-                        print(f"[DCA Monitor] DEFER nivel {next_level} "
+                        print(f"[Position Monitor] DEFER nivel {next_level} "
                               f"({elapsed_defer:.1f}s): posicion "
                               f"#{next_position_index} sin TP propio "
                               f"({len(signal.tps)} TPs, esperando mas).")
@@ -780,7 +781,7 @@ async def run(signal: Signal, levels: list[float]):
                         continue
                     else:
                         # Timeout — abrir igual con el ultimo TP disponible.
-                        print(f"[DCA Monitor] DEFER TIMEOUT nivel {next_level} "
+                        print(f"[Position Monitor] DEFER TIMEOUT nivel {next_level} "
                               f"({elapsed_defer:.1f}s sin TPs nuevos) → abro "
                               f"igual con TP duplicado (mejor que perder el DCA)")
                         try:
@@ -830,7 +831,7 @@ async def run(signal: Signal, levels: list[float]):
                     if last_fill is not None:
                         gap = abs(current - last_fill)
                         if gap < min_sep:
-                            print(f"[DCA Monitor] SKIP nivel {next_level}: fill"
+                            print(f"[Position Monitor] SKIP nivel {next_level}: fill"
                                   f" sería @{current:.2f}, gap ${gap:.2f} vs "
                                   f"último fill {last_fill:.2f} (< ${min_sep} "
                                   f"min). Niveles más alejados siguen vivos.")
@@ -877,7 +878,7 @@ async def run(signal: Signal, levels: list[float]):
                 # (el level), no el SL original — coherente con BE move.
                 sl_for_dca = next_level if signal.be_armed else signal.sl
 
-                print(f"[DCA Monitor] Nivel alcanzado: {next_level} @ {current:.2f} "
+                print(f"[Position Monitor] Nivel alcanzado: {next_level} @ {current:.2f} "
                       f"({tick.time_msc}ms) | pos#{position_index} -> TP={tp} SL={sl_for_dca}")
                 loop = asyncio.get_event_loop()
                 lv = next_level  # captura para el lambda
@@ -924,7 +925,7 @@ async def run(signal: Signal, levels: list[float]):
                                       spread=round(tick.ask - tick.bid, 2))
                         journal.increment_dca_filled(sig_id)
                     except Exception as e:
-                        print(f"[DCA Monitor] journal.event dca_filled error: {e}")
+                        print(f"[Position Monitor] journal.event dca_filled error: {e}")
 
                     # ── REAPPLY SL/TP TRAS NUEVA DCA ──────────────────────
                     # Tras añadir un DCA, llamamos _apply_sl_tp para que el
@@ -936,7 +937,7 @@ async def run(signal: Signal, levels: list[float]):
                         import listener as _ln
                         await _ln._apply_sl_tp(signal)
                     except Exception as e:
-                        print(f"[DCA Monitor] reapply SL/TP tras DCA error: {e}")
+                        print(f"[Position Monitor] reapply SL/TP tras DCA error: {e}")
                         # Batch E: el DCA acabade abrir SIN SL/TP. Si esto
                         # falla, el ticket vive desnudo hasta el proximo
                         # update — anomaly critical para revision urgente.
@@ -970,7 +971,7 @@ async def run(signal: Signal, levels: list[float]):
 
         await asyncio.sleep(0.01)
 
-    print(f"[DCA Monitor] Finalizado para señal {signal.message_id}")
+    print(f"[Position Monitor] Finalizado para señal {signal.message_id}")
 
 
 def _monitor_done_callback(signal: Signal):
@@ -997,7 +998,7 @@ def _monitor_done_callback(signal: Signal):
         if isinstance(exc, asyncio.CancelledError):
             return
         # Bug grave: la task murio. Lazy import journal para no crear
-        # circular con state.py (dca_monitor importa Signal de state).
+        # circular con state.py (position_lifecycle_monitor importa Signal de state).
         try:
             import journal as _j_dca
             _j_dca.anomaly(sig_id, "mt5", "critical",

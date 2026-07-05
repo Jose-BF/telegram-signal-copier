@@ -65,7 +65,7 @@ def test_regenerate_replay_trades_writes_success_status(tmp_path, monkeypatch):
                         data_dir / "replay_status.json")
 
     def fake_run(*args, **kwargs):
-        assert args[0] == [watch.sys.executable, "replay_builder.py", "--quiet"]
+        assert args[0] == [watch.sys.executable, "build_replay_trades.py", "--quiet"]
         replay.write_text("{}\n", encoding="utf-8")
         return subprocess.CompletedProcess(
             args=args[0], returncode=0, stdout="replay ok", stderr="")
@@ -82,46 +82,46 @@ def test_regenerate_replay_trades_writes_success_status(tmp_path, monkeypatch):
     assert status["replay_size_bytes"] == replay.stat().st_size
 
 
-def test_regenerate_simulation_audit_writes_success_status(tmp_path, monkeypatch):
+def test_regenerate_accounting_replay_audit_writes_success_status(tmp_path, monkeypatch):
     data_dir = tmp_path / "data"
     data_dir.mkdir()
-    audit = data_dir / "simulation_audit.jsonl"
+    audit = data_dir / "accounting_replay_audit.jsonl"
 
     monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
-    monkeypatch.setattr(watch, "SIMULATION_AUDIT_STATUS_FILE",
-                        data_dir / "simulation_audit_status.json")
+    monkeypatch.setattr(watch, "ACCOUNTING_REPLAY_AUDIT_STATUS_FILE",
+                        data_dir / "accounting_replay_audit_status.json")
 
     def fake_run(*args, **kwargs):
-        assert args[0] == [watch.sys.executable, "replay_validator.py", "--quiet"]
+        assert args[0] == [watch.sys.executable, "accounting_replay_validator.py", "--quiet"]
         audit.write_text("{}\n", encoding="utf-8")
         return subprocess.CompletedProcess(
             args=args[0], returncode=0, stdout="audit ok", stderr="")
 
     monkeypatch.setattr(watch.subprocess, "run", fake_run)
 
-    ok = watch._regenerate_simulation_audit()
+    ok = watch._regenerate_accounting_replay_audit()
 
     assert ok is True
     status = json.loads(
-        (data_dir / "simulation_audit_status.json").read_text())
+        (data_dir / "accounting_replay_audit_status.json").read_text())
     assert status["ok"] is True
     assert status["returncode"] == 0
     assert status["audit_exists"] is True
     assert status["audit_size_bytes"] == audit.stat().st_size
 
 
-def test_regenerate_tick_cache_status_runs_ensure_tool(tmp_path, monkeypatch):
+def test_regenerate_replay_tick_cache_status_runs_ensure_tool(tmp_path, monkeypatch):
     data_dir = tmp_path / "data"
     data_dir.mkdir()
-    tick_status = data_dir / "tick_cache_status.json"
+    tick_status = data_dir / "replay_tick_cache_status.json"
 
     monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
-    monkeypatch.setattr(watch, "TICK_CACHE_STATUS_FILE", tick_status)
+    monkeypatch.setattr(watch, "REPLAY_TICK_CACHE_STATUS_FILE", tick_status)
 
     def fake_run(*args, **kwargs):
         assert args[0] == [
             watch.sys.executable,
-            "tools/cache_replay_ticks.py",
+            "tools/ensure_replay_tick_cache.py",
             "--ensure",
             "--quiet",
         ]
@@ -131,22 +131,22 @@ def test_regenerate_tick_cache_status_runs_ensure_tool(tmp_path, monkeypatch):
 
     monkeypatch.setattr(watch.subprocess, "run", fake_run)
 
-    assert watch._regenerate_tick_cache_status() is True
+    assert watch._regenerate_replay_tick_cache_status() is True
 
 
-def test_regenerate_weekly_readiness_accepts_blocked_report(
+def test_regenerate_replay_readiness_report_accepts_blocked_report(
         tmp_path, monkeypatch):
     data_dir = tmp_path / "data"
     data_dir.mkdir()
-    report = data_dir / "weekly_replay_readiness.json"
+    report = data_dir / "replay_readiness_report.json"
 
     monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
-    monkeypatch.setattr(watch, "WEEKLY_REPLAY_READINESS_FILE", report)
+    monkeypatch.setattr(watch, "REPLAY_READINESS_REPORT_FILE", report)
 
     def fake_run(*args, **kwargs):
         assert args[0] == [
             watch.sys.executable,
-            "weekly_replay_readiness.py",
+            "replay_readiness_report.py",
             "--quiet",
         ]
         report.write_text('{"summary": {"blocked": 1}}\n', encoding="utf-8")
@@ -155,24 +155,24 @@ def test_regenerate_weekly_readiness_accepts_blocked_report(
 
     monkeypatch.setattr(watch.subprocess, "run", fake_run)
 
-    assert watch._regenerate_weekly_replay_readiness() is True
+    assert watch._regenerate_replay_readiness_report() is True
 
 
-def test_regenerate_tick_replay_audit_accepts_blocked_report(
+def test_regenerate_observed_tick_replay_audit_accepts_blocked_report(
         tmp_path, monkeypatch):
     data_dir = tmp_path / "data"
     data_dir.mkdir()
-    audit = data_dir / "tick_replay_audit.jsonl"
-    status = data_dir / "tick_replay_status.json"
+    audit = data_dir / "observed_tick_replay_audit.jsonl"
+    status = data_dir / "observed_tick_replay_status.json"
 
     monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
-    monkeypatch.setattr(watch, "TICK_REPLAY_AUDIT_FILE", audit)
-    monkeypatch.setattr(watch, "TICK_REPLAY_STATUS_FILE", status)
+    monkeypatch.setattr(watch, "OBSERVED_TICK_REPLAY_AUDIT_FILE", audit)
+    monkeypatch.setattr(watch, "OBSERVED_TICK_REPLAY_STATUS_FILE", status)
 
     def fake_run(*args, **kwargs):
         assert args[0] == [
             watch.sys.executable,
-            "tick_replay_validator.py",
+            "observed_tick_replay_validator.py",
             "--quiet",
         ]
         audit.write_text('{"status": "blocked"}\n', encoding="utf-8")
@@ -182,7 +182,7 @@ def test_regenerate_tick_replay_audit_accepts_blocked_report(
 
     monkeypatch.setattr(watch.subprocess, "run", fake_run)
 
-    assert watch._regenerate_tick_replay_audit() is True
+    assert watch._regenerate_observed_tick_replay_audit() is True
 
 
 def test_regenerate_ledger_records_keyboard_interrupt_before_reraising(
@@ -211,10 +211,10 @@ def test_push_session_data_adds_reconcile_status(monkeypatch):
 
     monkeypatch.setattr(watch, "_regenerate_ledger", lambda: False)
     monkeypatch.setattr(watch, "_regenerate_replay_trades", lambda: False)
-    monkeypatch.setattr(watch, "_regenerate_simulation_audit", lambda: False)
-    monkeypatch.setattr(watch, "_regenerate_tick_cache_status", lambda: False)
-    monkeypatch.setattr(watch, "_regenerate_weekly_replay_readiness", lambda: False)
-    monkeypatch.setattr(watch, "_regenerate_tick_replay_audit", lambda: False)
+    monkeypatch.setattr(watch, "_regenerate_accounting_replay_audit", lambda: False)
+    monkeypatch.setattr(watch, "_regenerate_replay_tick_cache_status", lambda: False)
+    monkeypatch.setattr(watch, "_regenerate_replay_readiness_report", lambda: False)
+    monkeypatch.setattr(watch, "_regenerate_observed_tick_replay_audit", lambda: False)
 
     def fake_git(*args, capture=True):
         if args[:2] == ("add", "-f"):
@@ -234,12 +234,12 @@ def test_push_session_data_adds_reconcile_status(monkeypatch):
     assert "data/reconcile_status.json" in added
     assert "data/replay_status.json" in added
     assert "data/replay_trades.jsonl" in added
-    assert "data/simulation_audit_status.json" in added
-    assert "data/simulation_audit.jsonl" in added
-    assert "data/tick_cache_status.json" in added
-    assert "data/weekly_replay_readiness.json" in added
-    assert "data/tick_replay_audit.jsonl" in added
-    assert "data/tick_replay_status.json" in added
+    assert "data/accounting_replay_audit_status.json" in added
+    assert "data/accounting_replay_audit.jsonl" in added
+    assert "data/replay_tick_cache_status.json" in added
+    assert "data/replay_readiness_report.json" in added
+    assert "data/observed_tick_replay_audit.jsonl" in added
+    assert "data/observed_tick_replay_status.json" in added
 
 
 def test_pull_main_ff_uses_explicit_origin_main(monkeypatch):

@@ -42,11 +42,11 @@ REPO_DIR = Path(__file__).resolve().parent.parent
 MAIN_PY  = REPO_DIR / "main.py"
 RECONCILE_STATUS_FILE = REPO_DIR / "data" / "reconcile_status.json"
 REPLAY_STATUS_FILE = REPO_DIR / "data" / "replay_status.json"
-SIMULATION_AUDIT_STATUS_FILE = REPO_DIR / "data" / "simulation_audit_status.json"
-TICK_CACHE_STATUS_FILE = REPO_DIR / "data" / "tick_cache_status.json"
-WEEKLY_REPLAY_READINESS_FILE = REPO_DIR / "data" / "weekly_replay_readiness.json"
-TICK_REPLAY_AUDIT_FILE = REPO_DIR / "data" / "tick_replay_audit.jsonl"
-TICK_REPLAY_STATUS_FILE = REPO_DIR / "data" / "tick_replay_status.json"
+ACCOUNTING_REPLAY_AUDIT_STATUS_FILE = REPO_DIR / "data" / "accounting_replay_audit_status.json"
+REPLAY_TICK_CACHE_STATUS_FILE = REPO_DIR / "data" / "replay_tick_cache_status.json"
+REPLAY_READINESS_REPORT_FILE = REPO_DIR / "data" / "replay_readiness_report.json"
+OBSERVED_TICK_REPLAY_AUDIT_FILE = REPO_DIR / "data" / "observed_tick_replay_audit.jsonl"
+OBSERVED_TICK_REPLAY_STATUS_FILE = REPO_DIR / "data" / "observed_tick_replay_status.json"
 RUNTIME_HEARTBEAT_FILE = Path(os.getenv(
     "BOT_RUNTIME_HEARTBEAT_FILE",
     str(REPO_DIR / "data" / "runtime_heartbeat.json"),
@@ -198,7 +198,7 @@ def _write_reconcile_status(status: dict) -> None:
 
 
 def _regenerate_ledger() -> bool:
-    """Ejecuta reconcile.py para regenerar data/ledger.jsonl.
+    """Ejecuta reconcile_mt5_ledger.py para regenerar data/ledger.jsonl.
 
     El ledger cruza el journal del bot con el historial de MT5 y produce
     la FUENTE DE VERDAD reconciliada (1 fila/trade, P&L verificado). Se
@@ -220,11 +220,11 @@ def _regenerate_ledger() -> bool:
         "stderr": "",
         "ledger_exists": ledger_file.exists(),
         "ledger_size_bytes": ledger_file.stat().st_size if ledger_file.exists() else 0,
-        "command": [sys.executable, "reconcile.py", "--quiet"],
+        "command": [sys.executable, "reconcile_mt5_ledger.py", "--quiet"],
     }
     try:
         rec = subprocess.run(
-            [sys.executable, "reconcile.py", "--quiet"],
+            [sys.executable, "reconcile_mt5_ledger.py", "--quiet"],
             cwd=REPO_DIR, capture_output=True, text=True, timeout=180,
         )
         status.update({
@@ -236,7 +236,7 @@ def _regenerate_ledger() -> bool:
         if rec.returncode == 0:
             print("[Watch] ledger reconciliado regenerado.", flush=True)
         else:
-            print(f"[Watch] reconcile.py fallo (rc={rec.returncode}): "
+            print(f"[Watch] reconcile_mt5_ledger.py fallo (rc={rec.returncode}): "
                   f"{(rec.stderr or rec.stdout or '')[:1000]}", flush=True)
     except BaseException as e:
         status.update({
@@ -244,7 +244,7 @@ def _regenerate_ledger() -> bool:
             "exception_type": type(e).__name__,
             "stderr": str(e),
         })
-        print(f"[Watch] error ejecutando reconcile.py: {e}", flush=True)
+        print(f"[Watch] error ejecutando reconcile_mt5_ledger.py: {e}", flush=True)
         if isinstance(e, (KeyboardInterrupt, SystemExit)):
             raise
     finally:
@@ -270,15 +270,15 @@ def _write_replay_status(status: dict) -> None:
               flush=True)
 
 
-def _write_simulation_audit_status(status: dict) -> None:
+def _write_accounting_replay_audit_status(status: dict) -> None:
     try:
-        SIMULATION_AUDIT_STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        SIMULATION_AUDIT_STATUS_FILE.write_text(
+        ACCOUNTING_REPLAY_AUDIT_STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        ACCOUNTING_REPLAY_AUDIT_STATUS_FILE.write_text(
             json.dumps(status, ensure_ascii=False, indent=2, default=str) + "\n",
             encoding="utf-8",
         )
     except Exception as e:
-        print(f"[Watch] no pude escribir simulation_audit_status.json: {e}",
+        print(f"[Watch] no pude escribir accounting_replay_audit_status.json: {e}",
               flush=True)
 
 
@@ -300,11 +300,11 @@ def _regenerate_replay_trades() -> bool:
         "stderr": "",
         "replay_exists": replay_file.exists(),
         "replay_size_bytes": replay_file.stat().st_size if replay_file.exists() else 0,
-        "command": [sys.executable, "replay_builder.py", "--quiet"],
+        "command": [sys.executable, "build_replay_trades.py", "--quiet"],
     }
     try:
         rec = subprocess.run(
-            [sys.executable, "replay_builder.py", "--quiet"],
+            [sys.executable, "build_replay_trades.py", "--quiet"],
             cwd=REPO_DIR, capture_output=True, text=True, timeout=60,
         )
         status.update({
@@ -316,7 +316,7 @@ def _regenerate_replay_trades() -> bool:
         if rec.returncode == 0:
             print("[Watch] replay_trades regenerado.", flush=True)
         else:
-            print(f"[Watch] replay_builder.py fallo (rc={rec.returncode}): "
+            print(f"[Watch] build_replay_trades.py fallo (rc={rec.returncode}): "
                   f"{(rec.stderr or rec.stdout or '')[:1000]}", flush=True)
     except BaseException as e:
         status.update({
@@ -324,7 +324,7 @@ def _regenerate_replay_trades() -> bool:
             "exception_type": type(e).__name__,
             "stderr": str(e),
         })
-        print(f"[Watch] error ejecutando replay_builder.py: {e}", flush=True)
+        print(f"[Watch] error ejecutando build_replay_trades.py: {e}", flush=True)
         if isinstance(e, (KeyboardInterrupt, SystemExit)):
             raise
     finally:
@@ -338,10 +338,10 @@ def _regenerate_replay_trades() -> bool:
     return bool(status["ok"])
 
 
-def _regenerate_simulation_audit() -> bool:
-    """Regenera data/simulation_audit.jsonl desde replay_trades.jsonl."""
+def _regenerate_accounting_replay_audit() -> bool:
+    """Regenera data/accounting_replay_audit.jsonl desde replay_trades.jsonl."""
     started = time.time()
-    audit_file = REPO_DIR / "data" / "simulation_audit.jsonl"
+    audit_file = REPO_DIR / "data" / "accounting_replay_audit.jsonl"
     status = {
         "ok": False,
         "started_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -352,11 +352,11 @@ def _regenerate_simulation_audit() -> bool:
         "stderr": "",
         "audit_exists": audit_file.exists(),
         "audit_size_bytes": audit_file.stat().st_size if audit_file.exists() else 0,
-        "command": [sys.executable, "replay_validator.py", "--quiet"],
+        "command": [sys.executable, "accounting_replay_validator.py", "--quiet"],
     }
     try:
         rec = subprocess.run(
-            [sys.executable, "replay_validator.py", "--quiet"],
+            [sys.executable, "accounting_replay_validator.py", "--quiet"],
             cwd=REPO_DIR, capture_output=True, text=True, timeout=60,
         )
         status.update({
@@ -366,9 +366,9 @@ def _regenerate_simulation_audit() -> bool:
             "stderr": rec.stderr or "",
         })
         if rec.returncode == 0:
-            print("[Watch] simulation_audit regenerado.", flush=True)
+            print("[Watch] accounting_replay_audit regenerado.", flush=True)
         else:
-            print(f"[Watch] replay_validator.py fallo (rc={rec.returncode}): "
+            print(f"[Watch] accounting_replay_validator.py fallo (rc={rec.returncode}): "
                   f"{(rec.stderr or rec.stdout or '')[:1000]}", flush=True)
     except BaseException as e:
         status.update({
@@ -376,7 +376,7 @@ def _regenerate_simulation_audit() -> bool:
             "exception_type": type(e).__name__,
             "stderr": str(e),
         })
-        print(f"[Watch] error ejecutando replay_validator.py: {e}", flush=True)
+        print(f"[Watch] error ejecutando accounting_replay_validator.py: {e}", flush=True)
         if isinstance(e, (KeyboardInterrupt, SystemExit)):
             raise
     finally:
@@ -386,83 +386,83 @@ def _regenerate_simulation_audit() -> bool:
         status["audit_size_bytes"] = (
             audit_file.stat().st_size if audit_file.exists() else 0
         )
-        _write_simulation_audit_status(status)
+        _write_accounting_replay_audit_status(status)
     return bool(status["ok"])
 
 
-def _regenerate_tick_cache_status() -> bool:
+def _regenerate_replay_tick_cache_status() -> bool:
     """Asegura/cachea ticks necesarios por replay y escribe status JSON."""
     try:
         rec = subprocess.run(
-            [sys.executable, "tools/cache_replay_ticks.py", "--ensure", "--quiet"],
+            [sys.executable, "tools/ensure_replay_tick_cache.py", "--ensure", "--quiet"],
             cwd=REPO_DIR, capture_output=True, text=True, timeout=300,
         )
         if rec.returncode == 0:
-            print("[Watch] tick_cache verificado/regenerado.", flush=True)
+            print("[Watch] replay_tick_cache verificado/regenerado.", flush=True)
             return True
-        print(f"[Watch] cache_replay_ticks.py aviso/fallo (rc={rec.returncode}): "
+        print(f"[Watch] ensure_replay_tick_cache.py aviso/fallo (rc={rec.returncode}): "
               f"{(rec.stderr or rec.stdout or '')[:1000]}", flush=True)
-        return TICK_CACHE_STATUS_FILE.exists()
+        return REPLAY_TICK_CACHE_STATUS_FILE.exists()
     except BaseException as e:
-        print(f"[Watch] error ejecutando cache_replay_ticks.py: {e}", flush=True)
+        print(f"[Watch] error ejecutando ensure_replay_tick_cache.py: {e}", flush=True)
         if isinstance(e, (KeyboardInterrupt, SystemExit)):
             raise
         return False
 
 
-def _regenerate_weekly_replay_readiness() -> bool:
+def _regenerate_replay_readiness_report() -> bool:
     """Genera reporte diario de preparacion para replay tick-a-tick.
 
-    weekly_replay_readiness.py devuelve rc=1 cuando hay trades bloqueados. Eso
+    replay_readiness_report.py devuelve rc=1 cuando hay trades bloqueados. Eso
     no es crash: el reporte es precisamente la alarma que queremos subir.
     """
     try:
         rec = subprocess.run(
-            [sys.executable, "weekly_replay_readiness.py", "--quiet"],
+            [sys.executable, "replay_readiness_report.py", "--quiet"],
             cwd=REPO_DIR, capture_output=True, text=True, timeout=60,
         )
         if rec.returncode == 0:
-            print("[Watch] weekly_replay_readiness OK.", flush=True)
+            print("[Watch] replay_readiness_report OK.", flush=True)
             return True
-        if WEEKLY_REPLAY_READINESS_FILE.exists():
-            print("[Watch] weekly_replay_readiness generado con bloqueos.",
+        if REPLAY_READINESS_REPORT_FILE.exists():
+            print("[Watch] replay_readiness_report generado con bloqueos.",
                   flush=True)
             return True
-        print(f"[Watch] weekly_replay_readiness.py fallo (rc={rec.returncode}): "
+        print(f"[Watch] replay_readiness_report.py fallo (rc={rec.returncode}): "
               f"{(rec.stderr or rec.stdout or '')[:1000]}", flush=True)
         return False
     except BaseException as e:
-        print(f"[Watch] error ejecutando weekly_replay_readiness.py: {e}",
+        print(f"[Watch] error ejecutando replay_readiness_report.py: {e}",
               flush=True)
         if isinstance(e, (KeyboardInterrupt, SystemExit)):
             raise
         return False
 
 
-def _regenerate_tick_replay_audit() -> bool:
+def _regenerate_observed_tick_replay_audit() -> bool:
     """Genera auditoria observed tick replay por ticket MT5.
 
-    tick_replay_validator.py devuelve rc=1 cuando hay mismatches o bloqueos.
+    observed_tick_replay_validator.py devuelve rc=1 cuando hay mismatches o bloqueos.
     Eso no es crash: esos ficheros son el chivato que necesitamos subir para
     saber exactamente que ticket no se pudo reproducir contra bid/ask ticks.
     """
     try:
         rec = subprocess.run(
-            [sys.executable, "tick_replay_validator.py", "--quiet"],
+            [sys.executable, "observed_tick_replay_validator.py", "--quiet"],
             cwd=REPO_DIR, capture_output=True, text=True, timeout=120,
         )
         if rec.returncode == 0:
-            print("[Watch] tick_replay_audit OK.", flush=True)
+            print("[Watch] observed_tick_replay_audit OK.", flush=True)
             return True
-        if TICK_REPLAY_AUDIT_FILE.exists() and TICK_REPLAY_STATUS_FILE.exists():
-            print("[Watch] tick_replay_audit generado con bloqueos/mismatches.",
+        if OBSERVED_TICK_REPLAY_AUDIT_FILE.exists() and OBSERVED_TICK_REPLAY_STATUS_FILE.exists():
+            print("[Watch] observed_tick_replay_audit generado con bloqueos/mismatches.",
                   flush=True)
             return True
-        print(f"[Watch] tick_replay_validator.py fallo (rc={rec.returncode}): "
+        print(f"[Watch] observed_tick_replay_validator.py fallo (rc={rec.returncode}): "
               f"{(rec.stderr or rec.stdout or '')[:1000]}", flush=True)
         return False
     except BaseException as e:
-        print(f"[Watch] error ejecutando tick_replay_validator.py: {e}",
+        print(f"[Watch] error ejecutando observed_tick_replay_validator.py: {e}",
               flush=True)
         if isinstance(e, (KeyboardInterrupt, SystemExit)):
             raise
@@ -477,29 +477,29 @@ def _push_session_data() -> None:
     que sin esto los logs no se subirían y no podríamos analizar la sesión.
     Llamamos a esta función después de cada parada/reinicio del bot.
 
-    Antes de subir, regenera el ledger reconciliado (reconcile.py).
+    Antes de subir, regenera el ledger reconciliado (reconcile_mt5_ledger.py).
     """
     ledger_ok = _regenerate_ledger()
     if ledger_ok:
         replay_ok = _regenerate_replay_trades()
         if replay_ok:
-            audit_ok = _regenerate_simulation_audit()
+            audit_ok = _regenerate_accounting_replay_audit()
             if audit_ok:
-                _regenerate_tick_cache_status()
-                _regenerate_weekly_replay_readiness()
-                _regenerate_tick_replay_audit()
+                _regenerate_replay_tick_cache_status()
+                _regenerate_replay_readiness_report()
+                _regenerate_observed_tick_replay_audit()
     files = [
         "data/trade_events.jsonl",
         "data/ledger.jsonl",
         "data/reconcile_status.json",
         "data/replay_trades.jsonl",
         "data/replay_status.json",
-        "data/simulation_audit.jsonl",
-        "data/simulation_audit_status.json",
-        "data/tick_cache_status.json",
-        "data/weekly_replay_readiness.json",
-        "data/tick_replay_audit.jsonl",
-        "data/tick_replay_status.json",
+        "data/accounting_replay_audit.jsonl",
+        "data/accounting_replay_audit_status.json",
+        "data/replay_tick_cache_status.json",
+        "data/replay_readiness_report.json",
+        "data/observed_tick_replay_audit.jsonl",
+        "data/observed_tick_replay_status.json",
         "data/trade_events_TEST.jsonl",
         "data/trade_journal.csv",
         "data/trade_journal_TEST.csv",

@@ -52,7 +52,7 @@ JOURNAL_TEST_FILE = DATA_DIR / "trade_journal_TEST.csv"
 # ContextVar: el listener envuelve los handlers del canal de pruebas con
 # `_test_context.set(True)`. Cualquier llamada a journal/logger/strategies
 # dentro de esa pila async ve is_test=True. asyncio.create_task() copia el
-# contexto, así que los background tasks (dca_monitor) heredan el flag.
+# contexto, así que los background tasks (position_lifecycle_monitor) heredan el flag.
 _test_context: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "journal_is_test", default=False
 )

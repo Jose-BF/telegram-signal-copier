@@ -71,15 +71,15 @@ async def test_notify_generic(client, notify_fn):
 async def test_notify_timestop(notify_fn):
     print("\n[TEST 2] Time-stop notify...")
 
-    # Importar la función interna del dca_monitor
-    from dca_monitor import _notify_time_stop, _floating_pl_summary
+    # Importar la función interna del position_lifecycle_monitor
+    from position_lifecycle_monitor import _notify_time_stop, _floating_pl_summary
 
     sig = _make_fake_signal()
     elapsed_min = (datetime.utcnow() - sig.timestamp).total_seconds() / 60
 
     # _notify_time_stop necesita el `notify` importado desde listener.
     # Como estamos fuera del bot, lo monkey-patching temporalmente.
-    import dca_monitor as _dm
+    import position_lifecycle_monitor as _dm
     import listener as _ln
     _ln._notify_peer = None   # fuerza re-resolución del peer
 

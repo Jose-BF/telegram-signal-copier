@@ -1,5 +1,5 @@
 """
-reconcile.py — Reconciliador: journal del bot + historial MT5 → ledger de verdad.
+reconcile_mt5_ledger.py — Reconciliador: journal del bot + historial MT5 → ledger de verdad.
 
 PROBLEMA QUE RESUELVE
 ─────────────────────
@@ -23,9 +23,9 @@ VERDAD verificada contra MT5. El ledger:
 
 USO
 ───
-  python reconcile.py                  # reconcilia todo, escribe ledger.jsonl
-  python reconcile.py --since 2026-05-01   # solo desde una fecha
-  python reconcile.py --quiet          # sin resumen por consola
+  python reconcile_mt5_ledger.py                  # reconcilia todo, escribe ledger.jsonl
+  python reconcile_mt5_ledger.py --since 2026-05-01   # solo desde una fecha
+  python reconcile_mt5_ledger.py --quiet          # sin resumen por consola
 
 El watcher lo ejecuta al cerrar cada sesion. Tambien se puede correr a mano.
 """
