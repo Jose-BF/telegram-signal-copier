@@ -655,6 +655,57 @@ def _fetch_deals_synced(t_from: datetime, t_to: datetime,
     return deals
 
 
+def _deal_money(deal, field: str) -> float:
+    return float(getattr(deal, field, 0.0) or 0.0)
+
+
+def _deal_time_utc(deal) -> str | None:
+    ts = getattr(deal, "time", None)
+    if ts is None:
+        return None
+    return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat(
+        timespec="seconds")
+
+
+def _deal_payload(deal) -> dict | None:
+    if deal is None:
+        return None
+    return {
+        "ticket": getattr(deal, "ticket", None),
+        "order": getattr(deal, "order", None),
+        "position_id": getattr(deal, "position_id", None),
+        "entry": getattr(deal, "entry", None),
+        "type": getattr(deal, "type", None),
+        "time": getattr(deal, "time", None),
+        "time_msc": getattr(deal, "time_msc", None),
+        "time_utc": _deal_time_utc(deal),
+        "symbol": getattr(deal, "symbol", None),
+        "magic": getattr(deal, "magic", None),
+        "price": getattr(deal, "price", None),
+        "volume": getattr(deal, "volume", None),
+        "profit": round(_deal_money(deal, "profit"), 2),
+        "swap": round(_deal_money(deal, "swap"), 2),
+        "commission": round(_deal_money(deal, "commission"), 2),
+        "fee": round(_deal_money(deal, "fee"), 2),
+        "comment": getattr(deal, "comment", None),
+    }
+
+
+def _pnl_components(deals) -> dict:
+    profit = sum(_deal_money(d, "profit") for d in deals)
+    swap = sum(_deal_money(d, "swap") for d in deals)
+    commission = sum(_deal_money(d, "commission") for d in deals)
+    fee = sum(_deal_money(d, "fee") for d in deals)
+    net = profit + swap + commission + fee
+    return {
+        "profit": round(profit, 2),
+        "swap": round(swap, 2),
+        "commission": round(commission, 2),
+        "fee": round(fee, 2),
+        "net": round(net, 2),
+    }
+
+
 def load_mt5_positions(t_from: datetime, t_to: datetime,
                        expected_sigs: set | None = None, *,
                        quiet: bool = False) -> dict:
@@ -724,9 +775,9 @@ def load_mt5_positions(t_from: datetime, t_to: datetime,
         if not sig_id:
             continue  # posicion sin sig_id identificable — se ignora
 
-        # P&L neto = profit + swap + commission + fee de TODOS los deals
-        pnl_net = sum(d.profit + d.swap + d.commission + getattr(d, "fee", 0.0)
-                      for d in dl_sorted)
+        # P&L neto = profit + swap + commission + fee de TODOS los deals.
+        components = _pnl_components(dl_sorted)
+        pnl_net = components["net"]
 
         result[sig_id].append({
             "position_id": pos_id,
@@ -741,7 +792,11 @@ def load_mt5_positions(t_from: datetime, t_to: datetime,
             "close_reason": (close_reason_from_comment(close_deal.comment)
                              if close_deal else None),
             "is_closed": close_deal is not None,
-            "pnl_net": round(pnl_net, 2),
+            "pnl_net": pnl_net,
+            "pnl_components": components,
+            "open_deal": _deal_payload(open_deal),
+            "close_deal": _deal_payload(close_deal),
+            "deals": [_deal_payload(d) for d in dl_sorted],
             "volume": open_deal.volume if open_deal else None,
             # T6: cronología por leg — v1 mínima (vacíos). La reconstrucción
             # detallada desde events sl_by_ticket queda como follow-up: el

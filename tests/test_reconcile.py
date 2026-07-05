@@ -366,6 +366,69 @@ class TestFetchDealsSynced:
 
 # ─── reconcile_signal enriquecido (T5 — Capa 2 Pt.1) ────────────────────────
 
+class TestLoadMt5PositionsDealDetail:
+    def _deal(self, **overrides):
+        base = {
+            "position_id": 1537498153,
+            "ticket": 1307240053,
+            "order": 1537498153,
+            "entry": 0,
+            "time": 1783076049,
+            "time_msc": 1783076049123,
+            "type": 0,
+            "symbol": "XAUUSD",
+            "price": 4176.83,
+            "volume": 0.01,
+            "profit": 0.0,
+            "swap": 0.0,
+            "commission": -0.02,
+            "fee": 0.0,
+            "comment": "c1_20700",
+            "magic": 20260421,
+        }
+        base.update(overrides)
+        return SimpleNamespace(**base)
+
+    def test_position_preserves_deal_components_and_millisecond_times(
+            self, monkeypatch):
+        open_deal = self._deal()
+        close_deal = self._deal(
+            ticket=1307244455,
+            entry=1,
+            time=1783077119,
+            time_msc=1783077119876,
+            price=4180.0,
+            profit=2.81,
+            swap=-0.01,
+            commission=-0.02,
+            fee=-0.01,
+            comment="[tp 4180.00]",
+        )
+        monkeypatch.setattr(
+            reconcile,
+            "_fetch_deals_synced",
+            lambda *_args, **_kwargs: [open_deal, close_deal],
+        )
+
+        positions = reconcile.load_mt5_positions(
+            None, None, {"canal1_20700"}, quiet=True)
+
+        pos = positions["canal1_20700"][0]
+        assert pos["pnl_net"] == 2.75
+        assert pos["pnl_components"] == {
+            "profit": 2.81,
+            "swap": -0.01,
+            "commission": -0.04,
+            "fee": -0.01,
+            "net": 2.75,
+        }
+        assert pos["open_deal"]["ticket"] == 1307240053
+        assert pos["open_deal"]["time_msc"] == 1783076049123
+        assert pos["close_deal"]["ticket"] == 1307244455
+        assert pos["close_deal"]["time_msc"] == 1783077119876
+        assert [deal["entry"] for deal in pos["deals"]] == [0, 1]
+
+
 class TestReconcileSignalEnrichedV1:
     """Rollup de anomalies+health+entry_quality+market_context+bot_version
     en cada fila del ledger. El journal dict ya viene enriquecido por

@@ -43,6 +43,8 @@ MAIN_PY  = REPO_DIR / "main.py"
 RECONCILE_STATUS_FILE = REPO_DIR / "data" / "reconcile_status.json"
 REPLAY_STATUS_FILE = REPO_DIR / "data" / "replay_status.json"
 SIMULATION_AUDIT_STATUS_FILE = REPO_DIR / "data" / "simulation_audit_status.json"
+TICK_CACHE_STATUS_FILE = REPO_DIR / "data" / "tick_cache_status.json"
+WEEKLY_REPLAY_READINESS_FILE = REPO_DIR / "data" / "weekly_replay_readiness.json"
 RUNTIME_HEARTBEAT_FILE = Path(os.getenv(
     "BOT_RUNTIME_HEARTBEAT_FILE",
     str(REPO_DIR / "data" / "runtime_heartbeat.json"),
@@ -386,6 +388,55 @@ def _regenerate_simulation_audit() -> bool:
     return bool(status["ok"])
 
 
+def _regenerate_tick_cache_status() -> bool:
+    """Asegura/cachea ticks necesarios por replay y escribe status JSON."""
+    try:
+        rec = subprocess.run(
+            [sys.executable, "tools/cache_replay_ticks.py", "--ensure", "--quiet"],
+            cwd=REPO_DIR, capture_output=True, text=True, timeout=300,
+        )
+        if rec.returncode == 0:
+            print("[Watch] tick_cache verificado/regenerado.", flush=True)
+            return True
+        print(f"[Watch] cache_replay_ticks.py aviso/fallo (rc={rec.returncode}): "
+              f"{(rec.stderr or rec.stdout or '')[:1000]}", flush=True)
+        return TICK_CACHE_STATUS_FILE.exists()
+    except BaseException as e:
+        print(f"[Watch] error ejecutando cache_replay_ticks.py: {e}", flush=True)
+        if isinstance(e, (KeyboardInterrupt, SystemExit)):
+            raise
+        return False
+
+
+def _regenerate_weekly_replay_readiness() -> bool:
+    """Genera reporte diario de preparacion para replay tick-a-tick.
+
+    weekly_replay_readiness.py devuelve rc=1 cuando hay trades bloqueados. Eso
+    no es crash: el reporte es precisamente la alarma que queremos subir.
+    """
+    try:
+        rec = subprocess.run(
+            [sys.executable, "weekly_replay_readiness.py", "--quiet"],
+            cwd=REPO_DIR, capture_output=True, text=True, timeout=60,
+        )
+        if rec.returncode == 0:
+            print("[Watch] weekly_replay_readiness OK.", flush=True)
+            return True
+        if WEEKLY_REPLAY_READINESS_FILE.exists():
+            print("[Watch] weekly_replay_readiness generado con bloqueos.",
+                  flush=True)
+            return True
+        print(f"[Watch] weekly_replay_readiness.py fallo (rc={rec.returncode}): "
+              f"{(rec.stderr or rec.stdout or '')[:1000]}", flush=True)
+        return False
+    except BaseException as e:
+        print(f"[Watch] error ejecutando weekly_replay_readiness.py: {e}",
+              flush=True)
+        if isinstance(e, (KeyboardInterrupt, SystemExit)):
+            raise
+        return False
+
+
 def _push_session_data() -> None:
     """Sube data/trade_events.jsonl + ledger + journal a GitHub si hay cambios.
 
@@ -400,7 +451,10 @@ def _push_session_data() -> None:
     if ledger_ok:
         replay_ok = _regenerate_replay_trades()
         if replay_ok:
-            _regenerate_simulation_audit()
+            audit_ok = _regenerate_simulation_audit()
+            if audit_ok:
+                _regenerate_tick_cache_status()
+                _regenerate_weekly_replay_readiness()
     files = [
         "data/trade_events.jsonl",
         "data/ledger.jsonl",
@@ -409,6 +463,8 @@ def _push_session_data() -> None:
         "data/replay_status.json",
         "data/simulation_audit.jsonl",
         "data/simulation_audit_status.json",
+        "data/tick_cache_status.json",
+        "data/weekly_replay_readiness.json",
         "data/trade_events_TEST.jsonl",
         "data/trade_journal.csv",
         "data/trade_journal_TEST.csv",

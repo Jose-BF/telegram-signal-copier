@@ -34,7 +34,8 @@ class TickCache:
 
     EMPTY_COLS = ["time_msc", "bid", "ask", "last", "volume", "flags", "time_utc"]
 
-    def __init__(self, mt5_session, mem_days_cap: int = 25):
+    def __init__(self, mt5_session, mem_days_cap: int = 25,
+                 cache_dir: Path | None = None):
         """
         mem_days_cap: máximo de DataFrames de día mantenidos en RAM (LRU).
         Cada día son ~5-7 MB en RAM, así que 30 días = ~200 MB. Esto evita
@@ -43,12 +44,14 @@ class TickCache:
         bottleneck principal).
         """
         self.mt5 = mt5_session
+        self.cache_dir = Path(cache_dir) if cache_dir is not None else TICKS_CACHE
+        self.cache_dir.mkdir(exist_ok=True, parents=True)
         self._mem: dict[date, pd.DataFrame] = {}
         self._mem_order: list[date] = []  # insertion order para LRU
         self._mem_cap = mem_days_cap
 
     def _file_for_date(self, d: date) -> Path:
-        return TICKS_CACHE / f"{d.isoformat()}.parquet"
+        return self.cache_dir / f"{d.isoformat()}.parquet"
 
     def _load_day_into_mem(self, d: date) -> pd.DataFrame:
         """Devuelve el DataFrame del día d, cargándolo en RAM si no está.
@@ -141,11 +144,11 @@ class TickCache:
         return all_df[mask].sort_values("time_msc").reset_index(drop=True)
 
     def disk_usage_mb(self) -> float:
-        total = sum(f.stat().st_size for f in TICKS_CACHE.glob("*.parquet"))
+        total = sum(f.stat().st_size for f in self.cache_dir.glob("*.parquet"))
         return total / (1024 * 1024)
 
     def cache_summary(self) -> dict:
-        files = list(TICKS_CACHE.glob("*.parquet"))
+        files = list(self.cache_dir.glob("*.parquet"))
         # Solo contamos los con formato YYYY-MM-DD
         day_files = [f for f in files if len(f.stem) == 10 and f.stem[4] == "-"]
         return {

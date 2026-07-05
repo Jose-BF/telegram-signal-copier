@@ -105,6 +105,35 @@ def test_position_id_is_used_as_operational_ticket_for_event_matching():
     assert ticket["fill_event"]["ticket"] == 111
 
 
+def test_ticket_preserves_mt5_deal_detail():
+    position = _closed_position(ticket=999)
+    position.update({
+        "position_id": 111,
+        "pnl_components": {
+            "profit": 2.81,
+            "swap": -0.01,
+            "commission": -0.04,
+            "fee": -0.01,
+            "net": 2.75,
+        },
+        "open_deal": {"ticket": 1307240053, "time_msc": 1783076049123},
+        "close_deal": {"ticket": 1307244455, "time_msc": 1783077119876},
+        "deals": [
+            {"ticket": 1307240053, "entry": 0, "time_msc": 1783076049123},
+            {"ticket": 1307244455, "entry": 1, "time_msc": 1783077119876},
+        ],
+    })
+
+    replay = replay_builder.build_replay_trade(
+        _ledger_row(positions=[position]), [])
+
+    ticket = replay["tickets"][0]
+    assert ticket["pnl_components"]["net"] == 2.75
+    assert ticket["open_deal"]["time_msc"] == 1783076049123
+    assert ticket["close_deal"]["time_msc"] == 1783077119876
+    assert [deal["entry"] for deal in ticket["deals"]] == [0, 1]
+
+
 def test_level_history_is_recovered_from_order_lifecycle_by_position_id():
     position = _closed_position(ticket=999)
     position["position_id"] = 111
