@@ -1,10 +1,10 @@
 {
-  "ok": false,
-  "generated_at": "2026-07-07T19:37:47+00:00",
+  "ok": true,
+  "generated_at": "2026-07-07T20:23:02+00:00",
   "dry_run": false,
-  "ensure_attempted": true,
+  "ensure_attempted": false,
   "pad_minutes": 5,
-  "cache_dir": "C:\\Users\\bot\\telegram-signal-copier\\data\\ticks_cache",
+  "cache_dir": "data/ticks_cache",
   "n_trades": 153,
   "required_days": [
     "2026-06-05",
@@ -35,8 +35,7 @@
     "2026-07-06",
     "2026-07-07"
   ],
-  "cached_days": [],
-  "missing_days": [
+  "cached_days": [
     "2026-06-05",
     "2026-06-08",
     "2026-06-09",
@@ -65,6 +64,7 @@
     "2026-07-06",
     "2026-07-07"
   ],
+  "missing_days": [],
   "ensure_stats": {},
-  "error": "ModuleNotFoundError: No module named 'mt5_tick_cache'"
+  "error": null
 }

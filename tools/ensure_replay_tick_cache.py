@@ -15,6 +15,15 @@ DEFAULT_CACHE_DIR = REPO_DIR / "data" / "ticks_cache"
 DEFAULT_STATUS = REPO_DIR / "data" / "replay_tick_cache_status.json"
 
 
+def ensure_repo_import_path() -> None:
+    repo = str(REPO_DIR)
+    if repo not in sys.path:
+        sys.path.insert(0, repo)
+
+
+ensure_repo_import_path()
+
+
 def _parse_dt(value: str | None) -> datetime | None:
     if not value:
         return None
@@ -89,6 +98,13 @@ def _day_file(cache_dir: Path, day: date) -> Path:
     return cache_dir / f"{day.isoformat()}.parquet"
 
 
+def _portable_path(path: Path) -> str:
+    try:
+        return path.resolve().relative_to(REPO_DIR.resolve()).as_posix()
+    except ValueError:
+        return str(path)
+
+
 def build_status(
     trades: list[dict],
     *,
@@ -115,7 +131,7 @@ def build_status(
         "dry_run": dry_run,
         "ensure_attempted": ensure_attempted,
         "pad_minutes": pad_minutes,
-        "cache_dir": str(cache_dir),
+        "cache_dir": _portable_path(cache_dir),
         "n_trades": len(trades),
         "required_days": [day.isoformat() for day in days],
         "cached_days": [day.isoformat() for day in cached],

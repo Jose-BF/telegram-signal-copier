@@ -157,6 +157,29 @@ class TestDiffCanal1Edit:
         diff = _diff_canal1_edit(sig, parsed)
         assert diff["sl_changed"] is False
 
+    def test_solo_rango_cambia_no_es_material(self):
+        sig = self._sig(
+            tps=[4151.0, 4146.0, 4142.0, 4138.0],
+            sl=4175.0,
+            range_low=4152.62,
+            range_high=4157.62,
+            direction="SELL",
+        )
+        parsed = {
+            "direction": "SELL",
+            "tps": [4151.0, 4146.0, 4142.0, 4138.0],
+            "sl": 4175.0,
+            "range": [4155.0, 4160.0],
+        }
+
+        diff = _diff_canal1_edit(sig, parsed)
+
+        assert diff["range_changed"] is True
+        assert diff["material_change"] is False
+        assert diff["sl_changed"] is False
+        assert diff["tps_changed"] is False
+        assert diff["direction_changed"] is False
+
 
 # ─────────── B3 — strict vs loose canal1 signal-text filter ───────────
 

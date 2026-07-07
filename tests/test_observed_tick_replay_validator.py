@@ -119,6 +119,46 @@ def test_level_touch_before_confirmation_does_not_count():
     assert "no_level_touch_before_close" in result["blockers"]
 
 
+def test_zero_level_is_ignored_as_missing_price():
+    ticket = _ticket(
+        close_reason="sl",
+        close_price=4195.0,
+        tp_history=[{
+            "ts": "2026-07-06T10:00:10+00:00",
+            "status": "confirmed",
+            "tp": 0.0,
+        }],
+    )
+    ticks = _ticks([
+        {"time_utc": "2026-07-06T10:00:20+00:00", "bid": 4201.5, "ask": 4201.7},
+        {"time_utc": "2026-07-06T10:01:30+00:00", "bid": 4195.0, "ask": 4195.2},
+    ])
+
+    result = observed_tick_replay_validator.validate_ticket(_trade(), ticket, ticks)
+
+    assert result["status"] == "exact"
+    assert result["first_touch"]["reason"] == "sl"
+
+
+def test_bot_close_replays_as_market_close_near_close_time():
+    ticket = _ticket(
+        close_reason="bot_close",
+        close_price=4201.8,
+        sl_history=[],
+        tp_history=[],
+    )
+    ticks = _ticks([
+        {"time_utc": "2026-07-06T10:01:57+00:00", "bid": 4201.2, "ask": 4201.4},
+        {"time_utc": "2026-07-06T10:02:01+00:00", "bid": 4201.8, "ask": 4202.0},
+    ])
+
+    result = observed_tick_replay_validator.validate_ticket(_trade(), ticket, ticks)
+
+    assert result["status"] == "exact"
+    assert result["first_touch"]["reason"] == "bot_close"
+    assert result["first_touch"]["side"] == "bid"
+
+
 def test_trade_blocks_when_tick_cache_is_missing(tmp_path):
     result = observed_tick_replay_validator.validate_trade(
         _trade(),
@@ -161,3 +201,50 @@ def test_cli_writes_observed_tick_replay_audit_and_status(tmp_path):
     assert exit_code == 0
     assert rows[0]["status"] == "exact"
     assert status["summary"]["exact"] == 1
+
+
+def test_cli_reuses_cached_tick_day_across_trades(tmp_path, monkeypatch):
+    cache_dir = tmp_path / "ticks_cache"
+    cache_dir.mkdir()
+    (cache_dir / "2026-07-06.parquet").touch()
+    ticks = _ticks([
+        {"time_utc": "2026-07-06T10:00:20+00:00", "bid": 4201.0, "ask": 4201.2},
+        {"time_utc": "2026-07-06T10:01:30+00:00", "bid": 4202.0, "ask": 4202.2},
+    ])
+    calls = []
+
+    def fake_read_parquet(path):
+        calls.append(path)
+        return ticks.copy()
+
+    monkeypatch.setattr(
+        observed_tick_replay_validator.pd,
+        "read_parquet",
+        fake_read_parquet,
+    )
+    replay_path = tmp_path / "replay_trades.jsonl"
+    output_path = tmp_path / "observed_tick_replay_audit.jsonl"
+    status_path = tmp_path / "observed_tick_replay_status.json"
+    trades = [
+        _trade(sig_id="canal1_1"),
+        _trade(sig_id="canal1_2"),
+    ]
+    replay_path.write_text(
+        "\n".join(json.dumps(trade) for trade in trades) + "\n",
+        encoding="utf-8",
+    )
+
+    exit_code = observed_tick_replay_validator.main([
+        "--input",
+        str(replay_path),
+        "--tick-cache-dir",
+        str(cache_dir),
+        "--output",
+        str(output_path),
+        "--status",
+        str(status_path),
+        "--quiet",
+    ])
+
+    assert exit_code == 0
+    assert len(calls) == 1

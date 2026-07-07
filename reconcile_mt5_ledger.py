@@ -277,6 +277,40 @@ def _latest_confirmed_level(history: list[dict], field: str):
     return None
 
 
+def _is_canal1_range_only_edit_anomaly(anomaly: dict) -> bool:
+    if anomaly.get("category") != "channel_msg":
+        return False
+    if anomaly.get("sl_changed") is not False:
+        return False
+    if anomaly.get("tps_changed") is not False:
+        return False
+    if anomaly.get("direction_changed") is not False:
+        return False
+    detail = str(anomaly.get("detail") or "").lower()
+    if "canal1" not in detail and "canal 1" not in detail:
+        return False
+    previous = anomaly.get("previous") or {}
+    new = anomaly.get("new") or {}
+    return bool(previous.get("range_low") is not None
+                or previous.get("range_high") is not None
+                or new.get("range") is not None)
+
+
+def _normalize_anomalies_for_analysis(anomalies: list[dict]) -> list[dict]:
+    normalized: list[dict] = []
+    for anomaly in anomalies:
+        item = dict(anomaly)
+        if _is_canal1_range_only_edit_anomaly(item):
+            item["severity"] = "info"
+            item["code"] = "canal1_range_only_edit"
+            item["detail"] = (
+                "canal1 editó solo el rango de entrada; SL/TP/dirección "
+                "sin cambios, no requiere acción sobre MT5"
+            )
+        normalized.append(item)
+    return normalized
+
+
 def _same_level_or_none(values: list):
     values = [v for v in values if v is not None]
     if not values:
@@ -909,7 +943,8 @@ def reconcile_signal(sig_id: str, journal: dict | None,
         journal, positions_for_ledger)
     post_time_stop_outcome = _derive_post_time_stop_outcome(
         journal, positions_for_ledger, status)
-    anomalies = list(journal.get("anomalies", []))
+    anomalies = _normalize_anomalies_for_analysis(
+        list(journal.get("anomalies", [])))
     if journal_closed_with_mt5_open:
         anomalies.append({
             "ts": close_dt,

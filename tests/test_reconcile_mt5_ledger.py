@@ -466,6 +466,41 @@ class TestReconcileSignalEnrichedV1:
             "canal2_77", self._base_journal(anomalies=anomalies), [])
         assert row["health"] == "degraded"
 
+    def test_canal1_range_only_edit_warning_is_info(self):
+        anomalies = [{
+            "ts": "2026-07-07T14:34:27+00:00",
+            "category": "channel_msg",
+            "severity": "warning",
+            "detail": "canal1 editó el mensaje de señal — niveles cambiaron tras la apertura",
+            "previous": {
+                "sl": 4175.0,
+                "tps": [4151.0, 4146.0, 4142.0, 4138.0],
+                "direction": "SELL",
+                "range_low": 4152.62,
+                "range_high": 4157.62,
+            },
+            "new": {
+                "sl": 4175.0,
+                "tps": [4151.0, 4146.0, 4142.0, 4138.0],
+                "direction": "SELL",
+                "range": [4155.0, 4160.0],
+            },
+            "sl_changed": False,
+            "tps_changed": False,
+            "direction_changed": False,
+        }]
+
+        row = reconcile_signal(
+            "canal1_20751",
+            self._base_journal(channel="canal1", direction="SELL",
+                               anomalies=anomalies),
+            [],
+        )
+
+        assert row["health"] == "ok"
+        assert row["anomalies"][0]["severity"] == "info"
+        assert row["anomalies"][0]["code"] == "canal1_range_only_edit"
+
     def test_entry_quality_se_propaga(self):
         eq = {"case": "A_inside", "distance_to_zone_usd": 0.0}
         row = reconcile_signal(

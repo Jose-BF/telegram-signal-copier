@@ -1,4 +1,5 @@
 import json
+import sys
 from datetime import date
 
 from tools import ensure_replay_tick_cache
@@ -53,6 +54,16 @@ def test_cache_status_marks_missing_and_cached_days(tmp_path):
     assert status["missing_days"] == ["2026-07-07"]
 
 
+def test_cache_status_uses_repo_relative_cache_dir_for_default_cache():
+    status = ensure_replay_tick_cache.build_status(
+        [],
+        cache_dir=ensure_replay_tick_cache.DEFAULT_CACHE_DIR,
+        pad_minutes=0,
+    )
+
+    assert status["cache_dir"] == "data/ticks_cache"
+
+
 def test_dry_run_cli_writes_tick_cache_status(tmp_path):
     replay_path = tmp_path / "replay_trades.jsonl"
     status_path = tmp_path / "replay_tick_cache_status.json"
@@ -81,3 +92,16 @@ def test_dry_run_cli_writes_tick_cache_status(tmp_path):
     assert exit_code == 1
     assert status["dry_run"] is True
     assert status["missing_days"] == ["2026-07-06"]
+
+
+def test_tool_exposes_repo_root_when_run_as_script(monkeypatch):
+    repo_dir = str(ensure_replay_tick_cache.REPO_DIR)
+    monkeypatch.setattr(
+        sys,
+        "path",
+        [p for p in sys.path if p != repo_dir],
+    )
+
+    ensure_replay_tick_cache.ensure_repo_import_path()
+
+    assert sys.path[0] == repo_dir

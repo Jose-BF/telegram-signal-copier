@@ -3721,7 +3721,7 @@ def _diff_canal1_edit(prev_signal, new_parsed: dict) -> dict:
 
     return {
         "material_change": bool(sl_changed or tps_changed
-                                or direction_changed or range_changed),
+                                or direction_changed),
         "sl_changed": sl_changed,
         "tps_changed": tps_changed,
         "direction_changed": direction_changed,
@@ -3937,7 +3937,8 @@ async def _process_canal1_edit(msg):
       2. Re-parsear el texto del edit.
       3. _diff_canal1_edit decide si hubo cambio material.
       4. Si cambian TPs/SL, reaplicar con el mismo validador del texto
-         inicial. Si cambia direccion o solo rango, avisar sin actuar.
+         inicial. Si cambia direccion, avisar sin actuar. Un cambio solo
+         de rango queda registrado como telemetria, no como anomalia.
     """
     if await _process_management_reply_edit(msg, "canal1", "Canal1"):
         return

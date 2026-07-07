@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable
 
+import numpy as np
 import pandas as pd
 
 from tools import ensure_replay_tick_cache
@@ -22,6 +23,8 @@ DEFAULT_OUTPUT = DATA_DIR / "observed_tick_replay_audit.jsonl"
 DEFAULT_STATUS = DATA_DIR / "observed_tick_replay_status.json"
 SCHEMA_VERSION = 1
 PRICE_EPSILON = 0.01
+MARKET_CLOSE_PRICE_TOLERANCE = 0.50
+SUPPORTED_CLOSE_REASONS = {"tp", "sl", "be", "bot_close"}
 
 
 def _parse_dt(value: str | None) -> datetime | None:
@@ -62,10 +65,28 @@ def _level_events(history: Iterable[dict], key: str) -> list[tuple[datetime, flo
         if ts is None or value is None:
             continue
         try:
-            events.append((ts, float(value)))
+            level = float(value)
         except (TypeError, ValueError):
             continue
+        if level <= 0:
+            continue
+        events.append((ts, level))
     return sorted(events, key=lambda item: item[0])
+
+
+def _has_inactive_level_marker(history: Iterable[dict], key: str) -> bool:
+    for item in history or []:
+        if item.get("status") not in (None, "confirmed", "snapshot"):
+            continue
+        value = item.get(key)
+        if value is None:
+            continue
+        try:
+            if float(value) <= 0:
+                return True
+        except (TypeError, ValueError):
+            continue
+    return False
 
 
 def _direction(trade: dict) -> str:
@@ -128,6 +149,128 @@ def _touch_for_tick(direction: str, ticket: dict, row, sl: float | None,
     return None
 
 
+def _active_levels(events: list[tuple[datetime, float]],
+                   tick_ns: np.ndarray) -> np.ndarray:
+    levels = np.full(len(tick_ns), np.nan, dtype=float)
+    if not events or len(tick_ns) == 0:
+        return levels
+    event_ns = np.array(
+        [pd.Timestamp(ts).value for ts, _value in events],
+        dtype=np.int64,
+    )
+    event_levels = np.array([float(value) for _ts, value in events], dtype=float)
+    indexes = np.searchsorted(event_ns, tick_ns, side="right") - 1
+    valid = indexes >= 0
+    levels[valid] = event_levels[indexes[valid]]
+    return levels
+
+
+def _first_touch_for_ticks(
+    direction: str,
+    ticket: dict,
+    window_ticks: pd.DataFrame,
+    sl_events: list[tuple[datetime, float]],
+    tp_events: list[tuple[datetime, float]],
+) -> dict | None:
+    if window_ticks.empty:
+        return None
+    tick_times = pd.to_datetime(window_ticks["time_utc"], utc=True)
+    tick_ns = tick_times.dt.as_unit("ns").astype("int64").to_numpy()
+    sl_levels = _active_levels(sl_events, tick_ns)
+    tp_levels = _active_levels(tp_events, tick_ns)
+    bid = pd.to_numeric(window_ticks["bid"], errors="coerce").to_numpy(dtype=float)
+    ask = pd.to_numeric(window_ticks["ask"], errors="coerce").to_numpy(dtype=float)
+
+    if direction == "BUY":
+        side = "bid"
+        side_prices = bid
+        sl_touch = ~np.isnan(sl_levels) & (bid <= sl_levels)
+        tp_touch = ~np.isnan(tp_levels) & (bid >= tp_levels)
+    elif direction == "SELL":
+        side = "ask"
+        side_prices = ask
+        sl_touch = ~np.isnan(sl_levels) & (ask >= sl_levels)
+        tp_touch = ~np.isnan(tp_levels) & (ask <= tp_levels)
+    else:
+        return None
+
+    touched = np.flatnonzero(sl_touch | tp_touch)
+    if len(touched) == 0:
+        return None
+    idx = int(touched[0])
+    is_sl = bool(sl_touch[idx])
+    level = float(sl_levels[idx] if is_sl else tp_levels[idx])
+    tick_time = pd.Timestamp(tick_times.iloc[idx]).to_pydatetime().astimezone(
+        timezone.utc)
+    return {
+        "reason": _sl_reason(ticket, level) if is_sl else "tp",
+        "level": round(level, 2),
+        "side": side,
+        "side_price": round(float(side_prices[idx]), 2),
+        "time_utc": _iso(tick_time),
+    }
+
+
+def _market_close_for_ticket(
+    direction: str,
+    ticket: dict,
+    ticks: pd.DataFrame,
+    *,
+    close_grace_s: int = 5,
+) -> tuple[dict | None, list[str], list[str]]:
+    label = _ticket_label(ticket)
+    blockers: list[str] = []
+    warnings: list[str] = []
+    closed = _parse_dt(ticket.get("close_dt_utc"))
+    if closed is None or ticks.empty or "time_utc" not in ticks.columns:
+        return None, [f"missing_ticks_near_bot_close:{label}"], warnings
+    if direction == "BUY":
+        side = "bid"
+    elif direction == "SELL":
+        side = "ask"
+    else:
+        return None, ["missing_direction"], warnings
+    try:
+        close_price = float(ticket.get("close_price"))
+    except (TypeError, ValueError):
+        return None, [f"missing_ticket_close:{label}"], warnings
+
+    time_col = pd.to_datetime(ticks["time_utc"], utc=True)
+    start = closed - timedelta(seconds=close_grace_s)
+    end = closed + timedelta(seconds=close_grace_s)
+    near = ticks.loc[(time_col >= start) & (time_col <= end)]
+    if near.empty:
+        return None, [f"missing_ticks_near_bot_close:{label}"], warnings
+
+    near_times = pd.to_datetime(near["time_utc"], utc=True)
+    nearest_pos = np.abs(
+        near_times.dt.as_unit("ns").astype("int64").to_numpy()
+        - pd.Timestamp(closed).value
+    ).argmin()
+    row = near.iloc[int(nearest_pos)]
+    tick_time = pd.Timestamp(row["time_utc"]).to_pydatetime().astimezone(
+        timezone.utc)
+    side_price = float(row[side])
+    price_delta = side_price - close_price
+    if abs(price_delta) > PRICE_EPSILON:
+        warnings.append(
+            f"bot_close_price_delta:{label}:{price_delta:+.2f}"
+        )
+    if abs(price_delta) > MARKET_CLOSE_PRICE_TOLERANCE:
+        blockers.append(
+            f"bot_close_price_mismatch:{label}:{price_delta:+.2f}"
+        )
+
+    return {
+        "reason": "bot_close",
+        "level": round(close_price, 2),
+        "side": side,
+        "side_price": round(side_price, 2),
+        "time_utc": _iso(tick_time),
+        "price_delta": round(price_delta, 3),
+    }, blockers, warnings
+
+
 def _reason_matches(expected: str | None, observed: str | None) -> bool:
     expected = (expected or "").lower()
     observed = (observed or "").lower()
@@ -172,19 +315,8 @@ def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
     if not ticket.get("close_dt_utc") or ticket.get("close_price") is None:
         blockers.append(f"missing_ticket_close:{label}")
     expected_reason = (ticket.get("close_reason") or "").lower()
-    if expected_reason not in ("tp", "sl", "be"):
+    if expected_reason not in SUPPORTED_CLOSE_REASONS:
         blockers.append(f"unsupported_close_reason:{label}:{expected_reason or 'unknown'}")
-
-    sl_events = _level_events(ticket.get("sl_history") or [], "sl")
-    tp_events = _level_events(ticket.get("tp_history") or [], "tp")
-    if not sl_events:
-        blockers.append(f"missing_sl_history:{label}")
-    if not tp_events:
-        blockers.append(f"missing_tp_history:{label}")
-
-    window_ticks = _filter_ticket_ticks(ticket, ticks)
-    if window_ticks.empty:
-        blockers.append(f"missing_ticks_for_ticket:{label}")
 
     base = {
         "ticket": ticket.get("ticket"),
@@ -197,22 +329,48 @@ def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
     if blockers:
         return base
 
-    sl_idx = 0
-    tp_idx = 0
-    active_sl = None
-    active_tp = None
-    first_touch = None
-    for _, row in window_ticks.iterrows():
-        tick_time = _tick_time(row)
-        while sl_idx < len(sl_events) and sl_events[sl_idx][0] <= tick_time:
-            active_sl = sl_events[sl_idx][1]
-            sl_idx += 1
-        while tp_idx < len(tp_events) and tp_events[tp_idx][0] <= tick_time:
-            active_tp = tp_events[tp_idx][1]
-            tp_idx += 1
-        first_touch = _touch_for_tick(direction, ticket, row, active_sl, active_tp)
-        if first_touch is not None:
-            break
+    if expected_reason == "bot_close":
+        first_touch, market_blockers, market_warnings = _market_close_for_ticket(
+            direction,
+            ticket,
+            ticks,
+        )
+        warnings.extend(market_warnings)
+        status = "exact" if not market_blockers else "mismatch"
+        return {
+            **base,
+            "status": status,
+            "first_touch": first_touch,
+            "blockers": market_blockers,
+            "warnings": warnings,
+        }
+
+    sl_history = ticket.get("sl_history") or []
+    tp_history = ticket.get("tp_history") or []
+    sl_events = _level_events(sl_history, "sl")
+    tp_events = _level_events(tp_history, "tp")
+    if not sl_events and not _has_inactive_level_marker(sl_history, "sl"):
+        blockers.append(f"missing_sl_history:{label}")
+    if not tp_events and not _has_inactive_level_marker(tp_history, "tp"):
+        blockers.append(f"missing_tp_history:{label}")
+
+    window_ticks = _filter_ticket_ticks(ticket, ticks)
+    if window_ticks.empty:
+        blockers.append(f"missing_ticks_for_ticket:{label}")
+    if blockers:
+        return {
+            **base,
+            "blockers": list(dict.fromkeys(blockers)),
+            "warnings": warnings,
+        }
+
+    first_touch = _first_touch_for_ticks(
+        direction,
+        ticket,
+        window_ticks,
+        sl_events,
+        tp_events,
+    )
 
     if first_touch is None:
         return {
@@ -243,31 +401,59 @@ def _required_tick_days(trade: dict, pad_minutes: int) -> list[str]:
     ]
 
 
+class ReplayTickFrameCache:
+    def __init__(self, tick_cache_dir: Path):
+        self.tick_cache_dir = Path(tick_cache_dir)
+        self._frames: dict[str, pd.DataFrame] = {}
+
+    def _load_day(self, day: str) -> tuple[pd.DataFrame | None, str | None]:
+        if day in self._frames:
+            return self._frames[day], None
+        path = self.tick_cache_dir / f"{day}.parquet"
+        if not path.exists():
+            return None, f"missing_tick_cache:{day}"
+        try:
+            frame = pd.read_parquet(path)
+        except Exception as exc:
+            return None, f"tick_cache_read_failed:{day}:{type(exc).__name__}"
+        if not frame.empty:
+            frame = frame.copy()
+            frame["time_utc"] = pd.to_datetime(frame["time_utc"], utc=True)
+            frame = frame.sort_values("time_utc").reset_index(drop=True)
+        self._frames[day] = frame
+        return frame, None
+
+    def load_ticks_for_trade(
+        self,
+        trade: dict,
+        *,
+        pad_minutes: int = 5,
+    ) -> tuple[pd.DataFrame, list[str]]:
+        missing: list[str] = []
+        frames: list[pd.DataFrame] = []
+        for day in _required_tick_days(trade, pad_minutes):
+            frame, error = self._load_day(day)
+            if error:
+                missing.append(error)
+                continue
+            if frame is not None and not frame.empty:
+                frames.append(frame)
+        if not frames:
+            return pd.DataFrame(), missing
+        ticks = pd.concat(frames, ignore_index=True).sort_values("time_utc")
+        return ticks.reset_index(drop=True), missing
+
+
 def load_ticks_for_trade(
     trade: dict,
     *,
     tick_cache_dir: Path,
     pad_minutes: int = 5,
 ) -> tuple[pd.DataFrame, list[str]]:
-    missing: list[str] = []
-    frames: list[pd.DataFrame] = []
-    for day in _required_tick_days(trade, pad_minutes):
-        path = tick_cache_dir / f"{day}.parquet"
-        if not path.exists():
-            missing.append(f"missing_tick_cache:{day}")
-            continue
-        try:
-            frame = pd.read_parquet(path)
-        except Exception as exc:
-            missing.append(f"tick_cache_read_failed:{day}:{type(exc).__name__}")
-            continue
-        if not frame.empty:
-            frame["time_utc"] = pd.to_datetime(frame["time_utc"], utc=True)
-            frames.append(frame)
-    if not frames:
-        return pd.DataFrame(), missing
-    ticks = pd.concat(frames, ignore_index=True).sort_values("time_utc")
-    return ticks.reset_index(drop=True), missing
+    return ReplayTickFrameCache(tick_cache_dir).load_ticks_for_trade(
+        trade,
+        pad_minutes=pad_minutes,
+    )
 
 
 def validate_trade(
@@ -275,12 +461,19 @@ def validate_trade(
     *,
     tick_cache_dir: Path = DEFAULT_TICK_CACHE_DIR,
     pad_minutes: int = 5,
+    tick_loader: ReplayTickFrameCache | None = None,
 ) -> dict:
-    ticks, missing = load_ticks_for_trade(
-        trade,
-        tick_cache_dir=tick_cache_dir,
-        pad_minutes=pad_minutes,
-    )
+    if tick_loader is None:
+        ticks, missing = load_ticks_for_trade(
+            trade,
+            tick_cache_dir=tick_cache_dir,
+            pad_minutes=pad_minutes,
+        )
+    else:
+        ticks, missing = tick_loader.load_ticks_for_trade(
+            trade,
+            pad_minutes=pad_minutes,
+        )
     tickets = trade.get("tickets") or []
     ticket_results = []
     if missing:
@@ -385,11 +578,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args(argv)
 
+    tick_loader = ReplayTickFrameCache(args.tick_cache_dir)
     rows = [
         validate_trade(
             trade,
             tick_cache_dir=args.tick_cache_dir,
             pad_minutes=args.pad_minutes,
+            tick_loader=tick_loader,
         )
         for trade in load_jsonl(args.input)
     ]

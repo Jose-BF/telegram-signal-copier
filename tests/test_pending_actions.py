@@ -112,8 +112,13 @@ class TestC4LogFailureDoesNotResetTask:
     activo. Race: la siguiente add() veia None y arrancaba SEGUNDO runner."""
 
     @pytest.mark.asyncio
-    async def test_log_failure_preserves_task_reference(self):
+    async def test_log_failure_preserves_task_reference(self, tmp_path, monkeypatch):
         import journal
+        monkeypatch.setattr(
+            journal,
+            "EVENTS_TEST_FILE",
+            tmp_path / "trade_events_TEST.jsonl",
+        )
 
         q = PendingQueue()
         # Setup minimo: simulamos un runner activo con un task dummy
