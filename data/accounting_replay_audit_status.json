@@ -1,16 +1,16 @@
 {
   "ok": true,
-  "started_at": "2026-07-05T09:13:45+00:00",
-  "finished_at": "2026-07-05T09:13:45+00:00",
-  "duration_s": 0.2,
+  "started_at": "2026-07-07T19:37:47+00:00",
+  "finished_at": "2026-07-07T19:37:47+00:00",
+  "duration_s": 0.53,
   "returncode": 0,
   "stdout": "",
   "stderr": "",
   "audit_exists": true,
-  "audit_size_bytes": 63397,
+  "audit_size_bytes": 71249,
   "command": [
-    "C:\\Users\\josea\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe",
-    "replay_validator.py",
+    "C:\\Program Files\\Python311\\python.exe",
+    "accounting_replay_validator.py",
     "--quiet"
   ]
 }
