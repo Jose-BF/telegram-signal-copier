@@ -1,11 +1,11 @@
 {
   "ok": true,
-  "generated_at": "2026-07-07T20:23:02+00:00",
+  "generated_at": "2026-07-08T15:02:15+00:00",
   "dry_run": false,
-  "ensure_attempted": false,
+  "ensure_attempted": true,
   "pad_minutes": 5,
   "cache_dir": "data/ticks_cache",
-  "n_trades": 153,
+  "n_trades": 157,
   "required_days": [
     "2026-06-05",
     "2026-06-08",
@@ -33,7 +33,8 @@
     "2026-07-02",
     "2026-07-03",
     "2026-07-06",
-    "2026-07-07"
+    "2026-07-07",
+    "2026-07-08"
   ],
   "cached_days": [
     "2026-06-05",
@@ -62,9 +63,15 @@
     "2026-07-02",
     "2026-07-03",
     "2026-07-06",
-    "2026-07-07"
+    "2026-07-07",
+    "2026-07-08"
   ],
   "missing_days": [],
-  "ensure_stats": {},
+  "ensure_stats": {
+    "downloaded": 28,
+    "cached_already": 0,
+    "total_ticks": 16280668,
+    "empty_days": 2
+  },
   "error": null
 }

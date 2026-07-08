@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-07-07T20:13:58+00:00",
-  "tick_cache_dir": "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-replay-validator\\data\\ticks_cache",
+  "generated_at": "2026-07-08T15:02:15+00:00",
+  "tick_cache_dir": "C:\\Users\\bot\\telegram-signal-copier\\data\\ticks_cache",
   "pad_minutes": 5,
   "summary": {
-    "total": 153,
-    "ready": 153,
+    "total": 157,
+    "ready": 157,
     "blocked": 0,
     "top_blockers": []
   },
@@ -2827,6 +2827,77 @@
       "accounting_status": "reconstructed",
       "tick_days": [
         "2026-07-07"
+      ],
+      "ticket_count": 4,
+      "blockers": [],
+      "warnings": [
+        "accounting_reconstructed",
+        "accounting_assumption:journal_health_degraded"
+      ]
+    },
+    {
+      "sig_id": "canal1_20765",
+      "channel": "canal1",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-08T11:44:02.181+00:00",
+      "open_dt_utc": "2026-07-08T11:44:02+00:00",
+      "close_dt_utc": "2026-07-08T11:45:45+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "exact",
+      "tick_days": [
+        "2026-07-08"
+      ],
+      "ticket_count": 4,
+      "blockers": [],
+      "warnings": []
+    },
+    {
+      "sig_id": "canal1_20766",
+      "channel": "canal1",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-08T11:46:20.658+00:00",
+      "open_dt_utc": "2026-07-08T11:46:20+00:00",
+      "close_dt_utc": "2026-07-08T12:09:58+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "exact",
+      "tick_days": [
+        "2026-07-08"
+      ],
+      "ticket_count": 4,
+      "blockers": [],
+      "warnings": []
+    },
+    {
+      "sig_id": "canal1_20773",
+      "channel": "canal1",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-08T12:30:36.248+00:00",
+      "open_dt_utc": "2026-07-08T12:30:36+00:00",
+      "close_dt_utc": "2026-07-08T12:51:11+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "exact",
+      "tick_days": [
+        "2026-07-08"
+      ],
+      "ticket_count": 4,
+      "blockers": [],
+      "warnings": []
+    },
+    {
+      "sig_id": "canal1_20776",
+      "channel": "canal1",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-08T13:25:46.244+00:00",
+      "open_dt_utc": "2026-07-08T13:25:46+00:00",
+      "close_dt_utc": "2026-07-08T13:31:42+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "reconstructed",
+      "tick_days": [
+        "2026-07-08"
       ],
       "ticket_count": 4,
       "blockers": [],
