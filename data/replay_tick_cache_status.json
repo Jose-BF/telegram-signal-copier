@@ -1,8 +1,8 @@
 {
   "ok": true,
-  "generated_at": "2026-07-08T15:02:15+00:00",
+  "generated_at": "2026-07-08T15:17:33+00:00",
   "dry_run": false,
-  "ensure_attempted": true,
+  "ensure_attempted": false,
   "pad_minutes": 5,
   "cache_dir": "data/ticks_cache",
   "n_trades": 157,
@@ -67,11 +67,6 @@
     "2026-07-08"
   ],
   "missing_days": [],
-  "ensure_stats": {
-    "downloaded": 28,
-    "cached_already": 0,
-    "total_ticks": 16280668,
-    "empty_days": 2
-  },
+  "ensure_stats": {},
   "error": null
 }
