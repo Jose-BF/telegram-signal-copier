@@ -80,6 +80,46 @@ def _extract_tps(text: str) -> list[float]:
             results.append(float(m.group(1)))
         except ValueError:
             pass
+    if results:
+        return results
+
+    # Nuevo formato canal2 (2026-07-08):
+    #   Targets
+    #   4121.5
+    #   4119.5
+    #   4117
+    #   Open
+    # o una variante en una sola linea: "Target | 4063 | 4065".
+    # Solo se activa despues de la palabra Target(s) para no confundir rangos,
+    # profit updates o mensajes de gestion con TPs.
+    in_targets_block = False
+    price_pattern = r"\b(\d{3,5}(?:\.\d{1,3})?)\b"
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        upper = line.upper()
+        if re.search(r"\bTARGETS?\b", upper):
+            in_targets_block = True
+            after_label = re.split(
+                r"\bTARGETS?\b", line, maxsplit=1, flags=re.IGNORECASE)[-1]
+            for m in re.finditer(price_pattern, after_label):
+                try:
+                    results.append(float(m.group(1)))
+                except ValueError:
+                    pass
+            continue
+        if not in_targets_block:
+            continue
+        if re.search(r"\b(?:SL|SP|STOP|LOSS|INVALID)\b", upper):
+            break
+        if re.fullmatch(r"OPEN\b.*", upper):
+            break
+        for m in re.finditer(price_pattern, line):
+            try:
+                results.append(float(m.group(1)))
+            except ValueError:
+                pass
     return results
 
 
@@ -93,7 +133,9 @@ def _extract_sl(text: str) -> Optional[float]:
     classifier — el parser es la fuente canónica para extracción de niveles.
     """
     m = re.search(
-        r"\b(?:SL|SP|STOP\s*LOSS)\s*(?:[:=\s]|\bis\b|\bat\b|\bto\b)+"
+        r"\b(?:SL|SP|STOP\s*LOSS)\b\s*"
+        r"(?:/\s*(?:INVALID|VALID)?\s*)?"
+        r"(?:(?:[:=\s]|\bis\b|\bat\b|\bto\b)+\s*)?"
         r"\s*(\d{3,5}(?:\.\d{1,3})?)\b",
                   text, re.IGNORECASE)
     if not m:
@@ -116,8 +158,11 @@ def _direction(text: str) -> Optional[str]:
 # ─── Detección de tipo de mensaje ─────────────────────────────────────────────
 
 def is_canal2_entry(text: str) -> bool:
-    t = text.upper()
-    return ("XAU" in t or "GOLD" in t) and ("BUY NOW" in t or "SELL NOW" in t)
+    t = " ".join(text.upper().split())
+    has_direction = bool(re.search(r"\b(?:BUY|SELL)\b", t))
+    has_now = bool(re.search(r"\bNOW\b", t))
+    has_product_or_zone = ("XAU" in t) or ("GOLD" in t) or ("ZONE" in t)
+    return has_direction and has_now and has_product_or_zone
 
 
 def is_canal1_signal_text(text: str) -> bool:

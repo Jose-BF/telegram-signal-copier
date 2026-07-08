@@ -84,6 +84,16 @@ class TestIsCanal2Entry:
     def test_buy_now_gold_alias(self):
         assert is_canal2_entry("GOLD BUY NOW") is True
 
+    def test_new_format_buy_gold_now(self):
+        assert is_canal2_entry("Buy Gold Now") is True
+
+    def test_new_format_sell_zone_now(self):
+        assert is_canal2_entry("Sell Zone Now") is True
+
+    def test_possible_setup_is_not_entry(self):
+        text = "Possible buy coming at 4054 area\n\nWait for the signal"
+        assert is_canal2_entry(text) is False
+
     def test_full_signal_with_tps_sl(self):
         # Mensaje completo (BUY NOW + range + TPs + SL) sigue siendo entry
         assert is_canal2_entry(CANAL2_FULL_SIGNAL) is True
@@ -253,6 +263,14 @@ class TestExtractTps:
         # canal 2 a veces manda solo TP1 primero
         assert _extract_tps("TP1 4705.50") == [4705.5]
 
+    def test_new_canal2_targets_block(self):
+        text = "Sell Gold Now\n\n4123.5 - 4128.5\n\nTargets \n4121.5\n4119.5\n4117\nOpen"
+        assert _extract_tps(text) == [4121.5, 4119.5, 4117.0]
+
+    def test_new_canal2_singular_target_block(self):
+        text = "Buy Gold Now\n\n4061 - 4055\n\nTarget\n\n4063\n4065\n4067\nOpen"
+        assert _extract_tps(text) == [4063.0, 4065.0, 4067.0]
+
     def test_no_tps(self):
         assert _extract_tps("Move SL to BE") == []
 
@@ -287,6 +305,10 @@ class TestExtractSl:
     def test_sp_with_levels(self):
         # Caso real del journal: "TP1 4705.50\n\nSP 4716.50"
         assert _extract_sl("TP1 4705.50\n\nSP 4716.50") == 4716.5
+
+    def test_new_canal2_sl_invalid_slash(self):
+        assert _extract_sl("SL/ invalid 4131.5") == 4131.5
+        assert _extract_sl("SL/invalid 4045") == 4045.0
 
     def test_canal1_emoji(self):
         # CANAL1_TEXT_SELL: "❌ SL: 4798.00"
@@ -369,6 +391,23 @@ class TestParseCanal2:
         # Caso real nuevo canal 2551: "SL is 3975 Most got an entry..."
         result = parse_canal2("SL is 3975 Most got an entry of 3985")
         assert result["sl"] == 3975.0
+
+    def test_new_canal2_layered_full_signal(self):
+        text = (
+            "Sell Gold Now\n\n"
+            "4123.5 - 4128.5\n\n"
+            "Targets \n"
+            "4121.5\n"
+            "4119.5\n"
+            "4117\n"
+            "Open\n\n"
+            "SL/invalid 4131.5"
+        )
+        result = parse_canal2(text)
+        assert result["direction"] == "SELL"
+        assert result["range"] == (4123.5, 4128.5)
+        assert result["tps"] == [4121.5, 4119.5, 4117.0]
+        assert result["sl"] == 4131.5
 
 
 # ─── parse_canal1_text ──────────────────────────────────────────────────────
