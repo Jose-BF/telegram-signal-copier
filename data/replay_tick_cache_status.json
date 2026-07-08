@@ -1,11 +1,11 @@
 {
   "ok": true,
-  "generated_at": "2026-07-08T15:17:33+00:00",
+  "generated_at": "2026-07-08T17:37:51+00:00",
   "dry_run": false,
   "ensure_attempted": false,
   "pad_minutes": 5,
   "cache_dir": "data/ticks_cache",
-  "n_trades": 157,
+  "n_trades": 158,
   "required_days": [
     "2026-06-05",
     "2026-06-08",

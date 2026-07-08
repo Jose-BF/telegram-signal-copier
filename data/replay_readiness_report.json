@@ -1,13 +1,54 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-07-08T15:17:33+00:00",
+  "generated_at": "2026-07-08T17:37:52+00:00",
   "tick_cache_dir": "C:\\Users\\bot\\telegram-signal-copier\\data\\ticks_cache",
   "pad_minutes": 5,
   "summary": {
-    "total": 157,
+    "total": 158,
     "ready": 157,
-    "blocked": 0,
-    "top_blockers": []
+    "blocked": 1,
+    "top_blockers": [
+      [
+        "missing_ticket_close_dt:1561080218",
+        1
+      ],
+      [
+        "missing_ticket_close_price:1561080218",
+        1
+      ],
+      [
+        "missing_ticket_close_deal:1561080218",
+        1
+      ],
+      [
+        "missing_ticket_close_dt:1561080257",
+        1
+      ],
+      [
+        "missing_ticket_close_price:1561080257",
+        1
+      ],
+      [
+        "missing_ticket_close_deal:1561080257",
+        1
+      ],
+      [
+        "missing_ticket_close_dt:1561080271",
+        1
+      ],
+      [
+        "missing_ticket_close_price:1561080271",
+        1
+      ],
+      [
+        "missing_ticket_close_deal:1561080271",
+        1
+      ],
+      [
+        "accounting_status:blocked",
+        1
+      ]
+    ]
   },
   "trades": [
     {
@@ -2904,6 +2945,42 @@
       "warnings": [
         "accounting_reconstructed",
         "accounting_assumption:journal_health_degraded"
+      ]
+    },
+    {
+      "sig_id": "canal1_20789",
+      "channel": "canal1",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-08T16:32:45.818+00:00",
+      "open_dt_utc": "2026-07-08T16:32:45+00:00",
+      "close_dt_utc": "2026-07-08T16:37:29+00:00",
+      "ready": false,
+      "status": "blocked",
+      "accounting_status": "blocked",
+      "tick_days": [
+        "2026-07-08"
+      ],
+      "ticket_count": 4,
+      "blockers": [
+        "missing_ticket_close_dt:1561080218",
+        "missing_ticket_close_price:1561080218",
+        "missing_ticket_close_deal:1561080218",
+        "missing_ticket_close_dt:1561080257",
+        "missing_ticket_close_price:1561080257",
+        "missing_ticket_close_deal:1561080257",
+        "missing_ticket_close_dt:1561080271",
+        "missing_ticket_close_price:1561080271",
+        "missing_ticket_close_deal:1561080271",
+        "accounting_status:blocked"
+      ],
+      "warnings": [
+        "accounting_assumption:journal_health_degraded",
+        "accounting_assumption:replay_gap:open_positions",
+        "accounting_assumption:replay_gap:journal_closed_but_mt5_open",
+        "accounting_assumption:replay_gap:ticket_still_open:1561080218",
+        "accounting_assumption:replay_gap:ticket_still_open:1561080257",
+        "accounting_assumption:replay_gap:ticket_still_open:1561080271",
+        "accounting_assumption:flag:journal_cerro_pero_MT5_tiene_pos_abierta"
       ]
     }
   ]
