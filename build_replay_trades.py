@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 from collections import defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
@@ -62,6 +63,25 @@ def _ticket_key(ticket) -> str | None:
         return str(ticket)
 
 
+def _parse_dt(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _iso_seconds(value: str | None) -> str | None:
+    parsed = _parse_dt(value)
+    if parsed is None:
+        return value
+    return parsed.isoformat(timespec="seconds")
+
+
 def _events_by_ticket(events: Iterable[dict], event_names: set[str]) -> dict[str, list[dict]]:
     grouped: dict[str, list[dict]] = defaultdict(list)
     for event in events:
@@ -72,6 +92,43 @@ def _events_by_ticket(events: Iterable[dict], event_names: set[str]) -> dict[str
             continue
         grouped[key].append(event)
     return dict(grouped)
+
+
+def _close_reason_from_tag(tag: str | None) -> str | None:
+    cleaned = str(tag or "").strip().upper()
+    if not cleaned:
+        return None
+    if cleaned.startswith("TP"):
+        return "tp"
+    if cleaned.startswith("SL"):
+        return "sl"
+    if cleaned in {"BE", "BREAKEVEN", "BREAK_EVEN"}:
+        return "be"
+    if cleaned in {"BOT_CLOSE", "MANUAL_CLOSE", "CLOSE"}:
+        return "bot_close"
+    return cleaned.lower()
+
+
+def _closure_events_by_ticket(events: Iterable[dict]) -> dict[str, dict]:
+    closures: dict[str, dict] = {}
+    for event in events:
+        if event.get("ev") != "positions_closed_by_mt5":
+            continue
+        event_ts = _iso_seconds(event.get("ts"))
+        for closure in event.get("closures") or []:
+            key = _ticket_key(closure.get("ticket"))
+            if key is None:
+                continue
+            closures[key] = {
+                "ev": "positions_closed_by_mt5",
+                "ts": event_ts,
+                "ticket": closure.get("ticket"),
+                "exit_price": closure.get("exit_price"),
+                "pnl": closure.get("pnl"),
+                "closed_by_tag": closure.get("closed_by_tag"),
+                "distance_to_tag": closure.get("distance_to_tag"),
+            }
+    return closures
 
 
 def _append_level(history: dict, event: dict, status: str) -> None:
@@ -124,6 +181,7 @@ def _normalise_ticket(
     position: dict,
     fill_events_by_ticket: dict[str, list[dict]],
     level_history_by_ticket: dict[str, dict],
+    closure_events_by_ticket: dict[str, dict],
 ) -> dict:
     deal_ticket = position.get("ticket")
     position_ticket = position.get("position_id") or deal_ticket
@@ -136,7 +194,7 @@ def _normalise_ticket(
         sl_history = list(recovered_levels.get("sl_history") or [])
     if not tp_history:
         tp_history = list(recovered_levels.get("tp_history") or [])
-    return {
+    ticket = {
         "ticket": position_ticket,
         "position_ticket": position_ticket,
         "deal_ticket": deal_ticket,
@@ -159,6 +217,22 @@ def _normalise_ticket(
         "fill_event": _clean_event(fills[0] if fills else None),
         "fill_events": [_clean_event(e) for e in fills],
     }
+    closure = closure_events_by_ticket.get(key or "")
+    if closure and not ticket["is_closed"]:
+        ticket["close_dt_utc"] = closure.get("ts")
+        ticket["close_price"] = closure.get("exit_price")
+        ticket["close_reason"] = _close_reason_from_tag(closure.get("closed_by_tag"))
+        ticket["is_closed"] = True
+        ticket["pnl_net"] = closure.get("pnl")
+        ticket["pnl_components"] = {
+            "profit": closure.get("pnl"),
+            "swap": 0.0,
+            "commission": 0.0,
+            "fee": 0.0,
+            "net": closure.get("pnl"),
+        }
+        ticket["close_event"] = closure
+    return ticket
 
 
 def _levels_from_row(row: dict) -> dict:
@@ -242,51 +316,130 @@ def _readiness(row: dict, tickets: list[dict], levels: dict) -> dict:
     }
 
 
+def _all_tickets_closed(tickets: list[dict]) -> bool:
+    return bool(tickets) and all(ticket.get("is_closed") for ticket in tickets)
+
+
+def _latest_close_dt(tickets: list[dict]) -> str | None:
+    candidates = [
+        _parse_dt(ticket.get("close_dt_utc"))
+        for ticket in tickets
+        if ticket.get("close_dt_utc")
+    ]
+    candidates = [candidate for candidate in candidates if candidate is not None]
+    if not candidates:
+        return None
+    return max(candidates).isoformat(timespec="seconds")
+
+
+def _duration_min(open_dt: str | None, close_dt: str | None) -> float | None:
+    opened = _parse_dt(open_dt)
+    closed = _parse_dt(close_dt)
+    if opened is None or closed is None:
+        return None
+    return round((closed - opened).total_seconds() / 60, 1)
+
+
+def _sum_ticket_pnl(tickets: list[dict]) -> float | None:
+    total = 0.0
+    for ticket in tickets:
+        pnl = ticket.get("pnl_net")
+        if pnl is None:
+            return None
+        try:
+            total += float(pnl)
+        except (TypeError, ValueError):
+            return None
+    return round(total, 2)
+
+
+def _with_reconstructed_closure_state(row: dict, tickets: list[dict]) -> dict:
+    if not any(ticket.get("close_event") for ticket in tickets):
+        return dict(row)
+    reconstructed = dict(row)
+    if _all_tickets_closed(tickets):
+        reconstructed["status"] = "closed"
+        reconstructed["n_closed"] = len(tickets)
+        reconstructed["n_open"] = 0
+        reconstructed["close_dt_utc"] = _latest_close_dt(tickets)
+        reconstructed["duration_min"] = _duration_min(
+            reconstructed.get("open_dt_utc"),
+            reconstructed.get("close_dt_utc"),
+        )
+        pnl = _sum_ticket_pnl(tickets)
+        if pnl is not None:
+            reconstructed["pnl_real_mt5"] = pnl
+            if reconstructed.get("pnl_journal") is not None:
+                try:
+                    discrepancy = pnl - float(reconstructed.get("pnl_journal"))
+                except (TypeError, ValueError):
+                    discrepancy = None
+                if discrepancy is not None:
+                    reconstructed["pnl_discrepancy"] = round(discrepancy, 2)
+                    reconstructed["reconciled_ok"] = (
+                        reconstructed["pnl_discrepancy"] == 0
+                    )
+    return reconstructed
+
+
 def build_replay_trade(ledger_row: dict, events: Iterable[dict] | None = None) -> dict:
     events = list(events or [])
     sig_id = ledger_row.get("sig_id") or ledger_row.get("sig")
     fill_events_by_ticket = _events_by_ticket(events, FILL_EVENTS)
+    closure_events_by_ticket = _closure_events_by_ticket(events)
     level_history_by_ticket = _level_history_from_order_lifecycle(
         ledger_row.get("order_lifecycle") or [])
     tickets = [
-        _normalise_ticket(position, fill_events_by_ticket, level_history_by_ticket)
+        _normalise_ticket(
+            position,
+            fill_events_by_ticket,
+            level_history_by_ticket,
+            closure_events_by_ticket,
+        )
         for position in ledger_row.get("positions") or []
     ]
-    levels = _levels_from_row(ledger_row)
-    readiness = _readiness(ledger_row, tickets, levels)
+    replay_row = _with_reconstructed_closure_state(ledger_row, tickets)
+    levels = _levels_from_row(replay_row)
+    readiness = _readiness(replay_row, tickets, levels)
+    pnl_source = (
+        "positions_closed_by_mt5"
+        if any(ticket.get("close_event") for ticket in tickets)
+        else "ledger"
+    )
 
     return {
         "schema_version": SCHEMA_VERSION,
         "sig_id": sig_id,
-        "channel": ledger_row.get("channel"),
-        "direction": ledger_row.get("direction"),
-        "signal_dt_utc": ledger_row.get("signal_dt_utc"),
-        "open_dt_utc": ledger_row.get("open_dt_utc"),
-        "close_dt_utc": ledger_row.get("close_dt_utc"),
-        "status": ledger_row.get("status"),
-        "duration_min": ledger_row.get("duration_min"),
-        "pnl_real_mt5": ledger_row.get("pnl_real_mt5"),
-        "pnl_journal": ledger_row.get("pnl_journal"),
-        "pnl_discrepancy": ledger_row.get("pnl_discrepancy"),
-        "reconciled_ok": ledger_row.get("reconciled_ok"),
-        "pnl_mt5_complete": ledger_row.get("pnl_mt5_complete"),
-        "journal_has_signal_closed": ledger_row.get("journal_has_signal_closed"),
-        "health": ledger_row.get("health"),
-        "flags": list(ledger_row.get("flags") or []),
-        "anomalies": list(ledger_row.get("anomalies") or []),
-        "analysis_excluded": bool(ledger_row.get("analysis_excluded")),
-        "analysis_exclusions": list(ledger_row.get("analysis_exclusions") or []),
-        "signal_text": ledger_row.get("signal_text"),
+        "channel": replay_row.get("channel"),
+        "direction": replay_row.get("direction"),
+        "signal_dt_utc": replay_row.get("signal_dt_utc"),
+        "open_dt_utc": replay_row.get("open_dt_utc"),
+        "close_dt_utc": replay_row.get("close_dt_utc"),
+        "status": replay_row.get("status"),
+        "duration_min": replay_row.get("duration_min"),
+        "pnl_real_mt5": replay_row.get("pnl_real_mt5"),
+        "pnl_real_mt5_source": pnl_source,
+        "pnl_journal": replay_row.get("pnl_journal"),
+        "pnl_discrepancy": replay_row.get("pnl_discrepancy"),
+        "reconciled_ok": replay_row.get("reconciled_ok"),
+        "pnl_mt5_complete": replay_row.get("pnl_mt5_complete"),
+        "journal_has_signal_closed": replay_row.get("journal_has_signal_closed"),
+        "health": replay_row.get("health"),
+        "flags": list(replay_row.get("flags") or []),
+        "anomalies": list(replay_row.get("anomalies") or []),
+        "analysis_excluded": bool(replay_row.get("analysis_excluded")),
+        "analysis_exclusions": list(replay_row.get("analysis_exclusions") or []),
+        "signal_text": replay_row.get("signal_text"),
         "levels": levels,
         "tickets": tickets,
-        "management": list(ledger_row.get("management") or []),
+        "management": list(replay_row.get("management") or []),
         "decisions": {
-            "entry_quality": ledger_row.get("entry_quality"),
-            "strategy_snapshot": ledger_row.get("strategy_snapshot"),
-            "post_time_stop_outcome": ledger_row.get("post_time_stop_outcome"),
+            "entry_quality": replay_row.get("entry_quality"),
+            "strategy_snapshot": replay_row.get("strategy_snapshot"),
+            "post_time_stop_outcome": replay_row.get("post_time_stop_outcome"),
         },
-        "timeline": list(ledger_row.get("timeline") or []),
-        "order_lifecycle": list(ledger_row.get("order_lifecycle") or []),
+        "timeline": list(replay_row.get("timeline") or []),
+        "order_lifecycle": list(replay_row.get("order_lifecycle") or []),
         "raw_event_count": len(events),
         **readiness,
     }

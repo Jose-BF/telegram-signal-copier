@@ -74,16 +74,30 @@ def _ticket_blockers(trade: dict) -> list[str]:
             "pnl_net": "missing_ticket_pnl",
             "pnl_components": "missing_ticket_pnl_components",
             "open_deal": "missing_ticket_open_deal",
-            "close_deal": "missing_ticket_close_deal",
         }
         for field, code in required.items():
             if not _has_value(ticket.get(field)):
                 blockers.append(f"{code}:{label}")
+        if not _has_value(ticket.get("close_deal")) and not _has_value(
+            ticket.get("close_event")
+        ):
+            blockers.append(f"missing_ticket_close_deal:{label}")
         if not ticket.get("sl_history"):
             blockers.append(f"missing_ticket_sl_history:{label}")
         if not ticket.get("tp_history"):
             blockers.append(f"missing_ticket_tp_history:{label}")
     return blockers
+
+
+def _ticket_warnings(trade: dict) -> list[str]:
+    warnings: list[str] = []
+    for ticket in trade.get("tickets") or []:
+        label = _ticket_label(ticket)
+        if not _has_value(ticket.get("close_deal")) and _has_value(
+            ticket.get("close_event")
+        ):
+            warnings.append(f"ticket_close_deal_reconstructed:{label}")
+    return warnings
 
 
 def _audit_blockers_and_warnings(audit: dict | None) -> tuple[list[str], list[str]]:
@@ -138,6 +152,7 @@ def assess_trade(
         cache_dir=cache_dir,
         pad_minutes=pad_minutes,
     ))
+    warnings.extend(_ticket_warnings(trade))
     blockers = list(dict.fromkeys(blockers))
     warnings = list(dict.fromkeys(warnings))
     ready = not blockers

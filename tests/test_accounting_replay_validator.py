@@ -60,6 +60,17 @@ def test_exact_trade_matches_mt5_to_the_cent():
     assert audit["blockers"] == []
 
 
+def test_mt5_closure_event_source_is_reconstructed_not_exact():
+    audit = accounting_replay_validator.validate_trade(
+        _trade(pnl_real_mt5_source="positions_closed_by_mt5")
+    )
+
+    assert audit["status"] == "reconstructed"
+    assert audit["confidence"] == "medium"
+    assert audit["optimization_bucket"] == "review"
+    assert "mt5_closure_event_fallback" in audit["assumptions"]
+
+
 def test_missing_signal_closed_is_reconstructed_from_mt5_tickets():
     audit = accounting_replay_validator.validate_trade(
         _trade(

@@ -216,6 +216,75 @@ def test_journal_closed_with_mt5_open_position_blocks_replay():
     assert replay["tickets"][-1]["is_closed"] is False
 
 
+def test_positions_closed_by_mt5_event_reconstructs_missing_close_deals():
+    open_leg = _closed_position(ticket=1561080218, role="scale_out_leg", pnl=0.0)
+    open_leg.update({
+        "close_price": None,
+        "close_dt_utc": None,
+        "close_reason": None,
+        "is_closed": False,
+        "pnl_net": 0.0,
+    })
+    row = _ledger_row(
+        sig_id="canal1_20789",
+        status="partial",
+        open_dt_utc="2026-07-08T16:32:45+00:00",
+        n_positions=4,
+        n_closed=1,
+        n_open=3,
+        positions=[
+            _closed_position(ticket=1561080190, pnl=3.44),
+            open_leg,
+        ],
+        pnl_real_mt5=3.44,
+        pnl_journal=-10.66,
+        journal_has_signal_closed=True,
+        flags=["journal_cerro_pero_MT5_tiene_pos_abierta"],
+        health="degraded",
+    )
+    events = [
+        {
+            "ts": "2026-07-08T16:50:49.225+00:00",
+            "sig": "canal1_20789",
+            "ev": "positions_closed_by_mt5",
+            "closures": [
+                {
+                    "ticket": 1561080190,
+                    "exit_price": 4502.30,
+                    "pnl": 3.44,
+                    "closed_by_tag": "TP1",
+                    "distance_to_tag": 0.0,
+                },
+                {
+                    "ticket": 1561080218,
+                    "exit_price": 4510.0,
+                    "pnl": -14.10,
+                    "closed_by_tag": "SL",
+                    "distance_to_tag": 0.0,
+                },
+            ],
+            "summary_by_tag": {"TP1": 1, "SL": 1},
+        }
+    ]
+
+    replay = build_replay_trades.build_replay_trade(row, events)
+
+    assert replay["status"] == "closed"
+    assert replay["close_dt_utc"] == "2026-07-08T16:50:49+00:00"
+    assert replay["duration_min"] == 18.1
+    assert replay["pnl_real_mt5"] == -10.66
+    assert replay["pnl_real_mt5_source"] == "positions_closed_by_mt5"
+    assert replay["simulation_ready"] is True
+    assert "open_positions" not in replay["gaps"]
+    assert "journal_closed_but_mt5_open" not in replay["gaps"]
+    reconstructed = replay["tickets"][1]
+    assert reconstructed["is_closed"] is True
+    assert reconstructed["close_price"] == 4510.0
+    assert reconstructed["close_reason"] == "sl"
+    assert reconstructed["pnl_net"] == -14.10
+    assert reconstructed["close_event"]["ev"] == "positions_closed_by_mt5"
+
+
 def test_closed_mt5_trade_without_signal_closed_is_simulable_but_not_audit_ready():
     row = _ledger_row(
         sig_id="canal2_13293",

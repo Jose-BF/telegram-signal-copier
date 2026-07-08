@@ -141,6 +141,8 @@ def _ticket_pnls(
 
 def _trade_assumptions(trade: dict) -> list[str]:
     assumptions: list[str] = []
+    if trade.get("pnl_real_mt5_source") == "positions_closed_by_mt5":
+        assumptions.append("mt5_closure_event_fallback")
     if trade.get("status") == "closed" and trade.get("journal_has_signal_closed") is False:
         assumptions.append("journal_missing_signal_closed")
     if trade.get("pnl_journal") is None:

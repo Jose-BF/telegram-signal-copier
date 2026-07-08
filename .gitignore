@@ -24,6 +24,7 @@ logs/
 *.log
 data/runtime_heartbeat.json
 data/runtime_heartbeat.json.tmp
+data/strategy_sim*.json
 
 # Eventos y journal: gitignored por defecto, EXCEPTO los ficheros canónicos
 # de producción y de test (los queremos en git para análisis post-sesión).
@@ -55,3 +56,6 @@ signals_export.csv
 # IDE
 .vscode/
 .idea/
+
+# Visual brainstorming companion (local, disposable)
+.superpowers/

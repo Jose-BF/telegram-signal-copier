@@ -89,6 +89,31 @@ def test_missing_deal_detail_blocks_full_replay(tmp_path):
     assert "missing_ticket_open_deal:101" in row["blockers"]
 
 
+def test_reconstructed_close_event_warns_instead_of_blocking(tmp_path):
+    cache_dir = tmp_path / "ticks_cache"
+    cache_dir.mkdir()
+    (cache_dir / "2026-07-06.parquet").write_bytes(b"ticks")
+    ticket = _ticket()
+    ticket["close_deal"] = None
+    ticket["close_event"] = {
+        "ev": "positions_closed_by_mt5",
+        "ts": "2026-07-06T10:05:00+00:00",
+        "closed_by_tag": "TP1",
+    }
+
+    row = replay_readiness_report.assess_trade(
+        _trade(tickets=[ticket]),
+        _audit(status="reconstructed", assumptions=["mt5_closure_event_fallback"]),
+        cache_dir=cache_dir,
+        pad_minutes=0,
+    )
+
+    assert row["ready"] is True
+    assert "missing_ticket_close_deal:101" not in row["blockers"]
+    assert "ticket_close_deal_reconstructed:101" in row["warnings"]
+    assert "accounting_reconstructed" in row["warnings"]
+
+
 def test_cli_writes_weekly_readiness_report(tmp_path):
     replay_path = tmp_path / "replay_trades.jsonl"
     audit_path = tmp_path / "accounting_replay_audit.jsonl"
