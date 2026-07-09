@@ -257,6 +257,84 @@ class TestManagementReplyEdits:
         assert calls[1][0] == "execute"
         assert calls[1][1] is sig
 
+    @pytest.mark.asyncio
+    async def test_unknown_reply_routes_to_single_open_signal_after_resync(self, monkeypatch):
+        st = StateManager()
+        sig = Signal(channel="canal1", message_id=20801, direction="SELL",
+                     status="open", tps=[4118.0], sl=4140.0)
+        st.add(sig)
+        calls = []
+        events = []
+
+        async def fake_classify(text, signal=None):
+            calls.append(("classify", text, signal))
+            return [{"action": "MOVE_SL_TO_BE", "price": None, "confidence": 0.95}]
+
+        async def fake_execute(signal, cl, raw_text="", tg_ts=None):
+            calls.append(("execute", signal, cl, raw_text, tg_ts))
+
+        monkeypatch.setattr("listener.state", st)
+        monkeypatch.setattr("listener.classify_async", fake_classify)
+        monkeypatch.setattr("listener._execute_action", fake_execute)
+        monkeypatch.setattr(listener.journal, "event",
+                            lambda sig_id, ev, **kw: events.append((sig_id, ev, kw)))
+
+        msg = SimpleNamespace(
+            id=20803,
+            text="Move SL to BE for 0% risk",
+            message="Move SL to BE for 0% risk",
+            date=datetime.utcnow(),
+            edit_date=datetime.utcnow(),
+            reply_to=SimpleNamespace(reply_to_msg_id=20802),
+        )
+
+        handled = await listener._process_management_reply_edit(
+            msg, "canal1", "Canal1")
+
+        assert handled is True
+        assert calls[0] == ("classify", "Move SL to BE for 0% risk", sig)
+        assert calls[1][0] == "execute"
+        routed = [row for row in events
+                  if row[1] == "management_reply_routed_by_open_signal"]
+        assert routed
+        assert routed[0][0] == "canal1_20801"
+        assert routed[0][2]["reply_to_msg_id"] == 20802
+
+    @pytest.mark.asyncio
+    async def test_unknown_reply_with_no_unique_target_logs_tripwire(self, monkeypatch):
+        st = StateManager()
+        events = []
+        anomalies = []
+
+        monkeypatch.setattr("listener.state", st)
+        monkeypatch.setattr(listener.journal, "event",
+                            lambda sig_id, ev, **kw: events.append((sig_id, ev, kw)))
+        monkeypatch.setattr(listener.journal, "anomaly",
+                            lambda sig_id, category, severity, detail, **kw:
+                            anomalies.append((sig_id, category, severity, detail, kw)))
+
+        msg = SimpleNamespace(
+            id=3027,
+            text="make sure you are risk free",
+            message="make sure you are risk free",
+            date=datetime.utcnow(),
+            edit_date=datetime.utcnow(),
+            reply_to=SimpleNamespace(reply_to_msg_id=3023),
+        )
+
+        handled = await listener._process_management_reply_edit(
+            msg, "canal2", "Canal2")
+
+        assert handled is True
+        unresolved = [row for row in events
+                      if row[1] == "management_reply_unresolved"]
+        assert unresolved
+        assert unresolved[0][0] == "canal2_3027"
+        assert unresolved[0][2]["reply_to_msg_id"] == 3023
+        assert anomalies
+        assert anomalies[0][0] == "canal2_3027"
+        assert anomalies[0][2] == "critical"
+
 
 class TestManagementActionDedup:
     def test_same_action_and_text_inside_window_is_duplicate(self, monkeypatch):

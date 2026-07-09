@@ -94,6 +94,54 @@ def _events_by_ticket(events: Iterable[dict], event_names: set[str]) -> dict[str
     return dict(grouped)
 
 
+def _role_from_fill_event(event: dict) -> str | None:
+    ev = event.get("ev")
+    if ev == "market_filled":
+        return "market_a"
+    if ev in {"market_b_filled", "scale_out_leg_filled"}:
+        return "scale_out_leg"
+    if ev == "dca_filled":
+        return "dca"
+    return None
+
+
+def _positions_from_journal_events(events: Iterable[dict]) -> list[dict]:
+    """Rebuild minimal positions from journal events when MT5 history is absent.
+
+    This is a replay fallback, not broker truth. It is only used when the
+    ledger has no MT5 positions but the black-box journal contains fills.
+    """
+    positions: list[dict] = []
+    seen: set[str] = set()
+    for event in events:
+        if event.get("ev") not in FILL_EVENTS:
+            continue
+        key = _ticket_key(event.get("ticket"))
+        if key is None or key in seen:
+            continue
+        seen.add(key)
+        positions.append({
+            "ticket": event.get("ticket"),
+            "position_id": event.get("ticket"),
+            "role": _role_from_fill_event(event),
+            "volume": event.get("volume"),
+            "open_dt_utc": _iso_seconds(event.get("ts")),
+            "open_price": event.get("price"),
+            "close_dt_utc": None,
+            "close_price": None,
+            "close_reason": None,
+            "is_closed": False,
+            "pnl_net": None,
+            "pnl_components": None,
+            "open_deal": None,
+            "close_deal": None,
+            "deals": [],
+            "sl_history": [],
+            "tp_history": [],
+        })
+    return positions
+
+
 def _close_reason_from_tag(tag: str | None) -> str | None:
     cleaned = str(tag or "").strip().upper()
     if not cleaned:
@@ -332,6 +380,18 @@ def _latest_close_dt(tickets: list[dict]) -> str | None:
     return max(candidates).isoformat(timespec="seconds")
 
 
+def _earliest_open_dt(tickets: list[dict]) -> str | None:
+    candidates = [
+        _parse_dt(ticket.get("open_dt_utc"))
+        for ticket in tickets
+        if ticket.get("open_dt_utc")
+    ]
+    candidates = [candidate for candidate in candidates if candidate is not None]
+    if not candidates:
+        return None
+    return min(candidates).isoformat(timespec="seconds")
+
+
 def _duration_min(open_dt: str | None, close_dt: str | None) -> float | None:
     opened = _parse_dt(open_dt)
     closed = _parse_dt(close_dt)
@@ -357,10 +417,14 @@ def _with_reconstructed_closure_state(row: dict, tickets: list[dict]) -> dict:
     if not any(ticket.get("close_event") for ticket in tickets):
         return dict(row)
     reconstructed = dict(row)
+    if not reconstructed.get("open_dt_utc"):
+        reconstructed["open_dt_utc"] = _earliest_open_dt(tickets)
     if _all_tickets_closed(tickets):
         reconstructed["status"] = "closed"
         reconstructed["n_closed"] = len(tickets)
         reconstructed["n_open"] = 0
+        reconstructed["n_positions"] = len(tickets)
+        reconstructed["pnl_mt5_complete"] = True
         reconstructed["close_dt_utc"] = _latest_close_dt(tickets)
         reconstructed["duration_min"] = _duration_min(
             reconstructed.get("open_dt_utc"),
@@ -389,6 +453,9 @@ def build_replay_trade(ledger_row: dict, events: Iterable[dict] | None = None) -
     closure_events_by_ticket = _closure_events_by_ticket(events)
     level_history_by_ticket = _level_history_from_order_lifecycle(
         ledger_row.get("order_lifecycle") or [])
+    source_positions = list(ledger_row.get("positions") or [])
+    if not source_positions and closure_events_by_ticket:
+        source_positions = _positions_from_journal_events(events)
     tickets = [
         _normalise_ticket(
             position,
@@ -396,7 +463,7 @@ def build_replay_trade(ledger_row: dict, events: Iterable[dict] | None = None) -
             level_history_by_ticket,
             closure_events_by_ticket,
         )
-        for position in ledger_row.get("positions") or []
+        for position in source_positions
     ]
     replay_row = _with_reconstructed_closure_state(ledger_row, tickets)
     levels = _levels_from_row(replay_row)

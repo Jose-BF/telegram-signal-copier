@@ -285,6 +285,63 @@ def test_positions_closed_by_mt5_event_reconstructs_missing_close_deals():
     assert reconstructed["close_event"]["ev"] == "positions_closed_by_mt5"
 
 
+def test_no_position_ledger_uses_journal_events_when_mt5_history_is_missing():
+    row = _ledger_row(
+        sig_id="canal2_3021",
+        status="no_position",
+        open_dt_utc=None,
+        close_dt_utc=None,
+        n_positions=0,
+        n_closed=0,
+        n_open=0,
+        positions=[],
+        pnl_real_mt5=0,
+        pnl_journal=-36.44,
+        pnl_mt5_complete=False,
+        journal_has_signal_closed=True,
+        flags=[
+            "PNL_PARCIAL_mt5_identifico_0_de_5_pos "
+            "(posiciones del journal no halladas en MT5)"
+        ],
+        range=[4122.5, 4127.5],
+        tps=[4130.5, 4132.5, 4135.0, 4142.0],
+        sl=4119.5,
+        effective_tps=[4130.5, 4132.5, 4135.0, 4142.0],
+        effective_sl=4119.5,
+    )
+    events = [
+        {"ts": "2026-07-09T14:09:44.917+00:00", "sig": "canal2_3021",
+         "ev": "signal_received", "direction": "BUY", "raw_text": "Buy Gold Now"},
+        {"ts": "2026-07-09T14:09:45.065+00:00", "sig": "canal2_3021",
+         "ev": "market_filled", "ticket": 1567026280, "price": 4127.83},
+        {"ts": "2026-07-09T14:09:45.189+00:00", "sig": "canal2_3021",
+         "ev": "scale_out_leg_filled", "ticket": 1567026288, "price": 4127.83},
+        {"ts": "2026-07-09T14:15:09.255+00:00", "sig": "canal2_3021",
+         "ev": "positions_closed_by_mt5",
+         "closures": [
+             {"ticket": 1567026280, "exit_price": 4119.5,
+              "pnl": -7.28, "closed_by_tag": "SL"},
+             {"ticket": 1567026288, "exit_price": 4119.5,
+              "pnl": -7.28, "closed_by_tag": "SL"},
+         ]},
+        {"ts": "2026-07-09T14:15:09.753+00:00", "sig": "canal2_3021",
+         "ev": "signal_closed", "tag": "LOSS_CLEAN", "total_pl": -14.56},
+    ]
+
+    replay = build_replay_trades.build_replay_trade(row, events)
+
+    assert replay["status"] == "closed"
+    assert replay["open_dt_utc"] == "2026-07-09T14:09:45+00:00"
+    assert replay["close_dt_utc"] == "2026-07-09T14:15:09+00:00"
+    assert replay["pnl_real_mt5"] == -14.56
+    assert replay["pnl_real_mt5_source"] == "positions_closed_by_mt5"
+    assert replay["simulation_ready"] is True
+    assert "missing_tickets" not in replay["gaps"]
+    assert replay["tickets"][0]["ticket"] == 1567026280
+    assert replay["tickets"][0]["close_reason"] == "sl"
+    assert replay["tickets"][1]["fill_event"]["ev"] == "scale_out_leg_filled"
+
+
 def test_closed_mt5_trade_without_signal_closed_is_simulable_but_not_audit_ready():
     row = _ledger_row(
         sig_id="canal2_13293",

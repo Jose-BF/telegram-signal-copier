@@ -1312,10 +1312,10 @@ async def _process_management_reply_edit(msg, channel: str,
     if not reply_id:
         return False
 
-    other_channel = "canal1" if channel == "canal2" else "canal2"
-    sig = state.get(channel, reply_id) or state.get(other_channel, reply_id)
-    if sig is None or sig.status != "open":
-        return False
+    sig, route = _resolve_management_reply_target(channel, reply_id)
+    if sig is None:
+        _log_unresolved_management_reply(msg, channel, reply_id, route)
+        return True
 
     text = _msg_text(msg)
     if not text:
@@ -1336,6 +1336,86 @@ async def _process_management_reply_edit(msg, channel: str,
     cl = await classify_async(text, signal=sig)
     await _execute_action(sig, cl, raw_text=text, tg_ts=tg_ts)
     return True
+
+
+def _resolve_management_reply_target(channel: str, reply_id: int):
+    """Find the live Signal targeted by a management reply.
+
+    Normal path: reply_id is the original signal id or a live alias.
+    Restart path: aliases are in-memory only, so a reply can point to a lost
+    alias while one recovered signal remains open in the same channel.
+    """
+    other_channel = "canal1" if channel == "canal2" else "canal2"
+    sig = state.get(channel, reply_id) or state.get(other_channel, reply_id)
+    if sig is not None:
+        if sig.status == "open":
+            return sig, "direct"
+        return None, "target_signal_closed"
+
+    same_channel_open = state.open_signals(channel)
+    if len(same_channel_open) == 1:
+        sig = same_channel_open[0]
+        journal.event(
+            _sig_id(sig),
+            "management_reply_routed_by_open_signal",
+            reply_to_msg_id=reply_id,
+            channel=channel,
+            route="single_open_same_channel",
+        )
+        return sig, "single_open_same_channel"
+    if same_channel_open:
+        return None, "ambiguous_open_signals"
+    return None, "unknown_reply_target"
+
+
+def _looks_actionable_management_text(text: str) -> bool:
+    t = (text or "").upper()
+    actionable_markers = (
+        "MOVE SL",
+        "SL TO",
+        "RISK FREE",
+        "BREAKEVEN",
+        "BREAK EVEN",
+        "CLOSE",
+        "SECURE",
+        "PROTECT",
+        "CUT ",
+        "CUTS",
+    )
+    return any(marker in t for marker in actionable_markers)
+
+
+def _log_unresolved_management_reply(msg, channel: str, reply_id: int,
+                                     reason: str) -> None:
+    text = _msg_text(msg)
+    sig_id = f"{channel}_{getattr(msg, 'id', 'unknown')}"
+    text_preview = (text or "")[:200].replace("\n", " | ")
+    open_ids = [_sig_id(sig) for sig in state.open_signals(channel)]
+    actionable = _looks_actionable_management_text(text)
+    severity = "critical" if actionable else "warning"
+    journal.event(
+        sig_id,
+        "management_reply_unresolved",
+        channel=channel,
+        reply_to_msg_id=reply_id,
+        reason=reason,
+        actionable=actionable,
+        open_signals=open_ids,
+        text_preview=text_preview,
+        tg_ts=_msg_ts_iso(msg),
+    )
+    journal.anomaly(
+        sig_id,
+        "channel_msg",
+        severity,
+        "mensaje de gestion reply no pudo asociarse a una senal viva",
+        channel=channel,
+        reply_to_msg_id=reply_id,
+        reason=reason,
+        actionable=actionable,
+        open_signals=open_ids,
+        text_preview=text_preview,
+    )
 
 
 def _num_entries_for_channel(channel: str) -> int:
@@ -3118,8 +3198,8 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
     # Mensaje de gestión (reply a una señal)
     if msg.reply_to and msg.reply_to.reply_to_msg_id:
         reply_id = msg.reply_to.reply_to_msg_id
-        sig = state.get("canal2", reply_id) or state.get("canal1", reply_id)
-        if sig and sig.status == "open":
+        sig, route = _resolve_management_reply_target("canal2", reply_id)
+        if sig:
             # PRIMERO: si el reply trae TPs/SL reales (formato típico de
             # Canal 2: "TP1 4689.50\nSL 4701"), actualizar la señal con esos
             # valores. Sin esto, el bot sigue con los provisionales de
@@ -3147,6 +3227,8 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
             # abiertas, TPs, SL, etc.). El regex local sigue actuando primero.
             cl = await classify_async(text, signal=sig)
             await _execute_action(sig, cl, raw_text=text, tg_ts=_tg_ts)
+        else:
+            _log_unresolved_management_reply(msg, "canal2", reply_id, route)
         return
 
     if not is_canal2_entry(text):
@@ -3875,16 +3957,13 @@ async def _process_canal1_new(msg):
     # Mensaje de gestión (reply a una señal)
     if msg.reply_to and msg.reply_to.reply_to_msg_id:
         reply_id = msg.reply_to.reply_to_msg_id
-        sig = state.get("canal1", reply_id) or state.get("canal2", reply_id)
-        if sig and sig.status == "open":
+        sig, route = _resolve_management_reply_target("canal1", reply_id)
+        if sig:
             # Gemini con contexto del trade (dirección, P&L, posiciones, etc.)
             cl = await classify_async(text, signal=sig)
             await _execute_action(sig, cl, raw_text=text)
         else:
-            journal.event(sig_id, "msg_dropped",
-                          reason="reply_to_unknown_signal",
-                          reply_to_msg_id=reply_id,
-                          text_preview=(text or "")[:120].replace("\n", " | "))
+            _log_unresolved_management_reply(msg, "canal1", reply_id, route)
         return
 
     # Texto con TP/SL que sigue al sticker
@@ -5076,8 +5155,8 @@ if config.TEST_CHANNEL_ID:
             # tickets se quedaban con los TPs provisionales del predictor.
             if msg.reply_to and msg.reply_to.reply_to_msg_id:
                 reply_id = msg.reply_to.reply_to_msg_id
-                sig = state.get("canal1", reply_id) or state.get("canal2", reply_id)
-                if sig and sig.status == "open":
+                sig, route = _resolve_management_reply_target("canal2", reply_id)
+                if sig:
                     parsed_in_reply = parse_canal2(text)
                     _tg_ts = msg.date.isoformat(timespec="seconds") if msg.date else None
                     if parsed_in_reply.get("tps") or parsed_in_reply.get("sl"):
@@ -5086,6 +5165,8 @@ if config.TEST_CHANNEL_ID:
                         await _update_signal_from_parsed(sig, parsed_in_reply, tg_ts=_tg_ts)
                     cl = await classify_async(text, signal=sig)
                     await _execute_action(sig, cl, raw_text=text, tg_ts=_tg_ts)
+                else:
+                    _log_unresolved_management_reply(msg, "canal2", reply_id, route)
                 return
 
             # 3) Prefijo /c1 → texto Canal 1 (después de un sticker simulado)
