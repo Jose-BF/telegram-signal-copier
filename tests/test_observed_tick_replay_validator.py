@@ -1,8 +1,10 @@
 import json
+from datetime import date
 
 import pandas as pd
 
 import observed_tick_replay_validator
+from tools import ensure_replay_tick_cache
 
 
 def _ticks(rows):
@@ -18,7 +20,7 @@ def _ticket(**overrides):
         "role": "market_a",
         "open_dt_utc": "2026-07-06T10:00:00+00:00",
         "open_price": 4200.0,
-        "close_dt_utc": "2026-07-06T10:02:00+00:00",
+        "close_dt_utc": "2026-07-06T10:01:30+00:00",
         "close_price": 4202.0,
         "close_reason": "tp",
         "is_closed": True,
@@ -47,7 +49,7 @@ def _trade(**overrides):
         "channel": "canal1",
         "direction": "BUY",
         "open_dt_utc": "2026-07-06T10:00:00+00:00",
-        "close_dt_utc": "2026-07-06T10:02:00+00:00",
+        "close_dt_utc": "2026-07-06T10:01:30+00:00",
         "tickets": [_ticket()],
     }
     base.update(overrides)
@@ -56,6 +58,7 @@ def _trade(**overrides):
 
 def test_buy_tp_replays_from_bid_ticks_after_tp_is_confirmed():
     ticks = _ticks([
+        {"time_utc": "2026-07-06T10:00:00+00:00", "bid": 4199.8, "ask": 4200.0},
         {"time_utc": "2026-07-06T10:00:05+00:00", "bid": 4202.5, "ask": 4202.7},
         {"time_utc": "2026-07-06T10:00:20+00:00", "bid": 4201.5, "ask": 4201.7},
         {"time_utc": "2026-07-06T10:01:30+00:00", "bid": 4202.0, "ask": 4202.2},
@@ -68,6 +71,101 @@ def test_buy_tp_replays_from_bid_ticks_after_tp_is_confirmed():
     assert result["first_touch"]["reason"] == "tp"
     assert result["first_touch"]["time_utc"] == "2026-07-06T10:01:30+00:00"
     assert result["first_touch"]["side"] == "bid"
+
+
+def test_matching_reason_with_early_touch_is_not_exact():
+    ticket = _ticket(
+        close_dt_utc="2026-07-06T10:20:00+00:00",
+        close_price=4202.0,
+    )
+    ticks = _ticks([
+        {"time_utc": "2026-07-06T10:00:00+00:00", "bid": 4199.8, "ask": 4200.0},
+        {"time_utc": "2026-07-06T10:01:00+00:00", "bid": 4202.0, "ask": 4202.2},
+        {"time_utc": "2026-07-06T10:20:00+00:00", "bid": 4201.0, "ask": 4201.2},
+    ])
+
+    result = observed_tick_replay_validator.validate_ticket(
+        _trade(close_dt_utc=ticket["close_dt_utc"]),
+        ticket,
+        ticks,
+    )
+
+    assert result["status"] == "mismatch"
+    assert any(
+        blocker.startswith("first_touch_time_mismatch:101:")
+        for blocker in result["blockers"]
+    )
+
+
+def test_matching_reason_and_time_with_different_fill_price_is_not_exact():
+    ticket = _ticket(
+        close_dt_utc="2026-07-06T10:01:30+00:00",
+        close_price=4202.3,
+    )
+    ticks = _ticks([
+        {"time_utc": "2026-07-06T10:00:00+00:00", "bid": 4199.8, "ask": 4200.0},
+        {"time_utc": "2026-07-06T10:01:30+00:00", "bid": 4202.4, "ask": 4202.6},
+    ])
+
+    result = observed_tick_replay_validator.validate_ticket(
+        _trade(close_dt_utc=ticket["close_dt_utc"]),
+        ticket,
+        ticks,
+    )
+
+    assert result["status"] == "mismatch"
+    assert any(
+        blocker.startswith("first_touch_price_mismatch:101:")
+        for blocker in result["blockers"]
+    )
+
+
+def test_shifted_tick_cache_is_rejected_by_open_price_alignment():
+    ticks = _ticks([
+        {"time_utc": "2026-07-06T10:00:00+00:00", "bid": 4300.0, "ask": 4300.2},
+        {"time_utc": "2026-07-06T10:01:30+00:00", "bid": 4310.0, "ask": 4310.2},
+    ])
+
+    result = observed_tick_replay_validator.validate_ticket(
+        _trade(), _ticket(), ticks)
+
+    assert result["status"] == "blocked"
+    assert result["alignment"]["open"]["time_delta_ms"] == 0
+    assert result["alignment"]["open"]["price_delta"] == 100.2
+    assert any(
+        blocker.startswith("open_tick_price_mismatch:101:")
+        for blocker in result["blockers"]
+    )
+
+
+def test_unverified_open_tick_alignment_blocks_exact_baseline():
+    ticks = _ticks([{
+        "time_utc": "2026-07-06T10:01:30+00:00",
+        "bid": 4202.0,
+        "ask": 4202.2,
+    }])
+
+    result = observed_tick_replay_validator.validate_ticket(
+        _trade(), _ticket(), ticks)
+
+    assert result["status"] == "blocked"
+    assert "open_tick_alignment_unverified:101" in result["blockers"]
+
+
+def test_open_quote_must_match_mt5_fill_to_the_cent():
+    ticks = _ticks([
+        {"time_utc": "2026-07-06T10:00:00+00:00", "bid": 4200.0, "ask": 4200.2},
+        {"time_utc": "2026-07-06T10:01:30+00:00", "bid": 4202.0, "ask": 4202.2},
+    ])
+
+    result = observed_tick_replay_validator.validate_ticket(
+        _trade(), _ticket(), ticks)
+
+    assert result["status"] == "blocked"
+    assert any(
+        blocker.startswith("open_tick_price_mismatch:101:+0.20")
+        for blocker in result["blockers"]
+    )
 
 
 def test_sell_sl_replays_from_ask_ticks():
@@ -88,6 +186,7 @@ def test_sell_sl_replays_from_ask_ticks():
         }],
     )
     ticks = _ticks([
+        {"time_utc": "2026-07-06T10:00:00+00:00", "bid": 4200.0, "ask": 4200.2},
         {"time_utc": "2026-07-06T10:01:00+00:00", "bid": 4204.7, "ask": 4204.9},
         {"time_utc": "2026-07-06T10:01:30+00:00", "bid": 4204.8, "ask": 4205.0},
     ])
@@ -109,6 +208,7 @@ def test_level_touch_before_confirmation_does_not_count():
         }],
     )
     ticks = _ticks([
+        {"time_utc": "2026-07-06T10:00:00+00:00", "bid": 4199.8, "ask": 4200.0},
         {"time_utc": "2026-07-06T10:00:10+00:00", "bid": 4202.5, "ask": 4202.7},
         {"time_utc": "2026-07-06T10:00:40+00:00", "bid": 4201.5, "ask": 4201.7},
     ])
@@ -130,6 +230,7 @@ def test_zero_level_is_ignored_as_missing_price():
         }],
     )
     ticks = _ticks([
+        {"time_utc": "2026-07-06T10:00:00+00:00", "bid": 4199.8, "ask": 4200.0},
         {"time_utc": "2026-07-06T10:00:20+00:00", "bid": 4201.5, "ask": 4201.7},
         {"time_utc": "2026-07-06T10:01:30+00:00", "bid": 4195.0, "ask": 4195.2},
     ])
@@ -143,11 +244,13 @@ def test_zero_level_is_ignored_as_missing_price():
 def test_bot_close_replays_as_market_close_near_close_time():
     ticket = _ticket(
         close_reason="bot_close",
+        close_dt_utc="2026-07-06T10:02:00+00:00",
         close_price=4201.8,
         sl_history=[],
         tp_history=[],
     )
     ticks = _ticks([
+        {"time_utc": "2026-07-06T10:00:00+00:00", "bid": 4199.8, "ask": 4200.0},
         {"time_utc": "2026-07-06T10:01:57+00:00", "bid": 4201.2, "ask": 4201.4},
         {"time_utc": "2026-07-06T10:02:01+00:00", "bid": 4201.8, "ask": 4202.0},
     ])
@@ -157,6 +260,29 @@ def test_bot_close_replays_as_market_close_near_close_time():
     assert result["status"] == "exact"
     assert result["first_touch"]["reason"] == "bot_close"
     assert result["first_touch"]["side"] == "bid"
+
+
+def test_bot_close_quote_must_match_mt5_fill_to_the_cent():
+    ticket = _ticket(
+        close_reason="bot_close",
+        close_dt_utc="2026-07-06T10:02:00+00:00",
+        close_price=4201.8,
+        sl_history=[],
+        tp_history=[],
+    )
+    ticks = _ticks([
+        {"time_utc": "2026-07-06T10:00:00+00:00", "bid": 4199.8, "ask": 4200.0},
+        {"time_utc": "2026-07-06T10:02:00+00:00", "bid": 4202.0, "ask": 4202.2},
+    ])
+
+    result = observed_tick_replay_validator.validate_ticket(
+        _trade(), ticket, ticks)
+
+    assert result["status"] == "mismatch"
+    assert any(
+        blocker.startswith("bot_close_price_mismatch:101:+0.20")
+        for blocker in result["blockers"]
+    )
 
 
 def test_trade_blocks_when_tick_cache_is_missing(tmp_path):
@@ -169,13 +295,34 @@ def test_trade_blocks_when_tick_cache_is_missing(tmp_path):
     assert "missing_tick_cache:2026-07-06" in result["blockers"]
 
 
+def test_trade_blocks_when_tick_cache_has_no_verified_utc_contract(tmp_path):
+    cache_dir = tmp_path / "ticks_cache"
+    cache_dir.mkdir()
+    _ticks([{
+        "time_utc": "2026-07-06T10:01:30+00:00",
+        "bid": 4202.0,
+        "ask": 4202.2,
+    }]).to_parquet(cache_dir / "2026-07-06.parquet", index=False)
+
+    result = observed_tick_replay_validator.validate_trade(
+        _trade(),
+        tick_cache_dir=cache_dir,
+    )
+
+    assert result["status"] == "blocked"
+    assert "invalid_tick_cache_contract:2026-07-06" in result["blockers"]
+
+
 def test_cli_writes_observed_tick_replay_audit_and_status(tmp_path):
     cache_dir = tmp_path / "ticks_cache"
     cache_dir.mkdir()
     _ticks([
+        {"time_utc": "2026-07-06T10:00:00+00:00", "bid": 4199.8, "ask": 4200.0},
         {"time_utc": "2026-07-06T10:00:20+00:00", "bid": 4201.0, "ask": 4201.2},
         {"time_utc": "2026-07-06T10:01:30+00:00", "bid": 4202.0, "ask": 4202.2},
     ]).to_parquet(cache_dir / "2026-07-06.parquet", index=False)
+    ensure_replay_tick_cache.write_day_contract(
+        cache_dir, date(2026, 7, 6))
     replay_path = tmp_path / "replay_trades.jsonl"
     output_path = tmp_path / "observed_tick_replay_audit.jsonl"
     status_path = tmp_path / "observed_tick_replay_status.json"
@@ -207,7 +354,10 @@ def test_cli_reuses_cached_tick_day_across_trades(tmp_path, monkeypatch):
     cache_dir = tmp_path / "ticks_cache"
     cache_dir.mkdir()
     (cache_dir / "2026-07-06.parquet").touch()
+    ensure_replay_tick_cache.write_day_contract(
+        cache_dir, date(2026, 7, 6))
     ticks = _ticks([
+        {"time_utc": "2026-07-06T10:00:00+00:00", "bid": 4199.8, "ask": 4200.0},
         {"time_utc": "2026-07-06T10:00:20+00:00", "bid": 4201.0, "ask": 4201.2},
         {"time_utc": "2026-07-06T10:01:30+00:00", "bid": 4202.0, "ask": 4202.2},
     ])

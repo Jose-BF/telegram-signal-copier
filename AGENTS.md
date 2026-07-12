@@ -23,6 +23,8 @@ Run order:
 4. `tools/ensure_replay_tick_cache.py` -> `data/replay_tick_cache_status.json`
 5. `replay_readiness_report.py` -> `data/replay_readiness_report.json`
 6. `observed_tick_replay_validator.py` -> `data/observed_tick_replay_audit.jsonl`
+7. `provider_signal_catalog.py` -> `data/provider_signal_catalog.json`
+8. `strategy_farm.py` -> `data/strategy_farm.json`
 
 ## Support Modules
 
@@ -33,7 +35,10 @@ Run order:
 - `parser.py`: rule-based signal parsing.
 - `classifier.py`: Gemini/regex message classification.
 - `strategies.py`: current strategy guards and helper decisions.
-- `mt5_tick_cache.py`: parquet cache helper for MT5 ticks.
+- `mt5_tick_cache.py`: parquet cache helper for MT5 ticks. Cached days are valid only with the matching UTC-v2 SHA-256 sidecar written by `tools/ensure_replay_tick_cache.py`.
+- `strategy_policies.py`: declarative close/BE/runner policy catalog shared by both channels.
+- `strategy_simulator.py`: causal tick replay for one management policy. Farm runs must use canonical provider timelines, never MT5 ticket histories as a substitute.
+- `strategy_farm.py`: batch policy comparison and strict selection gates.
 
 ## Analysis Guidance
 

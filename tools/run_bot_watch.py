@@ -47,6 +47,9 @@ REPLAY_TICK_CACHE_STATUS_FILE = REPO_DIR / "data" / "replay_tick_cache_status.js
 REPLAY_READINESS_REPORT_FILE = REPO_DIR / "data" / "replay_readiness_report.json"
 OBSERVED_TICK_REPLAY_AUDIT_FILE = REPO_DIR / "data" / "observed_tick_replay_audit.jsonl"
 OBSERVED_TICK_REPLAY_STATUS_FILE = REPO_DIR / "data" / "observed_tick_replay_status.json"
+PROVIDER_SIGNAL_CATALOG_FILE = REPO_DIR / "data" / "provider_signal_catalog.json"
+STRATEGY_FARM_FILE = REPO_DIR / "data" / "strategy_farm.json"
+STRATEGY_FARM_FROM_DATE = os.getenv("STRATEGY_FARM_FROM_DATE", "2026-07-06")
 RUNTIME_HEARTBEAT_FILE = Path(os.getenv(
     "BOT_RUNTIME_HEARTBEAT_FILE",
     str(REPO_DIR / "data" / "runtime_heartbeat.json"),
@@ -395,14 +398,14 @@ def _regenerate_replay_tick_cache_status() -> bool:
     try:
         rec = subprocess.run(
             [sys.executable, "tools/ensure_replay_tick_cache.py", "--ensure", "--quiet"],
-            cwd=REPO_DIR, capture_output=True, text=True, timeout=300,
+            cwd=REPO_DIR, capture_output=True, text=True, timeout=900,
         )
         if rec.returncode == 0:
             print("[Watch] replay_tick_cache verificado/regenerado.", flush=True)
             return True
         print(f"[Watch] ensure_replay_tick_cache.py aviso/fallo (rc={rec.returncode}): "
               f"{(rec.stderr or rec.stdout or '')[:1000]}", flush=True)
-        return REPLAY_TICK_CACHE_STATUS_FILE.exists()
+        return False
     except BaseException as e:
         print(f"[Watch] error ejecutando ensure_replay_tick_cache.py: {e}", flush=True)
         if isinstance(e, (KeyboardInterrupt, SystemExit)):
@@ -469,6 +472,51 @@ def _regenerate_observed_tick_replay_audit() -> bool:
         return False
 
 
+def _regenerate_provider_signal_catalog() -> bool:
+    """Build the provider timeline independently from MT5 execution."""
+    try:
+        rec = subprocess.run(
+            [sys.executable, "provider_signal_catalog.py", "--quiet"],
+            cwd=REPO_DIR, capture_output=True, text=True, timeout=60,
+        )
+        if rec.returncode == 0 and PROVIDER_SIGNAL_CATALOG_FILE.exists():
+            print("[Watch] provider_signal_catalog regenerado.", flush=True)
+            return True
+        print(f"[Watch] provider_signal_catalog.py fallo (rc={rec.returncode}): "
+              f"{(rec.stderr or rec.stdout or '')[:1000]}", flush=True)
+        return False
+    except BaseException as e:
+        print(f"[Watch] error ejecutando provider_signal_catalog.py: {e}",
+              flush=True)
+        if isinstance(e, (KeyboardInterrupt, SystemExit)):
+            raise
+        return False
+
+
+def _regenerate_strategy_farm() -> bool:
+    """Run offline strategy diagnostics; never changes live decisions."""
+    command = [sys.executable, "strategy_farm.py"]
+    if STRATEGY_FARM_FROM_DATE:
+        command.extend(["--from", STRATEGY_FARM_FROM_DATE])
+    command.append("--quiet")
+    try:
+        rec = subprocess.run(
+            command,
+            cwd=REPO_DIR, capture_output=True, text=True, timeout=300,
+        )
+        if rec.returncode == 0 and STRATEGY_FARM_FILE.exists():
+            print("[Watch] strategy_farm regenerada.", flush=True)
+            return True
+        print(f"[Watch] strategy_farm.py fallo (rc={rec.returncode}): "
+              f"{(rec.stderr or rec.stdout or '')[:1000]}", flush=True)
+        return False
+    except BaseException as e:
+        print(f"[Watch] error ejecutando strategy_farm.py: {e}", flush=True)
+        if isinstance(e, (KeyboardInterrupt, SystemExit)):
+            raise
+        return False
+
+
 def _push_session_data() -> None:
     """Sube data/trade_events.jsonl + ledger + journal a GitHub si hay cambios.
 
@@ -487,7 +535,10 @@ def _push_session_data() -> None:
             if audit_ok:
                 _regenerate_replay_tick_cache_status()
                 _regenerate_replay_readiness_report()
-                _regenerate_observed_tick_replay_audit()
+                observed_ok = _regenerate_observed_tick_replay_audit()
+                catalog_ok = _regenerate_provider_signal_catalog()
+                if observed_ok and catalog_ok:
+                    _regenerate_strategy_farm()
     files = [
         "data/trade_events.jsonl",
         "data/ledger.jsonl",
@@ -500,6 +551,7 @@ def _push_session_data() -> None:
         "data/replay_readiness_report.json",
         "data/observed_tick_replay_audit.jsonl",
         "data/observed_tick_replay_status.json",
+        "data/strategy_farm.json",
         "data/trade_events_TEST.jsonl",
         "data/trade_journal.csv",
         "data/trade_journal_TEST.csv",

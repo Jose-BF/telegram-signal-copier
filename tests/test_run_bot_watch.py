@@ -125,6 +125,7 @@ def test_regenerate_replay_tick_cache_status_runs_ensure_tool(tmp_path, monkeypa
             "--ensure",
             "--quiet",
         ]
+        assert kwargs["timeout"] == 900
         tick_status.write_text('{"ok": true}\n', encoding="utf-8")
         return subprocess.CompletedProcess(
             args=args[0], returncode=0, stdout="", stderr="")
@@ -132,6 +133,25 @@ def test_regenerate_replay_tick_cache_status_runs_ensure_tool(tmp_path, monkeypa
     monkeypatch.setattr(watch.subprocess, "run", fake_run)
 
     assert watch._regenerate_replay_tick_cache_status() is True
+
+
+def test_failed_tick_cache_refresh_does_not_accept_stale_status(
+        tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    tick_status = data_dir / "replay_tick_cache_status.json"
+    tick_status.write_text('{"ok": true, "generated_at": "old"}\n')
+    monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
+    monkeypatch.setattr(watch, "REPLAY_TICK_CACHE_STATUS_FILE", tick_status)
+
+    def fake_run(*args, **kwargs):
+        assert kwargs["timeout"] == 900
+        return subprocess.CompletedProcess(
+            args=args[0], returncode=1, stdout="", stderr="failed")
+
+    monkeypatch.setattr(watch.subprocess, "run", fake_run)
+
+    assert watch._regenerate_replay_tick_cache_status() is False
 
 
 def test_regenerate_replay_readiness_report_accepts_blocked_report(
@@ -185,6 +205,80 @@ def test_regenerate_observed_tick_replay_audit_accepts_blocked_report(
     assert watch._regenerate_observed_tick_replay_audit() is True
 
 
+def test_regenerate_provider_signal_catalog_runs_offline_builder(
+        tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    catalog = data_dir / "provider_signal_catalog.json"
+    monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
+    monkeypatch.setattr(watch, "PROVIDER_SIGNAL_CATALOG_FILE", catalog)
+
+    def fake_run(*args, **kwargs):
+        assert args[0] == [
+            watch.sys.executable,
+            "provider_signal_catalog.py",
+            "--quiet",
+        ]
+        catalog.write_text('{"summary": {"provider_signals": 1}}\n')
+        return subprocess.CompletedProcess(
+            args=args[0], returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(watch.subprocess, "run", fake_run)
+
+    assert watch._regenerate_provider_signal_catalog() is True
+
+
+def test_regenerate_strategy_farm_accepts_report_without_winner(
+        tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    report = data_dir / "strategy_farm.json"
+    monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
+    monkeypatch.setattr(watch, "STRATEGY_FARM_FILE", report)
+    monkeypatch.setattr(watch, "STRATEGY_FARM_FROM_DATE", "2026-07-06")
+
+    def fake_run(*args, **kwargs):
+        assert args[0] == [
+            watch.sys.executable,
+            "strategy_farm.py",
+            "--from",
+            "2026-07-06",
+            "--quiet",
+        ]
+        report.write_text(
+            '{"selection": {"selected_policy": null}}\n',
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(
+            args=args[0], returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(watch.subprocess, "run", fake_run)
+
+    assert watch._regenerate_strategy_farm() is True
+
+
+def test_failed_offline_builders_do_not_accept_stale_artifacts(
+        tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    catalog = data_dir / "provider_signal_catalog.json"
+    farm = data_dir / "strategy_farm.json"
+    catalog.write_text('{"generated_at": "old"}\n', encoding="utf-8")
+    farm.write_text('{"generated_at": "old"}\n', encoding="utf-8")
+    monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
+    monkeypatch.setattr(watch, "PROVIDER_SIGNAL_CATALOG_FILE", catalog)
+    monkeypatch.setattr(watch, "STRATEGY_FARM_FILE", farm)
+
+    def fake_run(*args, **kwargs):
+        return subprocess.CompletedProcess(
+            args=args[0], returncode=1, stdout="", stderr="failed")
+
+    monkeypatch.setattr(watch.subprocess, "run", fake_run)
+
+    assert watch._regenerate_provider_signal_catalog() is False
+    assert watch._regenerate_strategy_farm() is False
+
+
 def test_regenerate_ledger_records_keyboard_interrupt_before_reraising(
         tmp_path, monkeypatch):
     monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
@@ -215,6 +309,8 @@ def test_push_session_data_adds_reconcile_status(monkeypatch):
     monkeypatch.setattr(watch, "_regenerate_replay_tick_cache_status", lambda: False)
     monkeypatch.setattr(watch, "_regenerate_replay_readiness_report", lambda: False)
     monkeypatch.setattr(watch, "_regenerate_observed_tick_replay_audit", lambda: False)
+    monkeypatch.setattr(watch, "_regenerate_provider_signal_catalog", lambda: False)
+    monkeypatch.setattr(watch, "_regenerate_strategy_farm", lambda: False)
 
     def fake_git(*args, capture=True):
         if args[:2] == ("add", "-f"):
@@ -240,6 +336,8 @@ def test_push_session_data_adds_reconcile_status(monkeypatch):
     assert "data/replay_readiness_report.json" in added
     assert "data/observed_tick_replay_audit.jsonl" in added
     assert "data/observed_tick_replay_status.json" in added
+    assert "data/provider_signal_catalog.json" not in added
+    assert "data/strategy_farm.json" in added
 
 
 def test_pull_main_ff_uses_explicit_origin_main(monkeypatch):

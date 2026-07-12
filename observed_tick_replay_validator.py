@@ -23,7 +23,10 @@ DEFAULT_OUTPUT = DATA_DIR / "observed_tick_replay_audit.jsonl"
 DEFAULT_STATUS = DATA_DIR / "observed_tick_replay_status.json"
 SCHEMA_VERSION = 1
 PRICE_EPSILON = 0.01
-MARKET_CLOSE_PRICE_TOLERANCE = 0.50
+MARKET_CLOSE_PRICE_TOLERANCE = PRICE_EPSILON
+OPEN_PRICE_ALIGNMENT_TOLERANCE = PRICE_EPSILON
+ALIGNMENT_NEAR_SECONDS = 5
+CLOSE_TOUCH_TIME_TOLERANCE_SECONDS = 5
 SUPPORTED_CLOSE_REASONS = {"tp", "sl", "be", "bot_close"}
 
 
@@ -301,6 +304,60 @@ def _filter_ticket_ticks(ticket: dict, ticks: pd.DataFrame,
     return out
 
 
+def _execution_alignment(
+    direction: str,
+    ticket: dict,
+    ticks: pd.DataFrame,
+    *,
+    event: str,
+) -> dict:
+    if event == "open":
+        event_dt = _parse_dt(ticket.get("open_dt_utc"))
+        reference_price = ticket.get("open_price")
+        side = "ask" if direction == "BUY" else "bid"
+    else:
+        event_dt = _parse_dt(ticket.get("close_dt_utc"))
+        reference_price = ticket.get("close_price")
+        side = "bid" if direction == "BUY" else "ask"
+    if (
+        event_dt is None
+        or reference_price is None
+        or direction not in ("BUY", "SELL")
+        or ticks.empty
+        or "time_utc" not in ticks.columns
+    ):
+        return {"status": "unavailable", "side": side}
+
+    time_col = pd.to_datetime(ticks["time_utc"], utc=True)
+    near = ticks.loc[
+        (time_col >= event_dt - timedelta(seconds=ALIGNMENT_NEAR_SECONDS))
+        & (time_col <= event_dt + timedelta(seconds=ALIGNMENT_NEAR_SECONDS))
+    ]
+    if near.empty:
+        return {"status": "unverified", "side": side}
+
+    near_times = pd.to_datetime(near["time_utc"], utc=True)
+    deltas_ns = (
+        near_times.dt.as_unit("ns").astype("int64").to_numpy()
+        - pd.Timestamp(event_dt).value
+    )
+    nearest_pos = int(np.abs(deltas_ns).argmin())
+    row = near.iloc[nearest_pos]
+    tick_time = pd.Timestamp(row["time_utc"]).to_pydatetime().astimezone(
+        timezone.utc)
+    side_price = float(row[side])
+    price_delta = side_price - float(reference_price)
+    return {
+        "status": "verified",
+        "side": side,
+        "time_utc": _iso(tick_time),
+        "time_delta_ms": int(round(deltas_ns[nearest_pos] / 1_000_000)),
+        "side_price": round(side_price, 3),
+        "reference_price": round(float(reference_price), 3),
+        "price_delta": round(price_delta, 3),
+    }
+
+
 def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
     label = _ticket_label(ticket)
     blockers: list[str] = []
@@ -318,11 +375,30 @@ def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
     if expected_reason not in SUPPORTED_CLOSE_REASONS:
         blockers.append(f"unsupported_close_reason:{label}:{expected_reason or 'unknown'}")
 
+    alignment = {
+        "open": _execution_alignment(
+            direction, ticket, ticks, event="open"),
+        "close": _execution_alignment(
+            direction, ticket, ticks, event="close"),
+    }
+    open_alignment = alignment["open"]
+    if open_alignment.get("status") != "verified":
+        blockers.append(f"open_tick_alignment_unverified:{label}")
+    elif (
+        abs(float(open_alignment.get("price_delta") or 0.0))
+        > OPEN_PRICE_ALIGNMENT_TOLERANCE
+    ):
+        blockers.append(
+            f"open_tick_price_mismatch:{label}:"
+            f"{float(open_alignment['price_delta']):+.2f}"
+        )
+
     base = {
         "ticket": ticket.get("ticket"),
         "status": "blocked",
         "expected_close_reason": expected_reason or None,
         "first_touch": None,
+        "alignment": alignment,
         "blockers": list(dict.fromkeys(blockers)),
         "warnings": warnings,
     }
@@ -379,10 +455,49 @@ def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
             "blockers": ["no_level_touch_before_close"],
         }
 
-    status = "exact" if _reason_matches(expected_reason, first_touch["reason"]) else "mismatch"
-    result_blockers = [] if status == "exact" else [
-        f"first_touch_reason_mismatch:{first_touch['reason']}!=mt5_{expected_reason}"
-    ]
+    result_blockers: list[str] = []
+    if not _reason_matches(expected_reason, first_touch["reason"]):
+        result_blockers.append(
+            f"first_touch_reason_mismatch:{first_touch['reason']}!=mt5_{expected_reason}"
+        )
+
+    touch_dt = _parse_dt(first_touch.get("time_utc"))
+    close_dt = _parse_dt(ticket.get("close_dt_utc"))
+    if touch_dt is None or close_dt is None:
+        result_blockers.append(f"missing_touch_close_time:{label}")
+    else:
+        delta_s = (touch_dt - close_dt).total_seconds()
+        if abs(delta_s) > CLOSE_TOUCH_TIME_TOLERANCE_SECONDS:
+            result_blockers.append(
+                f"first_touch_time_mismatch:{label}:{delta_s:+.3f}s"
+            )
+
+    close_alignment = alignment["close"]
+    if close_alignment.get("status") != "verified":
+        result_blockers.append(f"close_tick_alignment_unverified:{label}")
+    elif abs(float(close_alignment.get("price_delta") or 0.0)) > MARKET_CLOSE_PRICE_TOLERANCE:
+        result_blockers.append(
+            f"close_tick_price_mismatch:{label}:"
+            f"{float(close_alignment['price_delta']):+.2f}"
+        )
+
+    try:
+        actual_close_price = float(ticket.get("close_price"))
+        modeled_close_price = float(
+            first_touch["level"]
+            if first_touch["reason"] == "tp"
+            else first_touch["side_price"]
+        )
+    except (KeyError, TypeError, ValueError):
+        result_blockers.append(f"missing_modeled_close_price:{label}")
+    else:
+        price_delta = modeled_close_price - actual_close_price
+        if abs(price_delta) > PRICE_EPSILON:
+            result_blockers.append(
+                f"first_touch_price_mismatch:{label}:{price_delta:+.2f}"
+            )
+
+    status = "exact" if not result_blockers else "mismatch"
     return {
         **base,
         "status": status,
@@ -412,6 +527,11 @@ class ReplayTickFrameCache:
         path = self.tick_cache_dir / f"{day}.parquet"
         if not path.exists():
             return None, f"missing_tick_cache:{day}"
+        if not ensure_replay_tick_cache.day_contract_valid(
+            self.tick_cache_dir,
+            datetime.fromisoformat(day).date(),
+        ):
+            return None, f"invalid_tick_cache_contract:{day}"
         try:
             frame = pd.read_parquet(path)
         except Exception as exc:

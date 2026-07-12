@@ -24,6 +24,7 @@ import numpy as np
 import pandas as pd
 
 import observed_tick_replay_validator
+import strategy_policies
 
 
 DATA_DIR = Path(__file__).parent / "data"
@@ -192,6 +193,40 @@ def _level_events(history: Iterable[dict], key: str) -> list[dict]:
     return sorted(events, key=lambda event: event["ts"])
 
 
+def _provider_level_events(
+    provider_signal: dict,
+    ticket_index: int,
+    key: str,
+) -> list[dict]:
+    events: list[dict] = []
+    for item in provider_signal.get("level_timeline") or []:
+        ts = _parse_dt(
+            item.get("observed_ts_utc") or item.get("telegram_ts_utc")
+        )
+        if ts is None:
+            continue
+        if key == "tp":
+            targets = item.get("tps") or []
+            if ticket_index >= len(targets):
+                continue
+            value = targets[ticket_index]
+        else:
+            value = item.get("sl")
+        try:
+            level = float(value)
+        except (TypeError, ValueError):
+            continue
+        if level <= 0:
+            continue
+        events.append({
+            "ts": ts,
+            "level": level,
+            "source": "canonical_provider",
+            "raw": item,
+        })
+    return sorted(events, key=lambda event: event["ts"])
+
+
 def _is_be_sl_event(ticket: dict, event: dict) -> bool:
     source = str(event.get("source") or "").upper()
     if "BE" in source or "BREAKEVEN" in source or "BREAK_EVEN" in source:
@@ -235,9 +270,16 @@ def _active_levels(events: list[dict], tick_ns: np.ndarray) -> np.ndarray:
 def _normalise_ticks(ticks: pd.DataFrame) -> pd.DataFrame:
     if ticks.empty:
         return ticks.copy()
+    if ticks.attrs.get("strategy_ticks_normalized"):
+        return ticks
     frame = ticks.copy()
     frame["time_utc"] = pd.to_datetime(frame["time_utc"], utc=True)
-    return frame.sort_values("time_utc").reset_index(drop=True)
+    if not frame["time_utc"].is_monotonic_increasing:
+        frame = frame.sort_values("time_utc").reset_index(drop=True)
+    frame["_time_ns"] = (
+        frame["time_utc"].dt.as_unit("ns").astype("int64"))
+    frame.attrs["strategy_ticks_normalized"] = True
+    return frame
 
 
 def _eod_horizon(opened: datetime) -> datetime:
@@ -252,6 +294,7 @@ def _first_strategy_close(
     sl_events: list[dict],
     tp_events: list[dict],
     horizon_policy: str,
+    forced_close_at: datetime | None = None,
 ) -> tuple[dict | None, list[str], list[str]]:
     blockers: list[str] = []
     assumptions: list[str] = []
@@ -272,20 +315,21 @@ def _first_strategy_close(
 
     ticks = _normalise_ticks(ticks)
     horizon = _eod_horizon(opened)
-    time_col = pd.to_datetime(ticks["time_utc"], utc=True)
-    window = ticks.loc[
-        (time_col >= pd.Timestamp(opened))
-        & (time_col <= pd.Timestamp(horizon))
-    ].copy()
+    all_tick_ns = ticks["_time_ns"].to_numpy(dtype=np.int64, copy=False)
+    start_idx = int(np.searchsorted(
+        all_tick_ns, pd.Timestamp(opened).value, side="left"))
+    end_idx = int(np.searchsorted(
+        all_tick_ns, pd.Timestamp(horizon).value, side="right"))
+    window = ticks.iloc[start_idx:end_idx]
     if window.empty:
         return None, [f"missing_ticks_after_open:{_ticket_label(ticket)}"], assumptions
 
-    tick_times = pd.to_datetime(window["time_utc"], utc=True)
-    tick_ns = tick_times.dt.as_unit("ns").astype("int64").to_numpy()
+    tick_times = window["time_utc"]
+    tick_ns = window["_time_ns"].to_numpy(dtype=np.int64, copy=False)
     sl_levels = _active_levels(sl_events, tick_ns)
     tp_levels = _active_levels(tp_events, tick_ns)
-    bid = pd.to_numeric(window["bid"], errors="coerce").to_numpy(dtype=float)
-    ask = pd.to_numeric(window["ask"], errors="coerce").to_numpy(dtype=float)
+    bid = window["bid"].to_numpy(dtype=float, copy=False)
+    ask = window["ask"].to_numpy(dtype=float, copy=False)
 
     if direction == "BUY":
         side = "bid"
@@ -299,16 +343,42 @@ def _first_strategy_close(
         tp_touch = ~np.isnan(tp_levels) & (ask <= tp_levels)
 
     touched = np.flatnonzero(sl_touch | tp_touch)
-    if len(touched) > 0:
-        idx = int(touched[0])
+    touched_idx = int(touched[0]) if len(touched) > 0 else None
+    forced_idx = None
+    if forced_close_at is not None:
+        forced_candidates = np.flatnonzero(
+            tick_ns >= pd.Timestamp(forced_close_at).value)
+        if len(forced_candidates) == 0:
+            return None, [
+                f"missing_ticks_after_management:{_ticket_label(ticket)}"
+            ], assumptions
+        forced_idx = int(forced_candidates[0])
+
+    if touched_idx is not None and (
+        forced_idx is None or touched_idx <= forced_idx
+    ):
+        idx = touched_idx
         is_sl = bool(sl_touch[idx])
         level = float(sl_levels[idx] if is_sl else tp_levels[idx])
+        side_price = float(side_prices[idx])
         return {
             "reason": "sl" if is_sl else "tp",
-            "close_price": round(level, 2),
+            "close_price": round(side_price if is_sl else level, 2),
+            "trigger_level": round(level, 2),
             "side": side,
-            "side_price": round(float(side_prices[idx]), 2),
+            "side_price": round(side_price, 2),
             "time_utc": _iso(pd.Timestamp(tick_times.iloc[idx]).to_pydatetime()),
+        }, blockers, assumptions
+
+    if forced_idx is not None:
+        close_price = float(side_prices[forced_idx])
+        return {
+            "reason": "management_close",
+            "close_price": round(close_price, 2),
+            "side": side,
+            "side_price": round(close_price, 2),
+            "time_utc": _iso(
+                pd.Timestamp(tick_times.iloc[forced_idx]).to_pydatetime()),
         }, blockers, assumptions
 
     if horizon_policy != "eod_close":
@@ -395,6 +465,7 @@ def _simulate_ticket_no_be(
         unit_value=unit_value,
     )
     actual_pnl = _actual_ticket_pnl(ticket)
+    volume = float(ticket.get("volume") or 1.0)
     assumptions.extend(pnl_assumptions)
     return {
         "ticket": ticket.get("ticket"),
@@ -409,6 +480,352 @@ def _simulate_ticket_no_be(
         "touch_side": close["side"],
         "touch_side_price": close["side_price"],
         "pnl_source": pnl_source,
+        "open_time_utc": _iso(_parse_dt(ticket.get("open_dt_utc"))),
+        "open_price": ticket.get("open_price"),
+        "volume": volume,
+        "unit_value": round(float(unit_value), 8),
+        "pnl_per_price_unit": round(abs(volume * float(unit_value)), 8),
+        "blockers": [],
+        "assumptions": list(dict.fromkeys(assumptions)),
+    }
+
+
+def _portfolio_excursions(
+    trade: dict,
+    ticks: pd.DataFrame,
+    ticket_results: list[dict],
+    *,
+    default_unit_value: float,
+    default_unit_source: str,
+) -> dict:
+    if ticks.empty or not ticket_results:
+        return {}
+    ticks = _normalise_ticks(ticks)
+    sources = {
+        _ticket_label(ticket): ticket
+        for ticket in trade.get("tickets") or []
+    }
+    models = []
+    for result in ticket_results:
+        source = sources.get(_ticket_label(result))
+        opened = _parse_dt((source or {}).get("open_dt_utc"))
+        closed = _parse_dt(
+            result.get("close_time_utc")
+            or (source or {}).get("close_dt_utc")
+        )
+        if (
+            source is None
+            or opened is None
+            or closed is None
+            or source.get("open_price") is None
+            or result.get("strategy_pnl") is None
+        ):
+            return {}
+        if result.get("unit_value") is not None:
+            unit_value = float(result["unit_value"])
+        else:
+            unit_value, _source, _assumptions = _unit_value_for_ticket(
+                trade,
+                source,
+                default_unit_value=default_unit_value,
+                default_unit_source=default_unit_source,
+            )
+        models.append({
+            "opened": opened,
+            "closed": closed,
+            "open_price": float(source["open_price"]),
+            "volume": float(source.get("volume") or 1.0),
+            "unit_value": float(unit_value),
+            "realized_pnl": float(result["strategy_pnl"]),
+        })
+
+    start = min(model["opened"] for model in models)
+    end = max(model["closed"] for model in models)
+    all_ns = ticks["_time_ns"].to_numpy(dtype=np.int64, copy=False)
+    start_idx = int(np.searchsorted(
+        all_ns, pd.Timestamp(start).value, side="left"))
+    end_idx = int(np.searchsorted(
+        all_ns, pd.Timestamp(end).value, side="right"))
+    if start_idx >= end_idx:
+        return {}
+    window = ticks.iloc[start_idx:end_idx]
+    window_ns = window["_time_ns"].to_numpy(dtype=np.int64, copy=False)
+    side_name = "bid" if _direction(trade) == "BUY" else "ask"
+    side_prices = window[side_name].to_numpy(dtype=float, copy=False)
+    equity = np.zeros(len(window), dtype=float)
+
+    for model in models:
+        open_idx = int(np.searchsorted(
+            window_ns, pd.Timestamp(model["opened"]).value, side="left"))
+        close_idx = int(np.searchsorted(
+            window_ns, pd.Timestamp(model["closed"]).value, side="left"))
+        close_idx = max(open_idx, min(close_idx, len(window)))
+        if close_idx > open_idx:
+            if _direction(trade) == "BUY":
+                delta = side_prices[open_idx:close_idx] - model["open_price"]
+            else:
+                delta = model["open_price"] - side_prices[open_idx:close_idx]
+            equity[open_idx:close_idx] += (
+                delta * model["volume"] * model["unit_value"])
+        if close_idx < len(window):
+            equity[close_idx:] += model["realized_pnl"]
+
+    final_pnl = sum(model["realized_pnl"] for model in models)
+    max_idx = int(np.argmax(equity))
+    min_idx = int(np.argmin(equity))
+    mfe = max(float(equity[max_idx]), final_pnl)
+    mae = min(float(equity[min_idx]), final_pnl)
+    giveback = max(0.0, mfe - final_pnl)
+    return {
+        "mfe_pnl": _round_money(mfe),
+        "mfe_time_utc": _iso(
+            pd.Timestamp(window.iloc[max_idx]["time_utc"]).to_pydatetime()),
+        "mae_pnl": _round_money(mae),
+        "mae_time_utc": _iso(
+            pd.Timestamp(window.iloc[min_idx]["time_utc"]).to_pydatetime()),
+        "profit_giveback": _round_money(giveback),
+        "mfe_capture_ratio": (
+            round(final_pnl / mfe, 4) if mfe > 0 else None
+        ),
+    }
+
+
+def _management_trigger(
+    trade: dict,
+    policy: strategy_policies.StrategyPolicy,
+    *,
+    provider_signal: dict | None = None,
+    require_provider_timeline: bool = False,
+) -> tuple[datetime | None, str | None]:
+    candidates: list[tuple[datetime, str]] = []
+    if provider_signal is not None:
+        management_rows = provider_signal.get("management_events") or []
+        source = "canonical_provider_management"
+    elif require_provider_timeline:
+        management_rows = []
+        source = "canonical_provider_management"
+    else:
+        management_rows = trade.get("management") or []
+        source = "provider_management"
+    for item in management_rows:
+        action = str(
+            item.get("classified_action")
+            or item.get("classified")
+            or item.get("action")
+            or ""
+        )
+        if action != policy.trigger_action:
+            continue
+        if provider_signal is not None or require_provider_timeline:
+            raw_ts = item.get("observed_ts_utc") or item.get("telegram_ts_utc")
+        else:
+            raw_ts = item.get("tg_ts") or item.get("ts")
+        event_dt = _parse_dt(raw_ts)
+        if event_dt is not None:
+            candidates.append((event_dt, source))
+    if candidates:
+        return min(candidates, key=lambda item: item[0])
+    return None, None
+
+
+def _ticket_tp_distance(
+    trade: dict,
+    ticket: dict,
+    trigger: datetime,
+    *,
+    tp_events: list[dict] | None = None,
+) -> float | None:
+    events = (
+        tp_events
+        if tp_events is not None
+        else _level_events(ticket.get("tp_history") or [], "tp")
+    )
+    active = [event for event in events if event["ts"] <= trigger]
+    event = active[-1] if active else None
+    if event is None:
+        return None
+    try:
+        open_price = float(ticket.get("open_price"))
+        target = float(event["level"])
+    except (TypeError, ValueError):
+        return None
+    distance = _directional_price_delta(_direction(trade), open_price, target)
+    return distance if distance >= 0 else None
+
+
+def _ticket_actions(
+    trade: dict,
+    policy: strategy_policies.StrategyPolicy,
+    trigger: datetime,
+    *,
+    provider_signal: dict | None = None,
+) -> tuple[list[tuple[int, dict, str]], list[str]]:
+    tickets = list(trade.get("tickets") or [])
+    distances: dict[int, float] = {}
+    blockers: list[str] = []
+    for index, ticket in enumerate(tickets):
+        tp_events = (
+            _provider_level_events(provider_signal, index, "tp")
+            if provider_signal is not None
+            else None
+        )
+        distance = _ticket_tp_distance(
+            trade,
+            ticket,
+            trigger,
+            tp_events=tp_events,
+        )
+        if distance is None:
+            blockers.append(
+                f"missing_causal_tp_at_trigger:{_ticket_label(ticket)}"
+            )
+        else:
+            distances[index] = distance
+    if blockers:
+        return [], blockers
+    ordered = sorted(
+        enumerate(tickets),
+        key=lambda item: (
+            distances[item[0]],
+            item[0],
+        ),
+    )
+    allocation = policy.allocation_for(len(tickets))
+    actions = (
+        ["close_now"] * allocation["close_now"]
+        + ["move_to_be"] * allocation["move_to_be"]
+        + ["runner"] * allocation["runner"]
+    )
+    action_by_index = {
+        original_index: action
+        for (original_index, _ticket), action in zip(ordered, actions)
+    }
+    return [
+        (index, ticket, action_by_index[index])
+        for index, ticket in enumerate(tickets)
+    ], []
+
+
+def _policy_sl_events(
+    ticket: dict,
+    *,
+    leg_action: str,
+    trigger: datetime,
+    base_events: list[dict] | None = None,
+) -> list[dict]:
+    events = [
+        event
+        for event in (
+            base_events
+            if base_events is not None
+            else _level_events(ticket.get("sl_history") or [], "sl")
+        )
+        if not _is_be_sl_event(ticket, event)
+    ]
+    if leg_action == "move_to_be":
+        try:
+            open_price = float(ticket.get("open_price"))
+        except (TypeError, ValueError):
+            return events
+        events.append({
+            "ts": trigger,
+            "level": open_price,
+            "source": "policy_be",
+            "raw": {"source": "policy_be", "sl": open_price},
+        })
+    return sorted(events, key=lambda event: event["ts"])
+
+
+def _simulate_ticket_policy(
+    trade: dict,
+    ticket: dict,
+    ticks: pd.DataFrame,
+    *,
+    leg_action: str,
+    trigger: datetime,
+    trigger_source: str,
+    default_unit_value: float,
+    default_unit_source: str,
+    horizon_policy: str,
+    provider_sl_events: list[dict] | None = None,
+    provider_tp_events: list[dict] | None = None,
+) -> dict:
+    sl_events = _policy_sl_events(
+        ticket,
+        leg_action=leg_action,
+        trigger=trigger,
+        base_events=provider_sl_events,
+    )
+    tp_events = (
+        provider_tp_events
+        if provider_tp_events is not None
+        else _level_events(ticket.get("tp_history") or [], "tp")
+    )
+    close, blockers, assumptions = _first_strategy_close(
+        trade,
+        ticket,
+        ticks,
+        sl_events=sl_events,
+        tp_events=tp_events,
+        horizon_policy=horizon_policy,
+        forced_close_at=trigger if leg_action == "close_now" else None,
+    )
+    changed_rule = {
+        "close_now": "closed_at_management_trigger",
+        "move_to_be": "policy_be",
+        "runner": "ignored_be_sl",
+    }[leg_action]
+    if blockers or close is None:
+        return {
+            "ticket": ticket.get("ticket"),
+            "status": "blocked",
+            "leg_action": leg_action,
+            "changed_rules": [changed_rule],
+            "actual_pnl": _round_money(_actual_ticket_pnl(ticket)),
+            "strategy_pnl": None,
+            "delta_pnl": None,
+            "close_reason": None,
+            "close_time_utc": None,
+            "close_price": None,
+            "pnl_source": None,
+            "blockers": list(dict.fromkeys(blockers)),
+            "assumptions": list(dict.fromkeys(assumptions)),
+        }
+
+    unit_value, pnl_source, pnl_assumptions = _unit_value_for_ticket(
+        trade,
+        ticket,
+        default_unit_value=default_unit_value,
+        default_unit_source=default_unit_source,
+    )
+    strategy_pnl = _pnl_from_prices(
+        trade,
+        ticket,
+        close_price=float(close["close_price"]),
+        unit_value=unit_value,
+    )
+    actual_pnl = _actual_ticket_pnl(ticket)
+    volume = float(ticket.get("volume") or 1.0)
+    assumptions.extend(pnl_assumptions)
+    return {
+        "ticket": ticket.get("ticket"),
+        "status": "simulated",
+        "leg_action": leg_action,
+        "changed_rules": [changed_rule],
+        "actual_pnl": _round_money(actual_pnl),
+        "strategy_pnl": _round_money(strategy_pnl),
+        "delta_pnl": _round_money(strategy_pnl - actual_pnl),
+        "close_reason": close["reason"],
+        "close_time_utc": close["time_utc"],
+        "close_price": close["close_price"],
+        "touch_side": close["side"],
+        "touch_side_price": close["side_price"],
+        "pnl_source": pnl_source,
+        "open_time_utc": _iso(_parse_dt(ticket.get("open_dt_utc"))),
+        "open_price": ticket.get("open_price"),
+        "volume": volume,
+        "unit_value": round(float(unit_value), 8),
+        "pnl_per_price_unit": round(abs(volume * float(unit_value)), 8),
         "blockers": [],
         "assumptions": list(dict.fromkeys(assumptions)),
     }
@@ -430,13 +847,23 @@ def simulate_trade(
     ticks: pd.DataFrame,
     *,
     strategy_name: str,
+    policy: strategy_policies.StrategyPolicy | None = None,
+    result_cache: dict | None = None,
+    portfolio_cache: dict | None = None,
     baseline_audit: dict | None,
     default_unit_value: float = 1.0,
     default_unit_source: str = "default_unit_value",
     horizon_policy: str = "eod_close",
+    provider_signal: dict | None = None,
+    require_provider_timeline: bool = False,
 ) -> dict:
     """Simulate one management strategy for one replay trade."""
-    if strategy_name != "no_be":
+    if policy is None:
+        try:
+            policy = strategy_policies.policy_by_id(strategy_name)
+        except KeyError:
+            policy = None
+    if policy is None:
         return {
             "schema_version": SCHEMA_VERSION,
             "sig_id": trade.get("sig_id"),
@@ -468,18 +895,183 @@ def simulate_trade(
             "tickets": [],
         }
 
+    if (
+        policy.mode != "follow_actual"
+        and require_provider_timeline
+        and provider_signal is None
+    ):
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "sig_id": trade.get("sig_id"),
+            "channel": trade.get("channel"),
+            "direction": trade.get("direction"),
+            "open_dt_utc": trade.get("open_dt_utc"),
+            "status": "blocked",
+            "strategy": strategy_name,
+            "policy": policy.to_dict(),
+            "level_timeline_source": None,
+            "management_trigger_utc": None,
+            "management_trigger_source": None,
+            "actual_pnl": _round_money(_actual_trade_pnl(trade)),
+            "strategy_pnl": None,
+            "delta_pnl": None,
+            "blockers": ["missing_canonical_provider_signal"],
+            "assumptions": [],
+            "tickets": [],
+        }
+
     tickets = trade.get("tickets") or []
-    ticket_results = [
-        _simulate_ticket_no_be(
-            trade,
-            ticket,
-            ticks,
-            default_unit_value=default_unit_value,
-            default_unit_source=default_unit_source,
-            horizon_policy=horizon_policy,
-        )
-        for ticket in tickets
-    ]
+    trigger, trigger_source = _management_trigger(
+        trade,
+        policy,
+        provider_signal=provider_signal,
+        require_provider_timeline=require_provider_timeline,
+    )
+    if policy.mode == "follow_actual":
+        ticket_results = []
+        for ticket in tickets:
+            result = _unchanged_ticket_result(ticket)
+            result["leg_action"] = "follow_actual"
+            ticket_results.append(result)
+    else:
+        ticket_open_times = [
+            (ticket, opened)
+            for ticket in tickets
+            if (opened := _parse_dt(ticket.get("open_dt_utc"))) is not None
+        ]
+        early_trigger_blockers: list[str] = []
+        if trigger is not None and ticket_open_times:
+            if trigger < min(opened for _ticket, opened in ticket_open_times):
+                early_trigger_blockers = ["management_trigger_before_trade_open"]
+            else:
+                early_trigger_blockers = [
+                    f"management_trigger_before_ticket_open:{_ticket_label(ticket)}"
+                    for ticket, opened in ticket_open_times
+                    if trigger < opened
+                ]
+        if early_trigger_blockers:
+            return {
+                "schema_version": SCHEMA_VERSION,
+                "sig_id": trade.get("sig_id"),
+                "channel": trade.get("channel"),
+                "direction": trade.get("direction"),
+                "open_dt_utc": trade.get("open_dt_utc"),
+                "status": "blocked",
+                "strategy": strategy_name,
+                "policy": policy.to_dict(),
+                "level_timeline_source": (
+                    "canonical_provider"
+                    if provider_signal is not None
+                    else "execution_ticket_history"
+                ),
+                "management_trigger_utc": _iso(trigger),
+                "management_trigger_source": trigger_source,
+                "actual_pnl": _round_money(_actual_trade_pnl(trade)),
+                "strategy_pnl": None,
+                "delta_pnl": None,
+                "blockers": early_trigger_blockers,
+                "assumptions": [],
+                "tickets": [],
+            }
+        if trigger is None:
+            observed_be = any(
+                _is_be_sl_event(ticket, event)
+                for ticket in tickets
+                for event in _level_events(ticket.get("sl_history") or [], "sl")
+            )
+            if observed_be:
+                return {
+                    "schema_version": SCHEMA_VERSION,
+                    "sig_id": trade.get("sig_id"),
+                    "channel": trade.get("channel"),
+                    "direction": trade.get("direction"),
+                    "open_dt_utc": trade.get("open_dt_utc"),
+                    "status": "blocked",
+                    "strategy": strategy_name,
+                    "policy": policy.to_dict(),
+                    "management_trigger_utc": None,
+                    "management_trigger_source": None,
+                    "actual_pnl": _round_money(_actual_trade_pnl(trade)),
+                    "strategy_pnl": None,
+                    "delta_pnl": None,
+                    "blockers": [
+                        f"missing_provider_management_trigger:{policy.trigger_action}"
+                    ],
+                    "assumptions": [],
+                    "tickets": [],
+                }
+            ticket_results = []
+            for ticket in tickets:
+                result = _unchanged_ticket_result(ticket)
+                result["leg_action"] = "unchanged_no_provider_trigger"
+                ticket_results.append(result)
+            actions = []
+        else:
+            actions, action_blockers = _ticket_actions(
+                trade,
+                policy,
+                trigger,
+                provider_signal=provider_signal,
+            )
+            if action_blockers:
+                return {
+                    "schema_version": SCHEMA_VERSION,
+                    "sig_id": trade.get("sig_id"),
+                    "channel": trade.get("channel"),
+                    "direction": trade.get("direction"),
+                    "open_dt_utc": trade.get("open_dt_utc"),
+                    "status": "blocked",
+                    "strategy": strategy_name,
+                    "policy": policy.to_dict(),
+                    "management_trigger_utc": _iso(trigger),
+                    "management_trigger_source": trigger_source,
+                    "actual_pnl": _round_money(_actual_trade_pnl(trade)),
+                    "strategy_pnl": None,
+                    "delta_pnl": None,
+                    "blockers": action_blockers,
+                    "assumptions": [],
+                    "tickets": [],
+                }
+            ticket_results = []
+        for ticket_index, ticket, leg_action in actions:
+            cache_key = (
+                str(trade.get("sig_id")),
+                _ticket_label(ticket),
+                leg_action,
+                _iso(trigger),
+                trigger_source,
+                horizon_policy,
+                round(float(default_unit_value), 8),
+                default_unit_source,
+            )
+            cached = result_cache.get(cache_key) if result_cache is not None else None
+            if cached is None:
+                cached = _simulate_ticket_policy(
+                    trade,
+                    ticket,
+                    ticks,
+                    leg_action=leg_action,
+                    trigger=trigger,
+                    trigger_source=str(trigger_source),
+                    default_unit_value=default_unit_value,
+                    default_unit_source=default_unit_source,
+                    horizon_policy=horizon_policy,
+                    provider_sl_events=(
+                        _provider_level_events(
+                            provider_signal, ticket_index, "sl")
+                        if provider_signal is not None
+                        else None
+                    ),
+                    provider_tp_events=(
+                        _provider_level_events(
+                            provider_signal, ticket_index, "tp")
+                        if provider_signal is not None
+                        else None
+                    ),
+                )
+                if result_cache is not None:
+                    result_cache[cache_key] = cached
+            ticket_results.append(dict(cached))
     blockers = list(dict.fromkeys(
         blocker
         for result in ticket_results
@@ -507,6 +1099,33 @@ def simulate_trade(
             status = "simulated"
         delta = strategy_pnl - actual_pnl
 
+    excursions: dict = {}
+    if not blockers and ticket_results:
+        portfolio_key = tuple(
+            (
+                _ticket_label(result),
+                result.get("close_time_utc"),
+                result.get("close_price"),
+                result.get("strategy_pnl"),
+            )
+            for result in ticket_results
+        )
+        cached_excursions = (
+            portfolio_cache.get(portfolio_key)
+            if portfolio_cache is not None else None
+        )
+        if cached_excursions is None:
+            cached_excursions = _portfolio_excursions(
+                trade,
+                ticks,
+                ticket_results,
+                default_unit_value=default_unit_value,
+                default_unit_source=default_unit_source,
+            )
+            if portfolio_cache is not None:
+                portfolio_cache[portfolio_key] = cached_excursions
+        excursions = dict(cached_excursions)
+
     return {
         "schema_version": SCHEMA_VERSION,
         "sig_id": trade.get("sig_id"),
@@ -515,12 +1134,21 @@ def simulate_trade(
         "open_dt_utc": trade.get("open_dt_utc"),
         "status": status,
         "strategy": strategy_name,
+        "policy": policy.to_dict(),
+        "level_timeline_source": (
+            "canonical_provider"
+            if provider_signal is not None
+            else "execution_ticket_history"
+        ),
+        "management_trigger_utc": _iso(trigger),
+        "management_trigger_source": trigger_source,
         "actual_pnl": _round_money(actual_pnl),
         "strategy_pnl": _round_money(strategy_pnl),
         "delta_pnl": _round_money(delta),
         "blockers": blockers,
         "assumptions": assumptions,
         "tickets": ticket_results,
+        **excursions,
     }
 
 

@@ -1,6 +1,10 @@
+from datetime import date
+
 import pandas as pd
 
 import strategy_simulator
+from strategy_policies import StrategyPolicy
+from tools import ensure_replay_tick_cache
 
 
 def _ticks(rows):
@@ -177,6 +181,10 @@ def test_no_be_uses_explicit_horizon_close_when_tp_or_sl_never_touch():
     trade = _trade(
         close_dt_utc="2026-07-06T10:06:00+00:00",
         pnl_real_mt5=0.0,
+        management=[{
+            "ts": "2026-07-06T10:05:00+00:00",
+            "classified": "MOVE_SL_TO_BE",
+        }],
         tickets=[ticket],
     )
     ticks = _ticks([
@@ -207,6 +215,8 @@ def test_report_uses_global_mt5_calibration_for_be_only_tickets(tmp_path):
         {"time_utc": "2026-07-06T11:00:00+00:00", "bid": 200.0, "ask": 200.2},
         {"time_utc": "2026-07-06T11:10:00+00:00", "bid": 210.0, "ask": 210.2},
     ]).to_parquet(cache_dir / "2026-07-06.parquet", index=False)
+    ensure_replay_tick_cache.write_day_contract(
+        cache_dir, date(2026, 7, 6))
 
     calibrator = _trade(
         sig_id="canal1_calibrator",
@@ -228,6 +238,10 @@ def test_report_uses_global_mt5_calibration_for_be_only_tickets(tmp_path):
         open_dt_utc="2026-07-06T10:00:00+00:00",
         close_dt_utc="2026-07-06T10:05:00+00:00",
         pnl_real_mt5=0.0,
+        management=[{
+            "ts": "2026-07-06T10:05:00+00:00",
+            "classified": "MOVE_SL_TO_BE",
+        }],
         tickets=[_ticket(
             ticket=101,
             close_dt_utc="2026-07-06T10:05:00+00:00",
@@ -269,3 +283,593 @@ def test_report_uses_global_mt5_calibration_for_be_only_tickets(tmp_path):
     assert be_result["strategy_pnl"] == 100.0
     assert be_result["tickets"][0]["pnl_source"] == "global_mt5_calibrated"
     assert "global_mt5_calibrated:101" in be_result["assumptions"]
+
+
+def _managed_ticket(ticket, tp):
+    return _ticket(
+        ticket=ticket,
+        close_dt_utc="2026-07-06T10:06:00+00:00",
+        close_price=100.0,
+        close_reason="be",
+        pnl_net=0.0,
+        sl_history=[
+            {
+                "ts": "2026-07-06T10:00:00+00:00",
+                "status": "confirmed",
+                "source": "initial",
+                "sl": 90.0,
+            },
+            {
+                "ts": "2026-07-06T10:05:00+00:00",
+                "status": "confirmed",
+                "source": f"BE #{ticket}",
+                "sl": 100.0,
+            },
+        ],
+        tp_history=[{
+            "ts": "2026-07-06T10:00:00+00:00",
+            "status": "confirmed",
+            "source": "initial",
+            "tp": tp,
+        }],
+    )
+
+
+def test_policy_closes_nearest_leg_protects_next_and_keeps_runner():
+    policy = StrategyPolicy(
+        policy_id="close_1_be_1_runner_1",
+        close_legs=1,
+        be_legs=1,
+        runner_legs=1,
+        base_leg_count=3,
+    )
+    trade = _trade(
+        pnl_real_mt5=0.0,
+        management=[{
+            "ts": "2026-07-06T10:05:00+00:00",
+            "classified": "MOVE_SL_TO_BE",
+            "applied": True,
+        }],
+        tickets=[
+            _managed_ticket(101, 105.0),
+            _managed_ticket(102, 110.0),
+            _managed_ticket(103, 115.0),
+        ],
+    )
+    ticks = _ticks([
+        {"time_utc": "2026-07-06T10:04:00+00:00", "bid": 102.0, "ask": 102.2},
+        {"time_utc": "2026-07-06T10:05:00+00:00", "bid": 104.0, "ask": 104.2},
+        {"time_utc": "2026-07-06T10:06:00+00:00", "bid": 99.0, "ask": 99.2},
+        {"time_utc": "2026-07-06T10:10:00+00:00", "bid": 115.0, "ask": 115.2},
+    ])
+
+    result = strategy_simulator.simulate_trade(
+        trade,
+        ticks,
+        strategy_name=policy.policy_id,
+        policy=policy,
+        baseline_audit={"status": "exact"},
+        default_unit_value=1.0,
+    )
+
+    assert result["status"] == "simulated"
+    # The protected leg gaps from 104 to 99, so its SL at 100 is filled at
+    # the first tradable bid (99), not at the theoretical trigger level.
+    assert result["strategy_pnl"] == 18.0
+    assert [row["leg_action"] for row in result["tickets"]] == [
+        "close_now", "move_to_be", "runner"]
+    assert [row["close_reason"] for row in result["tickets"]] == [
+        "management_close", "sl", "tp"]
+    assert result["tickets"][0]["close_price"] == 104.0
+    assert result["tickets"][1]["close_price"] == 99.0
+    assert result["tickets"][2]["close_price"] == 115.0
+
+
+def test_policy_blocks_when_leg_targets_only_exist_after_management():
+    policy = StrategyPolicy(
+        policy_id="close_1_runner_1",
+        close_legs=1,
+        be_legs=0,
+        runner_legs=1,
+        base_leg_count=2,
+    )
+    tickets = [_managed_ticket(101, 105.0), _managed_ticket(102, 110.0)]
+    for ticket in tickets:
+        ticket["tp_history"][0]["ts"] = "2026-07-06T10:06:00+00:00"
+    trade = _trade(
+        management=[{
+            "ts": "2026-07-06T10:05:00+00:00",
+            "classified": "MOVE_SL_TO_BE",
+        }],
+        tickets=tickets,
+    )
+
+    result = strategy_simulator.simulate_trade(
+        trade,
+        _ticks([{
+            "time_utc": "2026-07-06T10:05:00+00:00",
+            "bid": 104.0,
+            "ask": 104.2,
+        }]),
+        strategy_name=policy.policy_id,
+        policy=policy,
+        baseline_audit={"status": "exact"},
+        default_unit_value=1.0,
+    )
+
+    assert result["status"] == "blocked"
+    assert "missing_causal_tp_at_trigger:101" in result["blockers"]
+    assert "missing_causal_tp_at_trigger:102" in result["blockers"]
+
+
+def test_policy_does_not_use_observed_mt5_be_as_provider_trigger():
+    policy = StrategyPolicy(
+        policy_id="close_all",
+        close_legs=1,
+        be_legs=0,
+        runner_legs=0,
+        base_leg_count=1,
+    )
+    trade = _trade(management=[], tickets=[_managed_ticket(101, 105.0)])
+
+    result = strategy_simulator.simulate_trade(
+        trade,
+        _ticks([{
+            "time_utc": "2026-07-06T10:05:00+00:00",
+            "bid": 104.0,
+            "ask": 104.2,
+        }]),
+        strategy_name=policy.policy_id,
+        policy=policy,
+        baseline_audit={"status": "exact"},
+        default_unit_value=1.0,
+    )
+
+    assert result["status"] == "blocked"
+    assert result["management_trigger_source"] is None
+    assert "missing_provider_management_trigger:MOVE_SL_TO_BE" in result["blockers"]
+
+
+def test_policy_uses_provider_level_timeline_instead_of_ticket_history():
+    policy = StrategyPolicy(
+        policy_id="runner",
+        close_legs=0,
+        be_legs=0,
+        runner_legs=1,
+        base_leg_count=1,
+    )
+    ticket = _managed_ticket(101, 105.0)
+    trade = _trade(
+        management=[{
+            "ts": "2026-07-06T10:05:00+00:00",
+            "classified": "MOVE_SL_TO_BE",
+        }],
+        tickets=[ticket],
+    )
+    provider_signal = {
+        "provider_signal_id": "canal1_1",
+        "management_events": [{
+            "telegram_ts_utc": "2026-07-06T10:05:00+00:00",
+            "classified_action": "MOVE_SL_TO_BE",
+        }],
+        "level_timeline": [{
+            "telegram_ts_utc": "2026-07-06T10:00:00+00:00",
+            "tps": [110.0],
+            "sl": 90.0,
+        }],
+    }
+    ticks = _ticks([
+        {"time_utc": "2026-07-06T10:06:00+00:00", "bid": 105.0, "ask": 105.2},
+        {"time_utc": "2026-07-06T10:10:00+00:00", "bid": 110.0, "ask": 110.2},
+    ])
+
+    result = strategy_simulator.simulate_trade(
+        trade,
+        ticks,
+        strategy_name=policy.policy_id,
+        policy=policy,
+        provider_signal=provider_signal,
+        require_provider_timeline=True,
+        baseline_audit={"status": "exact"},
+        default_unit_value=1.0,
+    )
+
+    assert result["status"] == "simulated"
+    assert result["level_timeline_source"] == "canonical_provider"
+    assert result["tickets"][0]["close_reason"] == "tp"
+    assert result["tickets"][0]["close_price"] == 110.0
+
+
+def test_required_provider_timeline_rejects_execution_only_management_event():
+    policy = StrategyPolicy(
+        policy_id="runner",
+        close_legs=0,
+        be_legs=0,
+        runner_legs=1,
+        base_leg_count=1,
+    )
+    trade = _trade(
+        management=[{
+            "ts": "2026-07-06T10:05:00+00:00",
+            "classified": "MOVE_SL_TO_BE",
+        }],
+        tickets=[_managed_ticket(101, 105.0)],
+    )
+    provider_signal = {
+        "provider_signal_id": "canal1_1",
+        "management_events": [],
+        "level_timeline": [{
+            "telegram_ts_utc": "2026-07-06T10:00:00+00:00",
+            "tps": [105.0],
+            "sl": 90.0,
+        }],
+    }
+
+    result = strategy_simulator.simulate_trade(
+        trade,
+        _ticks([]),
+        strategy_name=policy.policy_id,
+        policy=policy,
+        provider_signal=provider_signal,
+        require_provider_timeline=True,
+        baseline_audit={"status": "exact"},
+        default_unit_value=1.0,
+    )
+
+    assert result["status"] == "blocked"
+    assert "missing_provider_management_trigger:MOVE_SL_TO_BE" in result["blockers"]
+
+
+def test_provider_management_before_trade_open_is_not_applied():
+    policy = StrategyPolicy(
+        policy_id="runner",
+        close_legs=0,
+        be_legs=0,
+        runner_legs=1,
+        base_leg_count=1,
+    )
+    trade = _trade(tickets=[_managed_ticket(101, 105.0)])
+    provider_signal = {
+        "provider_signal_id": "canal1_1",
+        "management_events": [{
+            "telegram_ts_utc": "2026-07-06T09:59:00+00:00",
+            "classified_action": "MOVE_SL_TO_BE",
+        }],
+        "level_timeline": [{
+            "telegram_ts_utc": "2026-07-06T09:58:00+00:00",
+            "tps": [105.0],
+            "sl": 90.0,
+        }],
+    }
+
+    result = strategy_simulator.simulate_trade(
+        trade,
+        _ticks([]),
+        strategy_name=policy.policy_id,
+        policy=policy,
+        provider_signal=provider_signal,
+        require_provider_timeline=True,
+        baseline_audit={"status": "exact"},
+        default_unit_value=1.0,
+    )
+
+    assert result["status"] == "blocked"
+    assert "management_trigger_before_trade_open" in result["blockers"]
+
+
+def test_provider_management_before_later_leg_fill_blocks_trade():
+    policy = StrategyPolicy(
+        policy_id="close_1_runner_1",
+        close_legs=1,
+        be_legs=0,
+        runner_legs=1,
+        base_leg_count=2,
+    )
+    first = _managed_ticket(101, 105.0)
+    second = _managed_ticket(102, 110.0)
+    second["open_dt_utc"] = "2026-07-06T10:06:00+00:00"
+    trade = _trade(tickets=[first, second])
+    provider_signal = {
+        "provider_signal_id": "canal1_1",
+        "management_events": [{
+            "observed_ts_utc": "2026-07-06T10:05:00+00:00",
+            "classified_action": "MOVE_SL_TO_BE",
+        }],
+        "level_timeline": [{
+            "observed_ts_utc": "2026-07-06T10:00:00+00:00",
+            "tps": [105.0, 110.0],
+            "sl": 90.0,
+        }],
+    }
+
+    result = strategy_simulator.simulate_trade(
+        trade,
+        _ticks([]),
+        strategy_name=policy.policy_id,
+        policy=policy,
+        provider_signal=provider_signal,
+        require_provider_timeline=True,
+        baseline_audit={"status": "exact"},
+        default_unit_value=1.0,
+    )
+
+    assert result["status"] == "blocked"
+    assert "management_trigger_before_ticket_open:102" in result["blockers"]
+
+
+def test_provider_levels_are_not_available_before_bot_observed_them():
+    policy = StrategyPolicy(
+        policy_id="runner",
+        close_legs=0,
+        be_legs=0,
+        runner_legs=1,
+        base_leg_count=1,
+    )
+    trade = _trade(tickets=[_managed_ticket(101, 105.0)])
+    provider_signal = {
+        "provider_signal_id": "canal1_1",
+        "management_events": [{
+            "telegram_ts_utc": "2026-07-06T10:04:00+00:00",
+            "observed_ts_utc": "2026-07-06T10:05:00+00:00",
+            "classified_action": "MOVE_SL_TO_BE",
+        }],
+        "level_timeline": [{
+            "telegram_ts_utc": "2026-07-06T10:00:00+00:00",
+            "observed_ts_utc": "2026-07-06T10:06:00+00:00",
+            "tps": [105.0],
+            "sl": 90.0,
+        }],
+    }
+
+    result = strategy_simulator.simulate_trade(
+        trade,
+        _ticks([]),
+        strategy_name=policy.policy_id,
+        policy=policy,
+        provider_signal=provider_signal,
+        require_provider_timeline=True,
+        baseline_audit={"status": "exact"},
+        default_unit_value=1.0,
+    )
+
+    assert result["status"] == "blocked"
+    assert "missing_causal_tp_at_trigger:101" in result["blockers"]
+
+
+def test_policy_blocks_when_canonical_provider_timeline_is_required_but_missing():
+    policy = StrategyPolicy(
+        policy_id="runner",
+        close_legs=0,
+        be_legs=0,
+        runner_legs=1,
+        base_leg_count=1,
+    )
+    trade = _trade(
+        management=[{
+            "ts": "2026-07-06T10:05:00+00:00",
+            "classified": "MOVE_SL_TO_BE",
+        }],
+        tickets=[_managed_ticket(101, 105.0)],
+    )
+
+    result = strategy_simulator.simulate_trade(
+        trade,
+        _ticks([]),
+        strategy_name=policy.policy_id,
+        policy=policy,
+        provider_signal=None,
+        require_provider_timeline=True,
+        baseline_audit={"status": "exact"},
+        default_unit_value=1.0,
+    )
+
+    assert result["status"] == "blocked"
+    assert "missing_canonical_provider_signal" in result["blockers"]
+
+
+def test_policy_does_not_reopen_leg_that_hit_tp_before_management():
+    policy = StrategyPolicy(
+        policy_id="close_all",
+        close_legs=1,
+        be_legs=0,
+        runner_legs=0,
+        base_leg_count=1,
+    )
+    trade = _trade(
+        management=[{
+            "ts": "2026-07-06T10:05:00+00:00",
+            "classified": "MOVE_SL_TO_BE",
+        }],
+        tickets=[_managed_ticket(101, 103.0)],
+    )
+    ticks = _ticks([
+        {"time_utc": "2026-07-06T10:04:00+00:00", "bid": 103.0, "ask": 103.2},
+        {"time_utc": "2026-07-06T10:05:00+00:00", "bid": 104.0, "ask": 104.2},
+    ])
+
+    result = strategy_simulator.simulate_trade(
+        trade,
+        ticks,
+        strategy_name=policy.policy_id,
+        policy=policy,
+        baseline_audit={"status": "exact"},
+        default_unit_value=1.0,
+    )
+
+    assert result["tickets"][0]["close_reason"] == "tp"
+    assert result["tickets"][0]["close_time_utc"] == "2026-07-06T10:04:00+00:00"
+    assert result["tickets"][0]["strategy_pnl"] == 3.0
+
+
+def test_sell_management_close_uses_ask_price():
+    policy = StrategyPolicy(
+        policy_id="close_all",
+        close_legs=1,
+        be_legs=0,
+        runner_legs=0,
+        base_leg_count=1,
+    )
+    ticket = _managed_ticket(101, 90.0)
+    ticket["sl_history"] = [
+        {
+            "ts": "2026-07-06T10:00:00+00:00",
+            "status": "confirmed",
+            "source": "initial",
+            "sl": 110.0,
+        },
+        {
+            "ts": "2026-07-06T10:05:00+00:00",
+            "status": "confirmed",
+            "source": "BE #101",
+            "sl": 100.0,
+        },
+    ]
+    trade = _trade(
+        direction="SELL",
+        management=[{
+            "ts": "2026-07-06T10:05:00+00:00",
+            "classified": "MOVE_SL_TO_BE",
+        }],
+        tickets=[ticket],
+    )
+    ticks = _ticks([
+        {"time_utc": "2026-07-06T10:05:00+00:00", "bid": 95.0, "ask": 95.2},
+    ])
+
+    result = strategy_simulator.simulate_trade(
+        trade,
+        ticks,
+        strategy_name=policy.policy_id,
+        policy=policy,
+        baseline_audit={"status": "exact"},
+        default_unit_value=1.0,
+    )
+
+    assert result["tickets"][0]["touch_side"] == "ask"
+    assert result["tickets"][0]["close_price"] == 95.2
+    assert result["tickets"][0]["strategy_pnl"] == 4.8
+
+
+def test_shared_result_cache_reuses_identical_leg_replay(monkeypatch):
+    trade = _trade(
+        management=[{
+            "ts": "2026-07-06T10:05:00+00:00",
+            "classified": "MOVE_SL_TO_BE",
+        }],
+        tickets=[_managed_ticket(101, 110.0)],
+    )
+    ticks = _ticks([
+        {"time_utc": "2026-07-06T10:05:00+00:00", "bid": 104.0, "ask": 104.2},
+        {"time_utc": "2026-07-06T10:10:00+00:00", "bid": 110.0, "ask": 110.2},
+    ])
+    first = StrategyPolicy(
+        policy_id="runner_a",
+        close_legs=0,
+        be_legs=0,
+        runner_legs=1,
+        base_leg_count=1,
+    )
+    second = StrategyPolicy(
+        policy_id="runner_b",
+        close_legs=0,
+        be_legs=0,
+        runner_legs=1,
+        base_leg_count=1,
+    )
+    calls = 0
+    original = strategy_simulator._simulate_ticket_policy
+
+    def counted(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(strategy_simulator, "_simulate_ticket_policy", counted)
+    result_cache = {}
+    for policy in (first, second):
+        strategy_simulator.simulate_trade(
+            trade,
+            ticks,
+            strategy_name=policy.policy_id,
+            policy=policy,
+            baseline_audit={"status": "exact"},
+            default_unit_value=1.0,
+            result_cache=result_cache,
+        )
+
+    assert calls == 1
+    assert len(result_cache) == 1
+
+
+def test_portfolio_mfe_and_giveback_follow_aggregate_open_equity():
+    policy = StrategyPolicy(
+        policy_id="runner",
+        close_legs=0,
+        be_legs=0,
+        runner_legs=1,
+        base_leg_count=1,
+    )
+    ticket = _managed_ticket(101, 110.0)
+    trade = _trade(
+        pnl_real_mt5=0.0,
+        management=[{
+            "ts": "2026-07-06T10:05:00+00:00",
+            "classified": "MOVE_SL_TO_BE",
+        }],
+        tickets=[ticket],
+    )
+    ticks = _ticks([
+        {"time_utc": "2026-07-06T10:05:00+00:00", "bid": 104.0, "ask": 104.2},
+        {"time_utc": "2026-07-06T10:10:00+00:00", "bid": 108.0, "ask": 108.2},
+        {"time_utc": "2026-07-06T23:59:00+00:00", "bid": 104.0, "ask": 104.2},
+    ])
+
+    result = strategy_simulator.simulate_trade(
+        trade,
+        ticks,
+        strategy_name=policy.policy_id,
+        policy=policy,
+        baseline_audit={"status": "exact"},
+        default_unit_value=1.0,
+    )
+
+    assert result["strategy_pnl"] == 4.0
+    assert result["mfe_pnl"] == 8.0
+    assert result["mae_pnl"] == 4.0
+    assert result["profit_giveback"] == 4.0
+    assert result["mfe_capture_ratio"] == 0.5
+
+
+def test_stop_loss_uses_first_tradable_tick_when_price_gaps_past_level():
+    policy = StrategyPolicy(
+        policy_id="runner",
+        close_legs=0,
+        be_legs=0,
+        runner_legs=1,
+        base_leg_count=1,
+    )
+    trade = _trade(
+        management=[{
+            "ts": "2026-07-06T10:05:00+00:00",
+            "classified": "MOVE_SL_TO_BE",
+        }],
+        tickets=[_managed_ticket(101, 110.0)],
+    )
+    ticks = _ticks([
+        {"time_utc": "2026-07-06T10:05:00+00:00", "bid": 101.0, "ask": 101.2},
+        {"time_utc": "2026-07-06T10:06:00+00:00", "bid": 89.5, "ask": 89.7},
+    ])
+
+    result = strategy_simulator.simulate_trade(
+        trade,
+        ticks,
+        strategy_name=policy.policy_id,
+        policy=policy,
+        baseline_audit={"status": "exact"},
+        default_unit_value=1.0,
+    )
+
+    ticket = result["tickets"][0]
+    assert ticket["close_reason"] == "sl"
+    assert ticket["close_price"] == 89.5
+    assert ticket["strategy_pnl"] == -10.5

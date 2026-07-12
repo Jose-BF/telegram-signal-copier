@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from datetime import date, datetime, timedelta, timezone
@@ -13,6 +14,7 @@ REPO_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_INPUT = REPO_DIR / "data" / "replay_trades.jsonl"
 DEFAULT_CACHE_DIR = REPO_DIR / "data" / "ticks_cache"
 DEFAULT_STATUS = REPO_DIR / "data" / "replay_tick_cache_status.json"
+TICK_TIME_CONTRACT = "mt5_utc_v2"
 
 
 def ensure_repo_import_path() -> None:
@@ -98,6 +100,66 @@ def _day_file(cache_dir: Path, day: date) -> Path:
     return cache_dir / f"{day.isoformat()}.parquet"
 
 
+def _day_contract_file(cache_dir: Path, day: date) -> Path:
+    return cache_dir / f"{day.isoformat()}.parquet.meta.json"
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def write_day_contract(cache_dir: Path, day: date) -> Path:
+    parquet_path = _day_file(cache_dir, day)
+    if not parquet_path.is_file():
+        raise FileNotFoundError(parquet_path)
+    contract_path = _day_contract_file(cache_dir, day)
+    contract_path.write_text(
+        json.dumps({
+            "tick_time_contract": TICK_TIME_CONTRACT,
+            "time_basis": "UTC",
+            "parquet_sha256": _file_sha256(parquet_path),
+        }, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return contract_path
+
+
+def day_contract_valid(cache_dir: Path, day: date) -> bool:
+    parquet_path = _day_file(cache_dir, day)
+    contract_path = _day_contract_file(cache_dir, day)
+    if not parquet_path.is_file() or not contract_path.is_file():
+        return False
+    try:
+        contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return bool(
+        contract.get("tick_time_contract") == TICK_TIME_CONTRACT
+        and contract.get("time_basis") == "UTC"
+        and contract.get("parquet_sha256") == _file_sha256(parquet_path)
+    )
+
+
+def refresh_cache_days(days: list[date], *, cache_dir: Path) -> list[date]:
+    """Invalidate only the explicitly requested daily cache files."""
+    removed: list[date] = []
+    for day in sorted(set(days)):
+        path = _day_file(cache_dir, day)
+        contract_path = _day_contract_file(cache_dir, day)
+        existed = path.is_file() or contract_path.is_file()
+        if path.is_file():
+            path.unlink()
+        if contract_path.is_file():
+            contract_path.unlink()
+        if existed:
+            removed.append(day)
+    return removed
+
+
 def _portable_path(path: Path) -> str:
     try:
         return path.resolve().relative_to(REPO_DIR.resolve()).as_posix()
@@ -115,6 +177,8 @@ def build_status(
     dry_run: bool = False,
     ensure_attempted: bool = False,
     ensure_stats: dict | None = None,
+    refresh_requested_days: list[date] | None = None,
+    refresh_removed_days: list[date] | None = None,
     error: str | None = None,
 ) -> dict:
     days = required_dates(
@@ -123,11 +187,23 @@ def build_status(
         until=until,
         pad_minutes=pad_minutes,
     )
-    cached = [day for day in days if _day_file(cache_dir, day).exists()]
-    missing = [day for day in days if day not in set(cached)]
+    present = [day for day in days if _day_file(cache_dir, day).is_file()]
+    cached = [day for day in present if day_contract_valid(cache_dir, day)]
+    invalid = [day for day in present if day not in set(cached)]
+    missing = [day for day in days if day not in set(present)]
+    refresh_requested_days = refresh_requested_days or []
+    refresh_removed_days = refresh_removed_days or []
+    refresh_pending = bool(dry_run and refresh_requested_days)
     return {
-        "ok": not missing and error is None,
+        "ok": (
+            not missing
+            and not invalid
+            and error is None
+            and not refresh_pending
+        ),
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "tick_time_contract": TICK_TIME_CONTRACT,
+        "time_basis": "UTC",
         "dry_run": dry_run,
         "ensure_attempted": ensure_attempted,
         "pad_minutes": pad_minutes,
@@ -135,8 +211,15 @@ def build_status(
         "n_trades": len(trades),
         "required_days": [day.isoformat() for day in days],
         "cached_days": [day.isoformat() for day in cached],
+        "invalid_days": [day.isoformat() for day in invalid],
         "missing_days": [day.isoformat() for day in missing],
         "ensure_stats": ensure_stats or {},
+        "refresh_requested_days": [
+            day.isoformat() for day in refresh_requested_days
+        ],
+        "refresh_removed_days": [
+            day.isoformat() for day in refresh_removed_days
+        ],
         "error": error,
     }
 
@@ -153,29 +236,25 @@ class MT5TickSource:
             raise RuntimeError(f"MT5 initialize failed: {mt5.last_error()}")
         if not mt5.symbol_select(symbol, True):
             raise RuntimeError(f"MT5 symbol_select failed for {symbol}: {mt5.last_error()}")
-        tick = mt5.symbol_info_tick(symbol)
-        if tick is None:
-            raise RuntimeError(f"MT5 has no tick for {symbol}: {mt5.last_error()}")
-        server_dt = datetime.fromtimestamp(tick.time, tz=timezone.utc)
-        self.offset_h = round(
-            (server_dt - datetime.now(timezone.utc)).total_seconds() / 3600)
 
     def fetch_ticks(self, t_from_utc: datetime, t_to_utc: datetime):
-        t_from_srv = t_from_utc + timedelta(hours=self.offset_h)
-        t_to_srv = t_to_utc + timedelta(hours=self.offset_h)
+        if t_from_utc.tzinfo is None or t_from_utc.utcoffset() is None:
+            raise ValueError("t_from_utc must be timezone-aware")
+        if t_to_utc.tzinfo is None or t_to_utc.utcoffset() is None:
+            raise ValueError("t_to_utc must be timezone-aware")
+        t_from_utc = t_from_utc.astimezone(timezone.utc)
+        t_to_utc = t_to_utc.astimezone(timezone.utc)
         raw = self.mt5.copy_ticks_range(
             self.symbol,
-            t_from_srv,
-            t_to_srv,
+            t_from_utc,
+            t_to_utc,
             self.mt5.COPY_TICKS_ALL,
         )
         if raw is None or len(raw) == 0:
             return self.pd.DataFrame()
         df = self.pd.DataFrame(raw)
-        df["time_utc"] = (
-            self.pd.to_datetime(df["time_msc"], unit="ms", utc=True)
-            - self.pd.Timedelta(hours=self.offset_h)
-        )
+        df["time_utc"] = self.pd.to_datetime(
+            df["time_msc"], unit="ms", utc=True)
         return df.sort_values("time_msc").reset_index(drop=True)
 
     def shutdown(self) -> None:
@@ -218,6 +297,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--pad-minutes", type=int, default=5)
     parser.add_argument("--symbol", default="XAUUSD")
     parser.add_argument("--ensure", action="store_true")
+    parser.add_argument(
+        "--refresh-day",
+        action="append",
+        default=[],
+        type=date.fromisoformat,
+        help="Invalidate one cached UTC day before --ensure (repeatable)",
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args(argv)
@@ -226,6 +312,13 @@ def main(argv: list[str] | None = None) -> int:
     since = _parse_dt(args.since)
     until = _parse_dt(args.until)
     args.cache_dir.mkdir(parents=True, exist_ok=True)
+    refresh_requested_days = sorted(set(args.refresh_day))
+    refresh_removed_days = []
+    if refresh_requested_days and not args.dry_run:
+        refresh_removed_days = refresh_cache_days(
+            refresh_requested_days,
+            cache_dir=args.cache_dir,
+        )
 
     status = build_status(
         trades,
@@ -235,17 +328,32 @@ def main(argv: list[str] | None = None) -> int:
         pad_minutes=args.pad_minutes,
         dry_run=args.dry_run,
         ensure_attempted=False,
+        refresh_requested_days=refresh_requested_days,
+        refresh_removed_days=refresh_removed_days,
     )
 
-    if args.ensure and not args.dry_run and status["missing_days"]:
+    if args.ensure and not args.dry_run and (
+        status["missing_days"] or status["invalid_days"]
+    ):
         missing_days = [date.fromisoformat(day) for day in status["missing_days"]]
+        invalid_days = [date.fromisoformat(day) for day in status["invalid_days"]]
+        automatically_removed = refresh_cache_days(
+            invalid_days,
+            cache_dir=args.cache_dir,
+        )
+        refresh_removed_days = sorted(set(
+            refresh_removed_days + automatically_removed
+        ))
+        ensure_days = sorted(set(missing_days + invalid_days))
         try:
             stats = ensure_missing_days(
-                missing_days,
+                ensure_days,
                 cache_dir=args.cache_dir,
                 symbol=args.symbol,
                 verbose=not args.quiet,
             )
+            for day in ensure_days:
+                write_day_contract(args.cache_dir, day)
             status = build_status(
                 trades,
                 cache_dir=args.cache_dir,
@@ -255,6 +363,8 @@ def main(argv: list[str] | None = None) -> int:
                 dry_run=False,
                 ensure_attempted=True,
                 ensure_stats=stats,
+                refresh_requested_days=refresh_requested_days,
+                refresh_removed_days=refresh_removed_days,
             )
         except Exception as exc:
             status = build_status(
@@ -265,6 +375,8 @@ def main(argv: list[str] | None = None) -> int:
                 pad_minutes=args.pad_minutes,
                 dry_run=False,
                 ensure_attempted=True,
+                refresh_requested_days=refresh_requested_days,
+                refresh_removed_days=refresh_removed_days,
                 error=f"{type(exc).__name__}: {str(exc)[:300]}",
             )
 
@@ -272,6 +384,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.quiet:
         print(f"Tick cache required days: {len(status['required_days'])}")
         print(f"Cached: {len(status['cached_days'])}")
+        print(f"Invalid: {len(status['invalid_days'])}")
         print(f"Missing: {len(status['missing_days'])}")
         print(f"Output: {args.status}")
     return 0 if status["ok"] else 1

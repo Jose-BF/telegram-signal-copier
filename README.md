@@ -19,10 +19,36 @@ Replay and simulation foundation:
 - `reconcile_mt5_ledger.py` rebuilds `data/ledger.jsonl` from bot logs plus MT5 history.
 - `build_replay_trades.py` builds `data/replay_trades.jsonl` from ledger and event history.
 - `accounting_replay_validator.py` validates reconstructed trade accounting into `data/accounting_replay_audit.jsonl`.
-- `tools/ensure_replay_tick_cache.py` ensures MT5 tick parquet files exist for replay windows.
+- `tools/ensure_replay_tick_cache.py` ensures MT5 tick parquet files exist and verifies a UTC-v2 SHA-256 manifest for every cached day.
 - `replay_readiness_report.py` reports whether each trade has enough data for full replay.
 - `observed_tick_replay_validator.py` checks whether cached bid/ask ticks reproduce the observed MT5 ticket closures.
 - `mt5_tick_cache.py` is the local parquet tick-cache helper.
+- `provider_signal_catalog.py` groups raw Telegram messages and edits into one canonical provider signal, including signals the bot did not execute.
+- `strategy_policies.py` defines the shared close/BE/runner policy matrix for both channels.
+- `strategy_simulator.py` replays one causal management policy over validated ticks and canonical Telegram level/management timelines.
+- `strategy_farm.py` compares the policy matrix and writes `data/strategy_farm.json` with metrics, coverage and strict selection blockers.
+
+Run the current clean-window diagnostics manually:
+
+```powershell
+python provider_signal_catalog.py
+python strategy_farm.py --from 2026-07-06
+python strategy_farm.py --from 2026-07-06 --include-trades --output data/strategy_farm_detail.json
+```
+
+`--ensure` automatically replaces legacy, unversioned or tampered cache days.
+`--refresh-day` remains available when a known day must be forced manually:
+
+```powershell
+python tools/ensure_replay_tick_cache.py --ensure --refresh-day 2026-07-08 --refresh-day 2026-07-09 --refresh-day 2026-07-10
+```
+
+`selection.selected_policy` remains `null` while any strict gate is open.
+Policies with missing trades or estimated monetary conversion are excluded
+from `exploratory_ranking` as well. Baseline replay requires verifiable bid/ask
+ticks at both the MT5 entry and exit, matching first-touch time, reason and
+fill price. Missing provider signals, blocked tick replay, small samples and an
+unvalidated untouched OOS period prevent strategy selection.
 
 Analysis:
 

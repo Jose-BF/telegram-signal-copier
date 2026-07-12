@@ -1,0 +1,255 @@
+import provider_signal_catalog
+
+
+def _raw(channel, message_id, text="", **overrides):
+    row = {
+        "ts": f"2026-07-08T10:00:{message_id % 60:02d}+00:00",
+        "sig": f"{channel}_{message_id}",
+        "ev": "telegram_raw",
+        "channel": channel,
+        "message_id": message_id,
+        "reply_to_msg_id": None,
+        "update_kind": "new",
+        "date_utc": "2026-07-08T10:00:00+00:00",
+        "edit_date_utc": None,
+        "text": text,
+        "sticker_id": None,
+        "has_photo": False,
+        "has_document": False,
+        "is_edit": False,
+        "is_reply": False,
+    }
+    row.update(overrides)
+    return row
+
+
+def test_canal2_progressive_edits_are_one_unexecuted_provider_signal():
+    events = [
+        _raw("canal2", 100, "Sell Gold Now"),
+        _raw("canal2", 100, "Sell Gold Now", update_kind="poll_new"),
+        _raw(
+            "canal2",
+            100,
+            "Sell Gold Now\n\n4100 - 4105",
+            update_kind="edit",
+            is_edit=True,
+            edit_date_utc="2026-07-08T10:00:05+00:00",
+        ),
+        _raw(
+            "canal2",
+            100,
+            "Sell Gold Now\n\n4100 - 4105\n\nTargets\n4098\n4096\n4094"
+            "\n\nSL/ invalid 4108",
+            update_kind="edit",
+            is_edit=True,
+            edit_date_utc="2026-07-08T10:00:10+00:00",
+        ),
+        _raw(
+            "canal2",
+            101,
+            "+30 pips from best entry\n\nClose overall profit or make risk free",
+            reply_to_msg_id=100,
+            is_reply=True,
+        ),
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+
+    assert report["summary"]["provider_signals"] == 1
+    assert report["summary"]["unexecuted_signals"] == 1
+    signal = report["signals"][0]
+    assert signal["provider_signal_id"] == "canal2_100"
+    assert signal["direction"] == "SELL"
+    assert signal["risk_label"] == "standard"
+    assert signal["effective_range"] == [4100.0, 4105.0]
+    assert signal["level_timeline"][-1]["observed_ts_utc"] is not None
+    assert signal["effective_tps"] == [4098.0, 4096.0, 4094.0]
+    assert signal["effective_sl"] == 4108.0
+    assert len(signal["revisions"]) == 3
+    assert len(signal["management_events"]) == 1
+    assert signal["management_events"][0]["classified_action"] == "MOVE_SL_TO_BE"
+    assert signal["execution_sig_ids"] == []
+    assert signal["semantic_status"] == "complete"
+
+
+def test_canal1_sticker_and_text_are_grouped_with_duplicate_executions():
+    events = [
+        _raw("canal1", 200, sticker_id=12345, has_document=True),
+        {
+            "ts": "2026-07-08T11:00:01+00:00",
+            "sig": "canal1_200",
+            "ev": "telegram_understood",
+            "channel": "canal1",
+            "message_id": 200,
+            "direction": "BUY",
+            "tg_ts": "2026-07-08T11:00:00+00:00",
+        },
+        _raw(
+            "canal1",
+            201,
+            "BUY GOLD NOW 4100-05\nTP1: 4108\nTP2: 4110\n"
+            "TP3: 4112\nTP4: 4115\nSL: 4095",
+        ),
+        {
+            "ts": "2026-07-08T11:00:30+00:00",
+            "sig": "canal1_200",
+            "ev": "canal1_text_processing",
+            "source_msg_id": 201,
+        },
+    ]
+    replay_trades = [
+        {"sig_id": "canal1_200", "channel": "canal1"},
+        {"sig_id": "canal1_201", "channel": "canal1"},
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, replay_trades)
+
+    assert report["summary"]["provider_signals"] == 1
+    assert report["summary"]["duplicate_execution_signals"] == 1
+    signal = report["signals"][0]
+    assert signal["provider_signal_id"] == "canal1_200"
+    assert signal["direction"] == "BUY"
+    assert signal["source_message_ids"] == [200, 201]
+    assert signal["execution_sig_ids"] == ["canal1_200", "canal1_201"]
+    assert signal["effective_tps"] == [4108.0, 4110.0, 4112.0, 4115.0]
+    assert signal["effective_sl"] == 4095.0
+
+
+def test_reply_to_missing_root_is_preserved_as_incomplete_signal():
+    events = [
+        _raw(
+            "canal2",
+            301,
+            "Target 3 hit",
+            reply_to_msg_id=300,
+            is_reply=True,
+        )
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+
+    assert report["summary"]["provider_signals"] == 1
+    assert report["summary"]["incomplete_signals"] == 1
+    signal = report["signals"][0]
+    assert signal["provider_signal_id"] == "canal2_300"
+    assert "missing_root_message" in signal["semantic_gaps"]
+    assert signal["management_events"][0]["message_id"] == 301
+    assert signal["signal_ts_utc"] == "2026-07-08T10:00:00+00:00"
+    assert signal["first_observed_utc"] is not None
+
+
+def test_revision_sequence_a_b_a_preserves_the_restoration_event():
+    original = (
+        "Sell Gold Now\n4100 - 4105\nTargets\n4098\n4096\nSL 4108"
+    )
+    events = [
+        _raw("canal2", 350, original),
+        _raw(
+            "canal2",
+            350,
+            "Sell Gold Now\n4101 - 4106\nTargets\n4098\n4096\nSL 4108",
+            update_kind="edit",
+            is_edit=True,
+            edit_date_utc="2026-07-08T10:01:00+00:00",
+        ),
+        _raw(
+            "canal2",
+            350,
+            original,
+            update_kind="edit",
+            is_edit=True,
+            edit_date_utc="2026-07-08T10:02:00+00:00",
+        ),
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+    signal = report["signals"][0]
+
+    assert len(signal["revisions"]) == 3
+    assert [row["range"] for row in signal["entry_zone_timeline"]] == [
+        [4100.0, 4105.0],
+        [4101.0, 4106.0],
+        [4100.0, 4105.0],
+    ]
+    assert signal["effective_range"] == [4100.0, 4105.0]
+
+
+def test_canal1_single_entry_price_is_a_complete_entry_zone():
+    events = [
+        _raw(
+            "canal1",
+            360,
+            "SELL GOLD NOW 4166\nTP1: 4162\nTP2: 4158\n"
+            "TP3: 4154\nTP4: 4150\nSL: 4180",
+        )
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+    signal = report["signals"][0]
+
+    assert signal["effective_range"] == [4166.0, 4166.0]
+    assert signal["entry_zone_timeline"][0]["range"] == [4166.0, 4166.0]
+    assert signal["semantic_status"] == "complete"
+
+
+def test_recent_sticker_and_text_only_recovery_are_one_provider_signal():
+    events = [
+        _raw(
+            "canal1",
+            400,
+            sticker_id=12345,
+            has_document=True,
+            ts="2026-07-08T12:00:00+00:00",
+            date_utc="2026-07-08T12:00:00+00:00",
+        ),
+        {
+            "ts": "2026-07-08T12:00:01+00:00",
+            "sig": "canal1_400",
+            "ev": "telegram_understood",
+            "channel": "canal1",
+            "message_id": 400,
+            "direction": "SELL",
+        },
+        _raw(
+            "canal1",
+            401,
+            "SELL GOLD NOW 4100-05\nTP1: 4098\nTP2: 4096\n"
+            "TP3: 4094\nTP4: 4090\nSL: 4108",
+            ts="2026-07-08T12:00:50+00:00",
+            date_utc="2026-07-08T12:00:50+00:00",
+        ),
+        {
+            "ts": "2026-07-08T12:00:51+00:00",
+            "sig": "canal1_401",
+            "ev": "canal1_text_processing",
+            "source_msg_id": 401,
+        },
+    ]
+    replay_trades = [
+        {"sig_id": "canal1_400", "channel": "canal1"},
+        {"sig_id": "canal1_401", "channel": "canal1"},
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, replay_trades)
+
+    assert report["summary"]["provider_signals"] == 1
+    signal = report["signals"][0]
+    assert signal["provider_signal_id"] == "canal1_400"
+    assert signal["source_message_ids"] == [400, 401]
+    assert signal["duplicate_execution"] is True
+
+
+def test_irrelevant_reply_does_not_create_a_provider_signal():
+    events = [
+        _raw(
+            "canal2",
+            501,
+            "Good morning everyone",
+            reply_to_msg_id=500,
+            is_reply=True,
+        )
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+
+    assert report["summary"]["provider_signals"] == 0
