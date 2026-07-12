@@ -1,13 +1,54 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-07-09T16:02:42+00:00",
+  "generated_at": "2026-07-12T18:52:53+00:00",
   "tick_cache_dir": "C:\\Users\\bot\\telegram-signal-copier\\data\\ticks_cache",
   "pad_minutes": 5,
   "summary": {
-    "total": 170,
-    "ready": 170,
-    "blocked": 0,
-    "top_blockers": []
+    "total": 181,
+    "ready": 180,
+    "blocked": 1,
+    "top_blockers": [
+      [
+        "missing_ticket_close_dt:1575068804",
+        1
+      ],
+      [
+        "missing_ticket_close_price:1575068804",
+        1
+      ],
+      [
+        "missing_ticket_close_deal:1575068804",
+        1
+      ],
+      [
+        "missing_ticket_close_dt:1575068826",
+        1
+      ],
+      [
+        "missing_ticket_close_price:1575068826",
+        1
+      ],
+      [
+        "missing_ticket_close_deal:1575068826",
+        1
+      ],
+      [
+        "missing_ticket_close_dt:1575068851",
+        1
+      ],
+      [
+        "missing_ticket_close_price:1575068851",
+        1
+      ],
+      [
+        "missing_ticket_close_deal:1575068851",
+        1
+      ],
+      [
+        "accounting_status:blocked",
+        1
+      ]
+    ]
   },
   "trades": [
     {
@@ -3139,6 +3180,214 @@
         "accounting_assumption:journal_missing_signal_closed",
         "accounting_assumption:journal_pnl_missing",
         "accounting_assumption:flag:HUERFANO_journal_sin_signal_closed"
+      ]
+    },
+    {
+      "sig_id": "canal2_3054",
+      "channel": "canal2",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-10T10:04:02.430+00:00",
+      "open_dt_utc": "2026-07-10T10:04:03+00:00",
+      "close_dt_utc": "2026-07-10T10:10:09+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "exact",
+      "tick_days": [
+        "2026-07-10"
+      ],
+      "ticket_count": 5,
+      "blockers": [],
+      "warnings": []
+    },
+    {
+      "sig_id": "canal2_3063",
+      "channel": "canal2",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-10T12:00:10.713+00:00",
+      "open_dt_utc": "2026-07-10T12:00:11+00:00",
+      "close_dt_utc": "2026-07-10T12:05:40+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "exact",
+      "tick_days": [
+        "2026-07-10"
+      ],
+      "ticket_count": 5,
+      "blockers": [],
+      "warnings": []
+    },
+    {
+      "sig_id": "canal1_20807",
+      "channel": "canal1",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-10T12:13:19.729+00:00",
+      "open_dt_utc": "2026-07-10T12:13:20+00:00",
+      "close_dt_utc": "2026-07-10T12:13:53+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "exact",
+      "tick_days": [
+        "2026-07-10"
+      ],
+      "ticket_count": 4,
+      "blockers": [],
+      "warnings": []
+    },
+    {
+      "sig_id": "canal1_20808",
+      "channel": "canal1",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-10T12:14:09.625+00:00",
+      "open_dt_utc": "2026-07-10T12:14:10+00:00",
+      "close_dt_utc": "2026-07-10T13:29:31+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "exact",
+      "tick_days": [
+        "2026-07-10"
+      ],
+      "ticket_count": 4,
+      "blockers": [],
+      "warnings": []
+    },
+    {
+      "sig_id": "canal2_3067",
+      "channel": "canal2",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-10T12:31:46.037+00:00",
+      "open_dt_utc": "2026-07-10T12:31:46+00:00",
+      "close_dt_utc": "2026-07-10T12:33:10+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "exact",
+      "tick_days": [
+        "2026-07-10"
+      ],
+      "ticket_count": 5,
+      "blockers": [],
+      "warnings": []
+    },
+    {
+      "sig_id": "canal2_3073",
+      "channel": "canal2",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-10T13:01:47.126+00:00",
+      "open_dt_utc": "2026-07-10T13:01:47+00:00",
+      "close_dt_utc": "2026-07-10T13:09:10+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "exact",
+      "tick_days": [
+        "2026-07-10"
+      ],
+      "ticket_count": 5,
+      "blockers": [],
+      "warnings": []
+    },
+    {
+      "sig_id": "canal2_3083",
+      "channel": "canal2",
+      "direction": "BUY",
+      "signal_dt_utc": "2026-07-10T13:29:04.101+00:00",
+      "open_dt_utc": "2026-07-10T13:29:04+00:00",
+      "close_dt_utc": "2026-07-10T13:41:06+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "reconstructed",
+      "tick_days": [
+        "2026-07-10"
+      ],
+      "ticket_count": 5,
+      "blockers": [],
+      "warnings": [
+        "accounting_reconstructed",
+        "accounting_assumption:journal_health_failed"
+      ]
+    },
+    {
+      "sig_id": "canal1_20813",
+      "channel": "canal1",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-10T14:15:23.509+00:00",
+      "open_dt_utc": "2026-07-10T14:15:24+00:00",
+      "close_dt_utc": "2026-07-10T14:33:06+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "exact",
+      "tick_days": [
+        "2026-07-10"
+      ],
+      "ticket_count": 4,
+      "blockers": [],
+      "warnings": []
+    },
+    {
+      "sig_id": "canal1_20817",
+      "channel": "canal1",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-10T14:51:06.160+00:00",
+      "open_dt_utc": "2026-07-10T14:51:06+00:00",
+      "close_dt_utc": "2026-07-10T15:23:40+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "exact",
+      "tick_days": [
+        "2026-07-10"
+      ],
+      "ticket_count": 4,
+      "blockers": [],
+      "warnings": []
+    },
+    {
+      "sig_id": "canal1_20824",
+      "channel": "canal1",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-10T16:05:34.312+00:00",
+      "open_dt_utc": "2026-07-10T16:05:34+00:00",
+      "close_dt_utc": "2026-07-10T16:30:47+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "exact",
+      "tick_days": [
+        "2026-07-10"
+      ],
+      "ticket_count": 4,
+      "blockers": [],
+      "warnings": []
+    },
+    {
+      "sig_id": "canal1_20827",
+      "channel": "canal1",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-10T17:38:25.502+00:00",
+      "open_dt_utc": "2026-07-10T17:38:26+00:00",
+      "close_dt_utc": "2026-07-10T17:59:39+00:00",
+      "ready": false,
+      "status": "blocked",
+      "accounting_status": "blocked",
+      "tick_days": [
+        "2026-07-10"
+      ],
+      "ticket_count": 4,
+      "blockers": [
+        "missing_ticket_close_dt:1575068804",
+        "missing_ticket_close_price:1575068804",
+        "missing_ticket_close_deal:1575068804",
+        "missing_ticket_close_dt:1575068826",
+        "missing_ticket_close_price:1575068826",
+        "missing_ticket_close_deal:1575068826",
+        "missing_ticket_close_dt:1575068851",
+        "missing_ticket_close_price:1575068851",
+        "missing_ticket_close_deal:1575068851",
+        "accounting_status:blocked"
+      ],
+      "warnings": [
+        "accounting_assumption:journal_pnl_missing",
+        "accounting_assumption:journal_health_degraded",
+        "accounting_assumption:replay_gap:open_positions",
+        "accounting_assumption:replay_gap:ticket_still_open:1575068804",
+        "accounting_assumption:replay_gap:ticket_still_open:1575068826",
+        "accounting_assumption:replay_gap:ticket_still_open:1575068851"
       ]
     }
   ]
