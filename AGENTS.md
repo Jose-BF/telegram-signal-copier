@@ -49,7 +49,7 @@ report and run archive.
 ## Simulation Evidence
 
 - `data/simulation_runs/<fingerprint>/run_card.json` is immutable evidence for one computational identity.
-- Compact runs retain `strategy_farm.json` in that directory. Detailed `--include-trades` outputs are referenced by exact path, size and SHA-256 rather than copied.
+- Compact runs retain `strategy_farm.json` in that directory. Detailed `--include-trades` outputs record the first-published path, exact size and SHA-256 rather than being copied.
 - Tick digests verify the bytes used, but tick Parquet retention is currently local-only. A card cannot recreate a deleted cache file and must state that limitation.
 - Git branch, absolute machine paths and run timestamp are diagnostics, not parts of computational identity.
 - No live order module may import `simulation_run_provenance`; publication remains an offline post-session step.

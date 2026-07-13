@@ -55,7 +55,7 @@ echo [%date% %time%] === SALIDA codigo=%EXITCODE% === >> logs\bot_runtime.log
 
 REM El watcher ya sube los datos en cada reinicio. Aqui solo hacemos un
 REM "ultimo backup" por si murio sin oportunidad de subir.
-python -c "import tools.run_bot_watch as w; ok=w._regenerate_ledger(); replay=w._regenerate_replay_trades() if ok else False; audit=w._regenerate_accounting_replay_audit() if replay else False; w._regenerate_replay_tick_cache_status() if audit else False; w._regenerate_replay_readiness_report() if audit else False; observed=w._regenerate_observed_tick_replay_audit() if audit else False; catalog=w._regenerate_provider_signal_catalog() if replay else False; w._regenerate_strategy_farm() if observed and catalog else False; raise SystemExit(0 if ok and replay and audit else 1)" 2>nul
+python -c "import tools.run_bot_watch as w; w._clear_mutable_offline_outputs(); ok=w._regenerate_ledger(); replay=w._regenerate_replay_trades() if ok else False; audit=w._regenerate_accounting_replay_audit() if replay else False; w._regenerate_replay_tick_cache_status() if audit else False; w._regenerate_replay_readiness_report() if audit else False; observed=w._regenerate_observed_tick_replay_audit() if audit else False; catalog=w._regenerate_provider_signal_catalog() if replay else False; w._regenerate_strategy_farm() if observed and catalog else False; raise SystemExit(0 if ok and replay and audit else 1)" 2>nul
 if errorlevel 1 echo [Watch] backup final fallo; ledger/replay/audit pueden quedar desfasados.
 git add -f data\trade_events.jsonl data\trade_events_TEST.jsonl 2>nul
 git add -f data\trade_journal.csv data\trade_journal_TEST.csv 2>nul

@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import importlib
 import json
 from pathlib import Path
@@ -317,3 +318,128 @@ def test_detailed_result_is_referenced_but_not_copied(tmp_path):
     card = json.loads((result.run_dir / "run_card.json").read_text())
     assert not (result.run_dir / "strategy_farm.json").exists()
     assert card["artifacts"][0]["retained"] is False
+
+
+def test_idempotence_ignores_git_and_unselected_file_diagnostics(tmp_path):
+    provenance = _provenance()
+    args = _evidence_args(tmp_path)
+    first_evidence = provenance.build_run_evidence(**args)
+    first = provenance.publish_run_archive(
+        **_publish_args(tmp_path, first_evidence, args["report"]),
+    )
+    args["git"] = {
+        "commit": "2" * 40,
+        "branch": "main-after-data-commit",
+        "dirty": True,
+        "errors": [],
+    }
+    with args["input_files"]["replay_trades"].open(
+        "a",
+        encoding="utf-8",
+    ) as handle:
+        handle.write('{"sig_id":"outside_selected_window"}\n')
+    second_evidence = provenance.build_run_evidence(**args)
+
+    second = provenance.publish_run_archive(
+        **_publish_args(tmp_path, second_evidence, args["report"]),
+    )
+
+    assert second_evidence["run_fingerprint"] == first_evidence["run_fingerprint"]
+    assert second.run_dir == first.run_dir
+    assert second.idempotent is True
+
+
+def test_existing_card_rejects_tampered_computational_identity(tmp_path):
+    provenance = _provenance()
+    evidence, report = _complete_evidence(tmp_path)
+    published = provenance.publish_run_archive(
+        **_publish_args(tmp_path, evidence, report),
+    )
+    card_path = published.run_dir / "run_card.json"
+    card = json.loads(card_path.read_text(encoding="utf-8"))
+    card["reproducibility"]["parameters"]["from_date"] = "2026-07-07"
+    card_path.write_text(json.dumps(card), encoding="utf-8")
+
+    with pytest.raises(provenance.ProvenanceConflictError):
+        provenance.publish_run_archive(
+            **_publish_args(tmp_path, evidence, report),
+        )
+
+
+def test_detailed_idempotent_report_matches_first_published_artifact(tmp_path):
+    provenance = _provenance()
+    args = _evidence_args(tmp_path)
+    args["report"]["includes_trade_details"] = True
+    first_evidence = provenance.build_run_evidence(**args)
+    first = provenance.publish_run_archive(
+        **_publish_args(
+            tmp_path,
+            first_evidence,
+            args["report"],
+            include_trades=True,
+        ),
+    )
+    args["report"]["generated_at"] = "2026-07-13T12:00:00+00:00"
+    second_evidence = provenance.build_run_evidence(**args)
+
+    second = provenance.publish_run_archive(
+        **_publish_args(
+            tmp_path,
+            second_evidence,
+            args["report"],
+            include_trades=True,
+        ),
+    )
+    card = json.loads((first.run_dir / "run_card.json").read_text())
+    expected_hash = card["artifacts"][0]["sha256"]
+
+    assert second.idempotent is True
+    assert hashlib.sha256(
+        provenance.pretty_json_bytes(second.report)
+    ).hexdigest() == expected_hash
+
+
+def test_malformed_card_identity_fails_with_controlled_conflict(tmp_path):
+    provenance = _provenance()
+    evidence, report = _complete_evidence(tmp_path)
+    published = provenance.publish_run_archive(
+        **_publish_args(tmp_path, evidence, report),
+    )
+    card_path = published.run_dir / "run_card.json"
+    card = json.loads(card_path.read_text(encoding="utf-8"))
+    card["reproducibility"]["source_files"] = [{}]
+    card_path.write_text(json.dumps(card), encoding="utf-8")
+
+    with pytest.raises(provenance.ProvenanceConflictError):
+        provenance.publish_run_archive(
+            **_publish_args(tmp_path, evidence, report),
+        )
+
+
+def test_malformed_detailed_artifact_fails_with_controlled_conflict(tmp_path):
+    provenance = _provenance()
+    args = _evidence_args(tmp_path)
+    args["report"]["includes_trade_details"] = True
+    evidence = provenance.build_run_evidence(**args)
+    published = provenance.publish_run_archive(
+        **_publish_args(
+            tmp_path,
+            evidence,
+            args["report"],
+            include_trades=True,
+        ),
+    )
+    card_path = published.run_dir / "run_card.json"
+    card = json.loads(card_path.read_text(encoding="utf-8"))
+    card["artifacts"][0]["size_bytes"] = "not-an-integer"
+    card_path.write_text(json.dumps(card), encoding="utf-8")
+
+    with pytest.raises(provenance.ProvenanceConflictError):
+        provenance.publish_run_archive(
+            **_publish_args(
+                tmp_path,
+                evidence,
+                args["report"],
+                include_trades=True,
+            ),
+        )

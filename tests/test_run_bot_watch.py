@@ -305,6 +305,11 @@ def test_regenerate_ledger_records_keyboard_interrupt_before_reraising(
 def test_push_session_data_adds_reconcile_status(monkeypatch):
     added = []
 
+    monkeypatch.setattr(
+        watch,
+        "_clear_mutable_offline_outputs",
+        lambda: None,
+    )
     monkeypatch.setattr(watch, "_regenerate_ledger", lambda: False)
     monkeypatch.setattr(watch, "_regenerate_replay_trades", lambda: False)
     monkeypatch.setattr(watch, "_regenerate_accounting_replay_audit", lambda: False)
@@ -341,6 +346,34 @@ def test_push_session_data_adds_reconcile_status(monkeypatch):
     assert "data/provider_signal_catalog.json" in added
     assert "data/strategy_farm.json" in added
     assert "data/simulation_runs" in added
+
+
+def test_push_session_data_clears_stale_farm_when_pipeline_stops_early(
+        tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    catalog = data_dir / "provider_signal_catalog.json"
+    farm = data_dir / "strategy_farm.json"
+    catalog.write_text('{"generated_at":"old"}\n', encoding="utf-8")
+    farm.write_text('{"generated_at":"old"}\n', encoding="utf-8")
+    monkeypatch.setattr(watch, "PROVIDER_SIGNAL_CATALOG_FILE", catalog)
+    monkeypatch.setattr(watch, "STRATEGY_FARM_FILE", farm)
+    monkeypatch.setattr(watch, "_regenerate_ledger", lambda: False)
+
+    def fake_git(*args, capture=True):
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="",
+            stderr="",
+        )
+
+    monkeypatch.setattr(watch, "_git", fake_git)
+
+    watch._push_session_data()
+
+    assert not catalog.exists()
+    assert not farm.exists()
 
 
 def test_pull_main_ff_uses_explicit_origin_main(monkeypatch):

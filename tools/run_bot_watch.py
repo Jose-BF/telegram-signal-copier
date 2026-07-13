@@ -472,6 +472,12 @@ def _regenerate_observed_tick_replay_audit() -> bool:
         return False
 
 
+def _clear_mutable_offline_outputs() -> None:
+    """Prevent skipped/failed builders from leaving reports that look current."""
+    PROVIDER_SIGNAL_CATALOG_FILE.unlink(missing_ok=True)
+    STRATEGY_FARM_FILE.unlink(missing_ok=True)
+
+
 def _regenerate_provider_signal_catalog() -> bool:
     """Build the provider timeline independently from MT5 execution."""
     PROVIDER_SIGNAL_CATALOG_FILE.unlink(missing_ok=True)
@@ -529,6 +535,7 @@ def _push_session_data() -> None:
 
     Antes de subir, regenera el ledger reconciliado (reconcile_mt5_ledger.py).
     """
+    _clear_mutable_offline_outputs()
     ledger_ok = _regenerate_ledger()
     if ledger_ok:
         replay_ok = _regenerate_replay_trades()

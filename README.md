@@ -45,8 +45,8 @@ python strategy_farm.py --from 2026-07-06 --include-trades --output data/strateg
 Use `--run-archive-dir <path>` to override the default
 `data/simulation_runs` archive. Compact farm runs retain a copy of the report
 inside their fingerprint directory. `--include-trades` reports can be large,
-so their exact output path, size and SHA-256 are recorded but the report is not
-copied into the archive.
+so the first-published output path, exact size and SHA-256 are recorded but the
+report is not copied into the archive.
 
 `--ensure` automatically replaces legacy, unversioned or tampered cache days.
 `--refresh-day` remains available when a known day must be forced manually:

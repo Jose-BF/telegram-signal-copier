@@ -182,6 +182,28 @@ def _tick_record(day: str, contract: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _identity_payload(
+    schema_version: Any,
+    reproducibility: Mapping[str, Any],
+) -> dict[str, Any]:
+    source_identity = [
+        {
+            "role": record["role"],
+            "sha256": record["sha256"],
+        }
+        for record in reproducibility.get("source_files") or []
+    ]
+    return {
+        "schema_version": schema_version,
+        "parameters": reproducibility.get("parameters"),
+        "selected_inputs": reproducibility.get("selected_inputs"),
+        "policies": reproducibility.get("policies"),
+        "source_files": source_identity,
+        "runtime": reproducibility.get("runtime"),
+        "tick_days": reproducibility.get("tick_days"),
+    }
+
+
 def result_summary(report: Mapping[str, Any]) -> dict[str, Any]:
     canonical_scope = report.get("canonical_scope") or {}
     selection = report.get("selection") or {}
@@ -242,39 +264,29 @@ def build_run_evidence(
     selected_input_records = _payload_records(selected_payloads)
     policy_record = _policy_record(policies)
 
-    source_identity = [
-        {"role": record["role"], "sha256": record["sha256"]}
-        for record in source_records
-    ]
-    identity = {
-        "schema_version": SCHEMA_VERSION,
+    limitations = ["tick_artifacts_local_cache_only"] if tick_days else []
+    reproducibility = {
+        "verified_now": not errors,
+        "durable": not tick_days,
+        "errors": errors,
+        "limitations": limitations,
+        "git": git_record,
+        "runtime": runtime_record,
         "parameters": parameter_record,
         "selected_inputs": selected_input_records,
         "policies": policy_record,
-        "source_files": source_identity,
-        "runtime": runtime_record,
+        "input_artifacts": input_records,
+        "source_files": source_records,
         "tick_days": tick_records,
     }
-    limitations = ["tick_artifacts_local_cache_only"] if tick_days else []
 
     return {
         "schema_version": SCHEMA_VERSION,
-        "run_fingerprint": sha256_json(identity),
+        "run_fingerprint": sha256_json(
+            _identity_payload(SCHEMA_VERSION, reproducibility)
+        ),
         "result_fingerprint": result_fingerprint(report),
-        "reproducibility": {
-            "verified_now": not errors,
-            "durable": not tick_days,
-            "errors": errors,
-            "limitations": limitations,
-            "git": git_record,
-            "runtime": runtime_record,
-            "parameters": parameter_record,
-            "selected_inputs": selected_input_records,
-            "policies": policy_record,
-            "input_artifacts": input_records,
-            "source_files": source_records,
-            "tick_days": tick_records,
-        },
+        "reproducibility": reproducibility,
         "result_summary": result_summary(report),
     }
 
@@ -321,7 +333,10 @@ def _retained_artifact_path(run_dir: Path, relative_path: str) -> Path:
     return artifact_path
 
 
-def _validate_existing(run_dir: Path, evidence: Mapping[str, Any]) -> None:
+def _validate_existing(
+    run_dir: Path,
+    evidence: Mapping[str, Any],
+) -> dict[str, Any]:
     card_path = run_dir / "run_card.json"
     try:
         card = json.loads(card_path.read_text(encoding="utf-8"))
@@ -330,9 +345,25 @@ def _validate_existing(run_dir: Path, evidence: Mapping[str, Any]) -> None:
             f"invalid_existing_run_card:{type(exc).__name__}"
         ) from exc
 
-    for key, expected in evidence.items():
-        if key not in card or canonical_json_bytes(card[key]) != canonical_json_bytes(expected):
+    for key in ("schema_version", "run_fingerprint", "result_fingerprint"):
+        if card.get(key) != evidence.get(key):
             raise ProvenanceConflictError(f"existing_{key}_mismatch")
+
+    card_reproducibility = card.get("reproducibility")
+    if not isinstance(card_reproducibility, Mapping):
+        raise ProvenanceConflictError("invalid_existing_reproducibility")
+    try:
+        derived_fingerprint = sha256_json(
+            _identity_payload(card.get("schema_version"), card_reproducibility)
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ProvenanceConflictError(
+            "invalid_existing_computational_identity"
+        ) from exc
+    if derived_fingerprint != card.get("run_fingerprint"):
+        raise ProvenanceConflictError("existing_computational_identity_mismatch")
+    if not card_reproducibility.get("verified_now"):
+        raise ProvenanceConflictError("existing_run_not_verified")
 
     artifacts = card.get("artifacts")
     if not isinstance(artifacts, list) or not artifacts:
@@ -363,6 +394,62 @@ def _validate_existing(run_dir: Path, evidence: Mapping[str, Any]) -> None:
             raise ProvenanceConflictError(
                 f"artifact_hash_mismatch:{relative_path}"
             )
+        try:
+            retained_report = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ProvenanceConflictError(
+                f"invalid_retained_artifact_json:{relative_path}"
+            ) from exc
+        if result_fingerprint(retained_report) != card.get("result_fingerprint"):
+            raise ProvenanceConflictError(
+                f"artifact_result_mismatch:{relative_path}"
+            )
+
+    return card
+
+
+def _apply_first_report_metadata(
+    report: Mapping[str, Any],
+    card: Mapping[str, Any],
+) -> dict[str, Any]:
+    metadata = card.get("report_metadata")
+    if not isinstance(metadata, Mapping):
+        raise ProvenanceConflictError("invalid_existing_report_metadata")
+    provenance = metadata.get("provenance")
+    if not isinstance(provenance, Mapping):
+        raise ProvenanceConflictError("invalid_existing_report_provenance")
+
+    latest = copy.deepcopy(dict(report))
+    if "generated_at" in metadata:
+        latest["generated_at"] = metadata["generated_at"]
+    else:
+        latest.pop("generated_at", None)
+    latest["provenance"] = copy.deepcopy(dict(provenance))
+    return latest
+
+
+def _validate_report_bytes(
+    card: Mapping[str, Any],
+    report_bytes: bytes,
+    *,
+    include_trades: bool,
+) -> None:
+    artifacts = card.get("artifacts") or []
+    if len(artifacts) != 1 or not isinstance(artifacts[0], Mapping):
+        raise ProvenanceConflictError("invalid_existing_report_artifact")
+    artifact = artifacts[0]
+    if bool(artifact.get("retained")) == include_trades:
+        raise ProvenanceConflictError("existing_artifact_retention_mismatch")
+    try:
+        expected_size = int(artifact.get("size_bytes") or -1)
+    except (TypeError, ValueError) as exc:
+        raise ProvenanceConflictError(
+            "invalid_existing_report_artifact_size"
+        ) from exc
+    if expected_size != len(report_bytes):
+        raise ProvenanceConflictError("existing_report_size_mismatch")
+    if str(artifact.get("sha256")) != hashlib.sha256(report_bytes).hexdigest():
+        raise ProvenanceConflictError("existing_report_hash_mismatch")
 
 
 def _validate_fingerprint(value: Any, role: str) -> str:
@@ -394,9 +481,16 @@ def publish_run_archive(
     )
     if result_fingerprint(report) != expected_result:
         raise ProvenanceConflictError("evidence_result_fingerprint_mismatch")
+    reproducibility = evidence.get("reproducibility")
+    if not isinstance(reproducibility, Mapping):
+        raise ProvenanceConflictError("invalid_reproducibility")
+    derived_run_fingerprint = sha256_json(
+        _identity_payload(evidence.get("schema_version"), reproducibility)
+    )
+    if derived_run_fingerprint != run_fingerprint:
+        raise ProvenanceConflictError("evidence_run_fingerprint_mismatch")
 
     latest = copy.deepcopy(dict(report))
-    reproducibility = evidence["reproducibility"]
     if not reproducibility["verified_now"]:
         latest["provenance"] = _provenance_ref(evidence, "incomplete", None)
         return PublicationResult(latest, "incomplete", None, False)
@@ -406,6 +500,18 @@ def publish_run_archive(
     card_path = run_dir / "run_card.json"
     card_ref = _portable_path(card_path, Path(repo_dir))
     latest["provenance"] = _provenance_ref(evidence, "archived", card_ref)
+
+    if run_dir.exists():
+        existing_card = _validate_existing(run_dir, evidence)
+        latest = _apply_first_report_metadata(report, existing_card)
+        report_bytes = pretty_json_bytes(latest)
+        _validate_report_bytes(
+            existing_card,
+            report_bytes,
+            include_trades=include_trades,
+        )
+        return PublicationResult(latest, "archived", run_dir, True)
+
     report_bytes = pretty_json_bytes(latest)
 
     if include_trades:
@@ -423,14 +529,14 @@ def publish_run_archive(
             "retained": True,
         }]
 
-    if run_dir.exists():
-        _validate_existing(run_dir, evidence)
-        return PublicationResult(latest, "archived", run_dir, True)
-
     created_at = (now or datetime.now(timezone.utc)).isoformat(timespec="seconds")
     card = {
         **copy.deepcopy(dict(evidence)),
         "created_at_utc": created_at,
+        "report_metadata": {
+            "generated_at": latest.get("generated_at"),
+            "provenance": copy.deepcopy(latest["provenance"]),
+        },
         "artifacts": artifacts,
     }
     archive_root.mkdir(parents=True, exist_ok=True)
@@ -445,7 +551,14 @@ def publish_run_archive(
         except OSError:
             if not run_dir.exists():
                 raise
-            _validate_existing(run_dir, evidence)
+            existing_card = _validate_existing(run_dir, evidence)
+            latest = _apply_first_report_metadata(report, existing_card)
+            report_bytes = pretty_json_bytes(latest)
+            _validate_report_bytes(
+                existing_card,
+                report_bytes,
+                include_trades=include_trades,
+            )
             idempotent = True
     finally:
         if temp_dir.exists():
