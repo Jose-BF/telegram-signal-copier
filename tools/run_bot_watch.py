@@ -474,6 +474,7 @@ def _regenerate_observed_tick_replay_audit() -> bool:
 
 def _regenerate_provider_signal_catalog() -> bool:
     """Build the provider timeline independently from MT5 execution."""
+    PROVIDER_SIGNAL_CATALOG_FILE.unlink(missing_ok=True)
     try:
         rec = subprocess.run(
             [sys.executable, "provider_signal_catalog.py", "--quiet"],
@@ -495,6 +496,7 @@ def _regenerate_provider_signal_catalog() -> bool:
 
 def _regenerate_strategy_farm() -> bool:
     """Run offline strategy diagnostics; never changes live decisions."""
+    STRATEGY_FARM_FILE.unlink(missing_ok=True)
     command = [sys.executable, "strategy_farm.py"]
     if STRATEGY_FARM_FROM_DATE:
         command.extend(["--from", STRATEGY_FARM_FROM_DATE])
@@ -551,7 +553,9 @@ def _push_session_data() -> None:
         "data/replay_readiness_report.json",
         "data/observed_tick_replay_audit.jsonl",
         "data/observed_tick_replay_status.json",
+        "data/provider_signal_catalog.json",
         "data/strategy_farm.json",
+        "data/simulation_runs",
         "data/trade_events_TEST.jsonl",
         "data/trade_journal.csv",
         "data/trade_journal_TEST.csv",

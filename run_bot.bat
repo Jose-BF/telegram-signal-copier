@@ -64,7 +64,8 @@ git add -f data\replay_trades.jsonl data\replay_status.json 2>nul
 git add -f data\accounting_replay_audit.jsonl data\accounting_replay_audit_status.json 2>nul
 git add -f data\replay_tick_cache_status.json data\replay_readiness_report.json 2>nul
 git add -f data\observed_tick_replay_audit.jsonl data\observed_tick_replay_status.json 2>nul
-git add -f data\strategy_farm.json 2>nul
+git add -f data\provider_signal_catalog.json data\strategy_farm.json 2>nul
+if exist data\simulation_runs git add -f data\simulation_runs 2>nul
 git diff --cached --quiet
 if errorlevel 1 (
     git commit -m "data: sesion %date% %time% (watcher exit)" 2>nul

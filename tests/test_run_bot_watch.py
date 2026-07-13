@@ -257,7 +257,7 @@ def test_regenerate_strategy_farm_accepts_report_without_winner(
     assert watch._regenerate_strategy_farm() is True
 
 
-def test_failed_offline_builders_do_not_accept_stale_artifacts(
+def test_failed_offline_builders_remove_stale_mutable_artifacts(
         tmp_path, monkeypatch):
     data_dir = tmp_path / "data"
     data_dir.mkdir()
@@ -277,6 +277,8 @@ def test_failed_offline_builders_do_not_accept_stale_artifacts(
 
     assert watch._regenerate_provider_signal_catalog() is False
     assert watch._regenerate_strategy_farm() is False
+    assert not catalog.exists()
+    assert not farm.exists()
 
 
 def test_regenerate_ledger_records_keyboard_interrupt_before_reraising(
@@ -336,8 +338,9 @@ def test_push_session_data_adds_reconcile_status(monkeypatch):
     assert "data/replay_readiness_report.json" in added
     assert "data/observed_tick_replay_audit.jsonl" in added
     assert "data/observed_tick_replay_status.json" in added
-    assert "data/provider_signal_catalog.json" not in added
+    assert "data/provider_signal_catalog.json" in added
     assert "data/strategy_farm.json" in added
+    assert "data/simulation_runs" in added
 
 
 def test_pull_main_ff_uses_explicit_origin_main(monkeypatch):
