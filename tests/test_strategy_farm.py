@@ -323,8 +323,21 @@ class _FakeTickLoader:
         self.verified_contracts = {
             "2026-07-06": {
                 "day": "2026-07-06",
-                "tick_time_contract": "mt5_utc_v2",
+                "tick_time_contract": "mt5_server_epoch_utc_v3",
                 "time_basis": "UTC",
+                "source_time_basis": "mt5_server_epoch",
+                "utc_offset_seconds": 10_800,
+                "offset_detection_method": "fill_anchor",
+                "offset_reference": {"signal_id": "canal1_1"},
+                "semantic_time_valid": True,
+                "anchor_validation": {
+                    "valid": True,
+                    "anchors_checked": 1,
+                    "anchors_matched": 1,
+                    "max_time_delta_ms": 0,
+                    "max_price_delta": 0.0,
+                    "errors": [],
+                },
                 "parquet_sha256": "a" * 64,
                 "size_bytes": 123,
             }
@@ -390,6 +403,55 @@ def test_farm_execution_exposes_exact_provenance_payloads(
     assert execution.verified_tick_contracts["2026-07-06"][
         "parquet_sha256"
     ] == "a" * 64
+    assert execution.market_replay_summary == {
+        "selected_trades": 2,
+        "exact": 2,
+        "blocked": 0,
+        "mismatched": 0,
+    }
+
+
+class _BlockedTickLoader:
+    def __init__(self, tick_cache_dir):
+        self.required_days = ["2026-07-06"]
+        self.verified_contracts = {}
+
+    def load_ticks_for_trade(self, trade, *, pad_minutes=5):
+        return pd.DataFrame(), ["invalid_tick_cache_contract:2026-07-06"]
+
+
+def test_blocked_market_replay_has_no_ranking_or_selected_policy(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        strategy_farm.observed_tick_replay_validator,
+        "ReplayTickFrameCache",
+        _BlockedTickLoader,
+    )
+    policy = strategy_policies.StrategyPolicy(
+        policy_id="follow_actual",
+        mode="follow_actual",
+        close_legs=0,
+        be_legs=0,
+        runner_legs=1,
+        base_leg_count=1,
+    )
+
+    report = strategy_farm.build_farm_report(
+        [_farm_trade("canal1_1")],
+        [{"sig_id": "canal1_1", "status": "exact"}],
+        tick_cache_dir=tmp_path / "ticks",
+        policies=[policy],
+        catalog={"signals": [_provider_signal("canal1_1")]},
+        minimum_trades=1,
+    )
+
+    assert report["validation"]["mode"] == "diagnostic_only"
+    assert report["validation"]["market_replay_verified"] is False
+    assert report["selection"]["selected_policy"] is None
+    assert report["selection"]["exploratory_ranking"] == []
+    assert "market_replay_not_exact" in report["selection"]["global_blockers"]
 
 
 def _write_empty_farm_inputs(root):
@@ -421,7 +483,8 @@ def test_cli_writes_latest_report_with_run_card_reference(tmp_path):
     latest = json.loads((tmp_path / "strategy_farm.json").read_text())
     fingerprint = latest["provenance"]["run_fingerprint"]
     assert exit_code == 0
-    assert latest["provenance"]["status"] == "archived"
+    assert latest["provenance"]["status"] == "diagnostic_archived"
+    assert latest["validation"]["mode"] == "diagnostic_only"
     assert (tmp_path / "runs" / fingerprint / "run_card.json").is_file()
 
 

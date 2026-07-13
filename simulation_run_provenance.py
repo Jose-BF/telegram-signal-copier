@@ -15,11 +15,17 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 RUNTIME_PACKAGES = ("pandas", "numpy", "pyarrow")
 _TICK_CONTRACT_FIELDS = (
     "tick_time_contract",
     "time_basis",
+    "source_time_basis",
+    "utc_offset_seconds",
+    "offset_detection_method",
+    "offset_reference",
+    "semantic_time_valid",
+    "anchor_validation",
     "parquet_sha256",
     "size_bytes",
 )
@@ -150,6 +156,7 @@ def result_fingerprint(report: Mapping[str, Any]) -> str:
     semantic_report = copy.deepcopy(dict(report))
     semantic_report.pop("generated_at", None)
     semantic_report.pop("provenance", None)
+    semantic_report.pop("validation", None)
     return sha256_json(semantic_report)
 
 
@@ -201,7 +208,28 @@ def _identity_payload(
         "source_files": source_identity,
         "runtime": reproducibility.get("runtime"),
         "tick_days": reproducibility.get("tick_days"),
+        "market_replay": reproducibility.get("market_replay"),
     }
+
+
+def _normalize_market_replay(value: Mapping[str, Any]) -> dict[str, int]:
+    normalized = {
+        key: int(value.get(key) or 0)
+        for key in ("selected_trades", "exact", "blocked", "mismatched")
+    }
+    if any(count < 0 for count in normalized.values()):
+        raise ValueError("market replay counts cannot be negative")
+    return normalized
+
+
+def _market_replay_verified(summary: Mapping[str, int]) -> bool:
+    selected = int(summary.get("selected_trades") or 0)
+    return (
+        selected > 0
+        and int(summary.get("exact") or 0) == selected
+        and int(summary.get("blocked") or 0) == 0
+        and int(summary.get("mismatched") or 0) == 0
+    )
 
 
 def result_summary(report: Mapping[str, Any]) -> dict[str, Any]:
@@ -227,6 +255,7 @@ def build_run_evidence(
     source_files: Mapping[str, Path],
     required_tick_days: Sequence[str],
     tick_contracts: Mapping[str, Mapping[str, Any]],
+    market_replay: Mapping[str, Any],
     runtime: Mapping[str, Any] | None = None,
     git: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -263,6 +292,7 @@ def build_run_evidence(
     parameter_record = _json_safe(parameters)
     selected_input_records = _payload_records(selected_payloads)
     policy_record = _policy_record(policies)
+    market_replay_record = _normalize_market_replay(market_replay)
 
     limitations = ["tick_artifacts_local_cache_only"] if tick_days else []
     reproducibility = {
@@ -278,6 +308,22 @@ def build_run_evidence(
         "input_artifacts": input_records,
         "source_files": source_records,
         "tick_days": tick_records,
+        "market_replay": market_replay_record,
+    }
+    artifact_integrity_verified = not errors
+    market_replay_verified = _market_replay_verified(market_replay_record)
+    conclusions_allowed = (
+        artifact_integrity_verified and market_replay_verified
+    )
+    validation = {
+        "artifact_integrity_verified": artifact_integrity_verified,
+        "market_replay_verified": market_replay_verified,
+        "conclusions_allowed": conclusions_allowed,
+        "mode": (
+            "verified_simulation" if conclusions_allowed
+            else "diagnostic_only"
+        ),
+        "market_replay": market_replay_record,
     }
 
     return {
@@ -287,6 +333,7 @@ def build_run_evidence(
         ),
         "result_fingerprint": result_fingerprint(report),
         "reproducibility": reproducibility,
+        "validation": validation,
         "result_summary": result_summary(report),
     }
 
@@ -310,6 +357,7 @@ def _provenance_ref(
     card_path: str | None,
 ) -> dict[str, Any]:
     reproducibility = evidence["reproducibility"]
+    validation = evidence["validation"]
     return {
         "status": status,
         "run_fingerprint": evidence["run_fingerprint"],
@@ -319,6 +367,8 @@ def _provenance_ref(
         "durable": reproducibility["durable"],
         "errors": list(reproducibility["errors"]),
         "limitations": list(reproducibility["limitations"]),
+        "mode": validation["mode"],
+        "conclusions_allowed": validation["conclusions_allowed"],
     }
 
 
@@ -348,6 +398,8 @@ def _validate_existing(
     for key in ("schema_version", "run_fingerprint", "result_fingerprint"):
         if card.get(key) != evidence.get(key):
             raise ProvenanceConflictError(f"existing_{key}_mismatch")
+    if card.get("validation") != evidence.get("validation"):
+        raise ProvenanceConflictError("existing_validation_mismatch")
 
     card_reproducibility = card.get("reproducibility")
     if not isinstance(card_reproducibility, Mapping):
@@ -418,6 +470,9 @@ def _apply_first_report_metadata(
     provenance = metadata.get("provenance")
     if not isinstance(provenance, Mapping):
         raise ProvenanceConflictError("invalid_existing_report_provenance")
+    validation = metadata.get("validation")
+    if not isinstance(validation, Mapping):
+        raise ProvenanceConflictError("invalid_existing_report_validation")
 
     latest = copy.deepcopy(dict(report))
     if "generated_at" in metadata:
@@ -425,6 +480,7 @@ def _apply_first_report_metadata(
     else:
         latest.pop("generated_at", None)
     latest["provenance"] = copy.deepcopy(dict(provenance))
+    latest["validation"] = copy.deepcopy(dict(validation))
     return latest
 
 
@@ -484,6 +540,24 @@ def publish_run_archive(
     reproducibility = evidence.get("reproducibility")
     if not isinstance(reproducibility, Mapping):
         raise ProvenanceConflictError("invalid_reproducibility")
+    validation = evidence.get("validation")
+    if not isinstance(validation, Mapping):
+        raise ProvenanceConflictError("invalid_validation")
+    if bool(validation.get("artifact_integrity_verified")) != bool(
+        reproducibility.get("verified_now")
+    ):
+        raise ProvenanceConflictError("validation_integrity_mismatch")
+    expected_conclusions = bool(
+        validation.get("artifact_integrity_verified")
+        and validation.get("market_replay_verified")
+    )
+    if bool(validation.get("conclusions_allowed")) != expected_conclusions:
+        raise ProvenanceConflictError("validation_conclusions_mismatch")
+    expected_mode = (
+        "verified_simulation" if expected_conclusions else "diagnostic_only"
+    )
+    if validation.get("mode") != expected_mode:
+        raise ProvenanceConflictError("validation_mode_mismatch")
     derived_run_fingerprint = sha256_json(
         _identity_payload(evidence.get("schema_version"), reproducibility)
     )
@@ -491,15 +565,24 @@ def publish_run_archive(
         raise ProvenanceConflictError("evidence_run_fingerprint_mismatch")
 
     latest = copy.deepcopy(dict(report))
+    latest["validation"] = copy.deepcopy(dict(validation))
     if not reproducibility["verified_now"]:
         latest["provenance"] = _provenance_ref(evidence, "incomplete", None)
         return PublicationResult(latest, "incomplete", None, False)
 
+    publication_status = (
+        "archived" if validation["conclusions_allowed"]
+        else "diagnostic_archived"
+    )
     archive_root = Path(archive_root)
     run_dir = archive_root / run_fingerprint
     card_path = run_dir / "run_card.json"
     card_ref = _portable_path(card_path, Path(repo_dir))
-    latest["provenance"] = _provenance_ref(evidence, "archived", card_ref)
+    latest["provenance"] = _provenance_ref(
+        evidence,
+        publication_status,
+        card_ref,
+    )
 
     if run_dir.exists():
         existing_card = _validate_existing(run_dir, evidence)
@@ -510,7 +593,7 @@ def publish_run_archive(
             report_bytes,
             include_trades=include_trades,
         )
-        return PublicationResult(latest, "archived", run_dir, True)
+        return PublicationResult(latest, publication_status, run_dir, True)
 
     report_bytes = pretty_json_bytes(latest)
 
@@ -536,6 +619,7 @@ def publish_run_archive(
         "report_metadata": {
             "generated_at": latest.get("generated_at"),
             "provenance": copy.deepcopy(latest["provenance"]),
+            "validation": copy.deepcopy(latest["validation"]),
         },
         "artifacts": artifacts,
     }
@@ -564,4 +648,4 @@ def publish_run_archive(
         if temp_dir.exists():
             shutil.rmtree(temp_dir)
 
-    return PublicationResult(latest, "archived", run_dir, idempotent)
+    return PublicationResult(latest, publication_status, run_dir, idempotent)

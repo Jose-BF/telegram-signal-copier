@@ -83,11 +83,30 @@ def _evidence_args(root: Path, branch="main"):
         "tick_contracts": {
             "2026-07-06": {
                 "day": "2026-07-06",
-                "tick_time_contract": "mt5_utc_v2",
+                "tick_time_contract": "mt5_server_epoch_utc_v3",
                 "time_basis": "UTC",
+                "source_time_basis": "mt5_server_epoch",
+                "utc_offset_seconds": 10_800,
+                "offset_detection_method": "fill_anchor",
+                "offset_reference": {"signal_id": "canal1_1"},
+                "semantic_time_valid": True,
+                "anchor_validation": {
+                    "valid": True,
+                    "anchors_checked": 1,
+                    "anchors_matched": 1,
+                    "max_time_delta_ms": 0,
+                    "max_price_delta": 0.0,
+                    "errors": [],
+                },
                 "parquet_sha256": "a" * 64,
                 "size_bytes": 123,
             }
+        },
+        "market_replay": {
+            "selected_trades": 2,
+            "exact": 2,
+            "blocked": 0,
+            "mismatched": 0,
         },
         "runtime": {
             "python": "3.14.2",
@@ -188,6 +207,28 @@ def test_missing_input_or_tick_contract_marks_evidence_incomplete(tmp_path):
     ]
 
 
+def test_integrity_does_not_authorize_blocked_market_replay(tmp_path):
+    provenance = _provenance()
+    args = _evidence_args(tmp_path)
+    args["market_replay"] = {
+        "selected_trades": 2,
+        "exact": 0,
+        "blocked": 2,
+        "mismatched": 0,
+    }
+
+    card = provenance.build_run_evidence(**args)
+
+    assert card["reproducibility"]["verified_now"] is True
+    assert card["validation"] == {
+        "artifact_integrity_verified": True,
+        "market_replay_verified": False,
+        "conclusions_allowed": False,
+        "mode": "diagnostic_only",
+        "market_replay": args["market_replay"],
+    }
+
+
 def test_full_input_files_are_diagnostics_not_machine_specific_identity(tmp_path):
     provenance = _provenance()
     args = _evidence_args(tmp_path)
@@ -256,6 +297,31 @@ def test_compact_run_is_published_once_and_idempotent(tmp_path):
     assert (first.run_dir / "strategy_farm.json").is_file()
 
 
+def test_blocked_market_replay_is_archived_as_diagnostic(tmp_path):
+    provenance = _provenance()
+    args = _evidence_args(tmp_path)
+    args["market_replay"] = {
+        "selected_trades": 2,
+        "exact": 0,
+        "blocked": 2,
+        "mismatched": 0,
+    }
+    evidence = provenance.build_run_evidence(**args)
+
+    published = provenance.publish_run_archive(
+        **_publish_args(tmp_path, evidence, args["report"]),
+    )
+
+    assert published.status == "diagnostic_archived"
+    assert published.run_dir is not None
+    assert published.report["validation"]["mode"] == "diagnostic_only"
+    assert published.report["provenance"]["status"] == "diagnostic_archived"
+    card = json.loads(
+        (published.run_dir / "run_card.json").read_text(encoding="utf-8")
+    )
+    assert card["validation"]["conclusions_allowed"] is False
+
+
 def test_same_identity_with_different_result_fails_closed(tmp_path):
     provenance = _provenance()
     evidence, report = _complete_evidence(tmp_path)
@@ -288,11 +354,10 @@ def test_corrupt_retained_artifact_fails_closed(tmp_path):
 
 def test_incomplete_evidence_marks_latest_report_without_archive(tmp_path):
     provenance = _provenance()
-    evidence, report = _complete_evidence(tmp_path)
-    evidence["reproducibility"]["verified_now"] = False
-    evidence["reproducibility"]["errors"] = [
-        "unverified_tick_contract:2026-07-06",
-    ]
+    args = _evidence_args(tmp_path)
+    args["tick_contracts"] = {}
+    report = args["report"]
+    evidence = provenance.build_run_evidence(**args)
 
     result = provenance.publish_run_archive(
         **_publish_args(tmp_path, evidence, report),

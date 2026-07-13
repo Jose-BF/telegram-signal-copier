@@ -45,6 +45,7 @@ class FarmExecution:
     policies: list[dict]
     required_tick_days: list[str]
     verified_tick_contracts: dict[str, dict]
+    market_replay_summary: dict[str, int]
 
 
 def _money(value: float | None) -> float | None:
@@ -300,6 +301,31 @@ def _provider_by_execution(catalog: dict | None) -> dict[str, dict]:
     return linked
 
 
+def _market_replay_summary(effective_baselines: list[dict]) -> dict[str, int]:
+    statuses = [
+        str((row.get("baseline") or {}).get("status") or "blocked").lower()
+        for row in effective_baselines
+    ]
+    exact = sum(status == "exact" for status in statuses)
+    mismatched = sum(status == "mismatch" for status in statuses)
+    return {
+        "selected_trades": len(statuses),
+        "exact": exact,
+        "blocked": len(statuses) - exact - mismatched,
+        "mismatched": mismatched,
+    }
+
+
+def _market_replay_verified(summary: dict[str, int]) -> bool:
+    selected = summary["selected_trades"]
+    return (
+        selected > 0
+        and summary["exact"] == selected
+        and summary["blocked"] == 0
+        and summary["mismatched"] == 0
+    )
+
+
 def build_policy_score(
     policy: strategy_policies.StrategyPolicy,
     rows: list[dict],
@@ -346,6 +372,7 @@ def build_farm_execution(
     tick_loader = observed_tick_replay_validator.ReplayTickFrameCache(
         tick_cache_dir)
     rows_by_policy = {policy.policy_id: [] for policy in policies}
+    effective_baselines: list[dict] = []
 
     for trade in selected_trades:
         ticks, missing = tick_loader.load_ticks_for_trade(trade, pad_minutes=5)
@@ -358,6 +385,10 @@ def build_farm_execution(
                 "status": "blocked",
                 "blockers": list(dict.fromkeys(missing)),
             }
+        effective_baselines.append({
+            "sig_id": str(trade.get("sig_id")),
+            "baseline": baseline,
+        })
         result_cache: dict = {}
         portfolio_cache: dict = {}
         for policy in policies:
@@ -405,6 +436,13 @@ def build_farm_execution(
             f"{canonical_scope['incomplete_signals']}"
         )
         selection["selected_policy"] = None
+    market_replay_summary = _market_replay_summary(effective_baselines)
+    market_replay_verified = _market_replay_verified(market_replay_summary)
+    if not market_replay_verified:
+        if "market_replay_not_exact" not in selection["global_blockers"]:
+            selection["global_blockers"].append("market_replay_not_exact")
+        selection["selected_policy"] = None
+        selection["exploratory_ranking"] = []
 
     report = {
         "schema_version": SCHEMA_VERSION,
@@ -419,16 +457,17 @@ def build_farm_execution(
             "source": unit_source,
         },
         "canonical_scope": canonical_scope,
+        "market_replay": market_replay_summary,
+        "validation": {
+            "market_replay_verified": market_replay_verified,
+            "mode": (
+                "market_replay_verified" if market_replay_verified
+                else "diagnostic_only"
+            ),
+        },
         "selection": selection,
         "policies": scores,
     }
-    effective_baselines = [
-        {
-            "sig_id": str(trade.get("sig_id")),
-            "baseline": baselines.get(str(trade.get("sig_id"))),
-        }
-        for trade in selected_trades
-    ]
     effective_providers = [
         {
             "sig_id": str(trade.get("sig_id")),
@@ -448,6 +487,7 @@ def build_farm_execution(
         policies=[policy.to_dict() for policy in policies],
         required_tick_days=tick_loader.required_days,
         verified_tick_contracts=tick_loader.verified_contracts,
+        market_replay_summary=market_replay_summary,
     )
 
 
@@ -565,6 +605,7 @@ def main(argv: list[str] | None = None) -> int:
         },
         required_tick_days=execution.required_tick_days,
         tick_contracts=execution.verified_tick_contracts,
+        market_replay=execution.market_replay_summary,
     )
     try:
         publication = simulation_run_provenance.publish_run_archive(
