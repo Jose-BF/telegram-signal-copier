@@ -258,6 +258,11 @@ def _provider_signals_in_scope(
 ) -> list[dict]:
     selected = []
     for signal in (catalog or {}).get("signals") or []:
+        # Catalog v1 contained only formal signals. Schema v2 retains context,
+        # summaries and unresolved candidates beside them, but those records
+        # must never enter strategy denominators.
+        if signal.get("record_type", "formal_signal") != "formal_signal":
+            continue
         ts = signal.get("first_observed_utc") or signal.get("signal_ts_utc")
         day = str(ts or "")[:10]
         if not day:

@@ -614,7 +614,13 @@ def _management_trigger(
             or item.get("action")
             or ""
         )
-        if action != policy.trigger_action:
+        available_actions = {action}
+        available_actions.update(
+            str(option.get("action") or "")
+            for option in item.get("execution_options") or []
+            if isinstance(option, dict)
+        )
+        if policy.trigger_action not in available_actions:
             continue
         if provider_signal is not None or require_provider_timeline:
             raw_ts = item.get("observed_ts_utc") or item.get("telegram_ts_utc")

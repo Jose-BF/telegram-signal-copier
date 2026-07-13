@@ -17,10 +17,40 @@ DATA_DIR = Path(__file__).parent / "data"
 DEFAULT_EVENTS = DATA_DIR / "trade_events.jsonl"
 DEFAULT_REPLAY = DATA_DIR / "replay_trades.jsonl"
 DEFAULT_OUTPUT = DATA_DIR / "provider_signal_catalog.json"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+RECORD_TYPES = {
+    "formal_signal",
+    "context_setup",
+    "daily_summary",
+    "management_only",
+    "unknown_candidate",
+}
+RECORD_TYPE_PRIORITY = {
+    "unknown_candidate": 0,
+    "management_only": 1,
+    "context_setup": 2,
+    "daily_summary": 3,
+    "formal_signal": 4,
+}
 SINGLE_ENTRY_RE = re.compile(
     r"\b(?:BUY|SELL)\s+(?:GOLD|XAUUSD)?\s*(?:NOW|LIMIT)?\s*"
     r"(?:@|AT)?\s*(\d{3,5}(?:\.\d+)?)\b",
+    re.IGNORECASE,
+)
+MOVE_SL_PRICE_RE = re.compile(
+    r"\b(?:MOVE|MOVING|CHANGE|CHANGING|ADJUST|ADJUSTING|SET|SETTING|PUT)"
+    r"\s+(?:MY\s+|YOUR\s+|THE\s+)?(?:SL|STOP\s*LOSS)"
+    r"(?:\s+\w+){0,3}?\s+(?:TO|AT)\s+(\d{3,5}(?:\.\d+)?)\b",
+    re.IGNORECASE,
+)
+CLOSE_TP_RE = re.compile(r"\bCLOSE\s+TP\s*(\d+)\b", re.IGNORECASE)
+DAILY_SUMMARY_RE = re.compile(
+    r"\b(?:DAILY|MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY)\s+SUMMARY\b|"
+    r"\bSIGNALS?\s+SENT\b.*\b(?:WINS?|LOSSES?|STOP\s*LOSS)\b",
+    re.IGNORECASE | re.DOTALL,
+)
+CONTEXT_SETUP_RE = re.compile(
+    r"\b(?:SUPPORT|RESISTANCE|4\s*H(?:R|OUR)|ANALYSIS|LEVELS?|ZONE)\b",
     re.IGNORECASE,
 )
 
@@ -79,15 +109,125 @@ def _looks_like_management(text: str) -> bool:
     )
 
 
-def _deterministic_management_action(text: str) -> str | None:
+def _management_modality(text: str, *, actionable: bool) -> str:
+    if not actionable:
+        return "informational"
     upper = text.upper()
-    if (
+    if re.search(
+        r"\b(?:WHEN\s+HAPPY|WHEN\s+COMFORTABLE|IF\s+YOU\s+WANT|"
+        r"IF\s+YOU\s+WISH|FEEL\s+FREE|OPTIONAL(?:LY)?)\b",
+        upper,
+    ):
+        return "optional"
+    if re.search(r"\b(?:IF|ONCE|UNLESS|WHEN)\b", upper):
+        return "conditional"
+    return "direct"
+
+
+def _execution_options(semantics: dict) -> list[dict]:
+    modality = semantics.get("modality")
+    if modality == "informational":
+        return []
+    primary = {"action": semantics["action"]}
+    for key in ("price", "target_tp_index", "levels"):
+        if semantics.get(key) is not None:
+            primary[key] = semantics[key]
+    if modality == "optional":
+        return [primary, {"action": "HOLD"}]
+    if modality == "conditional":
+        return [primary, {"action": "WAIT_FOR_CONDITION"}]
+    return [primary]
+
+
+def _deterministic_management_semantics(text: str) -> dict | None:
+    upper = text.upper()
+    has_break_even = (
         re.search(r"\bBE\b|BREAK\s*EVEN|BREAKEVEN", upper)
         or "RISK FREE" in upper
         or "0% RISK" in upper
-    ):
-        return "MOVE_SL_TO_BE"
+    )
+    if has_break_even and "CLOSE" in upper and re.search(r"\bOR\b", upper):
+        return {
+            "action": "MANAGEMENT_CHOICE",
+            "modality": "optional",
+            "execution_options": [
+                {"action": "CLOSE_ALL"},
+                {"action": "MOVE_SL_TO_BE"},
+            ],
+        }
+    if has_break_even:
+        result = {
+            "action": "MOVE_SL_TO_BE",
+            "modality": _management_modality(text, actionable=True),
+        }
+        result["execution_options"] = _execution_options(result)
+        return result
+
+    parsed = _normalise_parsed(parse_canal2(text)) if text else {}
+    if parsed.get("tps") and parsed.get("sl") is not None:
+        result = {
+            "action": "LEVEL_UPDATE",
+            "levels": {"tps": parsed["tps"], "sl": parsed["sl"]},
+            "modality": _management_modality(text, actionable=True),
+        }
+        result["execution_options"] = _execution_options(result)
+        return result
+
+    move_match = MOVE_SL_PRICE_RE.search(text)
+    if move_match:
+        result = {
+            "action": "MOVE_SL_TO_PRICE",
+            "price": float(move_match.group(1)),
+            "modality": _management_modality(text, actionable=True),
+        }
+        result["execution_options"] = _execution_options(result)
+        return result
+
+    close_tp = CLOSE_TP_RE.search(text)
+    if close_tp:
+        result = {
+            "action": "CLOSE_AT_TP",
+            "target_tp_index": int(close_tp.group(1)),
+            "modality": _management_modality(text, actionable=True),
+        }
+        result["execution_options"] = _execution_options(result)
+        return result
+
+    if re.search(r"\bCLOSE\s+(?:ALL|EVERYTHING|THE\s+TRADE)\b", upper):
+        result = {
+            "action": "CLOSE_ALL",
+            "modality": _management_modality(text, actionable=True),
+        }
+        result["execution_options"] = _execution_options(result)
+        return result
+
+    if re.search(r"\b(?:TP\s*\d+|TARGET\s*\d+)\s+(?:HIT|DONE|REACHED)\b", upper):
+        return {
+            "action": "TP_HIT_ANNOUNCEMENT",
+            "modality": "informational",
+            "execution_options": [],
+        }
+    if re.search(r"(?:\+\s*\d+|\d+\s*\+)\s*PIPS?\b|\bPIPS?\s+(?:RUNNING|PROFIT)", upper):
+        return {
+            "action": "PROGRESS_UPDATE",
+            "modality": "informational",
+            "execution_options": [],
+        }
     return None
+
+
+def _record_type_for_root(row: dict, *, formal: bool) -> tuple[str, str]:
+    if formal:
+        return "formal_signal", "entry_or_execution_evidence"
+    text = str(row.get("text") or "")
+    if DAILY_SUMMARY_RE.search(text):
+        return "daily_summary", "provider_session_summary"
+    if _looks_like_management(text):
+        return "management_only", "standalone_management_message"
+    has_media = bool(row.get("has_photo") or row.get("has_document"))
+    if has_media or CONTEXT_SETUP_RE.search(text):
+        return "context_setup", "media_or_market_context"
+    return "unknown_candidate", "unclassified_provider_message"
 
 
 def _normalise_parsed(parsed: dict) -> dict:
@@ -112,10 +252,17 @@ def _single_entry_range(text: str) -> list[float] | None:
     return [value, value]
 
 
-def _empty_signal(channel: str, message_id: int) -> dict:
+def _empty_signal(
+    channel: str,
+    message_id: int,
+    record_type: str = "unknown_candidate",
+    record_type_reason: str = "unclassified_provider_message",
+) -> dict:
     return {
         "schema_version": SCHEMA_VERSION,
         "provider_signal_id": f"{channel}_{message_id}",
+        "record_type": record_type,
+        "record_type_reason": record_type_reason,
         "channel": channel,
         "root_message_id": message_id,
         "source_message_ids": [],
@@ -130,6 +277,14 @@ def _empty_signal(channel: str, message_id: int) -> dict:
         "entry_zone_timeline": [],
         "level_timeline": [],
         "management_events": [],
+        "media": {
+            "availability": "none",
+            "has_photo": False,
+            "has_document": False,
+            "sha256": None,
+            "path": None,
+            "extraction_status": "not_applicable",
+        },
         "execution_sig_ids": [],
         "execution_count": 0,
         "duplicate_execution": False,
@@ -137,8 +292,21 @@ def _empty_signal(channel: str, message_id: int) -> dict:
         "semantic_gaps": [],
         "_root_message_seen": False,
         "_revision_keys": {},
-        "_management_keys": set(),
+        "_management_last_by_message": {},
     }
+
+
+def _promote_record_type(
+    signal: dict,
+    record_type: str,
+    reason: str,
+) -> None:
+    if record_type not in RECORD_TYPES:
+        raise ValueError(f"unknown record type: {record_type}")
+    current = str(signal.get("record_type") or "unknown_candidate")
+    if RECORD_TYPE_PRIORITY[record_type] >= RECORD_TYPE_PRIORITY[current]:
+        signal["record_type"] = record_type
+        signal["record_type_reason"] = reason
 
 
 def _revision_key(row: dict) -> tuple:
@@ -176,6 +344,9 @@ def _append_revision(signal: dict, row: dict) -> None:
         "sticker_id": row.get("sticker_id"),
         "has_photo": bool(row.get("has_photo")),
         "has_document": bool(row.get("has_document")),
+        "media_sha256": row.get("media_sha256") or row.get("file_sha256"),
+        "media_path": row.get("media_path") or row.get("file_path"),
+        "media_extraction_status": row.get("media_extraction_status"),
         "parsed": parsed,
     }
     signal["revisions"].append(revision)
@@ -187,6 +358,20 @@ def _append_revision(signal: dict, row: dict) -> None:
         signal["signal_ts_utc"] = revision["telegram_ts_utc"]
     if signal["first_observed_utc"] is None:
         signal["first_observed_utc"] = revision["observed_ts_utc"]
+
+    if revision["has_photo"] or revision["has_document"]:
+        has_bytes = bool(revision["media_sha256"] and revision["media_path"])
+        signal["media"] = {
+            "availability": "captured" if has_bytes else "metadata_only",
+            "has_photo": revision["has_photo"],
+            "has_document": revision["has_document"],
+            "sha256": revision["media_sha256"],
+            "path": revision["media_path"],
+            "extraction_status": (
+                revision["media_extraction_status"]
+                or ("not_extracted" if not has_bytes else "pending")
+            ),
+        }
 
     upper = text.upper()
     if "HIGH RISK" in upper:
@@ -216,34 +401,72 @@ def _append_revision(signal: dict, row: dict) -> None:
 
 
 def _append_management(signal: dict, row: dict) -> None:
-    key = (
+    state_key = (
         row.get("message_id"),
-        str(row.get("text") or row.get("raw_text") or "").strip(),
-        _telegram_ts(row),
+        row.get("reply_to_msg_id"),
     )
-    if key in signal["_management_keys"]:
+    text = str(row.get("text") or row.get("raw_text") or "")
+    normalized_text = text.strip()
+    previous = signal["_management_last_by_message"].get(state_key)
+    if previous is not None and previous["text"] == normalized_text:
+        previous["event"]["raw_versions"] += 1
+        update_kind = str(row.get("update_kind") or "unknown")
+        if update_kind not in previous["event"]["update_kinds"]:
+            previous["event"]["update_kinds"].append(update_kind)
         return
-    signal["_management_keys"].add(key)
     telegram_ts = _telegram_ts(row)
     observed_ts = row.get("ts")
     if signal["signal_ts_utc"] is None:
         signal["signal_ts_utc"] = telegram_ts
     if signal["first_observed_utc"] is None:
         signal["first_observed_utc"] = observed_ts
-    text = str(row.get("text") or row.get("raw_text") or "")
-    signal["management_events"].append({
+    deterministic = _deterministic_management_semantics(text)
+    classifier_action = row.get("action") or row.get("classified")
+    if deterministic is not None:
+        semantics = deterministic
+        semantic_source = "deterministic_parser"
+    elif classifier_action:
+        semantics = {
+            "action": str(classifier_action),
+            "modality": (
+                "optional" if row.get("is_optional")
+                else "conditional" if row.get("is_conditional")
+                else "informational" if str(classifier_action).upper() == "INFORMATIONAL"
+                else "direct"
+            ),
+        }
+        semantics["execution_options"] = _execution_options(semantics)
+        semantic_source = "classifier"
+    else:
+        semantics = {
+            "action": None,
+            "modality": "informational",
+            "execution_options": [],
+        }
+        semantic_source = "unclassified"
+    event = {
         "message_id": row.get("message_id"),
         "reply_to_msg_id": row.get("reply_to_msg_id"),
         "observed_ts_utc": observed_ts,
         "telegram_ts_utc": telegram_ts,
         "text": text,
-        "classified_action": (
-            row.get("action")
-            or row.get("classified")
-            or _deterministic_management_action(text)
-        ),
+        "classified_action": semantics["action"],
+        "classifier_action": classifier_action,
+        "modality": semantics["modality"],
+        "semantic_source": semantic_source,
+        "execution_options": semantics["execution_options"],
+        "raw_versions": 1,
+        "update_kinds": [str(row.get("update_kind") or "unknown")],
         "source": "telegram_raw" if row.get("ev") == "telegram_raw" else row.get("ev"),
-    })
+    }
+    for field in ("price", "target_tp_index", "levels"):
+        if semantics.get(field) is not None:
+            event[field] = semantics[field]
+    signal["management_events"].append(event)
+    signal["_management_last_by_message"][state_key] = {
+        "text": normalized_text,
+        "event": event,
+    }
 
 
 def _finalize(signal: dict) -> dict:
@@ -256,29 +479,43 @@ def _finalize(signal: dict) -> dict:
     signal["execution_count"] = len(signal["execution_sig_ids"])
     signal["duplicate_execution"] = signal["execution_count"] > 1
 
+    if signal["execution_count"]:
+        _promote_record_type(
+            signal, "formal_signal", "linked_execution_evidence")
+
     gaps: list[str] = []
-    if not signal.pop("_root_message_seen"):
-        gaps.append("missing_root_message")
-    if not signal.get("direction"):
-        gaps.append("missing_direction")
-    if not signal.get("effective_range"):
-        gaps.append("missing_entry_range")
-    if not signal.get("effective_tps"):
-        gaps.append("missing_tps")
-    if signal.get("effective_sl") is None:
-        gaps.append("missing_sl")
+    root_seen = signal.pop("_root_message_seen")
+    if signal["record_type"] == "formal_signal":
+        if not root_seen:
+            gaps.append("missing_root_message")
+        if not signal.get("direction"):
+            gaps.append("missing_direction")
+        if not signal.get("effective_range"):
+            gaps.append("missing_entry_range")
+        if not signal.get("effective_tps"):
+            gaps.append("missing_tps")
+        if signal.get("effective_sl") is None:
+            gaps.append("missing_sl")
+        semantic_status = "complete" if not gaps else "incomplete"
+    elif signal["record_type"] == "unknown_candidate":
+        gaps.append("unclassified_record_type")
+        semantic_status = "needs_review"
+    else:
+        semantic_status = "classified"
     signal["semantic_gaps"] = gaps
-    signal["semantic_status"] = "complete" if not gaps else "incomplete"
+    signal["semantic_status"] = semantic_status
     signal.pop("_revision_keys", None)
-    signal.pop("_management_keys", None)
+    signal.pop("_management_last_by_message", None)
     return signal
 
 
 def _summary(signals: list[dict]) -> dict:
     channels: dict[str, dict] = {}
     for channel in sorted({row["channel"] for row in signals}):
-        selected = [row for row in signals if row["channel"] == channel]
+        records = [row for row in signals if row["channel"] == channel]
+        selected = [row for row in records if row["record_type"] == "formal_signal"]
         channels[channel] = {
+            "records": len(records),
             "provider_signals": len(selected),
             "complete_signals": sum(
                 row["semantic_status"] == "complete" for row in selected),
@@ -288,30 +525,55 @@ def _summary(signals: list[dict]) -> dict:
             "unexecuted_signals": sum(row["execution_count"] == 0 for row in selected),
             "duplicate_execution_signals": sum(
                 row["duplicate_execution"] for row in selected),
+            "record_types": {
+                record_type: sum(
+                    row["record_type"] == record_type for row in records)
+                for record_type in sorted({row["record_type"] for row in records})
+            },
         }
+    formal = [row for row in signals if row["record_type"] == "formal_signal"]
     return {
-        "provider_signals": len(signals),
+        "records": len(signals),
+        "provider_signals": len(formal),
+        "formal_signals": len(formal),
         "complete_signals": sum(
-            row["semantic_status"] == "complete" for row in signals),
+            row["semantic_status"] == "complete" for row in formal),
         "incomplete_signals": sum(
-            row["semantic_status"] != "complete" for row in signals),
-        "executed_signals": sum(row["execution_count"] > 0 for row in signals),
-        "unexecuted_signals": sum(row["execution_count"] == 0 for row in signals),
+            row["semantic_status"] != "complete" for row in formal),
+        "executed_signals": sum(row["execution_count"] > 0 for row in formal),
+        "unexecuted_signals": sum(row["execution_count"] == 0 for row in formal),
         "duplicate_execution_signals": sum(
-            row["duplicate_execution"] for row in signals),
+            row["duplicate_execution"] for row in formal),
         "management_events": sum(len(row["management_events"]) for row in signals),
+        "record_types": {
+            record_type: sum(row["record_type"] == record_type for row in signals)
+            for record_type in sorted({row["record_type"] for row in signals})
+        },
         "channels": channels,
     }
 
 
 def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) -> dict:
     events = sorted(list(events), key=lambda row: str(row.get("ts") or ""))
+    replay_trades = list(replay_trades)
     signals: dict[tuple[str, int], dict] = {}
 
-    def ensure(channel: str, message_id: int) -> dict:
+    def ensure(
+        channel: str,
+        message_id: int,
+        record_type: str | None = None,
+        reason: str | None = None,
+    ) -> dict:
         key = (channel, int(message_id))
         if key not in signals:
-            signals[key] = _empty_signal(*key)
+            signals[key] = _empty_signal(
+                *key,
+                record_type=record_type or "unknown_candidate",
+                record_type_reason=reason or "unclassified_provider_message",
+            )
+        elif record_type is not None:
+            _promote_record_type(
+                signals[key], record_type, reason or "additional_evidence")
         return signals[key]
 
     canal1_text_roots: dict[int, int] = {}
@@ -400,8 +662,22 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
         ):
             root_keys.add((channel, message_id))
 
+    for trade in replay_trades:
+        parsed_sig = _message_id_from_sig(trade.get("sig_id"))
+        if not parsed_sig:
+            continue
+        channel, message_id = parsed_sig
+        if channel not in ("canal1", "canal2"):
+            continue
+        root_keys.add((channel, canal1_text_roots.get(message_id, message_id)))
+
     for channel, message_id in root_keys:
-        ensure(channel, message_id)
+        ensure(
+            channel,
+            message_id,
+            "formal_signal",
+            "entry_or_execution_evidence",
+        )
 
     for row in raw_events:
         channel = str(row.get("channel") or "")
@@ -416,17 +692,24 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
             root_id = canal1_text_roots.get(int(reply_to), int(reply_to))
             key = (channel, root_id)
             if key in signals or _looks_like_management(str(row.get("text") or "")):
-                _append_management(ensure(channel, root_id), row)
+                signal = ensure(
+                    channel,
+                    root_id,
+                    "management_only" if key not in signals else None,
+                    "reply_to_missing_root" if key not in signals else None,
+                )
+                _append_management(signal, row)
             continue
 
         root_id = canal1_text_roots.get(message_id, message_id)
-        key = (channel, root_id)
-        if key not in signals:
-            continue
-        signal = ensure(channel, root_id)
+        formal = (channel, root_id) in root_keys
+        record_type, reason = _record_type_for_root(row, formal=formal)
+        signal = ensure(channel, root_id, record_type, reason)
         if message_id == root_id:
             signal["_root_message_seen"] = True
         _append_revision(signal, row)
+        if signal["record_type"] == "management_only":
+            _append_management(signal, row)
 
     for (channel, message_id), direction in direction_by_key.items():
         root_id = canal1_text_roots.get(message_id, message_id)
@@ -441,7 +724,12 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
         if channel not in ("canal1", "canal2"):
             continue
         root_id = canal1_text_roots.get(message_id, message_id)
-        signal = ensure(channel, root_id)
+        signal = ensure(
+            channel,
+            root_id,
+            "formal_signal",
+            "linked_execution_evidence",
+        )
         sig_id = str(trade.get("sig_id"))
         if sig_id not in signal["execution_sig_ids"]:
             signal["execution_sig_ids"].append(sig_id)

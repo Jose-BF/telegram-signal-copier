@@ -500,6 +500,33 @@ def test_policy_uses_provider_level_timeline_instead_of_ticket_history():
     assert result["tickets"][0]["close_price"] == 110.0
 
 
+def test_management_choice_exposes_each_provider_option_as_a_trigger():
+    policy = StrategyPolicy(
+        policy_id="runner",
+        close_legs=0,
+        be_legs=0,
+        runner_legs=1,
+        base_leg_count=1,
+        trigger_action="MOVE_SL_TO_BE",
+    )
+    provider_signal = {
+        "management_events": [{
+            "observed_ts_utc": "2026-07-06T10:05:00+00:00",
+            "classified_action": "MANAGEMENT_CHOICE",
+            "execution_options": [
+                {"action": "CLOSE_ALL"},
+                {"action": "MOVE_SL_TO_BE"},
+            ],
+        }]
+    }
+
+    trigger, source = strategy_simulator._management_trigger(
+        {}, policy, provider_signal=provider_signal)
+
+    assert trigger.isoformat() == "2026-07-06T10:05:00+00:00"
+    assert source == "canonical_provider_management"
+
+
 def test_required_provider_timeline_rejects_execution_only_management_event():
     policy = StrategyPolicy(
         policy_id="runner",

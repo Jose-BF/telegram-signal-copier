@@ -219,6 +219,41 @@ def test_canonical_scope_uses_when_bot_observed_signal_for_date_window():
     assert scope["unexecuted_signals"] == 1
 
 
+def test_canonical_scope_excludes_nonformal_provider_records():
+    catalog = {
+        "signals": [
+            {
+                "provider_signal_id": "canal2_1",
+                "channel": "canal2",
+                "record_type": "formal_signal",
+                "first_observed_utc": "2026-07-13T08:00:00+00:00",
+                "semantic_status": "complete",
+                "execution_count": 1,
+            },
+            {
+                "provider_signal_id": "canal2_2",
+                "channel": "canal2",
+                "record_type": "context_setup",
+                "first_observed_utc": "2026-07-13T09:00:00+00:00",
+                "semantic_status": "classified",
+                "execution_count": 0,
+            },
+        ]
+    }
+
+    scope = strategy_farm._canonical_scope(
+        catalog, "2026-07-13", "2026-07-13")
+
+    assert scope == {
+        "provider_signals": 1,
+        "complete_signals": 1,
+        "incomplete_signals": 0,
+        "executed_signals": 1,
+        "unexecuted_signals": 0,
+        "by_channel": {"canal1": 0, "canal2": 1},
+    }
+
+
 def test_blocked_actual_control_is_a_global_selection_blocker():
     selection = strategy_farm.select_strategy(
         [{

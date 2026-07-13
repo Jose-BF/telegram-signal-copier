@@ -67,7 +67,11 @@ def test_canal2_progressive_edits_are_one_unexecuted_provider_signal():
     assert signal["effective_sl"] == 4108.0
     assert len(signal["revisions"]) == 3
     assert len(signal["management_events"]) == 1
-    assert signal["management_events"][0]["classified_action"] == "MOVE_SL_TO_BE"
+    assert signal["management_events"][0]["classified_action"] == "MANAGEMENT_CHOICE"
+    assert signal["management_events"][0]["execution_options"] == [
+        {"action": "CLOSE_ALL"},
+        {"action": "MOVE_SL_TO_BE"},
+    ]
     assert signal["execution_sig_ids"] == []
     assert signal["semantic_status"] == "complete"
 
@@ -115,7 +119,7 @@ def test_canal1_sticker_and_text_are_grouped_with_duplicate_executions():
     assert signal["effective_sl"] == 4095.0
 
 
-def test_reply_to_missing_root_is_preserved_as_incomplete_signal():
+def test_reply_to_missing_root_is_preserved_as_management_only_record():
     events = [
         _raw(
             "canal2",
@@ -128,11 +132,12 @@ def test_reply_to_missing_root_is_preserved_as_incomplete_signal():
 
     report = provider_signal_catalog.build_catalog_report(events, [])
 
-    assert report["summary"]["provider_signals"] == 1
-    assert report["summary"]["incomplete_signals"] == 1
+    assert report["summary"]["provider_signals"] == 0
+    assert report["summary"]["records"] == 1
     signal = report["signals"][0]
     assert signal["provider_signal_id"] == "canal2_300"
-    assert "missing_root_message" in signal["semantic_gaps"]
+    assert signal["record_type"] == "management_only"
+    assert signal["semantic_status"] == "classified"
     assert signal["management_events"][0]["message_id"] == 301
     assert signal["signal_ts_utc"] == "2026-07-08T10:00:00+00:00"
     assert signal["first_observed_utc"] is not None
@@ -253,3 +258,215 @@ def test_irrelevant_reply_does_not_create_a_provider_signal():
     report = provider_signal_catalog.build_catalog_report(events, [])
 
     assert report["summary"]["provider_signals"] == 0
+
+
+def test_context_photo_and_progress_replies_do_not_inflate_formal_signals():
+    events = [
+        _raw(
+            "canal2",
+            600,
+            "4HR support lines. Experienced members can use these levels.",
+            has_photo=True,
+        ),
+        _raw(
+            "canal2",
+            601,
+            "+50 pips from the 4hr line",
+            reply_to_msg_id=600,
+            is_reply=True,
+        ),
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+
+    assert report["summary"]["records"] == 1
+    assert report["summary"]["provider_signals"] == 0
+    assert report["summary"]["record_types"] == {"context_setup": 1}
+    record = report["signals"][0]
+    assert record["record_type"] == "context_setup"
+    assert record["semantic_status"] == "classified"
+    assert record["media"]["availability"] == "metadata_only"
+    assert record["media"]["extraction_status"] == "not_extracted"
+    event = record["management_events"][0]
+    assert event["classified_action"] == "PROGRESS_UPDATE"
+    assert event["modality"] == "informational"
+
+
+def test_numeric_move_sl_survives_informational_classifier_disagreement():
+    events = [
+        _raw(
+            "canal2",
+            700,
+            "Sell Gold Now\n4100 - 4105\nTargets\n4098\n4096\nSL 4108",
+        ),
+        _raw(
+            "canal2",
+            701,
+            "Move SL to 4061",
+            reply_to_msg_id=700,
+            is_reply=True,
+            classified="INFORMATIONAL",
+        ),
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+    event = report["signals"][0]["management_events"][0]
+
+    assert event["classified_action"] == "MOVE_SL_TO_PRICE"
+    assert event["price"] == 4061.0
+    assert event["modality"] == "direct"
+    assert event["semantic_source"] == "deterministic_parser"
+    assert event["classifier_action"] == "INFORMATIONAL"
+
+
+def test_optional_close_preserves_choice_instead_of_forcing_execution():
+    events = [
+        _raw(
+            "canal2",
+            710,
+            "Buy Gold Now\n4030 - 4032\nTargets\n4035\n4038\nSL 4025",
+        ),
+        _raw(
+            "canal2",
+            711,
+            "Close TP7 when happy",
+            reply_to_msg_id=710,
+            is_reply=True,
+        ),
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+    event = report["signals"][0]["management_events"][0]
+
+    assert event["classified_action"] == "CLOSE_AT_TP"
+    assert event["target_tp_index"] == 7
+    assert event["modality"] == "optional"
+    assert event["execution_options"] == [
+        {"action": "CLOSE_AT_TP", "target_tp_index": 7},
+        {"action": "HOLD"},
+    ]
+
+
+def test_fused_tp_sl_reply_is_preserved_as_level_update():
+    events = [
+        _raw(
+            "canal2",
+            720,
+            "Buy Gold Now\n4030 - 4032\nTargets\n4035\n4038\nSL 4025",
+        ),
+        _raw(
+            "canal2",
+            721,
+            "TP1 4035\nSL 4025",
+            reply_to_msg_id=720,
+            is_reply=True,
+            classified="INFORMATIONAL",
+        ),
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+    event = report["signals"][0]["management_events"][0]
+
+    assert event["classified_action"] == "LEVEL_UPDATE"
+    assert event["levels"] == {"tps": [4035.0], "sl": 4025.0}
+    assert event["modality"] == "direct"
+    assert event["semantic_source"] == "deterministic_parser"
+
+
+def test_daily_summary_is_retained_but_not_counted_as_formal_signal():
+    events = [
+        _raw(
+            "canal2",
+            730,
+            "Monday Summary\n9 Signals Sent\n7 Wins\n2 Stop Loss\n"
+            "Pips gained + 600",
+        )
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+
+    assert report["summary"]["records"] == 1
+    assert report["summary"]["provider_signals"] == 0
+    assert report["signals"][0]["record_type"] == "daily_summary"
+    assert report["signals"][0]["semantic_status"] == "classified"
+
+
+def test_close_or_risk_free_keeps_both_provider_options():
+    events = [
+        _raw(
+            "canal2",
+            740,
+            "Sell Gold Now\n4100 - 4105\nTargets\n4098\n4096\nSL 4108",
+        ),
+        _raw(
+            "canal2",
+            741,
+            "+25 pips. Close overall profit or make your trade risk free",
+            reply_to_msg_id=740,
+            is_reply=True,
+        ),
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+    event = report["signals"][0]["management_events"][0]
+
+    assert event["classified_action"] == "MANAGEMENT_CHOICE"
+    assert event["modality"] == "optional"
+    assert event["execution_options"] == [
+        {"action": "CLOSE_ALL"},
+        {"action": "MOVE_SL_TO_BE"},
+    ]
+
+
+def test_duplicate_management_versions_collapse_but_restoration_is_retained():
+    events = [
+        _raw(
+            "canal2",
+            750,
+            "Buy Gold Now\n4030 - 4032\nTargets\n4035\n4038\nSL 4025",
+        ),
+        _raw(
+            "canal2",
+            751,
+            "Move SL to 4030",
+            reply_to_msg_id=750,
+            is_reply=True,
+            update_kind="poll_new",
+        ),
+        _raw(
+            "canal2",
+            751,
+            "Move SL to 4030",
+            reply_to_msg_id=750,
+            is_reply=True,
+            update_kind="new",
+            edit_date_utc="2026-07-08T10:00:01+00:00",
+            is_edit=True,
+        ),
+        _raw(
+            "canal2",
+            751,
+            "Move SL to 4031",
+            reply_to_msg_id=750,
+            is_reply=True,
+            update_kind="edit",
+            edit_date_utc="2026-07-08T10:00:02+00:00",
+            is_edit=True,
+        ),
+        _raw(
+            "canal2",
+            751,
+            "Move SL to 4030",
+            reply_to_msg_id=750,
+            is_reply=True,
+            update_kind="edit",
+            edit_date_utc="2026-07-08T10:00:03+00:00",
+            is_edit=True,
+        ),
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+    timeline = report["signals"][0]["management_events"]
+
+    assert [row["price"] for row in timeline] == [4030.0, 4031.0, 4030.0]
+    assert timeline[0]["raw_versions"] == 2
