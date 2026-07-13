@@ -151,6 +151,136 @@ class TestC4LogFailureDoesNotResetTask:
             pass
 
 
+class TestModifyPreconditions:
+    @pytest.mark.asyncio
+    async def test_invalid_stop_waits_without_mt5_submission(self, monkeypatch):
+        q = PendingQueue()
+        act = _make_action(new_sl=4060.0)
+        submitted = []
+        monkeypatch.setattr(q, "_log_waiting_precondition", lambda *args: None)
+        monkeypatch.setattr(
+            "pending_actions.executor.preflight_modify_sltp",
+            lambda *args, **kwargs: SimpleNamespace(
+                status="wait_market",
+                effective_sl=4055.0,
+                effective_tp=4070.0,
+                deferred_sl=4060.0,
+                reason="requested_sl_waits_for_market",
+            ),
+        )
+        monkeypatch.setattr(
+            "pending_actions.executor.modify_sltp_rc",
+            lambda *args, **kwargs: submitted.append((args, kwargs)),
+        )
+
+        result = await q._try_once(act)
+
+        assert result == "WAIT_PRECONDITION"
+        assert act.attempts == 0
+        assert act.last_retcode is None
+        assert submitted == []
+
+    @pytest.mark.asyncio
+    async def test_compatible_tp_applies_once_while_sl_stays_deferred(
+        self,
+        monkeypatch,
+    ):
+        q = PendingQueue()
+        act = _make_action(new_sl=4059.61, new_tp=4052.0)
+        submitted = []
+        monkeypatch.setattr(q, "_log_waiting_precondition", lambda *args: None)
+        monkeypatch.setattr(
+            "pending_actions.executor.preflight_modify_sltp",
+            lambda *args, **kwargs: SimpleNamespace(
+                status="apply_tp_defer_sl",
+                effective_sl=4060.95,
+                effective_tp=4052.0,
+                deferred_sl=4059.61,
+                reason="requested_sl_waits_for_market",
+            ),
+        )
+
+        def fake_modify(ticket, new_sl, new_tp, expected_magic=None):
+            submitted.append((ticket, new_sl, new_tp, expected_magic))
+            return 10009
+
+        monkeypatch.setattr(
+            "pending_actions.executor.modify_sltp_rc",
+            fake_modify,
+        )
+        monkeypatch.setattr(q, "_log_partial_modify", lambda *args: None)
+
+        result = await q._try_once(act)
+
+        assert result == "WAIT_PRECONDITION"
+        assert submitted == [(12345, None, 4052.0, act.signal.magic)]
+        assert act.attempts == 1
+        assert act.applied_tp == 4052.0
+        assert act.new_tp is None
+        assert act.new_sl == 4059.61
+
+    @pytest.mark.asyncio
+    async def test_unexpected_broker_invalid_stops_drops_after_one_submission(
+        self,
+        monkeypatch,
+    ):
+        q = PendingQueue()
+        act = _make_action(new_sl=4059.61)
+        monkeypatch.setattr(
+            "pending_actions.executor.preflight_modify_sltp",
+            lambda *args, **kwargs: SimpleNamespace(
+                status="ready",
+                effective_sl=4059.61,
+                effective_tp=4052.0,
+                deferred_sl=None,
+                reason=None,
+            ),
+        )
+        monkeypatch.setattr(
+            "pending_actions.executor.modify_sltp_rc",
+            lambda *args, **kwargs: 10016,
+        )
+
+        result = await q._try_once(act)
+
+        assert result == "DROP_STOPS_STRUCTURAL"
+        assert act.attempts == 1
+        assert act.last_retcode == 10016
+
+    def test_equivalent_modify_actions_share_one_queue_slot(self, monkeypatch):
+        q = PendingQueue()
+        monkeypatch.setattr(q, "_ensure_runner", lambda: None)
+        monkeypatch.setattr(q, "_log_request", lambda *args: None)
+        monkeypatch.setattr(q, "_log_coalesced", lambda *args, **kwargs: None)
+        first = _make_action(new_sl=4059.61, new_tp=4052.0)
+        repeated = _make_action(new_sl=4059.61, new_tp=4052.0)
+
+        q.add(first)
+        q.add(repeated)
+
+        assert len(q._actions) == 1
+        assert q._actions[0].new_sl == 4059.61
+        assert q._actions[0].new_tp == 4052.0
+
+    def test_structural_incident_message_aggregates_tickets(self):
+        actions = [
+            _make_action(new_sl=4059.61, new_tp=4052.0)
+            for _ in range(5)
+        ]
+        for index, action in enumerate(actions, start=1):
+            action.ticket = 100 + index
+            action.attempts = 1
+            action.last_retcode = 10016
+
+        text = PendingQueue._format_structural_notification(actions)
+
+        assert "Canal 2" in text
+        assert "BUY" in text
+        assert "5 posiciones" in text
+        assert "101, 102, 103, 104, 105" in text
+        assert "1 intento MT5 por posicion" in text
+
+
 class TestForensicLifecycleLogging:
     def test_log_request_records_modify_payload(self, monkeypatch):
         events = []

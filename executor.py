@@ -3,13 +3,97 @@ Wrapper MT5. Todas las funciones son síncronas.
 El listener las ejecuta en un executor thread para no bloquear el loop async.
 """
 
+import math
 import re
 import time
+from dataclasses import dataclass
 
 import MetaTrader5 as mt5
 from typing import Optional
 import config
 import mt5_errors
+
+
+@dataclass(frozen=True)
+class ModifySLTPDecision:
+    status: str
+    effective_sl: Optional[float]
+    effective_tp: Optional[float]
+    deferred_sl: Optional[float] = None
+    reason: Optional[str] = None
+
+
+def _finite_level(value: Optional[float]) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if math.isfinite(parsed) and parsed > 0 else None
+
+
+def evaluate_position_sltp(
+    position,
+    tick,
+    symbol_info,
+    *,
+    new_sl: Optional[float],
+    new_tp: Optional[float],
+) -> ModifySLTPDecision:
+    """Decide whether a position SL/TP payload is legal at the current tick."""
+    current_sl = _finite_level(getattr(position, "sl", None))
+    current_tp = _finite_level(getattr(position, "tp", None))
+    if new_sl is not None and _finite_level(new_sl) is None:
+        return ModifySLTPDecision(
+            "invalid_request", current_sl, current_tp,
+            reason="invalid_sl_value",
+        )
+    if new_tp is not None and _finite_level(new_tp) is None:
+        return ModifySLTPDecision(
+            "invalid_request", current_sl, current_tp,
+            reason="invalid_tp_value",
+        )
+
+    requested_sl = _finite_level(new_sl)
+    requested_tp = _finite_level(new_tp) if new_tp is not None else current_tp
+    if requested_sl is None:
+        return ModifySLTPDecision("ready", current_sl, requested_tp)
+
+    point = float(getattr(symbol_info, "point", 0.0) or 0.0)
+    stops_level = float(getattr(symbol_info, "trade_stops_level", 0.0) or 0.0)
+    freeze_level = float(getattr(symbol_info, "trade_freeze_level", 0.0) or 0.0)
+    minimum_gap = max(stops_level, freeze_level) * point
+    is_buy = getattr(position, "type", None) == mt5.ORDER_TYPE_BUY
+    market_side = float(tick.bid if is_buy else tick.ask)
+    if is_buy:
+        requested_valid = requested_sl < market_side - minimum_gap
+        existing_valid = (
+            current_sl is not None and current_sl < market_side - minimum_gap
+        )
+    else:
+        requested_valid = requested_sl > market_side + minimum_gap
+        existing_valid = (
+            current_sl is not None and current_sl > market_side + minimum_gap
+        )
+
+    if requested_valid:
+        return ModifySLTPDecision("ready", requested_sl, requested_tp)
+    if new_tp is not None and existing_valid:
+        return ModifySLTPDecision(
+            "apply_tp_defer_sl",
+            current_sl,
+            requested_tp,
+            deferred_sl=requested_sl,
+            reason="requested_sl_waits_for_market",
+        )
+    return ModifySLTPDecision(
+        "wait_market",
+        current_sl,
+        current_tp,
+        deferred_sl=requested_sl,
+        reason="requested_sl_waits_for_market",
+    )
 
 
 # ─── Helpers PUROS de Batch D (anomalías executor) ───────────────────────
@@ -515,6 +599,57 @@ def _assert_magic(ticket: int, actual_magic: int, expected_magic: Optional[int])
     return True
 
 
+def preflight_modify_sltp(
+    ticket: int,
+    new_sl: Optional[float] = None,
+    new_tp: Optional[float] = None,
+    expected_magic: Optional[int] = None,
+) -> ModifySLTPDecision:
+    """Read-only MT5 preflight used by the async pending-action queue."""
+    positions = mt5.positions_get(ticket=ticket)
+    if positions is None:
+        return ModifySLTPDecision(
+            "mt5_unavailable", None, None, reason="positions_get_failed")
+    if positions:
+        position = positions[0]
+        if not _assert_magic(ticket, position.magic, expected_magic):
+            return ModifySLTPDecision(
+                "invalid_magic", None, None, reason="magic_mismatch")
+        tick = mt5.symbol_info_tick(config.MT5_SYMBOL)
+        symbol_info = mt5.symbol_info(config.MT5_SYMBOL)
+        if tick is None or symbol_info is None:
+            return ModifySLTPDecision(
+                "mt5_unavailable",
+                _finite_level(getattr(position, "sl", None)),
+                _finite_level(getattr(position, "tp", None)),
+                reason="tick_or_symbol_info_unavailable",
+            )
+        return evaluate_position_sltp(
+            position,
+            tick,
+            symbol_info,
+            new_sl=new_sl,
+            new_tp=new_tp,
+        )
+
+    orders = mt5.orders_get(ticket=ticket)
+    if orders is None:
+        return ModifySLTPDecision(
+            "mt5_unavailable", None, None, reason="orders_get_failed")
+    if orders:
+        order = orders[0]
+        if not _assert_magic(ticket, order.magic, expected_magic):
+            return ModifySLTPDecision(
+                "invalid_magic", None, None, reason="magic_mismatch")
+        return ModifySLTPDecision(
+            "ready",
+            _finite_level(new_sl) if new_sl is not None else _finite_level(order.sl),
+            _finite_level(new_tp) if new_tp is not None else _finite_level(order.tp),
+        )
+    return ModifySLTPDecision(
+        "position_gone", None, None, reason="ticket_not_found")
+
+
 def modify_sltp_rc(ticket: int, new_sl: Optional[float] = None,
                     new_tp: Optional[float] = None,
                     expected_magic: Optional[int] = None) -> int:
@@ -526,8 +661,23 @@ def modify_sltp_rc(ticket: int, new_sl: Optional[float] = None,
         p = pos[0]
         if not _assert_magic(ticket, p.magic, expected_magic):
             return mt5.TRADE_RETCODE_INVALID
-        sl_final = new_sl if new_sl is not None else p.sl
-        tp_final = new_tp if new_tp is not None else p.tp
+        tick = mt5.symbol_info_tick(config.MT5_SYMBOL)
+        symbol_info = mt5.symbol_info(config.MT5_SYMBOL)
+        if tick is None or symbol_info is None:
+            return mt5.TRADE_RETCODE_MARKET_CLOSED
+        decision = evaluate_position_sltp(
+            p,
+            tick,
+            symbol_info,
+            new_sl=new_sl,
+            new_tp=new_tp,
+        )
+        if decision.status == "invalid_request":
+            return mt5.TRADE_RETCODE_INVALID
+        if decision.status == "wait_market":
+            return mt5.TRADE_RETCODE_INVALID_STOPS
+        sl_final = decision.effective_sl or 0.0
+        tp_final = decision.effective_tp or 0.0
         req = {
             "action":   mt5.TRADE_ACTION_SLTP,
             "position": ticket,

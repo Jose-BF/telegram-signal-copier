@@ -257,6 +257,42 @@ def test_pending_action_stuck_is_detected_for_audit():
     assert issue["age_s"] == 45.0
 
 
+def test_market_precondition_wait_is_not_reported_as_stuck_retry():
+    journal = FakeJournal()
+    auditor = LiveAuditor(
+        settings=AuditSettings(
+            pending_stuck_after_s=30,
+            snapshot_every_s=0,
+        ),
+        journal=journal,
+    )
+
+    auditor.audit_cycle(
+        signals=[_signal()],
+        positions=[
+            _pos(1365772408, sl=4583.0, tp=4572.0),
+            _pos(1365772471, sl=4583.0, tp=4570.0),
+        ],
+        pending_actions=[{
+            "sig_id": "canal2_13111",
+            "kind": "MODIFY_SLTP",
+            "ticket": 1365772408,
+            "age_s": 45.0,
+            "attempts": 0,
+            "last_retcode": None,
+            "state": "waiting_market",
+            "waiting_reason": "requested_sl_waits_for_market",
+            "label": "BE #1365772408",
+        }],
+        now=datetime(2026, 5, 29, 15, 5, 0),
+    )
+
+    assert not [
+        anomaly for anomaly in journal.anomalies
+        if anomaly.get("code") == "pending_action_stuck"
+    ]
+
+
 def test_missing_position_waits_for_disappearance_grace():
     journal = FakeJournal()
     auditor = LiveAuditor(
@@ -365,6 +401,9 @@ def test_pending_actions_snapshot_is_read_only_and_serializable():
         "age_s": 45.2,
         "attempts": 7,
         "last_retcode": 10016,
+        "state": "retrying",
+        "waiting_reason": None,
+        "applied_tp": None,
         "label": "SL->4585 #1365772408",
     }]
     assert len(q._actions) == 1

@@ -95,6 +95,133 @@ class TestSigIdFromOrderComment:
         assert _sig_id_from_order_comment("bot_close") is None
 
 
+class TestModifySLTPPreflight:
+    def test_sell_tp_update_preserves_valid_sl_while_tighter_sl_waits(self):
+        position = SimpleNamespace(
+            type=executor.mt5.ORDER_TYPE_SELL,
+            sl=4060.95,
+            tp=4055.0,
+            price_open=4059.61,
+        )
+        tick = SimpleNamespace(bid=4059.98, ask=4060.20)
+        symbol_info = SimpleNamespace(
+            point=0.01,
+            trade_stops_level=0,
+            trade_freeze_level=0,
+        )
+
+        decision = executor.evaluate_position_sltp(
+            position,
+            tick,
+            symbol_info,
+            new_sl=4059.61,
+            new_tp=4052.0,
+        )
+
+        assert decision.status == "apply_tp_defer_sl"
+        assert decision.effective_sl == 4060.95
+        assert decision.effective_tp == 4052.0
+        assert decision.deferred_sl == 4059.61
+        assert decision.reason == "requested_sl_waits_for_market"
+
+    def test_invalid_sl_without_tp_waits_and_keeps_existing_protection(self):
+        position = SimpleNamespace(
+            type=executor.mt5.ORDER_TYPE_BUY,
+            sl=4055.0,
+            tp=4070.0,
+            price_open=4060.0,
+        )
+        tick = SimpleNamespace(bid=4059.0, ask=4059.2)
+        symbol_info = SimpleNamespace(
+            point=0.01,
+            trade_stops_level=10,
+            trade_freeze_level=0,
+        )
+
+        decision = executor.evaluate_position_sltp(
+            position,
+            tick,
+            symbol_info,
+            new_sl=4060.0,
+            new_tp=None,
+        )
+
+        assert decision.status == "wait_market"
+        assert decision.effective_sl == 4055.0
+        assert decision.deferred_sl == 4060.0
+
+    def test_non_finite_stop_is_permanently_invalid(self):
+        decision = executor.evaluate_position_sltp(
+            SimpleNamespace(
+                type=executor.mt5.ORDER_TYPE_BUY,
+                sl=4055.0,
+                tp=4070.0,
+                price_open=4060.0,
+            ),
+            SimpleNamespace(bid=4061.0, ask=4061.2),
+            SimpleNamespace(
+                point=0.01,
+                trade_stops_level=0,
+                trade_freeze_level=0,
+            ),
+            new_sl=float("nan"),
+            new_tp=None,
+        )
+
+        assert decision.status == "invalid_request"
+        assert decision.reason == "invalid_sl_value"
+
+    def test_modify_request_keeps_existing_sell_sl_for_compatible_tp(
+        self,
+        monkeypatch,
+    ):
+        sent = []
+        position = SimpleNamespace(
+            ticket=101,
+            type=executor.mt5.ORDER_TYPE_SELL,
+            sl=4060.95,
+            tp=4055.0,
+            price_open=4059.61,
+            magic=20260422,
+        )
+        monkeypatch.setattr(executor.mt5, "positions_get", lambda ticket: [position])
+        monkeypatch.setattr(
+            executor.mt5,
+            "symbol_info_tick",
+            lambda symbol: SimpleNamespace(bid=4059.98, ask=4060.20),
+        )
+        monkeypatch.setattr(
+            executor.mt5,
+            "symbol_info",
+            lambda symbol: SimpleNamespace(
+                point=0.01,
+                trade_stops_level=0,
+                trade_freeze_level=0,
+            ),
+        )
+
+        def fake_send(request, label):
+            sent.append(request)
+            return SimpleNamespace(retcode=10009, comment="done")
+
+        monkeypatch.setattr(executor, "_send_safe", fake_send)
+
+        retcode = executor.modify_sltp_rc(
+            101,
+            new_sl=4059.61,
+            new_tp=4052.0,
+            expected_magic=20260422,
+        )
+
+        assert retcode == 10009
+        assert sent == [{
+            "action": executor.mt5.TRADE_ACTION_SLTP,
+            "position": 101,
+            "sl": 4060.95,
+            "tp": 4052.0,
+        }]
+
+
 class TestOpenMarketAmbiguousResult:
     def test_recovers_timeout_result_when_mt5_position_exists(
             self, monkeypatch):

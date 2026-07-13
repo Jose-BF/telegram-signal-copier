@@ -1,8 +1,8 @@
 """
 Cola de acciones pendientes con reintentos tick-a-tick.
 
-Cuando MT5 rechaza una acción por "invalid stops" (p.ej. BE con precio adverso),
-no la descartamos: la encolamos y la reintentamos en cada tick hasta que:
+Cuando un SL todavía no es legal (p.ej. BE con precio adverso), queda en espera
+sin enviar solicitudes repetidas a MT5 hasta que el mercado cumpla la condición:
   - tenga éxito,
   - la señal se cierre,
   - o la acción expire por timeout.
@@ -10,8 +10,8 @@ no la descartamos: la encolamos y la reintentamos en cada tick hasta que:
 
 import asyncio
 import time
-from dataclasses import dataclass, field
-from typing import Callable, Optional
+from dataclasses import dataclass, field, replace
+from typing import Optional
 
 import MetaTrader5 as mt5
 
@@ -24,14 +24,6 @@ from state import Signal
 # Timeout por defecto: una hora. Si tras ese tiempo la acción no se ha podido
 # ejecutar, se descarta para no acumular basura indefinidamente.
 DEFAULT_TIMEOUT_S = 3600
-
-# Cap defensivo para errores STOPS estructurales. Si retcode 10016 (INVALID_STOPS)
-# persiste durante este tiempo, es un error de configuración del SL/TP (al lado
-# equivocado del precio para el entry actual), no un edge case temporal: ningún
-# retry lo va a arreglar. Dropear y notificar al usuario para acción manual.
-# Sesión 2026-05-06: 3 acciones inválidas hicieron 27.000+ retries en 173 min,
-# saturando el event loop y congelando el bot 115 min. Esto lo previene.
-STOPS_STRUCTURAL_THRESHOLD_S = 30
 
 # Batch E: cuando una pending action sigue en TRANSIENT >5min, el queue
 # esta atascado por algo estructural (autotrading off, broker desconectado).
@@ -63,9 +55,9 @@ def _stuck_transient_severity(retcode: int, age_s: float,
                                already_warned: bool):
     """Severidad para una pending action TRANSIENT atascada en cola.
 
-    Solo aplica a TRANSIENT (10004/10008/10018/10021/10027) — los STOPS
-    se dropean en STOPS_STRUCTURAL_THRESHOLD_S (30s) por otro path. Aqui
-    cubrimos el resto: si retcode TRANSIENT persiste >threshold_s,
+    Solo aplica a TRANSIENT (10004/10008/10018/10021/10027). Los stops
+    temporalmente ilegales esperan antes de llamar a MT5. Aqui cubrimos el
+    resto: si retcode TRANSIENT persiste >threshold_s,
     emitimos warning una vez para que el user sepa que algo bloquea la
     cola.
     """
@@ -90,6 +82,8 @@ class PendingAction:
     timeout_s: float = DEFAULT_TIMEOUT_S
     attempts: int = 0
     last_retcode: Optional[int] = None
+    applied_tp: Optional[float] = None
+    waiting_reason: Optional[str] = None
     label: str = ""                 # descripción humana para logs
 
     def expired(self) -> bool:
@@ -100,12 +94,60 @@ class PendingQueue:
     def __init__(self):
         self._actions: list[PendingAction] = []
         self._task: Optional[asyncio.Task] = None
+        self._structural_incidents: dict[tuple, list[PendingAction]] = {}
+        self._structural_flush_tasks: dict[tuple, asyncio.Task] = {}
 
     def add(self, action: PendingAction):
+        for existing in self._actions:
+            same_signal = (
+                existing.signal.channel == action.signal.channel
+                and existing.signal.message_id == action.signal.message_id
+            )
+            if not (
+                same_signal
+                and existing.kind == action.kind
+                and existing.ticket == action.ticket
+            ):
+                continue
+            if action.kind == "MODIFY_SLTP":
+                changed = False
+                if action.new_sl is not None and action.new_sl != existing.new_sl:
+                    existing.new_sl = action.new_sl
+                    changed = True
+                if action.new_tp is not None and action.new_tp != existing.new_tp:
+                    existing.new_tp = action.new_tp
+                    existing.applied_tp = None
+                    changed = True
+                if changed:
+                    existing.created_at = action.created_at
+                    existing.last_retcode = None
+                    existing.waiting_reason = None
+                existing.label = action.label or existing.label
+                self._log_request(action)
+                self._log_coalesced(existing, changed=changed)
+                self._ensure_runner()
+                return
         self._actions.append(action)
         print(f"[Pending] Encolado: {action.label} (ticket={action.ticket})")
         self._log_request(action)
         self._ensure_runner()
+
+    def _log_coalesced(self, action: PendingAction, *, changed: bool) -> None:
+        try:
+            import journal
+            sig_id = f"{action.signal.channel}_{action.signal.message_id}"
+            journal.event(
+                sig_id,
+                "mt5_action_coalesced",
+                kind=action.kind,
+                ticket=action.ticket,
+                new_sl=action.new_sl,
+                new_tp=action.new_tp,
+                payload_changed=changed,
+                queue_slots=1,
+            )
+        except Exception:
+            pass
 
     def _ensure_runner(self):
         if self._task is None or self._task.done():
@@ -266,44 +308,87 @@ class PendingQueue:
                         act,
                         reason=f"stops_structural_after_{act.attempts}_attempts_{age_s}s"
                     )
-                    asyncio.create_task(self._notify_structural_failure(act, age_s))
+                    self._record_structural_failure(act)
                 else:
                     still_pending.append(act)
 
             self._actions = still_pending
             await asyncio.sleep(0)
 
-    async def _notify_structural_failure(self, act: PendingAction, age_s: int):
-        """Notifica al usuario por Telegram que MT5 está rechazando la acción.
+    @staticmethod
+    def _structural_incident_key(act: PendingAction) -> tuple:
+        return (
+            act.signal.channel,
+            act.signal.message_id,
+            act.signal.direction,
+            act.kind,
+            act.new_sl,
+            act.new_tp,
+            act.last_retcode,
+        )
 
-        Best-effort: si notify() o el import falla, log y continúa.
-        """
+    @staticmethod
+    def _format_structural_notification(actions: list[PendingAction]) -> str:
+        first = actions[0]
+        channel = "Canal 1" if first.signal.channel == "canal1" else "Canal 2"
+        tickets = ", ".join(str(action.ticket) for action in actions)
+        count = len(actions)
+        position_label = "posicion" if count == 1 else "posiciones"
+        attempts = max(action.attempts for action in actions)
+        attempt_label = "intento" if attempts == 1 else "intentos"
+        sl_text = str(first.new_sl) if first.new_sl is not None else "sin cambio"
+        tp_value = first.new_tp if first.new_tp is not None else first.applied_tp
+        tp_text = str(tp_value) if tp_value is not None else "sin cambio"
+        return (
+            "GESTION MT5 NO APLICADA\n\n"
+            f"{channel} | {first.signal.direction}\n"
+            f"Mensaje Telegram: #{first.signal.message_id}\n\n"
+            f"Accion: SL {sl_text} | TP {tp_text}\n"
+            f"Afectadas: {count} {position_label}\n"
+            f"Tickets: {tickets}\n\n"
+            f"MT5 rechazo {attempts} {attempt_label} MT5 por posicion "
+            f"(retcode {first.last_retcode}).\n"
+            "El bot ha detenido los reenvios identicos para evitar ruido y "
+            "peticiones inutiles. Revisa estas posiciones en MT5."
+        )
+
+    def _record_structural_failure(self, act: PendingAction) -> None:
+        key = self._structural_incident_key(act)
+        self._structural_incidents.setdefault(key, []).append(act)
+        task = self._structural_flush_tasks.get(key)
+        if task is None or task.done():
+            self._structural_flush_tasks[key] = asyncio.create_task(
+                self._flush_structural_incident(key)
+            )
+
+    async def _flush_structural_incident(self, key: tuple) -> None:
+        await asyncio.sleep(0.25)
+        actions = self._structural_incidents.pop(key, [])
+        self._structural_flush_tasks.pop(key, None)
+        if not actions:
+            return
+        first = actions[0]
+        sig_id = f"{first.signal.channel}_{first.signal.message_id}"
+        try:
+            import journal
+            journal.event(
+                sig_id,
+                "mt5_structural_incident",
+                kind=first.kind,
+                tickets=[action.ticket for action in actions],
+                ticket_count=len(actions),
+                new_sl=first.new_sl,
+                new_tp=first.new_tp,
+                retcode=first.last_retcode,
+                mt5_attempts=sum(action.attempts for action in actions),
+            )
+        except Exception:
+            pass
         try:
             from listener import notify
-        except Exception as e:
-            print(f"[Pending] No pude importar notify(): {e}")
-            return
-
-        sl_str = f"{act.new_sl}" if act.new_sl is not None else "(sin cambio)"
-        tp_str = f"{act.new_tp}" if act.new_tp is not None else "(sin cambio)"
-        text = (
-            f"🚨 ACCIÓN MT5 BLOQUEADA — {act.signal.channel} #{act.signal.message_id}\n"
-            f"\n"
-            f"Tipo: {act.kind}\n"
-            f"Ticket: {act.ticket}\n"
-            f"Nuevo SL: {sl_str} | Nuevo TP: {tp_str}\n"
-            f"\n"
-            f"MT5 rechazó {act.attempts} intentos en {age_s}s con retcode "
-            f"{act.last_retcode} (STOPS inválidos).\n"
-            f"\n"
-            f"Probable causa: SL/TP al lado equivocado del precio para el entry "
-            f"actual. Revisa la posición #{act.ticket} en MT5 y ajústala "
-            f"manualmente. El bot dejó de reintentar para no bloquearse."
-        )
-        try:
-            await notify(text)
-        except Exception as e:
-            print(f"[Pending] notify() error: {e}")
+            await notify(self._format_structural_notification(actions))
+        except Exception as exc:
+            print(f"[Pending] structural incident notify error: {exc}")
 
     def _log_failure(self, act: PendingAction, reason: str):
         """Loguea fallo definitivo de una pending action al journal.
@@ -342,7 +427,9 @@ class PendingQueue:
             if act.last_retcode == 10036:
                 sev = "info"
             elif reason.startswith("stops_structural"):
-                sev = "critical"
+                # The queue emits one grouped human notification separately.
+                # Keep per-ticket anomalies non-critical to avoid duplicates.
+                sev = "warning"
             else:
                 sev = "warning"
             journal.anomaly(sig_id, "mt5", sev,
@@ -449,27 +536,124 @@ class PendingQueue:
         except Exception:
             pass
 
+    def _log_waiting_precondition(self, act: PendingAction, decision) -> None:
+        if act.waiting_reason == decision.reason:
+            return
+        act.waiting_reason = decision.reason
+        try:
+            import journal
+            sig_id = f"{act.signal.channel}_{act.signal.message_id}"
+            journal.event(
+                sig_id,
+                "mt5_modify_waiting_precondition",
+                ticket=act.ticket,
+                requested_sl=act.new_sl,
+                requested_tp=act.new_tp,
+                effective_sl=decision.effective_sl,
+                effective_tp=decision.effective_tp,
+                reason=decision.reason,
+                mt5_attempts=act.attempts,
+            )
+        except Exception:
+            pass
+
+    def _log_precondition_satisfied(self, act: PendingAction) -> None:
+        if act.waiting_reason is None:
+            return
+        previous_reason = act.waiting_reason
+        act.waiting_reason = None
+        try:
+            import journal
+            sig_id = f"{act.signal.channel}_{act.signal.message_id}"
+            journal.event(
+                sig_id,
+                "mt5_modify_precondition_satisfied",
+                ticket=act.ticket,
+                previous_reason=previous_reason,
+                requested_sl=act.new_sl,
+                requested_tp=act.new_tp,
+                mt5_attempts=act.attempts,
+            )
+        except Exception:
+            pass
+
+    def _log_partial_modify(self, act: PendingAction, applied_tp: float) -> None:
+        partial = replace(
+            act,
+            new_sl=None,
+            new_tp=applied_tp,
+            label=f"{act.label} (TP aplicado; SL en espera)",
+        )
+        self._log_done(partial)
+
     async def _try_once(self, act: PendingAction) -> str:
         """Ejecuta el intento. Devuelve 'DONE', 'RETRY' o 'DROP'.
 
         Todas las acciones verifican el magic del canal (act.signal.magic):
         si el ticket pertenece a otro canal o a una operación manual, el
         executor devuelve INVALID y la acción se descarta sin tocar nada."""
-        act.attempts += 1
         loop = asyncio.get_event_loop()
         expected_magic = act.signal.magic
 
         if act.kind == "MODIFY_SLTP":
-            retcode = await loop.run_in_executor(
-                None, lambda: executor.modify_sltp_rc(
-                    act.ticket, act.new_sl, act.new_tp, expected_magic=expected_magic
-                )
+            decision = await loop.run_in_executor(
+                None,
+                lambda: executor.preflight_modify_sltp(
+                    act.ticket,
+                    act.new_sl,
+                    act.new_tp,
+                    expected_magic=expected_magic,
+                ),
             )
+            if decision.status == "mt5_unavailable":
+                act.last_retcode = mt5.TRADE_RETCODE_MARKET_CLOSED
+                return "RETRY"
+            if decision.status == "position_gone":
+                act.last_retcode = 10036
+                return "DONE"
+            if decision.status in {"invalid_magic", "invalid_request"}:
+                act.last_retcode = mt5.TRADE_RETCODE_INVALID
+                return "DROP"
+            if decision.status == "wait_market":
+                self._log_waiting_precondition(act, decision)
+                return "WAIT_PRECONDITION"
+            if decision.status == "apply_tp_defer_sl":
+                self._log_waiting_precondition(act, decision)
+                tp_to_apply = act.new_tp
+                if tp_to_apply is None:
+                    return "WAIT_PRECONDITION"
+                act.attempts += 1
+                retcode = await loop.run_in_executor(
+                    None,
+                    lambda: executor.modify_sltp_rc(
+                        act.ticket,
+                        None,
+                        tp_to_apply,
+                        expected_magic=expected_magic,
+                    ),
+                )
+                act.last_retcode = retcode
+                if mt5_errors.classify(retcode) == "OK":
+                    act.applied_tp = tp_to_apply
+                    act.new_tp = None
+                    self._log_partial_modify(act, tp_to_apply)
+                    return "WAIT_PRECONDITION"
+            else:
+                self._log_precondition_satisfied(act)
+                act.attempts += 1
+                retcode = await loop.run_in_executor(
+                    None, lambda: executor.modify_sltp_rc(
+                        act.ticket, act.new_sl, act.new_tp,
+                        expected_magic=expected_magic,
+                    )
+                )
         elif act.kind == "CLOSE_POSITION":
+            act.attempts += 1
             retcode = await loop.run_in_executor(
                 None, lambda: executor.close_position_rc(act.ticket, expected_magic=expected_magic)
             )
         elif act.kind == "CANCEL_PENDING":
+            act.attempts += 1
             retcode = await loop.run_in_executor(
                 None, lambda: executor.cancel_pending_rc(act.ticket, expected_magic=expected_magic)
             )
@@ -487,15 +671,10 @@ class PendingQueue:
         if cls == "TRANSIENT":
             return "RETRY"
         if cls == "STOPS":
-            # SL/TP inválidos respecto al precio actual. Si lleva poco tiempo
-            # encolada, probablemente el precio se movió temporalmente cerca
-            # del nivel y el retry resolverá. Si lleva >30s, es estructural
-            # (SL al lado equivocado del precio para el entry actual): ningún
-            # retry lo arregla. Cortamos para no bloquear el event loop.
-            age = time.time() - act.created_at
-            if age > STOPS_STRUCTURAL_THRESHOLD_S:
-                return "DROP_STOPS_STRUCTURAL"
-            return "RETRY"
+            # El preflight ya evita enviar niveles ilegales por precio. Un
+            # rechazo STOPS posterior revela una regla del broker no modelada;
+            # no repetimos a ciegas la misma solicitud.
+            return "DROP_STOPS_STRUCTURAL"
         return "DROP"
 
 
@@ -544,6 +723,9 @@ def snapshot(queue_obj: PendingQueue | None = None,
             "age_s": round(ts - act.created_at, 1),
             "attempts": act.attempts,
             "last_retcode": act.last_retcode,
+            "state": "waiting_market" if act.waiting_reason else "retrying",
+            "waiting_reason": act.waiting_reason,
+            "applied_tp": act.applied_tp,
             "label": act.label,
         })
     return out

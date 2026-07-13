@@ -201,6 +201,8 @@ class LiveAuditor:
             )
 
         for act in pending_actions:
+            if act.get("state") == "waiting_market":
+                continue
             age_s = float(act.get("age_s") or 0.0)
             if age_s < self.settings.pending_stuck_after_s:
                 continue
