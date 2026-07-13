@@ -1,11 +1,13 @@
 {
   "ok": true,
-  "generated_at": "2026-07-12T18:52:52+00:00",
+  "generated_at": "2026-07-13T21:59:27+00:00",
+  "tick_time_contract": "mt5_utc_v2",
+  "time_basis": "UTC",
   "dry_run": false,
   "ensure_attempted": true,
   "pad_minutes": 5,
   "cache_dir": "data/ticks_cache",
-  "n_trades": 181,
+  "n_trades": 193,
   "required_days": [
     "2026-06-05",
     "2026-06-08",
@@ -36,7 +38,10 @@
     "2026-07-07",
     "2026-07-08",
     "2026-07-09",
-    "2026-07-10"
+    "2026-07-10",
+    "2026-07-11",
+    "2026-07-12",
+    "2026-07-13"
   ],
   "cached_days": [
     "2026-06-05",
@@ -68,14 +73,20 @@
     "2026-07-07",
     "2026-07-08",
     "2026-07-09",
-    "2026-07-10"
+    "2026-07-10",
+    "2026-07-11",
+    "2026-07-12",
+    "2026-07-13"
   ],
+  "invalid_days": [],
   "missing_days": [],
   "ensure_stats": {
-    "downloaded": 1,
+    "downloaded": 3,
     "cached_already": 0,
-    "total_ticks": 766716,
-    "empty_days": 0
+    "total_ticks": 738030,
+    "empty_days": 2
   },
+  "refresh_requested_days": [],
+  "refresh_removed_days": [],
   "error": null
 }
