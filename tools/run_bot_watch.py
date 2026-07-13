@@ -49,6 +49,8 @@ OBSERVED_TICK_REPLAY_AUDIT_FILE = REPO_DIR / "data" / "observed_tick_replay_audi
 OBSERVED_TICK_REPLAY_STATUS_FILE = REPO_DIR / "data" / "observed_tick_replay_status.json"
 PROVIDER_SIGNAL_CATALOG_FILE = REPO_DIR / "data" / "provider_signal_catalog.json"
 STRATEGY_FARM_FILE = REPO_DIR / "data" / "strategy_farm.json"
+LOG_LEARNING_REPORT_FILE = REPO_DIR / "data" / "log_learning_report.json"
+LOG_PATTERN_REGISTRY_FILE = REPO_DIR / "data" / "log_pattern_registry.json"
 STRATEGY_FARM_FROM_DATE = os.getenv("STRATEGY_FARM_FROM_DATE", "2026-07-06")
 RUNTIME_HEARTBEAT_FILE = Path(os.getenv(
     "BOT_RUNTIME_HEARTBEAT_FILE",
@@ -476,6 +478,8 @@ def _clear_mutable_offline_outputs() -> None:
     """Prevent skipped/failed builders from leaving reports that look current."""
     PROVIDER_SIGNAL_CATALOG_FILE.unlink(missing_ok=True)
     STRATEGY_FARM_FILE.unlink(missing_ok=True)
+    LOG_LEARNING_REPORT_FILE.unlink(missing_ok=True)
+    LOG_PATTERN_REGISTRY_FILE.unlink(missing_ok=True)
 
 
 def _regenerate_provider_signal_catalog() -> bool:
@@ -525,6 +529,38 @@ def _regenerate_strategy_farm() -> bool:
         return False
 
 
+def _regenerate_recursive_learning_outputs() -> bool:
+    """Publish whole-corpus reliability evidence after causal builders.
+
+    A diagnostic-only result is still a successful build: its purpose is to
+    name the exact hard gates that remain blocked. Stale outputs are removed
+    before every attempt so a failed run can never masquerade as current.
+    """
+    LOG_LEARNING_REPORT_FILE.unlink(missing_ok=True)
+    LOG_PATTERN_REGISTRY_FILE.unlink(missing_ok=True)
+    try:
+        rec = subprocess.run(
+            [sys.executable, "recursive_log_learning.py", "--quiet"],
+            cwd=REPO_DIR, capture_output=True, text=True, timeout=120,
+        )
+        if (
+            rec.returncode == 0
+            and LOG_LEARNING_REPORT_FILE.exists()
+            and LOG_PATTERN_REGISTRY_FILE.exists()
+        ):
+            print("[Watch] aprendizaje recursivo actualizado.", flush=True)
+            return True
+        print(f"[Watch] recursive_log_learning.py fallo (rc={rec.returncode}): "
+              f"{(rec.stderr or rec.stdout or '')[:1000]}", flush=True)
+        return False
+    except BaseException as e:
+        print(f"[Watch] error ejecutando recursive_log_learning.py: {e}",
+              flush=True)
+        if isinstance(e, (KeyboardInterrupt, SystemExit)):
+            raise
+        return False
+
+
 def _push_session_data() -> None:
     """Sube data/trade_events.jsonl + ledger + journal a GitHub si hay cambios.
 
@@ -548,6 +584,7 @@ def _push_session_data() -> None:
                 catalog_ok = _regenerate_provider_signal_catalog()
                 if observed_ok and catalog_ok:
                     _regenerate_strategy_farm()
+                    _regenerate_recursive_learning_outputs()
     files = [
         "data/trade_events.jsonl",
         "data/ledger.jsonl",
@@ -562,6 +599,8 @@ def _push_session_data() -> None:
         "data/observed_tick_replay_status.json",
         "data/provider_signal_catalog.json",
         "data/strategy_farm.json",
+        "data/log_learning_report.json",
+        "data/log_pattern_registry.json",
         "data/simulation_runs",
         "data/trade_events_TEST.jsonl",
         "data/trade_journal.csv",

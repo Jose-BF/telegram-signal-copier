@@ -257,6 +257,34 @@ def test_regenerate_strategy_farm_accepts_report_without_winner(
     assert watch._regenerate_strategy_farm() is True
 
 
+def test_regenerate_recursive_learning_accepts_diagnostic_report(
+        tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    report = data_dir / "log_learning_report.json"
+    registry = data_dir / "log_pattern_registry.json"
+    monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
+    monkeypatch.setattr(watch, "LOG_LEARNING_REPORT_FILE", report)
+    monkeypatch.setattr(watch, "LOG_PATTERN_REGISTRY_FILE", registry)
+
+    def fake_run(*args, **kwargs):
+        assert args[0] == [
+            watch.sys.executable,
+            "recursive_log_learning.py",
+            "--quiet",
+        ]
+        report.write_text(
+            '{"mode":"diagnostic_only"}\n', encoding="utf-8")
+        registry.write_text(
+            '{"patterns":[]}\n', encoding="utf-8")
+        return subprocess.CompletedProcess(
+            args=args[0], returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(watch.subprocess, "run", fake_run)
+
+    assert watch._regenerate_recursive_learning_outputs() is True
+
+
 def test_failed_offline_builders_remove_stale_mutable_artifacts(
         tmp_path, monkeypatch):
     data_dir = tmp_path / "data"
@@ -279,6 +307,29 @@ def test_failed_offline_builders_remove_stale_mutable_artifacts(
     assert watch._regenerate_strategy_farm() is False
     assert not catalog.exists()
     assert not farm.exists()
+
+
+def test_failed_recursive_learning_removes_both_stale_outputs(
+        tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    report = data_dir / "log_learning_report.json"
+    registry = data_dir / "log_pattern_registry.json"
+    report.write_text('{"old":true}\n', encoding="utf-8")
+    registry.write_text('{"old":true}\n', encoding="utf-8")
+    monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
+    monkeypatch.setattr(watch, "LOG_LEARNING_REPORT_FILE", report)
+    monkeypatch.setattr(watch, "LOG_PATTERN_REGISTRY_FILE", registry)
+    monkeypatch.setattr(
+        watch.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=args[0], returncode=1, stdout="", stderr="failed"),
+    )
+
+    assert watch._regenerate_recursive_learning_outputs() is False
+    assert not report.exists()
+    assert not registry.exists()
 
 
 def test_regenerate_ledger_records_keyboard_interrupt_before_reraising(
@@ -318,6 +369,8 @@ def test_push_session_data_adds_reconcile_status(monkeypatch):
     monkeypatch.setattr(watch, "_regenerate_observed_tick_replay_audit", lambda: False)
     monkeypatch.setattr(watch, "_regenerate_provider_signal_catalog", lambda: False)
     monkeypatch.setattr(watch, "_regenerate_strategy_farm", lambda: False)
+    monkeypatch.setattr(
+        watch, "_regenerate_recursive_learning_outputs", lambda: False)
 
     def fake_git(*args, capture=True):
         if args[:2] == ("add", "-f"):
@@ -345,7 +398,53 @@ def test_push_session_data_adds_reconcile_status(monkeypatch):
     assert "data/observed_tick_replay_status.json" in added
     assert "data/provider_signal_catalog.json" in added
     assert "data/strategy_farm.json" in added
+    assert "data/log_learning_report.json" in added
+    assert "data/log_pattern_registry.json" in added
     assert "data/simulation_runs" in added
+
+
+def test_push_pipeline_runs_learning_after_all_causal_builders(monkeypatch):
+    calls = []
+    monkeypatch.setattr(watch, "_clear_mutable_offline_outputs", lambda: None)
+
+    def step(name, result=True):
+        def run():
+            calls.append(name)
+            return result
+        return run
+
+    monkeypatch.setattr(watch, "_regenerate_ledger", step("ledger"))
+    monkeypatch.setattr(watch, "_regenerate_replay_trades", step("replay"))
+    monkeypatch.setattr(
+        watch, "_regenerate_accounting_replay_audit", step("accounting"))
+    monkeypatch.setattr(
+        watch, "_regenerate_replay_tick_cache_status", step("tick_cache"))
+    monkeypatch.setattr(
+        watch, "_regenerate_replay_readiness_report", step("readiness"))
+    monkeypatch.setattr(
+        watch, "_regenerate_observed_tick_replay_audit", step("observed"))
+    monkeypatch.setattr(
+        watch, "_regenerate_provider_signal_catalog", step("provider"))
+    monkeypatch.setattr(watch, "_regenerate_strategy_farm", step("farm"))
+    monkeypatch.setattr(
+        watch, "_regenerate_recursive_learning_outputs", step("learning"))
+
+    def fake_git(*args, capture=True):
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="",
+            stderr="",
+        )
+
+    monkeypatch.setattr(watch, "_git", fake_git)
+
+    watch._push_session_data()
+
+    assert calls == [
+        "ledger", "replay", "accounting", "tick_cache", "readiness",
+        "observed", "provider", "farm", "learning",
+    ]
 
 
 def test_push_session_data_clears_stale_farm_when_pipeline_stops_early(
@@ -354,10 +453,16 @@ def test_push_session_data_clears_stale_farm_when_pipeline_stops_early(
     data_dir.mkdir()
     catalog = data_dir / "provider_signal_catalog.json"
     farm = data_dir / "strategy_farm.json"
+    learning_report = data_dir / "log_learning_report.json"
+    pattern_registry = data_dir / "log_pattern_registry.json"
     catalog.write_text('{"generated_at":"old"}\n', encoding="utf-8")
     farm.write_text('{"generated_at":"old"}\n', encoding="utf-8")
+    learning_report.write_text('{"old":true}\n', encoding="utf-8")
+    pattern_registry.write_text('{"old":true}\n', encoding="utf-8")
     monkeypatch.setattr(watch, "PROVIDER_SIGNAL_CATALOG_FILE", catalog)
     monkeypatch.setattr(watch, "STRATEGY_FARM_FILE", farm)
+    monkeypatch.setattr(watch, "LOG_LEARNING_REPORT_FILE", learning_report)
+    monkeypatch.setattr(watch, "LOG_PATTERN_REGISTRY_FILE", pattern_registry)
     monkeypatch.setattr(watch, "_regenerate_ledger", lambda: False)
 
     def fake_git(*args, capture=True):
@@ -374,6 +479,8 @@ def test_push_session_data_clears_stale_farm_when_pipeline_stops_early(
 
     assert not catalog.exists()
     assert not farm.exists()
+    assert not learning_report.exists()
+    assert not pattern_registry.exists()
 
 
 def test_pull_main_ff_uses_explicit_origin_main(monkeypatch):

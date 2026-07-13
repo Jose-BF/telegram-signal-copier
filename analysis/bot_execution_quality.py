@@ -84,7 +84,10 @@ def classify_execution(events: list[dict]) -> dict:
         and e.get("action") == "MOVE_SL_TO_BE"
         and e.get("will_apply")
     ]
-    be_armed_evs = [e for e in events if e.get("ev") == "be_armed"]
+    be_armed_evs = [
+        e for e in events
+        if e.get("ev") in {"be_armed", "be_armed_classifier"}
+    ]
     factors["move_sl_be_msgs"] = len(move_sl_be_msgs)
     factors["be_armed_events"] = len(be_armed_evs)
     if move_sl_be_msgs and not be_armed_evs and not failures:

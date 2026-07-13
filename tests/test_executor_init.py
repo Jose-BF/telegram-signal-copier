@@ -1,6 +1,12 @@
 from types import SimpleNamespace
 
 import executor
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _isolate_journal(monkeypatch):
+    monkeypatch.setattr(executor, "_emit_event", lambda *args, **kwargs: None)
 
 
 def _account(login=1, server="TestServer-Demo"):
@@ -43,3 +49,30 @@ def test_init_logs_in_when_terminal_is_on_different_account(monkeypatch):
 
     assert executor.init() is True
     assert len(login_calls) == 1
+
+
+def test_init_journals_connected_account_evidence(monkeypatch):
+    events = []
+
+    monkeypatch.setattr(executor.mt5, "initialize", lambda: True)
+    monkeypatch.setattr(executor.mt5, "account_info", lambda: _account())
+    monkeypatch.setattr(executor.mt5, "symbol_select", lambda symbol, enable: True)
+    monkeypatch.setattr(
+        executor,
+        "_emit_event",
+        lambda sig_id, ev, **ctx: events.append((sig_id, ev, ctx)),
+    )
+
+    assert executor.init() is True
+    assert events == [(
+        "bot",
+        "mt5_account_connected",
+        {
+            "login": 1,
+            "server": "TestServer-Demo",
+            "name": "Test Account",
+            "currency": "USD",
+            "balance": 10000.0,
+            "equity": None,
+        },
+    )]

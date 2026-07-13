@@ -219,6 +219,39 @@ def _account_matches_config(info) -> bool:
     return login_ok and server_ok
 
 
+def account_evidence(info=None) -> dict:
+    """Return JSON-safe evidence for the MT5 account used by this session."""
+    if info is None:
+        try:
+            info = mt5.account_info()
+        except Exception:
+            return {}
+    if info is None:
+        return {}
+
+    def _number(name: str, cast):
+        value = getattr(info, name, None)
+        if value is None:
+            return None
+        try:
+            return cast(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _text(name: str):
+        value = getattr(info, name, None)
+        return str(value) if value is not None else None
+
+    return {
+        "login": _number("login", int),
+        "server": _text("server"),
+        "name": _text("name"),
+        "currency": _text("currency"),
+        "balance": _number("balance", float),
+        "equity": _number("equity", float),
+    }
+
+
 def init() -> bool:
     if not mt5.initialize():
         print(f"[MT5] initialize() falló: {mt5.last_error()}")
@@ -244,6 +277,7 @@ def init() -> bool:
         print(f"[MT5] No se pudo añadir {config.MT5_SYMBOL} a Market Watch: {mt5.last_error()}")
         return False
     info = info or mt5.account_info()
+    _emit_event("bot", "mt5_account_connected", **account_evidence(info))
     print(f"[MT5] Conectado: {info.name} | Balance: {info.balance} {info.currency}")
     print(f"[MT5] {config.MT5_SYMBOL} añadido a Market Watch")
     return True
