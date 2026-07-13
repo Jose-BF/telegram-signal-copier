@@ -3,6 +3,8 @@ import importlib
 import json
 from pathlib import Path
 
+import pytest
+
 
 def _provenance():
     return importlib.import_module("simulation_run_provenance")
@@ -213,3 +215,105 @@ def test_card_never_captures_environment_or_secret_values(tmp_path, monkeypatch)
 
     assert "must-not-appear" not in payload
     assert "GEMINI_API_KEY" not in payload
+
+
+def _complete_evidence(root: Path):
+    provenance = _provenance()
+    args = _evidence_args(root)
+    report = args["report"]
+    return provenance.build_run_evidence(**args), report
+
+
+def _publish_args(root: Path, evidence: dict, report: dict, *, include_trades=False):
+    return {
+        "report": report,
+        "evidence": evidence,
+        "archive_root": root / "runs",
+        "output_path": root / "strategy_farm.json",
+        "include_trades": include_trades,
+        "repo_dir": root,
+    }
+
+
+def test_compact_run_is_published_once_and_idempotent(tmp_path):
+    provenance = _provenance()
+    evidence, report = _complete_evidence(tmp_path)
+
+    first = provenance.publish_run_archive(
+        **_publish_args(tmp_path, evidence, report),
+    )
+    repeated_report = {**report, "generated_at": "later"}
+    second = provenance.publish_run_archive(
+        **_publish_args(tmp_path, evidence, repeated_report),
+    )
+
+    assert first.run_dir == second.run_dir
+    assert first.idempotent is False
+    assert second.idempotent is True
+    assert len(list((tmp_path / "runs").glob("[0-9a-f]*"))) == 1
+    assert (first.run_dir / "run_card.json").is_file()
+    assert (first.run_dir / "strategy_farm.json").is_file()
+
+
+def test_same_identity_with_different_result_fails_closed(tmp_path):
+    provenance = _provenance()
+    evidence, report = _complete_evidence(tmp_path)
+    provenance.publish_run_archive(**_publish_args(tmp_path, evidence, report))
+    changed = copy.deepcopy(evidence)
+    changed["result_fingerprint"] = "f" * 64
+
+    with pytest.raises(provenance.ProvenanceConflictError):
+        provenance.publish_run_archive(
+            **_publish_args(tmp_path, changed, report),
+        )
+
+
+def test_corrupt_retained_artifact_fails_closed(tmp_path):
+    provenance = _provenance()
+    evidence, report = _complete_evidence(tmp_path)
+    first = provenance.publish_run_archive(
+        **_publish_args(tmp_path, evidence, report),
+    )
+    (first.run_dir / "strategy_farm.json").write_text(
+        "corrupt\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(provenance.ProvenanceConflictError):
+        provenance.publish_run_archive(
+            **_publish_args(tmp_path, evidence, report),
+        )
+
+
+def test_incomplete_evidence_marks_latest_report_without_archive(tmp_path):
+    provenance = _provenance()
+    evidence, report = _complete_evidence(tmp_path)
+    evidence["reproducibility"]["verified_now"] = False
+    evidence["reproducibility"]["errors"] = [
+        "unverified_tick_contract:2026-07-06",
+    ]
+
+    result = provenance.publish_run_archive(
+        **_publish_args(tmp_path, evidence, report),
+    )
+
+    assert result.status == "incomplete"
+    assert result.run_dir is None
+    assert result.report["provenance"]["status"] == "incomplete"
+    assert not (tmp_path / "runs").exists()
+
+
+def test_detailed_result_is_referenced_but_not_copied(tmp_path):
+    provenance = _provenance()
+    args = _evidence_args(tmp_path)
+    report = args["report"]
+    report["includes_trade_details"] = True
+    evidence = provenance.build_run_evidence(**args)
+
+    result = provenance.publish_run_archive(
+        **_publish_args(tmp_path, evidence, report, include_trades=True),
+    )
+
+    card = json.loads((result.run_dir / "run_card.json").read_text())
+    assert not (result.run_dir / "strategy_farm.json").exists()
+    assert card["artifacts"][0]["retained"] is False

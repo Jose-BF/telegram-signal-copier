@@ -5,7 +5,11 @@ import hashlib
 import json
 import math
 import platform
+import shutil
 import subprocess
+import tempfile
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from importlib import metadata
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -19,6 +23,18 @@ _TICK_CONTRACT_FIELDS = (
     "parquet_sha256",
     "size_bytes",
 )
+
+
+class ProvenanceConflictError(RuntimeError):
+    pass
+
+
+@dataclass(frozen=True)
+class PublicationResult:
+    report: dict[str, Any]
+    status: str
+    run_dir: Path | None
+    idempotent: bool
 
 
 def _json_safe(value: Any) -> Any:
@@ -261,3 +277,178 @@ def build_run_evidence(
         },
         "result_summary": result_summary(report),
     }
+
+
+def _pretty_json_bytes(value: Any) -> bytes:
+    return (
+        json.dumps(
+            _json_safe(value),
+            ensure_ascii=False,
+            allow_nan=False,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
+def _provenance_ref(
+    evidence: Mapping[str, Any],
+    status: str,
+    card_path: str | None,
+) -> dict[str, Any]:
+    reproducibility = evidence["reproducibility"]
+    return {
+        "status": status,
+        "run_fingerprint": evidence["run_fingerprint"],
+        "result_fingerprint": evidence["result_fingerprint"],
+        "run_card": card_path,
+        "verified_now": reproducibility["verified_now"],
+        "durable": reproducibility["durable"],
+        "errors": list(reproducibility["errors"]),
+        "limitations": list(reproducibility["limitations"]),
+    }
+
+
+def _retained_artifact_path(run_dir: Path, relative_path: str) -> Path:
+    artifact_path = (run_dir / relative_path).resolve()
+    try:
+        artifact_path.relative_to(run_dir.resolve())
+    except ValueError as exc:
+        raise ProvenanceConflictError(
+            f"invalid_retained_artifact_path:{relative_path}"
+        ) from exc
+    return artifact_path
+
+
+def _validate_existing(run_dir: Path, evidence: Mapping[str, Any]) -> None:
+    card_path = run_dir / "run_card.json"
+    try:
+        card = json.loads(card_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ProvenanceConflictError(
+            f"invalid_existing_run_card:{type(exc).__name__}"
+        ) from exc
+
+    for key, expected in evidence.items():
+        if key not in card or canonical_json_bytes(card[key]) != canonical_json_bytes(expected):
+            raise ProvenanceConflictError(f"existing_{key}_mismatch")
+
+    artifacts = card.get("artifacts")
+    if not isinstance(artifacts, list) or not artifacts:
+        raise ProvenanceConflictError("invalid_existing_artifacts")
+    for artifact in artifacts:
+        if not isinstance(artifact, Mapping):
+            raise ProvenanceConflictError("invalid_existing_artifact_record")
+        if not artifact.get("retained"):
+            continue
+        relative_path = str(artifact.get("path") or "")
+        path = _retained_artifact_path(run_dir, relative_path)
+        if not path.is_file():
+            raise ProvenanceConflictError(
+                f"missing_retained_artifact:{relative_path}"
+            )
+        try:
+            expected_size = int(artifact["size_bytes"])
+            expected_hash = str(artifact["sha256"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ProvenanceConflictError(
+                f"invalid_retained_artifact_record:{relative_path}"
+            ) from exc
+        if path.stat().st_size != expected_size:
+            raise ProvenanceConflictError(
+                f"artifact_size_mismatch:{relative_path}"
+            )
+        if sha256_file(path) != expected_hash:
+            raise ProvenanceConflictError(
+                f"artifact_hash_mismatch:{relative_path}"
+            )
+
+
+def _validate_fingerprint(value: Any, role: str) -> str:
+    fingerprint = str(value)
+    if len(fingerprint) != 64 or any(
+        character not in "0123456789abcdef" for character in fingerprint
+    ):
+        raise ProvenanceConflictError(f"invalid_{role}_fingerprint")
+    return fingerprint
+
+
+def publish_run_archive(
+    *,
+    report: Mapping[str, Any],
+    evidence: Mapping[str, Any],
+    archive_root: Path,
+    output_path: Path,
+    include_trades: bool,
+    repo_dir: Path,
+    now: datetime | None = None,
+) -> PublicationResult:
+    run_fingerprint = _validate_fingerprint(
+        evidence.get("run_fingerprint"),
+        "run",
+    )
+    expected_result = _validate_fingerprint(
+        evidence.get("result_fingerprint"),
+        "result",
+    )
+    if result_fingerprint(report) != expected_result:
+        raise ProvenanceConflictError("evidence_result_fingerprint_mismatch")
+
+    latest = copy.deepcopy(dict(report))
+    reproducibility = evidence["reproducibility"]
+    if not reproducibility["verified_now"]:
+        latest["provenance"] = _provenance_ref(evidence, "incomplete", None)
+        return PublicationResult(latest, "incomplete", None, False)
+
+    archive_root = Path(archive_root)
+    run_dir = archive_root / run_fingerprint
+    card_path = run_dir / "run_card.json"
+    card_ref = _portable_path(card_path, Path(repo_dir))
+    latest["provenance"] = _provenance_ref(evidence, "archived", card_ref)
+    report_bytes = _pretty_json_bytes(latest)
+
+    if include_trades:
+        artifacts = [{
+            "path": _portable_path(Path(output_path), Path(repo_dir)),
+            "size_bytes": len(report_bytes),
+            "sha256": hashlib.sha256(report_bytes).hexdigest(),
+            "retained": False,
+        }]
+    else:
+        artifacts = [{
+            "path": "strategy_farm.json",
+            "size_bytes": len(report_bytes),
+            "sha256": hashlib.sha256(report_bytes).hexdigest(),
+            "retained": True,
+        }]
+
+    if run_dir.exists():
+        _validate_existing(run_dir, evidence)
+        return PublicationResult(latest, "archived", run_dir, True)
+
+    created_at = (now or datetime.now(timezone.utc)).isoformat(timespec="seconds")
+    card = {
+        **copy.deepcopy(dict(evidence)),
+        "created_at_utc": created_at,
+        "artifacts": artifacts,
+    }
+    archive_root.mkdir(parents=True, exist_ok=True)
+    temp_dir = Path(tempfile.mkdtemp(prefix=".tmp-run-", dir=archive_root))
+    idempotent = False
+    try:
+        (temp_dir / "run_card.json").write_bytes(_pretty_json_bytes(card))
+        if not include_trades:
+            (temp_dir / "strategy_farm.json").write_bytes(report_bytes)
+        try:
+            temp_dir.replace(run_dir)
+        except OSError:
+            if not run_dir.exists():
+                raise
+            _validate_existing(run_dir, evidence)
+            idempotent = True
+    finally:
+        if temp_dir.exists():
+            shutil.rmtree(temp_dir)
+
+    return PublicationResult(latest, "archived", run_dir, idempotent)
