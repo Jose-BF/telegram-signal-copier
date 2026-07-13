@@ -25,6 +25,11 @@ Run order:
 6. `observed_tick_replay_validator.py` -> `data/observed_tick_replay_audit.jsonl`
 7. `provider_signal_catalog.py` -> `data/provider_signal_catalog.json`
 8. `strategy_farm.py` -> `data/strategy_farm.json`
+9. `simulation_run_provenance.py` -> `data/simulation_runs/<fingerprint>/run_card.json`
+
+`data/provider_signal_catalog.json` is a canonical versioned input, not a
+disposable intermediate. The watcher must stage it together with the farm
+report and run archive.
 
 ## Support Modules
 
@@ -39,6 +44,15 @@ Run order:
 - `strategy_policies.py`: declarative close/BE/runner policy catalog shared by both channels.
 - `strategy_simulator.py`: causal tick replay for one management policy. Farm runs must use canonical provider timelines, never MT5 ticket histories as a substitute.
 - `strategy_farm.py`: batch policy comparison and strict selection gates.
+- `simulation_run_provenance.py`: deterministic farm-run identity from selected payloads, policy order, source hashes, runtime versions and already-verified tick contracts. Repeated identical runs reuse their immutable archive; conflicting results fail closed.
+
+## Simulation Evidence
+
+- `data/simulation_runs/<fingerprint>/run_card.json` is immutable evidence for one computational identity.
+- Compact runs retain `strategy_farm.json` in that directory. Detailed `--include-trades` outputs are referenced by exact path, size and SHA-256 rather than copied.
+- Tick digests verify the bytes used, but tick Parquet retention is currently local-only. A card cannot recreate a deleted cache file and must state that limitation.
+- Git branch, absolute machine paths and run timestamp are diagnostics, not parts of computational identity.
+- No live order module may import `simulation_run_provenance`; publication remains an offline post-session step.
 
 ## Analysis Guidance
 

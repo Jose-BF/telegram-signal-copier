@@ -27,6 +27,12 @@ Replay and simulation foundation:
 - `strategy_policies.py` defines the shared close/BE/runner policy matrix for both channels.
 - `strategy_simulator.py` replays one causal management policy over validated ticks and canonical Telegram level/management timelines.
 - `strategy_farm.py` compares the policy matrix and writes `data/strategy_farm.json` with metrics, coverage and strict selection blockers.
+- `simulation_run_provenance.py` fingerprints the exact selected farm inputs, policy order, source files, runtime versions and tick contracts already verified by the replay loader.
+- `data/simulation_runs/<fingerprint>/run_card.json` is immutable run evidence. Repeating identical computational inputs reuses the same directory; a contradictory result fails closed.
+
+`data/provider_signal_catalog.json` is a canonical, versioned farm input. It
+must travel with `data/strategy_farm.json` and the corresponding run card; it
+is not a disposable intermediate report.
 
 Run the current clean-window diagnostics manually:
 
@@ -35,6 +41,12 @@ python provider_signal_catalog.py
 python strategy_farm.py --from 2026-07-06
 python strategy_farm.py --from 2026-07-06 --include-trades --output data/strategy_farm_detail.json
 ```
+
+Use `--run-archive-dir <path>` to override the default
+`data/simulation_runs` archive. Compact farm runs retain a copy of the report
+inside their fingerprint directory. `--include-trades` reports can be large,
+so their exact output path, size and SHA-256 are recorded but the report is not
+copied into the archive.
 
 `--ensure` automatically replaces legacy, unversioned or tampered cache days.
 `--refresh-day` remains available when a known day must be forced manually:
@@ -49,6 +61,11 @@ from `exploratory_ranking` as well. Baseline replay requires verifiable bid/ask
 ticks at both the MT5 entry and exit, matching first-touch time, reason and
 fill price. Missing provider signals, blocked tick replay, small samples and an
 unvalidated untouched OOS period prevent strategy selection.
+
+Tick run-card digests prove which local Parquet bytes were used at execution
+time. The Parquet cache itself is currently local-only: a run card cannot
+recreate a cache file after that file has been deleted. Such cards therefore
+report current verification separately from durable artifact retention.
 
 Analysis:
 
