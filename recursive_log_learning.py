@@ -525,6 +525,8 @@ def merge_review_metadata(pattern: dict, review: dict) -> dict:
         )
         if any(field not in review or review.get(field) in (None, "") for field in required):
             raise ValueError("review evidence requires rule, test, coverage time and shadow result")
+        if review.get("shadow_corpus_passed") is not True:
+            raise ValueError("review evidence requires a successful shadow corpus evaluation")
         covered_after = _parse_dt(review.get("covered_after_utc"))
         if covered_after is None:
             raise ValueError("review evidence has an invalid coverage timestamp")
@@ -642,9 +644,9 @@ def _aggregate_patterns(
             ),
             "candidate_reason": reason,
             "priority_score": (
-                SEVERITY_WEIGHT[severity] * 100
-                + len(days) * 20
-                + len(signals) * 10
+                SEVERITY_WEIGHT[severity] * 10_000
+                + min(len(days), 100) * 20
+                + min(len(signals), 100) * 10
                 + min(raw_events, 1000) // 10
             ),
             "coverage": {
@@ -846,6 +848,46 @@ def _review_map(review_metadata: dict | None) -> dict:
     return reviews if isinstance(reviews, dict) else {}
 
 
+def _latest_day_delta(patterns: Iterable[dict]) -> dict:
+    patterns = list(patterns)
+    days = sorted({
+        day
+        for row in patterns
+        for day in (row.get("affected_days") or [])
+        if day
+    })
+    latest_day = days[-1] if days else None
+    new_patterns: list[str] = []
+    recurring_patterns: list[str] = []
+    regressed_patterns: list[str] = []
+
+    if latest_day:
+        for row in patterns:
+            affected_days = row.get("affected_days") or []
+            if latest_day not in affected_days:
+                continue
+            first_day = _day(row.get("first_seen_utc"))
+            if first_day == latest_day:
+                new_patterns.append(row["pattern_id"])
+            elif first_day and first_day < latest_day:
+                recurring_patterns.append(row["pattern_id"])
+            if row.get("status") == "regressed":
+                regressed_patterns.append(row["pattern_id"])
+
+    new_patterns.sort()
+    recurring_patterns.sort()
+    regressed_patterns.sort()
+    return {
+        "evidence_day": latest_day,
+        "new_pattern_count": len(new_patterns),
+        "recurring_pattern_count": len(recurring_patterns),
+        "regressed_pattern_count": len(regressed_patterns),
+        "new_patterns": new_patterns,
+        "recurring_patterns": recurring_patterns,
+        "regressed_patterns": regressed_patterns,
+    }
+
+
 def build_learning_outputs(
     *,
     events: Iterable[dict],
@@ -956,6 +998,7 @@ def build_learning_outputs(
                 )
                 if patterns else 1.0
             ),
+            "latest_day_delta": _latest_day_delta(patterns),
             "promotion_boundary": (
                 "logs propose; fixtures, tests, whole-corpus shadow evaluation "
                 "and human review promote"

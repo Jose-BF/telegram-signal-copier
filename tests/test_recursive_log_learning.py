@@ -142,6 +142,29 @@ def test_more_logs_increase_recurrence_without_changing_pattern_identity():
     assert pattern["raw_events"] == 235
 
 
+def test_latest_day_delta_separates_new_patterns_from_known_recurrences():
+    events = [
+        _invalid_stop(1, ts="2026-07-13T07:00:00+00:00", attempts=1),
+        _invalid_stop(2, ts="2026-07-14T07:00:00+00:00", attempts=1),
+        {
+            "ts": "2026-07-14T08:00:00+00:00",
+            "sig": "bot",
+            "ev": "notify_failed",
+            "method": "telegram",
+            "error": "timeout",
+        },
+    ]
+
+    outputs = _build(events=events)
+    delta = outputs.report["learning_flywheel"]["latest_day_delta"]
+
+    assert delta["evidence_day"] == "2026-07-14"
+    assert delta["new_patterns"] == [
+        "observability.notification_delivery_failed"]
+    assert delta["recurring_patterns"] == [
+        "execution.invalid_stops.modify_sltp"]
+
+
 def test_rerunning_same_corpus_is_byte_deterministic(tmp_path):
     kwargs = {
         "events": [_invalid_stop(ticket) for ticket in range(1, 3)],
@@ -176,6 +199,22 @@ def test_rerunning_same_corpus_is_byte_deterministic(tmp_path):
 )
 def test_reviewed_status_requires_auditable_human_evidence(review):
     with pytest.raises(ValueError, match="review evidence"):
+        learning.merge_review_metadata(
+            {"pattern_id": "execution.invalid_stops.modify_sltp"}, review)
+
+
+def test_covered_status_requires_successful_whole_corpus_shadow_evaluation():
+    review = {
+        "status": "covered",
+        "rule_version": "executor.preflight.v1",
+        "regression_test": "tests/test_pending_actions.py::test_preflight",
+        "reviewed_by": "project_owner",
+        "reviewed_at_utc": "2026-07-14T08:00:00+00:00",
+        "covered_after_utc": "2026-07-14T08:00:00+00:00",
+        "shadow_corpus_passed": False,
+    }
+
+    with pytest.raises(ValueError, match="shadow corpus"):
         learning.merge_review_metadata(
             {"pattern_id": "execution.invalid_stops.modify_sltp"}, review)
 
@@ -284,3 +323,43 @@ def test_serialized_outputs_do_not_contain_a_volatile_generation_timestamp():
 
     assert "generated_at" not in payload
     assert payload["corpus"]["event_rows"] == 0
+
+
+def test_severity_tier_cannot_be_overridden_by_high_volume_low_risk_noise():
+    low_risk_rows = [
+        learning.PatternObservation(
+            pattern_id="semantics.context_media_not_extracted",
+            category="semantics",
+            template="context media has no extracted semantics",
+            severity="low",
+            incident_key=f"media:{day}",
+            ts_utc=f"2026-06-{day:02d}T08:00:00+00:00",
+            signal=f"canal1_{day}",
+            channel="canal1",
+            event="provider_record",
+            detail="media",
+            raw_count=100,
+        )
+        for day in range(1, 29)
+    ]
+    critical = learning.PatternObservation(
+        pattern_id="execution.invalid_stops.modify_sltp",
+        category="execution",
+        template="invalid stops while modifying sl/tp",
+        severity="critical",
+        incident_key="invalid-stop:1",
+        ts_utc="2026-07-13T08:00:00+00:00",
+        signal="canal2_1",
+        channel="canal2",
+        event="mt5_action_failed",
+        detail="invalid stops",
+    )
+
+    patterns = learning._aggregate_patterns([*low_risk_rows, critical], {})
+    by_id = {row["pattern_id"]: row for row in patterns}
+
+    assert (
+        by_id["execution.invalid_stops.modify_sltp"]["priority_score"]
+        > by_id["semantics.context_media_not_extracted"]["priority_score"]
+    )
+    assert patterns[0]["pattern_id"] == "execution.invalid_stops.modify_sltp"
