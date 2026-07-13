@@ -313,6 +313,32 @@ def test_trade_blocks_when_tick_cache_has_no_verified_utc_contract(tmp_path):
     assert "invalid_tick_cache_contract:2026-07-06" in result["blockers"]
 
 
+def test_tick_loader_exposes_verified_contracts_and_required_days(tmp_path):
+    cache_dir = tmp_path / "ticks_cache"
+    cache_dir.mkdir()
+    parquet = cache_dir / "2026-07-06.parquet"
+    _ticks([{
+        "time_utc": "2026-07-06T10:00:00+00:00",
+        "bid": 4199.8,
+        "ask": 4200.0,
+    }]).to_parquet(parquet, index=False)
+    ensure_replay_tick_cache.write_day_contract(
+        cache_dir, date(2026, 7, 6))
+    loader = observed_tick_replay_validator.ReplayTickFrameCache(cache_dir)
+
+    loader.load_ticks_for_trade(_trade(sig_id="canal1_1"))
+    loader.load_ticks_for_trade(_trade(sig_id="canal1_2"))
+
+    assert loader.required_days == ["2026-07-06"]
+    assert loader.verified_contracts["2026-07-06"] == {
+        "day": "2026-07-06",
+        "tick_time_contract": "mt5_utc_v2",
+        "time_basis": "UTC",
+        "parquet_sha256": ensure_replay_tick_cache._file_sha256(parquet),
+        "size_bytes": parquet.stat().st_size,
+    }
+
+
 def test_cli_writes_observed_tick_replay_audit_and_status(tmp_path):
     cache_dir = tmp_path / "ticks_cache"
     cache_dir.mkdir()

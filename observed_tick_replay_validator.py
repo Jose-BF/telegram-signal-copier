@@ -520,6 +520,19 @@ class ReplayTickFrameCache:
     def __init__(self, tick_cache_dir: Path):
         self.tick_cache_dir = Path(tick_cache_dir)
         self._frames: dict[str, pd.DataFrame] = {}
+        self._required_days: set[str] = set()
+        self._verified_contracts: dict[str, dict] = {}
+
+    @property
+    def required_days(self) -> list[str]:
+        return sorted(self._required_days)
+
+    @property
+    def verified_contracts(self) -> dict[str, dict]:
+        return {
+            day: dict(contract)
+            for day, contract in sorted(self._verified_contracts.items())
+        }
 
     def _load_day(self, day: str) -> tuple[pd.DataFrame | None, str | None]:
         if day in self._frames:
@@ -527,10 +540,11 @@ class ReplayTickFrameCache:
         path = self.tick_cache_dir / f"{day}.parquet"
         if not path.exists():
             return None, f"missing_tick_cache:{day}"
-        if not ensure_replay_tick_cache.day_contract_valid(
+        contract = ensure_replay_tick_cache.load_valid_day_contract(
             self.tick_cache_dir,
             datetime.fromisoformat(day).date(),
-        ):
+        )
+        if contract is None:
             return None, f"invalid_tick_cache_contract:{day}"
         try:
             frame = pd.read_parquet(path)
@@ -541,6 +555,7 @@ class ReplayTickFrameCache:
             frame["time_utc"] = pd.to_datetime(frame["time_utc"], utc=True)
             frame = frame.sort_values("time_utc").reset_index(drop=True)
         self._frames[day] = frame
+        self._verified_contracts[day] = contract
         return frame, None
 
     def load_ticks_for_trade(
@@ -552,6 +567,7 @@ class ReplayTickFrameCache:
         missing: list[str] = []
         frames: list[pd.DataFrame] = []
         for day in _required_tick_days(trade, pad_minutes):
+            self._required_days.add(day)
             frame, error = self._load_day(day)
             if error:
                 missing.append(error)

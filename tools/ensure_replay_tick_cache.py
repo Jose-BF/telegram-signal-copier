@@ -128,20 +128,33 @@ def write_day_contract(cache_dir: Path, day: date) -> Path:
     return contract_path
 
 
-def day_contract_valid(cache_dir: Path, day: date) -> bool:
+def load_valid_day_contract(cache_dir: Path, day: date) -> dict | None:
     parquet_path = _day_file(cache_dir, day)
     contract_path = _day_contract_file(cache_dir, day)
     if not parquet_path.is_file() or not contract_path.is_file():
-        return False
+        return None
     try:
         contract = json.loads(contract_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return False
-    return bool(
+        return None
+    digest = _file_sha256(parquet_path)
+    if not (
         contract.get("tick_time_contract") == TICK_TIME_CONTRACT
         and contract.get("time_basis") == "UTC"
-        and contract.get("parquet_sha256") == _file_sha256(parquet_path)
-    )
+        and contract.get("parquet_sha256") == digest
+    ):
+        return None
+    return {
+        "day": day.isoformat(),
+        "tick_time_contract": TICK_TIME_CONTRACT,
+        "time_basis": "UTC",
+        "parquet_sha256": digest,
+        "size_bytes": parquet_path.stat().st_size,
+    }
+
+
+def day_contract_valid(cache_dir: Path, day: date) -> bool:
+    return load_valid_day_contract(cache_dir, day) is not None
 
 
 def refresh_cache_days(days: list[date], *, cache_dir: Path) -> list[date]:

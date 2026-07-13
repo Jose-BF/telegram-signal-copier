@@ -95,6 +95,25 @@ def test_unversioned_or_tampered_cache_day_is_invalid(tmp_path):
     assert tampered_status["invalid_days"] == ["2026-07-08"]
 
 
+def test_load_valid_day_contract_returns_normalized_evidence(tmp_path):
+    cache_dir = tmp_path / "ticks_cache"
+    cache_dir.mkdir()
+    day = date(2026, 7, 6)
+    parquet = cache_dir / "2026-07-06.parquet"
+    parquet.write_bytes(b"verified tick bytes")
+    ensure_replay_tick_cache.write_day_contract(cache_dir, day)
+
+    record = ensure_replay_tick_cache.load_valid_day_contract(cache_dir, day)
+
+    assert record == {
+        "day": "2026-07-06",
+        "tick_time_contract": "mt5_utc_v2",
+        "time_basis": "UTC",
+        "parquet_sha256": ensure_replay_tick_cache._file_sha256(parquet),
+        "size_bytes": parquet.stat().st_size,
+    }
+
+
 def test_cache_status_uses_repo_relative_cache_dir_for_default_cache():
     status = ensure_replay_tick_cache.build_status(
         [],
