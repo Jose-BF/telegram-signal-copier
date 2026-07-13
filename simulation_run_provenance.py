@@ -279,7 +279,7 @@ def build_run_evidence(
     }
 
 
-def _pretty_json_bytes(value: Any) -> bytes:
+def pretty_json_bytes(value: Any) -> bytes:
     return (
         json.dumps(
             _json_safe(value),
@@ -406,7 +406,7 @@ def publish_run_archive(
     card_path = run_dir / "run_card.json"
     card_ref = _portable_path(card_path, Path(repo_dir))
     latest["provenance"] = _provenance_ref(evidence, "archived", card_ref)
-    report_bytes = _pretty_json_bytes(latest)
+    report_bytes = pretty_json_bytes(latest)
 
     if include_trades:
         artifacts = [{
@@ -437,7 +437,7 @@ def publish_run_archive(
     temp_dir = Path(tempfile.mkdtemp(prefix=".tmp-run-", dir=archive_root))
     idempotent = False
     try:
-        (temp_dir / "run_card.json").write_bytes(_pretty_json_bytes(card))
+        (temp_dir / "run_card.json").write_bytes(pretty_json_bytes(card))
         if not include_trades:
             (temp_dir / "strategy_farm.json").write_bytes(report_bytes)
         try:

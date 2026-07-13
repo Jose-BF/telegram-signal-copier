@@ -5,11 +5,13 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
 import observed_tick_replay_validator
+import simulation_run_provenance
 import strategy_policies
 import strategy_simulator
 
@@ -20,6 +22,7 @@ DEFAULT_BASELINE = DATA_DIR / "observed_tick_replay_audit.jsonl"
 DEFAULT_CATALOG = DATA_DIR / "provider_signal_catalog.json"
 DEFAULT_TICK_CACHE = DATA_DIR / "ticks_cache"
 DEFAULT_OUTPUT = DATA_DIR / "strategy_farm.json"
+DEFAULT_RUN_ARCHIVE = DATA_DIR / "simulation_runs"
 SCHEMA_VERSION = 1
 UNSAFE_CALIBRATION_PREFIXES = (
     "default_unit_value",
@@ -33,6 +36,15 @@ UNSAFE_CALIBRATION_SOURCES = {
     "default_unit_value",
     "cli_default_unit_value",
 }
+
+
+@dataclass(frozen=True)
+class FarmExecution:
+    report: dict
+    selected_payloads: dict[str, list]
+    policies: list[dict]
+    required_tick_days: list[str]
+    verified_tick_contracts: dict[str, dict]
 
 
 def _money(value: float | None) -> float | None:
@@ -238,14 +250,13 @@ def select_strategy(
     }
 
 
-def _canonical_scope(
+def _provider_signals_in_scope(
     catalog: dict | None,
     from_date: str | None,
     to_date: str | None,
-) -> dict:
-    signals = list((catalog or {}).get("signals") or [])
+) -> list[dict]:
     selected = []
-    for signal in signals:
+    for signal in (catalog or {}).get("signals") or []:
         ts = signal.get("first_observed_utc") or signal.get("signal_ts_utc")
         day = str(ts or "")[:10]
         if not day:
@@ -255,6 +266,15 @@ def _canonical_scope(
         if to_date and day > to_date:
             continue
         selected.append(signal)
+    return selected
+
+
+def _canonical_scope(
+    catalog: dict | None,
+    from_date: str | None,
+    to_date: str | None,
+) -> dict:
+    selected = _provider_signals_in_scope(catalog, from_date, to_date)
     return {
         "provider_signals": len(selected),
         "complete_signals": sum(
@@ -301,7 +321,7 @@ def build_policy_score(
     return score
 
 
-def build_farm_report(
+def build_farm_execution(
     trades: list[dict],
     baseline_rows: list[dict],
     *,
@@ -312,7 +332,7 @@ def build_farm_report(
     to_date: str | None = None,
     minimum_trades: int = 200,
     include_trades: bool = False,
-) -> dict:
+) -> FarmExecution:
     policies = policies or strategy_policies.default_policy_catalog()
     selected_trades = [
         trade
@@ -386,7 +406,7 @@ def build_farm_report(
         )
         selection["selected_policy"] = None
 
-    return {
+    report = {
         "schema_version": SCHEMA_VERSION,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "from_date": from_date,
@@ -402,6 +422,58 @@ def build_farm_report(
         "selection": selection,
         "policies": scores,
     }
+    effective_baselines = [
+        {
+            "sig_id": str(trade.get("sig_id")),
+            "baseline": baselines.get(str(trade.get("sig_id"))),
+        }
+        for trade in selected_trades
+    ]
+    effective_providers = [
+        {
+            "sig_id": str(trade.get("sig_id")),
+            "provider_signal": providers.get(str(trade.get("sig_id"))),
+        }
+        for trade in selected_trades
+    ]
+    provider_scope = _provider_signals_in_scope(catalog, from_date, to_date)
+    return FarmExecution(
+        report=report,
+        selected_payloads={
+            "replay_trades": selected_trades,
+            "effective_baselines": effective_baselines,
+            "effective_provider_links": effective_providers,
+            "provider_scope": provider_scope,
+        },
+        policies=[policy.to_dict() for policy in policies],
+        required_tick_days=tick_loader.required_days,
+        verified_tick_contracts=tick_loader.verified_contracts,
+    )
+
+
+def build_farm_report(
+    trades: list[dict],
+    baseline_rows: list[dict],
+    *,
+    tick_cache_dir: Path,
+    policies: list[strategy_policies.StrategyPolicy] | None = None,
+    catalog: dict | None = None,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    minimum_trades: int = 200,
+    include_trades: bool = False,
+) -> dict:
+    return build_farm_execution(
+        trades,
+        baseline_rows,
+        tick_cache_dir=tick_cache_dir,
+        policies=policies,
+        catalog=catalog,
+        from_date=from_date,
+        to_date=to_date,
+        minimum_trades=minimum_trades,
+        include_trades=include_trades,
+    ).report
 
 
 def _load_json(path: Path) -> dict:
@@ -412,10 +484,7 @@ def _load_json(path: Path) -> dict:
 
 def write_report(report: dict, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(report, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    path.write_bytes(simulation_run_provenance.pretty_json_bytes(report))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -426,6 +495,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)
     parser.add_argument("--tick-cache-dir", type=Path, default=DEFAULT_TICK_CACHE)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument(
+        "--run-archive-dir",
+        type=Path,
+        default=DEFAULT_RUN_ARCHIVE,
+    )
     parser.add_argument("--from", dest="from_date")
     parser.add_argument("--to", dest="to_date")
     parser.add_argument("--minimum-trades", type=int, default=200)
@@ -433,16 +507,80 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args(argv)
 
-    report = build_farm_report(
-        strategy_simulator.load_jsonl(args.replay),
-        strategy_simulator.load_jsonl(args.baseline),
+    required_inputs = {
+        "replay_trades": args.replay,
+        "observed_baseline": args.baseline,
+        "provider_catalog": args.catalog,
+    }
+    args.output.unlink(missing_ok=True)
+    missing = [
+        role for role, path in required_inputs.items() if not path.is_file()
+    ]
+    if missing:
+        print(
+            f"Missing strategy-farm inputs: {', '.join(missing)}",
+            file=sys.stderr,
+        )
+        return 1
+
+    trades = strategy_simulator.load_jsonl(args.replay)
+    baseline_rows = strategy_simulator.load_jsonl(args.baseline)
+    catalog = _load_json(args.catalog)
+    execution = build_farm_execution(
+        trades,
+        baseline_rows,
         tick_cache_dir=args.tick_cache_dir,
-        catalog=_load_json(args.catalog),
+        catalog=catalog,
         from_date=args.from_date,
         to_date=args.to_date,
         minimum_trades=args.minimum_trades,
         include_trades=args.include_trades,
     )
+    evidence = simulation_run_provenance.build_run_evidence(
+        repo_dir=Path(__file__).parent,
+        report=execution.report,
+        parameters={
+            "from_date": args.from_date,
+            "to_date": args.to_date,
+            "minimum_trades": args.minimum_trades,
+            "include_trades": args.include_trades,
+            "tick_pad_minutes": 5,
+        },
+        selected_payloads=execution.selected_payloads,
+        policies=execution.policies,
+        input_files=required_inputs,
+        source_files={
+            "strategy_farm": Path(__file__),
+            "strategy_policies": Path(strategy_policies.__file__),
+            "strategy_simulator": Path(strategy_simulator.__file__),
+            "observed_tick_replay_validator": Path(
+                observed_tick_replay_validator.__file__
+            ),
+            "ensure_replay_tick_cache": Path(
+                observed_tick_replay_validator.ensure_replay_tick_cache.__file__
+            ),
+            "simulation_run_provenance": Path(
+                simulation_run_provenance.__file__
+            ),
+        },
+        required_tick_days=execution.required_tick_days,
+        tick_contracts=execution.verified_tick_contracts,
+    )
+    try:
+        publication = simulation_run_provenance.publish_run_archive(
+            report=execution.report,
+            evidence=evidence,
+            archive_root=args.run_archive_dir,
+            output_path=args.output,
+            include_trades=args.include_trades,
+            repo_dir=Path(__file__).parent,
+        )
+    except simulation_run_provenance.ProvenanceConflictError as exc:
+        args.output.unlink(missing_ok=True)
+        print(f"Simulation provenance conflict: {exc}", file=sys.stderr)
+        return 2
+
+    report = publication.report
     write_report(report, args.output)
     if not args.quiet:
         print(f"Policies: {report['policy_count']}")
@@ -456,6 +594,8 @@ def main(argv: list[str] | None = None) -> int:
         print(
             "Selection blockers: "
             f"{', '.join(report['selection']['global_blockers']) or 'none'}")
+        print(f"Provenance: {publication.status}")
+        print(f"Run fingerprint: {evidence['run_fingerprint']}")
         print(f"Output: {args.output}")
     return 0
 

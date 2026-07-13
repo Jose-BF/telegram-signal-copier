@@ -1,3 +1,7 @@
+import json
+
+import pandas as pd
+
 import strategy_farm
 import strategy_policies
 
@@ -287,3 +291,235 @@ def test_farm_passes_canonical_provider_signal_to_every_counterfactual(
 
     assert captured[0]["provider_signal"] is provider_signal
     assert captured[0]["require_provider_timeline"] is True
+
+
+def _farm_trade(sig_id):
+    return {
+        "sig_id": sig_id,
+        "channel": "canal1",
+        "direction": "BUY",
+        "open_dt_utc": "2026-07-06T10:00:00+00:00",
+        "close_dt_utc": "2026-07-06T10:05:00+00:00",
+        "tickets": [],
+    }
+
+
+def _provider_signal(sig_id):
+    return {
+        "provider_signal_id": sig_id,
+        "execution_sig_ids": [sig_id],
+        "first_observed_utc": "2026-07-06T09:59:59+00:00",
+        "signal_ts_utc": "2026-07-06T09:59:58+00:00",
+        "semantic_status": "complete",
+        "execution_count": 1,
+        "channel": "canal1",
+        "level_timeline": [],
+    }
+
+
+class _FakeTickLoader:
+    def __init__(self, tick_cache_dir):
+        self.required_days = ["2026-07-06"]
+        self.verified_contracts = {
+            "2026-07-06": {
+                "day": "2026-07-06",
+                "tick_time_contract": "mt5_utc_v2",
+                "time_basis": "UTC",
+                "parquet_sha256": "a" * 64,
+                "size_bytes": 123,
+            }
+        }
+
+    def load_ticks_for_trade(self, trade, *, pad_minutes=5):
+        return pd.DataFrame(), []
+
+
+def test_farm_execution_exposes_exact_provenance_payloads(
+    tmp_path,
+    monkeypatch,
+):
+    policies = [strategy_policies.StrategyPolicy(
+        policy_id="runner",
+        close_legs=0,
+        be_legs=0,
+        runner_legs=1,
+        base_leg_count=1,
+    )]
+    trades = [_farm_trade("canal1_2"), _farm_trade("canal1_1")]
+    baselines = [
+        {"sig_id": "canal1_1", "status": "exact"},
+        {"sig_id": "canal1_2", "status": "exact"},
+    ]
+    catalog = {
+        "signals": [
+            _provider_signal("canal1_1"),
+            _provider_signal("canal1_2"),
+        ]
+    }
+    monkeypatch.setattr(
+        strategy_farm.observed_tick_replay_validator,
+        "ReplayTickFrameCache",
+        _FakeTickLoader,
+    )
+    monkeypatch.setattr(
+        strategy_farm.strategy_simulator,
+        "simulate_trade",
+        lambda *args, **kwargs: _row(0.0, status="unchanged"),
+    )
+
+    execution = strategy_farm.build_farm_execution(
+        trades,
+        baselines,
+        tick_cache_dir=tmp_path / "ticks",
+        policies=policies,
+        catalog=catalog,
+        from_date="2026-07-06",
+        minimum_trades=1,
+    )
+
+    assert execution.report["executed_trade_count"] == 2
+    assert [
+        row["sig_id"]
+        for row in execution.selected_payloads["replay_trades"]
+    ] == ["canal1_2", "canal1_1"]
+    assert [
+        row["sig_id"]
+        for row in execution.selected_payloads["effective_baselines"]
+    ] == ["canal1_2", "canal1_1"]
+    assert execution.required_tick_days == ["2026-07-06"]
+    assert execution.verified_tick_contracts["2026-07-06"][
+        "parquet_sha256"
+    ] == "a" * 64
+
+
+def _write_empty_farm_inputs(root):
+    replay = root / "replay.jsonl"
+    baseline = root / "baseline.jsonl"
+    catalog = root / "catalog.json"
+    replay.write_text("", encoding="utf-8")
+    baseline.write_text("", encoding="utf-8")
+    catalog.write_text(
+        '{"schema_version":1,"signals":[]}\n',
+        encoding="utf-8",
+    )
+    return {"replay": replay, "baseline": baseline, "catalog": catalog}
+
+
+def test_cli_writes_latest_report_with_run_card_reference(tmp_path):
+    paths = _write_empty_farm_inputs(tmp_path)
+
+    exit_code = strategy_farm.main([
+        "--replay", str(paths["replay"]),
+        "--baseline", str(paths["baseline"]),
+        "--catalog", str(paths["catalog"]),
+        "--tick-cache-dir", str(tmp_path / "ticks"),
+        "--output", str(tmp_path / "strategy_farm.json"),
+        "--run-archive-dir", str(tmp_path / "runs"),
+        "--quiet",
+    ])
+
+    latest = json.loads((tmp_path / "strategy_farm.json").read_text())
+    fingerprint = latest["provenance"]["run_fingerprint"]
+    assert exit_code == 0
+    assert latest["provenance"]["status"] == "archived"
+    assert (tmp_path / "runs" / fingerprint / "run_card.json").is_file()
+
+
+def test_detailed_cli_reference_matches_exact_latest_report_bytes(tmp_path):
+    paths = _write_empty_farm_inputs(tmp_path)
+    output = tmp_path / "strategy_farm_details.json"
+
+    exit_code = strategy_farm.main([
+        "--replay", str(paths["replay"]),
+        "--baseline", str(paths["baseline"]),
+        "--catalog", str(paths["catalog"]),
+        "--tick-cache-dir", str(tmp_path / "ticks"),
+        "--output", str(output),
+        "--run-archive-dir", str(tmp_path / "runs"),
+        "--include-trades",
+        "--quiet",
+    ])
+
+    latest = json.loads(output.read_text())
+    run_dir = tmp_path / "runs" / latest["provenance"]["run_fingerprint"]
+    card = json.loads((run_dir / "run_card.json").read_text())
+    artifact = card["artifacts"][0]
+    assert exit_code == 0
+    assert artifact["retained"] is False
+    assert artifact["size_bytes"] == output.stat().st_size
+    assert artifact["sha256"] == strategy_farm.simulation_run_provenance.sha256_file(
+        output
+    )
+
+
+def test_cli_rejects_missing_catalog_without_reusing_output(tmp_path):
+    paths = _write_empty_farm_inputs(tmp_path)
+    paths["catalog"].unlink()
+    output = tmp_path / "strategy_farm.json"
+    output.write_text('{"generated_at":"stale"}\n', encoding="utf-8")
+
+    exit_code = strategy_farm.main([
+        "--replay", str(paths["replay"]),
+        "--baseline", str(paths["baseline"]),
+        "--catalog", str(paths["catalog"]),
+        "--output", str(output),
+        "--run-archive-dir", str(tmp_path / "runs"),
+        "--quiet",
+    ])
+
+    assert exit_code != 0
+    assert not output.exists()
+
+
+class _MissingContractTickLoader:
+    def __init__(self, tick_cache_dir):
+        self.required_days = ["2026-07-06"]
+        self.verified_contracts = {}
+
+    def load_ticks_for_trade(self, trade, *, pad_minutes=5):
+        return pd.DataFrame(), ["missing_tick_cache:2026-07-06"]
+
+
+def test_cli_does_not_archive_unverified_tick_run(tmp_path, monkeypatch):
+    paths = _write_empty_farm_inputs(tmp_path)
+    paths["replay"].write_text(
+        json.dumps(_farm_trade("canal1_1")) + "\n",
+        encoding="utf-8",
+    )
+    paths["baseline"].write_text(
+        json.dumps({"sig_id": "canal1_1", "status": "exact"}) + "\n",
+        encoding="utf-8",
+    )
+    paths["catalog"].write_text(
+        json.dumps({"signals": [_provider_signal("canal1_1")]}) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        strategy_farm.observed_tick_replay_validator,
+        "ReplayTickFrameCache",
+        _MissingContractTickLoader,
+    )
+    monkeypatch.setattr(
+        strategy_farm.strategy_simulator,
+        "simulate_trade",
+        lambda *args, **kwargs: _row(None, status="blocked"),
+    )
+    output = tmp_path / "strategy_farm.json"
+
+    exit_code = strategy_farm.main([
+        "--replay", str(paths["replay"]),
+        "--baseline", str(paths["baseline"]),
+        "--catalog", str(paths["catalog"]),
+        "--tick-cache-dir", str(tmp_path / "ticks"),
+        "--output", str(output),
+        "--run-archive-dir", str(tmp_path / "runs"),
+        "--quiet",
+    ])
+
+    latest = json.loads(output.read_text())
+    assert exit_code == 0
+    assert latest["provenance"]["status"] == "incomplete"
+    assert latest["provenance"]["errors"] == [
+        "unverified_tick_contract:2026-07-06",
+    ]
+    assert not (tmp_path / "runs").exists()
