@@ -14,6 +14,27 @@ def _ticks(rows):
     return df
 
 
+def _write_tick_contract(cache_dir, day):
+    ensure_replay_tick_cache.write_day_contract(
+        cache_dir,
+        day,
+        time_evidence={
+            "source_time_basis": "mt5_server_epoch",
+            "utc_offset_seconds": 10_800,
+            "offset_detection_method": "fill_anchor",
+            "offset_reference": {"signal_id": "canal1_1"},
+        },
+        semantic_validation={
+            "valid": True,
+            "anchors_checked": 1,
+            "anchors_matched": 1,
+            "max_time_delta_ms": 0,
+            "max_price_delta": 0.0,
+            "errors": [],
+        },
+    )
+
+
 def _ticket(**overrides):
     base = {
         "ticket": 101,
@@ -322,21 +343,22 @@ def test_tick_loader_exposes_verified_contracts_and_required_days(tmp_path):
         "bid": 4199.8,
         "ask": 4200.0,
     }]).to_parquet(parquet, index=False)
-    ensure_replay_tick_cache.write_day_contract(
-        cache_dir, date(2026, 7, 6))
+    _write_tick_contract(cache_dir, date(2026, 7, 6))
     loader = observed_tick_replay_validator.ReplayTickFrameCache(cache_dir)
 
     loader.load_ticks_for_trade(_trade(sig_id="canal1_1"))
     loader.load_ticks_for_trade(_trade(sig_id="canal1_2"))
 
     assert loader.required_days == ["2026-07-06"]
-    assert loader.verified_contracts["2026-07-06"] == {
-        "day": "2026-07-06",
-        "tick_time_contract": "mt5_utc_v2",
-        "time_basis": "UTC",
-        "parquet_sha256": ensure_replay_tick_cache._file_sha256(parquet),
-        "size_bytes": parquet.stat().st_size,
-    }
+    contract = loader.verified_contracts["2026-07-06"]
+    assert contract["day"] == "2026-07-06"
+    assert contract["tick_time_contract"] == "mt5_server_epoch_utc_v3"
+    assert contract["time_basis"] == "UTC"
+    assert contract["source_time_basis"] == "mt5_server_epoch"
+    assert contract["utc_offset_seconds"] == 10_800
+    assert contract["semantic_time_valid"] is True
+    assert contract["parquet_sha256"] == ensure_replay_tick_cache._file_sha256(parquet)
+    assert contract["size_bytes"] == parquet.stat().st_size
 
 
 def test_cli_writes_observed_tick_replay_audit_and_status(tmp_path):
@@ -347,8 +369,7 @@ def test_cli_writes_observed_tick_replay_audit_and_status(tmp_path):
         {"time_utc": "2026-07-06T10:00:20+00:00", "bid": 4201.0, "ask": 4201.2},
         {"time_utc": "2026-07-06T10:01:30+00:00", "bid": 4202.0, "ask": 4202.2},
     ]).to_parquet(cache_dir / "2026-07-06.parquet", index=False)
-    ensure_replay_tick_cache.write_day_contract(
-        cache_dir, date(2026, 7, 6))
+    _write_tick_contract(cache_dir, date(2026, 7, 6))
     replay_path = tmp_path / "replay_trades.jsonl"
     output_path = tmp_path / "observed_tick_replay_audit.jsonl"
     status_path = tmp_path / "observed_tick_replay_status.json"
@@ -380,8 +401,7 @@ def test_cli_reuses_cached_tick_day_across_trades(tmp_path, monkeypatch):
     cache_dir = tmp_path / "ticks_cache"
     cache_dir.mkdir()
     (cache_dir / "2026-07-06.parquet").touch()
-    ensure_replay_tick_cache.write_day_contract(
-        cache_dir, date(2026, 7, 6))
+    _write_tick_contract(cache_dir, date(2026, 7, 6))
     ticks = _ticks([
         {"time_utc": "2026-07-06T10:00:00+00:00", "bid": 4199.8, "ask": 4200.0},
         {"time_utc": "2026-07-06T10:00:20+00:00", "bid": 4201.0, "ask": 4201.2},

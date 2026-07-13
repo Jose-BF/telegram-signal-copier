@@ -7,6 +7,27 @@ from strategy_policies import StrategyPolicy
 from tools import ensure_replay_tick_cache
 
 
+def _write_tick_contract(cache_dir, day):
+    ensure_replay_tick_cache.write_day_contract(
+        cache_dir,
+        day,
+        time_evidence={
+            "source_time_basis": "mt5_server_epoch",
+            "utc_offset_seconds": 10_800,
+            "offset_detection_method": "fill_anchor",
+            "offset_reference": {"signal_id": "canal1_calibrator"},
+        },
+        semantic_validation={
+            "valid": True,
+            "anchors_checked": 1,
+            "anchors_matched": 1,
+            "max_time_delta_ms": 0,
+            "max_price_delta": 0.0,
+            "errors": [],
+        },
+    )
+
+
 def _ticks(rows):
     frame = pd.DataFrame(rows, columns=["time_utc", "bid", "ask"])
     frame["time_utc"] = pd.to_datetime(frame["time_utc"], utc=True)
@@ -215,8 +236,7 @@ def test_report_uses_global_mt5_calibration_for_be_only_tickets(tmp_path):
         {"time_utc": "2026-07-06T11:00:00+00:00", "bid": 200.0, "ask": 200.2},
         {"time_utc": "2026-07-06T11:10:00+00:00", "bid": 210.0, "ask": 210.2},
     ]).to_parquet(cache_dir / "2026-07-06.parquet", index=False)
-    ensure_replay_tick_cache.write_day_contract(
-        cache_dir, date(2026, 7, 6))
+    _write_tick_contract(cache_dir, date(2026, 7, 6))
 
     calibrator = _trade(
         sig_id="canal1_calibrator",

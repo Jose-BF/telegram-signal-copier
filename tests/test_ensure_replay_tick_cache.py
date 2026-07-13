@@ -1,7 +1,9 @@
 import json
 import sys
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
+
+import pandas as pd
 
 from tools import ensure_replay_tick_cache
 
@@ -12,6 +14,42 @@ def _trade(sig_id, open_dt, close_dt):
         "open_dt_utc": open_dt,
         "close_dt_utc": close_dt,
     }
+
+
+def _time_evidence(offset_seconds=10_800):
+    return {
+        "source_time_basis": "mt5_server_epoch",
+        "utc_offset_seconds": offset_seconds,
+        "offset_detection_method": "fill_anchor",
+        "offset_reference": {
+            "signal_id": "canal2_1",
+            "ticket": 101,
+            "anchor_time_utc": "2026-07-13T08:00:00+00:00",
+            "raw_time_msc": 1_783_936_800_000,
+            "quote_side": "ask",
+            "fill_price": 4059.61,
+        },
+    }
+
+
+def _semantic_validation(valid=True):
+    return {
+        "valid": valid,
+        "anchors_checked": 1,
+        "anchors_matched": 1 if valid else 0,
+        "max_time_delta_ms": 0 if valid else None,
+        "max_price_delta": 0.01 if valid else None,
+        "errors": [] if valid else ["fill_anchor_outside_tolerance"],
+    }
+
+
+def _write_valid_contract(cache_dir, day):
+    return ensure_replay_tick_cache.write_day_contract(
+        cache_dir,
+        day,
+        time_evidence=_time_evidence(),
+        semantic_validation=_semantic_validation(),
+    )
 
 
 def test_required_dates_include_padded_trade_windows():
@@ -41,8 +79,7 @@ def test_cache_status_marks_missing_and_cached_days(tmp_path):
     cache_dir = tmp_path / "ticks_cache"
     cache_dir.mkdir()
     (cache_dir / "2026-07-06.parquet").write_bytes(b"cached")
-    ensure_replay_tick_cache.write_day_contract(
-        cache_dir, date(2026, 7, 6))
+    _write_valid_contract(cache_dir, date(2026, 7, 6))
 
     status = ensure_replay_tick_cache.build_status(
         [_trade("canal1_1", "2026-07-06T10:00:00+00:00",
@@ -55,7 +92,7 @@ def test_cache_status_marks_missing_and_cached_days(tmp_path):
     assert status["required_days"] == ["2026-07-06", "2026-07-07"]
     assert status["cached_days"] == ["2026-07-06"]
     assert status["missing_days"] == ["2026-07-07"]
-    assert status["tick_time_contract"] == "mt5_utc_v2"
+    assert status["tick_time_contract"] == "mt5_server_epoch_utc_v3"
 
 
 def test_unversioned_or_tampered_cache_day_is_invalid(tmp_path):
@@ -75,7 +112,7 @@ def test_unversioned_or_tampered_cache_day_is_invalid(tmp_path):
         cache_dir=cache_dir,
         pad_minutes=0,
     )
-    ensure_replay_tick_cache.write_day_contract(cache_dir, day)
+    _write_valid_contract(cache_dir, day)
     valid_status = ensure_replay_tick_cache.build_status(
         trades,
         cache_dir=cache_dir,
@@ -101,17 +138,38 @@ def test_load_valid_day_contract_returns_normalized_evidence(tmp_path):
     day = date(2026, 7, 6)
     parquet = cache_dir / "2026-07-06.parquet"
     parquet.write_bytes(b"verified tick bytes")
-    ensure_replay_tick_cache.write_day_contract(cache_dir, day)
+    _write_valid_contract(cache_dir, day)
 
     record = ensure_replay_tick_cache.load_valid_day_contract(cache_dir, day)
 
-    assert record == {
-        "day": "2026-07-06",
-        "tick_time_contract": "mt5_utc_v2",
-        "time_basis": "UTC",
-        "parquet_sha256": ensure_replay_tick_cache._file_sha256(parquet),
-        "size_bytes": parquet.stat().st_size,
-    }
+    assert record["day"] == "2026-07-06"
+    assert record["tick_time_contract"] == "mt5_server_epoch_utc_v3"
+    assert record["time_basis"] == "UTC"
+    assert record["source_time_basis"] == "mt5_server_epoch"
+    assert record["utc_offset_seconds"] == 10_800
+    assert record["offset_detection_method"] == "fill_anchor"
+    assert record["semantic_time_valid"] is True
+    assert record["anchor_validation"] == _semantic_validation()
+    assert record["parquet_sha256"] == ensure_replay_tick_cache._file_sha256(parquet)
+    assert record["size_bytes"] == parquet.stat().st_size
+
+
+def test_v2_contract_is_rejected_even_when_hash_matches(tmp_path):
+    cache_dir = tmp_path / "ticks_cache"
+    cache_dir.mkdir()
+    day = date(2026, 7, 8)
+    parquet = cache_dir / "2026-07-08.parquet"
+    parquet.write_bytes(b"old but internally consistent")
+    (cache_dir / "2026-07-08.parquet.meta.json").write_text(
+        json.dumps({
+            "tick_time_contract": "mt5_utc_v2",
+            "time_basis": "UTC",
+            "parquet_sha256": ensure_replay_tick_cache._file_sha256(parquet),
+        }),
+        encoding="utf-8",
+    )
+
+    assert ensure_replay_tick_cache.load_valid_day_contract(cache_dir, day) is None
 
 
 def test_cache_status_uses_repo_relative_cache_dir_for_default_cache():
@@ -165,11 +223,20 @@ def test_refresh_day_cli_redownloads_invalidated_required_day(
     )
     requested = []
 
-    def fake_ensure(days, *, cache_dir, symbol, verbose):
+    def fake_ensure(days, *, cache_dir, symbol, verbose, trades):
         requested.extend(days)
         for day in days:
             (cache_dir / f"{day.isoformat()}.parquet").write_bytes(b"utc-v2")
-        return {"downloaded": len(days)}
+        return {
+            "downloaded": len(days),
+            "day_contracts": {
+                day.isoformat(): {
+                    "time_evidence": _time_evidence(),
+                    "semantic_validation": _semantic_validation(),
+                }
+                for day in days
+            },
+        }
 
     monkeypatch.setattr(
         ensure_replay_tick_cache,
@@ -196,7 +263,7 @@ def test_refresh_day_cli_redownloads_invalidated_required_day(
     assert day_file.read_bytes() == b"utc-v2"
     assert status["refresh_requested_days"] == ["2026-07-08"]
     assert status["refresh_removed_days"] == ["2026-07-08"]
-    assert status["tick_time_contract"] == "mt5_utc_v2"
+    assert status["tick_time_contract"] == "mt5_server_epoch_utc_v3"
 
 
 def test_ensure_cli_automatically_replaces_unversioned_required_day(
@@ -219,11 +286,20 @@ def test_ensure_cli_automatically_replaces_unversioned_required_day(
     )
     requested = []
 
-    def fake_ensure(days, *, cache_dir, symbol, verbose):
+    def fake_ensure(days, *, cache_dir, symbol, verbose, trades):
         requested.extend(days)
         for day in days:
             (cache_dir / f"{day.isoformat()}.parquet").write_bytes(b"utc-v2")
-        return {"downloaded": len(days)}
+        return {
+            "downloaded": len(days),
+            "day_contracts": {
+                day.isoformat(): {
+                    "time_evidence": _time_evidence(),
+                    "semantic_validation": _semantic_validation(),
+                }
+                for day in days
+            },
+        }
 
     monkeypatch.setattr(
         ensure_replay_tick_cache,
@@ -293,9 +369,11 @@ def test_tool_exposes_repo_root_when_run_as_script(monkeypatch):
     assert sys.path[0] == repo_dir
 
 
-def test_mt5_tick_source_uses_utc_without_stale_tick_offset(monkeypatch):
+def test_mt5_tick_source_converts_vantage_server_epoch_to_utc(monkeypatch):
     requested = []
-    tick_dt = datetime(2026, 7, 6, 10, 0, 1, tzinfo=timezone.utc)
+    day = date(2026, 7, 13)
+    anchor_dt = datetime(2026, 7, 13, 8, 0, tzinfo=timezone.utc)
+    server_tick_dt = anchor_dt + timedelta(hours=3)
 
     class FakeMT5:
         COPY_TICKS_ALL = 7
@@ -309,19 +387,14 @@ def test_mt5_tick_source_uses_utc_without_stale_tick_offset(monkeypatch):
             return True
 
         @staticmethod
-        def symbol_info_tick(_symbol):
-            # Deliberately stale: the request contract must not depend on it.
-            return SimpleNamespace(
-                time=int(datetime(2026, 7, 3, tzinfo=timezone.utc).timestamp())
-            )
-
-        @staticmethod
         def copy_ticks_range(symbol, date_from, date_to, flags):
             requested.append((symbol, date_from, date_to, flags))
+            if not (date_from <= server_tick_dt <= date_to):
+                return []
             return [{
-                "time_msc": int(tick_dt.timestamp() * 1000),
-                "bid": 4100.0,
-                "ask": 4100.2,
+                "time_msc": int(server_tick_dt.timestamp() * 1000),
+                "bid": 4059.37,
+                "ask": 4059.61,
                 "last": 0.0,
                 "volume": 0,
                 "flags": 0,
@@ -336,11 +409,75 @@ def test_mt5_tick_source_uses_utc_without_stale_tick_offset(monkeypatch):
             return None
 
     monkeypatch.setitem(sys.modules, "MetaTrader5", FakeMT5)
-    source = ensure_replay_tick_cache.MT5TickSource("XAUUSD")
-    date_from = datetime(2026, 7, 6, 10, 0, tzinfo=timezone.utc)
-    date_to = datetime(2026, 7, 6, 10, 1, tzinfo=timezone.utc)
+    anchor = ensure_replay_tick_cache.FillAnchor(
+        signal_id="canal2_1",
+        ticket=101,
+        time_utc=anchor_dt,
+        price=4059.61,
+        quote_side="ask",
+    )
+    source = ensure_replay_tick_cache.MT5TickSource(
+        "XAUUSD",
+        anchors_by_day={day: [anchor]},
+        offset_candidates_seconds=[0, 10_800],
+    )
+    date_from = datetime(2026, 7, 13, 0, 0, tzinfo=timezone.utc)
+    date_to = datetime(2026, 7, 14, 0, 0, tzinfo=timezone.utc)
 
     ticks = source.fetch_ticks(date_from, date_to)
 
-    assert requested == [("XAUUSD", date_from, date_to, FakeMT5.COPY_TICKS_ALL)]
-    assert ticks.iloc[0]["time_utc"].to_pydatetime() == tick_dt
+    assert any(
+        call[1] == anchor_dt + timedelta(hours=3, seconds=-3)
+        and call[2] == anchor_dt + timedelta(hours=3, seconds=3)
+        for call in requested
+    )
+    assert requested[-1][1] == date_from + timedelta(hours=3)
+    assert requested[-1][2] == date_to + timedelta(hours=3)
+    assert ticks.iloc[0]["time_utc"].to_pydatetime() == anchor_dt
+    evidence = source.time_evidence_for_day(day)
+    assert evidence["utc_offset_seconds"] == 10_800
+    assert evidence["offset_detection_method"] == "fill_anchor"
+
+
+def test_shifted_tick_frame_fails_semantic_fill_anchor_validation():
+    anchor = ensure_replay_tick_cache.FillAnchor(
+        signal_id="canal2_1",
+        ticket=101,
+        time_utc=datetime(2026, 7, 13, 8, 0, tzinfo=timezone.utc),
+        price=4059.61,
+        quote_side="ask",
+    )
+    ticks = pd.DataFrame([{
+        "time_utc": pd.Timestamp("2026-07-13T11:00:00Z"),
+        "time_msc": 1_783_936_800_000,
+        "bid": 4059.37,
+        "ask": 4059.61,
+    }])
+
+    result = ensure_replay_tick_cache.validate_cached_day_anchors(
+        ticks,
+        [anchor],
+    )
+
+    assert result["valid"] is False
+    assert result["anchors_checked"] == 1
+    assert result["anchors_matched"] == 0
+    assert result["errors"] == ["fill_anchor_outside_tolerance"]
+
+
+def test_extract_fill_anchors_uses_direction_quote_side():
+    trades = [{
+        "sig_id": "canal2_1",
+        "direction": "SELL",
+        "tickets": [{
+            "ticket": 101,
+            "open_dt_utc": "2026-07-13T08:00:00+00:00",
+            "open_price": 4059.37,
+        }],
+    }]
+
+    anchors = ensure_replay_tick_cache.extract_fill_anchors(trades)
+
+    assert list(anchors) == [date(2026, 7, 13)]
+    assert anchors[date(2026, 7, 13)][0].quote_side == "bid"
+    assert anchors[date(2026, 7, 13)][0].price == 4059.37

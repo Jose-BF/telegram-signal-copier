@@ -32,7 +32,16 @@ TICKS_CACHE.mkdir(exist_ok=True, parents=True)
 class TickCache:
     """Cache por día UTC. Necesita un MT5Session para descargas."""
 
-    EMPTY_COLS = ["time_msc", "bid", "ask", "last", "volume", "flags", "time_utc"]
+    EMPTY_COLS = [
+        "time_msc",
+        "source_time_msc",
+        "bid",
+        "ask",
+        "last",
+        "volume",
+        "flags",
+        "time_utc",
+    ]
 
     def __init__(self, mt5_session, mem_days_cap: int = 25,
                  cache_dir: Path | None = None):
