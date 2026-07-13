@@ -1,3 +1,5 @@
+import pytest
+
 import provider_signal_catalog
 
 
@@ -470,3 +472,115 @@ def test_duplicate_management_versions_collapse_but_restoration_is_retained():
 
     assert [row["price"] for row in timeline] == [4030.0, 4031.0, 4030.0]
     assert timeline[0]["raw_versions"] == 2
+
+
+@pytest.mark.parametrize(
+    ("text", "action", "modality"),
+    [
+        ("Target 4 ✅", "TP_HIT_ANNOUNCEMENT", "informational"),
+        ("TP5 was KISSED", "TP_HIT_ANNOUNCEMENT", "informational"),
+        ("TP2 HOT", "TP_HIT_ANNOUNCEMENT", "informational"),
+        ("SL HIT", "SL_HIT_ANNOUNCEMENT", "informational"),
+        ("All entries in profit", "PROGRESS_UPDATE", "informational"),
+        ("Take partials when happy", "CLOSE_PARTIAL", "optional"),
+        ("Zone failed", "ZONE_INVALIDATED", "informational"),
+        ("TPs corrected", "LEVEL_CORRECTION", "informational"),
+    ],
+)
+def test_repeated_provider_vocabulary_has_deterministic_semantics(
+    text,
+    action,
+    modality,
+):
+    events = [
+        _raw(
+            "canal2",
+            760,
+            "Buy Gold Now\n4030 - 4032\nTargets\n4035\n4038\nSL 4025",
+        ),
+        _raw(
+            "canal2",
+            761,
+            text,
+            reply_to_msg_id=760,
+            is_reply=True,
+        ),
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+    event = report["signals"][0]["management_events"][0]
+
+    assert event["classified_action"] == action
+    assert event["modality"] == modality
+    assert event["semantic_source"] == "deterministic_parser"
+
+
+@pytest.mark.parametrize(
+    ("text", "levels"),
+    [
+        ("TP1 4134", {"tps": [4134.0], "sl": None}),
+        ("SL 4095", {"tps": [], "sl": 4095.0}),
+    ],
+)
+def test_single_level_replies_are_canonical_level_updates(text, levels):
+    events = [
+        _raw(
+            "canal2",
+            770,
+            "Buy Gold Now\n4030 - 4032\nTargets\n4035\n4038\nSL 4025",
+        ),
+        _raw(
+            "canal2",
+            771,
+            text,
+            reply_to_msg_id=770,
+            is_reply=True,
+        ),
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+    event = report["signals"][0]["management_events"][0]
+
+    assert event["classified_action"] == "LEVEL_UPDATE"
+    assert event["levels"] == levels
+    assert event["modality"] == "direct"
+
+
+def test_media_only_reply_is_explicitly_non_actionable():
+    events = [
+        _raw(
+            "canal1",
+            780,
+            "BUY GOLD NOW 4100\nTP1 4105\nSL 4095",
+        ),
+        _raw(
+            "canal1",
+            781,
+            "",
+            reply_to_msg_id=780,
+            is_reply=True,
+            has_photo=True,
+        ),
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+    event = report["signals"][0]["management_events"][0]
+
+    assert event["classified_action"] == "MEDIA_COMPANION"
+    assert event["modality"] == "informational"
+    assert event["semantic_source"] == "deterministic_parser"
+
+
+def test_weekly_summary_uses_summary_record_type_not_management_signal():
+    report = provider_signal_catalog.build_catalog_report([
+        _raw(
+            "canal2",
+            790,
+            "Weekly Summary 08/06/26 - 12/06/26\n"
+            "33 Trades Sent\n30 Winning Trades\n3 Stop Loss\n"
+            "Pips gained +3730",
+        )
+    ], [])
+
+    assert report["summary"]["provider_signals"] == 0
+    assert report["signals"][0]["record_type"] == "daily_summary"

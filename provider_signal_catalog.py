@@ -45,8 +45,8 @@ MOVE_SL_PRICE_RE = re.compile(
 )
 CLOSE_TP_RE = re.compile(r"\bCLOSE\s+TP\s*(\d+)\b", re.IGNORECASE)
 DAILY_SUMMARY_RE = re.compile(
-    r"\b(?:DAILY|MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY)\s+SUMMARY\b|"
-    r"\bSIGNALS?\s+SENT\b.*\b(?:WINS?|LOSSES?|STOP\s*LOSS)\b",
+    r"\b(?:WEEKLY|DAILY|MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY)\s+SUMMARY\b|"
+    r"\b(?:SIGNALS?|TRADES?)\s+SENT\b.*\b(?:WINS?|WINNING|LOSSES?|STOP\s*LOSS)\b",
     re.IGNORECASE | re.DOTALL,
 )
 CONTEXT_SETUP_RE = re.compile(
@@ -163,16 +163,6 @@ def _deterministic_management_semantics(text: str) -> dict | None:
         result["execution_options"] = _execution_options(result)
         return result
 
-    parsed = _normalise_parsed(parse_canal2(text)) if text else {}
-    if parsed.get("tps") and parsed.get("sl") is not None:
-        result = {
-            "action": "LEVEL_UPDATE",
-            "levels": {"tps": parsed["tps"], "sl": parsed["sl"]},
-            "modality": _management_modality(text, actionable=True),
-        }
-        result["execution_options"] = _execution_options(result)
-        return result
-
     move_match = MOVE_SL_PRICE_RE.search(text)
     if move_match:
         result = {
@@ -201,18 +191,71 @@ def _deterministic_management_semantics(text: str) -> dict | None:
         result["execution_options"] = _execution_options(result)
         return result
 
-    if re.search(r"\b(?:TP\s*\d+|TARGET\s*\d+)\s+(?:HIT|DONE|REACHED)\b", upper):
+    if re.search(r"\b(?:TAKE|CLOSE|SECURE)\s+(?:SOME\s+)?PARTIALS?\b", upper):
+        result = {
+            "action": "CLOSE_PARTIAL",
+            "modality": _management_modality(text, actionable=True),
+        }
+        result["execution_options"] = _execution_options(result)
+        return result
+
+    if re.search(r"\bSL\s+(?:WAS\s+|GOT\s+)?(?:HIT|DONE|REACHED)\b", upper):
+        return {
+            "action": "SL_HIT_ANNOUNCEMENT",
+            "modality": "informational",
+            "execution_options": [],
+        }
+
+    tp_subject = r"(?:TP\s*\d+|TARGET\s*\d+|FULL\s+TARGET)"
+    tp_result = r"(?:HIT|DONE|REACHED|SMASHED|KISSED|TAPPED|HOT|\u2705)"
+    if re.search(rf"\b{tp_subject}\b.*\b{tp_result}\b", upper) or re.search(
+        rf"\b{tp_subject}\b\s*\u2705", upper
+    ):
         return {
             "action": "TP_HIT_ANNOUNCEMENT",
             "modality": "informational",
             "execution_options": [],
         }
-    if re.search(r"(?:\+\s*\d+|\d+\s*\+)\s*PIPS?\b|\bPIPS?\s+(?:RUNNING|PROFIT)", upper):
+
+    if re.search(r"\bZONE\s+(?:FAILED|INVALID|BROKEN)\b", upper):
+        return {
+            "action": "ZONE_INVALIDATED",
+            "modality": "informational",
+            "execution_options": [],
+        }
+
+    if re.search(r"\bTPS?\s+(?:EDITED|CORRECTED|UPDATED)\b", upper):
+        return {
+            "action": "LEVEL_CORRECTION",
+            "modality": "informational",
+            "execution_options": [],
+        }
+
+    if re.search(
+        r"(?:\+\s*\d+|\d+\s*\+)\s*PIPS?\b|"
+        r"\bPIPS?\s+(?:RUNNING|PROFIT)|"
+        r"\b(?:ALL\s+)?ENTR(?:Y|IES)\s+(?:ARE\s+|BACK\s+)?IN\s+PROFIT|"
+        r"\bRUNNING\s+(?:OVERALL\s+)?PROFIT",
+        upper,
+    ):
         return {
             "action": "PROGRESS_UPDATE",
             "modality": "informational",
             "execution_options": [],
         }
+
+    parsed = _normalise_parsed(parse_canal2(text)) if text else {}
+    if parsed.get("tps") or parsed.get("sl") is not None:
+        result = {
+            "action": "LEVEL_UPDATE",
+            "levels": {
+                "tps": parsed.get("tps") or [],
+                "sl": parsed.get("sl"),
+            },
+            "modality": _management_modality(text, actionable=True),
+        }
+        result["execution_options"] = _execution_options(result)
+        return result
     return None
 
 
@@ -420,7 +463,14 @@ def _append_management(signal: dict, row: dict) -> None:
         signal["signal_ts_utc"] = telegram_ts
     if signal["first_observed_utc"] is None:
         signal["first_observed_utc"] = observed_ts
-    deterministic = _deterministic_management_semantics(text)
+    if not text.strip() and (row.get("has_photo") or row.get("has_document")):
+        deterministic = {
+            "action": "MEDIA_COMPANION",
+            "modality": "informational",
+            "execution_options": [],
+        }
+    else:
+        deterministic = _deterministic_management_semantics(text)
     classifier_action = row.get("action") or row.get("classified")
     if deterministic is not None:
         semantics = deterministic
