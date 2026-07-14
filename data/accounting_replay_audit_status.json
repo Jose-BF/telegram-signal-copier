@@ -1,13 +1,13 @@
 {
   "ok": true,
-  "started_at": "2026-07-13T21:59:23+00:00",
-  "finished_at": "2026-07-13T21:59:24+00:00",
-  "duration_s": 0.29,
+  "started_at": "2026-07-14T22:37:56+00:00",
+  "finished_at": "2026-07-14T22:37:57+00:00",
+  "duration_s": 0.68,
   "returncode": 0,
   "stdout": "",
   "stderr": "",
   "audit_exists": true,
-  "audit_size_bytes": 89283,
+  "audit_size_bytes": 92466,
   "command": [
     "C:\\Program Files\\Python311\\python.exe",
     "accounting_replay_validator.py",

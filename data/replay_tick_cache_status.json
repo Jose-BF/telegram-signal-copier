@@ -1,13 +1,13 @@
 {
-  "ok": true,
-  "generated_at": "2026-07-13T21:59:27+00:00",
-  "tick_time_contract": "mt5_utc_v2",
+  "ok": false,
+  "generated_at": "2026-07-14T22:43:55+00:00",
+  "tick_time_contract": "mt5_server_epoch_utc_v3",
   "time_basis": "UTC",
   "dry_run": false,
   "ensure_attempted": true,
   "pad_minutes": 5,
   "cache_dir": "data/ticks_cache",
-  "n_trades": 193,
+  "n_trades": 200,
   "required_days": [
     "2026-06-05",
     "2026-06-08",
@@ -41,9 +41,934 @@
     "2026-07-10",
     "2026-07-11",
     "2026-07-12",
-    "2026-07-13"
+    "2026-07-13",
+    "2026-07-14"
   ],
   "cached_days": [
+    "2026-06-05",
+    "2026-06-08",
+    "2026-06-10",
+    "2026-06-11",
+    "2026-06-12",
+    "2026-06-13",
+    "2026-06-14",
+    "2026-06-15",
+    "2026-06-16",
+    "2026-06-17",
+    "2026-06-18",
+    "2026-06-19",
+    "2026-06-20",
+    "2026-06-21",
+    "2026-06-22",
+    "2026-06-23",
+    "2026-06-24",
+    "2026-06-25",
+    "2026-06-26",
+    "2026-06-29",
+    "2026-06-30",
+    "2026-07-01",
+    "2026-07-02",
+    "2026-07-03",
+    "2026-07-06",
+    "2026-07-07",
+    "2026-07-08",
+    "2026-07-09",
+    "2026-07-10",
+    "2026-07-11",
+    "2026-07-12",
+    "2026-07-13",
+    "2026-07-14"
+  ],
+  "invalid_days": [
+    "2026-06-09"
+  ],
+  "missing_days": [],
+  "ensure_stats": {
+    "downloaded": 34,
+    "cached_already": 0,
+    "total_ticks": 19120258,
+    "empty_days": 3,
+    "day_contracts": {
+      "2026-06-05": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal2_13399",
+            "ticket": 1391855502,
+            "anchor_time_utc": "2026-06-05T08:00:07.809000+00:00",
+            "raw_time_msc": 1780657208047,
+            "quote_side": "bid",
+            "fill_price": 4459.56,
+            "price_delta": 0.0,
+            "time_delta_ms": 238
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 48,
+          "anchors_matched": 48,
+          "max_time_delta_ms": 2494,
+          "max_price_delta": 0.0,
+          "errors": []
+        }
+      },
+      "2026-06-08": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal2_13432",
+            "ticket": 1400623456,
+            "anchor_time_utc": "2026-06-08T07:00:26.626000+00:00",
+            "raw_time_msc": 1780912826264,
+            "quote_side": "bid",
+            "fill_price": 4299.65,
+            "price_delta": 0.0,
+            "time_delta_ms": 362
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 68,
+          "anchors_matched": 68,
+          "max_time_delta_ms": 2459,
+          "max_price_delta": 0.0,
+          "errors": []
+        }
+      },
+      "2026-06-09": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 32400,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal2_13493",
+            "ticket": 1406807667,
+            "anchor_time_utc": "2026-06-09T07:30:34.157000+00:00",
+            "raw_time_msc": 1781022634300,
+            "quote_side": "bid",
+            "fill_price": 4329.63,
+            "price_delta": 0.0,
+            "time_delta_ms": 143
+          }
+        },
+        "semantic_validation": {
+          "valid": false,
+          "anchors_checked": 54,
+          "anchors_matched": 5,
+          "max_time_delta_ms": 2392,
+          "max_price_delta": 0.01,
+          "errors": [
+            "fill_anchor_outside_tolerance"
+          ]
+        }
+      },
+      "2026-06-10": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal1_20193",
+            "ticket": 1414140157,
+            "anchor_time_utc": "2026-06-10T09:20:47.678000+00:00",
+            "raw_time_msc": 1781094048109,
+            "quote_side": "bid",
+            "fill_price": 4168.68,
+            "price_delta": 0.0,
+            "time_delta_ms": 431
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 48,
+          "anchors_matched": 48,
+          "max_time_delta_ms": 2337,
+          "max_price_delta": 0.0,
+          "errors": []
+        }
+      },
+      "2026-06-11": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal2_13606",
+            "ticket": 1421594772,
+            "anchor_time_utc": "2026-06-11T07:32:12.396000+00:00",
+            "raw_time_msc": 1781173932483,
+            "quote_side": "ask",
+            "fill_price": 4108.35,
+            "price_delta": 0.0,
+            "time_delta_ms": 87
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 72,
+          "anchors_matched": 72,
+          "max_time_delta_ms": 2439,
+          "max_price_delta": 0.0,
+          "errors": []
+        }
+      },
+      "2026-06-12": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal2_13661",
+            "ticket": 1429080332,
+            "anchor_time_utc": "2026-06-12T07:21:00.767000+00:00",
+            "raw_time_msc": 1781259660729,
+            "quote_side": "ask",
+            "fill_price": 4178.27,
+            "price_delta": 0.0,
+            "time_delta_ms": 38
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 41,
+          "anchors_matched": 41,
+          "max_time_delta_ms": 2046,
+          "max_price_delta": 0.0,
+          "errors": []
+        }
+      },
+      "2026-06-13": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "adjacent_verified_day",
+          "offset_reference": {
+            "inherited_from_day": "2026-06-12",
+            "distance_days": 1,
+            "source_reference": {
+              "signal_id": "canal2_13661",
+              "ticket": 1429080332,
+              "anchor_time_utc": "2026-06-12T07:21:00.767000+00:00",
+              "raw_time_msc": 1781259660729,
+              "quote_side": "ask",
+              "fill_price": 4178.27,
+              "price_delta": 0.0,
+              "time_delta_ms": 38
+            }
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 0,
+          "anchors_matched": 0,
+          "max_time_delta_ms": null,
+          "max_price_delta": null,
+          "errors": []
+        }
+      },
+      "2026-06-14": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "adjacent_verified_day",
+          "offset_reference": {
+            "inherited_from_day": "2026-06-15",
+            "distance_days": 1,
+            "source_reference": {
+              "signal_id": "canal1_20320",
+              "ticket": 1439332565,
+              "anchor_time_utc": "2026-06-15T11:50:01.653000+00:00",
+              "raw_time_msc": 1781535001057,
+              "quote_side": "ask",
+              "fill_price": 4333.96,
+              "price_delta": 0.0,
+              "time_delta_ms": 596
+            }
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 0,
+          "anchors_matched": 0,
+          "max_time_delta_ms": null,
+          "max_price_delta": null,
+          "errors": []
+        }
+      },
+      "2026-06-15": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal1_20320",
+            "ticket": 1439332565,
+            "anchor_time_utc": "2026-06-15T11:50:01.653000+00:00",
+            "raw_time_msc": 1781535001057,
+            "quote_side": "ask",
+            "fill_price": 4333.96,
+            "price_delta": 0.0,
+            "time_delta_ms": 596
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 16,
+          "anchors_matched": 16,
+          "max_time_delta_ms": 2347,
+          "max_price_delta": 0.0,
+          "errors": []
+        }
+      },
+      "2026-06-16": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal1_20341",
+            "ticket": 1444455887,
+            "anchor_time_utc": "2026-06-16T10:10:21.627000+00:00",
+            "raw_time_msc": 1781615420327,
+            "quote_side": "ask",
+            "fill_price": 4345.61,
+            "price_delta": 0.0,
+            "time_delta_ms": 1300
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 12,
+          "anchors_matched": 12,
+          "max_time_delta_ms": 2469,
+          "max_price_delta": 0.0,
+          "errors": []
+        }
+      },
+      "2026-06-17": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal1_20363",
+            "ticket": 1449908070,
+            "anchor_time_utc": "2026-06-17T12:43:34.273000+00:00",
+            "raw_time_msc": 1781711013229,
+            "quote_side": "bid",
+            "fill_price": 4329.95,
+            "price_delta": 0.0,
+            "time_delta_ms": 1044
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 28,
+          "anchors_matched": 28,
+          "max_time_delta_ms": 1640,
+          "max_price_delta": 0.0,
+          "errors": []
+        }
+      },
+      "2026-06-18": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal1_20404",
+            "ticket": 1457514750,
+            "anchor_time_utc": "2026-06-18T13:00:59.283000+00:00",
+            "raw_time_msc": 1781798459064,
+            "quote_side": "bid",
+            "fill_price": 4247.58,
+            "price_delta": 0.0,
+            "time_delta_ms": 219
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 16,
+          "anchors_matched": 16,
+          "max_time_delta_ms": 1711,
+          "max_price_delta": 0.0,
+          "errors": []
+        }
+      },
+      "2026-06-19": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal1_20433",
+            "ticket": 1463627763,
+            "anchor_time_utc": "2026-06-19T11:42:27.424000+00:00",
+            "raw_time_msc": 1781880146837,
+            "quote_side": "bid",
+            "fill_price": 4149.51,
+            "price_delta": 0.0,
+            "time_delta_ms": 587
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 20,
+          "anchors_matched": 20,
+          "max_time_delta_ms": 2224,
+          "max_price_delta": 0.0,
+          "errors": []
+        }
+      },
+      "2026-06-20": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "adjacent_verified_day",
+          "offset_reference": {
+            "inherited_from_day": "2026-06-19",
+            "distance_days": 1,
+            "source_reference": {
+              "signal_id": "canal1_20433",
+              "ticket": 1463627763,
+              "anchor_time_utc": "2026-06-19T11:42:27.424000+00:00",
+              "raw_time_msc": 1781880146837,
+              "quote_side": "bid",
+              "fill_price": 4149.51,
+              "price_delta": 0.0,
+              "time_delta_ms": 587
+            }
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 0,
+          "anchors_matched": 0,
+          "max_time_delta_ms": null,
+          "max_price_delta": null,
+          "errors": []
+        }
+      },
+      "2026-06-21": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "adjacent_verified_day",
+          "offset_reference": {
+            "inherited_from_day": "2026-06-22",
+            "distance_days": 1,
+            "source_reference": {
+              "signal_id": "canal1_20457",
+              "ticket": 1470303123,
+              "anchor_time_utc": "2026-06-22T11:12:39.617000+00:00",
+              "raw_time_msc": 1782137559091,
+              "quote_side": "bid",
+              "fill_price": 4207.5,
+              "price_delta": 0.0,
+              "time_delta_ms": 526
+            }
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 0,
+          "anchors_matched": 0,
+          "max_time_delta_ms": null,
+          "max_price_delta": null,
+          "errors": []
+        }
+      },
+      "2026-06-22": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal1_20457",
+            "ticket": 1470303123,
+            "anchor_time_utc": "2026-06-22T11:12:39.617000+00:00",
+            "raw_time_msc": 1782137559091,
+            "quote_side": "bid",
+            "fill_price": 4207.5,
+            "price_delta": 0.0,
+            "time_delta_ms": 526
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 12,
+          "anchors_matched": 12,
+          "max_time_delta_ms": 2047,
+          "max_price_delta": 0.0,
+          "errors": []
+        }
+      },
+      "2026-06-23": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal1_20489",
+            "ticket": 1478115439,
+            "anchor_time_utc": "2026-06-23T13:10:20.879000+00:00",
+            "raw_time_msc": 1782231020166,
+            "quote_side": "bid",
+            "fill_price": 4114.99,
+            "price_delta": 0.0,
+            "time_delta_ms": 713
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 20,
+          "anchors_matched": 20,
+          "max_time_delta_ms": 2383,
+          "max_price_delta": 0.0,
+          "errors": []
+        }
+      },
+      "2026-06-24": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal1_20536",
+            "ticket": 1485442389,
+            "anchor_time_utc": "2026-06-24T12:33:30.571000+00:00",
+            "raw_time_msc": 1782315210230,
+            "quote_side": "ask",
+            "fill_price": 4019.19,
+            "price_delta": 0.0,
+            "time_delta_ms": 341
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 12,
+          "anchors_matched": 12,
+          "max_time_delta_ms": 2262,
+          "max_price_delta": 0.0,
+          "errors": []
+        }
+      },
+      "2026-06-25": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal1_20564",
+            "ticket": 1494244820,
+            "anchor_time_utc": "2026-06-25T12:35:06.742000+00:00",
+            "raw_time_msc": 1782401705532,
+            "quote_side": "bid",
+            "fill_price": 3992.97,
+            "price_delta": 0.0,
+            "time_delta_ms": 1210
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 20,
+          "anchors_matched": 20,
+          "max_time_delta_ms": 2271,
+          "max_price_delta": 0.0,
+          "errors": []
+        }
+      },
+      "2026-06-26": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal1_20590",
+            "ticket": 1498308912,
+            "anchor_time_utc": "2026-06-26T00:23:14.709000+00:00",
+            "raw_time_msc": 1782444194694,
+            "quote_side": "bid",
+            "fill_price": 4019.61,
+            "price_delta": 0.0,
+            "time_delta_ms": 15
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 32,
+          "anchors_matched": 32,
+          "max_time_delta_ms": 1549,
+          "max_price_delta": 0.0,
+          "errors": []
+        }
+      },
+      "2026-06-29": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal1_20618",
+            "ticket": 1510337243,
+            "anchor_time_utc": "2026-06-29T10:18:52.585000+00:00",
+            "raw_time_msc": 1782739131765,
+            "quote_side": "ask",
+            "fill_price": 4034.62,
+            "price_delta": 0.0,
+            "time_delta_ms": 820
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 12,
+          "anchors_matched": 12,
+          "max_time_delta_ms": 2411,
+          "max_price_delta": 0.0,
+          "errors": []
+        }
+      },
+      "2026-06-30": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal1_20632",
+            "ticket": 1517720163,
+            "anchor_time_utc": "2026-06-30T12:24:37.457000+00:00",
+            "raw_time_msc": 1782833077050,
+            "quote_side": "bid",
+            "fill_price": 4018.03,
+            "price_delta": 0.0,
+            "time_delta_ms": 407
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 16,
+          "anchors_matched": 16,
+          "max_time_delta_ms": 2500,
+          "max_price_delta": 0.02,
+          "errors": []
+        }
+      },
+      "2026-07-01": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal1_20665",
+            "ticket": 1523774301,
+            "anchor_time_utc": "2026-07-01T11:46:51.079000+00:00",
+            "raw_time_msc": 1782917210346,
+            "quote_side": "bid",
+            "fill_price": 4032.37,
+            "price_delta": 0.0,
+            "time_delta_ms": 733
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 12,
+          "anchors_matched": 12,
+          "max_time_delta_ms": 2220,
+          "max_price_delta": 0.0,
+          "errors": []
+        }
+      },
+      "2026-07-02": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal1_20684",
+            "ticket": 1531809792,
+            "anchor_time_utc": "2026-07-02T13:24:32.610000+00:00",
+            "raw_time_msc": 1783009472990,
+            "quote_side": "bid",
+            "fill_price": 4115.47,
+            "price_delta": 0.0,
+            "time_delta_ms": 380
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 12,
+          "anchors_matched": 12,
+          "max_time_delta_ms": 2469,
+          "max_price_delta": 0.0,
+          "errors": []
+        }
+      },
+      "2026-07-03": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal2_2784",
+            "ticket": 1537294554,
+            "anchor_time_utc": "2026-07-03T09:50:49.481000+00:00",
+            "raw_time_msc": 1783083049896,
+            "quote_side": "bid",
+            "fill_price": 4171.89,
+            "price_delta": 0.0,
+            "time_delta_ms": 415
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 14,
+          "anchors_matched": 14,
+          "max_time_delta_ms": 2472,
+          "max_price_delta": 0.0,
+          "errors": []
+        }
+      },
+      "2026-07-06": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal2_2806",
+            "ticket": 1543960642,
+            "anchor_time_utc": "2026-07-06T08:37:35.843000+00:00",
+            "raw_time_msc": 1783337855957,
+            "quote_side": "ask",
+            "fill_price": 4151.46,
+            "price_delta": 0.0,
+            "time_delta_ms": 114
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 32,
+          "anchors_matched": 32,
+          "max_time_delta_ms": 2462,
+          "max_price_delta": 0.0,
+          "errors": []
+        }
+      },
+      "2026-07-07": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal2_2826",
+            "ticket": 1550157515,
+            "anchor_time_utc": "2026-07-07T09:30:39.645000+00:00",
+            "raw_time_msc": 1783427439539,
+            "quote_side": "bid",
+            "fill_price": 4125.15,
+            "price_delta": 0.0,
+            "time_delta_ms": 106
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 45,
+          "anchors_matched": 45,
+          "max_time_delta_ms": 2250,
+          "max_price_delta": 0.0,
+          "errors": []
+        }
+      },
+      "2026-07-08": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal1_20765",
+            "ticket": 1558493253,
+            "anchor_time_utc": "2026-07-08T11:44:02.549000+00:00",
+            "raw_time_msc": 1783521842293,
+            "quote_side": "bid",
+            "fill_price": 4060.73,
+            "price_delta": 0.0,
+            "time_delta_ms": 256
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 24,
+          "anchors_matched": 24,
+          "max_time_delta_ms": 2326,
+          "max_price_delta": 0.0,
+          "errors": []
+        }
+      },
+      "2026-07-09": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal2_2969",
+            "ticket": 1564479000,
+            "anchor_time_utc": "2026-07-09T06:40:13.131000+00:00",
+            "raw_time_msc": 1783590012682,
+            "quote_side": "ask",
+            "fill_price": 4098.91,
+            "price_delta": 0.0,
+            "time_delta_ms": 449
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 54,
+          "anchors_matched": 54,
+          "max_time_delta_ms": 2389,
+          "max_price_delta": 0.0,
+          "errors": []
+        }
+      },
+      "2026-07-10": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal2_3054",
+            "ticket": 1571950542,
+            "anchor_time_utc": "2026-07-10T10:04:02.594000+00:00",
+            "raw_time_msc": 1783688643011,
+            "quote_side": "bid",
+            "fill_price": 4107.26,
+            "price_delta": 0.0,
+            "time_delta_ms": 417
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 49,
+          "anchors_matched": 49,
+          "max_time_delta_ms": 1694,
+          "max_price_delta": 0.0,
+          "errors": []
+        }
+      },
+      "2026-07-11": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "adjacent_verified_day",
+          "offset_reference": {
+            "inherited_from_day": "2026-07-10",
+            "distance_days": 1,
+            "source_reference": {
+              "signal_id": "canal2_3054",
+              "ticket": 1571950542,
+              "anchor_time_utc": "2026-07-10T10:04:02.594000+00:00",
+              "raw_time_msc": 1783688643011,
+              "quote_side": "bid",
+              "fill_price": 4107.26,
+              "price_delta": 0.0,
+              "time_delta_ms": 417
+            }
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 0,
+          "anchors_matched": 0,
+          "max_time_delta_ms": null,
+          "max_price_delta": null,
+          "errors": []
+        }
+      },
+      "2026-07-12": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "adjacent_verified_day",
+          "offset_reference": {
+            "inherited_from_day": "2026-07-13",
+            "distance_days": 1,
+            "source_reference": {
+              "signal_id": "canal2_3099",
+              "ticket": 1580155839,
+              "anchor_time_utc": "2026-07-13T06:35:45.952000+00:00",
+              "raw_time_msc": 1783935345937,
+              "quote_side": "bid",
+              "fill_price": 4059.61,
+              "price_delta": 0.0,
+              "time_delta_ms": 15
+            }
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 0,
+          "anchors_matched": 0,
+          "max_time_delta_ms": null,
+          "max_price_delta": null,
+          "errors": []
+        }
+      },
+      "2026-07-13": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal2_3099",
+            "ticket": 1580155839,
+            "anchor_time_utc": "2026-07-13T06:35:45.952000+00:00",
+            "raw_time_msc": 1783935345937,
+            "quote_side": "bid",
+            "fill_price": 4059.61,
+            "price_delta": 0.0,
+            "time_delta_ms": 15
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 57,
+          "anchors_matched": 57,
+          "max_time_delta_ms": 2466,
+          "max_price_delta": 0.0,
+          "errors": []
+        }
+      },
+      "2026-07-14": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal2_3181",
+            "ticket": 1588985963,
+            "anchor_time_utc": "2026-07-14T09:15:05.244000+00:00",
+            "raw_time_msc": 1784031304712,
+            "quote_side": "bid",
+            "fill_price": 4019.98,
+            "price_delta": 0.0,
+            "time_delta_ms": 532
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 34,
+          "anchors_matched": 34,
+          "max_time_delta_ms": 2429,
+          "max_price_delta": 0.0,
+          "errors": []
+        }
+      }
+    }
+  },
+  "refresh_requested_days": [],
+  "refresh_removed_days": [
     "2026-06-05",
     "2026-06-08",
     "2026-06-09",
@@ -78,15 +1003,5 @@
     "2026-07-12",
     "2026-07-13"
   ],
-  "invalid_days": [],
-  "missing_days": [],
-  "ensure_stats": {
-    "downloaded": 3,
-    "cached_already": 0,
-    "total_ticks": 738030,
-    "empty_days": 2
-  },
-  "refresh_requested_days": [],
-  "refresh_removed_days": [],
   "error": null
 }
