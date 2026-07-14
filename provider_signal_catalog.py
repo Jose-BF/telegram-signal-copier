@@ -84,6 +84,11 @@ def _telegram_ts(row: dict) -> str | None:
     return None
 
 
+def _is_edit_update_kind(value: str | None) -> bool:
+    update_kind = str(value or "").strip().lower()
+    return update_kind == "edit" or update_kind.endswith("_edit")
+
+
 def _parse_dt(value: str | None) -> datetime | None:
     if not value:
         return None
@@ -559,29 +564,44 @@ def _finalize(signal: dict) -> dict:
     signal["semantic_gaps"] = gaps
     signal["semantic_status"] = semantic_status
 
-    trigger = next(
-        (
-            revision
-            for revision in signal["revisions"]
-            if revision.get("parsed", {}).get("direction")
-            or (
-                revision["message_id"] == signal["root_message_id"]
-                and revision.get("sticker_id") is not None
-                and signal.get("direction")
-                and signal.get("_direction_source") == "telegram_understood"
-            )
-        ),
-        None,
+    trigger = None
+    trigger_direction = None
+    trigger_direction_source = None
+    for revision in signal["revisions"]:
+        parsed_direction = revision.get("parsed", {}).get("direction")
+        if parsed_direction:
+            trigger = revision
+            trigger_direction = parsed_direction
+            trigger_direction_source = f"revision_parser:{revision['message_id']}"
+            break
+        if (
+            revision["message_id"] == signal["root_message_id"]
+            and revision.get("sticker_id") is not None
+            and signal.get("direction")
+            and signal.get("_direction_source") == "telegram_understood"
+        ):
+            trigger = revision
+            trigger_direction = signal["direction"]
+            trigger_direction_source = "telegram_understood"
+            break
+
+    contract_direction = (
+        trigger_direction if trigger is not None else signal.get("direction")
+    )
+    contract_direction_source = (
+        trigger_direction_source
+        if trigger is not None
+        else signal.get("_direction_source")
     )
     blockers: list[str] = []
-    if not signal.get("direction"):
+    if not contract_direction:
         blockers.append("missing_direction")
     if trigger is None:
         blockers.append("missing_actionable_entry_trigger")
 
     trigger_kind = None
     if trigger is not None:
-        if (trigger.get("update_kinds") or [None])[0] == "edit":
+        if _is_edit_update_kind((trigger.get("update_kinds") or [None])[0]):
             trigger_kind = "edit"
         elif trigger.get("sticker_id") is not None:
             trigger_kind = "sticker"
@@ -599,8 +619,8 @@ def _finalize(signal: dict) -> dict:
             trigger.get("message_id") if trigger is not None else None
         ),
         "trigger_kind": trigger_kind,
-        "direction": signal.get("direction"),
-        "direction_source": signal.get("_direction_source"),
+        "direction": contract_direction,
+        "direction_source": contract_direction_source,
         "blockers": blockers,
     }
     for key in [key for key in signal if key.startswith("_")]:
@@ -675,6 +695,20 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
                 signals[key], record_type, reason or "additional_evidence")
         return signals[key]
 
+    raw_events = [row for row in events if row.get("ev") == "telegram_raw"]
+    canal1_observed_by_message: dict[int, datetime] = {}
+    for row in raw_events:
+        if row.get("channel") != "canal1" or row.get("is_reply"):
+            continue
+        message_id = row.get("message_id")
+        observed_dt = _parse_dt(row.get("ts"))
+        if message_id is None or observed_dt is None:
+            continue
+        message_id = int(message_id)
+        previous = canal1_observed_by_message.get(message_id)
+        if previous is None or observed_dt < previous:
+            canal1_observed_by_message[message_id] = observed_dt
+
     canal1_text_roots: dict[int, int] = {}
     for row in events:
         if row.get("ev") != "canal1_text_processing":
@@ -682,7 +716,16 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
         parsed_sig = _message_id_from_sig(row.get("sig"))
         source_msg_id = row.get("source_msg_id")
         if parsed_sig and parsed_sig[0] == "canal1" and source_msg_id is not None:
-            canal1_text_roots[int(source_msg_id)] = parsed_sig[1]
+            text_id = int(source_msg_id)
+            root_id = parsed_sig[1]
+            text_dt = canal1_observed_by_message.get(text_id)
+            root_dt = canal1_observed_by_message.get(root_id)
+            if text_id == root_id or (
+                text_dt is not None
+                and root_dt is not None
+                and (root_dt, root_id) <= (text_dt, text_id)
+            ):
+                canal1_text_roots[text_id] = root_id
 
     direction_by_key: dict[tuple[str, int], str] = {}
     for row in events:
@@ -693,14 +736,13 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
         if channel and message_id is not None:
             direction_by_key[(str(channel), int(message_id))] = str(row["direction"])
 
-    raw_events = [row for row in events if row.get("ev") == "telegram_raw"]
     sticker_roots: dict[int, tuple[datetime, str | None]] = {}
     text_candidates: dict[int, tuple[datetime, str | None]] = {}
     for row in raw_events:
         if row.get("channel") != "canal1" or row.get("is_reply"):
             continue
         message_id = row.get("message_id")
-        event_dt = _parse_dt(_telegram_ts(row))
+        event_dt = _parse_dt(row.get("ts"))
         if message_id is None or event_dt is None:
             continue
         message_id = int(message_id)
@@ -730,7 +772,11 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
         candidates = []
         for sticker_id, (sticker_dt, sticker_direction) in sticker_roots.items():
             age = text_dt - sticker_dt
-            if sticker_id in paired_stickers or not timedelta(0) <= age <= timedelta(minutes=3):
+            if (
+                sticker_id in paired_stickers
+                or (sticker_dt, sticker_id) > (text_dt, text_id)
+                or not timedelta(0) <= age <= timedelta(minutes=3)
+            ):
                 continue
             if direction and sticker_direction and direction != sticker_direction:
                 continue
