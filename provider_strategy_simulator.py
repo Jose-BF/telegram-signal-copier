@@ -2,9 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from numbers import Real
 
 import numpy as np
 import pandas as pd
+from pandas.api.types import (
+    is_datetime64_any_dtype,
+    is_float_dtype,
+    is_integer_dtype,
+)
 
 from provider_trade_spec import ProviderTradeSpec
 
@@ -45,6 +51,61 @@ def _entry_trigger_utc(spec: ProviderTradeSpec) -> tuple[datetime | None, str | 
         return None, "invalid_trigger_observed_utc"
 
 
+def _is_supported_tick_time(value: object) -> bool:
+    if isinstance(value, (pd.Timestamp, datetime)):
+        return not pd.isna(value)
+    if not isinstance(value, str):
+        return False
+    try:
+        datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
+def _normalise_tick_times(values: pd.Series) -> pd.Series | None:
+    if not is_datetime64_any_dtype(values.dtype):
+        raw_values = values.to_numpy(dtype=object, copy=False)
+        if not all(_is_supported_tick_time(value) for value in raw_values):
+            return None
+    try:
+        tick_times = pd.to_datetime(
+            values,
+            errors="coerce",
+            utc=True,
+            format="mixed",
+        )
+    except (OverflowError, TypeError, ValueError):
+        return None
+    if tick_times.isna().any():
+        return None
+    return tick_times
+
+
+def _safe_object_quote(value: object) -> float:
+    if isinstance(value, (bool, np.bool_)) or not isinstance(value, Real):
+        return np.nan
+    try:
+        quote = float(value)
+    except (OverflowError, TypeError, ValueError):
+        return np.nan
+    if not np.isfinite(quote) or quote <= 0:
+        return np.nan
+    return quote
+
+
+def _quote_prices(values: pd.Series) -> np.ndarray:
+    if is_float_dtype(values.dtype) or is_integer_dtype(values.dtype):
+        return values.to_numpy(dtype=np.float64, na_value=np.nan)
+
+    raw_values = values.to_numpy(dtype=object, copy=False)
+    return np.fromiter(
+        (_safe_object_quote(value) for value in raw_values),
+        dtype=np.float64,
+        count=len(raw_values),
+    )
+
+
 def select_entry_tick(
     spec: ProviderTradeSpec,
     ticks: pd.DataFrame,
@@ -73,38 +134,32 @@ def select_entry_tick(
             f"missing_tick_columns:{','.join(missing_columns)}",
         )
 
-    tick_times = pd.to_datetime(
-        ticks["time_utc"],
-        errors="coerce",
-        utc=True,
-        format="mixed",
-    )
-    valid_time_mask = tick_times.notna().to_numpy(dtype=bool, copy=False)
-    if not valid_time_mask.any():
+    tick_times = _normalise_tick_times(ticks["time_utc"])
+    if tick_times is None:
         return _blocked(spec, "invalid_tick_times")
 
-    valid_positions = np.flatnonzero(valid_time_mask)
-    valid_times = tick_times.iloc[valid_positions]
-    time_ns = (
-        valid_times.dt.as_unit("ns")
-        .astype("int64")
-        .to_numpy(dtype=np.int64, copy=False)
-    )
+    try:
+        time_ns = (
+            tick_times.dt.as_unit("ns")
+            .astype("int64")
+            .to_numpy(dtype=np.int64, copy=False)
+        )
+    except (OverflowError, pd.errors.OutOfBoundsDatetime, ValueError):
+        return _blocked(spec, "entry_threshold_out_of_range")
 
     side = "ask" if spec.direction == "BUY" else "bid"
-    side_prices = pd.to_numeric(ticks[side], errors="coerce")
-    prices = side_prices.iloc[valid_positions].to_numpy(
-        dtype=np.float64,
-        na_value=np.nan,
-    )
+    prices = _quote_prices(ticks[side])
 
     if len(time_ns) > 1 and np.any(time_ns[1:] < time_ns[:-1]):
         stable_order = np.argsort(time_ns, kind="stable")
         time_ns = time_ns[stable_order]
         prices = prices[stable_order]
 
-    threshold = trigger_utc + timedelta(milliseconds=spec.latency_ms)
-    threshold_ns = pd.Timestamp(threshold).value
+    try:
+        threshold = trigger_utc + timedelta(milliseconds=spec.latency_ms)
+        threshold_ns = pd.Timestamp(threshold).value
+    except (OverflowError, pd.errors.OutOfBoundsDatetime, ValueError):
+        return _blocked(spec, "entry_threshold_out_of_range")
     start_index = int(np.searchsorted(time_ns, threshold_ns, side="left"))
     if start_index == len(time_ns):
         return _blocked(spec, "missing_ticks_after_entry_trigger")
