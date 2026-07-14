@@ -40,6 +40,26 @@ def test_msg_diag_emits_telegram_raw_event(monkeypatch):
     assert raw[2]["text_sha1"]
 
 
+@pytest.mark.parametrize("update_kind", ["poll_edit", "recovery_edit"])
+def test_telegram_raw_payload_marks_semantic_edits(update_kind):
+    msg = SimpleNamespace(
+        id=12346,
+        text="SELL NOW",
+        message="SELL NOW",
+        date=datetime(2026, 6, 4, 9, 0, 0),
+        edit_date=datetime(2026, 6, 4, 9, 0, 5),
+        sticker=None,
+        photo=None,
+        document=None,
+        reply_to=None,
+    )
+
+    payload = listener._telegram_raw_payload(msg, "canal2", update_kind)
+
+    assert payload["update_kind"] == update_kind
+    assert payload["is_edit"] is True
+
+
 def test_log_telegram_understood_records_parsed_levels(monkeypatch):
     events = []
     monkeypatch.setattr(

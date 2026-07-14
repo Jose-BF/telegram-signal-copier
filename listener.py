@@ -118,6 +118,11 @@ async def _apply_interpreted_entry_levels(signal: Signal, parsed: dict,
     return interpreted["parsed"]
 
 
+def _is_edit_update_kind(update_kind: str | None) -> bool:
+    normalized = str(update_kind or "").strip().lower()
+    return normalized == "edit" or normalized.endswith("_edit")
+
+
 def _telegram_raw_payload(msg, channel: str, update_kind: str) -> dict:
     text = getattr(msg, "text", None) or getattr(msg, "message", None) or ""
     reply_to = getattr(msg, "reply_to", None)
@@ -135,7 +140,7 @@ def _telegram_raw_payload(msg, channel: str, update_kind: str) -> dict:
         "update_kind": update_kind,
         "date_utc": _iso_or_none(getattr(msg, "date", None)),
         "edit_date_utc": _iso_or_none(getattr(msg, "edit_date", None)),
-        "is_edit": update_kind == "edit",
+        "is_edit": _is_edit_update_kind(update_kind),
         "is_reply": reply_id is not None,
         "reply_to_msg_id": reply_id,
         "has_text": bool(text),

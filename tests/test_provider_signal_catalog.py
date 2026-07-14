@@ -140,8 +140,8 @@ def test_canal1_sticker_and_text_are_grouped_with_duplicate_executions():
     assert signal["effective_sl"] == 4095.0
     assert signal["entry_contract"] == {
         "status": "ready",
-        "trigger_observed_utc": "2026-07-08T11:00:02.181+00:00",
-        "trigger_telegram_utc": "2026-07-08T11:00:01+00:00",
+        "trigger_observed_utc": "2026-07-08T11:00:02.300+00:00",
+        "trigger_telegram_utc": "2026-07-08T11:00:00+00:00",
         "trigger_message_id": 200,
         "trigger_kind": "sticker",
         "direction": "BUY",
@@ -224,6 +224,92 @@ def test_revision_sequence_a_b_a_preserves_the_restoration_event():
     assert signal["effective_range"] == [4100.0, 4105.0]
 
 
+def test_poll_edit_sequence_a_b_a_preserves_distinct_edit_dates():
+    original = "Sell Gold Now\n4100 - 4105\nTargets\n4098\nSL 4108"
+    changed = "Sell Gold Now\n4101 - 4106\nTargets\n4098\nSL 4108"
+    events = [
+        _raw(
+            "canal2",
+            351,
+            original,
+            ts="2026-07-08T10:10:01+00:00",
+            date_utc="2026-07-08T10:00:00+00:00",
+            edit_date_utc="2026-07-08T10:10:00+00:00",
+            update_kind="poll_edit",
+        ),
+        _raw(
+            "canal2",
+            351,
+            changed,
+            ts="2026-07-08T10:11:01+00:00",
+            date_utc="2026-07-08T10:00:00+00:00",
+            edit_date_utc="2026-07-08T10:11:00+00:00",
+            update_kind="poll_edit",
+        ),
+        _raw(
+            "canal2",
+            351,
+            original,
+            ts="2026-07-08T10:12:01+00:00",
+            date_utc="2026-07-08T10:00:00+00:00",
+            edit_date_utc="2026-07-08T10:12:00+00:00",
+            update_kind="poll_edit",
+        ),
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+    signal = report["signals"][0]
+
+    assert len(signal["revisions"]) == 3
+    assert [row["telegram_ts_utc"] for row in signal["revisions"]] == [
+        "2026-07-08T10:10:00+00:00",
+        "2026-07-08T10:11:00+00:00",
+        "2026-07-08T10:12:00+00:00",
+    ]
+    assert [row["parsed"]["range"] for row in signal["revisions"]] == [
+        [4100.0, 4105.0],
+        [4101.0, 4106.0],
+        [4100.0, 4105.0],
+    ]
+
+
+def test_edit_and_poll_edit_duplicate_of_same_revision_are_fused():
+    text = "Buy Gold Now\n4100 - 4105\nTargets\n4108\nSL 4095"
+    common = {
+        "date_utc": "2026-07-08T10:00:00+00:00",
+        "edit_date_utc": "2026-07-08T10:20:00+00:00",
+        "has_document": True,
+        "media_sha256": "same-media",
+        "media_path": "media/same.bin",
+    }
+    events = [
+        _raw(
+            "canal2",
+            352,
+            text,
+            ts="2026-07-08T10:20:01+00:00",
+            update_kind="edit",
+            is_edit=True,
+            **common,
+        ),
+        _raw(
+            "canal2",
+            352,
+            text,
+            ts="2026-07-08T10:20:02+00:00",
+            update_kind="poll_edit",
+            **common,
+        ),
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+    signal = report["signals"][0]
+
+    assert len(signal["revisions"]) == 1
+    assert signal["revisions"][0]["update_kinds"] == ["edit", "poll_edit"]
+    assert signal["revisions"][0]["observed_ts_utc"] == events[0]["ts"]
+
+
 def test_canal1_single_entry_price_is_a_complete_entry_zone():
     events = [
         _raw(
@@ -289,7 +375,7 @@ def test_recent_sticker_and_text_only_recovery_are_one_provider_signal():
     assert signal["duplicate_execution"] is True
     assert signal["entry_contract"] == {
         "status": "ready",
-        "trigger_observed_utc": "2026-07-08T12:00:00+00:00",
+        "trigger_observed_utc": "2026-07-08T12:00:01+00:00",
         "trigger_telegram_utc": "2026-07-08T12:00:00+00:00",
         "trigger_message_id": 400,
         "trigger_kind": "sticker",
@@ -479,6 +565,98 @@ def test_canal1_pairing_rejects_text_observed_before_sticker():
     assert signals["canal1_651"]["entry_contract"]["trigger_kind"] == "text"
 
 
+def test_explicit_canal1_pairing_rejects_text_outside_observed_window():
+    events = [
+        _raw(
+            "canal1",
+            655,
+            sticker_id=12345,
+            has_document=True,
+            ts="2026-07-08T16:30:00+00:00",
+            date_utc="2026-07-08T16:59:00+00:00",
+        ),
+        _raw(
+            "canal1",
+            656,
+            "BUY GOLD NOW 4100-05\nTP1: 4108\nSL: 4095",
+            ts="2026-07-08T16:33:01+00:00",
+            date_utc="2026-07-08T16:59:01+00:00",
+        ),
+        {
+            "ts": "2026-07-08T16:33:02+00:00",
+            "sig": "canal1_655",
+            "ev": "canal1_text_processing",
+            "source_msg_id": 656,
+        },
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+    signals = {
+        signal["provider_signal_id"]: signal
+        for signal in report["signals"]
+    }
+
+    assert set(signals) == {"canal1_655", "canal1_656"}
+    assert signals["canal1_655"]["source_message_ids"] == [655]
+    assert signals["canal1_656"]["source_message_ids"] == [656]
+
+
+def test_canal1_pairing_is_invariant_for_equal_observed_timestamps():
+    sticker_710 = _raw(
+        "canal1",
+        710,
+        sticker_id=12345,
+        has_document=True,
+        ts="2026-07-08T19:00:00+00:00",
+        date_utc="2026-07-08T19:00:01+00:00",
+    )
+    sticker_711 = _raw(
+        "canal1",
+        711,
+        sticker_id=12346,
+        has_document=True,
+        ts="2026-07-08T19:00:00+00:00",
+        date_utc="2026-07-08T19:00:00+00:00",
+    )
+    text_720 = _raw(
+        "canal1",
+        720,
+        "BUY GOLD NOW 4100-05\nTP1: 4108\nSL: 4095",
+        ts="2026-07-08T19:00:30+00:00",
+        date_utc="2026-07-08T19:00:31+00:00",
+    )
+    text_721 = _raw(
+        "canal1",
+        721,
+        "BUY GOLD NOW 4100-05\nTP1: 4108\nSL: 4095",
+        ts="2026-07-08T19:00:30+00:00",
+        date_utc="2026-07-08T19:00:30+00:00",
+    )
+
+    ordered = provider_signal_catalog.build_catalog_report(
+        [sticker_710, sticker_711, text_720, text_721],
+        [],
+    )
+    permuted = provider_signal_catalog.build_catalog_report(
+        [sticker_711, sticker_710, text_721, text_720],
+        [],
+    )
+
+    ordered_sources = {
+        signal["provider_signal_id"]: signal["source_message_ids"]
+        for signal in ordered["signals"]
+    }
+    permuted_sources = {
+        signal["provider_signal_id"]: signal["source_message_ids"]
+        for signal in permuted["signals"]
+    }
+    assert ordered_sources == permuted_sources
+    assert ordered_sources == {
+        "canal1_710": [710, 721],
+        "canal1_711": [711, 720],
+    }
+
+
 def test_first_actionable_poll_edit_has_edit_trigger_kind():
     events = [
         _raw(
@@ -487,7 +665,8 @@ def test_first_actionable_poll_edit_has_edit_trigger_kind():
             "Sell Gold Now\n4100 - 4105\nTargets\n4098\n4096\nSL 4110",
             ts="2026-07-08T17:00:01+00:00",
             update_kind="poll_edit",
-            date_utc="2026-07-08T17:00:00+00:00",
+            date_utc="2026-07-08T16:59:00+00:00",
+            edit_date_utc="2026-07-08T17:00:00+00:00",
         )
     ]
 
@@ -495,6 +674,9 @@ def test_first_actionable_poll_edit_has_edit_trigger_kind():
     signal = report["signals"][0]
 
     assert signal["entry_contract"]["trigger_kind"] == "edit"
+    assert signal["entry_contract"]["trigger_telegram_utc"] == (
+        "2026-07-08T17:00:00+00:00"
+    )
 
 
 def test_formal_signal_with_direction_but_no_actionable_trigger_is_blocked():
@@ -532,6 +714,116 @@ def test_formal_signal_with_direction_but_no_actionable_trigger_is_blocked():
         "direction_source": "telegram_understood",
         "blockers": ["missing_actionable_entry_trigger"],
     }
+
+
+def test_text_trigger_wins_before_late_sticker_understanding():
+    events = [
+        _raw(
+            "canal1",
+            680,
+            sticker_id=12345,
+            has_document=True,
+            ts="2026-07-08T11:00:00+00:00",
+            date_utc="2026-07-08T10:59:59+00:00",
+        ),
+        _raw(
+            "canal1",
+            681,
+            "BUY GOLD NOW 4100-05\nTP1: 4108\nSL: 4095",
+            ts="2026-07-08T11:01:00+00:00",
+            date_utc="2026-07-08T11:00:59+00:00",
+        ),
+        {
+            "ts": "2026-07-08T11:01:01+00:00",
+            "sig": "canal1_680",
+            "ev": "canal1_text_processing",
+            "source_msg_id": 681,
+        },
+        {
+            "ts": "2026-07-08T11:02:00+00:00",
+            "sig": "canal1_680",
+            "ev": "telegram_understood",
+            "channel": "canal1",
+            "message_id": 680,
+            "direction": "SELL",
+            "tg_ts": "2026-07-08T10:59:59+00:00",
+        },
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+    signal = report["signals"][0]
+
+    assert signal["direction"] == "SELL"
+    assert signal["entry_contract"] == {
+        "status": "ready",
+        "trigger_observed_utc": "2026-07-08T11:01:00+00:00",
+        "trigger_telegram_utc": "2026-07-08T11:00:59+00:00",
+        "trigger_message_id": 681,
+        "trigger_kind": "text",
+        "direction": "BUY",
+        "direction_source": "revision_parser:681",
+        "blockers": [],
+    }
+
+
+def test_first_sticker_understanding_wins_before_text_and_future_contradiction():
+    events = [
+        _raw(
+            "canal1",
+            690,
+            sticker_id=12345,
+            has_document=True,
+            ts="2026-07-08T12:00:00+00:00",
+            date_utc="2026-07-08T11:59:59+00:00",
+        ),
+        {
+            "ts": "2026-07-08T12:00:01+00:00",
+            "sig": "canal1_690",
+            "ev": "telegram_understood",
+            "channel": "canal1",
+            "message_id": 690,
+            "direction": "SELL",
+            "tg_ts": "2026-07-08T11:59:59+00:00",
+        },
+        _raw(
+            "canal1",
+            691,
+            "SELL GOLD NOW 4100-05\nTP1: 4098\nSL: 4108",
+            ts="2026-07-08T12:01:00+00:00",
+            date_utc="2026-07-08T12:00:59+00:00",
+        ),
+        {
+            "ts": "2026-07-08T12:01:01+00:00",
+            "sig": "canal1_690",
+            "ev": "canal1_text_processing",
+            "source_msg_id": 691,
+        },
+        {
+            "ts": "2026-07-08T12:02:00+00:00",
+            "sig": "canal1_690",
+            "ev": "telegram_understood",
+            "channel": "canal1",
+            "message_id": 690,
+            "direction": "BUY",
+            "tg_ts": "2026-07-08T11:59:59+00:00",
+        },
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+    signal = report["signals"][0]
+
+    assert signal["direction"] == "BUY"
+    assert signal["entry_contract"] == {
+        "status": "ready",
+        "trigger_observed_utc": "2026-07-08T12:00:01+00:00",
+        "trigger_telegram_utc": "2026-07-08T11:59:59+00:00",
+        "trigger_message_id": 690,
+        "trigger_kind": "sticker",
+        "direction": "SELL",
+        "direction_source": "telegram_understood",
+        "blockers": [],
+    }
+    assert not any(key.startswith("_") for key in signal)
 
 
 def test_irrelevant_reply_does_not_create_a_provider_signal():
