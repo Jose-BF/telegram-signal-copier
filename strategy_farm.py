@@ -48,7 +48,7 @@ UNSAFE_CALIBRATION_SOURCES = {
 @dataclass(frozen=True)
 class FarmExecution:
     report: dict
-    selected_payloads: dict[str, object]
+    selected_payloads: dict[str, list]
     policies: list[dict]
     required_tick_days: list[str]
     verified_tick_contracts: dict[str, dict]
@@ -731,6 +731,10 @@ def build_farm_execution(
         "calibration": calibration,
         "canonical_scope": canonical_scope,
         "provider_scope": provider_scope,
+        "provider_configuration": {
+            "latency_scenarios_ms": list(latency_scenarios_ms),
+            "volume_per_leg": provider_volume_per_leg,
+        },
         "market_replay": market_replay_summary,
         "validation": {
             "price_path_mode": "provider_first",
@@ -832,6 +836,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--to", dest="to_date")
     parser.add_argument("--minimum-trades", type=int, default=200)
     parser.add_argument("--include-trades", action="store_true")
+    parser.add_argument(
+        "--provider-latency-ms",
+        action="append",
+        type=int,
+        dest="provider_latency_scenarios_ms",
+        help="Repeat to preserve an ordered virtual-entry latency scenario",
+    )
+    parser.add_argument(
+        "--provider-volume-per-leg",
+        type=float,
+        default=0.01,
+    )
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args(argv)
 
@@ -863,7 +879,10 @@ def main(argv: list[str] | None = None) -> int:
         to_date=args.to_date,
         minimum_trades=args.minimum_trades,
         include_trades=args.include_trades,
+        provider_latency_scenarios_ms=args.provider_latency_scenarios_ms,
+        provider_volume_per_leg=args.provider_volume_per_leg,
     )
+    provider_configuration = execution.report["provider_configuration"]
     evidence = simulation_run_provenance.build_run_evidence(
         repo_dir=Path(__file__).parent,
         report=execution.report,
@@ -873,6 +892,12 @@ def main(argv: list[str] | None = None) -> int:
             "minimum_trades": args.minimum_trades,
             "include_trades": args.include_trades,
             "tick_pad_minutes": 5,
+            "provider_latency_scenarios_ms": provider_configuration[
+                "latency_scenarios_ms"
+            ],
+            "provider_volume_per_leg": provider_configuration[
+                "volume_per_leg"
+            ],
         },
         selected_payloads=execution.selected_payloads,
         policies=execution.policies,
@@ -881,6 +906,10 @@ def main(argv: list[str] | None = None) -> int:
             "strategy_farm": Path(__file__),
             "strategy_policies": Path(strategy_policies.__file__),
             "strategy_simulator": Path(strategy_simulator.__file__),
+            "provider_trade_spec": Path(provider_trade_spec.__file__),
+            "provider_strategy_simulator": Path(
+                provider_strategy_simulator.__file__
+            ),
             "observed_tick_replay_validator": Path(
                 observed_tick_replay_validator.__file__
             ),

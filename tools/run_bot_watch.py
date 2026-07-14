@@ -24,6 +24,7 @@ Detener el wrapper: Ctrl+C (cierra el bot también).
 
 import os
 import json
+import math
 import signal
 import subprocess
 import sys
@@ -52,6 +53,9 @@ STRATEGY_FARM_FILE = REPO_DIR / "data" / "strategy_farm.json"
 LOG_LEARNING_REPORT_FILE = REPO_DIR / "data" / "log_learning_report.json"
 LOG_PATTERN_REGISTRY_FILE = REPO_DIR / "data" / "log_pattern_registry.json"
 STRATEGY_FARM_FROM_DATE = os.getenv("STRATEGY_FARM_FROM_DATE", "2026-07-06")
+STRATEGY_FARM_LATENCY_MS = os.getenv("STRATEGY_FARM_LATENCY_MS", "0")
+STRATEGY_FARM_VOLUME_PER_LEG = os.getenv(
+    "STRATEGY_FARM_VOLUME_PER_LEG", "0.01")
 RUNTIME_HEARTBEAT_FILE = Path(os.getenv(
     "BOT_RUNTIME_HEARTBEAT_FILE",
     str(REPO_DIR / "data" / "runtime_heartbeat.json"),
@@ -504,21 +508,153 @@ def _regenerate_provider_signal_catalog() -> bool:
         return False
 
 
-def _regenerate_strategy_farm() -> bool:
-    """Run offline strategy diagnostics; never changes live decisions."""
-    STRATEGY_FARM_FILE.unlink(missing_ok=True)
+def _strategy_farm_publication_valid(path: Path) -> bool:
+    try:
+        report = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(report, dict):
+        return False
+
+    scope = report.get("provider_scope")
+    validation = report.get("validation")
+    provenance = report.get("provenance")
+    if not all(isinstance(item, dict) for item in (
+        scope,
+        validation,
+        provenance,
+    )):
+        return False
+    if validation.get("price_path_mode") != "provider_first":
+        return False
+    validation_mode = validation.get("mode")
+    if validation_mode not in {"diagnostic_only", "verified_simulation"}:
+        return False
+
+    count_keys = (
+        "formal_signals",
+        "policy_count",
+        "rows_expected",
+        "rows_emitted",
+        "simulated_rows",
+        "blocked_rows",
+    )
+    counts = {key: scope.get(key) for key in count_keys}
+    if any(
+        isinstance(value, bool) or not isinstance(value, int) or value < 0
+        for value in counts.values()
+    ):
+        return False
+    latencies = scope.get("latency_scenarios_ms")
+    omitted = scope.get("signals_omitted")
+    if (
+        not isinstance(latencies, list)
+        or not latencies
+        or any(
+            isinstance(value, bool) or not isinstance(value, int) or value < 0
+            for value in latencies
+        )
+        or len(set(latencies)) != len(latencies)
+        or not isinstance(omitted, list)
+        or omitted
+    ):
+        return False
+    expected = (
+        counts["formal_signals"]
+        * counts["policy_count"]
+        * len(latencies)
+    )
+    if not (
+        counts["rows_expected"] == expected
+        and counts["rows_emitted"] == expected
+        and counts["simulated_rows"] + counts["blocked_rows"] == expected
+        and report.get("policy_count") == counts["policy_count"]
+    ):
+        return False
+
+    expected_status = (
+        "archived"
+        if validation_mode == "verified_simulation"
+        else "diagnostic_archived"
+    )
+    if provenance.get("status") != expected_status:
+        return False
+    run_fingerprint = str(provenance.get("run_fingerprint") or "")
+    result_fingerprint = str(provenance.get("result_fingerprint") or "")
+    if any(
+        len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+        for value in (run_fingerprint, result_fingerprint)
+    ):
+        return False
+    card_ref = provenance.get("run_card")
+    if not isinstance(card_ref, str) or not card_ref:
+        return False
+    card_path = (REPO_DIR / card_ref).resolve()
+    try:
+        card_path.relative_to(REPO_DIR.resolve())
+    except ValueError:
+        return False
+    try:
+        card = json.loads(card_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return (
+        isinstance(card, dict)
+        and card.get("run_fingerprint") == run_fingerprint
+        and card.get("result_fingerprint") == result_fingerprint
+    )
+
+
+def _strategy_farm_command() -> list[str]:
+    raw_latencies = [
+        item.strip()
+        for item in STRATEGY_FARM_LATENCY_MS.split(",")
+        if item.strip()
+    ]
+    try:
+        latencies = [int(item) for item in raw_latencies]
+        volume = float(STRATEGY_FARM_VOLUME_PER_LEG)
+    except ValueError as exc:
+        raise ValueError("invalid strategy farm execution scenarios") from exc
+    if (
+        not latencies
+        or any(value < 0 for value in latencies)
+        or len(set(latencies)) != len(latencies)
+        or not math.isfinite(volume)
+        or volume <= 0
+    ):
+        raise ValueError("invalid strategy farm execution scenarios")
+
     command = [sys.executable, "strategy_farm.py"]
     if STRATEGY_FARM_FROM_DATE:
         command.extend(["--from", STRATEGY_FARM_FROM_DATE])
-    command.append("--quiet")
+    for latency_ms in latencies:
+        command.extend(["--provider-latency-ms", str(latency_ms)])
+    command.extend(["--provider-volume-per-leg", str(volume), "--quiet"])
+    return command
+
+
+def _regenerate_strategy_farm() -> bool:
+    """Run offline strategy diagnostics; never changes live decisions."""
+    STRATEGY_FARM_FILE.unlink(missing_ok=True)
     try:
+        command = _strategy_farm_command()
         rec = subprocess.run(
             command,
             cwd=REPO_DIR, capture_output=True, text=True, timeout=300,
         )
         if rec.returncode == 0 and STRATEGY_FARM_FILE.exists():
-            print("[Watch] strategy_farm regenerada.", flush=True)
-            return True
+            if _strategy_farm_publication_valid(STRATEGY_FARM_FILE):
+                print("[Watch] strategy_farm regenerada.", flush=True)
+                return True
+            STRATEGY_FARM_FILE.unlink(missing_ok=True)
+            print(
+                "[Watch] strategy_farm rechazada: cobertura o provenance "
+                "incompleta.",
+                flush=True,
+            )
+            return False
         print(f"[Watch] strategy_farm.py fallo (rc={rec.returncode}): "
               f"{(rec.stderr or rec.stdout or '')[:1000]}", flush=True)
         return False

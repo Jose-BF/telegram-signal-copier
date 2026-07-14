@@ -525,6 +525,32 @@ def test_cli_writes_latest_report_with_run_card_reference(tmp_path):
     assert (tmp_path / "runs" / fingerprint / "run_card.json").is_file()
 
 
+def test_cli_preserves_ordered_provider_execution_scenarios(tmp_path):
+    paths = _write_empty_farm_inputs(tmp_path)
+    output = tmp_path / "strategy_farm.json"
+
+    exit_code = strategy_farm.main([
+        "--replay", str(paths["replay"]),
+        "--baseline", str(paths["baseline"]),
+        "--catalog", str(paths["catalog"]),
+        "--tick-cache-dir", str(tmp_path / "ticks"),
+        "--output", str(output),
+        "--run-archive-dir", str(tmp_path / "runs"),
+        "--provider-latency-ms", "250",
+        "--provider-latency-ms", "0",
+        "--provider-volume-per-leg", "0.02",
+        "--quiet",
+    ])
+
+    report = json.loads(output.read_text(encoding="utf-8"))
+    assert exit_code == 0
+    assert report["provider_configuration"] == {
+        "latency_scenarios_ms": [250, 0],
+        "volume_per_leg": 0.02,
+    }
+    assert report["provider_scope"]["latency_scenarios_ms"] == [250, 0]
+
+
 def test_detailed_cli_reference_matches_exact_latest_report_bytes(tmp_path):
     paths = _write_empty_farm_inputs(tmp_path)
     output = tmp_path / "strategy_farm_details.json"

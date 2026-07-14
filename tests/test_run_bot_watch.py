@@ -228,7 +228,44 @@ def test_regenerate_provider_signal_catalog_runs_offline_builder(
     assert watch._regenerate_provider_signal_catalog() is True
 
 
-def test_regenerate_strategy_farm_accepts_report_without_winner(
+def _valid_strategy_farm_publication(root):
+    fingerprint = "a" * 64
+    card = root / "data" / "simulation_runs" / fingerprint / "run_card.json"
+    card.parent.mkdir(parents=True, exist_ok=True)
+    card.write_text(json.dumps({
+        "run_fingerprint": fingerprint,
+        "result_fingerprint": "b" * 64,
+    }), encoding="utf-8")
+    return {
+        "policy_count": 1,
+        "provider_scope": {
+            "formal_signals": 1,
+            "policy_count": 1,
+            "latency_scenarios_ms": [0],
+            "rows_expected": 1,
+            "rows_emitted": 1,
+            "simulated_rows": 0,
+            "blocked_rows": 1,
+            "signals_omitted": [],
+        },
+        "selection": {"selected_policy": None},
+        "validation": {
+            "price_path_mode": "provider_first",
+            "money_mode": "diagnostic_only",
+            "mode": "diagnostic_only",
+        },
+        "provenance": {
+            "status": "diagnostic_archived",
+            "run_fingerprint": fingerprint,
+            "result_fingerprint": "b" * 64,
+            "run_card": (
+                f"data/simulation_runs/{fingerprint}/run_card.json"
+            ),
+        },
+    }
+
+
+def test_regenerate_strategy_farm_accepts_complete_diagnostic_publication(
         tmp_path, monkeypatch):
     data_dir = tmp_path / "data"
     data_dir.mkdir()
@@ -243,10 +280,14 @@ def test_regenerate_strategy_farm_accepts_report_without_winner(
             "strategy_farm.py",
             "--from",
             "2026-07-06",
+            "--provider-latency-ms",
+            "0",
+            "--provider-volume-per-leg",
+            "0.01",
             "--quiet",
         ]
         report.write_text(
-            '{"selection": {"selected_policy": null}}\n',
+            json.dumps(_valid_strategy_farm_publication(tmp_path)),
             encoding="utf-8",
         )
         return subprocess.CompletedProcess(
@@ -255,6 +296,35 @@ def test_regenerate_strategy_farm_accepts_report_without_winner(
     monkeypatch.setattr(watch.subprocess, "run", fake_run)
 
     assert watch._regenerate_strategy_farm() is True
+
+
+@pytest.mark.parametrize("failure", ["row_count", "incomplete_provenance"])
+def test_regenerate_strategy_farm_rejects_unpublishable_output(
+        tmp_path, monkeypatch, failure):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    report_path = data_dir / "strategy_farm.json"
+    monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
+    monkeypatch.setattr(watch, "STRATEGY_FARM_FILE", report_path)
+    monkeypatch.setattr(watch, "STRATEGY_FARM_FROM_DATE", "2026-07-06")
+
+    def fake_run(*args, **kwargs):
+        report = _valid_strategy_farm_publication(tmp_path)
+        if failure == "row_count":
+            report["provider_scope"]["rows_emitted"] = 0
+        else:
+            report["provenance"] = {
+                "status": "incomplete",
+                "run_card": None,
+            }
+        report_path.write_text(json.dumps(report), encoding="utf-8")
+        return subprocess.CompletedProcess(
+            args=args[0], returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(watch.subprocess, "run", fake_run)
+
+    assert watch._regenerate_strategy_farm() is False
+    assert not report_path.exists()
 
 
 def test_regenerate_recursive_learning_accepts_diagnostic_report(

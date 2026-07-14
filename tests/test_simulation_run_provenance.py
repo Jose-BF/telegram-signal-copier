@@ -177,6 +177,129 @@ def test_runtime_policy_source_and_tick_changes_change_run_identity(tmp_path):
     assert provenance.build_run_evidence(**cases[3])["run_fingerprint"] != original
 
 
+def _add_provider_first_identity(args):
+    args["report"]["provider_scope"] = {
+        "formal_signals": 1,
+        "policy_count": 1,
+        "latency_scenarios_ms": [0, 250],
+        "rows_expected": 2,
+        "rows_emitted": 2,
+        "simulated_rows": 2,
+        "blocked_rows": 0,
+        "signals_omitted": [],
+    }
+    args["report"]["validation"] = {
+        "price_path_mode": "provider_first",
+        "money_mode": "diagnostic_only",
+    }
+    args["selected_payloads"].update({
+        "provider_scope": [{
+            "provider_signal_id": "canal1_1",
+            "revisions": [{"message_id": 1, "text": "BUY"}],
+        }],
+        "provider_trade_specs": [{
+            "provider_signal_id": "canal1_1",
+            "latency_ms": 0,
+            "volume_per_leg": 0.01,
+        }],
+        "provider_latency_scenarios_ms": [0, 250],
+        "provider_volume_per_leg": [0.01],
+        "provider_policy_results": [{
+            "policy_id": "follow_actual",
+            "results": [{
+                "provider_signal_id": "canal1_1",
+                "latency_scenario_ms": 0,
+                "status": "simulated_price_path",
+                "strategy_value": 1.0,
+            }],
+        }],
+    })
+    return args
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda args: args["selected_payloads"]["provider_scope"][0][
+            "revisions"
+        ][0].update(text="SELL"),
+        lambda args: args["selected_payloads"][
+            "provider_latency_scenarios_ms"
+        ].reverse(),
+        lambda args: args["selected_payloads"][
+            "provider_volume_per_leg"
+        ].__setitem__(0, 0.02),
+        lambda args: args["selected_payloads"][
+            "provider_policy_results"
+        ][0]["results"][0].update(strategy_value=2.0),
+    ],
+    ids=("telegram_revision", "latency_order", "volume", "result"),
+)
+def test_provider_first_inputs_change_run_identity(tmp_path, mutate):
+    provenance = _provenance()
+    args = _add_provider_first_identity(_evidence_args(tmp_path))
+    original = provenance.build_run_evidence(**args)["run_fingerprint"]
+
+    mutate(args)
+
+    assert provenance.build_run_evidence(**args)["run_fingerprint"] != original
+
+
+def test_provider_first_money_is_diagnostic_even_with_exact_market_replay(
+    tmp_path,
+):
+    provenance = _provenance()
+    args = _add_provider_first_identity(_evidence_args(tmp_path))
+
+    evidence = provenance.build_run_evidence(**args)
+
+    assert evidence["reproducibility"]["verified_now"] is True
+    assert evidence["validation"]["provider_row_accounting_verified"] is True
+    assert evidence["validation"]["money_contract_verified"] is False
+    assert evidence["validation"]["conclusions_allowed"] is False
+    assert evidence["validation"]["mode"] == "diagnostic_only"
+
+
+def test_incomplete_provider_row_accounting_fails_artifact_integrity(tmp_path):
+    provenance = _provenance()
+    args = _add_provider_first_identity(_evidence_args(tmp_path))
+    args["report"]["provider_scope"]["rows_emitted"] = 1
+
+    evidence = provenance.build_run_evidence(**args)
+
+    assert evidence["reproducibility"]["verified_now"] is False
+    assert "provider_row_accounting_incomplete" in evidence[
+        "reproducibility"
+    ]["errors"]
+    assert evidence["validation"]["provider_row_accounting_verified"] is False
+
+
+def test_provider_first_evidence_requires_every_identity_payload(tmp_path):
+    provenance = _provenance()
+    args = _add_provider_first_identity(_evidence_args(tmp_path))
+    args["selected_payloads"].pop("provider_policy_results")
+
+    evidence = provenance.build_run_evidence(**args)
+
+    assert evidence["reproducibility"]["verified_now"] is False
+    assert evidence["reproducibility"]["errors"] == [
+        "missing_provider_selected_payload:provider_policy_results"
+    ]
+
+
+def test_non_v3_tick_contract_is_not_verified_for_publication(tmp_path):
+    provenance = _provenance()
+    args = _evidence_args(tmp_path)
+    args["tick_contracts"]["2026-07-06"]["tick_time_contract"] = "mt5_utc_v2"
+
+    evidence = provenance.build_run_evidence(**args)
+
+    assert evidence["reproducibility"]["verified_now"] is False
+    assert evidence["reproducibility"]["errors"] == [
+        "unverified_tick_contract:2026-07-06"
+    ]
+
+
 def test_result_fingerprint_preserves_semantic_policy_order():
     provenance = _provenance()
     report_a = _report(generated_at="2026-07-13T10:00:00+00:00")
@@ -320,6 +443,22 @@ def test_blocked_market_replay_is_archived_as_diagnostic(tmp_path):
         (published.run_dir / "run_card.json").read_text(encoding="utf-8")
     )
     assert card["validation"]["conclusions_allowed"] is False
+
+
+def test_provider_first_exact_price_path_still_archives_as_diagnostic(tmp_path):
+    provenance = _provenance()
+    args = _add_provider_first_identity(_evidence_args(tmp_path))
+    evidence = provenance.build_run_evidence(**args)
+
+    published = provenance.publish_run_archive(
+        **_publish_args(tmp_path, evidence, args["report"]),
+    )
+
+    assert published.status == "diagnostic_archived"
+    assert published.run_dir is not None
+    assert published.report["validation"]["market_replay_verified"] is True
+    assert published.report["validation"]["money_contract_verified"] is False
+    assert published.report["provenance"]["status"] == "diagnostic_archived"
 
 
 def test_same_identity_with_different_result_fails_closed(tmp_path):

@@ -15,8 +15,15 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 RUNTIME_PACKAGES = ("pandas", "numpy", "pyarrow")
+_PROVIDER_FIRST_PAYLOAD_ROLES = {
+    "provider_scope",
+    "provider_trade_specs",
+    "provider_latency_scenarios_ms",
+    "provider_volume_per_leg",
+    "provider_policy_results",
+}
 _TICK_CONTRACT_FIELDS = (
     "tick_time_contract",
     "time_basis",
@@ -212,6 +219,88 @@ def _identity_payload(
     }
 
 
+def _verified_tick_contract(contract: Mapping[str, Any]) -> bool:
+    anchor_validation = contract.get("anchor_validation")
+    offset = contract.get("utc_offset_seconds")
+    digest = str(contract.get("parquet_sha256") or "")
+    size = contract.get("size_bytes")
+    return (
+        contract.get("tick_time_contract") == "mt5_server_epoch_utc_v3"
+        and contract.get("time_basis") == "UTC"
+        and contract.get("source_time_basis") == "mt5_server_epoch"
+        and not isinstance(offset, bool)
+        and isinstance(offset, int)
+        and abs(offset) <= 14 * 3600
+        and bool(contract.get("offset_detection_method"))
+        and isinstance(contract.get("offset_reference"), Mapping)
+        and contract.get("semantic_time_valid") is True
+        and isinstance(anchor_validation, Mapping)
+        and anchor_validation.get("valid") is True
+        and len(digest) == 64
+        and all(character in "0123456789abcdef" for character in digest)
+        and not isinstance(size, bool)
+        and isinstance(size, int)
+        and size > 0
+    )
+
+
+def _provider_first_mode(report: Mapping[str, Any]) -> bool:
+    validation = report.get("validation")
+    return (
+        isinstance(validation, Mapping)
+        and validation.get("price_path_mode") == "provider_first"
+    )
+
+
+def _provider_row_accounting_verified(report: Mapping[str, Any]) -> bool:
+    if not _provider_first_mode(report):
+        return True
+    scope = report.get("provider_scope")
+    if not isinstance(scope, Mapping):
+        return False
+    values = {
+        key: scope.get(key)
+        for key in (
+            "formal_signals",
+            "policy_count",
+            "rows_expected",
+            "rows_emitted",
+            "simulated_rows",
+            "blocked_rows",
+        )
+    }
+    if any(
+        isinstance(value, bool) or not isinstance(value, int) or value < 0
+        for value in values.values()
+    ):
+        return False
+    latencies = scope.get("latency_scenarios_ms")
+    omitted = scope.get("signals_omitted")
+    if (
+        not isinstance(latencies, list)
+        or not latencies
+        or any(
+            isinstance(value, bool) or not isinstance(value, int) or value < 0
+            for value in latencies
+        )
+        or len(set(latencies)) != len(latencies)
+        or not isinstance(omitted, list)
+        or omitted
+    ):
+        return False
+    expected = (
+        values["formal_signals"]
+        * values["policy_count"]
+        * len(latencies)
+    )
+    return (
+        values["rows_expected"] == expected
+        and values["rows_emitted"] == expected
+        and values["simulated_rows"] + values["blocked_rows"] == expected
+        and report.get("policy_count") == values["policy_count"]
+    )
+
+
 def _normalize_market_replay(value: Mapping[str, Any]) -> dict[str, int]:
     normalized = {
         key: int(value.get(key) or 0)
@@ -234,9 +323,13 @@ def _market_replay_verified(summary: Mapping[str, int]) -> bool:
 
 def result_summary(report: Mapping[str, Any]) -> dict[str, Any]:
     canonical_scope = report.get("canonical_scope") or {}
+    provider_scope = report.get("provider_scope") or {}
     selection = report.get("selection") or {}
     return {
-        "provider_signals": canonical_scope.get("provider_signals"),
+        "provider_signals": provider_scope.get(
+            "formal_signals",
+            canonical_scope.get("provider_signals"),
+        ),
         "executed_trades": report.get("executed_trade_count"),
         "policy_count": report.get("policy_count"),
         "selected_policy": selection.get("selected_policy"),
@@ -282,7 +375,7 @@ def build_run_evidence(
         contract = tick_contracts.get(day)
         if contract is None or any(
             field not in contract for field in _TICK_CONTRACT_FIELDS
-        ):
+        ) or not _verified_tick_contract(contract):
             errors.append(f"unverified_tick_contract:{day}")
             continue
         tick_records.append(_tick_record(day, contract))
@@ -291,10 +384,28 @@ def build_run_evidence(
     git_record = _json_safe(git if git is not None else git_diagnostics(repo_dir))
     parameter_record = _json_safe(parameters)
     selected_input_records = _payload_records(selected_payloads)
+    provider_first = _provider_first_mode(report)
+    if provider_first:
+        for role in sorted(_PROVIDER_FIRST_PAYLOAD_ROLES - set(selected_payloads)):
+            errors.append(f"missing_provider_selected_payload:{role}")
+    provider_row_accounting_verified = _provider_row_accounting_verified(report)
+    if provider_first and not provider_row_accounting_verified:
+        errors.append("provider_row_accounting_incomplete")
     policy_record = _policy_record(policies)
     market_replay_record = _normalize_market_replay(market_replay)
 
     limitations = ["tick_artifacts_local_cache_only"] if tick_days else []
+    report_validation = report.get("validation") or {}
+    money_mode = (
+        str(report_validation.get("money_mode") or "diagnostic_only")
+        if provider_first
+        else "legacy_verified"
+    )
+    money_contract_verified = (
+        not provider_first or money_mode == "verified_account_currency"
+    )
+    if provider_first and not money_contract_verified:
+        limitations.append("broker_money_contract_unverified")
     reproducibility = {
         "verified_now": not errors,
         "durable": not tick_days,
@@ -313,7 +424,10 @@ def build_run_evidence(
     artifact_integrity_verified = not errors
     market_replay_verified = _market_replay_verified(market_replay_record)
     conclusions_allowed = (
-        artifact_integrity_verified and market_replay_verified
+        artifact_integrity_verified
+        and market_replay_verified
+        and provider_row_accounting_verified
+        and money_contract_verified
     )
     validation = {
         "artifact_integrity_verified": artifact_integrity_verified,
@@ -325,6 +439,15 @@ def build_run_evidence(
         ),
         "market_replay": market_replay_record,
     }
+    if provider_first:
+        validation.update({
+            "price_path_mode": "provider_first",
+            "money_mode": money_mode,
+            "provider_row_accounting_verified": (
+                provider_row_accounting_verified
+            ),
+            "money_contract_verified": money_contract_verified,
+        })
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -550,6 +673,8 @@ def publish_run_archive(
     expected_conclusions = bool(
         validation.get("artifact_integrity_verified")
         and validation.get("market_replay_verified")
+        and validation.get("provider_row_accounting_verified", True)
+        and validation.get("money_contract_verified", True)
     )
     if bool(validation.get("conclusions_allowed")) != expected_conclusions:
         raise ProvenanceConflictError("validation_conclusions_mismatch")
