@@ -115,11 +115,24 @@ def _causal_row_sort_key(
     row: dict,
     *,
     message_id_key: str = "message_id",
-) -> tuple[bool, datetime, int]:
+) -> tuple[bool, datetime, int, int]:
     return (
         *_timestamp_sort_key(row.get("observed_ts_utc")),
         int(row.get(message_id_key) or 0),
+        int(row.get("_source_order") or 0),
     )
+
+
+def _strip_private_fields(value: object) -> None:
+    if isinstance(value, dict):
+        for key in list(value):
+            if str(key).startswith("_"):
+                value.pop(key)
+            else:
+                _strip_private_fields(value[key])
+    elif isinstance(value, list):
+        for item in value:
+            _strip_private_fields(item)
 
 
 def _looks_like_management(text: str) -> bool:
@@ -414,6 +427,7 @@ def _append_revision(signal: dict, row: dict) -> None:
         "message_id": message_id,
         "observed_ts_utc": row.get("ts"),
         "telegram_ts_utc": _telegram_ts(row),
+        "_source_order": int(row.get("_source_order") or 0),
         "update_kinds": [update_kind],
         "text": text,
         "sticker_id": row.get("sticker_id"),
@@ -464,6 +478,7 @@ def _append_revision(signal: dict, row: dict) -> None:
             "observed_ts_utc": revision["observed_ts_utc"],
             "range": parsed["range"],
             "source_message_id": message_id,
+            "_source_order": revision["_source_order"],
         })
     if parsed.get("tps"):
         signal["effective_tps"] = parsed["tps"]
@@ -476,6 +491,7 @@ def _append_revision(signal: dict, row: dict) -> None:
             "tps": parsed.get("tps") or [],
             "sl": parsed.get("sl"),
             "source_message_id": message_id,
+            "_source_order": revision["_source_order"],
         })
 
 
@@ -602,7 +618,7 @@ def _finalize(signal: dict) -> dict:
             "message_id": revision["message_id"],
             "direction": parsed_direction,
             "direction_source": direction_source,
-            "source_rank": 0,
+            "_source_order": revision["_source_order"],
         })
         if _is_edit_update_kind((revision.get("update_kinds") or [None])[0]):
             trigger_kind = "edit"
@@ -618,7 +634,7 @@ def _finalize(signal: dict) -> dict:
             "trigger_kind": trigger_kind,
             "direction": parsed_direction,
             "direction_source": direction_source,
-            "source_rank": 0,
+            "_source_order": revision["_source_order"],
         })
 
     root_sticker = next(
@@ -637,7 +653,6 @@ def _finalize(signal: dict) -> dict:
         direction_evidence.append({
             **understood,
             "observed_dt": understood_dt,
-            "source_rank": 1,
         })
         if (
             root_sticker is None
@@ -648,14 +663,14 @@ def _finalize(signal: dict) -> dict:
         if sticker_dt is None:
             continue
         if understood_dt >= sticker_dt:
+            causal_event = understood
             causal_dt = understood_dt
-            causal_observed = understood.get("observed_ts_utc")
         else:
+            causal_event = root_sticker
             causal_dt = sticker_dt
-            causal_observed = root_sticker.get("observed_ts_utc")
         entry_candidates.append({
             "observed_dt": causal_dt,
-            "observed_ts_utc": causal_observed,
+            "observed_ts_utc": causal_event.get("observed_ts_utc"),
             "telegram_ts_utc": (
                 understood.get("telegram_ts_utc")
                 or root_sticker.get("telegram_ts_utc")
@@ -664,15 +679,14 @@ def _finalize(signal: dict) -> dict:
             "trigger_kind": "sticker",
             "direction": understood["direction"],
             "direction_source": "telegram_understood",
-            "source_rank": 1,
+            "_source_order": causal_event["_source_order"],
         })
 
     if direction_evidence:
         effective_direction = max(direction_evidence, key=lambda candidate: (
             candidate["observed_dt"],
             candidate["message_id"],
-            candidate["source_rank"],
-            candidate["direction"],
+            candidate["_source_order"],
         ))
         signal["direction"] = effective_direction["direction"]
         signal["_direction_source"] = effective_direction["direction_source"]
@@ -703,8 +717,7 @@ def _finalize(signal: dict) -> dict:
     entry_candidates.sort(key=lambda candidate: (
         candidate["observed_dt"],
         candidate["message_id"],
-        candidate["source_rank"],
-        candidate["direction"],
+        candidate["_source_order"],
     ))
     trigger = entry_candidates[0] if entry_candidates else None
 
@@ -740,8 +753,7 @@ def _finalize(signal: dict) -> dict:
         "direction_source": contract_direction_source,
         "blockers": blockers,
     }
-    for key in [key for key in signal if key.startswith("_")]:
-        signal.pop(key)
+    _strip_private_fields(signal)
     return signal
 
 
@@ -790,8 +802,14 @@ def _summary(signals: list[dict]) -> dict:
 
 
 def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) -> dict:
-    events = list(events)
-    events.sort(key=lambda row: _timestamp_sort_key(row.get("ts")))
+    events = [
+        {**row, "_source_order": source_order}
+        for source_order, row in enumerate(events)
+    ]
+    events.sort(key=lambda row: (
+        *_timestamp_sort_key(row.get("ts")),
+        row["_source_order"],
+    ))
     replay_trades = list(replay_trades)
     signals: dict[tuple[str, int], dict] = {}
 
@@ -814,9 +832,9 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
         return signals[key]
 
     raw_events = [row for row in events if row.get("ev") == "telegram_raw"]
-    sticker_evidence: dict[int, tuple[datetime, int]] = {}
-    text_evidence: dict[int, tuple[datetime, int]] = {}
-    for observed_order, row in enumerate(raw_events):
+    sticker_evidence: dict[int, datetime] = {}
+    text_evidence: dict[int, datetime] = {}
+    for row in raw_events:
         if row.get("channel") != "canal1" or row.get("is_reply"):
             continue
         message_id = row.get("message_id")
@@ -825,64 +843,36 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
             continue
         message_id = int(message_id)
         if row.get("sticker_id") is not None:
-            sticker_evidence.setdefault(
-                message_id,
-                (observed_dt, observed_order),
-            )
+            sticker_evidence.setdefault(message_id, observed_dt)
         if is_canal1_signal_text(str(row.get("text") or "")):
-            text_evidence.setdefault(
-                message_id,
-                (observed_dt, observed_order),
-            )
+            text_evidence.setdefault(message_id, observed_dt)
 
     def is_valid_pair(sticker_id: int, text_id: int) -> bool:
         sticker = sticker_evidence.get(sticker_id)
         text = text_evidence.get(text_id)
         if sticker is None or text is None:
             return False
-        sticker_dt, sticker_order = sticker
-        text_dt, text_order = text
-        if sticker_dt > text_dt:
+        if (sticker, sticker_id) >= (text, text_id):
             return False
-        if sticker_dt == text_dt and sticker_order >= text_order:
-            return False
-        return text_dt - sticker_dt <= timedelta(minutes=3)
-
-    association_roots_by_text: dict[int, set[int]] = {}
-    for row in events:
-        if row.get("ev") != "canal1_text_processing":
-            continue
-        parsed_sig = _message_id_from_sig(row.get("sig"))
-        source_msg_id = row.get("source_msg_id")
-        if parsed_sig and parsed_sig[0] == "canal1" and source_msg_id is not None:
-            text_id = int(source_msg_id)
-            root_id = parsed_sig[1]
-            if is_valid_pair(root_id, text_id):
-                association_roots_by_text.setdefault(text_id, set()).add(root_id)
+        return text - sticker <= timedelta(minutes=3)
 
     canal1_text_roots: dict[int, int] = {}
     paired_stickers: set[int] = set()
-    for text_id, (text_dt, _text_order) in sorted(
+    for text_id, text_dt in sorted(
         text_evidence.items(),
-        key=lambda item: (item[1][0], item[0]),
+        key=lambda item: (item[1], item[0]),
     ):
         candidates = [
             sticker_id
-            for sticker_id in association_roots_by_text.get(text_id, set())
+            for sticker_id in sticker_evidence
             if sticker_id not in paired_stickers
+            and is_valid_pair(sticker_id, text_id)
         ]
-        if not candidates:
-            candidates = [
-                sticker_id
-                for sticker_id in sticker_evidence
-                if sticker_id not in paired_stickers
-                and is_valid_pair(sticker_id, text_id)
-            ]
         if not candidates:
             continue
         sticker_id = max(
             candidates,
-            key=lambda candidate: (sticker_evidence[candidate][0], candidate),
+            key=lambda candidate: (sticker_evidence[candidate], candidate),
         )
         canal1_text_roots[text_id] = sticker_id
         paired_stickers.add(sticker_id)
@@ -903,6 +893,7 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
                 "message_id": int(message_id),
                 "direction": str(row["direction"]),
                 "direction_source": "telegram_understood",
+                "_source_order": row["_source_order"],
                 "provenance": {
                     "event": "telegram_understood",
                     "sig": row.get("sig"),
@@ -911,14 +902,7 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
                 },
             })
     for candidates in understood_directions_by_key.values():
-        candidates.sort(key=lambda candidate: (
-            _parse_dt(candidate.get("observed_ts_utc")) is None,
-            _parse_dt(candidate.get("observed_ts_utc"))
-            or datetime.max.replace(tzinfo=timezone.utc),
-            candidate["message_id"],
-            candidate["direction"],
-            json.dumps(candidate["provenance"], sort_keys=True),
-        ))
+        candidates.sort(key=_causal_row_sort_key)
 
     root_keys: set[tuple[str, int]] = set()
     for row in raw_events:
