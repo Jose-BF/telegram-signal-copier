@@ -1122,7 +1122,7 @@
       "provider_catalog": "3eafcb1cbd498f8ec32663a586369330f00b3bb2b62b6d967d5acbae6b163f4b",
       "replay": "c38ab2fc36077182e3e51836fdd55f5fe6b348a8d92a9e1e82a95813c40cb5c2",
       "review_metadata": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
-      "strategy_farm": "99101252f6b6b56d88e3ee0b5ddec1ef1be2abfbbefb20fe545293ad00e4756a"
+      "strategy_farm": "5afdc7adcf3f4cc75218f1c53e5754ea7424bcc56be50f055b3d0dcfb49f4d4e"
     }
   },
   "hard_gate_blockers": [
@@ -1271,7 +1271,7 @@
     "regressed_patterns": 0
   },
   "mode": "diagnostic_only",
-  "registry_fingerprint": "bcf4c8218f276d541d8d8d13851ebb8d9621da0db9c3a51b3ad399ba75f889a1",
+  "registry_fingerprint": "e142359547995f4957ed0348502ad96a299fbb72709557ec9c4159f17434e11f",
   "safe_for_strategy_simulation": false,
   "schema_version": 1
 }
