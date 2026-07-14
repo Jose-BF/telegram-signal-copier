@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pandas as pd
+import pytest
 
 from tools import ensure_replay_tick_cache
 
@@ -437,6 +438,48 @@ def test_mt5_tick_source_converts_vantage_server_epoch_to_utc(monkeypatch):
     evidence = source.time_evidence_for_day(day)
     assert evidence["utc_offset_seconds"] == 10_800
     assert evidence["offset_detection_method"] == "fill_anchor"
+
+
+def test_historical_day_cannot_inherit_offset_from_current_live_tick(monkeypatch):
+    live_utc = datetime.now(timezone.utc)
+    server_epoch = live_utc + timedelta(hours=3)
+
+    class FakeMT5:
+        COPY_TICKS_ALL = 7
+
+        @staticmethod
+        def initialize():
+            return True
+
+        @staticmethod
+        def symbol_select(_symbol, _enabled):
+            return True
+
+        @staticmethod
+        def symbol_info_tick(_symbol):
+            return SimpleNamespace(time=server_epoch.timestamp())
+
+        @staticmethod
+        def copy_ticks_range(*_args):
+            return []
+
+        @staticmethod
+        def last_error():
+            return (0, "ok")
+
+        @staticmethod
+        def shutdown():
+            return None
+
+    monkeypatch.setitem(sys.modules, "MetaTrader5", FakeMT5)
+    source = ensure_replay_tick_cache.MT5TickSource(
+        "XAUUSD",
+        anchors_by_day={},
+        offset_candidates_seconds=[0, 10_800],
+    )
+
+    with pytest.raises(RuntimeError, match="cannot prove MT5 server offset"):
+        source.time_evidence_for_day(date(2025, 1, 15))
 
 
 def test_shifted_tick_frame_fails_semantic_fill_anchor_validation():

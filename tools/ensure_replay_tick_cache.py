@@ -505,7 +505,12 @@ class MT5TickSource:
             "offset_reference": reference,
         }
 
-    def _detect_offset_from_recent_tick(self) -> dict | None:
+    def _detect_offset_from_recent_tick(self, day: date) -> dict | None:
+        # A live tick proves today's broker clock only. Applying that offset
+        # to an arbitrary historical day could cross a broker DST change and
+        # silently shift every replay tick by one hour.
+        if day != datetime.now(timezone.utc).date():
+            return None
         tick_getter = getattr(self.mt5, "symbol_info_tick", None)
         if tick_getter is None:
             return None
@@ -567,7 +572,7 @@ class MT5TickSource:
         if evidence is None:
             evidence = self._inherit_adjacent_evidence(day)
         if evidence is None:
-            evidence = self._detect_offset_from_recent_tick()
+            evidence = self._detect_offset_from_recent_tick(day)
         if evidence is None:
             raise RuntimeError(
                 f"cannot prove MT5 server offset for {day.isoformat()}"
