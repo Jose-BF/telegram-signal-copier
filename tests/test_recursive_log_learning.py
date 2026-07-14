@@ -185,6 +185,20 @@ def test_rerunning_same_corpus_is_byte_deterministic(tmp_path):
     assert (tmp_path / "log_pattern_registry.json").read_bytes() == first.registry_bytes
 
 
+def test_strategy_farm_generation_time_is_not_part_of_learning_identity():
+    first = _build(strategy_farm={
+        **_verified_strategy(),
+        "generated_at": "2026-07-14T08:00:00+00:00",
+    })
+    second = _build(strategy_farm={
+        **_verified_strategy(),
+        "generated_at": "2026-07-14T09:00:00+00:00",
+    })
+
+    assert first.registry_bytes == second.registry_bytes
+    assert first.report_bytes == second.report_bytes
+
+
 @pytest.mark.parametrize(
     "review",
     [

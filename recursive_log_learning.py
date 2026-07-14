@@ -99,6 +99,15 @@ def _fingerprint(value: object) -> str:
     return hashlib.sha256(_canonical_bytes(value)).hexdigest()
 
 
+def _artifact_identity(value: object) -> object:
+    """Exclude root-level publication time from semantic input identity."""
+    if not isinstance(value, dict):
+        return value
+    identity = dict(value)
+    identity.pop("generated_at", None)
+    return identity
+
+
 def _parse_dt(value: object) -> datetime | None:
     if not value:
         return None
@@ -918,8 +927,8 @@ def build_learning_outputs(
         "replay": _fingerprint(replay_rows),
         "accounting": _fingerprint(accounting_rows),
         "observed_ticks": _fingerprint(observed_rows),
-        "provider_catalog": _fingerprint(provider_catalog),
-        "strategy_farm": _fingerprint(strategy_farm),
+        "provider_catalog": _fingerprint(_artifact_identity(provider_catalog)),
+        "strategy_farm": _fingerprint(_artifact_identity(strategy_farm)),
         "review_metadata": _fingerprint(_review_map(review_metadata)),
     }
     registry = {
