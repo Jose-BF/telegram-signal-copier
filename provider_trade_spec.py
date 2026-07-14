@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from math import isfinite
@@ -15,6 +15,8 @@ _MAX_UTC = datetime.max.replace(tzinfo=timezone.utc)
 
 @dataclass(frozen=True)
 class ProviderTradeSpec:
+    """Immutable virtual trade input; serialize it explicitly with ``to_dict``."""
+
     provider_signal_id: str
     channel: str
     direction: str | None
@@ -33,6 +35,47 @@ class ProviderTradeSpec:
     @property
     def entry_ready(self) -> bool:
         return not self.entry_blockers
+
+    def to_dict(self) -> dict[str, object]:
+        """Return detached JSON-safe data without traversing proxies via asdict."""
+        fields = {
+            "provider_signal_id": self.provider_signal_id,
+            "channel": self.channel,
+            "direction": self.direction,
+            "trigger_observed_utc": self.trigger_observed_utc,
+            "latency_ms": self.latency_ms,
+            "volume_per_leg": self.volume_per_leg,
+            "leg_count": self.leg_count,
+            "provider_tps": self.provider_tps,
+            "provider_sl": self.provider_sl,
+            "level_timeline": self.level_timeline,
+            "management_events": self.management_events,
+            "execution_sig_ids": self.execution_sig_ids,
+            "entry_blockers": self.entry_blockers,
+            "policy_evidence_gaps": self.policy_evidence_gaps,
+        }
+        return cast(dict[str, object], _thaw_json_safe(fields))
+
+
+def _thaw_json_safe(value: object) -> object:
+    if isinstance(value, datetime):
+        if value.tzinfo is not None and value.utcoffset() is not None:
+            value = value.astimezone(timezone.utc)
+        return value.isoformat()
+    if isinstance(value, Mapping):
+        return {
+            str(key): _thaw_json_safe(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        return [_thaw_json_safe(item) for item in value]
+    if isinstance(value, (set, frozenset)):
+        return [_thaw_json_safe(item) for item in sorted(value, key=repr)]
+    if isinstance(value, (bytes, bytearray)):
+        return list(value)
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
 
 
 def _validate_latency(latency_ms: object) -> int:
@@ -109,9 +152,13 @@ def _causal_sort_key(
     return observed is None, observed or _MAX_UTC, source_index
 
 
-def _freeze_timeline(value: object, field_name: str) -> tuple[FrozenEvent, ...]:
+def _freeze_timeline(
+    value: object,
+    field_name: str,
+    invalid_timestamp_gap: str,
+) -> tuple[tuple[FrozenEvent, ...], tuple[str, ...]]:
     if value is None:
-        return ()
+        return (), ()
     if isinstance(value, (str, bytes, bytearray, Mapping)):
         raise ValueError(f"{field_name} must be a sequence of mappings")
 
@@ -123,31 +170,69 @@ def _freeze_timeline(value: object, field_name: str) -> tuple[FrozenEvent, ...]:
         raise ValueError(f"{field_name} must contain only mappings")
 
     indexed_events = list(enumerate(cast(list[Mapping[str, object]], events)))
-    indexed_events.sort(key=_causal_sort_key)
-    return tuple(
-        cast(FrozenEvent, _deep_freeze(event))
-        for _, event in indexed_events
+    gaps = tuple(
+        f"{invalid_timestamp_gap}:{index}"
+        for index, event in indexed_events
+        if _parse_trigger_utc(event.get("observed_ts_utc"))[0] is None
     )
+    indexed_events.sort(key=_causal_sort_key)
+    timeline = tuple(
+        cast(FrozenEvent, _deep_freeze(event)) for _, event in indexed_events
+    )
+    return timeline, gaps
 
 
-def _provider_levels(signal: Mapping[str, object]) -> tuple[tuple[float, ...], float | None]:
-    raw_tps = signal.get("effective_tps") or ()
-    if isinstance(raw_tps, (str, bytes, bytearray, Mapping)):
-        raise ValueError("effective_tps must be a sequence of numeric values")
+def _safe_price(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, Real):
+        return None
     try:
-        provider_tps = tuple(float(value) for value in raw_tps)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("effective_tps must be a sequence of numeric values") from exc
+        price = float(value)
+    except (OverflowError, TypeError, ValueError):
+        return None
+    if not isfinite(price) or price <= 0:
+        return None
+    return price
+
+
+def _provider_levels(
+    signal: Mapping[str, object],
+) -> tuple[tuple[float, ...], float | None, tuple[str, ...]]:
+    raw_tps = signal.get("effective_tps")
+    if raw_tps is None:
+        tp_values: tuple[object, ...] = ()
+    elif isinstance(raw_tps, (list, tuple)):
+        tp_values = tuple(raw_tps)
+    else:
+        tp_values = (raw_tps,)
+
+    provider_tps: list[float] = []
+    gaps: list[str] = []
+    for index, value in enumerate(tp_values):
+        price = _safe_price(value)
+        if price is None:
+            gaps.append(f"invalid_provider_tp:{index}")
+        else:
+            provider_tps.append(price)
 
     raw_sl = signal.get("effective_sl")
-    if raw_sl is None:
-        provider_sl = None
-    else:
-        try:
-            provider_sl = float(raw_sl)
-        except (TypeError, ValueError) as exc:
-            raise ValueError("effective_sl must be numeric or None") from exc
-    return provider_tps, provider_sl
+    provider_sl = None if raw_sl is None else _safe_price(raw_sl)
+    if raw_sl is not None and provider_sl is None:
+        gaps.append("invalid_provider_sl")
+    return tuple(provider_tps), provider_sl, tuple(gaps)
+
+
+def _normalize_execution_sig_ids(value: object) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if isinstance(value, str):
+        return (value,)
+    if isinstance(value, (bytes, bytearray)) or not isinstance(value, Sequence):
+        raise ValueError("execution_sig_ids must be a string or sequence of strings")
+
+    execution_sig_ids = tuple(value)
+    if not all(isinstance(sig_id, str) for sig_id in execution_sig_ids):
+        raise ValueError("execution_sig_ids must contain only strings")
+    return execution_sig_ids
 
 
 def build_trade_spec(
@@ -188,15 +273,36 @@ def build_trade_spec(
         except TypeError:
             inherited_blockers = (raw_blockers,)
     entry_blockers = _stable_unique((*inherited_blockers, *added_blockers))
+    contract_status = entry_contract.get("status")
+    if contract_status == "blocked" and not entry_blockers:
+        entry_blockers = ("contract_status_blocked",)
+    elif contract_status not in {"ready", "blocked"}:
+        entry_blockers = _stable_unique(
+            (*entry_blockers, "invalid_contract_status")
+        )
 
-    provider_tps, provider_sl = _provider_levels(signal)
-    policy_evidence_gaps: list[str] = []
+    provider_tps, provider_sl, level_gaps = _provider_levels(signal)
+    policy_evidence_gaps = list(level_gaps)
     if not provider_tps:
         policy_evidence_gaps.append("missing_provider_tps")
     if provider_sl is None:
         policy_evidence_gaps.append("missing_provider_sl")
+    level_timeline, level_timeline_gaps = _freeze_timeline(
+        signal.get("level_timeline"),
+        "level_timeline",
+        "invalid_level_timeline_observed_ts",
+    )
+    management_events, management_event_gaps = _freeze_timeline(
+        signal.get("management_events"),
+        "management_events",
+        "invalid_management_event_observed_ts",
+    )
+    policy_evidence_gaps.extend(level_timeline_gaps)
+    policy_evidence_gaps.extend(management_event_gaps)
 
-    execution_sig_ids = tuple(signal.get("execution_sig_ids") or ())
+    execution_sig_ids = _normalize_execution_sig_ids(
+        signal.get("execution_sig_ids")
+    )
     return ProviderTradeSpec(
         provider_signal_id=str(signal.get("provider_signal_id") or ""),
         channel=str(signal.get("channel") or ""),
@@ -207,12 +313,8 @@ def build_trade_spec(
         leg_count=len(provider_tps) or 1,
         provider_tps=provider_tps,
         provider_sl=provider_sl,
-        level_timeline=_freeze_timeline(
-            signal.get("level_timeline"), "level_timeline"
-        ),
-        management_events=_freeze_timeline(
-            signal.get("management_events"), "management_events"
-        ),
+        level_timeline=level_timeline,
+        management_events=management_events,
         execution_sig_ids=execution_sig_ids,
         entry_blockers=entry_blockers,
         policy_evidence_gaps=tuple(policy_evidence_gaps),
