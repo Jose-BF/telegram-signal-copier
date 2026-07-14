@@ -312,6 +312,8 @@ def _empty_signal(
         "signal_ts_utc": None,
         "first_observed_utc": None,
         "direction": None,
+        "_direction_source": None,
+        "_direction_observed_utc": None,
         "risk_label": "standard",
         "effective_range": None,
         "effective_tps": [],
@@ -421,6 +423,8 @@ def _append_revision(signal: dict, row: dict) -> None:
         signal["risk_label"] = "high_risk"
     if parsed.get("direction"):
         signal["direction"] = parsed["direction"]
+        signal["_direction_source"] = f"revision_parser:{message_id}"
+        signal["_direction_observed_utc"] = revision["observed_ts_utc"]
     if parsed.get("range"):
         signal["effective_range"] = parsed["range"]
         signal["entry_zone_timeline"].append({
@@ -521,7 +525,7 @@ def _append_management(signal: dict, row: dict) -> None:
 
 def _finalize(signal: dict) -> dict:
     signal["revisions"].sort(
-        key=lambda row: (row.get("telegram_ts_utc") or "", row["message_id"]))
+        key=lambda row: (row.get("observed_ts_utc") or "", row["message_id"]))
     signal["management_events"].sort(
         key=lambda row: (row.get("telegram_ts_utc") or "", row.get("message_id") or 0))
     signal["source_message_ids"].sort()
@@ -554,8 +558,53 @@ def _finalize(signal: dict) -> dict:
         semantic_status = "classified"
     signal["semantic_gaps"] = gaps
     signal["semantic_status"] = semantic_status
-    signal.pop("_revision_keys", None)
-    signal.pop("_management_last_by_message", None)
+
+    trigger = next(
+        (
+            revision
+            for revision in signal["revisions"]
+            if revision.get("parsed", {}).get("direction")
+            or (
+                revision["message_id"] == signal["root_message_id"]
+                and revision.get("sticker_id") is not None
+                and signal.get("direction")
+                and signal.get("_direction_source") == "telegram_understood"
+            )
+        ),
+        None,
+    )
+    blockers: list[str] = []
+    if not signal.get("direction"):
+        blockers.append("missing_direction")
+    if trigger is None:
+        blockers.append("missing_actionable_entry_trigger")
+
+    trigger_kind = None
+    if trigger is not None:
+        if (trigger.get("update_kinds") or [None])[0] == "edit":
+            trigger_kind = "edit"
+        elif trigger.get("sticker_id") is not None:
+            trigger_kind = "sticker"
+        else:
+            trigger_kind = "text"
+    signal["entry_contract"] = {
+        "status": "ready" if not blockers else "blocked",
+        "trigger_observed_utc": (
+            trigger.get("observed_ts_utc") if trigger is not None else None
+        ),
+        "trigger_telegram_utc": (
+            trigger.get("telegram_ts_utc") if trigger is not None else None
+        ),
+        "trigger_message_id": (
+            trigger.get("message_id") if trigger is not None else None
+        ),
+        "trigger_kind": trigger_kind,
+        "direction": signal.get("direction"),
+        "direction_source": signal.get("_direction_source"),
+        "blockers": blockers,
+    }
+    for key in [key for key in signal if key.startswith("_")]:
+        signal.pop(key)
     return signal
 
 
@@ -763,8 +812,30 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
 
     for (channel, message_id), direction in direction_by_key.items():
         root_id = canal1_text_roots.get(message_id, message_id)
-        if (channel, root_id) in signals and not signals[(channel, root_id)]["direction"]:
-            signals[(channel, root_id)]["direction"] = direction
+        if (channel, root_id) not in signals:
+            continue
+        signal = signals[(channel, root_id)]
+        parser_source = f"revision_parser:{message_id}"
+        if signal.get("_direction_source") == parser_source:
+            continue
+        source_revision = next(
+            (
+                revision
+                for revision in signal["revisions"]
+                if revision["message_id"] == message_id
+            ),
+            None,
+        )
+        from_sticker = bool(
+            source_revision and source_revision.get("sticker_id") is not None
+        )
+        if signal.get("direction") and not from_sticker:
+            continue
+        signal["direction"] = direction
+        signal["_direction_source"] = "telegram_understood"
+        signal["_direction_observed_utc"] = (
+            source_revision.get("observed_ts_utc") if source_revision else None
+        )
 
     for trade in replay_trades:
         parsed_sig = _message_id_from_sig(trade.get("sig_id"))
