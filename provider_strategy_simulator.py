@@ -20,7 +20,7 @@ from strategy_simulator import (
     _management_trigger,
     _policy_sl_events,
     _provider_level_events,
-    _ticket_actions,
+    _ticket_tp_distance,
 )
 
 
@@ -348,6 +348,53 @@ def _causal_provider_signal(spec: ProviderTradeSpec) -> dict:
     }
 
 
+def _causal_gap_blockers(spec: ProviderTradeSpec) -> list[str]:
+    prefixes = (
+        "invalid_level_timeline_observed_ts:",
+        "invalid_management_event_observed_ts:",
+    )
+    return _stable_strings(
+        gap
+        for gap in spec.policy_evidence_gaps
+        if str(gap).startswith(prefixes)
+    )
+
+
+def _is_triggered_close_only(
+    policy: StrategyPolicy,
+    trigger: datetime | None,
+) -> bool:
+    return (
+        trigger is not None
+        and policy.mode == "risk_free_allocation"
+        and policy.close_legs > 0
+        and policy.be_legs == 0
+        and policy.runner_legs == 0
+    )
+
+
+def _contextual_gap_blockers(
+    spec: ProviderTradeSpec,
+    policy: StrategyPolicy,
+    trigger: datetime | None,
+) -> list[str]:
+    causal = set(_causal_gap_blockers(spec))
+    close_only = _is_triggered_close_only(policy, trigger)
+    blockers: list[str] = []
+    for raw_gap in spec.policy_evidence_gaps:
+        gap = str(raw_gap)
+        if gap in causal:
+            continue
+        is_tp_gap = (
+            gap in {"missing_provider_tp", "missing_provider_tps"}
+            or gap.startswith("invalid_provider_tp:")
+        )
+        if close_only and is_tp_gap:
+            continue
+        blockers.append(gap)
+    return _stable_strings(blockers)
+
+
 def _virtual_trade(spec: ProviderTradeSpec, entry: VirtualEntry) -> dict:
     opened = _iso_utc(entry.time_utc)
     tickets = [
@@ -392,9 +439,9 @@ def _policy_actions(
     policy: StrategyPolicy,
     trigger: datetime,
     provider_signal: dict,
+    survivors: list[tuple[int, dict]],
 ) -> tuple[list[tuple[int, dict, str]], list[str]]:
-    tickets = list(trade.get("tickets") or [])
-    allocation = policy.allocation_for(len(tickets))
+    allocation = policy.allocation_for(len(survivors))
     active_actions = [
         action
         for action in ("close_now", "move_to_be", "runner")
@@ -404,14 +451,53 @@ def _policy_actions(
         action = active_actions[0]
         return [
             (index, ticket, action)
-            for index, ticket in enumerate(tickets)
+            for index, ticket in survivors
         ], []
-    return _ticket_actions(
-        trade,
-        policy,
-        trigger,
-        provider_signal=provider_signal,
+
+    distances: dict[int, float] = {}
+    blockers: list[str] = []
+    for ticket_index, ticket in survivors:
+        tp_events = _provider_level_events(
+            provider_signal,
+            ticket_index,
+            "tp",
+        )
+        distance = _ticket_tp_distance(
+            trade,
+            ticket,
+            trigger,
+            tp_events=tp_events,
+        )
+        if distance is None:
+            blockers.append(
+                f"missing_causal_tp_at_trigger:{ticket.get('ticket')}"
+            )
+        else:
+            distances[ticket_index] = distance
+    if blockers:
+        return [], _stable_strings(blockers)
+
+    ordered = sorted(
+        survivors,
+        key=lambda item: (distances[item[0]], item[0]),
     )
+    allocated_actions = (
+        ["close_now"] * allocation["close_now"]
+        + ["move_to_be"] * allocation["move_to_be"]
+        + ["runner"] * allocation["runner"]
+    )
+    action_by_index = {
+        ticket_index: action
+        for (ticket_index, _ticket), action in zip(
+            ordered,
+            allocated_actions,
+            strict=True,
+        )
+    }
+    return [
+        (ticket_index, ticket, action_by_index[ticket_index])
+        for ticket_index, ticket in survivors
+    ], []
 
 
 def _no_touch_tp_event(direction: str, opened: datetime) -> dict:
@@ -421,6 +507,128 @@ def _no_touch_tp_event(direction: str, opened: datetime) -> dict:
         "source": "virtual_close_without_tp",
         "raw": {"source": "virtual_close_without_tp"},
     }
+
+
+def _tp_events_with_no_touch_guard(
+    trade: dict,
+    ticket: dict,
+    tp_events: list[dict],
+) -> tuple[list[dict], list[str], list[str]]:
+    if tp_events:
+        return tp_events, [], []
+    entry_opened = ticket.get("open_dt_utc")
+    try:
+        opened = datetime.fromisoformat(str(entry_opened))
+    except (OverflowError, TypeError, ValueError):
+        return [], [f"missing_ticket_open:{ticket.get('ticket')}"], []
+    return (
+        [_no_touch_tp_event(str(trade.get("direction")), opened)],
+        [],
+        ["provider_tp_not_required:close_now"],
+    )
+
+
+def _simulated_leg_result(
+    trade: dict,
+    ticket: dict,
+    *,
+    action: str,
+    close: dict,
+    assumptions: object = (),
+) -> dict:
+    strategy_value = _directional_price_delta(
+        str(trade.get("direction")),
+        float(ticket["open_price"]),
+        float(close["close_price"]),
+    )
+    return {
+        "ticket": ticket.get("ticket"),
+        "status": "simulated",
+        "action": action,
+        "open_time_utc": ticket.get("open_dt_utc"),
+        "open_price": float(ticket["open_price"]),
+        "close_time_utc": close["time_utc"],
+        "close_price": float(close["close_price"]),
+        "close_reason": close["reason"],
+        "touch_side": close["side"],
+        "touch_side_price": float(close["side_price"]),
+        "volume": float(ticket["volume"]),
+        "strategy_value": float(strategy_value),
+        "blockers": [],
+        "assumptions": _stable_strings(assumptions),
+    }
+
+
+def _classify_pre_management_legs(
+    trade: dict,
+    ticks: pd.DataFrame,
+    provider_signal: dict,
+    trigger: datetime,
+    policy: StrategyPolicy,
+) -> tuple[dict[int, dict], list[tuple[int, dict]], list[str]]:
+    trigger_ts = pd.Timestamp(trigger)
+    pre_trigger_ticks = ticks.loc[ticks["time_utc"] <= trigger_ts].copy()
+    close_only = _is_triggered_close_only(policy, trigger)
+    results: dict[int, dict] = {}
+    survivors: list[tuple[int, dict]] = []
+    phase_blockers: list[str] = []
+
+    for ticket_index, ticket in enumerate(trade.get("tickets") or []):
+        sl_events = _provider_level_events(
+            provider_signal,
+            ticket_index,
+            "sl",
+        )
+        tp_events = _provider_level_events(
+            provider_signal,
+            ticket_index,
+            "tp",
+        )
+        assumptions: list[str] = []
+        if close_only:
+            tp_events, guard_blockers, guard_assumptions = (
+                _tp_events_with_no_touch_guard(trade, ticket, tp_events)
+            )
+            assumptions.extend(guard_assumptions)
+            if guard_blockers:
+                result = _blocked_leg(ticket, "unallocated", guard_blockers)
+                result["assumptions"] = _stable_strings(assumptions)
+                results[ticket_index] = result
+                phase_blockers.extend(guard_blockers)
+                continue
+
+        close, blockers, close_assumptions = _first_strategy_close(
+            trade,
+            ticket,
+            pre_trigger_ticks,
+            sl_events=sl_events,
+            tp_events=tp_events,
+            horizon_policy="classify_survivor",
+        )
+        assumptions.extend(close_assumptions)
+        survivor_marker = (
+            f"no_touch_before_horizon:{ticket.get('ticket')}"
+        )
+        if close is not None and not blockers:
+            results[ticket_index] = _simulated_leg_result(
+                trade,
+                ticket,
+                action="closed_before_management",
+                close=close,
+                assumptions=assumptions,
+            )
+        elif close is None and blockers == [survivor_marker]:
+            survivors.append((ticket_index, ticket))
+        else:
+            visible_blockers = blockers or [
+                f"pre_management_classification_failed:{ticket.get('ticket')}"
+            ]
+            result = _blocked_leg(ticket, "unallocated", visible_blockers)
+            result["assumptions"] = _stable_strings(assumptions)
+            results[ticket_index] = result
+            phase_blockers.extend(visible_blockers)
+
+    return results, survivors, _stable_strings(phase_blockers)
 
 
 def _simulate_virtual_leg(
@@ -463,18 +671,12 @@ def _simulate_virtual_leg(
                 action,
                 [f"missing_causal_sl_at_trigger:{ticket.get('ticket')}"],
             )
-        if not tp_events:
-            entry_opened = ticket.get("open_dt_utc")
-            try:
-                opened_dt = datetime.fromisoformat(str(entry_opened))
-            except (OverflowError, TypeError, ValueError):
-                return _blocked_leg(
-                    ticket,
-                    action,
-                    [f"missing_ticket_open:{ticket.get('ticket')}"],
-                )
-            tp_events = [_no_touch_tp_event(str(trade.get("direction")), opened_dt)]
-            assumptions.append("provider_tp_not_required:close_now")
+        tp_events, guard_blockers, guard_assumptions = (
+            _tp_events_with_no_touch_guard(trade, ticket, tp_events)
+        )
+        assumptions.extend(guard_assumptions)
+        if guard_blockers:
+            return _blocked_leg(ticket, action, guard_blockers)
 
     close, blockers, close_assumptions = _first_strategy_close(
         trade,
@@ -495,27 +697,13 @@ def _simulate_virtual_leg(
         result["assumptions"] = _stable_strings(assumptions)
         return result
 
-    strategy_value = _directional_price_delta(
-        str(trade.get("direction")),
-        float(ticket["open_price"]),
-        float(close["close_price"]),
+    return _simulated_leg_result(
+        trade,
+        ticket,
+        action=action,
+        close=close,
+        assumptions=assumptions,
     )
-    return {
-        "ticket": ticket.get("ticket"),
-        "status": "simulated",
-        "action": action,
-        "open_time_utc": ticket.get("open_dt_utc"),
-        "open_price": float(ticket["open_price"]),
-        "close_time_utc": close["time_utc"],
-        "close_price": float(close["close_price"]),
-        "close_reason": close["reason"],
-        "touch_side": close["side"],
-        "touch_side_price": float(close["side_price"]),
-        "volume": float(ticket["volume"]),
-        "strategy_value": float(strategy_value),
-        "blockers": [],
-        "assumptions": _stable_strings(assumptions),
-    }
 
 
 def simulate_provider_policy(
@@ -566,6 +754,22 @@ def simulate_provider_policy(
             blockers=["missing_virtual_legs"],
         )
 
+    provider_signal = _causal_provider_signal(spec)
+    causal_gap_blockers = _causal_gap_blockers(spec)
+    if causal_gap_blockers:
+        legs = [
+            _blocked_leg(ticket, "unallocated", causal_gap_blockers)
+            for ticket in tickets
+        ]
+        return _result_row(
+            spec,
+            policy,
+            entry,
+            status="blocked",
+            blockers=causal_gap_blockers,
+            legs=legs,
+        )
+
     if policy.mode == "follow_actual":
         blocker = f"unsupported_virtual_policy:{policy.policy_id}"
         legs = [
@@ -581,7 +785,6 @@ def simulate_provider_policy(
             legs=legs,
         )
 
-    provider_signal = _causal_provider_signal(spec)
     trigger, _trigger_source = _management_trigger(
         trade,
         policy,
@@ -606,24 +809,91 @@ def simulate_provider_policy(
             legs=legs,
         )
 
-    if trigger is None:
-        actions = [
-            (index, ticket, "follow_provider")
-            for index, ticket in enumerate(tickets)
-        ]
-        action_blockers: list[str] = []
-    else:
-        actions, action_blockers = _policy_actions(
-            trade,
-            policy,
-            trigger,
-            provider_signal,
-        )
-    if action_blockers:
+    contextual_gap_blockers = _contextual_gap_blockers(
+        spec,
+        policy,
+        trigger,
+    )
+    if contextual_gap_blockers:
         legs = [
-            _blocked_leg(ticket, "unallocated", action_blockers)
+            _blocked_leg(ticket, "unallocated", contextual_gap_blockers)
             for ticket in tickets
         ]
+        return _result_row(
+            spec,
+            policy,
+            entry,
+            status="blocked",
+            blockers=contextual_gap_blockers,
+            legs=legs,
+        )
+
+    pre_management_results: dict[int, dict] = {}
+    if trigger is None:
+        survivors = list(enumerate(tickets))
+        actions = [
+            (index, ticket, "follow_provider")
+            for index, ticket in survivors
+        ]
+        action_blockers: list[str] = []
+        simulation_ticks = replay_ticks
+    else:
+        (
+            pre_management_results,
+            survivors,
+            phase_blockers,
+        ) = _classify_pre_management_legs(
+            trade,
+            replay_ticks,
+            provider_signal,
+            trigger,
+            policy,
+        )
+        if phase_blockers:
+            legs = [
+                pre_management_results.get(index)
+                or _blocked_leg(ticket, "unallocated", phase_blockers)
+                for index, ticket in enumerate(tickets)
+            ]
+            assumptions = _stable_strings(
+                assumption
+                for leg in legs
+                for assumption in leg.get("assumptions") or []
+            )
+            return _result_row(
+                spec,
+                policy,
+                entry,
+                status="blocked",
+                blockers=phase_blockers,
+                assumptions=assumptions,
+                legs=legs,
+            )
+
+        simulation_ticks = replay_ticks.loc[
+            replay_ticks["time_utc"] >= pd.Timestamp(trigger)
+        ].copy()
+        if not survivors:
+            actions = []
+            action_blockers = []
+        else:
+            actions, action_blockers = _policy_actions(
+                trade,
+                policy,
+                trigger,
+                provider_signal,
+                survivors,
+            )
+    if action_blockers:
+        survivor_indexes = {index for index, _ticket in survivors}
+        legs = []
+        for index, ticket in enumerate(tickets):
+            if index in pre_management_results:
+                legs.append(pre_management_results[index])
+            elif index in survivor_indexes:
+                legs.append(
+                    _blocked_leg(ticket, "unallocated", action_blockers)
+                )
         return _result_row(
             spec,
             policy,
@@ -633,19 +903,21 @@ def simulate_provider_policy(
             legs=legs,
         )
 
-    legs = [
-        _simulate_virtual_leg(
+    simulated_results = {
+        ticket_index: _simulate_virtual_leg(
             trade,
             ticket,
             ticket_index,
-            replay_ticks,
+            simulation_ticks,
             provider_signal,
             action=action,
             trigger=trigger,
             policy=policy,
         )
         for ticket_index, ticket, action in actions
-    ]
+    }
+    all_results = {**pre_management_results, **simulated_results}
+    legs = [all_results[index] for index in range(len(tickets))]
     blockers = _stable_strings(
         blocker
         for leg in legs

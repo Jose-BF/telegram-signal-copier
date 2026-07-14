@@ -14,7 +14,7 @@ from provider_strategy_simulator import (
     simulate_provider_policy,
 )
 from provider_trade_spec import ProviderTradeSpec
-from strategy_policies import policy_by_id
+from strategy_policies import default_policy_catalog, policy_by_id
 
 
 TRIGGER = datetime(2026, 7, 8, 11, 0, tzinfo=timezone.utc)
@@ -743,7 +743,7 @@ def test_missing_tp_blocks_runner_policy_and_keeps_visible_leg():
     assert result["strategy_value"] is None
     assert len(result["legs"]) == 1
     assert result["legs"][0]["status"] == "blocked"
-    assert any("missing_strategy_tp" in item for item in result["blockers"])
+    assert result["blockers"] == ["missing_provider_tps"]
 
 
 def test_close_only_policy_does_not_require_tp_when_sl_and_trigger_are_causal():
@@ -1013,6 +1013,300 @@ def test_policy_replay_does_not_mutate_inputs_and_is_deterministic():
 
     assert first == second
     assert first["legs"][0]["touch_side_price"] == 105.5
+    assert spec == original_spec
+    assert_frame_equal(ticks, original_ticks)
+    assert ticks.attrs == original_ticks.attrs
+
+
+@pytest.mark.parametrize(
+    "gap",
+    [
+        "invalid_level_timeline_observed_ts:2",
+        "invalid_management_event_observed_ts:1",
+    ],
+)
+def test_invalid_causal_evidence_gap_blocks_exactly_and_keeps_legs(gap):
+    ticks = _ticks(
+        [
+            (TRIGGER, 99.80, 100.00),
+            (TRIGGER + timedelta(seconds=1), 105.00, 105.20),
+        ]
+    )
+    spec = _spec(
+        provider_tps=(105.0,),
+        provider_sl=95.0,
+        level_timeline=[_level_event(TRIGGER, tps=(105.0,), sl=95.0)],
+        policy_evidence_gaps=(gap,),
+    )
+
+    result = simulate_provider_policy(spec, ticks, policy_by_id("no_be"))
+
+    assert result["entry"]["status"] == "entered"
+    assert result["status"] == "blocked"
+    assert result["strategy_value"] is None
+    assert result["blockers"] == [gap]
+    assert len(result["legs"]) == 1
+    assert result["legs"][0]["status"] == "blocked"
+    assert result["legs"][0]["blockers"] == [gap]
+
+
+def test_invalid_tp_gap_is_ignored_only_for_triggered_close_only_policy():
+    management_time = TRIGGER + timedelta(seconds=1)
+    ticks = _ticks(
+        [
+            (TRIGGER, 99.80, 100.00),
+            (management_time, 101.00, 101.20),
+        ]
+    )
+    spec = _spec(
+        provider_tps=(),
+        provider_sl=95.0,
+        level_timeline=[_level_event(TRIGGER, tps=(), sl=95.0)],
+        management_events=[_management_event(management_time)],
+        policy_evidence_gaps=(
+            "invalid_provider_tp:0",
+            "missing_provider_tps",
+        ),
+    )
+
+    result = simulate_provider_policy(
+        spec,
+        ticks,
+        policy_by_id("close_5_be_0_runner_0"),
+    )
+
+    assert result["status"] == "simulated_price_path"
+    assert result["strategy_value"] == 1.0
+    assert result["blockers"] == []
+
+
+def test_invalid_sl_gap_still_blocks_close_only_policy_contextually():
+    management_time = TRIGGER + timedelta(seconds=1)
+    ticks = _ticks(
+        [
+            (TRIGGER, 99.80, 100.00),
+            (management_time, 101.00, 101.20),
+        ]
+    )
+    spec = _spec(
+        provider_tps=(),
+        provider_sl=95.0,
+        level_timeline=[_level_event(TRIGGER, tps=(), sl=95.0)],
+        management_events=[_management_event(management_time)],
+        policy_evidence_gaps=("invalid_provider_sl",),
+    )
+
+    result = simulate_provider_policy(
+        spec,
+        ticks,
+        policy_by_id("close_5_be_0_runner_0"),
+    )
+
+    assert result["status"] == "blocked"
+    assert result["strategy_value"] is None
+    assert result["blockers"] == ["invalid_provider_sl"]
+    assert len(result["legs"]) == 1
+
+
+def test_tp_and_sl_before_management_need_no_post_trigger_tick():
+    management_time = TRIGGER + timedelta(seconds=3)
+    ticks = _ticks(
+        [
+            (TRIGGER, 99.80, 100.00),
+            (TRIGGER + timedelta(seconds=1), 102.00, 102.20),
+            (TRIGGER + timedelta(seconds=2), 95.00, 95.20),
+        ]
+    )
+    targets = (102.0, 110.0)
+    spec = _spec(
+        provider_tps=targets,
+        provider_sl=95.0,
+        level_timeline=[_level_event(TRIGGER, tps=targets, sl=95.0)],
+        management_events=[_management_event(management_time)],
+    )
+
+    result = simulate_provider_policy(
+        spec,
+        ticks,
+        policy_by_id("close_2_be_1_runner_2"),
+    )
+
+    assert result["status"] == "simulated_price_path"
+    assert result["strategy_value"] == -3.0
+    assert result["blockers"] == []
+    assert [leg["action"] for leg in result["legs"]] == [
+        "closed_before_management",
+        "closed_before_management",
+    ]
+    assert [leg["close_reason"] for leg in result["legs"]] == ["tp", "sl"]
+    assert not any(
+        "missing_ticks_after_management" in blocker
+        for blocker in result["blockers"]
+    )
+
+
+def _three_survivor_repro():
+    management_time = TRIGGER + timedelta(seconds=3)
+    targets = (102.0, 104.0, 110.0, 130.0, 140.0)
+    ticks = _ticks(
+        [
+            (TRIGGER, 99.80, 100.00),
+            (TRIGGER + timedelta(seconds=1), 102.00, 102.20),
+            (TRIGGER + timedelta(seconds=2), 104.00, 104.20),
+            (management_time, 106.00, 106.20),
+            (TRIGGER + timedelta(seconds=4), 100.00, 100.20),
+            (TRIGGER + timedelta(seconds=5), 140.00, 140.20),
+        ]
+    )
+    spec = _spec(
+        provider_tps=targets,
+        provider_sl=90.0,
+        level_timeline=[_level_event(TRIGGER, tps=targets, sl=90.0)],
+        management_events=[_management_event(management_time)],
+    )
+    return spec, ticks
+
+
+def test_preclosed_tp1_tp2_leave_three_survivors_with_original_tp_indexes():
+    spec, ticks = _three_survivor_repro()
+
+    result = simulate_provider_policy(
+        spec,
+        ticks,
+        policy_by_id("close_2_be_1_runner_2"),
+    )
+
+    assert result["status"] == "simulated_price_path"
+    assert [leg["action"] for leg in result["legs"]] == [
+        "closed_before_management",
+        "closed_before_management",
+        "close_now",
+        "move_to_be",
+        "runner",
+    ]
+    assert [leg["strategy_value"] for leg in result["legs"]] == [
+        2.0,
+        4.0,
+        6.0,
+        0.0,
+        40.0,
+    ]
+    assert result["strategy_value"] == 52.0
+    assert result["blockers"] == []
+    assert all(
+        not any("no_touch_before_horizon" in item for item in leg["blockers"])
+        for leg in result["legs"]
+    )
+
+
+def test_all_legs_closed_before_trigger_produce_valid_result_without_later_tick():
+    management_time = TRIGGER + timedelta(seconds=4)
+    targets = (102.0, 104.0, 106.0)
+    ticks = _ticks(
+        [
+            (TRIGGER, 99.80, 100.00),
+            (TRIGGER + timedelta(seconds=1), 102.00, 102.20),
+            (TRIGGER + timedelta(seconds=2), 104.00, 104.20),
+            (TRIGGER + timedelta(seconds=3), 106.00, 106.20),
+        ]
+    )
+    spec = _spec(
+        provider_tps=targets,
+        provider_sl=90.0,
+        level_timeline=[_level_event(TRIGGER, tps=targets, sl=90.0)],
+        management_events=[_management_event(management_time)],
+    )
+
+    result = simulate_provider_policy(
+        spec,
+        ticks,
+        policy_by_id("close_2_be_1_runner_2"),
+    )
+
+    assert result["status"] == "simulated_price_path"
+    assert result["strategy_value"] == 12.0
+    assert [leg["action"] for leg in result["legs"]] == [
+        "closed_before_management"
+    ] * 3
+    assert result["blockers"] == []
+
+
+def test_sl_touch_before_observation_is_ignored_then_applies_after_activation():
+    level_time = TRIGGER + timedelta(seconds=2)
+    close_time = TRIGGER + timedelta(seconds=3)
+    ticks = _ticks(
+        [
+            (TRIGGER, 99.80, 100.00),
+            (TRIGGER + timedelta(seconds=1), 94.00, 94.20),
+            (level_time, 100.00, 100.20),
+            (close_time, 95.00, 95.20),
+        ]
+    )
+    spec = _spec(
+        provider_tps=(110.0,),
+        provider_sl=95.0,
+        level_timeline=[_level_event(level_time, tps=(110.0,), sl=95.0)],
+    )
+
+    result = simulate_provider_policy(spec, ticks, policy_by_id("no_be"))
+
+    assert result["status"] == "simulated_price_path"
+    assert result["legs"][0]["close_reason"] == "sl"
+    assert result["legs"][0]["close_time_utc"] == close_time.isoformat()
+    assert result["legs"][0]["strategy_value"] == -5.0
+
+
+def test_complete_policy_catalog_returns_22_honest_rows_without_drop():
+    management_time = TRIGGER + timedelta(seconds=1)
+    targets = (110.0, 115.0, 120.0, 125.0, 130.0)
+    ticks = _ticks(
+        [
+            (TRIGGER, 99.80, 100.00),
+            (management_time, 101.00, 101.20),
+            (TRIGGER + timedelta(seconds=2), 100.00, 100.20),
+            (TRIGGER + timedelta(seconds=3), 130.00, 130.20),
+        ]
+    )
+    spec = _spec(
+        provider_tps=targets,
+        provider_sl=90.0,
+        level_timeline=[_level_event(TRIGGER, tps=targets, sl=90.0)],
+        management_events=[_management_event(management_time)],
+    )
+    policies = default_policy_catalog()
+
+    results = [
+        simulate_provider_policy(spec, ticks, policy)
+        for policy in policies
+    ]
+
+    assert len(policies) == 22
+    assert len(results) == 22
+    assert [row["policy_id"] for row in results] == [
+        policy.policy_id for policy in policies
+    ]
+    assert len({row["policy_id"] for row in results}) == 22
+    for row in results:
+        _assert_policy_row_shape(row)
+        assert row["strategy_pnl"] is None
+        assert row["money_status"] == "unverified"
+        assert "actual_pnl" not in set(_all_mapping_keys(row))
+
+
+def test_survivor_classification_is_deterministic_and_does_not_mutate_inputs():
+    spec, ticks = _three_survivor_repro()
+    ticks = ticks.iloc[[5, 0, 2, 1, 4, 3]].copy()
+    ticks.index = pd.Index([9, 2, 8, 4, 7, 5], name="source_row")
+    ticks.attrs["cache_contract"] = {"version": 3}
+    original_spec = deepcopy(spec)
+    original_ticks = ticks.copy(deep=True)
+    policy = policy_by_id("close_2_be_1_runner_2")
+
+    first = simulate_provider_policy(spec, ticks, policy)
+    second = simulate_provider_policy(spec, ticks, policy)
+
+    assert first == second
+    assert first["strategy_value"] == 52.0
     assert spec == original_spec
     assert_frame_equal(ticks, original_ticks)
     assert ticks.attrs == original_ticks.attrs
