@@ -791,7 +791,6 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
     ))
     return {
         "schema_version": SCHEMA_VERSION,
-        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "summary": _summary(finalized),
         "signals": finalized,
     }

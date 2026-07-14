@@ -584,3 +584,17 @@ def test_weekly_summary_uses_summary_record_type_not_management_signal():
 
     assert report["summary"]["provider_signals"] == 0
     assert report["signals"][0]["record_type"] == "daily_summary"
+
+
+def test_canonical_catalog_has_no_volatile_generation_timestamp():
+    events = [_raw(
+        "canal2",
+        800,
+        "Buy Gold Now\n4030 - 4032\nTargets\n4035\nSL 4025",
+    )]
+
+    first = provider_signal_catalog.build_catalog_report(events, [])
+    second = provider_signal_catalog.build_catalog_report(events, [])
+
+    assert "generated_at" not in first
+    assert first == second
