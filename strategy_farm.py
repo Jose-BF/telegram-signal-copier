@@ -5,12 +5,19 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections import Counter
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, time, timedelta, timezone
+from math import isfinite
+from numbers import Integral, Real
 from pathlib import Path
 from typing import Iterable
 
+import pandas as pd
+
 import observed_tick_replay_validator
+import provider_strategy_simulator
+import provider_trade_spec
 import simulation_run_provenance
 import strategy_policies
 import strategy_simulator
@@ -41,7 +48,7 @@ UNSAFE_CALIBRATION_SOURCES = {
 @dataclass(frozen=True)
 class FarmExecution:
     report: dict
-    selected_payloads: dict[str, list]
+    selected_payloads: dict[str, object]
     policies: list[dict]
     required_tick_days: list[str]
     verified_tick_contracts: dict[str, dict]
@@ -331,6 +338,237 @@ def _market_replay_verified(summary: dict[str, int]) -> bool:
     )
 
 
+def _provider_farm_configuration(
+    latency_scenarios_ms: Iterable[int] | None,
+    volume_per_leg: float,
+) -> tuple[tuple[int, ...], float]:
+    latency_values = tuple(
+        (0,) if latency_scenarios_ms is None else latency_scenarios_ms
+    )
+    if not latency_values:
+        raise ValueError("provider latency scenarios cannot be empty")
+    if any(
+        isinstance(value, bool)
+        or not isinstance(value, Integral)
+        or value < 0
+        for value in latency_values
+    ):
+        raise ValueError(
+            "provider latency scenarios must be non-negative integers"
+        )
+    latencies = tuple(int(value) for value in latency_values)
+    if len(set(latencies)) != len(latencies):
+        raise ValueError("provider latency scenarios must be unique")
+
+    if (
+        isinstance(volume_per_leg, bool)
+        or not isinstance(volume_per_leg, Real)
+        or not isfinite(float(volume_per_leg))
+        or float(volume_per_leg) <= 0
+    ):
+        raise ValueError("provider volume per leg must be positive and finite")
+    return latencies, float(volume_per_leg)
+
+
+def _formal_signal_for_spec(signal: dict) -> dict:
+    if signal.get("record_type") == "formal_signal":
+        return signal
+    # Catalog v1 contained only formal signals and omitted this discriminator.
+    if "record_type" not in signal:
+        return {**signal, "record_type": "formal_signal"}
+    return signal
+
+
+def _provider_tick_window(
+    spec: provider_trade_spec.ProviderTradeSpec,
+) -> tuple[dict | None, list[str]]:
+    trigger = spec.trigger_observed_utc
+    if trigger is None:
+        return None, []
+    try:
+        threshold = trigger + timedelta(milliseconds=spec.latency_ms)
+        horizon = datetime.combine(
+            threshold.date(),
+            time(23, 59, 59, 999999),
+            tzinfo=timezone.utc,
+        )
+    except (OverflowError, ValueError):
+        return None, ["entry_threshold_out_of_range"]
+    return {
+        "sig_id": spec.provider_signal_id,
+        "provider_signal_id": spec.provider_signal_id,
+        "signal_dt_utc": threshold.isoformat(),
+        "open_dt_utc": threshold.isoformat(),
+        "close_dt_utc": horizon.isoformat(),
+    }, []
+
+
+def _slice_provider_ticks(ticks: pd.DataFrame, tick_window: dict) -> pd.DataFrame:
+    if ticks.empty or "time_utc" not in ticks.columns:
+        return ticks
+    try:
+        tick_times = pd.to_datetime(ticks["time_utc"], utc=True, format="mixed")
+        start = pd.Timestamp(tick_window["open_dt_utc"])
+        end = pd.Timestamp(tick_window["close_dt_utc"])
+    except (OverflowError, TypeError, ValueError):
+        return ticks
+    return ticks.loc[(tick_times >= start) & (tick_times <= end)]
+
+
+def _replace_missing_tick_blocker(
+    row: dict,
+    tick_blockers: Iterable[str],
+) -> dict:
+    tick_blockers = list(dict.fromkeys(str(item) for item in tick_blockers))
+    if not tick_blockers:
+        return row
+
+    result = dict(row)
+    existing = [
+        str(item)
+        for item in result.get("blockers") or []
+        if str(item) != "missing_ticks"
+    ]
+    result["status"] = "blocked"
+    result["strategy_value"] = None
+    result["strategy_pnl"] = None
+    result["blockers"] = list(dict.fromkeys((*existing, *tick_blockers)))
+    entry = dict(result.get("entry") or {})
+    entry_blockers = [
+        str(item)
+        for item in entry.get("blockers") or []
+        if str(item) != "missing_ticks"
+    ]
+    entry["status"] = "blocked"
+    entry["blockers"] = list(dict.fromkeys(
+        (*entry_blockers, *tick_blockers)
+    ))
+    result["entry"] = entry
+    return result
+
+
+def _build_provider_policy_results(
+    provider_signals: list[dict],
+    policies: list[strategy_policies.StrategyPolicy],
+    tick_loader: observed_tick_replay_validator.ReplayTickFrameCache,
+    *,
+    latency_scenarios_ms: tuple[int, ...],
+    volume_per_leg: float,
+) -> tuple[list[dict], dict, list[dict]]:
+    signal_ids = [
+        str(signal.get("provider_signal_id") or "")
+        for signal in provider_signals
+    ]
+    if any(not signal_id for signal_id in signal_ids):
+        raise RuntimeError("provider farm row accounting: missing signal id")
+    duplicate_ids = sorted(
+        signal_id
+        for signal_id, count in Counter(signal_ids).items()
+        if count > 1
+    )
+    if duplicate_ids:
+        raise RuntimeError(
+            "provider farm row accounting: duplicate signal ids: "
+            + ",".join(duplicate_ids)
+        )
+
+    rows_by_policy = {policy.policy_id: [] for policy in policies}
+    selected_specs: list[dict] = []
+    for signal in provider_signals:
+        formal_signal = _formal_signal_for_spec(signal)
+        for latency_ms in latency_scenarios_ms:
+            spec = provider_trade_spec.build_trade_spec(
+                formal_signal,
+                latency_ms=latency_ms,
+                volume_per_leg=volume_per_leg,
+            )
+            selected_specs.append(spec.to_dict())
+            ticks = pd.DataFrame()
+            tick_window, tick_blockers = _provider_tick_window(spec)
+            if spec.entry_ready and tick_window is not None:
+                ticks, missing = tick_loader.load_ticks_for_trade(
+                    tick_window,
+                    pad_minutes=0,
+                )
+                tick_blockers.extend(missing)
+                if tick_blockers:
+                    ticks = pd.DataFrame()
+                else:
+                    ticks = _slice_provider_ticks(ticks, tick_window)
+                    ticks, prepare_blocker = (
+                        provider_strategy_simulator.prepare_replay_ticks(ticks)
+                    )
+                    if prepare_blocker is not None:
+                        tick_blockers.append(prepare_blocker)
+                        ticks = pd.DataFrame()
+
+            provider_result_cache: dict = {}
+            for policy in policies:
+                row = provider_strategy_simulator.simulate_provider_policy(
+                    spec,
+                    ticks,
+                    policy,
+                    result_cache=provider_result_cache,
+                )
+                row = _replace_missing_tick_blocker(row, tick_blockers)
+                row["latency_scenario_ms"] = latency_ms
+                rows_by_policy[policy.policy_id].append(row)
+
+    groups = [
+        {
+            "policy_id": policy.policy_id,
+            "policy": policy.to_dict(),
+            "results": rows_by_policy[policy.policy_id],
+        }
+        for policy in policies
+    ]
+    rows = [row for group in groups for row in group["results"]]
+    expected = Counter(
+        (signal_id, policy.policy_id, latency_ms)
+        for signal_id in signal_ids
+        for policy in policies
+        for latency_ms in latency_scenarios_ms
+    )
+    emitted = Counter(
+        (
+            str(row.get("provider_signal_id") or ""),
+            str(row.get("policy_id") or ""),
+            row.get("latency_scenario_ms"),
+        )
+        for row in rows
+    )
+    allowed_statuses = {"blocked", "simulated_price_path"}
+    if emitted != expected or any(
+        row.get("status") not in allowed_statuses for row in rows
+    ):
+        raise RuntimeError("provider farm row accounting mismatch")
+
+    expected_per_signal = len(policies) * len(latency_scenarios_ms)
+    emitted_per_signal = Counter(
+        str(row.get("provider_signal_id") or "") for row in rows
+    )
+    omitted = [
+        signal_id
+        for signal_id in signal_ids
+        if emitted_per_signal[signal_id] != expected_per_signal
+    ]
+    scope = {
+        "formal_signals": len(provider_signals),
+        "policy_count": len(policies),
+        "latency_scenarios_ms": list(latency_scenarios_ms),
+        "rows_expected": len(expected),
+        "rows_emitted": len(rows),
+        "simulated_rows": sum(
+            row.get("status") == "simulated_price_path" for row in rows
+        ),
+        "blocked_rows": sum(row.get("status") == "blocked" for row in rows),
+        "signals_omitted": omitted,
+    }
+    if scope["rows_emitted"] != scope["rows_expected"] or omitted:
+        raise RuntimeError("provider farm row accounting mismatch")
+    return groups, scope, selected_specs
+
+
 def build_policy_score(
     policy: strategy_policies.StrategyPolicy,
     rows: list[dict],
@@ -363,8 +601,16 @@ def build_farm_execution(
     to_date: str | None = None,
     minimum_trades: int = 200,
     include_trades: bool = False,
+    provider_latency_scenarios_ms: Iterable[int] | None = None,
+    provider_volume_per_leg: float = 0.01,
 ) -> FarmExecution:
     policies = policies or strategy_policies.default_policy_catalog()
+    latency_scenarios_ms, provider_volume_per_leg = (
+        _provider_farm_configuration(
+            provider_latency_scenarios_ms,
+            provider_volume_per_leg,
+        )
+    )
     selected_trades = [
         trade
         for trade in trades
@@ -423,31 +669,56 @@ def build_farm_execution(
             include_trades=include_trades,
         ))
 
-    selection = select_strategy(
+    executed_selection = select_strategy(
         scores,
         minimum_trades=minimum_trades,
         oos_validated=False,
     )
     canonical_scope = _canonical_scope(catalog, from_date, to_date)
-    if canonical_scope["unexecuted_signals"]:
-        selection["global_blockers"].append(
-            "canonical_signals_not_simulated:"
-            f"{canonical_scope['unexecuted_signals']}"
-        )
-        selection["selected_policy"] = None
-    if canonical_scope["incomplete_signals"]:
-        selection["global_blockers"].append(
-            "canonical_signals_incomplete:"
-            f"{canonical_scope['incomplete_signals']}"
-        )
-        selection["selected_policy"] = None
     market_replay_summary = _market_replay_summary(effective_baselines)
     market_replay_verified = _market_replay_verified(market_replay_summary)
     if not market_replay_verified:
-        if "market_replay_not_exact" not in selection["global_blockers"]:
-            selection["global_blockers"].append("market_replay_not_exact")
-        selection["selected_policy"] = None
-        selection["exploratory_ranking"] = []
+        if "market_replay_not_exact" not in executed_selection["global_blockers"]:
+            executed_selection["global_blockers"].append(
+                "market_replay_not_exact"
+            )
+        executed_selection["selected_policy"] = None
+        executed_selection["exploratory_ranking"] = []
+
+    provider_signals = _provider_signals_in_scope(
+        catalog,
+        from_date,
+        to_date,
+    )
+    (
+        provider_policy_results,
+        provider_scope,
+        provider_specs,
+    ) = _build_provider_policy_results(
+        provider_signals,
+        policies,
+        tick_loader,
+        latency_scenarios_ms=latency_scenarios_ms,
+        volume_per_leg=provider_volume_per_leg,
+    )
+    diagnostic_blockers = ["broker_money_contract_unverified"]
+    if not market_replay_verified:
+        diagnostic_blockers.append("market_replay_not_exact")
+    selection = {
+        "minimum_trades": minimum_trades,
+        "oos_validated": False,
+        "selected_policy": None,
+        "global_blockers": diagnostic_blockers,
+        "policy_blockers": {},
+        "exploratory_ranking": [],
+        "ranking_excluded": {},
+        "ranking_rule": None,
+    }
+
+    calibration = {
+        "unit_value": round(unit_value, 8),
+        "source": unit_source,
+    }
 
     report = {
         "schema_version": SCHEMA_VERSION,
@@ -457,21 +728,26 @@ def build_farm_execution(
         "executed_trade_count": len(selected_trades),
         "policy_count": len(policies),
         "includes_trade_details": include_trades,
-        "calibration": {
-            "unit_value": round(unit_value, 8),
-            "source": unit_source,
-        },
+        "calibration": calibration,
         "canonical_scope": canonical_scope,
+        "provider_scope": provider_scope,
         "market_replay": market_replay_summary,
         "validation": {
+            "price_path_mode": "provider_first",
+            "money_mode": "diagnostic_only",
             "market_replay_verified": market_replay_verified,
-            "mode": (
-                "market_replay_verified" if market_replay_verified
-                else "diagnostic_only"
-            ),
+            "mode": "diagnostic_only",
         },
         "selection": selection,
         "policies": scores,
+        "provider_policy_results": provider_policy_results,
+        "executed_baseline_validation": {
+            "executed_trade_count": len(selected_trades),
+            "calibration": calibration,
+            "market_replay": market_replay_summary,
+            "selection": executed_selection,
+            "policies": scores,
+        },
     }
     effective_providers = [
         {
@@ -480,14 +756,17 @@ def build_farm_execution(
         }
         for trade in selected_trades
     ]
-    provider_scope = _provider_signals_in_scope(catalog, from_date, to_date)
     return FarmExecution(
         report=report,
         selected_payloads={
             "replay_trades": selected_trades,
             "effective_baselines": effective_baselines,
             "effective_provider_links": effective_providers,
-            "provider_scope": provider_scope,
+            "provider_scope": provider_signals,
+            "provider_trade_specs": provider_specs,
+            "provider_latency_scenarios_ms": list(latency_scenarios_ms),
+            "provider_volume_per_leg": [provider_volume_per_leg],
+            "provider_policy_results": provider_policy_results,
         },
         policies=[policy.to_dict() for policy in policies],
         required_tick_days=tick_loader.required_days,
@@ -507,6 +786,8 @@ def build_farm_report(
     to_date: str | None = None,
     minimum_trades: int = 200,
     include_trades: bool = False,
+    provider_latency_scenarios_ms: Iterable[int] | None = None,
+    provider_volume_per_leg: float = 0.01,
 ) -> dict:
     return build_farm_execution(
         trades,
@@ -518,6 +799,8 @@ def build_farm_report(
         to_date=to_date,
         minimum_trades=minimum_trades,
         include_trades=include_trades,
+        provider_latency_scenarios_ms=provider_latency_scenarios_ms,
+        provider_volume_per_leg=provider_volume_per_leg,
     ).report
 
 

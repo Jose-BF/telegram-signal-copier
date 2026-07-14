@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from numbers import Real
@@ -25,6 +26,7 @@ from strategy_simulator import (
 
 
 _REQUIRED_TICK_COLUMNS = ("time_utc", "bid", "ask")
+_PREPARED_TICK_CONTRACT = "strict_bid_ask_utc_v1"
 
 
 @dataclass(frozen=True)
@@ -143,26 +145,33 @@ def select_entry_tick(
             f"missing_tick_columns:{','.join(missing_columns)}",
         )
 
-    tick_times = _normalise_tick_times(ticks["time_utc"])
-    if tick_times is None:
-        return _blocked(spec, "invalid_tick_times")
-
-    try:
-        time_ns = (
-            tick_times.dt.as_unit("ns")
-            .astype("int64")
-            .to_numpy(dtype=np.int64, copy=False)
-        )
-    except (OverflowError, pd.errors.OutOfBoundsDatetime, ValueError):
-        return _blocked(spec, "entry_threshold_out_of_range")
-
     side = "ask" if spec.direction == "BUY" else "bid"
-    prices = _quote_prices(ticks[side])
+    if (
+        ticks.attrs.get("provider_replay_ticks_contract")
+        == _PREPARED_TICK_CONTRACT
+        and "_time_ns" in ticks.columns
+    ):
+        time_ns = ticks["_time_ns"].to_numpy(dtype=np.int64, copy=False)
+        prices = ticks[side].to_numpy(dtype=np.float64, copy=False)
+    else:
+        tick_times = _normalise_tick_times(ticks["time_utc"])
+        if tick_times is None:
+            return _blocked(spec, "invalid_tick_times")
 
-    if len(time_ns) > 1 and np.any(time_ns[1:] < time_ns[:-1]):
-        stable_order = np.argsort(time_ns, kind="stable")
-        time_ns = time_ns[stable_order]
-        prices = prices[stable_order]
+        try:
+            time_ns = (
+                tick_times.dt.as_unit("ns")
+                .astype("int64")
+                .to_numpy(dtype=np.int64, copy=False)
+            )
+        except (OverflowError, pd.errors.OutOfBoundsDatetime, ValueError):
+            return _blocked(spec, "entry_threshold_out_of_range")
+
+        prices = _quote_prices(ticks[side])
+        if len(time_ns) > 1 and np.any(time_ns[1:] < time_ns[:-1]):
+            stable_order = np.argsort(time_ns, kind="stable")
+            time_ns = time_ns[stable_order]
+            prices = prices[stable_order]
 
     try:
         threshold = trigger_utc + timedelta(milliseconds=spec.latency_ms)
@@ -228,9 +237,14 @@ def _is_aware_iso_time(value: object) -> bool:
 
 
 def _strict_tick_times(values: pd.Series) -> tuple[pd.Series | None, np.ndarray | None]:
-    raw_values = values.to_numpy(dtype=object, copy=False)
-    if not all(_is_aware_iso_time(value) for value in raw_values):
+    if isinstance(values.dtype, pd.DatetimeTZDtype):
+        pass
+    elif is_datetime64_any_dtype(values.dtype):
         return None, None
+    else:
+        raw_values = values.to_numpy(dtype=object, copy=False)
+        if not all(_is_aware_iso_time(value) for value in raw_values):
+            return None, None
     tick_times = _normalise_tick_times(values)
     if tick_times is None:
         return None, None
@@ -251,12 +265,18 @@ def _strict_tick_times(values: pd.Series) -> tuple[pd.Series | None, np.ndarray 
 
 
 def _strict_quote_prices(values: pd.Series) -> np.ndarray | None:
-    raw_values = values.to_numpy(dtype=object, copy=False)
-    prices = np.fromiter(
-        (_safe_object_quote(value) for value in raw_values),
-        dtype=np.float64,
-        count=len(raw_values),
-    )
+    if is_float_dtype(values.dtype) or is_integer_dtype(values.dtype):
+        try:
+            prices = values.to_numpy(dtype=np.float64, na_value=np.nan)
+        except (TypeError, ValueError):
+            return None
+    else:
+        raw_values = values.to_numpy(dtype=object, copy=False)
+        prices = np.fromiter(
+            (_safe_object_quote(value) for value in raw_values),
+            dtype=np.float64,
+            count=len(raw_values),
+        )
     if not np.all(np.isfinite(prices) & (prices > 0)):
         return None
     return prices
@@ -268,6 +288,12 @@ def _normalise_replay_ticks(
     if not isinstance(ticks, pd.DataFrame) or ticks.empty:
         return ticks, None
     if any(column not in ticks.columns for column in _REQUIRED_TICK_COLUMNS):
+        return ticks, None
+    if (
+        ticks.attrs.get("provider_replay_ticks_contract")
+        == _PREPARED_TICK_CONTRACT
+        and "_time_ns" in ticks.columns
+    ):
         return ticks, None
 
     tick_times, time_ns = _strict_tick_times(ticks["time_utc"])
@@ -285,7 +311,21 @@ def _normalise_replay_ticks(
     if len(time_ns) > 1 and np.any(time_ns[1:] < time_ns[:-1]):
         stable_order = np.argsort(time_ns, kind="stable")
         frame = frame.iloc[stable_order].copy()
+        time_ns = time_ns[stable_order]
+    frame["_time_ns"] = time_ns
+    frame.attrs["provider_replay_ticks_contract"] = _PREPARED_TICK_CONTRACT
+    frame.attrs["strategy_ticks_normalized"] = True
     return frame, None
+
+
+def prepare_replay_ticks(
+    ticks: pd.DataFrame,
+) -> tuple[pd.DataFrame, str | None]:
+    """Strictly validate one tick frame for reuse across many policies."""
+    prepared, blocker = _normalise_replay_ticks(ticks)
+    if not isinstance(prepared, pd.DataFrame):
+        return pd.DataFrame(), blocker or "invalid_replay_ticks"
+    return prepared, blocker
 
 
 def _iso_utc(value: datetime | None) -> str | None:
@@ -710,6 +750,8 @@ def simulate_provider_policy(
     spec: ProviderTradeSpec,
     ticks: pd.DataFrame,
     policy: StrategyPolicy,
+    *,
+    result_cache: dict | None = None,
 ) -> dict:
     """Replay one policy from a canonical provider signal in price units."""
     if not spec.entry_ready:
@@ -744,6 +786,20 @@ def simulate_provider_policy(
         )
 
     trade = _virtual_trade(spec, entry)
+    cache_root = (
+        {}
+        if result_cache is None
+        else result_cache.setdefault("provider_strategy_simulator_v1", {})
+    )
+    if not isinstance(cache_root, dict):
+        raise ValueError("provider strategy result cache must contain a mapping")
+    cache_identity = (
+        id(spec),
+        id(replay_ticks),
+        _iso_utc(entry.time_utc),
+        entry.price,
+        entry.side,
+    )
     tickets = list(trade["tickets"])
     if not tickets:
         return _result_row(
@@ -838,17 +894,29 @@ def simulate_provider_policy(
         action_blockers: list[str] = []
         simulation_ticks = replay_ticks
     else:
+        pre_management_key = (
+            *cache_identity,
+            "pre_management",
+            trigger.isoformat(),
+            _is_triggered_close_only(policy, trigger),
+        )
+        cached_pre_management = cache_root.get(pre_management_key)
+        if cached_pre_management is None:
+            classified = _classify_pre_management_legs(
+                trade,
+                replay_ticks,
+                provider_signal,
+                trigger,
+                policy,
+            )
+            cache_root[pre_management_key] = deepcopy(classified)
+        else:
+            classified = deepcopy(cached_pre_management)
         (
             pre_management_results,
             survivors,
             phase_blockers,
-        ) = _classify_pre_management_legs(
-            trade,
-            replay_ticks,
-            provider_signal,
-            trigger,
-            policy,
-        )
+        ) = classified
         if phase_blockers:
             legs = [
                 pre_management_results.get(index)
@@ -903,19 +971,34 @@ def simulate_provider_policy(
             legs=legs,
         )
 
-    simulated_results = {
-        ticket_index: _simulate_virtual_leg(
-            trade,
-            ticket,
+    simulated_results = {}
+    for ticket_index, ticket, action in actions:
+        leg_key = (
+            *cache_identity,
+            "leg",
             ticket_index,
-            simulation_ticks,
-            provider_signal,
-            action=action,
-            trigger=trigger,
-            policy=policy,
+            action,
+            trigger.isoformat() if trigger is not None else None,
+            policy.horizon_policy,
+            policy.original_sl_policy,
+            policy.tp_policy,
         )
-        for ticket_index, ticket, action in actions
-    }
+        cached_leg = cache_root.get(leg_key)
+        if cached_leg is None:
+            leg = _simulate_virtual_leg(
+                trade,
+                ticket,
+                ticket_index,
+                simulation_ticks,
+                provider_signal,
+                action=action,
+                trigger=trigger,
+                policy=policy,
+            )
+            cache_root[leg_key] = deepcopy(leg)
+        else:
+            leg = deepcopy(cached_leg)
+        simulated_results[ticket_index] = leg
     all_results = {**pre_management_results, **simulated_results}
     legs = [all_results[index] for index in range(len(tickets))]
     blockers = _stable_strings(

@@ -1,6 +1,8 @@
 import json
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
+import pytest
 
 import strategy_farm
 import strategy_policies
@@ -621,3 +623,263 @@ def test_cli_does_not_archive_unverified_tick_run(tmp_path, monkeypatch):
         "unverified_tick_contract:2026-07-06",
     ]
     assert not (tmp_path / "runs").exists()
+
+
+def _provider_first_signal(
+    signal_id,
+    *,
+    executed,
+    entry_ready=True,
+):
+    observed = "2026-07-06T10:00:00+00:00"
+    entry_contract = {
+        "status": "ready" if entry_ready else "blocked",
+        "trigger_observed_utc": observed if entry_ready else None,
+        "direction": "BUY",
+        "blockers": [] if entry_ready else ["missing_entry_evidence"],
+    }
+    return {
+        "provider_signal_id": signal_id,
+        "record_type": "formal_signal",
+        "channel": "canal1",
+        "first_observed_utc": observed,
+        "signal_ts_utc": "2026-07-06T09:59:59+00:00",
+        "semantic_status": "complete" if entry_ready else "incomplete",
+        "execution_count": 1 if executed else 0,
+        "execution_sig_ids": [signal_id] if executed else [],
+        "effective_tps": [101.0],
+        "effective_sl": 99.0,
+        "level_timeline": [{
+            "observed_ts_utc": observed,
+            "tps": [101.0],
+            "sl": 99.0,
+        }],
+        "management_events": [],
+        "entry_contract": entry_contract,
+    }
+
+
+class _ProviderFirstTickLoader:
+    def __init__(self, tick_cache_dir):
+        self.required_days = []
+        self.verified_contracts = {}
+
+    def load_ticks_for_trade(self, trade, *, pad_minutes=5):
+        day = str(trade["open_dt_utc"])[:10]
+        if day not in self.required_days:
+            self.required_days.append(day)
+        opened = datetime.fromisoformat(trade["open_dt_utc"])
+        return pd.DataFrame({
+            "time_utc": [opened, opened + timedelta(seconds=1)],
+            "bid": [99.8, 101.0],
+            "ask": [100.0, 101.2],
+        }), []
+
+
+def _two_provider_policies():
+    return [
+        strategy_policies.StrategyPolicy(
+            policy_id="provider_a",
+            close_legs=0,
+            be_legs=0,
+            runner_legs=1,
+            base_leg_count=1,
+        ),
+        strategy_policies.StrategyPolicy(
+            policy_id="provider_b",
+            close_legs=0,
+            be_legs=0,
+            runner_legs=1,
+            base_leg_count=1,
+        ),
+    ]
+
+
+def test_provider_first_farm_emits_every_signal_policy_pair(
+    tmp_path,
+    monkeypatch,
+):
+    catalog = {"signals": [
+        _provider_first_signal("executed", executed=True),
+        _provider_first_signal("unexecuted", executed=False),
+        _provider_first_signal(
+            "missing_entry",
+            executed=False,
+            entry_ready=False,
+        ),
+    ]}
+    monkeypatch.setattr(
+        strategy_farm.observed_tick_replay_validator,
+        "ReplayTickFrameCache",
+        _ProviderFirstTickLoader,
+    )
+
+    report = strategy_farm.build_farm_report(
+        [],
+        [],
+        tick_cache_dir=tmp_path / "ticks",
+        policies=_two_provider_policies(),
+        catalog=catalog,
+        from_date="2026-07-06",
+        to_date="2026-07-06",
+        minimum_trades=1,
+    )
+
+    assert report["provider_scope"] == {
+        "formal_signals": 3,
+        "policy_count": 2,
+        "latency_scenarios_ms": [0],
+        "rows_expected": 6,
+        "rows_emitted": 6,
+        "simulated_rows": 4,
+        "blocked_rows": 2,
+        "signals_omitted": [],
+    }
+    rows = [
+        row
+        for group in report["provider_policy_results"]
+        for row in group["results"]
+    ]
+    assert len(rows) == 6
+    assert {
+        (row["provider_signal_id"], row["policy_id"])
+        for row in rows
+    } == {
+        (signal_id, policy_id)
+        for signal_id in ("executed", "unexecuted", "missing_entry")
+        for policy_id in ("provider_a", "provider_b")
+    }
+    assert all(
+        row["status"] == "simulated_price_path"
+        for row in rows
+        if row["provider_signal_id"] in {"executed", "unexecuted"}
+    )
+    blocked = [
+        row for row in rows
+        if row["provider_signal_id"] == "missing_entry"
+    ]
+    assert len(blocked) == 2
+    assert all(row["status"] == "blocked" for row in blocked)
+    assert all("missing_entry_evidence" in row["blockers"] for row in blocked)
+    assert report["validation"] == {
+        "price_path_mode": "provider_first",
+        "money_mode": "diagnostic_only",
+        "market_replay_verified": False,
+        "mode": "diagnostic_only",
+    }
+    assert report["selection"]["selected_policy"] is None
+    assert report["selection"]["exploratory_ranking"] == []
+    assert "broker_money_contract_unverified" in report["selection"][
+        "global_blockers"
+    ]
+    assert "executed_baseline_validation" in report
+
+
+def test_provider_first_farm_accounts_for_every_latency_scenario(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        strategy_farm.observed_tick_replay_validator,
+        "ReplayTickFrameCache",
+        _ProviderFirstTickLoader,
+    )
+    signal = _provider_first_signal("signal", executed=False)
+
+    report = strategy_farm.build_farm_report(
+        [],
+        [],
+        tick_cache_dir=tmp_path / "ticks",
+        policies=_two_provider_policies(),
+        catalog={"signals": [signal]},
+        provider_latency_scenarios_ms=(0, 250, 1000),
+    )
+
+    assert report["provider_scope"]["rows_expected"] == 6
+    assert report["provider_scope"]["rows_emitted"] == 6
+    rows = [
+        row
+        for group in report["provider_policy_results"]
+        for row in group["results"]
+    ]
+    assert {
+        row["latency_scenario_ms"] for row in rows
+    } == {0, 250, 1000}
+
+
+class _ProviderMissingContractTickLoader(_ProviderFirstTickLoader):
+    def load_ticks_for_trade(self, trade, *, pad_minutes=5):
+        day = str(trade["open_dt_utc"])[:10]
+        self.required_days.append(day)
+        return pd.DataFrame(), [f"invalid_tick_cache_contract:{day}"]
+
+
+def test_provider_first_farm_preserves_specific_tick_contract_blocker(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        strategy_farm.observed_tick_replay_validator,
+        "ReplayTickFrameCache",
+        _ProviderMissingContractTickLoader,
+    )
+    policy = _two_provider_policies()[0]
+
+    report = strategy_farm.build_farm_report(
+        [],
+        [],
+        tick_cache_dir=tmp_path / "ticks",
+        policies=[policy],
+        catalog={"signals": [
+            _provider_first_signal("signal", executed=False),
+        ]},
+    )
+
+    row = report["provider_policy_results"][0]["results"][0]
+    assert row["status"] == "blocked"
+    assert row["strategy_value"] is None
+    assert row["blockers"] == [
+        "invalid_tick_cache_contract:2026-07-06"
+    ]
+    assert row["entry"]["blockers"] == row["blockers"]
+    assert "missing_ticks" not in row["blockers"]
+
+
+def test_provider_first_farm_fails_closed_on_row_identity_mismatch(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        strategy_farm.observed_tick_replay_validator,
+        "ReplayTickFrameCache",
+        _ProviderFirstTickLoader,
+    )
+
+    def wrong_signal_id(spec, ticks, policy, **kwargs):
+        return {
+            "provider_signal_id": "wrong",
+            "policy_id": policy.policy_id,
+            "status": "blocked",
+            "entry": {"latency_ms": spec.latency_ms},
+            "strategy_value": None,
+            "strategy_pnl": None,
+            "blockers": ["test"],
+            "legs": [],
+        }
+
+    monkeypatch.setattr(
+        strategy_farm.provider_strategy_simulator,
+        "simulate_provider_policy",
+        wrong_signal_id,
+    )
+
+    with pytest.raises(RuntimeError, match="provider farm row accounting"):
+        strategy_farm.build_farm_report(
+            [],
+            [],
+            tick_cache_dir=tmp_path / "ticks",
+            policies=_two_provider_policies(),
+            catalog={"signals": [
+                _provider_first_signal("expected", executed=False),
+            ]},
+        )

@@ -8,8 +8,10 @@ import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal
 
+import provider_strategy_simulator as provider_simulator
 from provider_strategy_simulator import (
     VirtualEntry,
+    prepare_replay_ticks,
     select_entry_tick,
     simulate_provider_policy,
 )
@@ -1310,3 +1312,66 @@ def test_survivor_classification_is_deterministic_and_does_not_mutate_inputs():
     assert spec == original_spec
     assert_frame_equal(ticks, original_ticks)
     assert ticks.attrs == original_ticks.attrs
+
+
+def test_prepared_replay_ticks_are_validated_once_and_reusable():
+    ticks = _ticks([
+        (TRIGGER + timedelta(seconds=1), 101.0, 101.2),
+        (TRIGGER, 99.8, 100.0),
+    ])
+    original = ticks.copy(deep=True)
+
+    prepared, blocker = prepare_replay_ticks(ticks)
+    reused, reused_blocker = prepare_replay_ticks(prepared)
+
+    assert blocker is None
+    assert reused_blocker is None
+    assert reused is prepared
+    assert prepared.attrs["provider_replay_ticks_contract"] == (
+        "strict_bid_ask_utc_v1"
+    )
+    assert prepared["time_utc"].is_monotonic_increasing
+    assert "_time_ns" in prepared.columns
+    assert_frame_equal(ticks, original)
+    assert "_time_ns" not in ticks.columns
+
+
+def test_shared_result_cache_reuses_identical_leg_price_paths(monkeypatch):
+    ticks = _ticks([
+        (TRIGGER, 99.8, 100.0),
+        (TRIGGER + timedelta(seconds=1), 105.0, 105.2),
+    ])
+    spec = _spec(
+        provider_tps=(105.0,),
+        provider_sl=95.0,
+        level_timeline=[_level_event(TRIGGER, tps=(105.0,), sl=95.0)],
+    )
+    prepared, blocker = prepare_replay_ticks(ticks)
+    assert blocker is None
+    calls = []
+    original = provider_simulator._simulate_virtual_leg
+
+    def counted(*args, **kwargs):
+        calls.append((args[2], kwargs["action"]))
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(provider_simulator, "_simulate_virtual_leg", counted)
+    cache = {}
+
+    first = simulate_provider_policy(
+        spec,
+        prepared,
+        policy_by_id("no_be"),
+        result_cache=cache,
+    )
+    second = simulate_provider_policy(
+        spec,
+        prepared,
+        policy_by_id("close_0_be_1_runner_4"),
+        result_cache=cache,
+    )
+
+    assert first["strategy_value"] == second["strategy_value"] == 5.0
+    assert first["policy_id"] == "no_be"
+    assert second["policy_id"] == "close_0_be_1_runner_4"
+    assert calls == [(0, "follow_provider")]
