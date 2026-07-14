@@ -1,4 +1,5 @@
 import warnings
+from copy import deepcopy
 from dataclasses import FrozenInstanceError
 from datetime import datetime, timedelta, timezone
 
@@ -7,8 +8,13 @@ import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal
 
-from provider_strategy_simulator import VirtualEntry, select_entry_tick
+from provider_strategy_simulator import (
+    VirtualEntry,
+    select_entry_tick,
+    simulate_provider_policy,
+)
 from provider_trade_spec import ProviderTradeSpec
+from strategy_policies import policy_by_id
 
 
 TRIGGER = datetime(2026, 7, 8, 11, 0, tzinfo=timezone.utc)
@@ -20,27 +26,77 @@ def _spec(
     trigger=TRIGGER,
     latency_ms=0,
     blockers=(),
+    volume_per_leg=0.01,
+    provider_tps=(4110.0,),
+    provider_sl=4090.0,
+    level_timeline=(),
+    management_events=(),
+    execution_sig_ids=(),
+    policy_evidence_gaps=(),
+    leg_count=None,
 ):
+    provider_tps = tuple(provider_tps)
     return ProviderTradeSpec(
         provider_signal_id="canal2_3200",
         channel="canal2",
         direction=direction,
         trigger_observed_utc=trigger,
         latency_ms=latency_ms,
-        volume_per_leg=0.01,
-        leg_count=1,
-        provider_tps=(4110.0,),
-        provider_sl=4090.0,
-        level_timeline=(),
-        management_events=(),
-        execution_sig_ids=(),
+        volume_per_leg=volume_per_leg,
+        leg_count=(len(provider_tps) or 1) if leg_count is None else leg_count,
+        provider_tps=provider_tps,
+        provider_sl=provider_sl,
+        level_timeline=tuple(level_timeline),
+        management_events=tuple(management_events),
+        execution_sig_ids=tuple(execution_sig_ids),
         entry_blockers=tuple(blockers),
-        policy_evidence_gaps=(),
+        policy_evidence_gaps=tuple(policy_evidence_gaps),
     )
 
 
 def _ticks(rows):
     return pd.DataFrame(rows, columns=["time_utc", "bid", "ask"])
+
+
+def _level_event(observed, *, tps=(105.0,), sl=95.0):
+    return {
+        "observed_ts_utc": observed.isoformat(),
+        "telegram_ts_utc": (observed - timedelta(seconds=1)).isoformat(),
+        "tps": list(tps),
+        "sl": sl,
+    }
+
+
+def _management_event(observed, action="MOVE_SL_TO_BE"):
+    return {
+        "observed_ts_utc": observed.isoformat(),
+        "telegram_ts_utc": (observed - timedelta(seconds=1)).isoformat(),
+        "classified_action": action,
+    }
+
+
+EXPECTED_POLICY_ROW_KEYS = {
+    "provider_signal_id",
+    "channel",
+    "policy_id",
+    "status",
+    "result_unit",
+    "money_status",
+    "strategy_value",
+    "strategy_pnl",
+    "entry",
+    "blockers",
+    "assumptions",
+    "legs",
+}
+
+
+def _assert_policy_row_shape(result):
+    assert set(result) == EXPECTED_POLICY_ROW_KEYS
+    assert result["result_unit"] == "xauusd_price_units"
+    assert result["money_status"] == "unverified"
+    assert result["strategy_pnl"] is None
+    assert "actual_pnl" not in result
 
 
 @pytest.mark.parametrize(
@@ -468,3 +524,495 @@ def test_virtual_entry_is_frozen():
 
     with pytest.raises(FrozenInstanceError):
         result.price = 1.0
+
+
+def test_provider_levels_activate_only_when_observed_and_ignore_prior_touch():
+    level_time = TRIGGER + timedelta(seconds=2)
+    ticks = _ticks(
+        [
+            (TRIGGER, 99.80, 100.00),
+            (TRIGGER + timedelta(seconds=1), 106.00, 106.20),
+            (level_time, 100.00, 100.20),
+            (TRIGGER + timedelta(seconds=3), 105.20, 105.40),
+        ]
+    )
+    spec = _spec(
+        provider_tps=(105.0,),
+        provider_sl=95.0,
+        level_timeline=[_level_event(level_time)],
+    )
+
+    result = simulate_provider_policy(spec, ticks, policy_by_id("no_be"))
+
+    _assert_policy_row_shape(result)
+    assert result["status"] == "simulated_price_path"
+    assert result["strategy_value"] == 5.0
+    assert result["blockers"] == []
+    assert result["entry"] == {
+        "status": "entered",
+        "time_utc": TRIGGER.isoformat(),
+        "price": 100.0,
+        "side": "ask",
+        "latency_ms": 0,
+        "blockers": [],
+    }
+    assert result["legs"][0]["action"] == "follow_provider"
+    assert result["legs"][0]["close_reason"] == "tp"
+    assert result["legs"][0]["close_time_utc"] == (
+        TRIGGER + timedelta(seconds=3)
+    ).isoformat()
+    assert result["legs"][0]["touch_side"] == "bid"
+
+
+@pytest.mark.parametrize(
+    ("final_bid", "expected_reason", "expected_value"),
+    [
+        (105.0, "tp", 5.0),
+        (95.0, "sl", -5.0),
+    ],
+)
+def test_no_be_ignores_later_be_and_remains_runner_to_tp_or_sl(
+    final_bid,
+    expected_reason,
+    expected_value,
+):
+    management_time = TRIGGER + timedelta(seconds=1)
+    ticks = _ticks(
+        [
+            (TRIGGER, 99.80, 100.00),
+            (management_time, 101.00, 101.20),
+            (TRIGGER + timedelta(seconds=2), 99.00, 99.20),
+            (TRIGGER + timedelta(seconds=3), final_bid, final_bid + 0.20),
+        ]
+    )
+    spec = _spec(
+        provider_tps=(105.0,),
+        provider_sl=95.0,
+        level_timeline=[
+            _level_event(TRIGGER, tps=(105.0,), sl=95.0),
+            _level_event(management_time, tps=(105.0,), sl=100.0),
+        ],
+        management_events=[_management_event(management_time)],
+    )
+
+    result = simulate_provider_policy(spec, ticks, policy_by_id("no_be"))
+
+    assert result["status"] == "simulated_price_path"
+    assert result["strategy_value"] == expected_value
+    assert result["legs"][0]["action"] == "runner"
+    assert result["legs"][0]["close_reason"] == expected_reason
+    assert result["legs"][0]["close_time_utc"] == (
+        TRIGGER + timedelta(seconds=3)
+    ).isoformat()
+
+
+def test_close_2_be_1_runner_2_orders_nearest_causal_tps_first():
+    targets = (120.0, 105.0, 115.0, 110.0, 125.0)
+    management_time = TRIGGER + timedelta(seconds=2)
+    ticks = _ticks(
+        [
+            (TRIGGER, 99.80, 100.00),
+            (TRIGGER + timedelta(seconds=1), 101.00, 101.20),
+            (management_time, 102.00, 102.20),
+            (TRIGGER + timedelta(seconds=3), 100.00, 100.20),
+            (TRIGGER + timedelta(seconds=4), 120.00, 120.20),
+            (TRIGGER + timedelta(seconds=5), 125.00, 125.20),
+        ]
+    )
+    spec = _spec(
+        volume_per_leg=0.03,
+        provider_tps=targets,
+        provider_sl=90.0,
+        level_timeline=[_level_event(TRIGGER, tps=targets, sl=90.0)],
+        management_events=[_management_event(management_time)],
+    )
+
+    result = simulate_provider_policy(
+        spec,
+        ticks,
+        policy_by_id("close_2_be_1_runner_2"),
+    )
+
+    assert result["status"] == "simulated_price_path"
+    assert [leg["ticket"] for leg in result["legs"]] == [
+        f"virtual:canal2_3200:{index}" for index in range(5)
+    ]
+    assert [leg["action"] for leg in result["legs"]] == [
+        "runner",
+        "close_now",
+        "move_to_be",
+        "close_now",
+        "runner",
+    ]
+    assert [leg["close_reason"] for leg in result["legs"]] == [
+        "tp",
+        "management_close",
+        "sl",
+        "management_close",
+        "tp",
+    ]
+    assert [leg["volume"] for leg in result["legs"]] == [0.03] * 5
+    assert [leg["strategy_value"] for leg in result["legs"]] == [
+        20.0,
+        2.0,
+        0.0,
+        2.0,
+        25.0,
+    ]
+    assert result["strategy_value"] == 49.0
+
+
+def test_without_management_trigger_all_legs_follow_provider_sl_and_tp():
+    targets = (105.0, 110.0, 115.0, 120.0, 125.0)
+    ticks = _ticks(
+        [(TRIGGER, 99.80, 100.00)]
+        + [
+            (
+                TRIGGER + timedelta(seconds=index),
+                target,
+                target + 0.20,
+            )
+            for index, target in enumerate(targets, start=1)
+        ]
+    )
+    spec = _spec(
+        provider_tps=targets,
+        provider_sl=90.0,
+        level_timeline=[_level_event(TRIGGER, tps=targets, sl=90.0)],
+    )
+
+    result = simulate_provider_policy(
+        spec,
+        ticks,
+        policy_by_id("close_2_be_1_runner_2"),
+    )
+
+    assert result["status"] == "simulated_price_path"
+    assert [leg["action"] for leg in result["legs"]] == [
+        "follow_provider"
+    ] * 5
+    assert [leg["close_reason"] for leg in result["legs"]] == ["tp"] * 5
+    assert result["strategy_value"] == 75.0
+
+
+def test_unexecuted_and_executed_evidence_links_simulate_identically():
+    level_timeline = [_level_event(TRIGGER, tps=(105.0,), sl=95.0)]
+    ticks = _ticks(
+        [
+            (TRIGGER, 99.80, 100.00),
+            (TRIGGER + timedelta(seconds=1), 105.00, 105.20),
+        ]
+    )
+    unexecuted = _spec(
+        provider_tps=(105.0,),
+        provider_sl=95.0,
+        level_timeline=level_timeline,
+        execution_sig_ids=(),
+    )
+    executed = _spec(
+        provider_tps=(105.0,),
+        provider_sl=95.0,
+        level_timeline=deepcopy(level_timeline),
+        execution_sig_ids=("sig_mt5_123", "sig_mt5_456"),
+    )
+    policy = policy_by_id("no_be")
+
+    assert simulate_provider_policy(unexecuted, ticks, policy) == (
+        simulate_provider_policy(executed, ticks, policy)
+    )
+
+
+def test_missing_tp_blocks_runner_policy_and_keeps_visible_leg():
+    ticks = _ticks(
+        [
+            (TRIGGER, 99.80, 100.00),
+            (TRIGGER + timedelta(seconds=1), 101.00, 101.20),
+        ]
+    )
+    spec = _spec(
+        provider_tps=(),
+        provider_sl=95.0,
+        level_timeline=[_level_event(TRIGGER, tps=(), sl=95.0)],
+        policy_evidence_gaps=("missing_provider_tps",),
+    )
+
+    result = simulate_provider_policy(spec, ticks, policy_by_id("no_be"))
+
+    _assert_policy_row_shape(result)
+    assert result["status"] == "blocked"
+    assert result["strategy_value"] is None
+    assert len(result["legs"]) == 1
+    assert result["legs"][0]["status"] == "blocked"
+    assert any("missing_strategy_tp" in item for item in result["blockers"])
+
+
+def test_close_only_policy_does_not_require_tp_when_sl_and_trigger_are_causal():
+    management_time = TRIGGER + timedelta(seconds=1)
+    ticks = _ticks(
+        [
+            (TRIGGER, 99.80, 100.00),
+            (management_time, 101.00, 101.20),
+        ]
+    )
+    spec = _spec(
+        provider_tps=(),
+        provider_sl=95.0,
+        level_timeline=[_level_event(TRIGGER, tps=(), sl=95.0)],
+        management_events=[_management_event(management_time)],
+        policy_evidence_gaps=("missing_provider_tps",),
+    )
+
+    result = simulate_provider_policy(
+        spec,
+        ticks,
+        policy_by_id("close_5_be_0_runner_0"),
+    )
+
+    assert result["status"] == "simulated_price_path"
+    assert result["strategy_value"] == 1.0
+    assert result["blockers"] == []
+    assert result["legs"][0]["action"] == "close_now"
+    assert result["legs"][0]["close_reason"] == "management_close"
+    assert not any("tp" in blocker.lower() for blocker in result["blockers"])
+
+
+def test_close_only_without_causal_sl_still_blocks():
+    management_time = TRIGGER + timedelta(seconds=1)
+    ticks = _ticks(
+        [
+            (TRIGGER, 99.80, 100.00),
+            (management_time, 101.00, 101.20),
+        ]
+    )
+    spec = _spec(
+        provider_tps=(),
+        provider_sl=None,
+        level_timeline=[_level_event(TRIGGER, tps=(), sl=None)],
+        management_events=[_management_event(management_time)],
+        policy_evidence_gaps=("missing_provider_tps", "missing_provider_sl"),
+    )
+
+    result = simulate_provider_policy(
+        spec,
+        ticks,
+        policy_by_id("close_5_be_0_runner_0"),
+    )
+
+    assert result["status"] == "blocked"
+    assert result["strategy_value"] is None
+    assert any("sl" in blocker.lower() for blocker in result["blockers"])
+
+
+def test_blocked_entry_returns_one_complete_blocked_row():
+    spec = _spec(blockers=("manual_review", "manual_review"))
+
+    result = simulate_provider_policy(
+        spec,
+        _ticks([(TRIGGER, 99.80, 100.00)]),
+        policy_by_id("no_be"),
+    )
+
+    _assert_policy_row_shape(result)
+    assert result["provider_signal_id"] == "canal2_3200"
+    assert result["channel"] == "canal2"
+    assert result["policy_id"] == "no_be"
+    assert result["status"] == "blocked"
+    assert result["strategy_value"] is None
+    assert result["blockers"] == ["manual_review"]
+    assert result["entry"]["status"] == "blocked"
+    assert result["legs"] == []
+
+
+@pytest.mark.parametrize(
+    "unsafe_quote",
+    [True, "99.80", 99.80 + 1j, np.nan, np.inf, 0.0, -1.0],
+    ids=["bool", "string", "complex", "nan", "inf", "zero", "negative"],
+)
+def test_any_unsafe_replay_quote_blocks_the_whole_row(unsafe_quote):
+    ticks = _ticks(
+        [
+            (TRIGGER, unsafe_quote, 100.00),
+            (TRIGGER + timedelta(seconds=1), 105.00, 105.20),
+        ]
+    )
+    spec = _spec(
+        provider_tps=(105.0,),
+        provider_sl=95.0,
+        level_timeline=[_level_event(TRIGGER)],
+    )
+
+    result = simulate_provider_policy(spec, ticks, policy_by_id("no_be"))
+
+    _assert_policy_row_shape(result)
+    assert result["status"] == "blocked"
+    assert result["strategy_value"] is None
+    assert result["blockers"] == ["invalid_replay_quotes"]
+    assert result["entry"]["blockers"] == ["invalid_replay_quotes"]
+
+
+def test_replay_requires_valid_timezone_aware_tick_times():
+    ticks = _ticks([(datetime(2026, 7, 8, 11, 0), 99.80, 100.00)])
+
+    result = simulate_provider_policy(
+        _spec(),
+        ticks,
+        policy_by_id("no_be"),
+    )
+
+    assert result["status"] == "blocked"
+    assert result["blockers"] == ["invalid_replay_tick_times"]
+
+
+def test_sell_closes_on_ask_and_uses_directional_price_delta():
+    ticks = _ticks(
+        [
+            (TRIGGER, 100.00, 100.20),
+            (TRIGGER + timedelta(seconds=1), 94.80, 95.00),
+        ]
+    )
+    spec = _spec(
+        direction="SELL",
+        provider_tps=(95.0,),
+        provider_sl=105.0,
+        level_timeline=[_level_event(TRIGGER, tps=(95.0,), sl=105.0)],
+    )
+
+    result = simulate_provider_policy(spec, ticks, policy_by_id("no_be"))
+
+    assert result["entry"]["side"] == "bid"
+    assert result["entry"]["price"] == 100.0
+    assert result["legs"][0]["touch_side"] == "ask"
+    assert result["legs"][0]["touch_side_price"] == 95.0
+    assert result["legs"][0]["close_price"] == 95.0
+    assert result["legs"][0]["strategy_value"] == 5.0
+    assert result["strategy_value"] == 5.0
+
+
+def _all_mapping_keys(value):
+    if isinstance(value, dict):
+        for key, item in value.items():
+            yield key
+            yield from _all_mapping_keys(item)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            yield from _all_mapping_keys(item)
+
+
+def test_price_path_result_keeps_money_fields_honest_without_calibration():
+    ticks = _ticks(
+        [
+            (TRIGGER, 99.80, 100.00),
+            (TRIGGER + timedelta(seconds=1), 105.00, 105.20),
+        ]
+    )
+    spec = _spec(
+        provider_tps=(105.0,),
+        provider_sl=95.0,
+        level_timeline=[_level_event(TRIGGER)],
+        volume_per_leg=9.99,
+    )
+
+    result = simulate_provider_policy(spec, ticks, policy_by_id("no_be"))
+
+    _assert_policy_row_shape(result)
+    assert result["strategy_value"] == 5.0
+    assert result["strategy_pnl"] is None
+    assert result["money_status"] == "unverified"
+    keys = set(_all_mapping_keys(result))
+    assert "actual_pnl" not in keys
+    assert "unit_value" not in keys
+    assert "pnl_source" not in keys
+    assert not any("calibrat" in key.lower() for key in keys)
+
+
+def test_management_trigger_before_entry_blocks_without_partial_ranking():
+    management_time = TRIGGER - timedelta(seconds=1)
+    spec = _spec(
+        provider_tps=(105.0,),
+        provider_sl=95.0,
+        level_timeline=[
+            _level_event(TRIGGER - timedelta(seconds=2), tps=(105.0,), sl=95.0)
+        ],
+        management_events=[_management_event(management_time)],
+    )
+
+    result = simulate_provider_policy(
+        spec,
+        _ticks([(TRIGGER, 99.80, 100.00)]),
+        policy_by_id("no_be"),
+    )
+
+    assert result["status"] == "blocked"
+    assert result["strategy_value"] is None
+    assert result["blockers"] == ["management_trigger_before_entry"]
+    assert len(result["legs"]) == 1
+    assert result["legs"][0]["ticket"] == "virtual:canal2_3200:0"
+
+
+def test_follow_actual_is_unsupported_for_virtual_provider_trade():
+    result = simulate_provider_policy(
+        _spec(),
+        _ticks([(TRIGGER, 99.80, 100.00)]),
+        policy_by_id("follow_actual"),
+    )
+
+    _assert_policy_row_shape(result)
+    assert result["status"] == "blocked"
+    assert result["strategy_value"] is None
+    assert result["blockers"] == [
+        "unsupported_virtual_policy:follow_actual"
+    ]
+    assert result["entry"]["status"] == "entered"
+
+
+def test_eod_horizon_is_taken_from_policy_and_recorded_as_assumption():
+    final_tick = TRIGGER.replace(hour=22)
+    ticks = _ticks(
+        [
+            (TRIGGER, 99.80, 100.00),
+            (final_tick, 103.00, 103.20),
+        ]
+    )
+    spec = _spec(
+        provider_tps=(110.0,),
+        provider_sl=90.0,
+        level_timeline=[_level_event(TRIGGER, tps=(110.0,), sl=90.0)],
+    )
+
+    result = simulate_provider_policy(spec, ticks, policy_by_id("no_be"))
+
+    assert result["status"] == "simulated_price_path"
+    assert result["legs"][0]["close_reason"] == "horizon_close"
+    assert result["legs"][0]["close_time_utc"] == final_tick.isoformat()
+    assert result["legs"][0]["assumptions"] == ["horizon_close:eod"]
+    assert result["assumptions"] == ["horizon_close:eod"]
+
+
+def test_policy_replay_does_not_mutate_inputs_and_is_deterministic():
+    level_timeline = [_level_event(TRIGGER, tps=(105.0,), sl=95.0)]
+    spec = _spec(
+        provider_tps=(105.0,),
+        provider_sl=95.0,
+        level_timeline=level_timeline,
+    )
+    ticks = _ticks(
+        [
+            (TRIGGER + timedelta(seconds=1), 105.50, 105.70),
+            (TRIGGER, 99.80, 100.00),
+            (TRIGGER + timedelta(seconds=1), 106.00, 106.20),
+        ]
+    )
+    ticks.index = pd.Index([8, 3, 5], name="source_row")
+    ticks.attrs["cache_contract"] = {"version": 3}
+    original_spec = deepcopy(spec)
+    original_ticks = ticks.copy(deep=True)
+    policy = policy_by_id("no_be")
+
+    first = simulate_provider_policy(spec, ticks, policy)
+    second = simulate_provider_policy(spec, ticks, policy)
+
+    assert first == second
+    assert first["legs"][0]["touch_side_price"] == 105.5
+    assert spec == original_spec
+    assert_frame_equal(ticks, original_ticks)
+    assert ticks.attrs == original_ticks.attrs
