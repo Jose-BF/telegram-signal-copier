@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import pytest
 
 import provider_signal_catalog
@@ -224,9 +227,10 @@ def test_revision_sequence_a_b_a_preserves_the_restoration_event():
     assert signal["effective_range"] == [4100.0, 4105.0]
 
 
-def test_poll_edit_sequence_a_b_a_preserves_distinct_edit_dates():
+def test_poll_edit_sequence_a_b_a_preserves_same_edit_date():
     original = "Sell Gold Now\n4100 - 4105\nTargets\n4098\nSL 4108"
-    changed = "Sell Gold Now\n4101 - 4106\nTargets\n4098\nSL 4108"
+    changed = "Sell Gold Now\n4101 - 4106\nTargets\n4097\nSL 4109"
+    shared_edit_date = "2026-07-08T10:10:00+00:00"
     events = [
         _raw(
             "canal2",
@@ -234,7 +238,7 @@ def test_poll_edit_sequence_a_b_a_preserves_distinct_edit_dates():
             original,
             ts="2026-07-08T10:10:01+00:00",
             date_utc="2026-07-08T10:00:00+00:00",
-            edit_date_utc="2026-07-08T10:10:00+00:00",
+            edit_date_utc=shared_edit_date,
             update_kind="poll_edit",
         ),
         _raw(
@@ -243,7 +247,7 @@ def test_poll_edit_sequence_a_b_a_preserves_distinct_edit_dates():
             changed,
             ts="2026-07-08T10:11:01+00:00",
             date_utc="2026-07-08T10:00:00+00:00",
-            edit_date_utc="2026-07-08T10:11:00+00:00",
+            edit_date_utc=shared_edit_date,
             update_kind="poll_edit",
         ),
         _raw(
@@ -252,7 +256,7 @@ def test_poll_edit_sequence_a_b_a_preserves_distinct_edit_dates():
             original,
             ts="2026-07-08T10:12:01+00:00",
             date_utc="2026-07-08T10:00:00+00:00",
-            edit_date_utc="2026-07-08T10:12:00+00:00",
+            edit_date_utc=shared_edit_date,
             update_kind="poll_edit",
         ),
     ]
@@ -262,22 +266,34 @@ def test_poll_edit_sequence_a_b_a_preserves_distinct_edit_dates():
 
     assert len(signal["revisions"]) == 3
     assert [row["telegram_ts_utc"] for row in signal["revisions"]] == [
-        "2026-07-08T10:10:00+00:00",
-        "2026-07-08T10:11:00+00:00",
-        "2026-07-08T10:12:00+00:00",
+        shared_edit_date,
+        shared_edit_date,
+        shared_edit_date,
     ]
-    assert [row["parsed"]["range"] for row in signal["revisions"]] == [
+    assert [row["range"] for row in signal["entry_zone_timeline"]] == [
         [4100.0, 4105.0],
         [4101.0, 4106.0],
         [4100.0, 4105.0],
     ]
+    assert [row["tps"] for row in signal["level_timeline"]] == [
+        [4098.0],
+        [4097.0],
+        [4098.0],
+    ]
+    assert [row["sl"] for row in signal["level_timeline"]] == [
+        4108.0,
+        4109.0,
+        4108.0,
+    ]
+    assert signal["effective_range"] == [4100.0, 4105.0]
+    assert signal["effective_tps"] == [4098.0]
+    assert signal["effective_sl"] == 4108.0
 
 
 def test_edit_and_poll_edit_duplicate_of_same_revision_are_fused():
     text = "Buy Gold Now\n4100 - 4105\nTargets\n4108\nSL 4095"
     common = {
         "date_utc": "2026-07-08T10:00:00+00:00",
-        "edit_date_utc": "2026-07-08T10:20:00+00:00",
         "has_document": True,
         "media_sha256": "same-media",
         "media_path": "media/same.bin",
@@ -290,6 +306,7 @@ def test_edit_and_poll_edit_duplicate_of_same_revision_are_fused():
             ts="2026-07-08T10:20:01+00:00",
             update_kind="edit",
             is_edit=True,
+            edit_date_utc="2026-07-08T10:20:00+00:00",
             **common,
         ),
         _raw(
@@ -298,6 +315,7 @@ def test_edit_and_poll_edit_duplicate_of_same_revision_are_fused():
             text,
             ts="2026-07-08T10:20:02+00:00",
             update_kind="poll_edit",
+            edit_date_utc="2026-07-08T10:21:00+00:00",
             **common,
         ),
     ]
@@ -308,6 +326,46 @@ def test_edit_and_poll_edit_duplicate_of_same_revision_are_fused():
     assert len(signal["revisions"]) == 1
     assert signal["revisions"][0]["update_kinds"] == ["edit", "poll_edit"]
     assert signal["revisions"][0]["observed_ts_utc"] == events[0]["ts"]
+    assert signal["revisions"][0]["telegram_ts_utc"] == events[0]["edit_date_utc"]
+
+
+def test_revisions_and_derived_timelines_follow_observed_time():
+    earlier = _raw(
+        "canal2",
+        353,
+        "Buy Gold Now\n4100 - 4105\nTargets\n4108\nSL 4095",
+        ts="2026-07-08T12:30:00+02:00",
+        date_utc="2026-07-08T11:00:00+00:00",
+    )
+    later = _raw(
+        "canal2",
+        353,
+        "Buy Gold Now\n4101 - 4106\nTargets\n4109\nSL 4096",
+        ts="2026-07-08T10:31:00+00:00",
+        date_utc="2026-07-08T09:00:00+00:00",
+        edit_date_utc="2026-07-08T09:01:00+00:00",
+        update_kind="edit",
+        is_edit=True,
+    )
+
+    report = provider_signal_catalog.build_catalog_report([later, earlier], [])
+    signal = report["signals"][0]
+
+    assert [row["text"] for row in signal["revisions"]] == [
+        earlier["text"],
+        later["text"],
+    ]
+    assert [row["range"] for row in signal["entry_zone_timeline"]] == [
+        [4100.0, 4105.0],
+        [4101.0, 4106.0],
+    ]
+    assert [row["tps"] for row in signal["level_timeline"]] == [
+        [4108.0],
+        [4109.0],
+    ]
+    assert signal["effective_range"] == [4101.0, 4106.0]
+    assert signal["effective_tps"] == [4109.0]
+    assert signal["effective_sl"] == 4096.0
 
 
 def test_canal1_single_entry_price_is_a_complete_entry_zone():
@@ -601,6 +659,97 @@ def test_explicit_canal1_pairing_rejects_text_outside_observed_window():
     assert signals["canal1_656"]["source_message_ids"] == [656]
 
 
+def test_canal1_pairing_ignores_sticker_text_direction_disagreement():
+    events = [
+        _raw(
+            "canal1",
+            700,
+            sticker_id=12345,
+            has_document=True,
+            ts="2026-07-08T18:00:00+00:00",
+            date_utc="2026-07-08T17:59:59+00:00",
+        ),
+        {
+            "ts": "2026-07-08T18:00:01+00:00",
+            "sig": "canal1_700",
+            "ev": "telegram_understood",
+            "channel": "canal1",
+            "message_id": 700,
+            "direction": "BUY",
+            "tg_ts": "2026-07-08T17:59:59+00:00",
+        },
+        _raw(
+            "canal1",
+            701,
+            "SELL GOLD NOW 4100-05\nTP1: 4098\nSL: 4108",
+            ts="2026-07-08T18:00:30+00:00",
+            date_utc="2026-07-08T18:00:29+00:00",
+        ),
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+
+    assert report["summary"]["provider_signals"] == 1
+    signal = report["signals"][0]
+    assert signal["provider_signal_id"] == "canal1_700"
+    assert signal["source_message_ids"] == [700, 701]
+    assert signal["direction"] == "SELL"
+    assert signal["entry_contract"]["direction"] == "BUY"
+    assert signal["entry_contract"]["direction_source"] == "telegram_understood"
+
+
+def test_canal1_duplicate_associations_choose_nearest_root_invariantly():
+    sticker_far = _raw(
+        "canal1",
+        800,
+        sticker_id=12345,
+        has_document=True,
+        ts="2026-07-08T18:30:00+00:00",
+    )
+    sticker_near = _raw(
+        "canal1",
+        801,
+        sticker_id=12346,
+        has_document=True,
+        ts="2026-07-08T18:31:00+00:00",
+    )
+    text = _raw(
+        "canal1",
+        802,
+        "BUY GOLD NOW 4100-05\nTP1: 4108\nSL: 4095",
+        ts="2026-07-08T18:31:30+00:00",
+    )
+    association_far = {
+        "ts": "2026-07-08T18:31:31+00:00",
+        "sig": "canal1_800",
+        "ev": "canal1_text_processing",
+        "source_msg_id": 802,
+    }
+    association_near = {
+        **association_far,
+        "sig": "canal1_801",
+    }
+
+    ordered = provider_signal_catalog.build_catalog_report(
+        [sticker_far, sticker_near, text, association_far, association_near],
+        [],
+    )
+    permuted = provider_signal_catalog.build_catalog_report(
+        [sticker_far, sticker_near, text, association_near, association_far],
+        [],
+    )
+
+    def text_root(report):
+        return next(
+            signal["provider_signal_id"]
+            for signal in report["signals"]
+            if 802 in signal["source_message_ids"]
+        )
+
+    assert text_root(ordered) == "canal1_801"
+    assert text_root(permuted) == "canal1_801"
+
+
 def test_canal1_pairing_is_invariant_for_equal_observed_timestamps():
     sticker_710 = _raw(
         "canal1",
@@ -824,6 +973,40 @@ def test_first_sticker_understanding_wins_before_text_and_future_contradiction()
         "blockers": [],
     }
     assert not any(key.startswith("_") for key in signal)
+
+
+def test_simultaneous_understanding_uses_event_order_not_telegram_time():
+    first_understanding = {
+        "ts": "2026-07-08T19:30:01+00:00",
+        "sig": "canal1_695",
+        "ev": "telegram_understood",
+        "channel": "canal1",
+        "message_id": 695,
+        "direction": "BUY",
+        "tg_ts": "2026-07-08T19:30:10+00:00",
+    }
+    telegram_earlier = {
+        **first_understanding,
+        "tg_ts": "2026-07-08T19:29:50+00:00",
+    }
+    events = [
+        _raw(
+            "canal1",
+            695,
+            sticker_id=12345,
+            has_document=True,
+            ts="2026-07-08T19:30:00+00:00",
+            date_utc="2026-07-08T19:29:59+00:00",
+        ),
+        first_understanding,
+        telegram_earlier,
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+    contract = report["signals"][0]["entry_contract"]
+
+    assert contract["trigger_observed_utc"] == first_understanding["ts"]
+    assert contract["trigger_telegram_utc"] == first_understanding["tg_ts"]
 
 
 def test_irrelevant_reply_does_not_create_a_provider_signal():
@@ -1054,6 +1237,86 @@ def test_duplicate_management_versions_collapse_but_restoration_is_retained():
     assert timeline[0]["raw_versions"] == 2
 
 
+def test_management_timeline_uses_observed_time_then_message_id():
+    events = [
+        _raw(
+            "canal2",
+            900,
+            "Buy Gold Now\n4030 - 4032\nTargets\n4035\nSL 4025",
+            ts="2026-07-08T10:00:00+00:00",
+        ),
+        _raw(
+            "canal2",
+            904,
+            "Move SL to 4034",
+            reply_to_msg_id=900,
+            is_reply=True,
+            ts="2026-07-08T10:03:00+00:00",
+            date_utc="2026-07-08T07:00:00+00:00",
+        ),
+        _raw(
+            "canal2",
+            903,
+            "Move SL to 4033",
+            reply_to_msg_id=900,
+            is_reply=True,
+            ts="2026-07-08T10:03:00+00:00",
+            date_utc="2026-07-08T13:00:00+00:00",
+        ),
+        _raw(
+            "canal2",
+            902,
+            "Move SL to 4032",
+            reply_to_msg_id=900,
+            is_reply=True,
+            ts="2026-07-08T10:02:00+00:00",
+            date_utc="2026-07-08T08:00:00+00:00",
+        ),
+        _raw(
+            "canal2",
+            901,
+            "Move SL to 4031",
+            reply_to_msg_id=900,
+            is_reply=True,
+            ts="2026-07-08T12:01:00+02:00",
+            date_utc="2026-07-08T12:00:00+00:00",
+        ),
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+    timeline = report["signals"][0]["management_events"]
+
+    assert [row["message_id"] for row in timeline] == [901, 902, 903, 904]
+    assert [row["price"] for row in timeline] == [4031.0, 4032.0, 4033.0, 4034.0]
+
+
+def test_catalog_records_are_ordered_by_first_observed_time():
+    observed_first = _raw(
+        "canal2",
+        910,
+        "Buy Gold Now\n4030 - 4032\nTargets\n4035\nSL 4025",
+        ts="2026-07-08T10:00:00+00:00",
+        date_utc="2026-07-08T12:00:00+00:00",
+    )
+    telegram_first = _raw(
+        "canal2",
+        911,
+        "Sell Gold Now\n4040 - 4042\nTargets\n4038\nSL 4045",
+        ts="2026-07-08T10:01:00+00:00",
+        date_utc="2026-07-08T09:00:00+00:00",
+    )
+
+    report = provider_signal_catalog.build_catalog_report(
+        [telegram_first, observed_first],
+        [],
+    )
+
+    assert [row["provider_signal_id"] for row in report["signals"]] == [
+        "canal2_910",
+        "canal2_911",
+    ]
+
+
 @pytest.mark.parametrize(
     ("text", "action", "modality"),
     [
@@ -1178,3 +1441,43 @@ def test_canonical_catalog_has_no_volatile_generation_timestamp():
 
     assert "generated_at" not in first
     assert first == second
+
+
+def test_versioned_catalog_uses_current_schema_and_public_entry_contract():
+    catalog_path = (
+        Path(provider_signal_catalog.__file__).parent
+        / "data"
+        / "provider_signal_catalog.json"
+    )
+    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    expected_contract_fields = {
+        "status",
+        "trigger_observed_utc",
+        "trigger_telegram_utc",
+        "trigger_message_id",
+        "trigger_kind",
+        "direction",
+        "direction_source",
+        "blockers",
+    }
+
+    def private_paths(value, path="record"):
+        found = []
+        if isinstance(value, dict):
+            for key, child in value.items():
+                child_path = f"{path}.{key}"
+                if str(key).startswith("_"):
+                    found.append(child_path)
+                found.extend(private_paths(child, child_path))
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                found.extend(private_paths(child, f"{path}[{index}]"))
+        return found
+
+    assert provider_signal_catalog.SCHEMA_VERSION == 3
+    assert catalog["schema_version"] == provider_signal_catalog.SCHEMA_VERSION
+    assert catalog["signals"]
+    for record in catalog["signals"]:
+        assert record["schema_version"] == provider_signal_catalog.SCHEMA_VERSION
+        assert set(record["entry_contract"]) == expected_contract_fields
+        assert private_paths(record) == []
