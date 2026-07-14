@@ -31,7 +31,7 @@
 - Modify: `provider_signal_catalog.py`
 - Test: `tests/test_provider_signal_catalog.py`
 
-- [ ] **Step 1: Write failing tests for Canal 1 and Canal 2 entry contracts**
+- [x] **Step 1: Write failing tests for Canal 1 and Canal 2 entry contracts**
 
 Add assertions equivalent to:
 
@@ -52,7 +52,7 @@ assert entry == {
 Cover a Canal 2 root whose direction appears in the first text revision and a
 Canal 1 sticker/text pair whose text arrives after the sticker.
 
-- [ ] **Step 2: Run focused tests and verify failure**
+- [x] **Step 2: Run focused tests and verify failure**
 
 Run:
 
@@ -62,7 +62,7 @@ python -m pytest tests/test_provider_signal_catalog.py -q
 
 Expected: FAIL because `entry_contract` is absent.
 
-- [ ] **Step 3: Track direction provenance while building the catalog**
+- [x] **Step 3: Track direction provenance while building the catalog**
 
 Add private fields to `_empty_signal`:
 
@@ -76,7 +76,7 @@ When `_append_revision` parses a direction, set source to
 `telegram_understood` supplies sticker direction, set source to
 `telegram_understood` without overwriting a parser source for the same trigger.
 
-- [ ] **Step 4: Build the entry contract in `_finalize`**
+- [x] **Step 4: Build the entry contract in `_finalize`**
 
 Select revisions by `(observed_ts_utc, message_id)`. A revision is actionable
 when it contains a parsed direction, or when it is the root sticker and the
@@ -98,7 +98,7 @@ final signal direction came from `telegram_understood`. Emit:
 Use named blockers `missing_direction` and `missing_actionable_entry_trigger`.
 Remove all private fields before returning the public catalog.
 
-- [ ] **Step 5: Run focused tests and commit**
+- [x] **Step 5: Run focused tests and commit**
 
 Run:
 
@@ -116,7 +116,7 @@ Expected: provider catalog tests pass.
 - Create: `provider_trade_spec.py`
 - Create: `tests/test_provider_trade_spec.py`
 
-- [ ] **Step 1: Write failing tests for executed and unexecuted signals**
+- [x] **Step 1: Write failing tests for executed and unexecuted signals**
 
 Tests must assert that both signals create a specification and preserve
 execution links only as evidence:
@@ -133,13 +133,13 @@ assert spec.leg_count == 6
 Also cover a direction-only sticker: it creates one leg and reports
 `missing_provider_tps` under `policy_evidence_gaps`, but remains entry-ready.
 
-- [ ] **Step 2: Run tests and verify module-not-found failure**
+- [x] **Step 2: Run tests and verify module-not-found failure**
 
 ```powershell
 python -m pytest tests/test_provider_trade_spec.py -q
 ```
 
-- [ ] **Step 3: Implement immutable specification types**
+- [x] **Step 3: Implement immutable specification types**
 
 Create:
 
@@ -170,7 +170,7 @@ class ProviderTradeSpec:
 entry timestamp as aware UTC, validates non-negative latency and positive
 volume, keeps every TP in provider order and uses one leg when no TP exists.
 
-- [ ] **Step 4: Run tests and commit**
+- [x] **Step 4: Run tests and commit**
 
 ```powershell
 python -m pytest tests/test_provider_trade_spec.py -q
@@ -184,7 +184,7 @@ git commit -m "feat: build provider virtual trade specifications"
 - Create: `provider_strategy_simulator.py`
 - Create: `tests/test_provider_strategy_simulator.py`
 
-- [ ] **Step 1: Write failing Ask/Bid and latency tests**
+- [x] **Step 1: Write failing Ask/Bid and latency tests**
 
 Use a three-row UTC tick frame. Assert:
 
@@ -202,13 +202,13 @@ Set `latency_ms=250` and prove the selector chooses the first tick at or after
 `trigger_observed_utc + 250ms`, never the prior tick. Cover missing ticks and
 missing ticks after trigger with named blockers.
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 ```powershell
 python -m pytest tests/test_provider_strategy_simulator.py -q
 ```
 
-- [ ] **Step 3: Implement entry result and selector**
+- [x] **Step 3: Implement entry result and selector**
 
 Create:
 
@@ -226,7 +226,7 @@ class VirtualEntry:
 Normalize timestamps to aware UTC, sort only when needed and use
 `numpy.searchsorted` over nanosecond timestamps. Reject non-positive Bid/Ask.
 
-- [ ] **Step 4: Run tests and commit**
+- [x] **Step 4: Run tests and commit**
 
 ```powershell
 python -m pytest tests/test_provider_strategy_simulator.py -q
@@ -240,7 +240,7 @@ git commit -m "feat: select causal provider entry ticks"
 - Modify: `provider_strategy_simulator.py`
 - Modify: `tests/test_provider_strategy_simulator.py`
 
-- [ ] **Step 1: Write failing tests for policy replay**
+- [x] **Step 1: Write failing tests for policy replay**
 
 Cover:
 
@@ -266,13 +266,13 @@ Expected result shape:
 }
 ```
 
-- [ ] **Step 2: Run the focused tests and verify failure**
+- [x] **Step 2: Run the focused tests and verify failure**
 
 ```powershell
 python -m pytest tests/test_provider_strategy_simulator.py -q
 ```
 
-- [ ] **Step 3: Synthesize virtual legs and reuse causal level helpers**
+- [x] **Step 3: Synthesize virtual legs and reuse causal level helpers**
 
 Build virtual ticket dictionaries with stable labels
 `virtual:<provider_signal_id>:<index>`, a common entry time/price and the
@@ -283,7 +283,7 @@ When no management trigger exists, call `_first_strategy_close` directly with
 provider SL/TP events. Do not use `_unchanged_ticket_result`, because there is
 no observed MT5 close for a virtual trade.
 
-- [ ] **Step 4: Mark all monetary output honestly**
+- [x] **Step 4: Mark all monetary output honestly**
 
 Price-path replay may calculate directional XAUUSD price units, but set:
 
@@ -295,7 +295,7 @@ Price-path replay may calculate directional XAUUSD price units, but set:
 
 Never place this result in a monetary ranking.
 
-- [ ] **Step 5: Run tests and commit**
+- [x] **Step 5: Run tests and commit**
 
 ```powershell
 python -m pytest tests/test_provider_strategy_simulator.py -q
@@ -309,7 +309,7 @@ git commit -m "sim: replay policies from canonical provider signals"
 - Modify: `strategy_farm.py`
 - Modify: `tests/test_strategy_farm.py`
 
-- [ ] **Step 1: Write failing no-silent-drop tests**
+- [x] **Step 1: Write failing no-silent-drop tests**
 
 Build a catalog with three formal signals: one executed, one unexecuted and one
 with missing entry evidence. For two policies assert six rows exist:
@@ -323,13 +323,13 @@ assert report["provider_scope"]["signals_omitted"] == []
 
 The missing-entry signal must have a blocked row for each policy.
 
-- [ ] **Step 2: Run focused tests and verify failure**
+- [x] **Step 2: Run focused tests and verify failure**
 
 ```powershell
 python -m pytest tests/test_strategy_farm.py -q
 ```
 
-- [ ] **Step 3: Add provider-first execution as a separate report section**
+- [x] **Step 3: Add provider-first execution as a separate report section**
 
 Keep existing executed-ticket validation intact under
 `executed_baseline_validation`. Add `provider_policy_results`, grouped by
@@ -353,7 +353,7 @@ Report:
 
 Any row-count mismatch raises `RuntimeError` before publication.
 
-- [ ] **Step 4: Run farm tests and commit**
+- [x] **Step 4: Run farm tests and commit**
 
 ```powershell
 python -m pytest tests/test_strategy_farm.py -q
@@ -369,7 +369,7 @@ git commit -m "sim: cover every canonical provider signal in farm"
 - Modify: `tests/test_simulation_run_provenance.py`
 - Modify: `tests/test_run_bot_watch.py`
 
-- [ ] **Step 1: Write failing fingerprint tests**
+- [x] **Step 1: Write failing fingerprint tests**
 
 Assert that changing any of these changes the run fingerprint:
 
@@ -379,19 +379,19 @@ Assert that changing any of these changes the run fingerprint:
 - provider policy result bytes;
 - verified tick contract.
 
-- [ ] **Step 2: Include provider-first inputs in computational identity**
+- [x] **Step 2: Include provider-first inputs in computational identity**
 
 Add selected canonical signal payloads, ordered latency scenarios and virtual
 entry configuration to `simulation_run_provenance.py`. Publication time,
 machine path and Git branch remain diagnostic only.
 
-- [ ] **Step 3: Keep watcher publication fail-closed**
+- [x] **Step 3: Keep watcher publication fail-closed**
 
 The watcher stages the report and immutable run directory only when the farm
 returns success and row accounting is complete. A diagnostic-only result is a
 valid build, but stale prior outputs are deleted before the attempt.
 
-- [ ] **Step 4: Run tests and commit**
+- [x] **Step 4: Run tests and commit**
 
 ```powershell
 python -m pytest tests/test_simulation_run_provenance.py tests/test_run_bot_watch.py -q
@@ -406,13 +406,13 @@ git commit -m "sim: fingerprint provider-first farm inputs"
 - Modify: `README.md`
 - Modify: `docs/superpowers/plans/2026-07-14-provider-centric-simulation.md`
 
-- [ ] **Step 1: Update project navigation and safety boundaries**
+- [x] **Step 1: Update project navigation and safety boundaries**
 
 Document `provider_trade_spec.py`, `provider_strategy_simulator.py`, the
 provider-first farm section, latency scenarios and the rule that price-unit
 results cannot be presented as money.
 
-- [ ] **Step 2: Run focused suites**
+- [x] **Step 2: Run focused suites**
 
 ```powershell
 python -m pytest tests/test_provider_signal_catalog.py tests/test_provider_trade_spec.py tests/test_provider_strategy_simulator.py tests/test_strategy_farm.py tests/test_simulation_run_provenance.py tests/test_run_bot_watch.py -q
@@ -420,7 +420,7 @@ python -m pytest tests/test_provider_signal_catalog.py tests/test_provider_trade
 
 Expected: all focused tests pass.
 
-- [ ] **Step 3: Run the complete suite**
+- [x] **Step 3: Run the complete suite**
 
 ```powershell
 python -m pytest -q
@@ -428,7 +428,7 @@ python -m pytest -q
 
 Expected: all tests pass; the existing intentional skip remains documented.
 
-- [ ] **Step 4: Run a retained-corpus shadow build without overwriting canonical data**
+- [x] **Step 4: Run a retained-corpus shadow build without overwriting canonical data**
 
 Use temporary output and run-archive paths outside `data/`. Verify:
 
@@ -441,7 +441,7 @@ broker_money_contract_unverified is present
 
 Do not interpret price-unit outputs as profitability.
 
-- [ ] **Step 5: Mark plan checkboxes, commit locally and stop before push**
+- [x] **Step 5: Mark plan checkboxes, commit locally and stop before push**
 
 ```powershell
 git add AGENTS.md README.md docs/superpowers/plans/2026-07-14-provider-centric-simulation.md
@@ -451,6 +451,18 @@ git status -sb
 
 Expected: clean local worktree ahead of `origin/main`. Do not push while the
 production bot is active.
+
+### Completion Evidence (2026-07-14)
+
+- Full suite: `1020 passed, 1 skipped`.
+- Retained clean window: 74 formal signals from 2026-07-06 onward.
+- Shadow matrix: 22 policies x latency scenarios `[0, 136, 197]` = 4,884
+  expected and emitted rows; `signals_omitted=[]`.
+- `selected_policy=null`; `broker_money_contract_unverified` remains active.
+- All shadow rows were blocked only because this workstation lacked valid
+  UTC-v3 tick contracts for 2026-07-06 through 2026-07-13. No profitability
+  conclusion was drawn. The VM must regenerate those days before price-path
+  outcomes can be evaluated.
 
 ## Follow-Up Plan Boundary
 
