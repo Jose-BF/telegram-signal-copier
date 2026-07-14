@@ -847,26 +847,81 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
         if is_canal1_signal_text(str(row.get("text") or "")):
             text_evidence.setdefault(message_id, observed_dt)
 
-    def is_valid_pair(sticker_id: int, text_id: int) -> bool:
+    processing_roots_by_text: dict[int, set[int]] = {}
+    for row in events:
+        if row.get("ev") != "canal1_text_processing":
+            continue
+        parsed_sig = _message_id_from_sig(row.get("sig"))
+        source_message_id = row.get("source_msg_id")
+        if (
+            parsed_sig is None
+            or parsed_sig[0] != "canal1"
+            or source_message_id is None
+        ):
+            continue
+        processing_roots_by_text.setdefault(
+            int(source_message_id),
+            set(),
+        ).add(parsed_sig[1])
+
+    def is_preceding_sticker(sticker_id: int, text_id: int) -> bool:
         sticker = sticker_evidence.get(sticker_id)
         text = text_evidence.get(text_id)
         if sticker is None or text is None:
             return False
-        if (sticker, sticker_id) >= (text, text_id):
-            return False
-        return text - sticker <= timedelta(minutes=3)
+        return (sticker, sticker_id) < (text, text_id)
+
+    def identity_link(
+        sticker_id: int,
+        text_id: int,
+        source: str,
+    ) -> dict:
+        observed_gap = text_evidence[text_id] - sticker_evidence[sticker_id]
+        return {
+            "source": source,
+            "root_message_id": sticker_id,
+            "companion_message_id": text_id,
+            "observed_gap_ms": (
+                observed_gap // timedelta(milliseconds=1)
+            ),
+        }
 
     canal1_text_roots: dict[int, int] = {}
-    paired_stickers: set[int] = set()
-    for text_id, text_dt in sorted(
+    canal1_identity_links: dict[int, list[dict]] = {}
+    raw_paired_stickers: set[int] = set()
+    unmatched_text_ids: list[int] = []
+    ordered_texts = sorted(
         text_evidence.items(),
         key=lambda item: (item[1], item[0]),
-    ):
+    )
+    for text_id, text_dt in ordered_texts:
         candidates = [
             sticker_id
             for sticker_id in sticker_evidence
-            if sticker_id not in paired_stickers
-            and is_valid_pair(sticker_id, text_id)
+            if sticker_id not in raw_paired_stickers
+            and is_preceding_sticker(sticker_id, text_id)
+            and text_dt - sticker_evidence[sticker_id] <= timedelta(minutes=3)
+        ]
+        if not candidates:
+            unmatched_text_ids.append(text_id)
+            continue
+        sticker_id = max(
+            candidates,
+            key=lambda candidate: (sticker_evidence[candidate], candidate),
+        )
+        canal1_text_roots[text_id] = sticker_id
+        raw_paired_stickers.add(sticker_id)
+        canal1_identity_links.setdefault(sticker_id, []).append(
+            identity_link(sticker_id, text_id, "raw_nearest")
+        )
+
+    fallback_paired_stickers: set[int] = set()
+    for text_id in unmatched_text_ids:
+        candidates = [
+            sticker_id
+            for sticker_id in processing_roots_by_text.get(text_id, set())
+            if sticker_id not in fallback_paired_stickers
+            and is_preceding_sticker(sticker_id, text_id)
         ]
         if not candidates:
             continue
@@ -875,7 +930,10 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
             key=lambda candidate: (sticker_evidence[candidate], candidate),
         )
         canal1_text_roots[text_id] = sticker_id
-        paired_stickers.add(sticker_id)
+        fallback_paired_stickers.add(sticker_id)
+        canal1_identity_links.setdefault(sticker_id, []).append(
+            identity_link(sticker_id, text_id, "processing_fallback")
+        )
 
     understood_directions_by_key: dict[tuple[str, int], list[dict]] = {}
     for row in events:
@@ -998,6 +1056,19 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
         sig_id = str(trade.get("sig_id"))
         if sig_id not in signal["execution_sig_ids"]:
             signal["execution_sig_ids"].append(sig_id)
+
+    for root_id, links in canal1_identity_links.items():
+        key = ("canal1", root_id)
+        if key not in signals:
+            continue
+        signals[key]["identity_links"] = sorted(
+            links,
+            key=lambda link: (
+                link["observed_gap_ms"],
+                link["companion_message_id"],
+                link["source"],
+            ),
+        )
 
     finalized = [_finalize(signal) for signal in signals.values()]
     finalized.sort(key=lambda row: (

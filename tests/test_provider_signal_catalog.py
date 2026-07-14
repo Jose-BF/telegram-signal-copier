@@ -621,27 +621,41 @@ def test_canal1_pairing_rejects_text_observed_before_sticker():
     assert signals["canal1_651"]["source_message_ids"] == [651]
     assert signals["canal1_650"]["entry_contract"]["trigger_kind"] == "sticker"
     assert signals["canal1_651"]["entry_contract"]["trigger_kind"] == "text"
+    assert "identity_links" not in signals["canal1_650"]
+    assert "identity_links" not in signals["canal1_651"]
 
 
-def test_explicit_canal1_pairing_rejects_text_outside_observed_window():
+def test_processing_fallback_groups_delayed_companion_without_backdating_levels():
+    sticker_ts = "2026-07-08T16:30:00+00:00"
+    understood_ts = "2026-07-08T16:30:00.100+00:00"
+    text_ts = "2026-07-08T16:42:00+00:00"
     events = [
         _raw(
             "canal1",
             655,
             sticker_id=12345,
             has_document=True,
-            ts="2026-07-08T16:30:00+00:00",
-            date_utc="2026-07-08T16:59:00+00:00",
+            ts=sticker_ts,
+            date_utc="2026-07-08T16:29:59+00:00",
         ),
+        {
+            "ts": understood_ts,
+            "sig": "canal1_655",
+            "ev": "telegram_understood",
+            "channel": "canal1",
+            "message_id": 655,
+            "direction": "BUY",
+            "tg_ts": "2026-07-08T16:29:59+00:00",
+        },
         _raw(
             "canal1",
             656,
             "BUY GOLD NOW 4100-05\nTP1: 4108\nSL: 4095",
-            ts="2026-07-08T16:33:01+00:00",
-            date_utc="2026-07-08T16:59:01+00:00",
+            ts=text_ts,
+            date_utc="2026-07-08T16:41:59+00:00",
         ),
         {
-            "ts": "2026-07-08T16:33:02+00:00",
+            "ts": "2026-07-08T16:42:00.010+00:00",
             "sig": "canal1_655",
             "ev": "canal1_text_processing",
             "source_msg_id": 656,
@@ -649,14 +663,23 @@ def test_explicit_canal1_pairing_rejects_text_outside_observed_window():
     ]
 
     report = provider_signal_catalog.build_catalog_report(events, [])
-    signals = {
-        signal["provider_signal_id"]: signal
-        for signal in report["signals"]
-    }
+    signal = report["signals"][0]
 
-    assert set(signals) == {"canal1_655", "canal1_656"}
-    assert signals["canal1_655"]["source_message_ids"] == [655]
-    assert signals["canal1_656"]["source_message_ids"] == [656]
+    assert report["summary"]["provider_signals"] == 1
+    assert signal["provider_signal_id"] == "canal1_655"
+    assert signal["source_message_ids"] == [655, 656]
+    assert signal["entry_contract"]["trigger_message_id"] == 655
+    assert signal["entry_contract"]["trigger_observed_utc"] == understood_ts
+    assert signal["entry_contract"]["trigger_kind"] == "sticker"
+    assert signal["entry_zone_timeline"][-1]["source_message_id"] == 656
+    assert signal["entry_zone_timeline"][-1]["observed_ts_utc"] == text_ts
+    assert signal["level_timeline"][-1]["observed_ts_utc"] == text_ts
+    assert signal["identity_links"] == [{
+        "source": "processing_fallback",
+        "root_message_id": 655,
+        "companion_message_id": 656,
+        "observed_gap_ms": 720000,
+    }]
 
 
 def test_canal1_pairing_ignores_sticker_text_direction_disagreement():
@@ -704,14 +727,14 @@ def test_canal1_duplicate_associations_choose_nearest_root_invariantly():
         800,
         sticker_id=12345,
         has_document=True,
-        ts="2026-07-08T18:30:00+00:00",
+        ts="2026-07-08T18:20:00+00:00",
     )
     sticker_near = _raw(
         "canal1",
         801,
         sticker_id=12346,
         has_document=True,
-        ts="2026-07-08T18:31:00+00:00",
+        ts="2026-07-08T18:25:00+00:00",
     )
     text = _raw(
         "canal1",
@@ -748,6 +771,17 @@ def test_canal1_duplicate_associations_choose_nearest_root_invariantly():
 
     assert text_root(ordered) == "canal1_801"
     assert text_root(permuted) == "canal1_801"
+    for report in (ordered, permuted):
+        signal = next(
+            row for row in report["signals"]
+            if row["provider_signal_id"] == "canal1_801"
+        )
+        assert signal["identity_links"] == [{
+            "source": "processing_fallback",
+            "root_message_id": 801,
+            "companion_message_id": 802,
+            "observed_gap_ms": 390000,
+        }]
 
 
 @pytest.mark.parametrize(
@@ -800,6 +834,12 @@ def test_canal1_raw_nearest_sticker_beats_processing_association(
 
     assert text_record["provider_signal_id"] == f"canal1_{nearest_sticker_id}"
     assert text_record["source_message_ids"] == [nearest_sticker_id, text_id]
+    assert text_record["identity_links"] == [{
+        "source": "raw_nearest",
+        "root_message_id": nearest_sticker_id,
+        "companion_message_id": text_id,
+        "observed_gap_ms": 58000,
+    }]
 
 
 def test_canal1_pairing_is_invariant_for_equal_observed_timestamps():
@@ -1709,6 +1749,43 @@ def test_versioned_catalog_uses_current_schema_and_public_entry_contract():
         assert record["schema_version"] == provider_signal_catalog.SCHEMA_VERSION
         assert set(record["entry_contract"]) == expected_contract_fields
         assert private_paths(record) == []
+
+
+def test_default_corpus_uses_hybrid_canal1_identity_links():
+    report = provider_signal_catalog.build_catalog_report(
+        provider_signal_catalog.load_jsonl(provider_signal_catalog.DEFAULT_EVENTS),
+        provider_signal_catalog.load_jsonl(provider_signal_catalog.DEFAULT_REPLAY),
+    )
+
+    def record_for(message_id):
+        return next(
+            record
+            for record in report["signals"]
+            if message_id in record["source_message_ids"]
+        )
+
+    for root_id, companion_id, observed_gap_ms in (
+        (20303, 20304, 719878),
+        (20380, 20382, 179696),
+        (20611, 20612, 224403),
+    ):
+        record = record_for(companion_id)
+        assert record["provider_signal_id"] == f"canal1_{root_id}"
+        assert {
+            "source": "processing_fallback",
+            "root_message_id": root_id,
+            "companion_message_id": companion_id,
+            "observed_gap_ms": observed_gap_ms,
+        } in record["identity_links"]
+
+    for root_id, companion_id in ((20689, 20690), (20701, 20702)):
+        record = record_for(companion_id)
+        assert record["provider_signal_id"] == f"canal1_{root_id}"
+        assert next(
+            link["source"]
+            for link in record["identity_links"]
+            if link["companion_message_id"] == companion_id
+        ) == "raw_nearest"
 
 
 def test_versioned_catalog_exactly_matches_default_corpus_rebuild():
