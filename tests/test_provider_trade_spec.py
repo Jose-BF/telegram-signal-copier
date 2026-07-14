@@ -537,3 +537,48 @@ def test_to_dict_returns_detached_plain_json_safe_content():
 
     assert spec.provider_tps[-1] == 4120.0
     assert spec.level_timeline[0]["metadata"]["tags"] == ("provider-edit",)
+
+
+def test_to_dict_marks_nested_nonfinite_floats_for_strict_json():
+    signal = _formal_signal(
+        level_timeline=[{
+            "observed_ts_utc": "2026-07-08T10:00:01+00:00",
+            "raw": {
+                "nan": float("nan"),
+                "nested": [
+                    float("inf"),
+                    {"loss": float("-inf"), "finite": 1.25},
+                ],
+            },
+        }],
+        management_events=[{
+            "observed_ts_utc": "2026-07-08T10:01:00+00:00",
+            "raw": [float("-inf"), float("nan")],
+        }],
+    )
+
+    payload = build_trade_spec(
+        signal,
+        latency_ms=0,
+        volume_per_leg=0.01,
+    ).to_dict()
+    level_raw = payload["level_timeline"][0]["raw"]
+    management_raw = payload["management_events"][0]["raw"]
+
+    assert level_raw == {
+        "nan": {"__nonfinite_float__": "nan"},
+        "nested": [
+            {"__nonfinite_float__": "positive_infinity"},
+            {
+                "loss": {"__nonfinite_float__": "negative_infinity"},
+                "finite": 1.25,
+            },
+        ],
+    }
+    assert management_raw == [
+        {"__nonfinite_float__": "negative_infinity"},
+        {"__nonfinite_float__": "nan"},
+    ]
+
+    encoded = json.dumps(payload, allow_nan=False, sort_keys=True)
+    assert json.loads(encoded) == payload

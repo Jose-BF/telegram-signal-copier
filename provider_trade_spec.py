@@ -37,7 +37,7 @@ class ProviderTradeSpec:
         return not self.entry_blockers
 
     def to_dict(self) -> dict[str, object]:
-        """Return detached JSON-safe data without traversing proxies via asdict."""
+        """Return detached strict-JSON-safe data without proxy traversal."""
         fields = {
             "provider_signal_id": self.provider_signal_id,
             "channel": self.channel,
@@ -62,6 +62,14 @@ def _thaw_json_safe(value: object) -> object:
         if value.tzinfo is not None and value.utcoffset() is not None:
             value = value.astimezone(timezone.utc)
         return value.isoformat()
+    if isinstance(value, float) and not isfinite(value):
+        if value != value:
+            marker = "nan"
+        elif value > 0:
+            marker = "positive_infinity"
+        else:
+            marker = "negative_infinity"
+        return {"__nonfinite_float__": marker}
     if isinstance(value, Mapping):
         return {
             str(key): _thaw_json_safe(item)
