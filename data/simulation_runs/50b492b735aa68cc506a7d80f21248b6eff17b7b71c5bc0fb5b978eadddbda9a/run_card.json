@@ -1,0 +1,487 @@
+{
+  "artifacts": [
+    {
+      "path": "strategy_farm.json",
+      "retained": true,
+      "sha256": "424dcb30ccc72403bffb1335b7f9be56b94539055f306c6c86f4d94bbde6113d",
+      "size_bytes": 83371
+    }
+  ],
+  "created_at_utc": "2026-07-15T12:50:56+00:00",
+  "report_metadata": {
+    "generated_at": "2026-07-15T12:50:56+00:00",
+    "provenance": {
+      "conclusions_allowed": false,
+      "durable": false,
+      "errors": [],
+      "limitations": [
+        "tick_artifacts_local_cache_only"
+      ],
+      "mode": "diagnostic_only",
+      "result_fingerprint": "ba8dabbb5f42788d36ac76877a546a3187fa8aab09fb9070c948cacfbf164b4f",
+      "run_card": "data/simulation_runs/50b492b735aa68cc506a7d80f21248b6eff17b7b71c5bc0fb5b978eadddbda9a/run_card.json",
+      "run_fingerprint": "50b492b735aa68cc506a7d80f21248b6eff17b7b71c5bc0fb5b978eadddbda9a",
+      "status": "diagnostic_archived",
+      "verified_now": true
+    },
+    "validation": {
+      "artifact_integrity_verified": true,
+      "conclusions_allowed": false,
+      "market_replay": {
+        "blocked": 61,
+        "exact": 1,
+        "mismatched": 7,
+        "selected_trades": 69
+      },
+      "market_replay_verified": false,
+      "mode": "diagnostic_only"
+    }
+  },
+  "reproducibility": {
+    "durable": false,
+    "errors": [],
+    "git": {
+      "branch": "main",
+      "commit": "9d7935d3d718dbec27bad2fc15096263fdab1be3",
+      "dirty": true,
+      "errors": []
+    },
+    "input_artifacts": [
+      {
+        "path": "data/observed_tick_replay_audit.jsonl",
+        "role": "observed_baseline",
+        "sha256": "b168f089169bb197f516ec150939d57a3b06a2f1f5c68347c2b20719f13eff5c",
+        "size_bytes": 615947
+      },
+      {
+        "path": "data/provider_signal_catalog.json",
+        "role": "provider_catalog",
+        "sha256": "b98f967371e48a4939ef9ce7b8c136c3f9b901d020837581ee42fe1c23374041",
+        "size_bytes": 3278244
+      },
+      {
+        "path": "data/replay_trades.jsonl",
+        "role": "replay_trades",
+        "sha256": "1866cb3bc0d8e3dca94c79996db57af104ca199ae3737ddbdef2666a11012691",
+        "size_bytes": 9319816
+      }
+    ],
+    "limitations": [
+      "tick_artifacts_local_cache_only"
+    ],
+    "market_replay": {
+      "blocked": 61,
+      "exact": 1,
+      "mismatched": 7,
+      "selected_trades": 69
+    },
+    "parameters": {
+      "from_date": "2026-07-06",
+      "include_trades": false,
+      "minimum_trades": 200,
+      "tick_pad_minutes": 5,
+      "to_date": null
+    },
+    "policies": {
+      "count": 22,
+      "sha256": "efe443ccbf6d705549436c7d266f6b4576fc6d8a83b8ba528ea451608d7dbad1"
+    },
+    "runtime": {
+      "packages": {
+        "numpy": "2.4.4",
+        "pandas": "3.0.2",
+        "pyarrow": "24.0.0"
+      },
+      "python": "3.11.9"
+    },
+    "selected_inputs": [
+      {
+        "count": 69,
+        "role": "effective_baselines",
+        "sha256": "0c8ae28f1109b891384a7fb450df6d99a575894455e9149b51c374ee6561399c"
+      },
+      {
+        "count": 69,
+        "role": "effective_provider_links",
+        "sha256": "e7d4755cc81604b203e45a935642c03a23a70c684342ca0e6b643ffaecbbb851"
+      },
+      {
+        "count": 86,
+        "role": "provider_scope",
+        "sha256": "f58af31234ff8fcf4ea2a18f74c83dc44310c54f7814d9aee3164a1844ecd81b"
+      },
+      {
+        "count": 69,
+        "role": "replay_trades",
+        "sha256": "c3e4fe97f9053f6ab308c4e9b26668f063d1a2bab6aed345fda14aee12ea14ba"
+      }
+    ],
+    "source_files": [
+      {
+        "path": "tools/ensure_replay_tick_cache.py",
+        "role": "ensure_replay_tick_cache",
+        "sha256": "d94687016675f0f676a2610454da976ad6d6b939da705d515f35d6adbe98f5a8",
+        "size_bytes": 29576
+      },
+      {
+        "path": "observed_tick_replay_validator.py",
+        "role": "observed_tick_replay_validator",
+        "sha256": "91b40e9fc7a2238032a44978ae4e4784f26361c27717c7209b27b4796fa5506c",
+        "size_bytes": 25481
+      },
+      {
+        "path": "simulation_run_provenance.py",
+        "role": "simulation_run_provenance",
+        "sha256": "3d9748352b63563111cd411065afa891694163728addc6be2799f5149ead7434",
+        "size_bytes": 23092
+      },
+      {
+        "path": "strategy_farm.py",
+        "role": "strategy_farm",
+        "sha256": "43b8f0215f7bc7eecbaaef31ab2340bb8fe9eb30de66acba9fcbf2b9a68bb862",
+        "size_bytes": 22984
+      },
+      {
+        "path": "strategy_policies.py",
+        "role": "strategy_policies",
+        "sha256": "4e41b0b6ee791abbc7f880737c51d87ce5d073e41ed1eee6b6153ea3b39b299a",
+        "size_bytes": 4301
+      },
+      {
+        "path": "strategy_simulator.py",
+        "role": "strategy_simulator",
+        "sha256": "baaee8b9acda7710c1bccc16bccea81e8cc5338e983d9ead25d1c15254b94f07",
+        "size_bytes": 47686
+      }
+    ],
+    "tick_days": [
+      {
+        "anchor_validation": {
+          "anchors_checked": 32,
+          "anchors_matched": 32,
+          "errors": [],
+          "max_price_delta": 0.0,
+          "max_time_delta_ms": 2462,
+          "valid": true
+        },
+        "day": "2026-07-06",
+        "offset_detection_method": "fill_anchor",
+        "offset_reference": {
+          "anchor_time_utc": "2026-07-06T08:37:35.843000+00:00",
+          "fill_price": 4151.46,
+          "price_delta": 0.0,
+          "quote_side": "ask",
+          "raw_time_msc": 1783337855957,
+          "signal_id": "canal2_2806",
+          "ticket": 1543960642,
+          "time_delta_ms": 114
+        },
+        "parquet_sha256": "9b9852aa4a81d1951076092a8d01966f0a1ad21395460680e6a4ef51f4193910",
+        "semantic_time_valid": true,
+        "size_bytes": 6449320,
+        "source_time_basis": "mt5_server_epoch",
+        "tick_time_contract": "mt5_server_epoch_utc_v3",
+        "time_basis": "UTC",
+        "utc_offset_seconds": 10800
+      },
+      {
+        "anchor_validation": {
+          "anchors_checked": 45,
+          "anchors_matched": 45,
+          "errors": [],
+          "max_price_delta": 0.0,
+          "max_time_delta_ms": 2250,
+          "valid": true
+        },
+        "day": "2026-07-07",
+        "offset_detection_method": "fill_anchor",
+        "offset_reference": {
+          "anchor_time_utc": "2026-07-07T09:30:39.645000+00:00",
+          "fill_price": 4125.15,
+          "price_delta": 0.0,
+          "quote_side": "bid",
+          "raw_time_msc": 1783427439539,
+          "signal_id": "canal2_2826",
+          "ticket": 1550157515,
+          "time_delta_ms": 106
+        },
+        "parquet_sha256": "002824ff464bd879b0aac0021b5ca346c003b9f2ea81638865507bb8c162749d",
+        "semantic_time_valid": true,
+        "size_bytes": 6976917,
+        "source_time_basis": "mt5_server_epoch",
+        "tick_time_contract": "mt5_server_epoch_utc_v3",
+        "time_basis": "UTC",
+        "utc_offset_seconds": 10800
+      },
+      {
+        "anchor_validation": {
+          "anchors_checked": 24,
+          "anchors_matched": 24,
+          "errors": [],
+          "max_price_delta": 0.0,
+          "max_time_delta_ms": 2326,
+          "valid": true
+        },
+        "day": "2026-07-08",
+        "offset_detection_method": "fill_anchor",
+        "offset_reference": {
+          "anchor_time_utc": "2026-07-08T11:44:02.549000+00:00",
+          "fill_price": 4060.73,
+          "price_delta": 0.0,
+          "quote_side": "bid",
+          "raw_time_msc": 1783521842293,
+          "signal_id": "canal1_20765",
+          "ticket": 1558493253,
+          "time_delta_ms": 256
+        },
+        "parquet_sha256": "2871d64948e91a39ac36644b579c41d0bcac22c1707c2cf717621da02f892466",
+        "semantic_time_valid": true,
+        "size_bytes": 7735825,
+        "source_time_basis": "mt5_server_epoch",
+        "tick_time_contract": "mt5_server_epoch_utc_v3",
+        "time_basis": "UTC",
+        "utc_offset_seconds": 10800
+      },
+      {
+        "anchor_validation": {
+          "anchors_checked": 54,
+          "anchors_matched": 54,
+          "errors": [],
+          "max_price_delta": 0.0,
+          "max_time_delta_ms": 2389,
+          "valid": true
+        },
+        "day": "2026-07-09",
+        "offset_detection_method": "fill_anchor",
+        "offset_reference": {
+          "anchor_time_utc": "2026-07-09T06:40:13.131000+00:00",
+          "fill_price": 4098.91,
+          "price_delta": 0.0,
+          "quote_side": "ask",
+          "raw_time_msc": 1783590012682,
+          "signal_id": "canal2_2969",
+          "ticket": 1564479000,
+          "time_delta_ms": 449
+        },
+        "parquet_sha256": "3c31f435fc54b27a51827a2caf517622cdafe672b928040056041952e33582a2",
+        "semantic_time_valid": true,
+        "size_bytes": 6589817,
+        "source_time_basis": "mt5_server_epoch",
+        "tick_time_contract": "mt5_server_epoch_utc_v3",
+        "time_basis": "UTC",
+        "utc_offset_seconds": 10800
+      },
+      {
+        "anchor_validation": {
+          "anchors_checked": 49,
+          "anchors_matched": 49,
+          "errors": [],
+          "max_price_delta": 0.0,
+          "max_time_delta_ms": 1694,
+          "valid": true
+        },
+        "day": "2026-07-10",
+        "offset_detection_method": "fill_anchor",
+        "offset_reference": {
+          "anchor_time_utc": "2026-07-10T10:04:02.594000+00:00",
+          "fill_price": 4107.26,
+          "price_delta": 0.0,
+          "quote_side": "bid",
+          "raw_time_msc": 1783688643011,
+          "signal_id": "canal2_3054",
+          "ticket": 1571950542,
+          "time_delta_ms": 417
+        },
+        "parquet_sha256": "0a43b376fdc5f8930e19f6e7588b24c1a3c345fc03b6d1e156ed74f38fdc4493",
+        "semantic_time_valid": true,
+        "size_bytes": 5652510,
+        "source_time_basis": "mt5_server_epoch",
+        "tick_time_contract": "mt5_server_epoch_utc_v3",
+        "time_basis": "UTC",
+        "utc_offset_seconds": 10800
+      },
+      {
+        "anchor_validation": {
+          "anchors_checked": 0,
+          "anchors_matched": 0,
+          "errors": [],
+          "max_price_delta": null,
+          "max_time_delta_ms": null,
+          "valid": true
+        },
+        "day": "2026-07-11",
+        "offset_detection_method": "adjacent_verified_day",
+        "offset_reference": {
+          "distance_days": 1,
+          "inherited_from_day": "2026-07-10",
+          "source_reference": {
+            "anchor_time_utc": "2026-07-10T10:04:02.594000+00:00",
+            "fill_price": 4107.26,
+            "price_delta": 0.0,
+            "quote_side": "bid",
+            "raw_time_msc": 1783688643011,
+            "signal_id": "canal2_3054",
+            "ticket": 1571950542,
+            "time_delta_ms": 417
+          }
+        },
+        "parquet_sha256": "5c27de8ee3418e85b4bffb83bee83de68e9733fbeb95df9fdf139858aca0ba72",
+        "semantic_time_valid": true,
+        "size_bytes": 3893,
+        "source_time_basis": "mt5_server_epoch",
+        "tick_time_contract": "mt5_server_epoch_utc_v3",
+        "time_basis": "UTC",
+        "utc_offset_seconds": 10800
+      },
+      {
+        "anchor_validation": {
+          "anchors_checked": 0,
+          "anchors_matched": 0,
+          "errors": [],
+          "max_price_delta": null,
+          "max_time_delta_ms": null,
+          "valid": true
+        },
+        "day": "2026-07-12",
+        "offset_detection_method": "adjacent_verified_day",
+        "offset_reference": {
+          "distance_days": 1,
+          "inherited_from_day": "2026-07-13",
+          "source_reference": {
+            "anchor_time_utc": "2026-07-13T06:35:45.952000+00:00",
+            "fill_price": 4059.61,
+            "price_delta": 0.0,
+            "quote_side": "bid",
+            "raw_time_msc": 1783935345937,
+            "signal_id": "canal2_3099",
+            "ticket": 1580155839,
+            "time_delta_ms": 15
+          }
+        },
+        "parquet_sha256": "fa434eacec624aab2340b7f9ed485a49f93304baa6deaff251126921884065bd",
+        "semantic_time_valid": true,
+        "size_bytes": 744978,
+        "source_time_basis": "mt5_server_epoch",
+        "tick_time_contract": "mt5_server_epoch_utc_v3",
+        "time_basis": "UTC",
+        "utc_offset_seconds": 10800
+      },
+      {
+        "anchor_validation": {
+          "anchors_checked": 57,
+          "anchors_matched": 57,
+          "errors": [],
+          "max_price_delta": 0.0,
+          "max_time_delta_ms": 2466,
+          "valid": true
+        },
+        "day": "2026-07-13",
+        "offset_detection_method": "fill_anchor",
+        "offset_reference": {
+          "anchor_time_utc": "2026-07-13T06:35:45.952000+00:00",
+          "fill_price": 4059.61,
+          "price_delta": 0.0,
+          "quote_side": "bid",
+          "raw_time_msc": 1783935345937,
+          "signal_id": "canal2_3099",
+          "ticket": 1580155839,
+          "time_delta_ms": 15
+        },
+        "parquet_sha256": "e512d91650df1d8c24e18565aae2307ba4555d53ea473699447ac35dc4441b1f",
+        "semantic_time_valid": true,
+        "size_bytes": 7352184,
+        "source_time_basis": "mt5_server_epoch",
+        "tick_time_contract": "mt5_server_epoch_utc_v3",
+        "time_basis": "UTC",
+        "utc_offset_seconds": 10800
+      },
+      {
+        "anchor_validation": {
+          "anchors_checked": 34,
+          "anchors_matched": 34,
+          "errors": [],
+          "max_price_delta": 0.0,
+          "max_time_delta_ms": 2429,
+          "valid": true
+        },
+        "day": "2026-07-14",
+        "offset_detection_method": "fill_anchor",
+        "offset_reference": {
+          "anchor_time_utc": "2026-07-14T09:15:05.244000+00:00",
+          "fill_price": 4019.98,
+          "price_delta": 0.0,
+          "quote_side": "bid",
+          "raw_time_msc": 1784031304712,
+          "signal_id": "canal2_3181",
+          "ticket": 1588985963,
+          "time_delta_ms": 532
+        },
+        "parquet_sha256": "baf37870df0bb631ef006dbd5fb6a3032e16dc0d54e608e3e171171520b66581",
+        "semantic_time_valid": true,
+        "size_bytes": 6717437,
+        "source_time_basis": "mt5_server_epoch",
+        "tick_time_contract": "mt5_server_epoch_utc_v3",
+        "time_basis": "UTC",
+        "utc_offset_seconds": 10800
+      },
+      {
+        "anchor_validation": {
+          "anchors_checked": 20,
+          "anchors_matched": 20,
+          "errors": [],
+          "max_price_delta": 0.0,
+          "max_time_delta_ms": 1887,
+          "valid": true
+        },
+        "day": "2026-07-15",
+        "offset_detection_method": "fill_anchor",
+        "offset_reference": {
+          "anchor_time_utc": "2026-07-15T09:13:02.661000+00:00",
+          "fill_price": 4030.34,
+          "price_delta": 0.0,
+          "quote_side": "bid",
+          "raw_time_msc": 1784117583859,
+          "signal_id": "canal2_3246",
+          "ticket": 1596416842,
+          "time_delta_ms": 1198
+        },
+        "parquet_sha256": "07bc2e678f5529e48259b66f22b512d94592b1821d671e5debb42d75ef4d3079",
+        "semantic_time_valid": true,
+        "size_bytes": 3935294,
+        "source_time_basis": "mt5_server_epoch",
+        "tick_time_contract": "mt5_server_epoch_utc_v3",
+        "time_basis": "UTC",
+        "utc_offset_seconds": 10800
+      }
+    ],
+    "verified_now": true
+  },
+  "result_fingerprint": "ba8dabbb5f42788d36ac76877a546a3187fa8aab09fb9070c948cacfbf164b4f",
+  "result_summary": {
+    "executed_trades": 69,
+    "policy_count": 22,
+    "provider_signals": 86,
+    "selected_policy": null,
+    "selection_blockers": [
+      "oos_not_validated",
+      "baseline_replay_blocked:68",
+      "canonical_signals_not_simulated:19",
+      "canonical_signals_incomplete:1",
+      "market_replay_not_exact"
+    ]
+  },
+  "run_fingerprint": "50b492b735aa68cc506a7d80f21248b6eff17b7b71c5bc0fb5b978eadddbda9a",
+  "schema_version": 2,
+  "validation": {
+    "artifact_integrity_verified": true,
+    "conclusions_allowed": false,
+    "market_replay": {
+      "blocked": 61,
+      "exact": 1,
+      "mismatched": 7,
+      "selected_trades": 69
+    },
+    "market_replay_verified": false,
+    "mode": "diagnostic_only"
+  }
+}

@@ -1,9 +1,18 @@
 {
-  "generated_at": "2026-07-14T22:44:56+00:00",
+  "schema_version": 2,
+  "validation_contract": "causal_path_v2",
+  "fill_price_authority": "mt5_deals",
+  "generated_at": "2026-07-15T12:53:28+00:00",
+  "scope": {
+    "since": null,
+    "until": null,
+    "input_trades": 205,
+    "selected_trades": 205
+  },
   "summary": {
-    "total": 200,
-    "exact": 0,
-    "mismatch": 16,
-    "blocked": 184
+    "total": 205,
+    "exact": 187,
+    "mismatch": 4,
+    "blocked": 14
   }
 }
