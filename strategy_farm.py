@@ -328,6 +328,25 @@ def _market_replay_summary(effective_baselines: list[dict]) -> dict[str, int]:
     }
 
 
+def _require_current_causal_contract(baseline: dict | None) -> dict | None:
+    if not isinstance(baseline, dict) or baseline.get("status") != "exact":
+        return baseline
+    blockers = []
+    if baseline.get("validation_contract") != "causal_path_v2":
+        blockers.append("causal_path_contract_unverified")
+    if baseline.get("fill_price_authority") != "mt5_deals":
+        blockers.append("fill_price_authority_unverified")
+    if not blockers:
+        return baseline
+    return {
+        **baseline,
+        "status": "blocked",
+        "blockers": list(dict.fromkeys(
+            [*(baseline.get("blockers") or []), *blockers]
+        )),
+    }
+
+
 def _market_replay_verified(summary: dict[str, int]) -> bool:
     selected = summary["selected_trades"]
     return (
@@ -636,6 +655,8 @@ def build_farm_execution(
                 "status": "blocked",
                 "blockers": list(dict.fromkeys(missing)),
             }
+        else:
+            baseline = _require_current_causal_contract(baseline)
         effective_baselines.append({
             "sig_id": str(trade.get("sig_id")),
             "baseline": baseline,

@@ -8,6 +8,15 @@ import strategy_farm
 import strategy_policies
 
 
+def _exact_baseline(sig_id):
+    return {
+        "sig_id": sig_id,
+        "status": "exact",
+        "validation_contract": "causal_path_v2",
+        "fill_price_authority": "mt5_deals",
+    }
+
+
 def _row(
     pnl,
     *,
@@ -318,7 +327,7 @@ def test_farm_passes_canonical_provider_signal_to_every_counterfactual(
             "open_dt_utc": "2026-07-06T10:00:00+00:00",
             "tickets": [],
         }],
-        [{"sig_id": "canal1_1", "status": "exact"}],
+        [_exact_baseline("canal1_1")],
         tick_cache_dir=tmp_path / "ticks",
         policies=[policy],
         catalog={"signals": [provider_signal]},
@@ -397,8 +406,8 @@ def test_farm_execution_exposes_exact_provenance_payloads(
     )]
     trades = [_farm_trade("canal1_2"), _farm_trade("canal1_1")]
     baselines = [
-        {"sig_id": "canal1_1", "status": "exact"},
-        {"sig_id": "canal1_2", "status": "exact"},
+        _exact_baseline("canal1_1"),
+        _exact_baseline("canal1_2"),
     ]
     catalog = {
         "signals": [
@@ -448,6 +457,53 @@ def test_farm_execution_exposes_exact_provenance_payloads(
     }
 
 
+def test_legacy_exact_baseline_without_causal_contract_is_blocked(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        strategy_farm.observed_tick_replay_validator,
+        "ReplayTickFrameCache",
+        _FakeTickLoader,
+    )
+    monkeypatch.setattr(
+        strategy_farm.strategy_simulator,
+        "simulate_trade",
+        lambda *args, **kwargs: _row(None, status="blocked"),
+    )
+
+    execution = strategy_farm.build_farm_execution(
+        [_farm_trade("canal1_1")],
+        [{"sig_id": "canal1_1", "status": "exact"}],
+        tick_cache_dir=tmp_path / "ticks",
+        policies=[strategy_policies.StrategyPolicy(
+            policy_id="runner",
+            close_legs=0,
+            be_legs=0,
+            runner_legs=1,
+            base_leg_count=1,
+        )],
+        catalog={"signals": [_provider_signal("canal1_1")]},
+        from_date="2026-07-06",
+        minimum_trades=1,
+    )
+
+    assert execution.market_replay_summary == {
+        "selected_trades": 1,
+        "exact": 0,
+        "blocked": 1,
+        "mismatched": 0,
+    }
+    effective = execution.selected_payloads["effective_baselines"][0][
+        "baseline"
+    ]
+    assert effective["status"] == "blocked"
+    assert effective["blockers"] == [
+        "causal_path_contract_unverified",
+        "fill_price_authority_unverified",
+    ]
+
+
 class _BlockedTickLoader:
     def __init__(self, tick_cache_dir):
         self.required_days = ["2026-07-06"]
@@ -477,7 +533,7 @@ def test_blocked_market_replay_has_no_ranking_or_selected_policy(
 
     report = strategy_farm.build_farm_report(
         [_farm_trade("canal1_1")],
-        [{"sig_id": "canal1_1", "status": "exact"}],
+        [_exact_baseline("canal1_1")],
         tick_cache_dir=tmp_path / "ticks",
         policies=[policy],
         catalog={"signals": [_provider_signal("canal1_1")]},
@@ -613,7 +669,7 @@ def test_cli_does_not_archive_unverified_tick_run(tmp_path, monkeypatch):
         encoding="utf-8",
     )
     paths["baseline"].write_text(
-        json.dumps({"sig_id": "canal1_1", "status": "exact"}) + "\n",
+        json.dumps(_exact_baseline("canal1_1")) + "\n",
         encoding="utf-8",
     )
     paths["catalog"].write_text(

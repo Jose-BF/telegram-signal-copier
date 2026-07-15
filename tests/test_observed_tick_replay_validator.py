@@ -424,7 +424,10 @@ def test_cli_writes_observed_tick_replay_audit_and_status(tmp_path):
     status = json.loads(status_path.read_text(encoding="utf-8"))
     assert exit_code == 0
     assert rows[0]["status"] == "exact"
+    assert rows[0]["schema_version"] == 2
     assert status["summary"]["exact"] == 1
+    assert status["schema_version"] == 2
+    assert status["validation_contract"] == "causal_path_v2"
 
 
 def test_cli_scopes_observed_replay_from_selected_date(tmp_path):

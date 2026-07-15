@@ -261,6 +261,8 @@ def assess_trade(
     )
     blockers.extend(_ticket_blockers(trade))
     blockers.extend(audit_blockers)
+    if not money_exact:
+        blockers.append("accounting_money_not_exact")
     blockers.extend(_tick_blockers(
         trade,
         cache_dir=cache_dir,

@@ -200,6 +200,23 @@ def test_observed_path_mismatch_blocks_strict_replay(tmp_path):
     assert "observed:first_touch_time_mismatch" in row["blockers"]
 
 
+def test_unknown_accounting_status_cannot_be_ready(tmp_path):
+    cache_dir = tmp_path / "ticks_cache"
+    _write_valid_tick_day(cache_dir)
+
+    row = replay_readiness_report.assess_trade(
+        _trade(),
+        _audit(status="unknown"),
+        _observed(),
+        cache_dir=cache_dir,
+        pad_minutes=0,
+    )
+
+    assert row["status"] == "blocked"
+    assert row["accounting_money_exact"] is False
+    assert "accounting_money_not_exact" in row["blockers"]
+
+
 def test_open_trade_is_pending_instead_of_failed(tmp_path):
     ticket = _ticket()
     for field in ("close_dt_utc", "close_price", "pnl_net", "pnl_components", "close_deal"):
