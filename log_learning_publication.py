@@ -5,9 +5,12 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import subprocess
 import tempfile
 from pathlib import Path
 from typing import Mapping
+
+import recursive_log_learning as learning
 
 
 STATUS_SCHEMA_VERSION = 1
@@ -54,10 +57,50 @@ def _load_json_bytes(path: Path) -> tuple[dict, bytes]:
     return value, raw
 
 
+def _read_repository_state(root: Path) -> dict:
+    def run(*args: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            ["git", *args],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    head = run("rev-parse", "HEAD")
+    status = run("status", "--porcelain", "--untracked-files=all")
+    if head.returncode != 0 or status.returncode != 0:
+        detail = head.stderr or status.stderr or "git state unavailable"
+        raise ValueError(detail.strip())
+
+    dirty_rows = [
+        line for line in (status.stdout or "").splitlines() if line.strip()
+    ]
+    changed_paths = []
+    for row in dirty_rows:
+        path = row[3:].strip() if len(row) > 3 else row.strip()
+        if " -> " in path:
+            path = path.rsplit(" -> ", 1)[-1]
+        changed_paths.append(path.strip('"').replace("\\", "/"))
+    return {
+        "git_commit": head.stdout.strip(),
+        "git_dirty": bool(dirty_rows),
+        "source_dirty": any(
+            not path.startswith("data/") for path in changed_paths
+        ),
+    }
+
+
+def _expected_learning_bytes(root: Path) -> tuple[bytes, bytes]:
+    outputs = learning.build_repository_learning_outputs(root)
+    return outputs.report_bytes, outputs.registry_bytes
+
+
 def _artifact_identity(
     report_path: Path,
     registry_path: Path,
     *,
+    repo_root: Path,
     git_commit: str,
     dependencies: dict[str, bool],
 ) -> dict:
@@ -76,6 +119,12 @@ def _artifact_identity(
     registry_sha256 = _sha256_bytes(registry_bytes)
     if report.get("registry_fingerprint") != registry_sha256:
         raise ValueError("report registry fingerprint does not match registry bytes")
+
+    expected_report, expected_registry = _expected_learning_bytes(repo_root)
+    if report_bytes != expected_report or registry_bytes != expected_registry:
+        raise ValueError(
+            "learning artifacts do not match the current repository corpus"
+        )
 
     evidence_sources = {
         key: value
@@ -111,10 +160,9 @@ def publish_status(
     status_path: Path,
     report_path: Path,
     registry_path: Path,
+    repo_root: Path,
     dependencies: Mapping[str, bool],
     build_returncode: int | None,
-    git_commit: str,
-    git_dirty: bool,
     attempted_at_utc: str,
     error: str | None = None,
 ) -> dict:
@@ -123,11 +171,23 @@ def publish_status(
         str(name): value is True
         for name, value in sorted(dependencies.items())
     }
-    blockers = [
+    blockers: list[str] = [
         f"dependency_failed:{name}"
         for name, passed in normalized_dependencies.items()
         if not passed
     ]
+    try:
+        repository = _read_repository_state(repo_root)
+    except (OSError, ValueError) as exc:
+        repository = {
+            "git_commit": None,
+            "git_dirty": True,
+            "source_dirty": True,
+        }
+        blockers.append(f"repository_state_invalid:{exc}")
+    if repository["source_dirty"]:
+        blockers.append("uncommitted_source_changes")
+
     build_succeeded = build_returncode == 0
     status = {
         "schema_version": STATUS_SCHEMA_VERSION,
@@ -138,8 +198,9 @@ def publish_status(
         "artifacts_valid": False,
         "build_returncode": build_returncode,
         "dependencies": normalized_dependencies,
-        "git_commit": git_commit,
-        "git_dirty": bool(git_dirty),
+        "git_commit": repository["git_commit"],
+        "git_dirty": repository["git_dirty"],
+        "source_dirty": repository["source_dirty"],
         "source_fingerprint": None,
         "review_fingerprint": None,
         "report_sha256": None,
@@ -167,7 +228,8 @@ def publish_status(
         identity = _artifact_identity(
             report_path,
             registry_path,
-            git_commit=git_commit,
+            repo_root=repo_root,
+            git_commit=str(repository["git_commit"] or "unknown"),
             dependencies=normalized_dependencies,
         )
     except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:

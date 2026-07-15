@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -90,10 +91,23 @@ class RepositoryVerifier:
         return resolved, head
 
     def collect_test(self, node: str) -> None:
-        self._require(
+        result = self._require(
             [sys.executable, "-m", "pytest", "--collect-only", "-q", node],
             "regression test node does not collect",
         )
+        output = f"{result.stdout or ''}\n{result.stderr or ''}"
+        counts = [
+            int(first or second)
+            for first, second in re.findall(
+                r"collected\s+(\d+)\s+items?|(\d+)\s+tests?\s+collected",
+                output,
+                flags=re.IGNORECASE,
+            )
+        ]
+        if not counts or counts[-1] != 1:
+            raise ReviewError(
+                "regression test node must collect exactly one test"
+            )
 
     def run_exact_test(self, node: str) -> None:
         self._require(
@@ -107,6 +121,17 @@ class RepositoryVerifier:
             "complete test suite failed",
             timeout=1800,
         )
+
+    def assert_repository_unchanged(self, expected_head: str) -> None:
+        current_head = self._require(
+            ["git", "rev-parse", "HEAD"],
+            "cannot re-resolve HEAD after verification",
+        ).stdout.strip()
+        if current_head != expected_head:
+            raise ReviewError(
+                "repository changed during verification: "
+                f"expected {expected_head}, found {current_head}"
+            )
 
 
 def _empty_ledger() -> dict:
@@ -193,6 +218,26 @@ def _require_new_decision(ledger: dict, pattern_id: str) -> None:
         )
 
 
+def _validate_exact_test_node(node: str) -> None:
+    normalized = node.strip().replace("\\", "/")
+    parts = normalized.split("::")
+    path = parts[0]
+    terminal = parts[-1].split("[", 1)[0]
+    if (
+        len(parts) < 2
+        or not path.startswith("tests/")
+        or not path.endswith(".py")
+        or path.startswith("-")
+        or any(part in {"", ".", ".."} for part in path.split("/"))
+        or not terminal.startswith("test_")
+        or any(not part.strip() for part in parts[1:])
+    ):
+        raise ReviewError(
+            "coverage requires one exact pytest test node "
+            "(tests/file.py::test_name or tests/file.py::Class::test_name)"
+        )
+
+
 def cover_pattern(
     *,
     pattern_id: str,
@@ -209,6 +254,7 @@ def cover_pattern(
         pattern_id, rule_version, fix_commit, regression_test, reviewer,
     )):
         raise ReviewError("coverage requires pattern, rule, commit, test and reviewer")
+    _validate_exact_test_node(regression_test)
 
     ledger = load_review_ledger(ledger_path)
     _require_new_decision(ledger, pattern_id)
@@ -266,6 +312,7 @@ def cover_pattern(
             f"verified review did not produce covered status: "
             f"{promoted.get('status')}"
         )
+    repository.assert_repository_unchanged(verified_commit)
 
     _atomic_write_ledger(ledger_path, prospective)
     return ReviewDecision(
@@ -309,11 +356,20 @@ def dismiss_pattern(
         "reviewed_at_utc": reviewed_at,
         "source_fingerprint": evidence_fingerprint,
     }
-    rebuilt = _build_corpus(builder, prospective)
-    dismissed = _require_pattern(rebuilt, pattern_id)
+    first = _build_corpus(builder, prospective)
+    second = _build_corpus(builder, prospective)
+    if (
+        first.report_bytes != second.report_bytes
+        or first.registry_bytes != second.registry_bytes
+    ):
+        raise ReviewError("whole-corpus learning rebuild is not deterministic")
+    dismissed = _require_pattern(first, pattern_id)
     if dismissed.get("status") != "dismissed":
         raise ReviewError("review did not produce dismissed status")
-    if learning.source_fingerprint(rebuilt) != evidence_fingerprint:
+    if (
+        learning.source_fingerprint(first) != evidence_fingerprint
+        or learning.source_fingerprint(second) != evidence_fingerprint
+    ):
         raise ReviewError("evidence corpus changed during dismissal review")
 
     _atomic_write_ledger(ledger_path, prospective)

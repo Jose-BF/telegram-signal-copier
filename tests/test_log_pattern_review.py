@@ -52,6 +52,7 @@ class FakeVerifier:
                 "collect": "regression test node does not collect",
                 "exact": "regression test failed",
                 "suite": "complete test suite failed",
+                "stable": "repository changed during verification",
             }[name])
 
     def resolve_ancestor_commit(self, revision):
@@ -69,6 +70,10 @@ class FakeVerifier:
 
     def run_full_suite(self):
         self._call("suite")
+
+    def assert_repository_unchanged(self, expected_head):
+        self._call("stable")
+        assert expected_head == VERIFIED_COMMIT
 
 
 def _cover(tmp_path, **overrides):
@@ -108,7 +113,9 @@ def test_successful_cover_records_only_verified_evidence(tmp_path):
         "verified_commit": VERIFIED_COMMIT,
     }
     assert len(decision.source_fingerprint) == 64
-    assert verifier.calls == ["commit", "collect", "exact", "suite"]
+    assert verifier.calls == [
+        "commit", "collect", "exact", "suite", "stable",
+    ]
 
 
 @pytest.mark.parametrize(
@@ -118,6 +125,7 @@ def test_successful_cover_records_only_verified_evidence(tmp_path):
         ("collect", "test node does not collect"),
         ("exact", "regression test failed"),
         ("suite", "complete test suite failed"),
+        ("stable", "repository changed during verification"),
     ],
 )
 def test_failed_external_proof_leaves_ledger_byte_identical(
@@ -131,6 +139,36 @@ def test_failed_external_proof_leaves_ledger_byte_identical(
         _cover(tmp_path, verifier=FakeVerifier(fail_at=fail_at))
 
     assert ledger.read_bytes() == original
+
+
+@pytest.mark.parametrize("node", [
+    "tests/test_pending_actions.py",
+    "tests/test_pending_actions.py::TestModifyPreconditions",
+    "../tests/test_pending_actions.py::test_invalid_stop",
+    "-q::test_invalid_stop",
+])
+def test_cover_rejects_any_selector_that_is_not_one_exact_test(tmp_path, node):
+    verifier = FakeVerifier()
+
+    with pytest.raises(review.ReviewError, match="exact pytest test node"):
+        _cover(tmp_path, regression_test=node, verifier=verifier)
+
+    assert verifier.calls == []
+
+
+def test_repository_verifier_rejects_collection_of_multiple_tests(tmp_path):
+    def runner(command, **kwargs):
+        return review.subprocess.CompletedProcess(
+            args=command,
+            returncode=0,
+            stdout="2 tests collected in 0.01s",
+            stderr="",
+        )
+
+    verifier = review.RepositoryVerifier(root=tmp_path, runner=runner)
+
+    with pytest.raises(review.ReviewError, match="exactly one test"):
+        verifier.collect_test(TEST_NODE)
 
 
 def test_unknown_pattern_is_rejected_before_repository_commands(tmp_path):
@@ -213,3 +251,35 @@ def test_dismissal_requires_reason_and_records_corpus_fingerprint(tmp_path):
     assert row["dismissal_reason"].startswith("One historical")
     assert row["source_fingerprint"] == decision.source_fingerprint
     assert len(decision.source_fingerprint) == 64
+
+
+def test_nondeterministic_dismissal_corpus_leaves_ledger_unchanged(tmp_path):
+    ledger = tmp_path / "log_pattern_reviews.json"
+    original = b'{"schema_version":1,"reviews":{}}\n'
+    ledger.write_bytes(original)
+    calls = 0
+
+    def unstable_builder(review_metadata):
+        nonlocal calls
+        calls += 1
+        outputs = _corpus_builder(review_metadata)
+        if calls == 3:
+            return learning.LearningOutputs(
+                report=outputs.report,
+                registry=outputs.registry,
+                report_bytes=outputs.report_bytes,
+                registry_bytes=outputs.registry_bytes + b"changed",
+            )
+        return outputs
+
+    with pytest.raises(review.ReviewError, match="not deterministic"):
+        review.dismiss_pattern(
+            pattern_id=PATTERN_ID,
+            reason="One historical broker outage.",
+            reviewer="project_owner",
+            ledger_path=ledger,
+            corpus_builder=unstable_builder,
+            now_utc=_fixed_now,
+        )
+
+    assert ledger.read_bytes() == original

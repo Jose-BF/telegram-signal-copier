@@ -1,6 +1,8 @@
 import json
 from hashlib import sha256
 
+import pytest
+
 import log_learning_publication as publication
 
 
@@ -42,7 +44,34 @@ def _write_matching_artifacts(tmp_path, *, safe=True):
     registry_path = tmp_path / "log_pattern_registry.json"
     report_path.write_bytes(_canonical_bytes(report))
     registry_path.write_bytes(registry_bytes)
+    (tmp_path / "expected-log-learning-report.json").write_bytes(
+        report_path.read_bytes()
+    )
+    (tmp_path / "expected-log-pattern-registry.json").write_bytes(
+        registry_path.read_bytes()
+    )
     return report_path, registry_path
+
+
+@pytest.fixture(autouse=True)
+def _verified_repository_state(monkeypatch):
+    monkeypatch.setattr(
+        publication,
+        "_read_repository_state",
+        lambda root: {
+            "git_commit": "9" * 40,
+            "git_dirty": False,
+            "source_dirty": False,
+        },
+    )
+    monkeypatch.setattr(
+        publication,
+        "_expected_learning_bytes",
+        lambda root: (
+            (root / "expected-log-learning-report.json").read_bytes(),
+            (root / "expected-log-pattern-registry.json").read_bytes(),
+        ),
+    )
 
 
 def _publish(tmp_path, report, registry, **overrides):
@@ -50,6 +79,7 @@ def _publish(tmp_path, report, registry, **overrides):
         "status_path": tmp_path / "log_learning_status.json",
         "report_path": report,
         "registry_path": registry,
+        "repo_root": tmp_path,
         "dependencies": {
             "accounting": True,
             "observed_ticks": True,
@@ -57,8 +87,6 @@ def _publish(tmp_path, report, registry, **overrides):
             "strategy_farm": True,
         },
         "build_returncode": 0,
-        "git_commit": "9" * 40,
-        "git_dirty": False,
         "attempted_at_utc": "2026-07-15T10:00:00+00:00",
     }
     values.update(overrides)
@@ -119,8 +147,7 @@ def test_failed_learning_build_writes_status_without_artifacts(tmp_path):
         registry_path=tmp_path / "missing-registry.json",
         dependencies={"provider_catalog": True},
         build_returncode=1,
-        git_commit="9" * 40,
-        git_dirty=True,
+        repo_root=tmp_path,
         attempted_at_utc="2026-07-15T10:00:00+00:00",
         error="learner crashed",
     )
@@ -166,3 +193,39 @@ def test_publication_id_is_stable_across_attempt_timestamps(tmp_path):
 
     assert first["publication_id"] == second["publication_id"]
     assert first["attempted_at_utc"] != second["attempted_at_utc"]
+
+
+def test_internally_consistent_stale_report_fails_current_corpus_check(tmp_path):
+    report, registry = _write_matching_artifacts(tmp_path)
+    stale = json.loads(report.read_text(encoding="utf-8"))
+    stale["stale_but_internally_consistent"] = True
+    report.write_bytes(_canonical_bytes(stale))
+
+    status = _publish(tmp_path, report, registry)
+
+    assert status["ok"] is False
+    assert status["fresh"] is False
+    assert any("current repository corpus" in item for item in status["blockers"])
+
+
+def test_uncommitted_source_changes_block_freshness(
+    tmp_path, monkeypatch,
+):
+    report, registry = _write_matching_artifacts(tmp_path)
+    monkeypatch.setattr(
+        publication,
+        "_read_repository_state",
+        lambda root: {
+            "git_commit": "9" * 40,
+            "git_dirty": True,
+            "source_dirty": True,
+        },
+    )
+
+    status = _publish(tmp_path, report, registry)
+
+    assert status["ok"] is False
+    assert status["fresh"] is False
+    assert status["source_dirty"] is True
+    assert "uncommitted_source_changes" in status["blockers"]
+    assert status["conclusions_allowed"] is False

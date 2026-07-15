@@ -721,10 +721,9 @@ def _regenerate_recursive_learning_outputs(
                 status_path=LOG_LEARNING_STATUS_FILE,
                 report_path=LOG_LEARNING_REPORT_FILE,
                 registry_path=LOG_PATTERN_REGISTRY_FILE,
+                repo_root=REPO_DIR,
                 dependencies=dependencies,
                 build_returncode=returncode,
-                git_commit=_local_head(),
-                git_dirty=bool(_git("status", "--porcelain").stdout.strip()),
                 attempted_at_utc=attempted_at,
                 error=error,
             )

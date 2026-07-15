@@ -1145,8 +1145,20 @@ def build_default_learning_outputs(
     *,
     review_metadata: dict | None = None,
 ) -> LearningOutputs:
+    return build_repository_learning_outputs(
+        ROOT,
+        review_metadata=review_metadata,
+    )
+
+
+def build_repository_learning_outputs(
+    root: Path,
+    *,
+    review_metadata: dict | None = None,
+) -> LearningOutputs:
+    data_dir = root / "data"
     reviews = (
-        load_json(DEFAULT_REVIEWS, {
+        load_json(data_dir / DEFAULT_REVIEWS.name, {
             "schema_version": REVIEW_SCHEMA_VERSION,
             "reviews": {},
         })
@@ -1154,12 +1166,12 @@ def build_default_learning_outputs(
         else review_metadata
     )
     return build_learning_outputs(
-        events=load_jsonl(DEFAULT_EVENTS),
-        replay_rows=load_jsonl(DEFAULT_REPLAY),
-        accounting_rows=load_jsonl(DEFAULT_ACCOUNTING),
-        observed_rows=load_jsonl(DEFAULT_OBSERVED),
-        provider_catalog=load_json(DEFAULT_PROVIDER),
-        strategy_farm=load_json(DEFAULT_STRATEGY_FARM),
+        events=load_jsonl(data_dir / DEFAULT_EVENTS.name),
+        replay_rows=load_jsonl(data_dir / DEFAULT_REPLAY.name),
+        accounting_rows=load_jsonl(data_dir / DEFAULT_ACCOUNTING.name),
+        observed_rows=load_jsonl(data_dir / DEFAULT_OBSERVED.name),
+        provider_catalog=load_json(data_dir / DEFAULT_PROVIDER.name),
+        strategy_farm=load_json(data_dir / DEFAULT_STRATEGY_FARM.name),
         review_metadata=reviews,
     )
 

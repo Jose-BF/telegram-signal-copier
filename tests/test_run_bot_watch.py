@@ -377,7 +377,20 @@ def test_regenerate_recursive_learning_accepts_diagnostic_report(
     monkeypatch.setattr(watch, "LOG_LEARNING_REPORT_FILE", report)
     monkeypatch.setattr(watch, "LOG_PATTERN_REGISTRY_FILE", registry)
     monkeypatch.setattr(watch, "LOG_LEARNING_STATUS_FILE", status)
-    monkeypatch.setattr(watch, "_local_head", lambda: "9" * 40)
+    monkeypatch.setattr(
+        watch.learning_publication,
+        "_read_repository_state",
+        lambda root: {
+            "git_commit": "9" * 40,
+            "git_dirty": False,
+            "source_dirty": False,
+        },
+    )
+    monkeypatch.setattr(
+        watch.learning_publication,
+        "_expected_learning_bytes",
+        lambda root: (report.read_bytes(), registry.read_bytes()),
+    )
     monkeypatch.setattr(
         watch,
         "_git",
@@ -448,7 +461,15 @@ def test_failed_recursive_learning_removes_both_stale_outputs(
     monkeypatch.setattr(watch, "LOG_LEARNING_REPORT_FILE", report)
     monkeypatch.setattr(watch, "LOG_PATTERN_REGISTRY_FILE", registry)
     monkeypatch.setattr(watch, "LOG_LEARNING_STATUS_FILE", status)
-    monkeypatch.setattr(watch, "_local_head", lambda: "9" * 40)
+    monkeypatch.setattr(
+        watch.learning_publication,
+        "_read_repository_state",
+        lambda root: {
+            "git_commit": "9" * 40,
+            "git_dirty": False,
+            "source_dirty": False,
+        },
+    )
     monkeypatch.setattr(
         watch,
         "_git",
