@@ -2,17 +2,17 @@
   "schema_version": 2,
   "validation_contract": "causal_path_v2",
   "fill_price_authority": "mt5_deals",
-  "generated_at": "2026-07-15T21:41:04+00:00",
+  "generated_at": "2026-07-15T23:43:31+00:00",
   "scope": {
     "since": "2026-07-06",
-    "until": null,
+    "until": "2026-07-15",
     "input_trades": 210,
     "selected_trades": 74
   },
   "summary": {
     "total": 74,
-    "exact": 66,
-    "mismatch": 3,
-    "blocked": 5
+    "exact": 72,
+    "mismatch": 2,
+    "blocked": 0
   }
 }

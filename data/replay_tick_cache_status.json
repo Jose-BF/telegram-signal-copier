@@ -1,16 +1,16 @@
 {
   "ok": true,
-  "generated_at": "2026-07-15T21:40:36+00:00",
+  "generated_at": "2026-07-15T23:42:16+00:00",
   "tick_time_contract": "mt5_server_epoch_utc_v3",
   "time_basis": "UTC",
   "dry_run": false,
-  "ensure_attempted": false,
+  "ensure_attempted": true,
   "pad_minutes": 5,
   "cache_dir": "data/ticks_cache",
   "n_trades": 74,
   "scope": {
     "since": "2026-07-06T00:00:00+00:00",
-    "until": null,
+    "until": "2026-07-15T00:00:00+00:00",
     "input_trades": 210,
     "selected_trades": 74
   },
@@ -39,9 +39,202 @@
     "2026-07-15"
   ],
   "invalid_days": [],
+  "incomplete_days": [],
   "missing_days": [],
-  "ensure_stats": {},
+  "coverage_by_day": {
+    "2026-07-06": {
+      "status": "complete",
+      "required_from_utc": "2026-07-06T08:32:35+00:00",
+      "required_through_utc": "2026-07-06T17:15:02+00:00",
+      "complete_from_utc": "2026-07-06T00:00:00+00:00",
+      "complete_through_utc": "2026-07-06T23:59:59.907000+00:00"
+    },
+    "2026-07-07": {
+      "status": "complete",
+      "required_from_utc": "2026-07-07T09:25:39+00:00",
+      "required_through_utc": "2026-07-07T15:59:37+00:00",
+      "complete_from_utc": "2026-07-07T00:00:00+00:00",
+      "complete_through_utc": "2026-07-07T23:59:59.900000+00:00"
+    },
+    "2026-07-08": {
+      "status": "complete",
+      "required_from_utc": "2026-07-08T11:39:02+00:00",
+      "required_through_utc": "2026-07-08T18:37:23+00:00",
+      "complete_from_utc": "2026-07-08T00:00:00+00:00",
+      "complete_through_utc": "2026-07-08T23:59:59.956000+00:00"
+    },
+    "2026-07-09": {
+      "status": "complete",
+      "required_from_utc": "2026-07-09T06:35:12+00:00",
+      "required_through_utc": "2026-07-09T15:00:03+00:00",
+      "complete_from_utc": "2026-07-09T00:00:00+00:00",
+      "complete_through_utc": "2026-07-09T23:59:59.660000+00:00"
+    },
+    "2026-07-10": {
+      "status": "complete",
+      "required_from_utc": "2026-07-10T09:59:03+00:00",
+      "required_through_utc": "2026-07-11T00:00:00+00:00",
+      "complete_from_utc": "2026-07-10T00:00:00+00:00",
+      "complete_through_utc": "2026-07-11T00:00:00+00:00"
+    },
+    "2026-07-11": {
+      "status": "complete",
+      "required_from_utc": "2026-07-11T00:00:00+00:00",
+      "required_through_utc": "2026-07-12T00:00:00+00:00",
+      "complete_from_utc": "2026-07-11T00:00:00+00:00",
+      "complete_through_utc": "2026-07-12T00:00:00+00:00"
+    },
+    "2026-07-12": {
+      "status": "complete",
+      "required_from_utc": "2026-07-12T00:00:00+00:00",
+      "required_through_utc": "2026-07-12T22:09:10+00:00",
+      "complete_from_utc": "2026-07-12T00:00:00+00:00",
+      "complete_through_utc": "2026-07-12T23:59:59.938000+00:00"
+    },
+    "2026-07-13": {
+      "status": "complete",
+      "required_from_utc": "2026-07-13T06:30:45+00:00",
+      "required_through_utc": "2026-07-13T18:12:03+00:00",
+      "complete_from_utc": "2026-07-13T00:00:00+00:00",
+      "complete_through_utc": "2026-07-13T23:59:59.946000+00:00"
+    },
+    "2026-07-14": {
+      "status": "complete",
+      "required_from_utc": "2026-07-14T09:10:04+00:00",
+      "required_through_utc": "2026-07-14T16:00:35+00:00",
+      "complete_from_utc": "2026-07-14T00:00:00+00:00",
+      "complete_through_utc": "2026-07-14T22:43:31.411000+00:00"
+    },
+    "2026-07-15": {
+      "status": "complete",
+      "required_from_utc": "2026-07-15T09:08:04+00:00",
+      "required_through_utc": "2026-07-15T17:20:12+00:00",
+      "complete_from_utc": "2026-07-15T00:00:00+00:00",
+      "complete_through_utc": "2026-07-15T23:42:13.219000+00:00"
+    }
+  },
+  "ensure_stats": {
+    "downloaded": 3,
+    "cached_already": 0,
+    "total_ticks": 1179153,
+    "empty_days": 1,
+    "day_contracts": {
+      "2026-07-10": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal2_3054",
+            "ticket": 1571950542,
+            "anchor_time_utc": "2026-07-10T10:04:02.594000+00:00",
+            "raw_time_msc": 1783688643011,
+            "quote_side": "bid",
+            "fill_price": 4107.26,
+            "price_delta": 0.0,
+            "time_delta_ms": 417
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 49,
+          "anchors_matched": 49,
+          "max_time_delta_ms": 1694,
+          "max_price_delta": 0.0,
+          "errors": []
+        },
+        "coverage": {
+          "source_query_start_utc": "2026-07-10T00:00:00+00:00",
+          "source_query_end_utc": "2026-07-11T00:00:00+00:00",
+          "captured_at_utc": "2026-07-15T23:42:14.734869+00:00",
+          "first_tick_utc": "2026-07-10T00:00:00.024000+00:00",
+          "last_tick_utc": "2026-07-10T20:56:59.943000+00:00",
+          "complete_from_utc": "2026-07-10T00:00:00+00:00",
+          "complete_through_utc": "2026-07-11T00:00:00+00:00",
+          "row_count": 526466
+        }
+      },
+      "2026-07-11": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "adjacent_verified_day",
+          "offset_reference": {
+            "inherited_from_day": "2026-07-10",
+            "distance_days": 1,
+            "source_reference": {
+              "signal_id": "canal2_3054",
+              "ticket": 1571950542,
+              "anchor_time_utc": "2026-07-10T10:04:02.594000+00:00",
+              "raw_time_msc": 1783688643011,
+              "quote_side": "bid",
+              "fill_price": 4107.26,
+              "price_delta": 0.0,
+              "time_delta_ms": 417
+            }
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 0,
+          "anchors_matched": 0,
+          "max_time_delta_ms": null,
+          "max_price_delta": null,
+          "errors": []
+        },
+        "coverage": {
+          "source_query_start_utc": "2026-07-11T00:00:00+00:00",
+          "source_query_end_utc": "2026-07-12T00:00:00+00:00",
+          "captured_at_utc": "2026-07-15T23:42:14.749036+00:00",
+          "first_tick_utc": null,
+          "last_tick_utc": null,
+          "complete_from_utc": "2026-07-11T00:00:00+00:00",
+          "complete_through_utc": "2026-07-12T00:00:00+00:00",
+          "row_count": 0
+        }
+      },
+      "2026-07-15": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal2_3246",
+            "ticket": 1596416842,
+            "anchor_time_utc": "2026-07-15T09:13:02.661000+00:00",
+            "raw_time_msc": 1784117583859,
+            "quote_side": "bid",
+            "fill_price": 4030.34,
+            "price_delta": 0.0,
+            "time_delta_ms": 1198
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 46,
+          "anchors_matched": 46,
+          "max_time_delta_ms": 2445,
+          "max_price_delta": 0.0,
+          "errors": []
+        },
+        "coverage": {
+          "source_query_start_utc": "2026-07-15T00:00:00+00:00",
+          "source_query_end_utc": "2026-07-16T00:00:00+00:00",
+          "captured_at_utc": "2026-07-15T23:42:15.590747+00:00",
+          "first_tick_utc": "2026-07-15T00:00:00.017000+00:00",
+          "last_tick_utc": "2026-07-15T23:42:13.219000+00:00",
+          "complete_from_utc": "2026-07-15T00:00:00+00:00",
+          "complete_through_utc": "2026-07-15T23:42:13.219000+00:00",
+          "row_count": 652687
+        }
+      }
+    }
+  },
   "refresh_requested_days": [],
-  "refresh_removed_days": [],
+  "refresh_removed_days": [
+    "2026-07-10",
+    "2026-07-11",
+    "2026-07-15"
+  ],
   "error": null
 }
