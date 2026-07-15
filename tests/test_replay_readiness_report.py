@@ -99,6 +99,22 @@ def _write_valid_tick_day(cache_dir, day="2026-07-06"):
     )
 
 
+def _set_partial_coverage(cache_dir, day, complete_through):
+    contract_path = cache_dir / f"{day}.parquet.meta.json"
+    contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    contract["coverage"] = {
+        "source_query_start_utc": f"{day}T00:00:00+00:00",
+        "source_query_end_utc": "2026-07-07T00:00:00+00:00",
+        "captured_at_utc": complete_through,
+        "first_tick_utc": f"{day}T00:00:00+00:00",
+        "last_tick_utc": complete_through,
+        "complete_from_utc": f"{day}T00:00:00+00:00",
+        "complete_through_utc": complete_through,
+        "row_count": 1,
+    }
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+
+
 def test_trade_is_ready_when_core_replay_inputs_exist(tmp_path):
     cache_dir = tmp_path / "ticks_cache"
     _write_valid_tick_day(cache_dir)
@@ -124,6 +140,28 @@ def test_missing_tick_cache_blocks_full_replay(tmp_path):
     assert row["ready"] is False
     assert row["status"] == "blocked"
     assert "missing_tick_cache:2026-07-06" in row["blockers"]
+
+
+def test_incomplete_tick_cache_coverage_blocks_full_replay(tmp_path):
+    cache_dir = tmp_path / "ticks_cache"
+    _write_valid_tick_day(cache_dir)
+    _set_partial_coverage(
+        cache_dir,
+        "2026-07-06",
+        "2026-07-06T10:02:00+00:00",
+    )
+
+    row = replay_readiness_report.assess_trade(
+        _trade(close_dt_utc="2026-07-06T10:05:00+00:00"),
+        _audit(),
+        _observed(),
+        cache_dir=cache_dir,
+        pad_minutes=0,
+    )
+
+    assert row["ready"] is False
+    assert row["status"] == "blocked"
+    assert "incomplete_tick_cache_coverage:2026-07-06" in row["blockers"]
 
 
 def test_missing_deal_detail_blocks_full_replay(tmp_path):

@@ -1451,6 +1451,34 @@ def test_close_or_risk_free_keeps_both_provider_options():
     ]
 
 
+def test_provider_be_price_is_retained_as_entry_reference_not_sl_action():
+    events = [
+        _raw(
+            "canal1",
+            20887,
+            "BUY GOLD NOW 4035.00\nTP1 4040\nTP2 4045\nSL 4015",
+        ),
+        _raw(
+            "canal1",
+            20888,
+            "Move SL to BE at 4030.00",
+            reply_to_msg_id=20887,
+            is_reply=True,
+        ),
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+    event = report["signals"][0]["management_events"][0]
+
+    assert event["classified_action"] == "MOVE_SL_TO_BE"
+    assert event.get("price") is None
+    assert event["provider_stated_be_price"] == 4030.0
+    assert event["execution_options"] == [{
+        "action": "MOVE_SL_TO_BE",
+        "provider_stated_be_price": 4030.0,
+    }]
+
+
 def test_duplicate_management_versions_collapse_but_restoration_is_retained():
     events = [
         _raw(

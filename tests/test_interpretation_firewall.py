@@ -34,6 +34,19 @@ def test_normalizes_new_gemini_contract_actions_to_legacy_executable_actions():
     assert normalized[0]["execution_policy"] == "auto_execute"
 
 
+def test_normalization_preserves_provider_stated_be_price_as_evidence():
+    normalized = normalize_classifier_outputs({
+        "action": "MOVE_SL_TO_BE",
+        "price": None,
+        "provider_stated_be_price": 4030.0,
+        "confidence": 0.95,
+    })
+
+    assert normalized[0]["action"] == "MOVE_SL_TO_BE"
+    assert normalized[0]["price"] is None
+    assert normalized[0]["provider_stated_be_price"] == 4030.0
+
+
 def test_conditional_plan_from_gemini_is_log_only_and_never_executable():
     raw = {
         "message_role": "conditional_plan",

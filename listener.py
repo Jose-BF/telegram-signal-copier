@@ -2594,6 +2594,8 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
             journal.event(sig_id, "mgmt_msg_duplicate_skipped",
                           action=action_name,
                           price=cl.get("price"),
+                          provider_stated_be_price=cl.get(
+                              "provider_stated_be_price"),
                           confidence=confidence,
                           raw_snippet=raw_text[:120],
                           tg_ts=tg_ts)
@@ -2642,6 +2644,8 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
         journal.event(sig_id, "interpretation_firewall_decision",
                       action=action_name,
                       price=cl.get("price"),
+                      provider_stated_be_price=cl.get(
+                          "provider_stated_be_price"),
                       confidence=confidence,
                       policy=firewall.policy,
                       will_execute=firewall.will_execute,
@@ -2667,6 +2671,8 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
             )
             journal.event(sig_id, "mgmt_msg",
                           action=action_name, price=cl.get("price"),
+                          provider_stated_be_price=cl.get(
+                              "provider_stated_be_price"),
                           confidence=confidence,
                           will_apply=False,
                           firewall_policy=firewall.policy,
@@ -2711,6 +2717,8 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
                                 applied=False)
             journal.event(sig_id, "mgmt_msg",
                           action=action_name, price=cl.get("price"),
+                          provider_stated_be_price=cl.get(
+                              "provider_stated_be_price"),
                           confidence=confidence,
                           will_apply=False,
                           low_confidence_notified=True,
@@ -2739,6 +2747,8 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
             journal.append_mgmt(sig_id, classified=f"{action_name}_AMBIG", applied=False)
             journal.event(sig_id, "mgmt_msg",
                           action=action_name, price=cl.get("price"),
+                          provider_stated_be_price=cl.get(
+                              "provider_stated_be_price"),
                           confidence=confidence,
                           will_apply=False,
                           ambiguous_notified=True,
@@ -2750,6 +2760,8 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
         # Detalles de la acción al journal
         journal.event(sig_id, "mgmt_msg",
                       action=cl.get("action"), price=cl.get("price"),
+                      provider_stated_be_price=cl.get(
+                          "provider_stated_be_price"),
                       confidence=cl.get("confidence"),
                       gemini_failed=bool(cl.get("_gemini_failed")),
                       will_apply=will_apply,
@@ -2799,6 +2811,8 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
         journal.event(_sig_id(signal), "decision_context",
                       action=action,
                       price=price,
+                      provider_stated_be_price=classification.get(
+                          "provider_stated_be_price"),
                       confidence=conf,
                       gemini_reasoning=classification.get("reasoning"),
                       regex_reason=classification.get("_reason"),

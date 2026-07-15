@@ -18282,7 +18282,8 @@
           "semantic_source": "deterministic_parser",
           "execution_options": [
             {
-              "action": "MOVE_SL_TO_BE"
+              "action": "MOVE_SL_TO_BE",
+              "provider_stated_be_price": 4185.0
             }
           ],
           "raw_versions": 3,
@@ -18291,7 +18292,8 @@
             "new",
             "edit"
           ],
-          "source": "telegram_raw"
+          "source": "telegram_raw",
+          "provider_stated_be_price": 4185.0
         },
         {
           "message_id": 20233,
@@ -23611,14 +23613,16 @@
           "semantic_source": "deterministic_parser",
           "execution_options": [
             {
-              "action": "MOVE_SL_TO_BE"
+              "action": "MOVE_SL_TO_BE",
+              "provider_stated_be_price": 4085.0
             }
           ],
           "raw_versions": 2,
           "update_kinds": [
             "edit"
           ],
-          "source": "telegram_raw"
+          "source": "telegram_raw",
+          "provider_stated_be_price": 4085.0
         },
         {
           "message_id": 20276,
@@ -28258,7 +28262,8 @@
           "semantic_source": "deterministic_parser",
           "execution_options": [
             {
-              "action": "MOVE_SL_TO_BE"
+              "action": "MOVE_SL_TO_BE",
+              "provider_stated_be_price": 4205.0
             },
             {
               "action": "WAIT_FOR_CONDITION"
@@ -28270,7 +28275,8 @@
             "new",
             "edit"
           ],
-          "source": "telegram_raw"
+          "source": "telegram_raw",
+          "provider_stated_be_price": 4205.0
         },
         {
           "message_id": 20306,
@@ -28284,7 +28290,8 @@
           "semantic_source": "deterministic_parser",
           "execution_options": [
             {
-              "action": "MOVE_SL_TO_BE"
+              "action": "MOVE_SL_TO_BE",
+              "provider_stated_be_price": 4205.0
             }
           ],
           "raw_versions": 3,
@@ -28293,7 +28300,8 @@
             "new",
             "edit"
           ],
-          "source": "telegram_raw"
+          "source": "telegram_raw",
+          "provider_stated_be_price": 4205.0
         },
         {
           "message_id": 20307,
@@ -29696,7 +29704,8 @@
           "semantic_source": "deterministic_parser",
           "execution_options": [
             {
-              "action": "MOVE_SL_TO_BE"
+              "action": "MOVE_SL_TO_BE",
+              "provider_stated_be_price": 4332.0
             }
           ],
           "raw_versions": 3,
@@ -29705,7 +29714,8 @@
             "poll_new",
             "edit"
           ],
-          "source": "telegram_raw"
+          "source": "telegram_raw",
+          "provider_stated_be_price": 4332.0
         },
         {
           "message_id": 20323,
@@ -30919,7 +30929,8 @@
           "semantic_source": "deterministic_parser",
           "execution_options": [
             {
-              "action": "MOVE_SL_TO_BE"
+              "action": "MOVE_SL_TO_BE",
+              "provider_stated_be_price": 4344.0
             }
           ],
           "raw_versions": 3,
@@ -30928,7 +30939,8 @@
             "new",
             "edit"
           ],
-          "source": "telegram_raw"
+          "source": "telegram_raw",
+          "provider_stated_be_price": 4344.0
         }
       ],
       "media": {
@@ -32202,7 +32214,8 @@
           "semantic_source": "deterministic_parser",
           "execution_options": [
             {
-              "action": "MOVE_SL_TO_BE"
+              "action": "MOVE_SL_TO_BE",
+              "provider_stated_be_price": 4343.0
             }
           ],
           "raw_versions": 3,
@@ -32211,7 +32224,8 @@
             "poll_new",
             "edit"
           ],
-          "source": "telegram_raw"
+          "source": "telegram_raw",
+          "provider_stated_be_price": 4343.0
         }
       ],
       "media": {
@@ -39681,7 +39695,8 @@
           "semantic_source": "deterministic_parser",
           "execution_options": [
             {
-              "action": "MOVE_SL_TO_BE"
+              "action": "MOVE_SL_TO_BE",
+              "provider_stated_be_price": 3970.0
             }
           ],
           "raw_versions": 2,
@@ -39689,7 +39704,8 @@
             "new",
             "poll_new"
           ],
-          "source": "telegram_raw"
+          "source": "telegram_raw",
+          "provider_stated_be_price": 3970.0
         },
         {
           "message_id": 20545,
@@ -39703,14 +39719,16 @@
           "semantic_source": "deterministic_parser",
           "execution_options": [
             {
-              "action": "MOVE_SL_TO_BE"
+              "action": "MOVE_SL_TO_BE",
+              "provider_stated_be_price": 3970.0
             }
           ],
           "raw_versions": 2,
           "update_kinds": [
             "edit"
           ],
-          "source": "telegram_raw"
+          "source": "telegram_raw",
+          "provider_stated_be_price": 3970.0
         },
         {
           "message_id": 20546,
@@ -62226,7 +62244,8 @@
               "action": "CLOSE_ALL"
             },
             {
-              "action": "MOVE_SL_TO_BE"
+              "action": "MOVE_SL_TO_BE",
+              "provider_stated_be_price": 4075.0
             }
           ],
           "raw_versions": 3,
@@ -62235,7 +62254,8 @@
             "poll_new",
             "edit"
           ],
-          "source": "telegram_raw"
+          "source": "telegram_raw",
+          "provider_stated_be_price": 4075.0
         }
       ],
       "media": {
@@ -82995,7 +83015,8 @@
           "semantic_source": "deterministic_parser",
           "execution_options": [
             {
-              "action": "MOVE_SL_TO_BE"
+              "action": "MOVE_SL_TO_BE",
+              "provider_stated_be_price": 4065.0
             }
           ],
           "raw_versions": 3,
@@ -83004,7 +83025,8 @@
             "poll_new",
             "edit"
           ],
-          "source": "telegram_raw"
+          "source": "telegram_raw",
+          "provider_stated_be_price": 4065.0
         }
       ],
       "media": {
@@ -83931,7 +83953,8 @@
           "semantic_source": "deterministic_parser",
           "execution_options": [
             {
-              "action": "MOVE_SL_TO_BE"
+              "action": "MOVE_SL_TO_BE",
+              "provider_stated_be_price": 4030.0
             }
           ],
           "raw_versions": 3,
@@ -83940,7 +83963,8 @@
             "poll_new",
             "edit"
           ],
-          "source": "telegram_raw"
+          "source": "telegram_raw",
+          "provider_stated_be_price": 4030.0
         },
         {
           "message_id": 20889,

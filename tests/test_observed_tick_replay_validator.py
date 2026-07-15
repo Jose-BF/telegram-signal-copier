@@ -1,5 +1,5 @@
 import json
-from datetime import date
+from datetime import date, timedelta
 
 import pandas as pd
 
@@ -15,6 +15,7 @@ def _ticks(rows):
 
 
 def _write_tick_contract(cache_dir, day):
+    day_end = day + timedelta(days=1)
     ensure_replay_tick_cache.write_day_contract(
         cache_dir,
         day,
@@ -32,7 +33,34 @@ def _write_tick_contract(cache_dir, day):
             "max_price_delta": 0.0,
             "errors": [],
         },
+        coverage={
+            "source_query_start_utc": f"{day.isoformat()}T00:00:00+00:00",
+            "source_query_end_utc": f"{day_end.isoformat()}T00:00:00+00:00",
+            "captured_at_utc": f"{day_end.isoformat()}T00:01:00+00:00",
+            "first_tick_utc": f"{day.isoformat()}T00:00:00+00:00",
+            "last_tick_utc": f"{day_end.isoformat()}T00:00:00+00:00",
+            "complete_from_utc": f"{day.isoformat()}T00:00:00+00:00",
+            "complete_through_utc": f"{day_end.isoformat()}T00:00:00+00:00",
+            "row_count": 1,
+        },
     )
+
+
+def _set_partial_coverage(cache_dir, day, complete_through):
+    contract_path = cache_dir / f"{day.isoformat()}.parquet.meta.json"
+    contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    day_start = f"{day.isoformat()}T00:00:00+00:00"
+    contract["coverage"] = {
+        "source_query_start_utc": day_start,
+        "source_query_end_utc": "2026-07-07T00:00:00+00:00",
+        "captured_at_utc": complete_through,
+        "first_tick_utc": day_start,
+        "last_tick_utc": complete_through,
+        "complete_from_utc": day_start,
+        "complete_through_utc": complete_through,
+        "row_count": 1,
+    }
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
 
 
 def _ticket(**overrides):
@@ -362,6 +390,29 @@ def test_trade_blocks_when_tick_cache_has_no_verified_utc_contract(tmp_path):
 
     assert result["status"] == "blocked"
     assert "invalid_tick_cache_contract:2026-07-06" in result["blockers"]
+
+
+def test_trade_blocks_when_verified_cache_ends_before_trade_close(tmp_path):
+    cache_dir = tmp_path / "ticks_cache"
+    cache_dir.mkdir()
+    day = date(2026, 7, 6)
+    _ticks([{
+        "time_utc": "2026-07-06T10:30:00+00:00",
+        "bid": 4200.0,
+        "ask": 4200.2,
+    }]).to_parquet(cache_dir / "2026-07-06.parquet", index=False)
+    _write_tick_contract(cache_dir, day)
+    _set_partial_coverage(cache_dir, day, "2026-07-06T10:30:00+00:00")
+    trade = _trade(close_dt_utc="2026-07-06T12:00:00+00:00")
+
+    result = observed_tick_replay_validator.validate_trade(
+        trade,
+        tick_cache_dir=cache_dir,
+        pad_minutes=0,
+    )
+
+    assert result["status"] == "blocked"
+    assert "incomplete_tick_cache_coverage:2026-07-06" in result["blockers"]
 
 
 def test_tick_loader_exposes_verified_contracts_and_required_days(tmp_path):

@@ -202,7 +202,12 @@ def _tick_days(trade: dict, pad_minutes: int) -> list[str]:
 
 def _tick_blockers(trade: dict, *, cache_dir: Path, pad_minutes: int) -> list[str]:
     blockers: list[str] = []
-    for day in _tick_days(trade, pad_minutes):
+    day_windows = ensure_replay_tick_cache.required_day_windows(
+        [trade],
+        pad_minutes=pad_minutes,
+    )
+    for day_date, (required_from, required_through) in day_windows.items():
+        day = day_date.isoformat()
         if not (cache_dir / f"{day}.parquet").is_file():
             blockers.append(f"missing_tick_cache:{day}")
             continue
@@ -212,6 +217,13 @@ def _tick_blockers(trade: dict, *, cache_dir: Path, pad_minutes: int) -> list[st
         )
         if contract is None:
             blockers.append(f"invalid_tick_cache_contract:{day}")
+            continue
+        if not ensure_replay_tick_cache.coverage_satisfies_window(
+            contract,
+            required_from,
+            required_through,
+        ):
+            blockers.append(f"incomplete_tick_cache_coverage:{day}")
     return blockers
 
 

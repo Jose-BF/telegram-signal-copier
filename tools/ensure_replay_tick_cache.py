@@ -237,6 +237,41 @@ def selected_trades(
     return selected
 
 
+def required_day_windows(
+    trades: list[dict],
+    *,
+    since: datetime | None = None,
+    until: datetime | None = None,
+    pad_minutes: int = 5,
+) -> dict[date, tuple[datetime, datetime]]:
+    """Return the exact replay interval that must be covered for each UTC day."""
+    windows: dict[date, tuple[datetime, datetime]] = {}
+    for trade in selected_trades(
+        trades,
+        since=since,
+        until=until,
+        pad_minutes=pad_minutes,
+    ):
+        trade_window = _trade_window(trade, pad_minutes)
+        if trade_window is None:
+            continue
+        trade_start, trade_end = trade_window
+        for day in _iter_days(trade_start.date(), trade_end.date()):
+            day_start = datetime(day.year, day.month, day.day, tzinfo=timezone.utc)
+            day_end = day_start + timedelta(days=1)
+            required_start = max(trade_start, day_start)
+            required_end = min(trade_end, day_end)
+            current = windows.get(day)
+            if current is None:
+                windows[day] = (required_start, required_end)
+            else:
+                windows[day] = (
+                    min(current[0], required_start),
+                    max(current[1], required_end),
+                )
+    return dict(sorted(windows.items()))
+
+
 def _day_file(cache_dir: Path, day: date) -> Path:
     return cache_dir / f"{day.isoformat()}.parquet"
 
@@ -253,12 +288,144 @@ def _file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _utc_iso(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    return value.astimezone(timezone.utc).isoformat()
+
+
+def build_tick_coverage(
+    ticks,
+    day: date,
+    *,
+    captured_at: datetime | None = None,
+) -> dict:
+    """Describe the part of a requested UTC day proven by one MT5 download."""
+    import pandas as pd
+
+    day_start = datetime(day.year, day.month, day.day, tzinfo=timezone.utc)
+    day_end = day_start + timedelta(days=1)
+    captured_at = (captured_at or datetime.now(timezone.utc)).astimezone(
+        timezone.utc
+    )
+    first_tick = None
+    last_tick = None
+    row_count = int(len(ticks)) if ticks is not None else 0
+    if row_count and "time_utc" in ticks.columns:
+        times = pd.to_datetime(ticks["time_utc"], utc=True, errors="coerce").dropna()
+        if not times.empty:
+            first_tick = times.min().to_pydatetime()
+            last_tick = times.max().to_pydatetime()
+
+    # Once the UTC day has ended, the completed full-day query also proves that
+    # no ticks existed between the last quote and midnight. During the live day
+    # only the timestamp of the last observed tick is provable.
+    complete_through = day_end if captured_at >= day_end else last_tick
+    return {
+        "source_query_start_utc": _utc_iso(day_start),
+        "source_query_end_utc": _utc_iso(day_end),
+        "captured_at_utc": _utc_iso(captured_at),
+        "first_tick_utc": _utc_iso(first_tick),
+        "last_tick_utc": _utc_iso(last_tick),
+        "complete_from_utc": _utc_iso(day_start),
+        "complete_through_utc": _utc_iso(complete_through),
+        "row_count": row_count,
+    }
+
+
+def _legacy_tick_coverage(parquet_path: Path, day: date) -> dict | None:
+    """Safely infer old contracts from tick bounds without claiming future data."""
+    try:
+        import pandas as pd
+
+        frame = pd.read_parquet(parquet_path, columns=["time_utc"])
+    except Exception:
+        return None
+    day_start = datetime(day.year, day.month, day.day, tzinfo=timezone.utc)
+    day_end = day_start + timedelta(days=1)
+    times = pd.to_datetime(frame.get("time_utc"), utc=True, errors="coerce").dropna()
+    first_tick = times.min().to_pydatetime() if not times.empty else None
+    last_tick = times.max().to_pydatetime() if not times.empty else None
+    return {
+        "source_query_start_utc": _utc_iso(day_start),
+        "source_query_end_utc": _utc_iso(day_end),
+        "captured_at_utc": _utc_iso(last_tick or day_start),
+        "first_tick_utc": _utc_iso(first_tick),
+        "last_tick_utc": _utc_iso(last_tick),
+        "complete_from_utc": _utc_iso(day_start),
+        "complete_through_utc": _utc_iso(last_tick),
+        "row_count": int(len(frame)),
+        "coverage_source": "legacy_parquet_bounds",
+    }
+
+
+def _normalized_coverage(coverage: dict | None, day: date) -> dict | None:
+    if not isinstance(coverage, dict):
+        return None
+    day_start = datetime(day.year, day.month, day.day, tzinfo=timezone.utc)
+    day_end = day_start + timedelta(days=1)
+    query_start = _parse_dt(coverage.get("source_query_start_utc"))
+    query_end = _parse_dt(coverage.get("source_query_end_utc"))
+    captured_at = _parse_dt(coverage.get("captured_at_utc"))
+    complete_from = _parse_dt(coverage.get("complete_from_utc"))
+    complete_through = _parse_dt(coverage.get("complete_through_utc"))
+    first_tick = _parse_dt(coverage.get("first_tick_utc"))
+    last_tick = _parse_dt(coverage.get("last_tick_utc"))
+    try:
+        row_count = int(coverage.get("row_count"))
+    except (TypeError, ValueError):
+        return None
+    if (
+        query_start is None
+        or query_end is None
+        or captured_at is None
+        or complete_from is None
+        or query_start > day_start
+        or query_end < day_end
+        or row_count < 0
+        or (complete_through is not None and complete_through < complete_from)
+    ):
+        return None
+    normalized = {
+        "source_query_start_utc": _utc_iso(query_start),
+        "source_query_end_utc": _utc_iso(query_end),
+        "captured_at_utc": _utc_iso(captured_at),
+        "first_tick_utc": _utc_iso(first_tick),
+        "last_tick_utc": _utc_iso(last_tick),
+        "complete_from_utc": _utc_iso(complete_from),
+        "complete_through_utc": _utc_iso(complete_through),
+        "row_count": row_count,
+    }
+    if coverage.get("coverage_source"):
+        normalized["coverage_source"] = coverage["coverage_source"]
+    return normalized
+
+
+def coverage_satisfies_window(
+    contract: dict | None,
+    required_from: datetime,
+    required_through: datetime,
+) -> bool:
+    coverage = (contract or {}).get("coverage")
+    if not isinstance(coverage, dict):
+        return False
+    complete_from = _parse_dt(coverage.get("complete_from_utc"))
+    complete_through = _parse_dt(coverage.get("complete_through_utc"))
+    return bool(
+        complete_from is not None
+        and complete_through is not None
+        and complete_from <= required_from
+        and complete_through >= required_through
+    )
+
+
 def write_day_contract(
     cache_dir: Path,
     day: date,
     *,
     time_evidence: dict,
     semantic_validation: dict,
+    coverage: dict | None = None,
 ) -> Path:
     parquet_path = _day_file(cache_dir, day)
     if not parquet_path.is_file():
@@ -280,6 +447,16 @@ def write_day_contract(
         "max_price_delta": semantic_validation.get("max_price_delta"),
         "errors": list(semantic_validation.get("errors") or []),
     }
+    if coverage is None:
+        try:
+            import pandas as pd
+
+            coverage = build_tick_coverage(pd.read_parquet(parquet_path), day)
+        except Exception as exc:
+            raise ValueError("tick coverage evidence unavailable") from exc
+    normalized_coverage = _normalized_coverage(coverage, day)
+    if normalized_coverage is None:
+        raise ValueError("invalid tick coverage evidence")
     contract_path = _day_contract_file(cache_dir, day)
     contract_path.write_text(
         json.dumps({
@@ -291,6 +468,7 @@ def write_day_contract(
             "offset_reference": time_evidence["offset_reference"],
             "semantic_time_valid": validation["valid"],
             "anchor_validation": validation,
+            "coverage": normalized_coverage,
             "parquet_sha256": _file_sha256(parquet_path),
         }, indent=2) + "\n",
         encoding="utf-8",
@@ -323,9 +501,16 @@ def load_valid_day_contract(cache_dir: Path, day: date) -> dict | None:
         and contract.get("parquet_sha256") == digest
     ):
         return None
+    coverage = _normalized_coverage(contract.get("coverage"), day)
+    if coverage is None:
+        coverage = _normalized_coverage(
+            _legacy_tick_coverage(parquet_path, day),
+            day,
+        )
     return {
         **contract,
         "day": day.isoformat(),
+        "coverage": coverage,
         "parquet_sha256": digest,
         "size_bytes": parquet_path.stat().st_size,
     }
@@ -378,16 +563,50 @@ def build_status(
         until=until,
         pad_minutes=pad_minutes,
     )
-    days = required_dates(
+    day_windows = required_day_windows(
         trades,
         since=since,
         until=until,
         pad_minutes=pad_minutes,
     )
+    days = list(day_windows)
     present = [day for day in days if _day_file(cache_dir, day).is_file()]
-    cached = [day for day in present if day_contract_valid(cache_dir, day)]
-    invalid = [day for day in present if day not in set(cached)]
+    contracts = {
+        day: load_valid_day_contract(cache_dir, day)
+        for day in present
+    }
+    invalid = [day for day in present if contracts[day] is None]
+    structurally_valid = [day for day in present if contracts[day] is not None]
+    cached = [
+        day for day in structurally_valid
+        if coverage_satisfies_window(
+            contracts[day],
+            day_windows[day][0],
+            day_windows[day][1],
+        )
+    ]
+    incomplete = [day for day in structurally_valid if day not in set(cached)]
     missing = [day for day in days if day not in set(present)]
+    coverage_by_day = {}
+    for day in days:
+        required_from, required_through = day_windows[day]
+        contract = contracts.get(day)
+        coverage = (contract or {}).get("coverage") or {}
+        if day in missing:
+            coverage_status = "missing"
+        elif day in invalid:
+            coverage_status = "invalid"
+        elif day in incomplete:
+            coverage_status = "incomplete"
+        else:
+            coverage_status = "complete"
+        coverage_by_day[day.isoformat()] = {
+            "status": coverage_status,
+            "required_from_utc": _utc_iso(required_from),
+            "required_through_utc": _utc_iso(required_through),
+            "complete_from_utc": coverage.get("complete_from_utc"),
+            "complete_through_utc": coverage.get("complete_through_utc"),
+        }
     refresh_requested_days = refresh_requested_days or []
     refresh_removed_days = refresh_removed_days or []
     refresh_pending = bool(dry_run and refresh_requested_days)
@@ -395,6 +614,7 @@ def build_status(
         "ok": (
             not missing
             and not invalid
+            and not incomplete
             and error is None
             and not refresh_pending
         ),
@@ -415,7 +635,9 @@ def build_status(
         "required_days": [day.isoformat() for day in days],
         "cached_days": [day.isoformat() for day in cached],
         "invalid_days": [day.isoformat() for day in invalid],
+        "incomplete_days": [day.isoformat() for day in incomplete],
         "missing_days": [day.isoformat() for day in missing],
+        "coverage_by_day": coverage_by_day,
         "ensure_stats": ensure_stats or {},
         "refresh_requested_days": [
             day.isoformat() for day in refresh_requested_days
@@ -686,6 +908,7 @@ def ensure_missing_days(
             day_contracts[day.isoformat()] = {
                 "time_evidence": source.time_evidence_for_day(day),
                 "semantic_validation": semantic_validation,
+                "coverage": build_tick_coverage(frame, day),
             }
         return {**stats, "day_contracts": day_contracts}
     finally:
@@ -747,18 +970,23 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     if args.ensure and not args.dry_run and (
-        status["missing_days"] or status["invalid_days"]
+        status["missing_days"]
+        or status["invalid_days"]
+        or status["incomplete_days"]
     ):
         missing_days = [date.fromisoformat(day) for day in status["missing_days"]]
         invalid_days = [date.fromisoformat(day) for day in status["invalid_days"]]
+        incomplete_days = [
+            date.fromisoformat(day) for day in status["incomplete_days"]
+        ]
         automatically_removed = refresh_cache_days(
-            invalid_days,
+            invalid_days + incomplete_days,
             cache_dir=args.cache_dir,
         )
         refresh_removed_days = sorted(set(
             refresh_removed_days + automatically_removed
         ))
-        ensure_days = sorted(set(missing_days + invalid_days))
+        ensure_days = sorted(set(missing_days + invalid_days + incomplete_days))
         try:
             stats = ensure_missing_days(
                 ensure_days,
@@ -779,6 +1007,7 @@ def main(argv: list[str] | None = None) -> int:
                     day,
                     time_evidence=day_contract["time_evidence"],
                     semantic_validation=day_contract["semantic_validation"],
+                    coverage=day_contract["coverage"],
                 )
             status = build_status(
                 trades,
@@ -811,6 +1040,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Tick cache required days: {len(status['required_days'])}")
         print(f"Cached: {len(status['cached_days'])}")
         print(f"Invalid: {len(status['invalid_days'])}")
+        print(f"Incomplete: {len(status['incomplete_days'])}")
         print(f"Missing: {len(status['missing_days'])}")
         print(f"Output: {args.status}")
     return 0 if status["ok"] else 1

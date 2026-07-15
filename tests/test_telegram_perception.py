@@ -124,10 +124,11 @@ async def test_execute_actions_emits_management_understanding(monkeypatch):
         [{
             "action": "MOVE_SL_TO_BE",
             "price": None,
+            "provider_stated_be_price": 4030.0,
             "confidence": 0.95,
             "_reason": "regex_move_sl_be",
         }],
-        raw_text="Move SL to BE",
+        raw_text="Move SL to BE at 4030",
         tg_ts="2026-06-04T09:01:00",
     )
 
@@ -141,6 +142,15 @@ async def test_execute_actions_emits_management_understanding(monkeypatch):
     assert payload["confidence_min"] == 0.95
     assert payload["requires_review"] is False
     assert len(executed) == 1
+    assert executed[0][1]["price"] is None
+    assert executed[0][1]["provider_stated_be_price"] == 4030.0
+    firewall = [
+        row for row in events if row[1] == "interpretation_firewall_decision"
+    ][0]
+    assert firewall[2]["price"] is None
+    assert firewall[2]["provider_stated_be_price"] == 4030.0
+    applied = [row for row in events if row[1] == "mgmt_msg"][-1]
+    assert applied[2]["provider_stated_be_price"] == 4030.0
 
 
 @pytest.mark.asyncio

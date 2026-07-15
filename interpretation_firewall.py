@@ -8,6 +8,7 @@ review, or be rejected.
 """
 
 from dataclasses import dataclass
+import re
 from typing import Any
 
 
@@ -72,6 +73,20 @@ ROLE_DEFAULT_ACTION = {
 }
 
 
+_PROVIDER_BE_PRICE_RE = re.compile(
+    r"(?:\bB\s*/\s*E\b|\bBE\b|\bBREAK\s*EVEN\b|\bBREAKEVEN\b|\bENTRY\b)"
+    r"\s*(?:(?:AT|AROUND|NEAR|ABOUT)\s*)?[*_`~]*"
+    r"(\d{3,5}(?:\.\d{1,3})?)\b",
+    re.IGNORECASE,
+)
+
+
+def extract_provider_stated_be_price(text: str | None) -> float | None:
+    """Extract the provider's stated entry near a BE instruction as evidence."""
+    match = _PROVIDER_BE_PRICE_RE.search(str(text or ""))
+    return float(match.group(1)) if match else None
+
+
 @dataclass(frozen=True)
 class FirewallDecision:
     policy: str
@@ -122,9 +137,19 @@ def _normalize_one_action(action: dict, envelope: dict | None = None) -> dict:
     if confidence is None:
         confidence = 1.0 if action_type in LOG_ONLY_ACTIONS else 0.0
 
+    price = action.get("price")
+    provider_stated_be_price = action.get(
+        "provider_stated_be_price",
+        envelope.get("provider_stated_be_price"),
+    )
+    if action_type == "MOVE_SL_TO_BE":
+        if provider_stated_be_price is None and price is not None:
+            provider_stated_be_price = price
+        price = None
+
     normalized = {
         "action": action_type,
-        "price": action.get("price"),
+        "price": price,
         "confidence": float(confidence),
         "message_role": envelope.get("message_role") or action.get("message_role"),
         "execution_policy": (
@@ -142,6 +167,13 @@ def _normalize_one_action(action: dict, envelope: dict | None = None) -> dict:
         "evidence": action.get("evidence") or envelope.get("evidence"),
         "reasoning": action.get("reasoning") or envelope.get("reasoning"),
     }
+    if provider_stated_be_price is not None:
+        try:
+            normalized["provider_stated_be_price"] = float(
+                provider_stated_be_price
+            )
+        except (TypeError, ValueError):
+            pass
     for key in ("target", "summary", "levels", "field", "_reason",
                 "_gemini_failed", "_last_error", "is_plural"):
         if key in action:

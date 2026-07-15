@@ -140,6 +140,13 @@ class TestMoveSlToBe:
         assert be["confidence"] == 0.95
         assert be["price"] is None
 
+    def test_be_with_provider_price_remains_real_be_action(self):
+        actions = _actions("Move SL to BE at 4030.00")
+
+        assert [action["action"] for action in actions] == ["MOVE_SL_TO_BE"]
+        assert actions[0]["price"] is None
+        assert actions[0]["provider_stated_be_price"] == 4030.0
+
     def test_move_to_breakeven(self):
         actions = _actions("Move stop loss to breakeven")
         assert "MOVE_SL_TO_BE" in [a["action"] for a in actions]
@@ -513,6 +520,32 @@ class TestClassifyAsync:
 
         assert calls == []
         assert [a["action"] for a in result] == ["MOVE_SL_TO_BE"]
+
+    @pytest.mark.asyncio
+    async def test_canal1_stated_be_price_is_evidence_not_execution_price(
+        self,
+        monkeypatch,
+    ):
+        monkeypatch.setattr(
+            "classifier._gemini_classify",
+            lambda *a, **kw: (_ for _ in ()).throw(
+                AssertionError("Gemini no debe ejecutarse para BE claro")
+            ),
+        )
+        sig = Signal(channel="canal1", message_id=20886, direction="BUY")
+
+        result = await classify_async(
+            "Move SL to BE at 4030.00",
+            signal=sig,
+        )
+
+        assert result == [{
+            "action": "MOVE_SL_TO_BE",
+            "price": None,
+            "confidence": 0.95,
+            "provider_stated_be_price": 4030.0,
+            "_reason": "canal1_safe_direct_be",
+        }]
 
     @pytest.mark.asyncio
     async def test_canal1_safe_close_my_trades_now_does_not_need_gemini(self, monkeypatch):

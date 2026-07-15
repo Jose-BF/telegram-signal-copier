@@ -19,7 +19,10 @@ import json
 import time
 from google import genai
 import config
-from interpretation_firewall import normalize_classifier_outputs
+from interpretation_firewall import (
+    extract_provider_stated_be_price,
+    normalize_classifier_outputs,
+)
 
 _client = genai.Client(api_key=config.GOOGLE_API_KEY)
 
@@ -296,9 +299,13 @@ def _canal1_safe_regex_classify(text: str) -> list[dict]:
         r"\brisk.?free\b",
     ]
     if any(re.search(p, t) for p in be_phrases):
-        actions.append({"action": "MOVE_SL_TO_BE",
-                        "price": None, "confidence": 0.95,
-                        "_reason": "canal1_safe_direct_be"})
+        action = {"action": "MOVE_SL_TO_BE",
+                  "price": None, "confidence": 0.95,
+                  "_reason": "canal1_safe_direct_be"}
+        provider_price = extract_provider_stated_be_price(text)
+        if provider_price is not None:
+            action["provider_stated_be_price"] = provider_price
+        actions.append(action)
 
     close_all_phrases = [
         r"\bclose\s+all\b",
@@ -344,7 +351,11 @@ def _regex_classify_all(text: str) -> list[dict]:
         r"(?:\s+\w+){0,3}?\s+(?:to|at)\s+([\d.]+)",
         t,
     )
-    if m:
+    if m and not re.search(
+        r"\b(?:BE|BREAKEVEN|BREAK\s+EVEN|ENTRY)\b",
+        m.group(0),
+        re.IGNORECASE,
+    ):
         actions.append({"action": "MOVE_SL_TO_PRICE",
                         "price": float(m.group(1)), "confidence": 1.0})
 
@@ -380,8 +391,12 @@ def _regex_classify_all(text: str) -> list[dict]:
         r"\bbe\s+risk.?free\b",
     ]
     if any(re.search(p, t) for p in be_phrases):
-        actions.append({"action": "MOVE_SL_TO_BE",
-                        "price": None, "confidence": 0.95})
+        action = {"action": "MOVE_SL_TO_BE",
+                  "price": None, "confidence": 0.95}
+        provider_price = extract_provider_stated_be_price(text)
+        if provider_price is not None:
+            action["provider_stated_be_price"] = provider_price
+        actions.append(action)
 
     # 3. "I am out at BE" / "closing here at BE" → trader cierra todo en BE
     out_be_phrases = [
@@ -536,6 +551,15 @@ def _gemini_classify(text: str, signal=None, max_retries: int = 3,
             if not actions:
                 # Lista vacía es respuesta válida = "no entiendo"
                 return []
+            provider_price = extract_provider_stated_be_price(text)
+            if provider_price is not None:
+                for action in actions:
+                    if action.get("action") == "MOVE_SL_TO_BE":
+                        action["price"] = None
+                        action.setdefault(
+                            "provider_stated_be_price",
+                            provider_price,
+                        )
             return actions
         except Exception as e:  # incluye 503, JSONDecodeError, ValueError
             last_error = e

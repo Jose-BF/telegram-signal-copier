@@ -567,11 +567,24 @@ class ReplayTickFrameCache:
     ) -> tuple[pd.DataFrame, list[str]]:
         missing: list[str] = []
         frames: list[pd.DataFrame] = []
-        for day in _required_tick_days(trade, pad_minutes):
+        day_windows = ensure_replay_tick_cache.required_day_windows(
+            [trade],
+            pad_minutes=pad_minutes,
+        )
+        for day_date, (required_from, required_through) in day_windows.items():
+            day = day_date.isoformat()
             self._required_days.add(day)
             frame, error = self._load_day(day)
             if error:
                 missing.append(error)
+                continue
+            contract = self._verified_contracts.get(day)
+            if not ensure_replay_tick_cache.coverage_satisfies_window(
+                contract,
+                required_from,
+                required_through,
+            ):
+                missing.append(f"incomplete_tick_cache_coverage:{day}")
                 continue
             if frame is not None and not frame.empty:
                 frames.append(frame)

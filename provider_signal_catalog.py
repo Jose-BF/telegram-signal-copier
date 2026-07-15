@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Iterable
 
 from parser import is_canal1_signal_text, is_canal2_entry, parse_canal2
+from interpretation_firewall import extract_provider_stated_be_price
 
 
 DATA_DIR = Path(__file__).parent / "data"
@@ -168,7 +169,12 @@ def _execution_options(semantics: dict) -> list[dict]:
     if modality == "informational":
         return []
     primary = {"action": semantics["action"]}
-    for key in ("price", "target_tp_index", "levels"):
+    for key in (
+        "price",
+        "provider_stated_be_price",
+        "target_tp_index",
+        "levels",
+    ):
         if semantics.get(key) is not None:
             primary[key] = semantics[key]
     if modality == "optional":
@@ -185,20 +191,28 @@ def _deterministic_management_semantics(text: str) -> dict | None:
         or "RISK FREE" in upper
         or "0% RISK" in upper
     )
+    provider_stated_be_price = extract_provider_stated_be_price(text)
     if has_break_even and "CLOSE" in upper and re.search(r"\bOR\b", upper):
+        be_option = {"action": "MOVE_SL_TO_BE"}
+        if provider_stated_be_price is not None:
+            be_option["provider_stated_be_price"] = provider_stated_be_price
         return {
             "action": "MANAGEMENT_CHOICE",
             "modality": "optional",
             "execution_options": [
                 {"action": "CLOSE_ALL"},
-                {"action": "MOVE_SL_TO_BE"},
+                be_option,
             ],
+            **({"provider_stated_be_price": provider_stated_be_price}
+               if provider_stated_be_price is not None else {}),
         }
     if has_break_even:
         result = {
             "action": "MOVE_SL_TO_BE",
             "modality": _management_modality(text, actionable=True),
         }
+        if provider_stated_be_price is not None:
+            result["provider_stated_be_price"] = provider_stated_be_price
         result["execution_options"] = _execution_options(result)
         return result
 
@@ -561,7 +575,12 @@ def _append_management(signal: dict, row: dict) -> None:
         "update_kinds": [str(row.get("update_kind") or "unknown")],
         "source": "telegram_raw" if row.get("ev") == "telegram_raw" else row.get("ev"),
     }
-    for field in ("price", "target_tp_index", "levels"):
+    for field in (
+        "price",
+        "provider_stated_be_price",
+        "target_tp_index",
+        "levels",
+    ):
         if semantics.get(field) is not None:
             event[field] = semantics[field]
     signal["management_events"].append(event)

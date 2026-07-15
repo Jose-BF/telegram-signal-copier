@@ -44,13 +44,42 @@ def _semantic_validation(valid=True):
     }
 
 
+def _tick_coverage(day, *, captured_at, complete_through, row_count=100):
+    day_start = datetime(day.year, day.month, day.day, tzinfo=timezone.utc)
+    return {
+        "source_query_start_utc": day_start.isoformat(),
+        "source_query_end_utc": (day_start + timedelta(days=1)).isoformat(),
+        "captured_at_utc": captured_at,
+        "first_tick_utc": day_start.isoformat(),
+        "last_tick_utc": complete_through,
+        "complete_from_utc": day_start.isoformat(),
+        "complete_through_utc": complete_through,
+        "row_count": row_count,
+    }
+
+
 def _write_valid_contract(cache_dir, day):
+    day_end = datetime(
+        day.year, day.month, day.day, tzinfo=timezone.utc
+    ) + timedelta(days=1)
     return ensure_replay_tick_cache.write_day_contract(
         cache_dir,
         day,
         time_evidence=_time_evidence(),
         semantic_validation=_semantic_validation(),
+        coverage=_tick_coverage(
+            day,
+            captured_at=(day_end + timedelta(minutes=1)).isoformat(),
+            complete_through=day_end.isoformat(),
+        ),
     )
+
+
+def _set_contract_coverage(cache_dir, day, coverage):
+    path = cache_dir / f"{day.isoformat()}.parquet.meta.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["coverage"] = coverage
+    path.write_text(json.dumps(payload), encoding="utf-8")
 
 
 def test_required_dates_include_padded_trade_windows():
@@ -94,6 +123,76 @@ def test_cache_status_marks_missing_and_cached_days(tmp_path):
     assert status["cached_days"] == ["2026-07-06"]
     assert status["missing_days"] == ["2026-07-07"]
     assert status["tick_time_contract"] == "mt5_server_epoch_utc_v3"
+
+
+def test_cache_status_rejects_intraday_cache_that_ends_before_trade_close(
+    tmp_path,
+):
+    cache_dir = tmp_path / "ticks_cache"
+    cache_dir.mkdir()
+    day = date(2026, 7, 15)
+    (cache_dir / "2026-07-15.parquet").write_bytes(b"partial-but-valid")
+    _write_valid_contract(cache_dir, day)
+    _set_contract_coverage(
+        cache_dir,
+        day,
+        _tick_coverage(
+            day,
+            captured_at="2026-07-15T12:51:00+00:00",
+            complete_through="2026-07-15T12:50:59+00:00",
+        ),
+    )
+
+    status = ensure_replay_tick_cache.build_status(
+        [_trade(
+            "canal1_afternoon",
+            "2026-07-15T12:32:14+00:00",
+            "2026-07-15T17:15:12+00:00",
+        )],
+        cache_dir=cache_dir,
+        pad_minutes=0,
+    )
+
+    assert status["ok"] is False
+    assert status.get("cached_days") == []
+    assert status.get("incomplete_days") == ["2026-07-15"]
+    assert status.get("coverage_by_day", {})["2026-07-15"] == {
+        "status": "incomplete",
+        "required_from_utc": "2026-07-15T12:32:14+00:00",
+        "required_through_utc": "2026-07-15T17:15:12+00:00",
+        "complete_from_utc": "2026-07-15T00:00:00+00:00",
+        "complete_through_utc": "2026-07-15T12:50:59+00:00",
+    }
+
+
+def test_legacy_contract_infers_partial_coverage_from_last_cached_tick(tmp_path):
+    cache_dir = tmp_path / "ticks_cache"
+    cache_dir.mkdir()
+    day = date(2026, 7, 15)
+    pd.DataFrame([{
+        "time_utc": pd.Timestamp("2026-07-15T12:50:59+00:00"),
+        "bid": 4030.0,
+        "ask": 4030.2,
+    }]).to_parquet(cache_dir / "2026-07-15.parquet", index=False)
+    contract_path = _write_valid_contract(cache_dir, day)
+    legacy_contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    legacy_contract.pop("coverage")
+    contract_path.write_text(json.dumps(legacy_contract), encoding="utf-8")
+
+    status = ensure_replay_tick_cache.build_status(
+        [_trade(
+            "canal1_afternoon",
+            "2026-07-15T12:32:14+00:00",
+            "2026-07-15T17:15:12+00:00",
+        )],
+        cache_dir=cache_dir,
+        pad_minutes=0,
+    )
+
+    assert status["incomplete_days"] == ["2026-07-15"]
+    assert status["coverage_by_day"]["2026-07-15"][
+        "complete_through_utc"
+    ] == "2026-07-15T12:50:59+00:00"
 
 
 def test_cache_status_scope_excludes_historical_invalid_day(tmp_path):
@@ -302,6 +401,15 @@ def test_refresh_day_cli_redownloads_invalidated_required_day(
                 day.isoformat(): {
                     "time_evidence": _time_evidence(),
                     "semantic_validation": _semantic_validation(),
+                    "coverage": _tick_coverage(
+                        day,
+                        captured_at=(datetime(
+                            day.year, day.month, day.day, tzinfo=timezone.utc
+                        ) + timedelta(days=1, minutes=1)).isoformat(),
+                        complete_through=(datetime(
+                            day.year, day.month, day.day, tzinfo=timezone.utc
+                        ) + timedelta(days=1)).isoformat(),
+                    ),
                 }
                 for day in days
             },
@@ -365,6 +473,15 @@ def test_ensure_cli_automatically_replaces_unversioned_required_day(
                 day.isoformat(): {
                     "time_evidence": _time_evidence(),
                     "semantic_validation": _semantic_validation(),
+                    "coverage": _tick_coverage(
+                        day,
+                        captured_at=(datetime(
+                            day.year, day.month, day.day, tzinfo=timezone.utc
+                        ) + timedelta(days=1, minutes=1)).isoformat(),
+                        complete_through=(datetime(
+                            day.year, day.month, day.day, tzinfo=timezone.utc
+                        ) + timedelta(days=1)).isoformat(),
+                    ),
                 }
                 for day in days
             },
@@ -393,6 +510,86 @@ def test_ensure_cli_automatically_replaces_unversioned_required_day(
     assert status["invalid_days"] == []
     assert status["cached_days"] == ["2026-07-08"]
     assert (cache_dir / "2026-07-08.parquet.meta.json").is_file()
+
+
+def test_ensure_cli_replaces_coverage_incomplete_required_day(
+    tmp_path,
+    monkeypatch,
+):
+    replay_path = tmp_path / "replay_trades.jsonl"
+    status_path = tmp_path / "replay_tick_cache_status.json"
+    cache_dir = tmp_path / "ticks_cache"
+    cache_dir.mkdir()
+    day = date(2026, 7, 15)
+    day_file = cache_dir / "2026-07-15.parquet"
+    day_file.write_bytes(b"partial-session")
+    _write_valid_contract(cache_dir, day)
+    _set_contract_coverage(
+        cache_dir,
+        day,
+        _tick_coverage(
+            day,
+            captured_at="2026-07-15T12:51:00+00:00",
+            complete_through="2026-07-15T12:50:59+00:00",
+        ),
+    )
+    replay_path.write_text(
+        json.dumps(_trade(
+            "canal1_afternoon",
+            "2026-07-15T13:00:00+00:00",
+            "2026-07-15T17:15:12+00:00",
+        )) + "\n",
+        encoding="utf-8",
+    )
+    requested = []
+
+    def fake_ensure(days, *, cache_dir, symbol, verbose, trades):
+        requested.extend(days)
+        for requested_day in days:
+            (cache_dir / f"{requested_day.isoformat()}.parquet").write_bytes(
+                b"complete-session"
+            )
+        return {
+            "downloaded": len(days),
+            "day_contracts": {
+                requested_day.isoformat(): {
+                    "time_evidence": _time_evidence(),
+                    "semantic_validation": _semantic_validation(),
+                    "coverage": _tick_coverage(
+                        requested_day,
+                        captured_at="2026-07-16T00:05:00+00:00",
+                        complete_through="2026-07-16T00:00:00+00:00",
+                    ),
+                }
+                for requested_day in days
+            },
+        }
+
+    monkeypatch.setattr(
+        ensure_replay_tick_cache,
+        "ensure_missing_days",
+        fake_ensure,
+    )
+
+    exit_code = ensure_replay_tick_cache.main([
+        "--input",
+        str(replay_path),
+        "--status",
+        str(status_path),
+        "--cache-dir",
+        str(cache_dir),
+        "--ensure",
+        "--pad-minutes",
+        "0",
+        "--quiet",
+    ])
+
+    status = json.loads(status_path.read_text(encoding="utf-8"))
+    assert exit_code == 0
+    assert requested == [day]
+    assert day_file.read_bytes() == b"complete-session"
+    assert status["cached_days"] == ["2026-07-15"]
+    assert status["incomplete_days"] == []
 
 
 def test_dry_run_cli_writes_tick_cache_status(tmp_path):
