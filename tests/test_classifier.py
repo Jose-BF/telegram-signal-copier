@@ -467,14 +467,26 @@ class TestEdgeCases:
         # devuelve lista vacía → fallback a Gemini en classify()
         assert actions == []
 
-    def test_classify_one_unrelated_returns_info(self):
-        # classify_one tiene un fallback final a INFORMATIONAL
-        # PERO solo si Gemini no se llama (porque sin API mock crashearia).
-        # Aquí lo invocamos directamente sobre regex con texto irrelevante;
-        # como _regex_classify_all devuelve [], classify_one() llamaria a
-        # Gemini. Como no queremos llamar Gemini en tests, lo skipeamos.
-        # (Se cubre indirectamente al testear _regex_classify_all)
-        pytest.skip("requires Gemini mock — covered by Gemini-specific tests later")
+    def test_classify_one_unrelated_returns_info(self, monkeypatch):
+        calls = []
+
+        def gemini_returns_no_action(text, signal=None):
+            calls.append((text, signal))
+            return []
+
+        monkeypatch.setattr(
+            "classifier._gemini_classify",
+            gemini_returns_no_action,
+        )
+
+        result = classify_one("hola buenos dias")
+
+        assert calls == [("hola buenos dias", None)]
+        assert result == {
+            "action": "INFORMATIONAL",
+            "price": None,
+            "confidence": 0.0,
+        }
 
 
 # ─── classify_async — fix C1 ────────────────────────────────────────────────
