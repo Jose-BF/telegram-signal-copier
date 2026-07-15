@@ -930,10 +930,10 @@
       "candidate_reason": "material reliability impact",
       "category": "execution",
       "coverage": {
-        "covered_after_utc": "2026-07-15T11:16:47+00:00",
+        "covered_after_utc": "2026-07-15T11:42:31+00:00",
         "fix_commit": "6386be66cc986bdf00c1d0c5e773277cbfa6392e",
         "regression_test": "tests/test_pending_actions.py::TestModifyPreconditions::test_invalid_stop_waits_without_mt5_submission",
-        "reviewed_at_utc": "2026-07-15T11:16:47+00:00",
+        "reviewed_at_utc": "2026-07-15T11:42:31+00:00",
         "reviewed_by": "project_owner",
         "rule_version": "pending-actions.invalid-stop-preflight.v1",
         "verification": {
@@ -941,7 +941,7 @@
           "full_suite_passed": true,
           "source_fingerprint": "43fa2e6438a06603a5c805629afe073e711aae99a8349e71a098f48fd6633e36",
           "test_passed": true,
-          "verified_commit": "892b067d55e4eb8eae180f734cfb9fe431c22e29"
+          "verified_commit": "080da4764031a8de6e846d2206d89f096d65a59c"
         }
       },
       "evidence": [
@@ -6018,7 +6018,7 @@
     "observed_ticks": "40f464a7df29c06f8ddf67defd473df37de64ca8363f5160b211152194d8f3a1",
     "provider_catalog": "f9e25839d7f7babe8518a133d4d3c6d16456f097fda8a634b660a4ef92d0bf6a",
     "replay": "786b32708ecb9019a89a7956eebd252c07e3bb9186439ad9e54adb0dfadb9178",
-    "review_metadata": "bf214e28c101ce753ddf9ee0092d182248de5ab0fce3ac095e22ffd0ab377126",
+    "review_metadata": "5991733f918759f7d59feba8a0c6c7ffd96f8ea955e25d1ad416b018f1f3a4af",
     "strategy_farm": "c704e1e920dc3b3ae02a4961fb3d53e1fd81c38da1e36b533fdd7cf22eed00a2"
   },
   "summary": {

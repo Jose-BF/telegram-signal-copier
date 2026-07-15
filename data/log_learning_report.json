@@ -1254,7 +1254,7 @@
       "observed_ticks": "40f464a7df29c06f8ddf67defd473df37de64ca8363f5160b211152194d8f3a1",
       "provider_catalog": "f9e25839d7f7babe8518a133d4d3c6d16456f097fda8a634b660a4ef92d0bf6a",
       "replay": "786b32708ecb9019a89a7956eebd252c07e3bb9186439ad9e54adb0dfadb9178",
-      "review_metadata": "bf214e28c101ce753ddf9ee0092d182248de5ab0fce3ac095e22ffd0ab377126",
+      "review_metadata": "5991733f918759f7d59feba8a0c6c7ffd96f8ea955e25d1ad416b018f1f3a4af",
       "strategy_farm": "c704e1e920dc3b3ae02a4961fb3d53e1fd81c38da1e36b533fdd7cf22eed00a2"
     }
   },
@@ -1401,7 +1401,7 @@
     "regressed_patterns": 0
   },
   "mode": "diagnostic_only",
-  "registry_fingerprint": "35019536399fb0372e60b7c625c06ff335ba9e868fb560f261881d09c59bdf21",
+  "registry_fingerprint": "b11955fee2d87e5e0b7e82d00b4605acde40c17336e0bcc13525e8ea9b67a70d",
   "safe_for_strategy_simulation": false,
   "schema_version": 1
 }

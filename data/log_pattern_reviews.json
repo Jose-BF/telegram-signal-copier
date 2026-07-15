@@ -1,10 +1,10 @@
 {
   "reviews": {
     "execution.invalid_stops.modify_sltp": {
-      "covered_after_utc": "2026-07-15T11:16:47+00:00",
+      "covered_after_utc": "2026-07-15T11:42:31+00:00",
       "fix_commit": "6386be66cc986bdf00c1d0c5e773277cbfa6392e",
       "regression_test": "tests/test_pending_actions.py::TestModifyPreconditions::test_invalid_stop_waits_without_mt5_submission",
-      "reviewed_at_utc": "2026-07-15T11:16:47+00:00",
+      "reviewed_at_utc": "2026-07-15T11:42:31+00:00",
       "reviewed_by": "project_owner",
       "rule_version": "pending-actions.invalid-stop-preflight.v1",
       "status": "covered",
@@ -13,7 +13,7 @@
         "full_suite_passed": true,
         "source_fingerprint": "43fa2e6438a06603a5c805629afe073e711aae99a8349e71a098f48fd6633e36",
         "test_passed": true,
-        "verified_commit": "892b067d55e4eb8eae180f734cfb9fe431c22e29"
+        "verified_commit": "080da4764031a8de6e846d2206d89f096d65a59c"
       }
     }
   },
