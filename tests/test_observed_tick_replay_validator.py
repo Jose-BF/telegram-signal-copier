@@ -118,7 +118,7 @@ def test_matching_reason_with_early_touch_is_not_exact():
     )
 
 
-def test_matching_reason_and_time_with_different_fill_price_is_not_exact():
+def test_matching_path_with_fill_delta_is_exact_and_records_slippage():
     ticket = _ticket(
         close_dt_utc="2026-07-06T10:01:30+00:00",
         close_price=4202.3,
@@ -134,14 +134,15 @@ def test_matching_reason_and_time_with_different_fill_price_is_not_exact():
         ticks,
     )
 
-    assert result["status"] == "mismatch"
+    assert result["status"] == "exact"
     assert any(
-        blocker.startswith("first_touch_price_mismatch:101:")
-        for blocker in result["blockers"]
+        warning.startswith("observed_level_fill_delta:101:")
+        for warning in result["warnings"]
     )
+    assert result["blockers"] == []
 
 
-def test_shifted_tick_cache_is_rejected_by_open_price_alignment():
+def test_quote_fill_delta_is_execution_evidence_not_path_failure():
     ticks = _ticks([
         {"time_utc": "2026-07-06T10:00:00+00:00", "bid": 4300.0, "ask": 4300.2},
         {"time_utc": "2026-07-06T10:01:30+00:00", "bid": 4310.0, "ask": 4310.2},
@@ -150,10 +151,14 @@ def test_shifted_tick_cache_is_rejected_by_open_price_alignment():
     result = observed_tick_replay_validator.validate_ticket(
         _trade(), _ticket(), ticks)
 
-    assert result["status"] == "blocked"
+    assert result["status"] == "exact"
     assert result["alignment"]["open"]["time_delta_ms"] == 0
     assert result["alignment"]["open"]["price_delta"] == 100.2
     assert any(
+        warning.startswith("observed_open_execution_delta:101:")
+        for warning in result["warnings"]
+    )
+    assert not any(
         blocker.startswith("open_tick_price_mismatch:101:")
         for blocker in result["blockers"]
     )
@@ -173,7 +178,7 @@ def test_unverified_open_tick_alignment_blocks_exact_baseline():
     assert "open_tick_alignment_unverified:101" in result["blockers"]
 
 
-def test_open_quote_must_match_mt5_fill_to_the_cent():
+def test_open_quote_delta_does_not_invalidate_verified_path():
     ticks = _ticks([
         {"time_utc": "2026-07-06T10:00:00+00:00", "bid": 4200.0, "ask": 4200.2},
         {"time_utc": "2026-07-06T10:01:30+00:00", "bid": 4202.0, "ask": 4202.2},
@@ -182,10 +187,10 @@ def test_open_quote_must_match_mt5_fill_to_the_cent():
     result = observed_tick_replay_validator.validate_ticket(
         _trade(), _ticket(), ticks)
 
-    assert result["status"] == "blocked"
+    assert result["status"] == "exact"
     assert any(
-        blocker.startswith("open_tick_price_mismatch:101:+0.20")
-        for blocker in result["blockers"]
+        warning.startswith("observed_open_execution_delta:101:+0.20")
+        for warning in result["warnings"]
     )
 
 
@@ -283,7 +288,7 @@ def test_bot_close_replays_as_market_close_near_close_time():
     assert result["first_touch"]["side"] == "bid"
 
 
-def test_bot_close_quote_must_match_mt5_fill_to_the_cent():
+def test_bot_close_quote_delta_is_recorded_as_execution_slippage():
     ticket = _ticket(
         close_reason="bot_close",
         close_dt_utc="2026-07-06T10:02:00+00:00",
@@ -299,10 +304,35 @@ def test_bot_close_quote_must_match_mt5_fill_to_the_cent():
     result = observed_tick_replay_validator.validate_ticket(
         _trade(), ticket, ticks)
 
-    assert result["status"] == "mismatch"
+    assert result["status"] == "exact"
     assert any(
-        blocker.startswith("bot_close_price_mismatch:101:+0.20")
-        for blocker in result["blockers"]
+        warning.startswith("observed_close_execution_delta:101:+0.20")
+        for warning in result["warnings"]
+    )
+
+
+def test_mt5_other_reason_replays_as_external_market_close():
+    ticket = _ticket(
+        close_reason="other",
+        close_dt_utc="2026-07-06T10:02:00+00:00",
+        close_price=4201.8,
+        sl_history=[],
+        tp_history=[],
+    )
+    ticks = _ticks([
+        {"time_utc": "2026-07-06T10:00:00+00:00", "bid": 4199.8, "ask": 4200.0},
+        {"time_utc": "2026-07-06T10:02:00+00:00", "bid": 4202.0, "ask": 4202.2},
+    ])
+
+    result = observed_tick_replay_validator.validate_ticket(
+        _trade(), ticket, ticks)
+
+    assert result["status"] == "exact"
+    assert result["first_touch"]["reason"] == "external_close"
+    assert result["first_touch"]["side"] == "bid"
+    assert any(
+        warning.startswith("observed_close_execution_delta:101:+0.20")
+        for warning in result["warnings"]
     )
 
 

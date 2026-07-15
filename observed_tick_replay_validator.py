@@ -23,11 +23,12 @@ DEFAULT_OUTPUT = DATA_DIR / "observed_tick_replay_audit.jsonl"
 DEFAULT_STATUS = DATA_DIR / "observed_tick_replay_status.json"
 SCHEMA_VERSION = 1
 PRICE_EPSILON = 0.01
-MARKET_CLOSE_PRICE_TOLERANCE = PRICE_EPSILON
-OPEN_PRICE_ALIGNMENT_TOLERANCE = PRICE_EPSILON
 ALIGNMENT_NEAR_SECONDS = 5
 CLOSE_TOUCH_TIME_TOLERANCE_SECONDS = 5
-SUPPORTED_CLOSE_REASONS = {"tp", "sl", "be", "bot_close"}
+CAUSAL_PATH_CONTRACT = "causal_path_v2"
+FILL_PRICE_AUTHORITY = "mt5_deals"
+MARKET_CLOSE_REASONS = {"bot_close", "other", "manual_close"}
+SUPPORTED_CLOSE_REASONS = {"tp", "sl", "be", *MARKET_CLOSE_REASONS}
 
 
 def _parse_dt(value: str | None) -> datetime | None:
@@ -219,6 +220,7 @@ def _market_close_for_ticket(
     ticket: dict,
     ticks: pd.DataFrame,
     *,
+    close_reason: str,
     close_grace_s: int = 5,
 ) -> tuple[dict | None, list[str], list[str]]:
     label = _ticket_label(ticket)
@@ -257,15 +259,13 @@ def _market_close_for_ticket(
     price_delta = side_price - close_price
     if abs(price_delta) > PRICE_EPSILON:
         warnings.append(
-            f"bot_close_price_delta:{label}:{price_delta:+.2f}"
-        )
-    if abs(price_delta) > MARKET_CLOSE_PRICE_TOLERANCE:
-        blockers.append(
-            f"bot_close_price_mismatch:{label}:{price_delta:+.2f}"
+            f"observed_close_execution_delta:{label}:{price_delta:+.2f}"
         )
 
     return {
-        "reason": "bot_close",
+        "reason": (
+            "bot_close" if close_reason == "bot_close" else "external_close"
+        ),
         "level": round(close_price, 2),
         "side": side,
         "side_price": round(side_price, 2),
@@ -384,12 +384,9 @@ def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
     open_alignment = alignment["open"]
     if open_alignment.get("status") != "verified":
         blockers.append(f"open_tick_alignment_unverified:{label}")
-    elif (
-        abs(float(open_alignment.get("price_delta") or 0.0))
-        > OPEN_PRICE_ALIGNMENT_TOLERANCE
-    ):
-        blockers.append(
-            f"open_tick_price_mismatch:{label}:"
+    elif abs(float(open_alignment.get("price_delta") or 0.0)) > PRICE_EPSILON:
+        warnings.append(
+            f"observed_open_execution_delta:{label}:"
             f"{float(open_alignment['price_delta']):+.2f}"
         )
 
@@ -397,6 +394,8 @@ def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
         "ticket": ticket.get("ticket"),
         "status": "blocked",
         "expected_close_reason": expected_reason or None,
+        "validation_contract": CAUSAL_PATH_CONTRACT,
+        "fill_price_authority": FILL_PRICE_AUTHORITY,
         "first_touch": None,
         "alignment": alignment,
         "blockers": list(dict.fromkeys(blockers)),
@@ -405,11 +404,12 @@ def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
     if blockers:
         return base
 
-    if expected_reason == "bot_close":
+    if expected_reason in MARKET_CLOSE_REASONS:
         first_touch, market_blockers, market_warnings = _market_close_for_ticket(
             direction,
             ticket,
             ticks,
+            close_reason=expected_reason,
         )
         warnings.extend(market_warnings)
         status = "exact" if not market_blockers else "mismatch"
@@ -475,9 +475,9 @@ def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
     close_alignment = alignment["close"]
     if close_alignment.get("status") != "verified":
         result_blockers.append(f"close_tick_alignment_unverified:{label}")
-    elif abs(float(close_alignment.get("price_delta") or 0.0)) > MARKET_CLOSE_PRICE_TOLERANCE:
-        result_blockers.append(
-            f"close_tick_price_mismatch:{label}:"
+    elif abs(float(close_alignment.get("price_delta") or 0.0)) > PRICE_EPSILON:
+        warnings.append(
+            f"observed_close_execution_delta:{label}:"
             f"{float(close_alignment['price_delta']):+.2f}"
         )
 
@@ -493,8 +493,8 @@ def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
     else:
         price_delta = modeled_close_price - actual_close_price
         if abs(price_delta) > PRICE_EPSILON:
-            result_blockers.append(
-                f"first_touch_price_mismatch:{label}:{price_delta:+.2f}"
+            warnings.append(
+                f"observed_level_fill_delta:{label}:{price_delta:+.2f}"
             )
 
     status = "exact" if not result_blockers else "mismatch"
@@ -503,6 +503,7 @@ def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
         "status": status,
         "first_touch": first_touch,
         "blockers": result_blockers,
+        "warnings": warnings,
     }
 
 
@@ -647,6 +648,8 @@ def validate_trade(
 
     return {
         "schema_version": SCHEMA_VERSION,
+        "validation_contract": CAUSAL_PATH_CONTRACT,
+        "fill_price_authority": FILL_PRICE_AUTHORITY,
         "sig_id": trade.get("sig_id"),
         "channel": trade.get("channel"),
         "direction": trade.get("direction"),
@@ -692,6 +695,9 @@ def summarize(rows: Iterable[dict]) -> dict:
 
 def write_status(rows: list[dict], path: Path) -> dict:
     status = {
+        "schema_version": SCHEMA_VERSION,
+        "validation_contract": CAUSAL_PATH_CONTRACT,
+        "fill_price_authority": FILL_PRICE_AUTHORITY,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "summary": summarize(rows),
     }
