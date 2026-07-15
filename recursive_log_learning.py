@@ -32,6 +32,7 @@ DEFAULT_REPORT = DATA_DIR / "log_learning_report.json"
 DEFAULT_REGISTRY = DATA_DIR / "log_pattern_registry.json"
 
 SCHEMA_VERSION = 1
+REVIEW_SCHEMA_VERSION = 1
 ALLOWED_STATUSES = {
     "observed", "candidate", "covered", "regressed", "dismissed"
 }
@@ -529,13 +530,37 @@ def merge_review_metadata(pattern: dict, review: dict) -> dict:
 
     if status == "covered":
         required = (
-            "rule_version", "regression_test", "covered_after_utc",
-            "shadow_corpus_passed",
+            "rule_version", "fix_commit", "regression_test",
+            "covered_after_utc", "verification",
         )
         if any(field not in review or review.get(field) in (None, "") for field in required):
-            raise ValueError("review evidence requires rule, test, coverage time and shadow result")
-        if review.get("shadow_corpus_passed") is not True:
-            raise ValueError("review evidence requires a successful shadow corpus evaluation")
+            raise ValueError(
+                "review evidence requires rule, commit, test, coverage time "
+                "and verified coverage evidence"
+            )
+        fix_commit = str(review["fix_commit"])
+        verification = review["verification"]
+        required_checks = (
+            "test_passed", "full_suite_passed",
+            "corpus_rebuild_deterministic",
+        )
+        if (
+            len(fix_commit) != 40
+            or any(character not in "0123456789abcdef" for character in fix_commit)
+            or not isinstance(verification, dict)
+            or any(verification.get(check) is not True for check in required_checks)
+            or len(str(verification.get("source_fingerprint") or "")) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in str(verification.get("source_fingerprint") or "")
+            )
+            or len(str(verification.get("verified_commit") or "")) != 40
+            or any(
+                character not in "0123456789abcdef"
+                for character in str(verification.get("verified_commit") or "")
+            )
+        ):
+            raise ValueError("review evidence requires verified coverage evidence")
         covered_after = _parse_dt(review.get("covered_after_utc"))
         if covered_after is None:
             raise ValueError("review evidence has an invalid coverage timestamp")
@@ -547,9 +572,10 @@ def merge_review_metadata(pattern: dict, review: dict) -> dict:
         )
         result["coverage"] = {
             "rule_version": review["rule_version"],
+            "fix_commit": fix_commit,
             "regression_test": review["regression_test"],
             "covered_after_utc": review["covered_after_utc"],
-            "shadow_corpus_passed": bool(review["shadow_corpus_passed"]),
+            "verification": dict(verification),
             "reviewed_by": review["reviewed_by"],
             "reviewed_at_utc": review["reviewed_at_utc"],
         }
@@ -559,9 +585,10 @@ def merge_review_metadata(pattern: dict, review: dict) -> dict:
         result["status"] = "dismissed"
         result["coverage"] = {
             "rule_version": None,
+            "fix_commit": None,
             "regression_test": None,
             "covered_after_utc": None,
-            "shadow_corpus_passed": False,
+            "verification": None,
             "reviewed_by": review["reviewed_by"],
             "reviewed_at_utc": review["reviewed_at_utc"],
             "dismissal_reason": review["dismissal_reason"],
@@ -585,13 +612,12 @@ def _candidate_reason(
 
 def _aggregate_patterns(
     observations: Iterable[PatternObservation],
-    review_metadata: dict,
+    reviews: dict,
 ) -> list[dict]:
     grouped: dict[str, list[PatternObservation]] = defaultdict(list)
     for observation in observations:
         grouped[observation.pattern_id].append(observation)
 
-    reviews = review_metadata.get("reviews", review_metadata)
     patterns: list[dict] = []
     for pattern_id, rows in sorted(grouped.items()):
         rows = sorted(
@@ -660,9 +686,10 @@ def _aggregate_patterns(
             ),
             "coverage": {
                 "rule_version": None,
+                "fix_commit": None,
                 "regression_test": None,
                 "covered_after_utc": None,
-                "shadow_corpus_passed": False,
+                "verification": None,
                 "reviewed_by": None,
                 "reviewed_at_utc": None,
             },
@@ -851,10 +878,56 @@ def build_health(
     return health
 
 
-def _review_map(review_metadata: dict | None) -> dict:
-    value = review_metadata or {}
-    reviews = value.get("reviews", value)
-    return reviews if isinstance(reviews, dict) else {}
+def review_map(review_metadata: dict | None) -> dict:
+    value = review_metadata or {
+        "schema_version": REVIEW_SCHEMA_VERSION,
+        "reviews": {},
+    }
+    if not isinstance(value, dict):
+        raise ValueError("log review ledger must be a JSON object")
+    if value.get("schema_version") != REVIEW_SCHEMA_VERSION:
+        raise ValueError("unsupported log review schema_version")
+    reviews = value.get("reviews")
+    if not isinstance(reviews, dict):
+        raise ValueError("log review ledger requires a reviews object")
+    return reviews
+
+
+def source_fingerprint(outputs: LearningOutputs) -> str:
+    evidence = {
+        key: value
+        for key, value in outputs.registry["source_fingerprints"].items()
+        if key != "review_metadata"
+    }
+    return _fingerprint(evidence)
+
+
+def _latest_evidence_utc(
+    *,
+    events: Iterable[dict],
+    replay_rows: Iterable[dict],
+    accounting_rows: Iterable[dict],
+    observed_rows: Iterable[dict],
+    provider_catalog: dict,
+    patterns: Iterable[dict],
+) -> str | None:
+    candidates: list[tuple[datetime, str]] = []
+
+    def add(value: object) -> None:
+        parsed = _parse_dt(value)
+        if parsed is not None:
+            candidates.append((parsed, str(value)))
+
+    for rows in (events, replay_rows, accounting_rows, observed_rows):
+        for row in rows:
+            add(_signal_ts(row))
+    for row in provider_catalog.get("signals") or []:
+        add(_signal_ts(row))
+        for event in row.get("management_events") or []:
+            add(_signal_ts(event))
+    for pattern in patterns:
+        add(pattern.get("last_seen_utc"))
+    return max(candidates, key=lambda item: item[0])[1] if candidates else None
 
 
 def _latest_day_delta(patterns: Iterable[dict]) -> dict:
@@ -912,7 +985,11 @@ def build_learning_outputs(
     accounting_rows = list(accounting_rows)
     observed_rows = list(observed_rows)
     strategy_farm = dict(strategy_farm or {})
-    review_metadata = dict(review_metadata or {})
+    review_metadata = dict(review_metadata or {
+        "schema_version": REVIEW_SCHEMA_VERSION,
+        "reviews": {},
+    })
+    reviews = review_map(review_metadata)
 
     observations = collect_normalized_patterns(
         events=events,
@@ -921,7 +998,7 @@ def build_learning_outputs(
         observed_rows=observed_rows,
         provider_catalog=provider_catalog,
     )
-    patterns = _aggregate_patterns(observations, review_metadata)
+    patterns = _aggregate_patterns(observations, reviews)
     fingerprints = {
         "events": _fingerprint(events),
         "replay": _fingerprint(replay_rows),
@@ -929,7 +1006,7 @@ def build_learning_outputs(
         "observed_ticks": _fingerprint(observed_rows),
         "provider_catalog": _fingerprint(_artifact_identity(provider_catalog)),
         "strategy_farm": _fingerprint(_artifact_identity(strategy_farm)),
-        "review_metadata": _fingerprint(_review_map(review_metadata)),
+        "review_metadata": _fingerprint(reviews),
     }
     registry = {
         "schema_version": SCHEMA_VERSION,
@@ -989,6 +1066,14 @@ def build_learning_outputs(
             "accounting_trades": len(accounting_rows),
             "observed_tick_trades": len(observed_rows),
             "provider_records": len(provider_catalog.get("signals") or []),
+            "latest_evidence_utc": _latest_evidence_utc(
+                events=events,
+                replay_rows=replay_rows,
+                accounting_rows=accounting_rows,
+                observed_rows=observed_rows,
+                provider_catalog=provider_catalog,
+                patterns=patterns,
+            ),
             "source_fingerprints": fingerprints,
         },
         "health": health,
@@ -1044,6 +1129,29 @@ def write_learning_outputs(
     return outputs
 
 
+def build_default_learning_outputs(
+    *,
+    review_metadata: dict | None = None,
+) -> LearningOutputs:
+    reviews = (
+        load_json(DEFAULT_REVIEWS, {
+            "schema_version": REVIEW_SCHEMA_VERSION,
+            "reviews": {},
+        })
+        if review_metadata is None
+        else review_metadata
+    )
+    return build_learning_outputs(
+        events=load_jsonl(DEFAULT_EVENTS),
+        replay_rows=load_jsonl(DEFAULT_REPLAY),
+        accounting_rows=load_jsonl(DEFAULT_ACCOUNTING),
+        observed_rows=load_jsonl(DEFAULT_OBSERVED),
+        provider_catalog=load_json(DEFAULT_PROVIDER),
+        strategy_farm=load_json(DEFAULT_STRATEGY_FARM),
+        review_metadata=reviews,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Build deterministic recursive reliability evidence")
@@ -1066,7 +1174,10 @@ def main(argv: list[str] | None = None) -> int:
         observed_rows=load_jsonl(args.observed),
         provider_catalog=load_json(args.provider),
         strategy_farm=load_json(args.strategy_farm),
-        review_metadata=load_json(args.reviews),
+        review_metadata=load_json(args.reviews, {
+            "schema_version": REVIEW_SCHEMA_VERSION,
+            "reviews": {},
+        }),
     )
     _atomic_write(args.report, outputs.report_bytes)
     _atomic_write(args.registry, outputs.registry_bytes)

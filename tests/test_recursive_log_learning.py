@@ -5,6 +5,36 @@ import pytest
 import recursive_log_learning as learning
 
 
+INVALID_STOP_FIX_COMMIT = "6386be66cc986bdf00c1d0c5e773277cbfa6392e"
+INVALID_STOP_TEST_NODE = (
+    "tests/test_pending_actions.py::TestModifyPreconditions::"
+    "test_invalid_stop_waits_without_mt5_submission"
+)
+
+
+def _empty_reviews():
+    return {"schema_version": 1, "reviews": {}}
+
+
+def _covered_review(*, covered_after="2026-07-14T08:00:00+00:00"):
+    return {
+        "status": "covered",
+        "rule_version": "pending-actions.invalid-stop-preflight.v1",
+        "fix_commit": INVALID_STOP_FIX_COMMIT,
+        "regression_test": INVALID_STOP_TEST_NODE,
+        "reviewed_by": "project_owner",
+        "reviewed_at_utc": covered_after,
+        "covered_after_utc": covered_after,
+        "verification": {
+            "test_passed": True,
+            "full_suite_passed": True,
+            "corpus_rebuild_deterministic": True,
+            "source_fingerprint": "a" * 64,
+            "verified_commit": "b" * 40,
+        },
+    }
+
+
 def _invalid_stop(ticket, *, ts="2026-07-13T06:42:46+00:00", attempts=234):
     return {
         "ts": ts,
@@ -97,7 +127,7 @@ def _build(**overrides):
         "observed_rows": _exact_observed(),
         "provider_catalog": _formal_catalog(),
         "strategy_farm": _verified_strategy(),
-        "review_metadata": {},
+        "review_metadata": _empty_reviews(),
     }
     values.update(overrides)
     return learning.build_learning_outputs(**values)
@@ -173,7 +203,7 @@ def test_rerunning_same_corpus_is_byte_deterministic(tmp_path):
         "observed_rows": _exact_observed(),
         "provider_catalog": _formal_catalog(),
         "strategy_farm": _verified_strategy(),
-        "review_metadata": {},
+        "review_metadata": _empty_reviews(),
     }
 
     first = learning.write_learning_outputs(output_dir=tmp_path, **kwargs)
@@ -218,46 +248,53 @@ def test_reviewed_status_requires_auditable_human_evidence(review):
 
 
 def test_covered_status_requires_successful_whole_corpus_shadow_evaluation():
-    review = {
-        "status": "covered",
-        "rule_version": "executor.preflight.v1",
-        "regression_test": "tests/test_pending_actions.py::test_preflight",
-        "reviewed_by": "project_owner",
-        "reviewed_at_utc": "2026-07-14T08:00:00+00:00",
-        "covered_after_utc": "2026-07-14T08:00:00+00:00",
-        "shadow_corpus_passed": False,
-    }
+    review = _covered_review()
+    review["verification"]["corpus_rebuild_deterministic"] = False
 
-    with pytest.raises(ValueError, match="shadow corpus"):
+    with pytest.raises(ValueError, match="verified coverage evidence"):
         learning.merge_review_metadata(
             {"pattern_id": "execution.invalid_stops.modify_sltp"}, review)
 
 
 def test_covered_pattern_becomes_regressed_only_after_coverage_timestamp():
-    review = {
-        "status": "covered",
-        "rule_version": "executor.preflight.v1",
-        "regression_test": (
-            "tests/test_pending_actions.py::"
-            "test_temporarily_invalid_stop_waits_without_mt5_submission"
-        ),
-        "reviewed_by": "project_owner",
-        "reviewed_at_utc": "2026-07-14T08:00:00+00:00",
-        "covered_after_utc": "2026-07-14T08:00:00+00:00",
-        "shadow_corpus_passed": True,
-    }
+    review = _covered_review()
+    ledger = {"schema_version": 1, "reviews": {
+        "execution.invalid_stops.modify_sltp": review,
+    }}
     old = _build(
         events=[_invalid_stop(1)],
-        review_metadata={"execution.invalid_stops.modify_sltp": review},
+        review_metadata=ledger,
     )
     new = _build(
         events=[_invalid_stop(1, ts="2026-07-14T09:00:00+00:00", attempts=1)],
-        review_metadata={"execution.invalid_stops.modify_sltp": review},
+        review_metadata=ledger,
     )
 
     assert old.registry["patterns"][0]["status"] == "covered"
     assert new.registry["patterns"][0]["status"] == "regressed"
     assert new.report["learning_flywheel"]["regressed_patterns"] == 1
+
+
+def test_covered_review_requires_versioned_verified_evidence():
+    review = _covered_review()
+    review["verification"]["test_passed"] = False
+    with pytest.raises(ValueError, match="verified coverage evidence"):
+        _build(
+            events=[_invalid_stop(1, attempts=1)],
+            review_metadata={"schema_version": 1, "reviews": {
+                "execution.invalid_stops.modify_sltp": review,
+            }},
+        )
+
+
+def test_report_exposes_latest_retained_evidence_timestamp():
+    outputs = _build(events=[_invalid_stop(
+        1, ts="2026-07-15T07:01:02.345+00:00", attempts=1,
+    )])
+
+    assert outputs.report["corpus"]["latest_evidence_utc"] == (
+        "2026-07-15T07:01:02.345+00:00"
+    )
 
 
 def test_strategy_gate_requires_every_independent_health_layer():
