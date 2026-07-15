@@ -64,8 +64,11 @@ decisions. It uses a versioned object keyed by stable `pattern_id` values.
 A covered record contains `status`, `rule_version`, the full 40-character
 `fix_commit`, an exact `regression_test` pytest node, reviewer identity, and
 tool-assigned UTC review and coverage timestamps. Its `verification` object
-records the tested `HEAD`, source SHA-256, and successful results for the exact
-test, complete suite and deterministic corpus rebuild. For example, the real
+records the tested `HEAD`, evidence-corpus SHA-256, and successful results for
+the exact test, complete suite and deterministic corpus rebuild. The corpus
+fingerprint excludes the review ledger itself to avoid a self-referential
+hash; the ledger receives its own separate fingerprint in publication status.
+For example, the real
 invalid-stop regression node is
 `tests/test_pending_actions.py::TestModifyPreconditions::test_invalid_stop_waits_without_mt5_submission`.
 
@@ -111,7 +114,7 @@ the two derived learning artifacts. It contains:
 - the local git commit and dirty state;
 - named dependency results from accounting, observed ticks, provider catalog
   and strategy farm generation;
-- source and review-ledger fingerprints;
+- separate evidence-corpus and review-ledger fingerprints;
 - report and registry SHA-256 values;
 - latest retained evidence timestamp;
 - a publication ID derived from all fingerprints;

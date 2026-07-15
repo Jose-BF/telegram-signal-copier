@@ -111,7 +111,12 @@ def review_map(review_metadata: dict | None) -> dict:
 
 
 def source_fingerprint(outputs: LearningOutputs) -> str:
-    return _fingerprint(outputs.registry["source_fingerprints"])
+    evidence = {
+        key: value
+        for key, value in outputs.registry["source_fingerprints"].items()
+        if key != "review_metadata"
+    }
+    return _fingerprint(evidence)
 
 
 def build_default_learning_outputs(
@@ -422,9 +427,10 @@ def publish_status(
 ```
 
 Canonicalize mappings before hashing. Validate the report and registry JSON,
-require matching `source_fingerprints`, require the report's
-`registry_fingerprint` to equal the registry byte hash and derive a stable
-publication ID from source, artifact and commit fingerprints. Set
+require matching `source_fingerprints`, fingerprint evidence inputs without
+`review_metadata`, fingerprint `review_metadata` separately, require the
+report's `registry_fingerprint` to equal the registry byte hash and derive a
+stable publication ID from corpus, review, artifact and commit fingerprints. Set
 `conclusions_allowed` only when every dependency passed, artifacts are valid,
 and the report itself says `safe_for_strategy_simulation`. Always write the
 status atomically, including failure paths.
