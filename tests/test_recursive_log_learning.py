@@ -247,13 +247,27 @@ def test_reviewed_status_requires_auditable_human_evidence(review):
             {"pattern_id": "execution.invalid_stops.modify_sltp"}, review)
 
 
-def test_covered_status_requires_successful_whole_corpus_shadow_evaluation():
+def test_covered_status_requires_deterministic_corpus_rebuild():
     review = _covered_review()
     review["verification"]["corpus_rebuild_deterministic"] = False
 
     with pytest.raises(ValueError, match="verified coverage evidence"):
         learning.merge_review_metadata(
             {"pattern_id": "execution.invalid_stops.modify_sltp"}, review)
+
+
+def test_dismissed_status_requires_verified_corpus_fingerprint():
+    review = {
+        "status": "dismissed",
+        "dismissal_reason": "One historical broker outage.",
+        "reviewed_by": "project_owner",
+        "reviewed_at_utc": "2026-07-14T08:00:00+00:00",
+    }
+
+    with pytest.raises(ValueError, match="corpus fingerprint"):
+        learning.merge_review_metadata(
+            {"pattern_id": "execution.transient_broker_outage"}, review,
+        )
 
 
 def test_covered_pattern_becomes_regressed_only_after_coverage_timestamp():
@@ -294,6 +308,24 @@ def test_report_exposes_latest_retained_evidence_timestamp():
 
     assert outputs.report["corpus"]["latest_evidence_utc"] == (
         "2026-07-15T07:01:02.345+00:00"
+    )
+
+
+def test_candidate_evidence_describes_only_the_proof_we_actually_run():
+    outputs = _build(events=[_invalid_stop(1, attempts=1)])
+    candidate = next(
+        row for row in outputs.report["candidate_queue"]
+        if row["pattern_id"] == "execution.invalid_stops.modify_sltp"
+    )
+
+    assert "deterministic_corpus_rebuild" in (
+        candidate["required_promotion_evidence"]
+    )
+    assert "whole_corpus_shadow_pass" not in (
+        candidate["required_promotion_evidence"]
+    )
+    assert "deterministic whole-corpus rebuild" in (
+        outputs.report["learning_flywheel"]["promotion_boundary"]
     )
 
 

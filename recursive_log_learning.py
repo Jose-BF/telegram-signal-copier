@@ -582,6 +582,17 @@ def merge_review_metadata(pattern: dict, review: dict) -> dict:
     else:
         if not review.get("dismissal_reason"):
             raise ValueError("review evidence requires a dismissal reason")
+        source_fingerprint = str(review.get("source_fingerprint") or "")
+        if (
+            len(source_fingerprint) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in source_fingerprint
+            )
+        ):
+            raise ValueError(
+                "review evidence requires a verified corpus fingerprint"
+            )
         result["status"] = "dismissed"
         result["coverage"] = {
             "rule_version": None,
@@ -592,6 +603,7 @@ def merge_review_metadata(pattern: dict, review: dict) -> dict:
             "reviewed_by": review["reviewed_by"],
             "reviewed_at_utc": review["reviewed_at_utc"],
             "dismissal_reason": review["dismissal_reason"],
+            "source_fingerprint": source_fingerprint,
         }
     return result
 
@@ -1047,7 +1059,7 @@ def build_learning_outputs(
             "required_promotion_evidence": [
                 "deterministic_fixture",
                 "regression_test",
-                "whole_corpus_shadow_pass",
+                "deterministic_corpus_rebuild",
                 "human_review",
             ],
         }
@@ -1094,8 +1106,8 @@ def build_learning_outputs(
             ),
             "latest_day_delta": _latest_day_delta(patterns),
             "promotion_boundary": (
-                "logs propose; fixtures, tests, whole-corpus shadow evaluation "
-                "and human review promote"
+                "logs propose; fixtures, tests, deterministic whole-corpus "
+                "rebuild and human review promote"
             ),
         },
         "candidate_queue": candidates,
