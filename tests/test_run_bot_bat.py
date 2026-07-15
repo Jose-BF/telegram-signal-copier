@@ -13,3 +13,12 @@ def test_final_watcher_exit_backup_regenerates_and_tracks_ledger():
     assert r"git add -f data\provider_signal_catalog.json" in text
     assert r"data\strategy_farm.json" in text
     assert r"data\simulation_runs" in text
+
+
+def test_final_watcher_exit_builds_observed_audit_before_readiness():
+    text = Path("run_bot.bat").read_text(encoding="utf-8")
+
+    observed = text.index("_regenerate_observed_tick_replay_audit()")
+    readiness = text.index("_regenerate_replay_readiness_report()")
+
+    assert observed < readiness
