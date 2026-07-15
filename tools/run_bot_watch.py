@@ -40,6 +40,11 @@ if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 REPO_DIR = Path(__file__).resolve().parent.parent
+if str(REPO_DIR) not in sys.path:
+    sys.path.insert(0, str(REPO_DIR))
+
+import log_learning_publication as learning_publication
+
 MAIN_PY  = REPO_DIR / "main.py"
 RECONCILE_STATUS_FILE = REPO_DIR / "data" / "reconcile_status.json"
 REPLAY_STATUS_FILE = REPO_DIR / "data" / "replay_status.json"
@@ -52,6 +57,8 @@ PROVIDER_SIGNAL_CATALOG_FILE = REPO_DIR / "data" / "provider_signal_catalog.json
 STRATEGY_FARM_FILE = REPO_DIR / "data" / "strategy_farm.json"
 LOG_LEARNING_REPORT_FILE = REPO_DIR / "data" / "log_learning_report.json"
 LOG_PATTERN_REGISTRY_FILE = REPO_DIR / "data" / "log_pattern_registry.json"
+LOG_LEARNING_STATUS_FILE = REPO_DIR / "data" / "log_learning_status.json"
+LOG_PATTERN_REVIEWS_FILE = REPO_DIR / "data" / "log_pattern_reviews.json"
 STRATEGY_FARM_FROM_DATE = os.getenv("STRATEGY_FARM_FROM_DATE", "2026-07-06")
 STRATEGY_FARM_LATENCY_MS = os.getenv("STRATEGY_FARM_LATENCY_MS", "0")
 STRATEGY_FARM_VOLUME_PER_LEG = os.getenv(
@@ -484,6 +491,7 @@ def _clear_mutable_offline_outputs() -> None:
     STRATEGY_FARM_FILE.unlink(missing_ok=True)
     LOG_LEARNING_REPORT_FILE.unlink(missing_ok=True)
     LOG_PATTERN_REGISTRY_FILE.unlink(missing_ok=True)
+    LOG_LEARNING_STATUS_FILE.unlink(missing_ok=True)
 
 
 def _regenerate_provider_signal_catalog() -> bool:
@@ -665,7 +673,9 @@ def _regenerate_strategy_farm() -> bool:
         return False
 
 
-def _regenerate_recursive_learning_outputs() -> bool:
+def _regenerate_recursive_learning_outputs(
+    dependencies: dict[str, bool],
+) -> bool:
     """Publish whole-corpus reliability evidence after causal builders.
 
     A diagnostic-only result is still a successful build: its purpose is to
@@ -674,27 +684,64 @@ def _regenerate_recursive_learning_outputs() -> bool:
     """
     LOG_LEARNING_REPORT_FILE.unlink(missing_ok=True)
     LOG_PATTERN_REGISTRY_FILE.unlink(missing_ok=True)
+    LOG_LEARNING_STATUS_FILE.unlink(missing_ok=True)
+    attempted_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    returncode = None
+    error = None
+    status = None
     try:
         rec = subprocess.run(
             [sys.executable, "recursive_log_learning.py", "--quiet"],
             cwd=REPO_DIR, capture_output=True, text=True, timeout=120,
         )
+        returncode = rec.returncode
         if (
             rec.returncode == 0
             and LOG_LEARNING_REPORT_FILE.exists()
             and LOG_PATTERN_REGISTRY_FILE.exists()
         ):
             print("[Watch] aprendizaje recursivo actualizado.", flush=True)
-            return True
-        print(f"[Watch] recursive_log_learning.py fallo (rc={rec.returncode}): "
-              f"{(rec.stderr or rec.stdout or '')[:1000]}", flush=True)
-        return False
+        else:
+            error = rec.stderr or rec.stdout or "learning artifacts missing"
+            LOG_LEARNING_REPORT_FILE.unlink(missing_ok=True)
+            LOG_PATTERN_REGISTRY_FILE.unlink(missing_ok=True)
+            print(f"[Watch] recursive_log_learning.py fallo (rc={rec.returncode}): "
+                  f"{error[:1000]}", flush=True)
     except BaseException as e:
+        error = f"{type(e).__name__}: {e}"
+        LOG_LEARNING_REPORT_FILE.unlink(missing_ok=True)
+        LOG_PATTERN_REGISTRY_FILE.unlink(missing_ok=True)
         print(f"[Watch] error ejecutando recursive_log_learning.py: {e}",
               flush=True)
         if isinstance(e, (KeyboardInterrupt, SystemExit)):
             raise
+    finally:
+        try:
+            status = learning_publication.publish_status(
+                status_path=LOG_LEARNING_STATUS_FILE,
+                report_path=LOG_LEARNING_REPORT_FILE,
+                registry_path=LOG_PATTERN_REGISTRY_FILE,
+                dependencies=dependencies,
+                build_returncode=returncode,
+                git_commit=_local_head(),
+                git_dirty=bool(_git("status", "--porcelain").stdout.strip()),
+                attempted_at_utc=attempted_at,
+                error=error,
+            )
+        except Exception as publication_error:
+            print(
+                f"[Watch] no pude publicar log_learning_status.json: "
+                f"{publication_error}",
+                flush=True,
+            )
+    if not status:
         return False
+    if status["ok"]:
+        print("[Watch] estado de aprendizaje vigente.", flush=True)
+    else:
+        blockers = ", ".join(status["blockers"]) or "unknown"
+        print(f"[Watch] aprendizaje no vigente: {blockers}", flush=True)
+    return bool(status["ok"])
 
 
 def _push_session_data() -> None:
@@ -708,19 +755,44 @@ def _push_session_data() -> None:
     Antes de subir, regenera el ledger reconciliado (reconcile_mt5_ledger.py).
     """
     _clear_mutable_offline_outputs()
-    ledger_ok = _regenerate_ledger()
-    if ledger_ok:
-        replay_ok = _regenerate_replay_trades()
-        if replay_ok:
-            audit_ok = _regenerate_accounting_replay_audit()
-            if audit_ok:
-                _regenerate_replay_tick_cache_status()
-                _regenerate_replay_readiness_report()
-                observed_ok = _regenerate_observed_tick_replay_audit()
-                catalog_ok = _regenerate_provider_signal_catalog()
-                if observed_ok and catalog_ok:
-                    _regenerate_strategy_farm()
-                    _regenerate_recursive_learning_outputs()
+    builder_results = {
+        "accounting": False,
+        "ledger": False,
+        "observed_ticks": False,
+        "provider_catalog": False,
+        "readiness": False,
+        "replay": False,
+        "strategy_farm": False,
+        "tick_cache": False,
+    }
+    builder_results["ledger"] = _regenerate_ledger()
+    if builder_results["ledger"]:
+        builder_results["replay"] = _regenerate_replay_trades()
+        if builder_results["replay"]:
+            builder_results["accounting"] = (
+                _regenerate_accounting_replay_audit()
+            )
+            if builder_results["accounting"]:
+                builder_results["tick_cache"] = (
+                    _regenerate_replay_tick_cache_status()
+                )
+                builder_results["readiness"] = (
+                    _regenerate_replay_readiness_report()
+                )
+                builder_results["observed_ticks"] = (
+                    _regenerate_observed_tick_replay_audit()
+                )
+                builder_results["provider_catalog"] = (
+                    _regenerate_provider_signal_catalog()
+                )
+                if (
+                    builder_results["observed_ticks"]
+                    and builder_results["provider_catalog"]
+                ):
+                    builder_results["strategy_farm"] = (
+                        _regenerate_strategy_farm()
+                    )
+    _regenerate_recursive_learning_outputs(builder_results)
     files = [
         "data/trade_events.jsonl",
         "data/ledger.jsonl",
@@ -737,6 +809,8 @@ def _push_session_data() -> None:
         "data/strategy_farm.json",
         "data/log_learning_report.json",
         "data/log_pattern_registry.json",
+        "data/log_learning_status.json",
+        "data/log_pattern_reviews.json",
         "data/simulation_runs",
         "data/trade_events_TEST.jsonl",
         "data/trade_journal.csv",

@@ -1,9 +1,48 @@
 import json
 import subprocess
+from hashlib import sha256
 
 import pytest
 
 import tools.run_bot_watch as watch
+
+
+def _canonical_bytes(value):
+    return (
+        json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+    ).encode("utf-8")
+
+
+def _write_learning_artifacts(report_path, registry_path):
+    sources = {
+        "events": "a" * 64,
+        "replay": "b" * 64,
+        "accounting": "c" * 64,
+        "observed_ticks": "d" * 64,
+        "provider_catalog": "e" * 64,
+        "strategy_farm": "f" * 64,
+        "review_metadata": "1" * 64,
+    }
+    registry = {
+        "schema_version": 1,
+        "source_fingerprints": sources,
+        "summary": {"patterns": 0},
+        "patterns": [],
+    }
+    registry_bytes = _canonical_bytes(registry)
+    report = {
+        "schema_version": 1,
+        "mode": "diagnostic_only",
+        "safe_for_strategy_simulation": False,
+        "hard_gate_blockers": ["market_replay"],
+        "corpus": {
+            "latest_evidence_utc": "2026-07-15T10:00:00+00:00",
+            "source_fingerprints": sources,
+        },
+        "registry_fingerprint": sha256(registry_bytes).hexdigest(),
+    }
+    report_path.write_bytes(_canonical_bytes(report))
+    registry_path.write_bytes(registry_bytes)
 
 
 def test_regenerate_ledger_writes_failure_status(tmp_path, monkeypatch):
@@ -333,9 +372,19 @@ def test_regenerate_recursive_learning_accepts_diagnostic_report(
     data_dir.mkdir()
     report = data_dir / "log_learning_report.json"
     registry = data_dir / "log_pattern_registry.json"
+    status = data_dir / "log_learning_status.json"
     monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
     monkeypatch.setattr(watch, "LOG_LEARNING_REPORT_FILE", report)
     monkeypatch.setattr(watch, "LOG_PATTERN_REGISTRY_FILE", registry)
+    monkeypatch.setattr(watch, "LOG_LEARNING_STATUS_FILE", status)
+    monkeypatch.setattr(watch, "_local_head", lambda: "9" * 40)
+    monkeypatch.setattr(
+        watch,
+        "_git",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=args, returncode=0, stdout="", stderr="",
+        ),
+    )
 
     def fake_run(*args, **kwargs):
         assert args[0] == [
@@ -343,16 +392,23 @@ def test_regenerate_recursive_learning_accepts_diagnostic_report(
             "recursive_log_learning.py",
             "--quiet",
         ]
-        report.write_text(
-            '{"mode":"diagnostic_only"}\n', encoding="utf-8")
-        registry.write_text(
-            '{"patterns":[]}\n', encoding="utf-8")
+        _write_learning_artifacts(report, registry)
         return subprocess.CompletedProcess(
             args=args[0], returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(watch.subprocess, "run", fake_run)
 
-    assert watch._regenerate_recursive_learning_outputs() is True
+    dependencies = {
+        "accounting": True,
+        "observed_ticks": True,
+        "provider_catalog": True,
+        "strategy_farm": True,
+    }
+    assert watch._regenerate_recursive_learning_outputs(dependencies) is True
+    published = json.loads(status.read_text(encoding="utf-8"))
+    assert published["ok"] is True
+    assert published["fresh"] is True
+    assert published["conclusions_allowed"] is False
 
 
 def test_failed_offline_builders_remove_stale_mutable_artifacts(
@@ -385,11 +441,21 @@ def test_failed_recursive_learning_removes_both_stale_outputs(
     data_dir.mkdir()
     report = data_dir / "log_learning_report.json"
     registry = data_dir / "log_pattern_registry.json"
+    status = data_dir / "log_learning_status.json"
     report.write_text('{"old":true}\n', encoding="utf-8")
     registry.write_text('{"old":true}\n', encoding="utf-8")
     monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
     monkeypatch.setattr(watch, "LOG_LEARNING_REPORT_FILE", report)
     monkeypatch.setattr(watch, "LOG_PATTERN_REGISTRY_FILE", registry)
+    monkeypatch.setattr(watch, "LOG_LEARNING_STATUS_FILE", status)
+    monkeypatch.setattr(watch, "_local_head", lambda: "9" * 40)
+    monkeypatch.setattr(
+        watch,
+        "_git",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=args, returncode=0, stdout="", stderr="",
+        ),
+    )
     monkeypatch.setattr(
         watch.subprocess,
         "run",
@@ -397,9 +463,14 @@ def test_failed_recursive_learning_removes_both_stale_outputs(
             args=args[0], returncode=1, stdout="", stderr="failed"),
     )
 
-    assert watch._regenerate_recursive_learning_outputs() is False
+    assert watch._regenerate_recursive_learning_outputs({
+        "provider_catalog": True,
+    }) is False
     assert not report.exists()
     assert not registry.exists()
+    published = json.loads(status.read_text(encoding="utf-8"))
+    assert published["ok"] is False
+    assert "learning_build_failed:1" in published["blockers"]
 
 
 def test_regenerate_ledger_records_keyboard_interrupt_before_reraising(
@@ -440,7 +511,9 @@ def test_push_session_data_adds_reconcile_status(monkeypatch):
     monkeypatch.setattr(watch, "_regenerate_provider_signal_catalog", lambda: False)
     monkeypatch.setattr(watch, "_regenerate_strategy_farm", lambda: False)
     monkeypatch.setattr(
-        watch, "_regenerate_recursive_learning_outputs", lambda: False)
+        watch, "_regenerate_recursive_learning_outputs",
+        lambda dependencies: False,
+    )
 
     def fake_git(*args, capture=True):
         if args[:2] == ("add", "-f"):
@@ -470,6 +543,8 @@ def test_push_session_data_adds_reconcile_status(monkeypatch):
     assert "data/strategy_farm.json" in added
     assert "data/log_learning_report.json" in added
     assert "data/log_pattern_registry.json" in added
+    assert "data/log_learning_status.json" in added
+    assert "data/log_pattern_reviews.json" in added
     assert "data/simulation_runs" in added
 
 
@@ -496,8 +571,15 @@ def test_push_pipeline_runs_learning_after_all_causal_builders(monkeypatch):
     monkeypatch.setattr(
         watch, "_regenerate_provider_signal_catalog", step("provider"))
     monkeypatch.setattr(watch, "_regenerate_strategy_farm", step("farm"))
+    learning_dependencies = []
+
+    def learning(dependencies):
+        calls.append("learning")
+        learning_dependencies.append(dict(dependencies))
+        return True
+
     monkeypatch.setattr(
-        watch, "_regenerate_recursive_learning_outputs", step("learning"))
+        watch, "_regenerate_recursive_learning_outputs", learning)
 
     def fake_git(*args, capture=True):
         return subprocess.CompletedProcess(
@@ -515,6 +597,39 @@ def test_push_pipeline_runs_learning_after_all_causal_builders(monkeypatch):
         "ledger", "replay", "accounting", "tick_cache", "readiness",
         "observed", "provider", "farm", "learning",
     ]
+    assert all(learning_dependencies[0].values())
+
+
+def test_push_pipeline_runs_learning_after_upstream_failure(monkeypatch):
+    captured = []
+    monkeypatch.setattr(watch, "_clear_mutable_offline_outputs", lambda: None)
+    monkeypatch.setattr(watch, "_regenerate_ledger", lambda: False)
+    monkeypatch.setattr(
+        watch,
+        "_regenerate_recursive_learning_outputs",
+        lambda dependencies: captured.append(dict(dependencies)) or False,
+    )
+    monkeypatch.setattr(
+        watch,
+        "_git",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=args, returncode=0, stdout="", stderr="",
+        ),
+    )
+
+    watch._push_session_data()
+
+    assert len(captured) == 1
+    assert captured[0] == {
+        "accounting": False,
+        "ledger": False,
+        "observed_ticks": False,
+        "provider_catalog": False,
+        "readiness": False,
+        "replay": False,
+        "strategy_farm": False,
+        "tick_cache": False,
+    }
 
 
 def test_push_session_data_clears_stale_farm_when_pipeline_stops_early(
@@ -525,15 +640,23 @@ def test_push_session_data_clears_stale_farm_when_pipeline_stops_early(
     farm = data_dir / "strategy_farm.json"
     learning_report = data_dir / "log_learning_report.json"
     pattern_registry = data_dir / "log_pattern_registry.json"
+    learning_status = data_dir / "log_learning_status.json"
     catalog.write_text('{"generated_at":"old"}\n', encoding="utf-8")
     farm.write_text('{"generated_at":"old"}\n', encoding="utf-8")
     learning_report.write_text('{"old":true}\n', encoding="utf-8")
     pattern_registry.write_text('{"old":true}\n', encoding="utf-8")
+    learning_status.write_text('{"old":true}\n', encoding="utf-8")
     monkeypatch.setattr(watch, "PROVIDER_SIGNAL_CATALOG_FILE", catalog)
     monkeypatch.setattr(watch, "STRATEGY_FARM_FILE", farm)
     monkeypatch.setattr(watch, "LOG_LEARNING_REPORT_FILE", learning_report)
     monkeypatch.setattr(watch, "LOG_PATTERN_REGISTRY_FILE", pattern_registry)
+    monkeypatch.setattr(watch, "LOG_LEARNING_STATUS_FILE", learning_status)
     monkeypatch.setattr(watch, "_regenerate_ledger", lambda: False)
+    monkeypatch.setattr(
+        watch,
+        "_regenerate_recursive_learning_outputs",
+        lambda dependencies: False,
+    )
 
     def fake_git(*args, capture=True):
         return subprocess.CompletedProcess(
@@ -551,6 +674,7 @@ def test_push_session_data_clears_stale_farm_when_pipeline_stops_early(
     assert not farm.exists()
     assert not learning_report.exists()
     assert not pattern_registry.exists()
+    assert not learning_status.exists()
 
 
 def test_pull_main_ff_uses_explicit_origin_main(monkeypatch):
