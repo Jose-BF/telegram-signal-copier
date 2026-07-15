@@ -37,7 +37,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "critical",
@@ -80,7 +80,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "critical",
@@ -123,7 +123,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "critical",
@@ -145,7 +145,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "critical",
@@ -166,7 +166,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "critical",
@@ -187,7 +187,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "critical",
@@ -204,7 +204,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "critical",
@@ -224,7 +224,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "critical",
@@ -242,7 +242,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "critical",
@@ -260,7 +260,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "critical",
@@ -277,7 +277,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "critical",
@@ -294,7 +294,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "critical",
@@ -311,7 +311,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "critical",
@@ -339,7 +339,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -366,7 +366,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -398,7 +398,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -422,7 +422,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -445,7 +445,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -468,7 +468,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -489,7 +489,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -508,7 +508,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -527,7 +527,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -547,7 +547,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -566,7 +566,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -584,7 +584,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -602,7 +602,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -620,7 +620,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -637,7 +637,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -654,7 +654,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -671,7 +671,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -688,7 +688,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -705,7 +705,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -722,7 +722,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -739,7 +739,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -756,7 +756,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -773,7 +773,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -790,7 +790,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -807,7 +807,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -824,7 +824,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -841,7 +841,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -858,7 +858,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -875,7 +875,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -892,7 +892,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -909,7 +909,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -926,7 +926,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -943,7 +943,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -960,7 +960,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -977,7 +977,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "high",
@@ -1020,7 +1020,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "medium",
@@ -1044,7 +1044,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "medium",
@@ -1068,7 +1068,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "medium",
@@ -1089,7 +1089,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "medium",
@@ -1109,7 +1109,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "medium",
@@ -1128,7 +1128,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "medium",
@@ -1146,7 +1146,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "medium",
@@ -1163,7 +1163,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "medium",
@@ -1195,7 +1195,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "low",
@@ -1214,7 +1214,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "low",
@@ -1234,7 +1234,7 @@
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
-        "whole_corpus_shadow_pass",
+        "deterministic_corpus_rebuild",
         "human_review"
       ],
       "severity": "low",
@@ -1397,7 +1397,7 @@
       "regressed_patterns": []
     },
     "patterns_total": 79,
-    "promotion_boundary": "logs propose; fixtures, tests, whole-corpus shadow evaluation and human review promote",
+    "promotion_boundary": "logs propose; fixtures, tests, deterministic whole-corpus rebuild and human review promote",
     "regressed_patterns": 0
   },
   "mode": "diagnostic_only",
