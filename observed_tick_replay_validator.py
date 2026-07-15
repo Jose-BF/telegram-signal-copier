@@ -6,7 +6,7 @@ import argparse
 import json
 import sys
 from collections import Counter
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable
 
@@ -693,12 +693,23 @@ def summarize(rows: Iterable[dict]) -> dict:
     }
 
 
-def write_status(rows: list[dict], path: Path) -> dict:
+def write_status(
+    rows: list[dict],
+    path: Path,
+    *,
+    scope: dict | None = None,
+) -> dict:
     status = {
         "schema_version": SCHEMA_VERSION,
         "validation_contract": CAUSAL_PATH_CONTRACT,
         "fill_price_authority": FILL_PRICE_AUTHORITY,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "scope": scope or {
+            "since": None,
+            "until": None,
+            "input_trades": len(rows),
+            "selected_trades": len(rows),
+        },
         "summary": summarize(rows),
     }
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -709,6 +720,25 @@ def write_status(rows: list[dict], path: Path) -> dict:
     return status
 
 
+def _trade_in_scope(
+    trade: dict,
+    *,
+    since: date | None,
+    until: date | None,
+) -> bool:
+    value = trade.get("signal_dt_utc") or trade.get("open_dt_utc")
+    raw_day = str(value or "")[:10]
+    try:
+        trade_day = date.fromisoformat(raw_day)
+    except ValueError:
+        return since is None and until is None
+    if since and trade_day < since:
+        return False
+    if until and trade_day > until:
+        return False
+    return True
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Validate observed MT5 closes against cached bid/ask ticks")
@@ -717,9 +747,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--status", type=Path, default=DEFAULT_STATUS)
     parser.add_argument("--pad-minutes", type=int, default=5)
+    parser.add_argument("--since", type=date.fromisoformat)
+    parser.add_argument("--until", type=date.fromisoformat)
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args(argv)
 
+    input_trades = load_jsonl(args.input)
+    selected_trades = [
+        trade
+        for trade in input_trades
+        if _trade_in_scope(trade, since=args.since, until=args.until)
+    ]
     tick_loader = ReplayTickFrameCache(args.tick_cache_dir)
     rows = [
         validate_trade(
@@ -728,10 +766,19 @@ def main(argv: list[str] | None = None) -> int:
             pad_minutes=args.pad_minutes,
             tick_loader=tick_loader,
         )
-        for trade in load_jsonl(args.input)
+        for trade in selected_trades
     ]
     write_jsonl(rows, args.output)
-    status = write_status(rows, args.status)
+    status = write_status(
+        rows,
+        args.status,
+        scope={
+            "since": args.since.isoformat() if args.since else None,
+            "until": args.until.isoformat() if args.until else None,
+            "input_trades": len(input_trades),
+            "selected_trades": len(selected_trades),
+        },
+    )
     if not args.quiet:
         summary = status["summary"]
         print(f"Tick replay audit: {summary['total']} trades")

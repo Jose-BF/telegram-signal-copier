@@ -427,6 +427,51 @@ def test_cli_writes_observed_tick_replay_audit_and_status(tmp_path):
     assert status["summary"]["exact"] == 1
 
 
+def test_cli_scopes_observed_replay_from_selected_date(tmp_path):
+    cache_dir = tmp_path / "ticks_cache"
+    cache_dir.mkdir()
+    _ticks([
+        {"time_utc": "2026-07-06T10:00:00+00:00", "bid": 4199.8, "ask": 4200.0},
+        {"time_utc": "2026-07-06T10:01:30+00:00", "bid": 4202.0, "ask": 4202.2},
+    ]).to_parquet(cache_dir / "2026-07-06.parquet", index=False)
+    _write_tick_contract(cache_dir, date(2026, 7, 6))
+    replay_path = tmp_path / "replay_trades.jsonl"
+    output_path = tmp_path / "observed_tick_replay_audit.jsonl"
+    status_path = tmp_path / "observed_tick_replay_status.json"
+    old = _trade(
+        sig_id="canal1_old",
+        open_dt_utc="2026-07-05T10:00:00+00:00",
+        close_dt_utc="2026-07-05T10:01:30+00:00",
+    )
+    replay_path.write_text(
+        json.dumps(old) + "\n" + json.dumps(_trade()) + "\n",
+        encoding="utf-8",
+    )
+
+    exit_code = observed_tick_replay_validator.main([
+        "--input", str(replay_path),
+        "--tick-cache-dir", str(cache_dir),
+        "--output", str(output_path),
+        "--status", str(status_path),
+        "--since", "2026-07-06",
+        "--quiet",
+    ])
+
+    rows = [
+        json.loads(line)
+        for line in output_path.read_text(encoding="utf-8").splitlines()
+    ]
+    status = json.loads(status_path.read_text(encoding="utf-8"))
+    assert exit_code == 0
+    assert [row["sig_id"] for row in rows] == ["canal1_1"]
+    assert status["scope"] == {
+        "since": "2026-07-06",
+        "until": None,
+        "input_trades": 2,
+        "selected_trades": 1,
+    }
+
+
 def test_cli_reuses_cached_tick_day_across_trades(tmp_path, monkeypatch):
     cache_dir = tmp_path / "ticks_cache"
     cache_dir.mkdir()

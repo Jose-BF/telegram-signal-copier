@@ -96,6 +96,74 @@ def test_cache_status_marks_missing_and_cached_days(tmp_path):
     assert status["tick_time_contract"] == "mt5_server_epoch_utc_v3"
 
 
+def test_cache_status_scope_excludes_historical_invalid_day(tmp_path):
+    cache_dir = tmp_path / "ticks_cache"
+    cache_dir.mkdir()
+    (cache_dir / "2026-06-09.parquet").write_bytes(b"legacy")
+    (cache_dir / "2026-07-06.parquet").write_bytes(b"selected")
+    _write_valid_contract(cache_dir, date(2026, 7, 6))
+    trades = [
+        _trade(
+            "canal1_old",
+            "2026-06-09T10:00:00+00:00",
+            "2026-06-09T10:05:00+00:00",
+        ),
+        _trade(
+            "canal1_new",
+            "2026-07-06T10:00:00+00:00",
+            "2026-07-06T10:05:00+00:00",
+        ),
+    ]
+
+    status = ensure_replay_tick_cache.build_status(
+        trades,
+        cache_dir=cache_dir,
+        since=datetime(2026, 7, 6, tzinfo=timezone.utc),
+        pad_minutes=0,
+    )
+
+    assert status["ok"] is True
+    assert status["required_days"] == ["2026-07-06"]
+    assert status["invalid_days"] == []
+    assert status["n_trades"] == 1
+    assert status["scope"] == {
+        "since": "2026-07-06T00:00:00+00:00",
+        "until": None,
+        "input_trades": 2,
+        "selected_trades": 1,
+    }
+
+
+def test_scope_uses_trade_cohort_not_close_time_overlap(tmp_path):
+    cache_dir = tmp_path / "ticks_cache"
+    cache_dir.mkdir()
+    (cache_dir / "2026-07-06.parquet").write_bytes(b"selected")
+    _write_valid_contract(cache_dir, date(2026, 7, 6))
+    trades = [
+        _trade(
+            "canal1_old",
+            "2026-07-05T23:55:00+00:00",
+            "2026-07-06T00:05:00+00:00",
+        ),
+        _trade(
+            "canal1_new",
+            "2026-07-06T10:00:00+00:00",
+            "2026-07-06T10:05:00+00:00",
+        ),
+    ]
+
+    status = ensure_replay_tick_cache.build_status(
+        trades,
+        cache_dir=cache_dir,
+        since=datetime(2026, 7, 6, tzinfo=timezone.utc),
+        pad_minutes=0,
+    )
+
+    assert status["ok"] is True
+    assert status["n_trades"] == 1
+    assert status["required_days"] == ["2026-07-06"]
+
+
 def test_unversioned_or_tampered_cache_day_is_invalid(tmp_path):
     cache_dir = tmp_path / "ticks_cache"
     cache_dir.mkdir()

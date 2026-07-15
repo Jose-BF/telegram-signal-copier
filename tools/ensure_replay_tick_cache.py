@@ -189,19 +189,6 @@ def _trade_window(trade: dict, pad_minutes: int) -> tuple[datetime, datetime] | 
     return opened - pad, closed + pad
 
 
-def _window_intersects(
-    window: tuple[datetime, datetime],
-    since: datetime | None,
-    until: datetime | None,
-) -> bool:
-    start, end = window
-    if since is not None and end < since:
-        return False
-    if until is not None and start > until:
-        return False
-    return True
-
-
 def required_dates(
     trades: list[dict],
     *,
@@ -210,13 +197,44 @@ def required_dates(
     pad_minutes: int = 5,
 ) -> list[date]:
     days: set[date] = set()
-    for trade in trades:
+    for trade in selected_trades(
+        trades,
+        since=since,
+        until=until,
+        pad_minutes=pad_minutes,
+    ):
         window = _trade_window(trade, pad_minutes)
-        if window is None or not _window_intersects(window, since, until):
+        if window is None:
             continue
         start, end = window
         days.update(_iter_days(start.date(), end.date()))
     return sorted(days)
+
+
+def selected_trades(
+    trades: list[dict],
+    *,
+    since: datetime | None = None,
+    until: datetime | None = None,
+    pad_minutes: int = 5,
+) -> list[dict]:
+    selected = []
+    for trade in trades:
+        window = _trade_window(trade, pad_minutes)
+        if window is None:
+            continue
+        if since is not None or until is not None:
+            cohort = _parse_dt(
+                trade.get("signal_dt_utc") or trade.get("open_dt_utc")
+            )
+            if cohort is None:
+                continue
+            if since is not None and cohort.date() < since.date():
+                continue
+            if until is not None and cohort.date() > until.date():
+                continue
+        selected.append(trade)
+    return selected
 
 
 def _day_file(cache_dir: Path, day: date) -> Path:
@@ -354,6 +372,12 @@ def build_status(
     refresh_removed_days: list[date] | None = None,
     error: str | None = None,
 ) -> dict:
+    scoped_trades = selected_trades(
+        trades,
+        since=since,
+        until=until,
+        pad_minutes=pad_minutes,
+    )
     days = required_dates(
         trades,
         since=since,
@@ -381,7 +405,13 @@ def build_status(
         "ensure_attempted": ensure_attempted,
         "pad_minutes": pad_minutes,
         "cache_dir": _portable_path(cache_dir),
-        "n_trades": len(trades),
+        "n_trades": len(scoped_trades),
+        "scope": {
+            "since": since.isoformat() if since else None,
+            "until": until.isoformat() if until else None,
+            "input_trades": len(trades),
+            "selected_trades": len(scoped_trades),
+        },
         "required_days": [day.isoformat() for day in days],
         "cached_days": [day.isoformat() for day in cached],
         "invalid_days": [day.isoformat() for day in invalid],

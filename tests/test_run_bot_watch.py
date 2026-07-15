@@ -162,6 +162,8 @@ def test_regenerate_replay_tick_cache_status_runs_ensure_tool(tmp_path, monkeypa
             watch.sys.executable,
             "tools/ensure_replay_tick_cache.py",
             "--ensure",
+            "--since",
+            "2026-07-06",
             "--quiet",
         ]
         assert kwargs["timeout"] == 900
@@ -191,6 +193,14 @@ def test_failed_tick_cache_refresh_does_not_accept_stale_status(
     monkeypatch.setattr(watch.subprocess, "run", fake_run)
 
     assert watch._regenerate_replay_tick_cache_status() is False
+    assert not tick_status.exists()
+
+
+def test_simulation_scope_override_has_precedence(monkeypatch):
+    monkeypatch.setattr(watch, "SIMULATION_FROM_DATE", "2026-07-13")
+    monkeypatch.setattr(watch, "STRATEGY_FARM_FROM_DATE", "2026-07-06")
+
+    assert watch._simulation_from_date() == "2026-07-13"
 
 
 def test_regenerate_replay_readiness_report_accepts_blocked_report(
@@ -206,6 +216,8 @@ def test_regenerate_replay_readiness_report_accepts_blocked_report(
         assert args[0] == [
             watch.sys.executable,
             "replay_readiness_report.py",
+            "--since",
+            "2026-07-06",
             "--quiet",
         ]
         report.write_text('{"summary": {"blocked": 1}}\n', encoding="utf-8")
@@ -215,6 +227,24 @@ def test_regenerate_replay_readiness_report_accepts_blocked_report(
     monkeypatch.setattr(watch.subprocess, "run", fake_run)
 
     assert watch._regenerate_replay_readiness_report() is True
+
+
+def test_failed_readiness_generation_removes_stale_report(tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    report = data_dir / "replay_readiness_report.json"
+    report.write_text('{"generated_at": "old"}\n', encoding="utf-8")
+    monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
+    monkeypatch.setattr(watch, "REPLAY_READINESS_REPORT_FILE", report)
+    monkeypatch.setattr(
+        watch.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=args[0], returncode=2, stdout="", stderr="failed"),
+    )
+
+    assert watch._regenerate_replay_readiness_report() is False
+    assert not report.exists()
 
 
 def test_regenerate_observed_tick_replay_audit_accepts_blocked_report(
@@ -232,6 +262,8 @@ def test_regenerate_observed_tick_replay_audit_accepts_blocked_report(
         assert args[0] == [
             watch.sys.executable,
             "observed_tick_replay_validator.py",
+            "--since",
+            "2026-07-06",
             "--quiet",
         ]
         audit.write_text('{"status": "blocked"}\n', encoding="utf-8")
@@ -242,6 +274,28 @@ def test_regenerate_observed_tick_replay_audit_accepts_blocked_report(
     monkeypatch.setattr(watch.subprocess, "run", fake_run)
 
     assert watch._regenerate_observed_tick_replay_audit() is True
+
+
+def test_failed_observed_generation_removes_stale_artifacts(tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    audit = data_dir / "observed_tick_replay_audit.jsonl"
+    status = data_dir / "observed_tick_replay_status.json"
+    audit.write_text('{"generated_at": "old"}\n', encoding="utf-8")
+    status.write_text('{"generated_at": "old"}\n', encoding="utf-8")
+    monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
+    monkeypatch.setattr(watch, "OBSERVED_TICK_REPLAY_AUDIT_FILE", audit)
+    monkeypatch.setattr(watch, "OBSERVED_TICK_REPLAY_STATUS_FILE", status)
+    monkeypatch.setattr(
+        watch.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=args[0], returncode=2, stdout="", stderr="failed"),
+    )
+
+    assert watch._regenerate_observed_tick_replay_audit() is False
+    assert not audit.exists()
+    assert not status.exists()
 
 
 def test_regenerate_provider_signal_catalog_runs_offline_builder(
@@ -615,8 +669,8 @@ def test_push_pipeline_runs_learning_after_all_causal_builders(monkeypatch):
     watch._push_session_data()
 
     assert calls == [
-        "ledger", "replay", "accounting", "tick_cache", "readiness",
-        "observed", "provider", "farm", "learning",
+        "ledger", "replay", "accounting", "tick_cache", "observed",
+        "readiness", "provider", "farm", "learning",
     ]
     assert all(learning_dependencies[0].values())
 

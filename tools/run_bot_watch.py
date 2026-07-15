@@ -60,6 +60,7 @@ LOG_PATTERN_REGISTRY_FILE = REPO_DIR / "data" / "log_pattern_registry.json"
 LOG_LEARNING_STATUS_FILE = REPO_DIR / "data" / "log_learning_status.json"
 LOG_PATTERN_REVIEWS_FILE = REPO_DIR / "data" / "log_pattern_reviews.json"
 STRATEGY_FARM_FROM_DATE = os.getenv("STRATEGY_FARM_FROM_DATE", "2026-07-06")
+SIMULATION_FROM_DATE = os.getenv("SIMULATION_FROM_DATE")
 STRATEGY_FARM_LATENCY_MS = os.getenv("STRATEGY_FARM_LATENCY_MS", "0")
 STRATEGY_FARM_VOLUME_PER_LEG = os.getenv(
     "STRATEGY_FARM_VOLUME_PER_LEG", "0.01")
@@ -74,6 +75,19 @@ WATCHER_RELOAD_EXIT_CODE = 75
 WATCHER_SELF_UPDATE_PATHS = {"tools/run_bot_watch.py", "run_bot.bat"}
 WATCHDOG_HEARTBEAT_TIMEOUT_SEC = float(os.getenv(
     "WATCHDOG_HEARTBEAT_TIMEOUT_SEC", "180"))
+
+
+def _simulation_from_date() -> str:
+    value = str(SIMULATION_FROM_DATE or STRATEGY_FARM_FROM_DATE or "").strip()
+    if not value:
+        return ""
+    datetime.strptime(value, "%Y-%m-%d")
+    return value
+
+
+def _simulation_scope_args() -> list[str]:
+    from_date = _simulation_from_date()
+    return ["--since", from_date] if from_date else []
 
 
 def _git(*args: str, capture: bool = True) -> subprocess.CompletedProcess:
@@ -408,9 +422,17 @@ def _regenerate_accounting_replay_audit() -> bool:
 
 def _regenerate_replay_tick_cache_status() -> bool:
     """Asegura/cachea ticks necesarios por replay y escribe status JSON."""
+    REPLAY_TICK_CACHE_STATUS_FILE.unlink(missing_ok=True)
     try:
+        command = [
+            sys.executable,
+            "tools/ensure_replay_tick_cache.py",
+            "--ensure",
+            *_simulation_scope_args(),
+            "--quiet",
+        ]
         rec = subprocess.run(
-            [sys.executable, "tools/ensure_replay_tick_cache.py", "--ensure", "--quiet"],
+            command,
             cwd=REPO_DIR, capture_output=True, text=True, timeout=900,
         )
         if rec.returncode == 0:
@@ -432,9 +454,16 @@ def _regenerate_replay_readiness_report() -> bool:
     replay_readiness_report.py devuelve rc=1 cuando hay trades bloqueados. Eso
     no es crash: el reporte es precisamente la alarma que queremos subir.
     """
+    REPLAY_READINESS_REPORT_FILE.unlink(missing_ok=True)
     try:
+        command = [
+            sys.executable,
+            "replay_readiness_report.py",
+            *_simulation_scope_args(),
+            "--quiet",
+        ]
         rec = subprocess.run(
-            [sys.executable, "replay_readiness_report.py", "--quiet"],
+            command,
             cwd=REPO_DIR, capture_output=True, text=True, timeout=60,
         )
         if rec.returncode == 0:
@@ -462,9 +491,17 @@ def _regenerate_observed_tick_replay_audit() -> bool:
     Eso no es crash: esos ficheros son el chivato que necesitamos subir para
     saber exactamente que ticket no se pudo reproducir contra bid/ask ticks.
     """
+    OBSERVED_TICK_REPLAY_AUDIT_FILE.unlink(missing_ok=True)
+    OBSERVED_TICK_REPLAY_STATUS_FILE.unlink(missing_ok=True)
     try:
+        command = [
+            sys.executable,
+            "observed_tick_replay_validator.py",
+            *_simulation_scope_args(),
+            "--quiet",
+        ]
         rec = subprocess.run(
-            [sys.executable, "observed_tick_replay_validator.py", "--quiet"],
+            command,
             cwd=REPO_DIR, capture_output=True, text=True, timeout=120,
         )
         if rec.returncode == 0:
@@ -635,8 +672,9 @@ def _strategy_farm_command() -> list[str]:
         raise ValueError("invalid strategy farm execution scenarios")
 
     command = [sys.executable, "strategy_farm.py"]
-    if STRATEGY_FARM_FROM_DATE:
-        command.extend(["--from", STRATEGY_FARM_FROM_DATE])
+    from_date = _simulation_from_date()
+    if from_date:
+        command.extend(["--from", from_date])
     for latency_ms in latencies:
         command.extend(["--provider-latency-ms", str(latency_ms)])
     command.extend(["--provider-volume-per-leg", str(volume), "--quiet"])
@@ -775,11 +813,11 @@ def _push_session_data() -> None:
                 builder_results["tick_cache"] = (
                     _regenerate_replay_tick_cache_status()
                 )
-                builder_results["readiness"] = (
-                    _regenerate_replay_readiness_report()
-                )
                 builder_results["observed_ticks"] = (
                     _regenerate_observed_tick_replay_audit()
+                )
+                builder_results["readiness"] = (
+                    _regenerate_replay_readiness_report()
                 )
                 builder_results["provider_catalog"] = (
                     _regenerate_provider_signal_catalog()
