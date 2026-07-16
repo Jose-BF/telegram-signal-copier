@@ -140,8 +140,31 @@ def _append_level_history(journal_row: dict, event: dict, status: str):
         base["retcode"] = retcode
     if event.get("attempts") is not None:
         base["attempts"] = event.get("attempts")
-    sl_value = event.get("new_sl") if "new_sl" in event else event.get("sl")
-    tp_value = event.get("new_tp") if "new_tp" in event else event.get("tp")
+    if status == "observed_unattributed":
+        for field in (
+            "observed_interval_start_utc",
+            "observed_interval_end_utc",
+            "previous",
+            "current",
+        ):
+            if event.get(field) is not None:
+                base[field] = event.get(field)
+    current = event.get("current") if isinstance(event.get("current"), dict) else {}
+    sl_value = (
+        event.get("new_sl") if "new_sl" in event
+        else event.get("sl", current.get("sl"))
+    )
+    tp_value = (
+        event.get("new_tp") if "new_tp" in event
+        else event.get("tp", current.get("tp"))
+    )
+    if status == "observed_unattributed":
+        changed_fields = set(event.get("changed_fields") or [])
+        if changed_fields:
+            if "sl" not in changed_fields:
+                sl_value = None
+            if "tp" not in changed_fields:
+                tp_value = None
     if sl_value is not None:
         bucket["sl_history"].append({**base, "sl": sl_value})
     if tp_value is not None:
@@ -461,6 +484,7 @@ def load_journal_index(path: Path) -> dict:
         "mt5_cancel_requested",
         "mt5_cancel_result",
         "mt5_position_snapshot",
+        "mt5_level_change_unattributed",
     }
 
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -614,6 +638,8 @@ def load_journal_index(path: Path) -> dict:
             _append_level_history(d, e, "failed")
         elif ev == "mt5_position_snapshot":
             _append_level_history(d, e, "snapshot")
+        elif ev == "mt5_level_change_unattributed":
+            _append_level_history(d, e, "observed_unattributed")
 
         if ev.startswith("mt5_"):
             d["order_lifecycle"].append({

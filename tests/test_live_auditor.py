@@ -79,6 +79,10 @@ def test_audit_snapshot_records_levels_missing_in_mt5():
     assert snapshots[0]["mt5_open_tickets"] == [1365772408, 1365772471]
     assert snapshots[0]["tickets_without_sl"] == [1365772408, 1365772471]
     assert snapshots[0]["tickets_without_tp"] == [1365772408, 1365772471]
+    assert snapshots[0]["mt5_levels"] == [
+        {"ticket": 1365772408, "sl": 0.0, "tp": 0.0},
+        {"ticket": 1365772471, "sl": 0.0, "tp": 0.0},
+    ]
 
     issue = journal.anomalies[0]
     assert issue["sig"] == "canal2_13111"
@@ -217,6 +221,175 @@ def test_audit_issue_resolution_is_logged_once_levels_are_applied():
     assert len(resolved) == 1
     assert resolved[0]["sig"] == "canal2_13111"
     assert resolved[0]["code"] == "levels_not_applied"
+
+
+def test_unattributed_mt5_level_change_is_reported_once():
+    journal = FakeJournal()
+    auditor = LiveAuditor(
+        settings=AuditSettings(snapshot_every_s=0),
+        journal=journal,
+    )
+    sig = _signal()
+    baseline = [
+        _pos(1365772408, sl=4583.0, tp=4572.0),
+        _pos(1365772471, sl=4583.0, tp=4570.0),
+    ]
+    changed = [
+        _pos(1365772408, sl=4575.36, tp=4572.0),
+        _pos(1365772471, sl=4583.0, tp=4570.0),
+    ]
+
+    auditor.audit_cycle(
+        signals=[sig],
+        positions=baseline,
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 5, 0),
+    )
+    auditor.audit_cycle(
+        signals=[sig],
+        positions=changed,
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 5, 5),
+    )
+    auditor.audit_cycle(
+        signals=[sig],
+        positions=changed,
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 5, 10),
+    )
+
+    events = [
+        event for event in journal.events
+        if event["ev"] == "mt5_level_change_unattributed"
+    ]
+    anomalies = [
+        anomaly for anomaly in journal.anomalies
+        if anomaly.get("code") == "mt5_level_change_unattributed"
+    ]
+    assert len(events) == 1
+    assert len(anomalies) == 1
+    assert events[0]["ticket"] == 1365772408
+    assert events[0]["changed_fields"] == ["sl"]
+    assert events[0]["previous"] == {"sl": 4583.0, "tp": 4572.0}
+    assert events[0]["current"] == {"sl": 4575.36, "tp": 4572.0}
+    assert events[0]["expected"] == {"sl": 4583.0, "tp": 4572.0}
+    assert events[0]["sl"] == 4575.36
+    assert events[0]["tp"] == 4572.0
+    assert events[0]["observed_interval_start_utc"] == (
+        "2026-05-29T15:05:00+00:00"
+    )
+    assert events[0]["observed_interval_end_utc"] == (
+        "2026-05-29T15:05:05+00:00"
+    )
+
+
+def test_confirmed_bot_level_change_is_not_reported_as_unattributed():
+    journal = FakeJournal()
+    auditor = LiveAuditor(
+        settings=AuditSettings(snapshot_every_s=0),
+        journal=journal,
+    )
+    sig = _signal()
+
+    auditor.audit_cycle(
+        signals=[sig],
+        positions=[
+            _pos(1365772408, sl=4583.0, tp=4572.0),
+            _pos(1365772471, sl=4583.0, tp=4570.0),
+        ],
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 5, 0),
+    )
+    sig.sl_by_ticket[1365772408] = 4575.36
+    auditor.audit_cycle(
+        signals=[sig],
+        positions=[
+            _pos(1365772408, sl=4575.36, tp=4572.0),
+            _pos(1365772471, sl=4583.0, tp=4570.0),
+        ],
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 5, 5),
+    )
+
+    assert not [
+        anomaly for anomaly in journal.anomalies
+        if anomaly.get("code") == "mt5_level_change_unattributed"
+    ]
+
+
+def test_unattributed_tp_change_is_visible_in_forensic_event():
+    journal = FakeJournal()
+    auditor = LiveAuditor(
+        settings=AuditSettings(snapshot_every_s=0),
+        journal=journal,
+    )
+    sig = _signal()
+
+    auditor.audit_cycle(
+        signals=[sig],
+        positions=[
+            _pos(1365772408, sl=4583.0, tp=4572.0),
+            _pos(1365772471, sl=4583.0, tp=4570.0),
+        ],
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 5, 0),
+    )
+    auditor.audit_cycle(
+        signals=[sig],
+        positions=[
+            _pos(1365772408, sl=4583.0, tp=4568.0),
+            _pos(1365772471, sl=4583.0, tp=4570.0),
+        ],
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 5, 5),
+    )
+
+    events = [
+        event for event in journal.events
+        if event["ev"] == "mt5_level_change_unattributed"
+    ]
+    assert len(events) == 1
+    assert events[0]["changed_fields"] == ["tp"]
+    assert events[0]["current"]["tp"] == 4568.0
+
+
+def test_pending_bot_level_change_is_not_reported_as_unattributed():
+    journal = FakeJournal()
+    auditor = LiveAuditor(
+        settings=AuditSettings(snapshot_every_s=0),
+        journal=journal,
+    )
+    sig = _signal()
+
+    auditor.audit_cycle(
+        signals=[sig],
+        positions=[
+            _pos(1365772408, sl=4583.0, tp=4572.0),
+            _pos(1365772471, sl=4583.0, tp=4570.0),
+        ],
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 5, 0),
+    )
+    auditor.audit_cycle(
+        signals=[sig],
+        positions=[
+            _pos(1365772408, sl=4575.36, tp=4572.0),
+            _pos(1365772471, sl=4583.0, tp=4570.0),
+        ],
+        pending_actions=[{
+            "sig_id": "canal2_13111",
+            "kind": "MODIFY_SLTP",
+            "ticket": 1365772408,
+            "new_sl": 4575.36,
+            "new_tp": None,
+        }],
+        now=datetime(2026, 5, 29, 15, 5, 5),
+    )
+
+    assert not [
+        anomaly for anomaly in journal.anomalies
+        if anomaly.get("code") == "mt5_level_change_unattributed"
+    ]
 
 
 def test_pending_action_stuck_is_detected_for_audit():

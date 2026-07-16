@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections import Counter
 from datetime import date, datetime, timedelta, timezone
@@ -13,6 +14,10 @@ from typing import Iterable
 import numpy as np
 import pandas as pd
 
+from broker_market_sessions import (
+    MARKET_SESSION_CONTRACT,
+    filter_tradable_ticks,
+)
 from tools import ensure_replay_tick_cache
 
 
@@ -286,6 +291,48 @@ def _reason_matches(expected: str | None, observed: str | None) -> bool:
     return False
 
 
+def _has_unattributed_level_marker(
+    history: Iterable[dict],
+    key: str,
+    expected_level: float,
+) -> bool:
+    for item in history or []:
+        if item.get("status") != "observed_unattributed":
+            continue
+        try:
+            level = float(item.get(key))
+        except (TypeError, ValueError):
+            continue
+        if abs(level - expected_level) <= PRICE_EPSILON:
+            return True
+    return False
+
+
+def _mt5_close_level(ticket: dict, level_kind: str) -> float | None:
+    comments = []
+    close_deal = ticket.get("close_deal")
+    if isinstance(close_deal, dict):
+        comments.append(close_deal.get("comment"))
+    comments.extend(
+        deal.get("comment")
+        for deal in reversed(ticket.get("deals") or [])
+        if isinstance(deal, dict)
+    )
+    pattern = re.compile(
+        rf"\[\s*{re.escape(level_kind)}\s+([-+]?\d+(?:\.\d+)?)\s*\]",
+        re.IGNORECASE,
+    )
+    for comment in comments:
+        match = pattern.search(str(comment or ""))
+        if not match:
+            continue
+        try:
+            return float(match.group(1))
+        except ValueError:
+            continue
+    return None
+
+
 def _filter_ticket_ticks(ticket: dict, ticks: pd.DataFrame,
                          close_grace_s: int = 2) -> pd.DataFrame:
     opened = _parse_dt(ticket.get("open_dt_utc"))
@@ -449,10 +496,46 @@ def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
     )
 
     if first_touch is None:
+        mt5_sl_level = _mt5_close_level(ticket, "sl")
+        mt5_tp_level = _mt5_close_level(ticket, "tp")
+        if (
+            expected_reason in {"sl", "be"}
+            and mt5_sl_level is not None
+        ):
+            if _has_unattributed_level_marker(
+                sl_history,
+                "sl",
+                mt5_sl_level,
+            ):
+                missing_touch_blocker = (
+                    f"unattributed_sl_transition_window:{label}"
+                )
+            else:
+                missing_touch_blocker = (
+                    f"missing_sl_transition_evidence:{label}"
+                )
+        elif (
+            expected_reason == "tp"
+            and mt5_tp_level is not None
+        ):
+            if _has_unattributed_level_marker(
+                tp_history,
+                "tp",
+                mt5_tp_level,
+            ):
+                missing_touch_blocker = (
+                    f"unattributed_tp_transition_window:{label}"
+                )
+            else:
+                missing_touch_blocker = (
+                    f"missing_tp_transition_evidence:{label}"
+                )
+        else:
+            missing_touch_blocker = "no_level_touch_before_close"
         return {
             **base,
             "status": "mismatch",
-            "blockers": ["no_level_touch_before_close"],
+            "blockers": [missing_touch_blocker],
         }
 
     result_blockers: list[str] = []
@@ -552,11 +635,29 @@ class ReplayTickFrameCache:
         except Exception as exc:
             return None, f"tick_cache_read_failed:{day}:{type(exc).__name__}"
         if not frame.empty:
+            if "time_utc" not in frame.columns:
+                return None, f"tick_cache_missing_time_utc:{day}"
             frame = frame.copy()
             frame["time_utc"] = pd.to_datetime(frame["time_utc"], utc=True)
+            try:
+                frame, removed = filter_tradable_ticks(
+                    frame,
+                    utc_offset_seconds=contract.get("utc_offset_seconds"),
+                )
+            except ValueError:
+                return None, f"missing_broker_session_offset:{day}"
             frame = frame.sort_values("time_utc").reset_index(drop=True)
+        else:
+            frame = frame.copy()
+            removed = 0
+            frame.attrs["market_session_contract"] = MARKET_SESSION_CONTRACT
+            frame.attrs["quote_only_ticks_removed"] = removed
         self._frames[day] = frame
-        self._verified_contracts[day] = contract
+        self._verified_contracts[day] = {
+            **contract,
+            "market_session_contract": MARKET_SESSION_CONTRACT,
+            "quote_only_ticks_removed": removed,
+        }
         return frame, None
 
     def load_ticks_for_trade(
@@ -589,9 +690,18 @@ class ReplayTickFrameCache:
             if frame is not None and not frame.empty:
                 frames.append(frame)
         if not frames:
-            return pd.DataFrame(), missing
+            empty = pd.DataFrame()
+            empty.attrs["market_session_contract"] = MARKET_SESSION_CONTRACT
+            empty.attrs["quote_only_ticks_removed"] = 0
+            return empty, missing
         ticks = pd.concat(frames, ignore_index=True).sort_values("time_utc")
-        return ticks.reset_index(drop=True), missing
+        ticks = ticks.reset_index(drop=True)
+        ticks.attrs["market_session_contract"] = MARKET_SESSION_CONTRACT
+        ticks.attrs["quote_only_ticks_removed"] = sum(
+            int(frame.attrs.get("quote_only_ticks_removed") or 0)
+            for frame in frames
+        )
+        return ticks, missing
 
 
 def load_ticks_for_trade(
@@ -663,6 +773,7 @@ def validate_trade(
         "schema_version": SCHEMA_VERSION,
         "validation_contract": CAUSAL_PATH_CONTRACT,
         "fill_price_authority": FILL_PRICE_AUTHORITY,
+        "market_session_contract": MARKET_SESSION_CONTRACT,
         "sig_id": trade.get("sig_id"),
         "channel": trade.get("channel"),
         "direction": trade.get("direction"),
@@ -716,6 +827,7 @@ def write_status(
         "schema_version": SCHEMA_VERSION,
         "validation_contract": CAUSAL_PATH_CONTRACT,
         "fill_price_authority": FILL_PRICE_AUTHORITY,
+        "market_session_contract": MARKET_SESSION_CONTRACT,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "scope": scope or {
             "since": None,

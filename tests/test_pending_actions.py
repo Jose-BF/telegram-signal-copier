@@ -21,6 +21,7 @@ from pending_actions import (
     PendingQueue,
     PendingAction,
     DEFAULT_TIMEOUT_S,
+    _record_confirmed_levels,
 )
 from state import Signal
 
@@ -152,6 +153,26 @@ class TestC4LogFailureDoesNotResetTask:
 
 
 class TestModifyPreconditions:
+    def test_confirmed_modify_records_real_sl_and_tp_per_ticket(self):
+        act = _make_action(new_sl=4700.0, new_tp=4708.5)
+        act.last_retcode = 10009
+
+        recorded = _record_confirmed_levels(act)
+
+        assert recorded is True
+        assert act.signal.sl_by_ticket == {12345: 4700.0}
+        assert act.signal.tp_by_ticket == {12345: 4708.5}
+
+    def test_unconfirmed_modify_does_not_change_real_level_state(self):
+        act = _make_action(new_sl=4700.0, new_tp=4708.5)
+        act.last_retcode = 10016
+
+        recorded = _record_confirmed_levels(act)
+
+        assert recorded is False
+        assert act.signal.sl_by_ticket == {}
+        assert act.signal.tp_by_ticket == {}
+
     @pytest.mark.asyncio
     async def test_invalid_stop_waits_without_mt5_submission(self, monkeypatch):
         q = PendingQueue()
@@ -218,6 +239,7 @@ class TestModifyPreconditions:
         assert act.applied_tp == 4052.0
         assert act.new_tp is None
         assert act.new_sl == 4059.61
+        assert act.signal.tp_by_ticket == {12345: 4052.0}
 
     @pytest.mark.asyncio
     async def test_unexpected_broker_invalid_stops_drops_after_one_submission(

@@ -195,8 +195,32 @@ def _append_level(history: dict, event: dict, status: str) -> None:
     if event.get("attempts") is not None:
         base["attempts"] = event.get("attempts")
 
-    sl_value = event.get("new_sl") if "new_sl" in event else event.get("sl")
-    tp_value = event.get("new_tp") if "new_tp" in event else event.get("tp")
+    if status == "observed_unattributed":
+        for field in (
+            "observed_interval_start_utc",
+            "observed_interval_end_utc",
+            "previous",
+            "current",
+        ):
+            if event.get(field) is not None:
+                base[field] = event.get(field)
+
+    current = event.get("current") if isinstance(event.get("current"), dict) else {}
+    sl_value = (
+        event.get("new_sl") if "new_sl" in event
+        else event.get("sl", current.get("sl"))
+    )
+    tp_value = (
+        event.get("new_tp") if "new_tp" in event
+        else event.get("tp", current.get("tp"))
+    )
+    if status == "observed_unattributed":
+        changed_fields = set(event.get("changed_fields") or [])
+        if changed_fields:
+            if "sl" not in changed_fields:
+                sl_value = None
+            if "tp" not in changed_fields:
+                tp_value = None
     if sl_value is not None:
         bucket["sl_history"].append({**base, "sl": sl_value})
     if tp_value is not None:
@@ -209,6 +233,7 @@ def _level_history_from_order_lifecycle(events: Iterable[dict]) -> dict[str, dic
         "mt5_modify_requested": "requested",
         "mt5_modify_confirmed": "confirmed",
         "mt5_position_snapshot": "snapshot",
+        "mt5_level_change_unattributed": "observed_unattributed",
         "mt5_action_failed": "failed",
         "mt5_modify_skipped_position_gone": "skipped_position_gone",
     }

@@ -14,6 +14,7 @@ def _exact_baseline(sig_id):
         "status": "exact",
         "validation_contract": "causal_path_v2",
         "fill_price_authority": "mt5_deals",
+        "market_session_contract": "vantage_xauusd_standard_v1",
     }
 
 
@@ -501,6 +502,7 @@ def test_legacy_exact_baseline_without_causal_contract_is_blocked(
     assert effective["blockers"] == [
         "causal_path_contract_unverified",
         "fill_price_authority_unverified",
+        "market_session_contract_unverified",
     ]
 
 

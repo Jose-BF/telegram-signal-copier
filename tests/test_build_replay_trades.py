@@ -187,6 +187,42 @@ def test_level_history_is_recovered_from_order_lifecycle_by_position_id():
     assert "missing_effective_tps" not in replay["gaps"]
 
 
+def test_unattributed_level_window_survives_order_lifecycle_recovery():
+    position = _closed_position(ticket=999)
+    position["position_id"] = 111
+    position["sl_history"] = []
+    position["tp_history"] = []
+    row = _ledger_row(
+        positions=[position],
+        order_lifecycle=[{
+            "ts": "2026-06-03T09:01:05+00:00",
+            "ev": "mt5_level_change_unattributed",
+            "ticket": 111,
+            "sl": 4500.1,
+            "tp": 4502.3,
+            "previous": {"sl": 4496.0, "tp": 4502.3},
+            "current": {"sl": 4500.1, "tp": 4502.3},
+            "changed_fields": ["sl"],
+            "observed_interval_start_utc": (
+                "2026-06-03T09:01:00+00:00"
+            ),
+            "observed_interval_end_utc": (
+                "2026-06-03T09:01:05+00:00"
+            ),
+        }],
+    )
+
+    replay = build_replay_trades.build_replay_trade(row, [])
+    level = replay["tickets"][0]["sl_history"][0]
+
+    assert level["status"] == "observed_unattributed"
+    assert level["sl"] == 4500.1
+    assert level["observed_interval_start_utc"] == (
+        "2026-06-03T09:01:00+00:00"
+    )
+    assert replay["tickets"][0]["tp_history"] == []
+
+
 def test_journal_closed_with_mt5_open_position_blocks_replay():
     open_leg = _closed_position(ticket=555, role="scale_out_leg", pnl=0.0)
     open_leg.update({

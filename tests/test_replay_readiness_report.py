@@ -62,6 +62,7 @@ def _observed(**overrides):
         "status": "exact",
         "validation_contract": "causal_path_v2",
         "fill_price_authority": "mt5_deals",
+        "market_session_contract": "vantage_xauusd_standard_v1",
         "blockers": [],
         "tickets": [],
     }
@@ -236,6 +237,26 @@ def test_observed_path_mismatch_blocks_strict_replay(tmp_path):
     assert row["status"] == "blocked"
     assert "observed_path_status:mismatch" in row["blockers"]
     assert "observed:first_touch_time_mismatch" in row["blockers"]
+
+
+def test_exact_observed_path_without_market_session_contract_is_blocked(
+    tmp_path,
+):
+    cache_dir = tmp_path / "ticks_cache"
+    _write_valid_tick_day(cache_dir)
+    observed = _observed()
+    observed.pop("market_session_contract")
+
+    row = replay_readiness_report.assess_trade(
+        _trade(),
+        _audit(),
+        observed,
+        cache_dir=cache_dir,
+        pad_minutes=0,
+    )
+
+    assert row["status"] == "blocked"
+    assert "observed_market_session_contract_unverified" in row["blockers"]
 
 
 def test_unknown_accounting_status_cannot_be_ready(tmp_path):

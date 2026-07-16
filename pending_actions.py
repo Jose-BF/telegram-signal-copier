@@ -90,6 +90,26 @@ class PendingAction:
         return (time.time() - self.created_at) > self.timeout_s
 
 
+def _record_confirmed_levels(action: PendingAction) -> bool:
+    """Persist per-ticket levels only after MT5 confirms a modification."""
+    if action.kind != "MODIFY_SLTP":
+        return False
+    if mt5_errors.classify(action.last_retcode) != "OK":
+        return False
+
+    recorded = False
+    if action.new_sl is not None:
+        action.signal.sl_by_ticket[action.ticket] = action.new_sl
+        recorded = True
+    effective_tp = (
+        action.new_tp if action.new_tp is not None else action.applied_tp
+    )
+    if effective_tp is not None:
+        action.signal.tp_by_ticket[action.ticket] = effective_tp
+        recorded = True
+    return recorded
+
+
 class PendingQueue:
     def __init__(self):
         self._actions: list[PendingAction] = []
@@ -288,9 +308,7 @@ class PendingQueue:
                     # el cierre como "MANUAL" en vez de "SL". Solo en exito
                     # real (retcode OK): si fue POSITION_GONE el modify no se
                     # aplico (la posicion ya estaba cerrada).
-                    if (act.kind == "MODIFY_SLTP" and act.new_sl is not None
-                            and mt5_errors.classify(act.last_retcode) == "OK"):
-                        act.signal.sl_by_ticket[act.ticket] = act.new_sl
+                    _record_confirmed_levels(act)
                     cls_done = mt5_errors.classify(act.last_retcode)
                     if (act.kind != "MODIFY_SLTP"
                             or cls_done in ("OK", "POSITION_GONE")):
@@ -636,6 +654,7 @@ class PendingQueue:
                 if mt5_errors.classify(retcode) == "OK":
                     act.applied_tp = tp_to_apply
                     act.new_tp = None
+                    _record_confirmed_levels(act)
                     self._log_partial_modify(act, tp_to_apply)
                     return "WAIT_PRECONDITION"
             else:

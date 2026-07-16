@@ -737,6 +737,63 @@ class TestReconcileForensicLifecycle:
 
 
 class TestLoadJournalForensicEvents:
+    def test_unattributed_level_change_reaches_ticket_history(self, tmp_path):
+        path = tmp_path / "events.jsonl"
+        rows = [
+            {
+                "ts": "2026-05-21T11:00:00+00:00",
+                "sig": "canal2_12747",
+                "ev": "signal_received",
+                "direction": "BUY",
+            },
+            {
+                "ts": "2026-05-21T11:01:05+00:00",
+                "sig": "canal2_12747",
+                "ev": "mt5_level_change_unattributed",
+                "ticket": 111,
+                "sl": 4525.0,
+                "tp": 4548.0,
+                "previous": {"sl": 4518.0, "tp": 4548.0},
+                "current": {"sl": 4525.0, "tp": 4548.0},
+                "changed_fields": ["sl"],
+                "observed_interval_start_utc": (
+                    "2026-05-21T11:01:00+00:00"
+                ),
+                "observed_interval_end_utc": (
+                    "2026-05-21T11:01:05+00:00"
+                ),
+            },
+        ]
+        path.write_text(
+            "\n".join(json.dumps(row) for row in rows),
+            encoding="utf-8",
+        )
+
+        row = reconcile_mt5_ledger.load_journal_index(path)["canal2_12747"]
+        history = row["ticket_level_history"]["111"]
+
+        assert row["timeline"][-1]["event"] == (
+            "mt5_level_change_unattributed"
+        )
+        assert row["order_lifecycle"][-1]["ev"] == (
+            "mt5_level_change_unattributed"
+        )
+        assert history["sl_history"] == [{
+            "ts": "2026-05-21T11:01:05+00:00",
+            "source": "mt5_level_change_unattributed",
+            "status": "observed_unattributed",
+            "observed_interval_start_utc": (
+                "2026-05-21T11:01:00+00:00"
+            ),
+            "observed_interval_end_utc": (
+                "2026-05-21T11:01:05+00:00"
+            ),
+            "previous": {"sl": 4518.0, "tp": 4548.0},
+            "current": {"sl": 4525.0, "tp": 4548.0},
+            "sl": 4525.0,
+        }]
+        assert history["tp_history"] == []
+
     def test_position_snapshot_enters_timeline_and_level_history(
             self, tmp_path):
         path = tmp_path / "events.jsonl"

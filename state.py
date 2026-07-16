@@ -155,6 +155,9 @@ class Signal:
     # encolarlo — asi solo refleja SLs realmente aplicados.
     sl_by_ticket: dict = field(default_factory=dict)
 
+    # TP real por ticket tras una modificacion confirmada por MT5.
+    tp_by_ticket: dict = field(default_factory=dict)
+
     # ─── Layered logic Etapa 2 ──────────────────────────────────────────────
     # Acción a aplicar cuando llega el rango y la posición market quedó FUERA
     # ADVERSA del rango (caso C). Se setea desde config.STRATEGY_Cx_ADVERSE_ACTION

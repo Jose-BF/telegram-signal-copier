@@ -11,7 +11,7 @@ import asyncio
 import re
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Callable, Iterable
 
 import MetaTrader5 as mt5
@@ -58,6 +58,96 @@ def _position_has_sl(pos) -> bool:
 
 def _position_has_tp(pos) -> bool:
     return float(getattr(pos, "tp", 0.0) or 0.0) > 0
+
+
+def _position_levels(pos) -> dict[str, float]:
+    return {
+        "sl": float(getattr(pos, "sl", 0.0) or 0.0),
+        "tp": float(getattr(pos, "tp", 0.0) or 0.0),
+    }
+
+
+def _utc_iso(value: datetime) -> str:
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    else:
+        value = value.astimezone(timezone.utc)
+    return value.isoformat(timespec="seconds")
+
+
+def _levels_equal(left, right, tolerance: float = 1e-6) -> bool:
+    try:
+        return abs(float(left or 0.0) - float(right or 0.0)) <= tolerance
+    except (TypeError, ValueError):
+        return False
+
+
+def _ticket_mapping_value(mapping, ticket: int):
+    if not isinstance(mapping, dict):
+        return None
+    if ticket in mapping:
+        return mapping[ticket]
+    return mapping.get(str(ticket))
+
+
+def _expected_ticket_levels(
+    sig: Signal,
+    ticket: int,
+    state_tickets: list[int],
+) -> dict[str, float]:
+    sl = _ticket_mapping_value(getattr(sig, "sl_by_ticket", {}), ticket)
+    if sl is None:
+        sl = sig.sl
+
+    tp = _ticket_mapping_value(getattr(sig, "tp_by_ticket", {}), ticket)
+    if tp is None:
+        try:
+            position_index = state_tickets.index(ticket)
+        except ValueError:
+            position_index = 0
+        override = _ticket_mapping_value(
+            getattr(sig, "tp_overrides", {}), ticket)
+        if override is None:
+            tp = sig.tp_for_position(position_index)
+        else:
+            try:
+                tp = sig.tps[int(override)]
+            except (IndexError, TypeError, ValueError):
+                tp = sig.tp_for_position(position_index)
+
+    return {
+        "sl": float(sl or 0.0),
+        "tp": float(tp or 0.0),
+    }
+
+
+def _pending_modify_explains_change(
+    ticket: int,
+    changed_fields: list[str],
+    current: dict[str, float],
+    pending_actions_snapshot: list[dict],
+) -> bool:
+    for action in pending_actions_snapshot:
+        if (
+            action.get("kind") != "MODIFY_SLTP"
+            or int(action.get("ticket") or 0) != ticket
+        ):
+            continue
+        requested = {
+            "sl": action.get("new_sl"),
+            "tp": (
+                action.get("new_tp")
+                if action.get("new_tp") is not None
+                else action.get("applied_tp")
+            ),
+        }
+        if all(
+            requested[field] is not None
+            and _levels_equal(requested[field], current[field])
+            for field in changed_fields
+        ):
+            return True
+    return False
 
 
 def _position_signal_id(pos) -> str | None:
@@ -123,6 +213,7 @@ class LiveAuditor:
         self._last_snapshot_at: dict[str, datetime] = {}
         self._missing_positions_since: dict[str, datetime] = {}
         self._active_issues: dict[tuple, tuple[str, str]] = {}
+        self._last_position_levels: dict[tuple[str, int], dict] = {}
 
     def audit_cycle(
         self,
@@ -222,6 +313,14 @@ class LiveAuditor:
                 label=act.get("label"),
             )
 
+        live_level_keys = {
+            (sig_id, ticket)
+            for ticket, sig_id in state_by_ticket.items()
+            if ticket in positions_by_ticket
+        }
+        for key in set(self._last_position_levels) - live_level_keys:
+            self._last_position_levels.pop(key, None)
+
         self._emit_resolved_issues(current_issues, now)
 
     def _adopt_orphan_position(self, sig: Signal, pos) -> bool:
@@ -294,6 +393,21 @@ class LiveAuditor:
             a for a in pending_actions_snapshot
             if a.get("sig_id") == sig_id
         ]
+        mt5_levels = [
+            {
+                "ticket": int(getattr(position, "ticket")),
+                **_position_levels(position),
+            }
+            for position in mt5_positions
+        ]
+        self._audit_level_changes(
+            sig,
+            sig_id,
+            state_tickets,
+            mt5_positions,
+            pending_for_signal,
+            now,
+        )
 
         has_state_levels = bool(sig.tps) or sig.sl is not None
         if has_state_levels and sig_id not in self._levels_seen_at:
@@ -318,6 +432,7 @@ class LiveAuditor:
             state_tickets=state_tickets,
             mt5_open_tickets=mt5_open_tickets,
             missing_tickets=missing_tickets,
+            mt5_levels=mt5_levels,
             tickets_without_sl=tickets_without_sl,
             tickets_without_tp=tickets_without_tp,
             has_state_tps=bool(sig.tps),
@@ -411,6 +526,77 @@ class LiveAuditor:
             ))
 
         return issues
+
+    def _audit_level_changes(
+        self,
+        sig: Signal,
+        sig_id: str,
+        state_tickets: list[int],
+        mt5_positions: list[object],
+        pending_for_signal: list[dict],
+        now: datetime,
+    ) -> None:
+        for position in mt5_positions:
+            ticket = int(getattr(position, "ticket"))
+            key = (sig_id, ticket)
+            current = _position_levels(position)
+            previous_observation = self._last_position_levels.get(key)
+            self._last_position_levels[key] = {
+                "levels": current,
+                "observed_at": now,
+            }
+            if previous_observation is None:
+                continue
+            previous = previous_observation["levels"]
+
+            changed_fields = [
+                field for field in ("sl", "tp")
+                if not _levels_equal(previous[field], current[field])
+            ]
+            if not changed_fields:
+                continue
+
+            expected = _expected_ticket_levels(sig, ticket, state_tickets)
+            expected_explains = all(
+                _levels_equal(current[field], expected[field])
+                for field in ("sl", "tp")
+            )
+            pending_explains = _pending_modify_explains_change(
+                ticket,
+                changed_fields,
+                current,
+                pending_for_signal,
+            )
+            if expected_explains or pending_explains:
+                continue
+
+            fields = {
+                "code": "mt5_level_change_unattributed",
+                "ticket": ticket,
+                "changed_fields": changed_fields,
+                "previous": previous,
+                "current": current,
+                "expected": expected,
+                "sl": current["sl"],
+                "tp": current["tp"],
+                "observed_interval_start_utc": _utc_iso(
+                    previous_observation["observed_at"]
+                ),
+                "observed_interval_end_utc": _utc_iso(now),
+                "matching_pending_modify": False,
+            }
+            self.journal.event(
+                sig_id,
+                "mt5_level_change_unattributed",
+                **fields,
+            )
+            self.journal.anomaly(
+                sig_id,
+                "levels",
+                "warning",
+                "MT5 cambio el SL/TP sin una accion atribuible al bot",
+                **fields,
+            )
 
     def _maybe_emit_snapshot(self, sig_id: str, now: datetime, **fields) -> None:
         last = self._last_snapshot_at.get(sig_id)

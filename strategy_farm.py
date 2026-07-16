@@ -15,6 +15,7 @@ from typing import Iterable
 
 import pandas as pd
 
+from broker_market_sessions import MARKET_SESSION_CONTRACT
 import observed_tick_replay_validator
 import provider_strategy_simulator
 import provider_trade_spec
@@ -336,6 +337,8 @@ def _require_current_causal_contract(baseline: dict | None) -> dict | None:
         blockers.append("causal_path_contract_unverified")
     if baseline.get("fill_price_authority") != "mt5_deals":
         blockers.append("fill_price_authority_unverified")
+    if baseline.get("market_session_contract") != MARKET_SESSION_CONTRACT:
+        blockers.append("market_session_contract_unverified")
     if not blockers:
         return baseline
     return {

@@ -9,6 +9,7 @@ from collections import Counter
 from datetime import date, datetime, timezone
 from pathlib import Path
 
+from broker_market_sessions import MARKET_SESSION_CONTRACT
 from tools import ensure_replay_tick_cache
 
 
@@ -180,6 +181,8 @@ def _observed_blockers_and_warnings(
         blockers.append("observed_path_contract_unverified")
     if observed.get("fill_price_authority") != FILL_PRICE_AUTHORITY:
         blockers.append("observed_fill_authority_unverified")
+    if observed.get("market_session_contract") != MARKET_SESSION_CONTRACT:
+        blockers.append("observed_market_session_contract_unverified")
     blockers.extend(
         f"observed:{item}" for item in observed.get("blockers") or [])
     warnings.extend(

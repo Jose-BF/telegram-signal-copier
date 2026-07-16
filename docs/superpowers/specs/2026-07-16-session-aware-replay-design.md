@@ -60,6 +60,8 @@ that read-only audit as follows:
 - if neither explains the new value, emit one
   `mt5_level_change_unattributed` event and one warning anomaly containing the
   previous, current and expected levels;
+- retain the previous and current observation timestamps as an uncertainty
+  window, and carry that evidence through the ledger and replay ticket history;
 - never modify MT5 or silently adopt the external value.
 
 Add `tp_by_ticket` beside the existing `sl_by_ticket`. The pending-action queue
@@ -70,6 +72,10 @@ The first observation after startup establishes a baseline and produces no
 warning. A level change while the bot is offline remains unknowable; the
 subsequent replay must retain a named `missing_sl_transition_evidence` blocker
 instead of inventing a timestamp.
+
+An online unattributed change is stored as `observed_unattributed`, not as a
+confirmed level transition. The validator names its observation window but
+does not use the end of that window as a fabricated exact activation time.
 
 ## Replay Semantics
 
@@ -98,4 +104,3 @@ instead of inventing a timestamp.
 Vantage publishes standard gold trading hours as Monday-Thursday 01:01-23:58
 and Friday 01:01-23:57. The live MT5 platform remains the final reference for
 the account: https://www.vantagemarkets.com/en/commodities-trading/gold-trading/
-

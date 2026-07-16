@@ -295,6 +295,103 @@ def test_zero_level_is_ignored_as_missing_price():
     assert result["first_touch"]["reason"] == "sl"
 
 
+def test_mt5_sl_comment_without_recorded_level_change_names_missing_evidence():
+    trade = _trade(direction="SELL")
+    ticket = _ticket(
+        open_price=4200.0,
+        close_price=4200.2,
+        close_reason="sl",
+        sl_history=[{
+            "ts": "2026-07-06T10:00:00+00:00",
+            "status": "confirmed",
+            "sl": 4210.0,
+        }],
+        tp_history=[{
+            "ts": "2026-07-06T10:00:00+00:00",
+            "status": "confirmed",
+            "tp": 4190.0,
+        }],
+        close_deal={"comment": "[sl 4200.20]"},
+    )
+    ticks = _ticks([
+        {
+            "time_utc": "2026-07-06T10:00:00+00:00",
+            "bid": 4200.0,
+            "ask": 4200.2,
+        },
+        {
+            "time_utc": "2026-07-06T10:01:30+00:00",
+            "bid": 4200.0,
+            "ask": 4200.2,
+        },
+    ])
+
+    result = observed_tick_replay_validator.validate_ticket(
+        trade,
+        ticket,
+        ticks,
+    )
+
+    assert result["status"] == "mismatch"
+    assert result["blockers"] == ["missing_sl_transition_evidence:101"]
+
+
+def test_unattributed_observed_sl_window_remains_non_exact_but_identified():
+    trade = _trade(direction="SELL")
+    ticket = _ticket(
+        open_price=4200.0,
+        close_price=4200.2,
+        close_reason="sl",
+        sl_history=[
+            {
+                "ts": "2026-07-06T10:00:00+00:00",
+                "status": "confirmed",
+                "sl": 4210.0,
+            },
+            {
+                "ts": "2026-07-06T10:01:25+00:00",
+                "status": "observed_unattributed",
+                "observed_interval_start_utc": (
+                    "2026-07-06T10:01:20+00:00"
+                ),
+                "observed_interval_end_utc": (
+                    "2026-07-06T10:01:25+00:00"
+                ),
+                "sl": 4200.2,
+            },
+        ],
+        tp_history=[{
+            "ts": "2026-07-06T10:00:00+00:00",
+            "status": "confirmed",
+            "tp": 4190.0,
+        }],
+        close_deal={"comment": "[sl 4200.20]"},
+    )
+    ticks = _ticks([
+        {
+            "time_utc": "2026-07-06T10:00:00+00:00",
+            "bid": 4200.0,
+            "ask": 4200.2,
+        },
+        {
+            "time_utc": "2026-07-06T10:01:30+00:00",
+            "bid": 4200.0,
+            "ask": 4200.2,
+        },
+    ])
+
+    result = observed_tick_replay_validator.validate_ticket(
+        trade,
+        ticket,
+        ticks,
+    )
+
+    assert result["status"] == "mismatch"
+    assert result["blockers"] == [
+        "unattributed_sl_transition_window:101"
+    ]
+
+
 def test_bot_close_replays_as_market_close_near_close_time():
     ticket = _ticket(
         close_reason="bot_close",
@@ -442,6 +539,37 @@ def test_tick_loader_exposes_verified_contracts_and_required_days(tmp_path):
     assert contract["size_bytes"] == parquet.stat().st_size
 
 
+def test_tick_loader_filters_quote_only_ticks_using_verified_server_offset(
+    tmp_path,
+):
+    cache_dir = tmp_path / "ticks_cache"
+    cache_dir.mkdir()
+    day = date(2026, 7, 12)
+    _ticks([
+        {
+            "time_utc": "2026-07-12T22:00:00+00:00",
+            "bid": 4096.0,
+            "ask": 4096.2,
+        },
+        {
+            "time_utc": "2026-07-12T22:01:00+00:00",
+            "bid": 4097.0,
+            "ask": 4097.2,
+        },
+    ]).to_parquet(cache_dir / "2026-07-12.parquet", index=False)
+    _write_tick_contract(cache_dir, day)
+    loader = observed_tick_replay_validator.ReplayTickFrameCache(cache_dir)
+
+    frame, error = loader._load_day("2026-07-12")
+
+    assert error is None
+    assert frame["time_utc"].dt.strftime("%H:%M:%S").tolist() == ["22:01:00"]
+    assert frame.attrs["market_session_contract"] == (
+        "vantage_xauusd_standard_v1"
+    )
+    assert frame.attrs["quote_only_ticks_removed"] == 1
+
+
 def test_cli_writes_observed_tick_replay_audit_and_status(tmp_path):
     cache_dir = tmp_path / "ticks_cache"
     cache_dir.mkdir()
@@ -476,9 +604,15 @@ def test_cli_writes_observed_tick_replay_audit_and_status(tmp_path):
     assert exit_code == 0
     assert rows[0]["status"] == "exact"
     assert rows[0]["schema_version"] == 2
+    assert rows[0]["market_session_contract"] == (
+        "vantage_xauusd_standard_v1"
+    )
     assert status["summary"]["exact"] == 1
     assert status["schema_version"] == 2
     assert status["validation_contract"] == "causal_path_v2"
+    assert status["market_session_contract"] == (
+        "vantage_xauusd_standard_v1"
+    )
 
 
 def test_cli_scopes_observed_replay_from_selected_date(tmp_path):
