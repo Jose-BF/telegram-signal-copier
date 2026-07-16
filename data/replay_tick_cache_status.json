@@ -1,18 +1,18 @@
 {
   "ok": true,
-  "generated_at": "2026-07-15T23:42:16+00:00",
+  "generated_at": "2026-07-16T21:34:17+00:00",
   "tick_time_contract": "mt5_server_epoch_utc_v3",
   "time_basis": "UTC",
   "dry_run": false,
   "ensure_attempted": true,
   "pad_minutes": 5,
   "cache_dir": "data/ticks_cache",
-  "n_trades": 74,
+  "n_trades": 87,
   "scope": {
     "since": "2026-07-06T00:00:00+00:00",
-    "until": "2026-07-15T00:00:00+00:00",
-    "input_trades": 210,
-    "selected_trades": 74
+    "until": null,
+    "input_trades": 223,
+    "selected_trades": 87
   },
   "required_days": [
     "2026-07-06",
@@ -24,7 +24,8 @@
     "2026-07-12",
     "2026-07-13",
     "2026-07-14",
-    "2026-07-15"
+    "2026-07-15",
+    "2026-07-16"
   ],
   "cached_days": [
     "2026-07-06",
@@ -36,7 +37,8 @@
     "2026-07-12",
     "2026-07-13",
     "2026-07-14",
-    "2026-07-15"
+    "2026-07-15",
+    "2026-07-16"
   ],
   "invalid_days": [],
   "incomplete_days": [],
@@ -111,130 +113,59 @@
       "required_through_utc": "2026-07-15T17:20:12+00:00",
       "complete_from_utc": "2026-07-15T00:00:00+00:00",
       "complete_through_utc": "2026-07-15T23:42:13.219000+00:00"
+    },
+    "2026-07-16": {
+      "status": "complete",
+      "required_from_utc": "2026-07-16T05:59:47+00:00",
+      "required_through_utc": "2026-07-16T15:33:02+00:00",
+      "complete_from_utc": "2026-07-16T00:00:00+00:00",
+      "complete_through_utc": "2026-07-16T20:57:59.173000+00:00"
     }
   },
   "ensure_stats": {
-    "downloaded": 3,
+    "downloaded": 1,
     "cached_already": 0,
-    "total_ticks": 1179153,
-    "empty_days": 1,
+    "total_ticks": 654344,
+    "empty_days": 0,
     "day_contracts": {
-      "2026-07-10": {
+      "2026-07-16": {
         "time_evidence": {
           "source_time_basis": "mt5_server_epoch",
           "utc_offset_seconds": 10800,
           "offset_detection_method": "fill_anchor",
           "offset_reference": {
-            "signal_id": "canal2_3054",
-            "ticket": 1571950542,
-            "anchor_time_utc": "2026-07-10T10:04:02.594000+00:00",
-            "raw_time_msc": 1783688643011,
-            "quote_side": "bid",
-            "fill_price": 4107.26,
+            "signal_id": "canal2_3302",
+            "ticket": 1602213751,
+            "anchor_time_utc": "2026-07-16T06:04:47.896000+00:00",
+            "raw_time_msc": 1784192687593,
+            "quote_side": "ask",
+            "fill_price": 4032.84,
             "price_delta": 0.0,
-            "time_delta_ms": 417
+            "time_delta_ms": 303
           }
         },
         "semantic_validation": {
           "valid": true,
-          "anchors_checked": 49,
-          "anchors_matched": 49,
-          "max_time_delta_ms": 1694,
-          "max_price_delta": 0.0,
+          "anchors_checked": 62,
+          "anchors_matched": 62,
+          "max_time_delta_ms": 2468,
+          "max_price_delta": 0.1,
           "errors": []
         },
         "coverage": {
-          "source_query_start_utc": "2026-07-10T00:00:00+00:00",
-          "source_query_end_utc": "2026-07-11T00:00:00+00:00",
-          "captured_at_utc": "2026-07-15T23:42:14.734869+00:00",
-          "first_tick_utc": "2026-07-10T00:00:00.024000+00:00",
-          "last_tick_utc": "2026-07-10T20:56:59.943000+00:00",
-          "complete_from_utc": "2026-07-10T00:00:00+00:00",
-          "complete_through_utc": "2026-07-11T00:00:00+00:00",
-          "row_count": 526466
-        }
-      },
-      "2026-07-11": {
-        "time_evidence": {
-          "source_time_basis": "mt5_server_epoch",
-          "utc_offset_seconds": 10800,
-          "offset_detection_method": "adjacent_verified_day",
-          "offset_reference": {
-            "inherited_from_day": "2026-07-10",
-            "distance_days": 1,
-            "source_reference": {
-              "signal_id": "canal2_3054",
-              "ticket": 1571950542,
-              "anchor_time_utc": "2026-07-10T10:04:02.594000+00:00",
-              "raw_time_msc": 1783688643011,
-              "quote_side": "bid",
-              "fill_price": 4107.26,
-              "price_delta": 0.0,
-              "time_delta_ms": 417
-            }
-          }
-        },
-        "semantic_validation": {
-          "valid": true,
-          "anchors_checked": 0,
-          "anchors_matched": 0,
-          "max_time_delta_ms": null,
-          "max_price_delta": null,
-          "errors": []
-        },
-        "coverage": {
-          "source_query_start_utc": "2026-07-11T00:00:00+00:00",
-          "source_query_end_utc": "2026-07-12T00:00:00+00:00",
-          "captured_at_utc": "2026-07-15T23:42:14.749036+00:00",
-          "first_tick_utc": null,
-          "last_tick_utc": null,
-          "complete_from_utc": "2026-07-11T00:00:00+00:00",
-          "complete_through_utc": "2026-07-12T00:00:00+00:00",
-          "row_count": 0
-        }
-      },
-      "2026-07-15": {
-        "time_evidence": {
-          "source_time_basis": "mt5_server_epoch",
-          "utc_offset_seconds": 10800,
-          "offset_detection_method": "fill_anchor",
-          "offset_reference": {
-            "signal_id": "canal2_3246",
-            "ticket": 1596416842,
-            "anchor_time_utc": "2026-07-15T09:13:02.661000+00:00",
-            "raw_time_msc": 1784117583859,
-            "quote_side": "bid",
-            "fill_price": 4030.34,
-            "price_delta": 0.0,
-            "time_delta_ms": 1198
-          }
-        },
-        "semantic_validation": {
-          "valid": true,
-          "anchors_checked": 46,
-          "anchors_matched": 46,
-          "max_time_delta_ms": 2445,
-          "max_price_delta": 0.0,
-          "errors": []
-        },
-        "coverage": {
-          "source_query_start_utc": "2026-07-15T00:00:00+00:00",
-          "source_query_end_utc": "2026-07-16T00:00:00+00:00",
-          "captured_at_utc": "2026-07-15T23:42:15.590747+00:00",
-          "first_tick_utc": "2026-07-15T00:00:00.017000+00:00",
-          "last_tick_utc": "2026-07-15T23:42:13.219000+00:00",
-          "complete_from_utc": "2026-07-15T00:00:00+00:00",
-          "complete_through_utc": "2026-07-15T23:42:13.219000+00:00",
-          "row_count": 652687
+          "source_query_start_utc": "2026-07-16T00:00:00+00:00",
+          "source_query_end_utc": "2026-07-17T00:00:00+00:00",
+          "captured_at_utc": "2026-07-16T21:34:15.596258+00:00",
+          "first_tick_utc": "2026-07-16T00:00:00.011000+00:00",
+          "last_tick_utc": "2026-07-16T20:57:59.173000+00:00",
+          "complete_from_utc": "2026-07-16T00:00:00+00:00",
+          "complete_through_utc": "2026-07-16T20:57:59.173000+00:00",
+          "row_count": 654344
         }
       }
     }
   },
   "refresh_requested_days": [],
-  "refresh_removed_days": [
-    "2026-07-10",
-    "2026-07-11",
-    "2026-07-15"
-  ],
+  "refresh_removed_days": [],
   "error": null
 }

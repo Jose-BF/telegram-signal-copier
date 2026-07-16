@@ -1,38 +1,30 @@
 {
   "schema_version": 2,
-  "generated_at": "2026-07-15T23:44:03+00:00",
+  "generated_at": "2026-07-16T21:35:03+00:00",
   "tick_cache_dir": "C:\\Users\\bot\\telegram-signal-copier\\data\\ticks_cache",
   "pad_minutes": 5,
   "scope": {
     "since": "2026-07-06",
-    "until": "2026-07-15",
-    "input_trades": 210,
-    "selected_trades": 74
+    "until": null,
+    "input_trades": 223,
+    "selected_trades": 87
   },
   "summary": {
-    "total": 74,
-    "ready": 72,
+    "total": 87,
+    "ready": 86,
     "pending": 0,
-    "blocked": 2,
+    "blocked": 1,
     "top_blockers": [
       [
         "observed_path_status:mismatch",
-        2
-      ],
-      [
-        "observed:no_level_touch_before_close",
         1
       ],
       [
-        "observed:first_touch_time_mismatch:1575068804:-93.000s",
+        "observed:missing_sl_transition_evidence:1567171589",
         1
       ],
       [
-        "observed:first_touch_time_mismatch:1575068826:-194.000s",
-        1
-      ],
-      [
-        "observed:first_touch_time_mismatch:1575068851:-247.000s",
+        "observed:missing_sl_transition_evidence:1567171598",
         1
       ]
     ]
@@ -72,11 +64,11 @@
     },
     {
       "date": "2026-07-10",
-      "status": "blocked",
+      "status": "ready",
       "total": 11,
-      "ready": 10,
+      "ready": 11,
       "pending": 0,
-      "blocked": 1
+      "blocked": 0
     },
     {
       "date": "2026-07-13",
@@ -99,6 +91,14 @@
       "status": "ready",
       "total": 10,
       "ready": 10,
+      "pending": 0,
+      "blocked": 0
+    },
+    {
+      "date": "2026-07-16",
+      "status": "ready",
+      "total": 13,
+      "ready": 13,
       "pending": 0,
       "blocked": 0
     }
@@ -1138,7 +1138,8 @@
       "ticket_count": 4,
       "blockers": [
         "observed_path_status:mismatch",
-        "observed:no_level_touch_before_close"
+        "observed:missing_sl_transition_evidence:1567171589",
+        "observed:missing_sl_transition_evidence:1567171598"
       ],
       "warnings": [
         "accounting_reconstructed",
@@ -1459,23 +1460,18 @@
       "signal_dt_utc": "2026-07-10T17:38:25.502+00:00",
       "open_dt_utc": "2026-07-10T17:38:26+00:00",
       "close_dt_utc": "2026-07-12T22:04:10+00:00",
-      "ready": false,
-      "status": "blocked",
+      "ready": true,
+      "status": "ready",
       "accounting_status": "reconstructed",
       "accounting_money_exact": true,
-      "observed_path_status": "mismatch",
+      "observed_path_status": "exact",
       "tick_days": [
         "2026-07-10",
         "2026-07-11",
         "2026-07-12"
       ],
       "ticket_count": 4,
-      "blockers": [
-        "observed_path_status:mismatch",
-        "observed:first_touch_time_mismatch:1575068804:-93.000s",
-        "observed:first_touch_time_mismatch:1575068826:-194.000s",
-        "observed:first_touch_time_mismatch:1575068851:-247.000s"
-      ],
+      "blockers": [],
       "warnings": [
         "accounting_reconstructed",
         "accounting_assumption:journal_missing_signal_closed",
@@ -2365,6 +2361,429 @@
         "observed:observed_open_execution_delta:1599122615:+0.19",
         "observed:observed_close_execution_delta:1599122615:+0.02",
         "observed:observed_level_fill_delta:1599122615:-0.16"
+      ]
+    },
+    {
+      "sig_id": "canal2_3302",
+      "channel": "canal2",
+      "direction": "BUY",
+      "signal_dt_utc": "2026-07-16T06:04:47.718+00:00",
+      "open_dt_utc": "2026-07-16T06:04:47+00:00",
+      "close_dt_utc": "2026-07-16T06:11:38+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "exact",
+      "accounting_money_exact": true,
+      "observed_path_status": "exact",
+      "tick_days": [
+        "2026-07-16"
+      ],
+      "ticket_count": 5,
+      "blockers": [],
+      "warnings": [
+        "observed:observed_open_execution_delta:1602213751:+0.02",
+        "observed:observed_close_execution_delta:1602213751:+0.14",
+        "observed:observed_open_execution_delta:1602213768:-0.26",
+        "observed:observed_open_execution_delta:1602213786:-0.33",
+        "observed:observed_close_execution_delta:1602213786:+0.13",
+        "observed:observed_close_execution_delta:1602213848:+0.16",
+        "observed:observed_level_fill_delta:1602213848:-0.03",
+        "observed:observed_close_execution_delta:1602213872:+0.17",
+        "observed:observed_level_fill_delta:1602213872:-0.02"
+      ]
+    },
+    {
+      "sig_id": "canal2_3304",
+      "channel": "canal2",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-16T07:00:11.072+00:00",
+      "open_dt_utc": "2026-07-16T07:00:10+00:00",
+      "close_dt_utc": "2026-07-16T07:48:02+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "exact",
+      "accounting_money_exact": true,
+      "observed_path_status": "exact",
+      "tick_days": [
+        "2026-07-16"
+      ],
+      "ticket_count": 5,
+      "blockers": [],
+      "warnings": [
+        "observed:observed_open_execution_delta:1602511372:+0.21",
+        "observed:observed_close_execution_delta:1602511372:-0.16",
+        "observed:observed_level_fill_delta:1602511372:+0.02",
+        "observed:observed_open_execution_delta:1602511398:+0.02",
+        "observed:observed_close_execution_delta:1602511398:-0.04",
+        "observed:observed_level_fill_delta:1602511398:+0.05",
+        "observed:observed_open_execution_delta:1602511419:-0.21",
+        "observed:observed_close_execution_delta:1602511419:-0.28",
+        "observed:observed_level_fill_delta:1602511419:+0.14",
+        "observed:observed_open_execution_delta:1602511433:-0.23",
+        "observed:observed_close_execution_delta:1602511433:-0.30",
+        "observed:observed_level_fill_delta:1602511433:+0.12",
+        "observed:observed_open_execution_delta:1602511466:-0.39",
+        "observed:observed_close_execution_delta:1602511466:-0.46"
+      ]
+    },
+    {
+      "sig_id": "canal2_3309",
+      "channel": "canal2",
+      "direction": "BUY",
+      "signal_dt_utc": "2026-07-16T08:59:33.745+00:00",
+      "open_dt_utc": "2026-07-16T08:59:33+00:00",
+      "close_dt_utc": "2026-07-16T09:04:48+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "exact",
+      "accounting_money_exact": true,
+      "observed_path_status": "exact",
+      "tick_days": [
+        "2026-07-16"
+      ],
+      "ticket_count": 5,
+      "blockers": [],
+      "warnings": [
+        "observed:observed_close_execution_delta:1603118855:+0.09",
+        "observed:observed_open_execution_delta:1603118869:-0.02",
+        "observed:observed_close_execution_delta:1603118869:+0.08",
+        "observed:observed_level_fill_delta:1603118869:-0.01",
+        "observed:observed_close_execution_delta:1603118875:+0.09",
+        "observed:observed_close_execution_delta:1603118885:+0.09",
+        "observed:observed_close_execution_delta:1603118899:+0.09"
+      ]
+    },
+    {
+      "sig_id": "canal2_3313",
+      "channel": "canal2",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-16T11:25:49.702+00:00",
+      "open_dt_utc": "2026-07-16T11:25:49+00:00",
+      "close_dt_utc": "2026-07-16T11:29:55+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "reconstructed",
+      "accounting_money_exact": true,
+      "observed_path_status": "exact",
+      "tick_days": [
+        "2026-07-16"
+      ],
+      "ticket_count": 5,
+      "blockers": [],
+      "warnings": [
+        "accounting_reconstructed",
+        "accounting_assumption:journal_health_degraded",
+        "observed:observed_open_execution_delta:1603759125:-0.11",
+        "observed:observed_close_execution_delta:1603759125:-0.33",
+        "observed:observed_level_fill_delta:1603759125:+0.05",
+        "observed:observed_open_execution_delta:1603759174:-0.15",
+        "observed:observed_close_execution_delta:1603759174:-0.33",
+        "observed:observed_level_fill_delta:1603759174:+0.05",
+        "observed:observed_close_execution_delta:1603759210:-0.33",
+        "observed:observed_level_fill_delta:1603759210:+0.05",
+        "observed:observed_open_execution_delta:1603759308:-0.03",
+        "observed:observed_close_execution_delta:1603759308:-0.33",
+        "observed:observed_level_fill_delta:1603759308:+0.05",
+        "observed:observed_open_execution_delta:1603759403:-0.07",
+        "observed:observed_close_execution_delta:1603759403:-0.33",
+        "observed:observed_level_fill_delta:1603759403:+0.05"
+      ]
+    },
+    {
+      "sig_id": "canal2_3315",
+      "channel": "canal2",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-16T11:37:57.592+00:00",
+      "open_dt_utc": "2026-07-16T11:37:57+00:00",
+      "close_dt_utc": "2026-07-16T11:39:49+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "exact",
+      "accounting_money_exact": true,
+      "observed_path_status": "exact",
+      "tick_days": [
+        "2026-07-16"
+      ],
+      "ticket_count": 5,
+      "blockers": [],
+      "warnings": [
+        "observed:observed_open_execution_delta:1603848877:-0.02",
+        "observed:observed_close_execution_delta:1603848877:-0.26",
+        "observed:observed_level_fill_delta:1603848877:+0.08",
+        "observed:observed_open_execution_delta:1603848888:-0.03",
+        "observed:observed_close_execution_delta:1603848888:-0.27",
+        "observed:observed_level_fill_delta:1603848888:+0.07",
+        "observed:observed_open_execution_delta:1603848896:-0.02",
+        "observed:observed_close_execution_delta:1603848896:-0.26",
+        "observed:observed_level_fill_delta:1603848896:+0.08",
+        "observed:observed_close_execution_delta:1603848915:-0.25",
+        "observed:observed_close_execution_delta:1603848919:-0.25"
+      ]
+    },
+    {
+      "sig_id": "canal2_3320",
+      "channel": "canal2",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-16T12:17:53.227+00:00",
+      "open_dt_utc": "2026-07-16T12:17:53+00:00",
+      "close_dt_utc": "2026-07-16T12:24:12+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "reconstructed",
+      "accounting_money_exact": true,
+      "observed_path_status": "exact",
+      "tick_days": [
+        "2026-07-16"
+      ],
+      "ticket_count": 5,
+      "blockers": [],
+      "warnings": [
+        "accounting_reconstructed",
+        "accounting_assumption:journal_health_degraded",
+        "observed:observed_open_execution_delta:1604257994:-0.02",
+        "observed:observed_close_execution_delta:1604257994:-0.72",
+        "observed:observed_level_fill_delta:1604257994:+0.03",
+        "observed:observed_open_execution_delta:1604258043:-0.03",
+        "observed:observed_close_execution_delta:1604258043:-0.73",
+        "observed:observed_level_fill_delta:1604258043:+0.02",
+        "observed:observed_open_execution_delta:1604258072:-0.04",
+        "observed:observed_close_execution_delta:1604258072:-0.74",
+        "observed:observed_level_fill_delta:1604258072:+0.01",
+        "observed:observed_close_execution_delta:1604258096:-0.71",
+        "observed:observed_open_execution_delta:1604258120:-0.15",
+        "observed:observed_close_execution_delta:1604258120:-0.11"
+      ]
+    },
+    {
+      "sig_id": "canal1_20900",
+      "channel": "canal1",
+      "direction": "BUY",
+      "signal_dt_utc": "2026-07-16T12:47:37.913+00:00",
+      "open_dt_utc": "2026-07-16T12:47:37+00:00",
+      "close_dt_utc": "2026-07-16T13:02:41+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "exact",
+      "accounting_money_exact": true,
+      "observed_path_status": "exact",
+      "tick_days": [
+        "2026-07-16"
+      ],
+      "ticket_count": 4,
+      "blockers": [],
+      "warnings": [
+        "observed:observed_open_execution_delta:1604614211:-0.22",
+        "observed:observed_close_execution_delta:1604614211:-4.35",
+        "observed:observed_level_fill_delta:1604614211:-0.74",
+        "observed:observed_open_execution_delta:1604614216:-0.19",
+        "observed:observed_close_execution_delta:1604614216:-4.35",
+        "observed:observed_level_fill_delta:1604614216:-0.74",
+        "observed:observed_close_execution_delta:1604614229:-4.35",
+        "observed:observed_level_fill_delta:1604614229:-0.74",
+        "observed:observed_open_execution_delta:1604614242:+0.11",
+        "observed:observed_close_execution_delta:1604614242:-4.35",
+        "observed:observed_level_fill_delta:1604614242:-0.74"
+      ]
+    },
+    {
+      "sig_id": "canal2_3331",
+      "channel": "canal2",
+      "direction": "BUY",
+      "signal_dt_utc": "2026-07-16T12:57:55.722+00:00",
+      "open_dt_utc": "2026-07-16T12:57:55+00:00",
+      "close_dt_utc": "2026-07-16T12:59:24+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "reconstructed",
+      "accounting_money_exact": true,
+      "observed_path_status": "exact",
+      "tick_days": [
+        "2026-07-16"
+      ],
+      "ticket_count": 5,
+      "blockers": [],
+      "warnings": [
+        "accounting_reconstructed",
+        "accounting_assumption:journal_health_degraded",
+        "observed:observed_open_execution_delta:1604739142:-0.39",
+        "observed:observed_close_execution_delta:1604739142:+0.12",
+        "observed:observed_level_fill_delta:1604739142:-0.01",
+        "observed:observed_open_execution_delta:1604739171:-0.09",
+        "observed:observed_close_execution_delta:1604739171:+0.12",
+        "observed:observed_level_fill_delta:1604739171:-0.01",
+        "observed:observed_open_execution_delta:1604739184:-0.08",
+        "observed:observed_close_execution_delta:1604739184:+0.12",
+        "observed:observed_level_fill_delta:1604739184:-0.01",
+        "observed:observed_open_execution_delta:1604739198:-0.10",
+        "observed:observed_close_execution_delta:1604739198:+0.12",
+        "observed:observed_level_fill_delta:1604739198:-0.01",
+        "observed:observed_close_execution_delta:1604739210:+0.12",
+        "observed:observed_level_fill_delta:1604739210:-0.01"
+      ]
+    },
+    {
+      "sig_id": "canal1_20904",
+      "channel": "canal1",
+      "direction": "BUY",
+      "signal_dt_utc": "2026-07-16T13:06:20.869+00:00",
+      "open_dt_utc": "2026-07-16T13:06:20+00:00",
+      "close_dt_utc": "2026-07-16T13:29:39+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "exact",
+      "accounting_money_exact": true,
+      "observed_path_status": "exact",
+      "tick_days": [
+        "2026-07-16"
+      ],
+      "ticket_count": 4,
+      "blockers": [],
+      "warnings": [
+        "observed:observed_open_execution_delta:1604918150:-0.36",
+        "observed:observed_close_execution_delta:1604918150:-0.26",
+        "observed:observed_open_execution_delta:1604918186:-0.46",
+        "observed:observed_close_execution_delta:1604918186:-0.06",
+        "observed:observed_close_execution_delta:1604918221:-0.22",
+        "observed:observed_open_execution_delta:1604918279:+0.46",
+        "observed:observed_close_execution_delta:1604918279:-0.28"
+      ]
+    },
+    {
+      "sig_id": "canal2_3337",
+      "channel": "canal2",
+      "direction": "BUY",
+      "signal_dt_utc": "2026-07-16T13:37:26.691+00:00",
+      "open_dt_utc": "2026-07-16T13:37:26+00:00",
+      "close_dt_utc": "2026-07-16T13:39:53+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "exact",
+      "accounting_money_exact": true,
+      "observed_path_status": "exact",
+      "tick_days": [
+        "2026-07-16"
+      ],
+      "ticket_count": 5,
+      "blockers": [],
+      "warnings": [
+        "observed:observed_open_execution_delta:1605270664:+0.24",
+        "observed:observed_close_execution_delta:1605270664:-0.09",
+        "observed:observed_level_fill_delta:1605270664:-0.09",
+        "observed:observed_open_execution_delta:1605270690:+0.20",
+        "observed:observed_close_execution_delta:1605270690:-0.09",
+        "observed:observed_level_fill_delta:1605270690:-0.09",
+        "observed:observed_open_execution_delta:1605270708:+0.20",
+        "observed:observed_close_execution_delta:1605270708:-0.09",
+        "observed:observed_level_fill_delta:1605270708:-0.09",
+        "observed:observed_open_execution_delta:1605270735:+0.35",
+        "observed:observed_close_execution_delta:1605270735:-0.09",
+        "observed:observed_level_fill_delta:1605270735:-0.09",
+        "observed:observed_open_execution_delta:1605270758:+0.02",
+        "observed:observed_close_execution_delta:1605270758:-0.09",
+        "observed:observed_level_fill_delta:1605270758:-0.09"
+      ]
+    },
+    {
+      "sig_id": "canal1_20917",
+      "channel": "canal1",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-16T13:42:00.011+00:00",
+      "open_dt_utc": "2026-07-16T13:41:59+00:00",
+      "close_dt_utc": "2026-07-16T15:25:10+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "reconstructed",
+      "accounting_money_exact": true,
+      "observed_path_status": "exact",
+      "tick_days": [
+        "2026-07-16"
+      ],
+      "ticket_count": 4,
+      "blockers": [],
+      "warnings": [
+        "accounting_reconstructed",
+        "accounting_assumption:journal_health_degraded",
+        "observed:observed_open_execution_delta:1605332151:-0.42",
+        "observed:observed_close_execution_delta:1605332151:-0.15",
+        "observed:observed_level_fill_delta:1605332151:+0.09",
+        "observed:observed_open_execution_delta:1605332961:+0.08",
+        "observed:observed_close_execution_delta:1605332961:-0.15",
+        "observed:observed_level_fill_delta:1605332961:+0.09",
+        "observed:observed_close_execution_delta:1605333621:-0.15",
+        "observed:observed_level_fill_delta:1605333621:+0.09",
+        "observed:observed_open_execution_delta:1605334034:-0.35",
+        "observed:observed_close_execution_delta:1605334034:-0.15",
+        "observed:observed_level_fill_delta:1605334034:+0.09"
+      ]
+    },
+    {
+      "sig_id": "canal2_3341",
+      "channel": "canal2",
+      "direction": "BUY",
+      "signal_dt_utc": "2026-07-16T14:01:58.816+00:00",
+      "open_dt_utc": "2026-07-16T14:01:58+00:00",
+      "close_dt_utc": "2026-07-16T14:05:26+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "reconstructed",
+      "accounting_money_exact": true,
+      "observed_path_status": "exact",
+      "tick_days": [
+        "2026-07-16"
+      ],
+      "ticket_count": 5,
+      "blockers": [],
+      "warnings": [
+        "accounting_reconstructed",
+        "accounting_assumption:journal_health_degraded",
+        "observed:observed_open_execution_delta:1605538484:-0.44",
+        "observed:observed_close_execution_delta:1605538484:+0.35",
+        "observed:observed_level_fill_delta:1605538484:-0.02",
+        "observed:observed_open_execution_delta:1605538500:-0.51",
+        "observed:observed_close_execution_delta:1605538500:+0.35",
+        "observed:observed_level_fill_delta:1605538500:-0.02",
+        "observed:observed_open_execution_delta:1605538511:-0.46",
+        "observed:observed_close_execution_delta:1605538511:+0.35",
+        "observed:observed_level_fill_delta:1605538511:-0.02",
+        "observed:observed_open_execution_delta:1605538554:-0.38",
+        "observed:observed_close_execution_delta:1605538554:+0.35",
+        "observed:observed_level_fill_delta:1605538554:-0.02",
+        "observed:observed_open_execution_delta:1605538817:-0.33",
+        "observed:observed_close_execution_delta:1605538817:+0.35",
+        "observed:observed_level_fill_delta:1605538817:-0.02"
+      ]
+    },
+    {
+      "sig_id": "canal2_3354",
+      "channel": "canal2",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-16T15:26:46.428+00:00",
+      "open_dt_utc": "2026-07-16T15:26:46+00:00",
+      "close_dt_utc": "2026-07-16T15:28:02+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "exact",
+      "accounting_money_exact": true,
+      "observed_path_status": "exact",
+      "tick_days": [
+        "2026-07-16"
+      ],
+      "ticket_count": 5,
+      "blockers": [],
+      "warnings": [
+        "observed:observed_open_execution_delta:1606293382:-0.04",
+        "observed:observed_close_execution_delta:1606293382:-0.16",
+        "observed:observed_level_fill_delta:1606293382:+0.08",
+        "observed:observed_open_execution_delta:1606293452:-0.03",
+        "observed:observed_close_execution_delta:1606293452:-0.15",
+        "observed:observed_open_execution_delta:1606293502:+0.07",
+        "observed:observed_close_execution_delta:1606293502:-0.33",
+        "observed:observed_level_fill_delta:1606293502:+0.02",
+        "observed:observed_open_execution_delta:1606293522:+0.11",
+        "observed:observed_close_execution_delta:1606293522:-0.29",
+        "observed:observed_level_fill_delta:1606293522:+0.06",
+        "observed:observed_close_execution_delta:1606293553:-0.32",
+        "observed:observed_level_fill_delta:1606293553:+0.03"
       ]
     }
   ]
