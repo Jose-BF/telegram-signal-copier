@@ -344,211 +344,6 @@
     },
     {
       "affected_channels": [
-        "canal1",
-        "canal2"
-      ],
-      "affected_day_count": 1,
-      "affected_days": [
-        "2026-06-09"
-      ],
-      "affected_signal_count": 12,
-      "affected_signals": [
-        "canal1_20142",
-        "canal1_20147",
-        "canal1_20158",
-        "canal1_20164",
-        "canal1_20170",
-        "canal1_20184",
-        "canal2_13493",
-        "canal2_13501",
-        "canal2_13508",
-        "canal2_13514",
-        "canal2_13525",
-        "canal2_13537"
-      ],
-      "candidate_reason": "material reliability impact",
-      "category": "market_replay",
-      "coverage": {
-        "covered_after_utc": null,
-        "fix_commit": null,
-        "regression_test": null,
-        "reviewed_at_utc": null,
-        "reviewed_by": null,
-        "rule_version": null,
-        "verification": null
-      },
-      "evidence": [
-        {
-          "channel": "canal1",
-          "detail": "invalid_tick_cache_contract",
-          "event": "observed_tick_replay",
-          "signal": "canal1_20142",
-          "ts_utc": "2026-06-09T12:25:29.808+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "invalid_tick_cache_contract",
-          "event": "observed_tick_replay",
-          "signal": "canal1_20147",
-          "ts_utc": "2026-06-09T12:59:15.161+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "invalid_tick_cache_contract",
-          "event": "observed_tick_replay",
-          "signal": "canal1_20158",
-          "ts_utc": "2026-06-09T14:02:09.968+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "invalid_tick_cache_contract",
-          "event": "observed_tick_replay",
-          "signal": "canal1_20164",
-          "ts_utc": "2026-06-09T14:15:45.213+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "invalid_tick_cache_contract",
-          "event": "observed_tick_replay",
-          "signal": "canal1_20170",
-          "ts_utc": "2026-06-09T14:30:15.995+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "invalid_tick_cache_contract",
-          "event": "observed_tick_replay",
-          "signal": "canal1_20184",
-          "ts_utc": "2026-06-09T16:03:16.192+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "invalid_tick_cache_contract",
-          "event": "observed_tick_replay",
-          "signal": "canal2_13493",
-          "ts_utc": "2026-06-09T07:30:34.001+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "invalid_tick_cache_contract",
-          "event": "observed_tick_replay",
-          "signal": "canal2_13501",
-          "ts_utc": "2026-06-09T11:00:03.666+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "invalid_tick_cache_contract",
-          "event": "observed_tick_replay",
-          "signal": "canal2_13508",
-          "ts_utc": "2026-06-09T14:00:10.085+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "invalid_tick_cache_contract",
-          "event": "observed_tick_replay",
-          "signal": "canal2_13514",
-          "ts_utc": "2026-06-09T14:14:18.784+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "invalid_tick_cache_contract",
-          "event": "observed_tick_replay",
-          "signal": "canal2_13525",
-          "ts_utc": "2026-06-09T14:30:03.315+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "invalid_tick_cache_contract",
-          "event": "observed_tick_replay",
-          "signal": "canal2_13537",
-          "ts_utc": "2026-06-09T15:15:58.198+00:00"
-        }
-      ],
-      "financial_impact": null,
-      "first_seen_utc": "2026-06-09T07:30:34.001+00:00",
-      "last_seen_utc": "2026-06-09T16:03:16.192+00:00",
-      "occurrences": 12,
-      "pattern_id": "market_replay.invalid_tick_cache_contract",
-      "priority_score": 40141,
-      "raw_events": 12,
-      "recurrence": "multiple_incidents",
-      "severity": "critical",
-      "status": "candidate",
-      "template": "observed-tick replay blocker: invalid tick cache contract"
-    },
-    {
-      "affected_channels": [
-        "canal1",
-        "canal2"
-      ],
-      "affected_day_count": 4,
-      "affected_days": [
-        "2026-06-12",
-        "2026-06-19",
-        "2026-07-10",
-        "2026-07-15"
-      ],
-      "affected_signal_count": 4,
-      "affected_signals": [
-        "canal1_20314",
-        "canal1_20447",
-        "canal1_20827",
-        "canal2_3270"
-      ],
-      "candidate_reason": "material reliability impact",
-      "category": "market_replay",
-      "coverage": {
-        "covered_after_utc": null,
-        "fix_commit": null,
-        "regression_test": null,
-        "reviewed_at_utc": null,
-        "reviewed_by": null,
-        "rule_version": null,
-        "verification": null
-      },
-      "evidence": [
-        {
-          "channel": "canal1",
-          "detail": "first_touch_time_mismatch",
-          "event": "observed_tick_replay",
-          "signal": "canal1_20314",
-          "ts_utc": "2026-06-12T17:10:35.045+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "first_touch_time_mismatch",
-          "event": "observed_tick_replay",
-          "signal": "canal1_20447",
-          "ts_utc": "2026-06-19T16:22:00.853+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "first_touch_time_mismatch",
-          "event": "observed_tick_replay",
-          "signal": "canal1_20827",
-          "ts_utc": "2026-07-10T17:38:25.502+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "first_touch_time_mismatch",
-          "event": "observed_tick_replay",
-          "signal": "canal2_3270",
-          "ts_utc": "2026-07-15T12:38:44.048+00:00"
-        }
-      ],
-      "financial_impact": null,
-      "first_seen_utc": "2026-06-12T17:10:35.045+00:00",
-      "last_seen_utc": "2026-07-15T12:38:44.048+00:00",
-      "occurrences": 4,
-      "pattern_id": "market_replay.first_touch_time_mismatch",
-      "priority_score": 40120,
-      "raw_events": 8,
-      "recurrence": "cross_session",
-      "severity": "critical",
-      "status": "candidate",
-      "template": "observed-tick replay blocker: first touch time mismatch"
-    },
-    {
-      "affected_channels": [
         "canal1"
       ],
       "affected_day_count": 2,
@@ -602,146 +397,6 @@
     },
     {
       "affected_channels": [
-        "canal2"
-      ],
-      "affected_day_count": 1,
-      "affected_days": [
-        "2026-07-15"
-      ],
-      "affected_signal_count": 2,
-      "affected_signals": [
-        "canal2_3259",
-        "canal2_3270"
-      ],
-      "candidate_reason": "material reliability impact",
-      "category": "market_replay",
-      "coverage": {
-        "covered_after_utc": null,
-        "fix_commit": null,
-        "regression_test": null,
-        "reviewed_at_utc": null,
-        "reviewed_by": null,
-        "rule_version": null,
-        "verification": null
-      },
-      "evidence": [
-        {
-          "channel": "canal2",
-          "detail": "unsupported_close_reason",
-          "event": "observed_tick_replay",
-          "signal": "canal2_3259",
-          "ts_utc": "2026-07-15T11:49:58.113+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "unsupported_close_reason",
-          "event": "observed_tick_replay",
-          "signal": "canal2_3270",
-          "ts_utc": "2026-07-15T12:38:44.048+00:00"
-        }
-      ],
-      "financial_impact": null,
-      "first_seen_utc": "2026-07-15T11:49:58.113+00:00",
-      "last_seen_utc": "2026-07-15T12:38:44.048+00:00",
-      "occurrences": 2,
-      "pattern_id": "market_replay.unsupported_close_reason",
-      "priority_score": 40040,
-      "raw_events": 7,
-      "recurrence": "multiple_incidents",
-      "severity": "critical",
-      "status": "candidate",
-      "template": "observed-tick replay blocker: unsupported close reason"
-    },
-    {
-      "affected_channels": [
-        "canal1"
-      ],
-      "affected_day_count": 1,
-      "affected_days": [
-        "2026-07-15"
-      ],
-      "affected_signal_count": 1,
-      "affected_signals": [
-        "canal1_20868"
-      ],
-      "candidate_reason": "material reliability impact",
-      "category": "accounting",
-      "coverage": {
-        "covered_after_utc": null,
-        "fix_commit": null,
-        "regression_test": null,
-        "reviewed_at_utc": null,
-        "reviewed_by": null,
-        "rule_version": null,
-        "verification": null
-      },
-      "evidence": [
-        {
-          "channel": "canal1",
-          "detail": "pnl_mt5_incomplete",
-          "event": "accounting_replay",
-          "signal": "canal1_20868",
-          "ts_utc": "2026-07-15T12:32:12.298+00:00"
-        }
-      ],
-      "financial_impact": 0.0,
-      "first_seen_utc": "2026-07-15T12:32:12.298+00:00",
-      "last_seen_utc": "2026-07-15T12:32:12.298+00:00",
-      "occurrences": 1,
-      "pattern_id": "accounting.blocked",
-      "priority_score": 40030,
-      "raw_events": 1,
-      "recurrence": "single_incident",
-      "severity": "critical",
-      "status": "candidate",
-      "template": "accounting replay status is blocked"
-    },
-    {
-      "affected_channels": [
-        "canal1"
-      ],
-      "affected_day_count": 1,
-      "affected_days": [
-        "2026-06-19"
-      ],
-      "affected_signal_count": 1,
-      "affected_signals": [
-        "canal1_20447"
-      ],
-      "candidate_reason": "material reliability impact",
-      "category": "market_replay",
-      "coverage": {
-        "covered_after_utc": null,
-        "fix_commit": null,
-        "regression_test": null,
-        "reviewed_at_utc": null,
-        "reviewed_by": null,
-        "rule_version": null,
-        "verification": null
-      },
-      "evidence": [
-        {
-          "channel": "canal1",
-          "detail": "first_touch_reason_mismatch",
-          "event": "observed_tick_replay",
-          "signal": "canal1_20447",
-          "ts_utc": "2026-06-19T16:22:00.853+00:00"
-        }
-      ],
-      "financial_impact": null,
-      "first_seen_utc": "2026-06-19T16:22:00.853+00:00",
-      "last_seen_utc": "2026-06-19T16:22:00.853+00:00",
-      "occurrences": 1,
-      "pattern_id": "market_replay.first_touch_reason_mismatch",
-      "priority_score": 40030,
-      "raw_events": 1,
-      "recurrence": "single_incident",
-      "severity": "critical",
-      "status": "candidate",
-      "template": "observed-tick replay blocker: first touch reason mismatch"
-    },
-    {
-      "affected_channels": [
         "canal1"
       ],
       "affected_day_count": 1,
@@ -766,7 +421,7 @@
       "evidence": [
         {
           "channel": "canal1",
-          "detail": "no_level_touch_before_close",
+          "detail": "missing_sl_transition_evidence",
           "event": "observed_tick_replay",
           "signal": "canal1_20801",
           "ts_utc": "2026-07-09T14:24:55.199+00:00"
@@ -776,20 +431,64 @@
       "first_seen_utc": "2026-07-09T14:24:55.199+00:00",
       "last_seen_utc": "2026-07-09T14:24:55.199+00:00",
       "occurrences": 1,
-      "pattern_id": "market_replay.no_level_touch_before_close",
+      "pattern_id": "market_replay.missing_sl_transition_evidence",
       "priority_score": 40030,
-      "raw_events": 1,
+      "raw_events": 2,
       "recurrence": "single_incident",
       "severity": "critical",
       "status": "candidate",
-      "template": "observed-tick replay blocker: no level touch before close"
+      "template": "observed-tick replay blocker: missing sl transition evidence"
+    },
+    {
+      "affected_channels": [
+        "canal2"
+      ],
+      "affected_day_count": 1,
+      "affected_days": [
+        "2026-07-17"
+      ],
+      "affected_signal_count": 1,
+      "affected_signals": [
+        "canal2_3376"
+      ],
+      "candidate_reason": "material reliability impact",
+      "category": "market_replay",
+      "coverage": {
+        "covered_after_utc": null,
+        "fix_commit": null,
+        "regression_test": null,
+        "reviewed_at_utc": null,
+        "reviewed_by": null,
+        "rule_version": null,
+        "verification": null
+      },
+      "evidence": [
+        {
+          "channel": "canal2",
+          "detail": "unsupported_close_reason",
+          "event": "observed_tick_replay",
+          "signal": "canal2_3376",
+          "ts_utc": "2026-07-17T07:00:19.964+00:00"
+        }
+      ],
+      "financial_impact": null,
+      "first_seen_utc": "2026-07-17T07:00:19.964+00:00",
+      "last_seen_utc": "2026-07-17T07:00:19.964+00:00",
+      "occurrences": 1,
+      "pattern_id": "market_replay.unsupported_close_reason",
+      "priority_score": 40030,
+      "raw_events": 5,
+      "recurrence": "single_incident",
+      "severity": "critical",
+      "status": "candidate",
+      "template": "observed-tick replay blocker: unsupported close reason"
     },
     {
       "affected_channels": [
         "canal1",
         "canal2"
       ],
-      "affected_day_count": 13,
+      "affected_day_count": 14,
       "affected_days": [
         "2026-06-10",
         "2026-06-11",
@@ -803,9 +502,10 @@
         "2026-07-09",
         "2026-07-10",
         "2026-07-14",
-        "2026-07-15"
+        "2026-07-15",
+        "2026-07-16"
       ],
-      "affected_signal_count": 16,
+      "affected_signal_count": 19,
       "affected_signals": [
         "canal1_20230",
         "canal1_20402",
@@ -822,7 +522,10 @@
         "canal2_3094",
         "canal2_3204",
         "canal2_3228",
-        "canal2_3245"
+        "canal2_3245",
+        "canal2_3281",
+        "canal2_3295",
+        "canal2_3318"
       ],
       "candidate_reason": "material reliability impact",
       "category": "semantics",
@@ -923,15 +626,161 @@
       ],
       "financial_impact": null,
       "first_seen_utc": "2026-06-10T14:29:43+00:00",
-      "last_seen_utc": "2026-07-15T08:31:59+00:00",
-      "occurrences": 16,
+      "last_seen_utc": "2026-07-16T12:15:10+00:00",
+      "occurrences": 19,
       "pattern_id": "semantics.unclassified_management.non_trading_announcement",
-      "priority_score": 30425,
-      "raw_events": 55,
+      "priority_score": 30476,
+      "raw_events": 65,
       "recurrence": "cross_session",
       "severity": "high",
       "status": "candidate",
       "template": "unclassified provider management: provider announcement outside trade management"
+    },
+    {
+      "affected_channels": [
+        "canal1",
+        "canal2"
+      ],
+      "affected_day_count": 12,
+      "affected_days": [
+        "2026-06-05",
+        "2026-06-10",
+        "2026-06-12",
+        "2026-06-16",
+        "2026-06-17",
+        "2026-06-23",
+        "2026-06-24",
+        "2026-07-06",
+        "2026-07-08",
+        "2026-07-13",
+        "2026-07-14",
+        "2026-07-15"
+      ],
+      "affected_signal_count": 14,
+      "affected_signals": [
+        "canal1_20093",
+        "canal1_20236",
+        "canal1_20303",
+        "canal1_20341",
+        "canal1_20402",
+        "canal1_20504",
+        "canal1_20536",
+        "canal1_20717",
+        "canal1_20793",
+        "canal1_20882",
+        "canal2_2810",
+        "canal2_3146",
+        "canal2_3220",
+        "canal2_3297"
+      ],
+      "candidate_reason": "material reliability impact",
+      "category": "semantics",
+      "coverage": {
+        "covered_after_utc": null,
+        "fix_commit": null,
+        "regression_test": null,
+        "reviewed_at_utc": null,
+        "reviewed_by": null,
+        "rule_version": null,
+        "verification": null
+      },
+      "evidence": [
+        {
+          "channel": "canal1",
+          "detail": "🚨 NFP News pushed gold lower again. 📉\n\n✅ NFP: 172K vs 85K forecast\n✅ Stronger USD = bearish for gold\n\nGold is dumping further after the news. Stay patient and wait for the next setup. 🎯",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20093",
+          "ts_utc": "2026-06-05T12:45:45+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "Come on gold 🙏",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20236",
+          "ts_utc": "2026-06-10T13:58:49+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "Gold to the moon 🚀",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20303",
+          "ts_utc": "2026-06-12T15:27:13+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "Come one gold ✅🚀",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20341",
+          "ts_utc": "2026-06-16T10:46:58+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "Gold hit 4235.00🫣📉",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20402",
+          "ts_utc": "2026-06-17T19:26:56+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "Come on gold 🔥",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20504",
+          "ts_utc": "2026-06-23T15:51:01+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "Come on gold push",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20536",
+          "ts_utc": "2026-06-24T12:45:45+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "Look at gold now 📉",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20717",
+          "ts_utc": "2026-07-06T14:08:46+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "Come on gold give us the big waterfall 🙏📉",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20793",
+          "ts_utc": "2026-07-08T18:26:50+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "Come on gold Lets fly to the moon 🚀",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20882",
+          "ts_utc": "2026-07-15T14:10:53+00:00"
+        },
+        {
+          "channel": "canal2",
+          "detail": "This was a clear sell but the market had other ideas first and stopped us just before dumping to TP5 +",
+          "event": "provider_catalog_management",
+          "signal": "canal2_2810",
+          "ts_utc": "2026-07-06T12:43:14+00:00"
+        },
+        {
+          "channel": "canal2",
+          "detail": "For those who were on the call 15m candle closed below the zone !",
+          "event": "provider_catalog_management",
+          "signal": "canal2_3146",
+          "ts_utc": "2026-07-13T13:15:36+00:00"
+        }
+      ],
+      "financial_impact": null,
+      "first_seen_utc": "2026-06-05T12:45:45+00:00",
+      "last_seen_utc": "2026-07-15T18:30:10+00:00",
+      "occurrences": 14,
+      "pattern_id": "semantics.unclassified_management.market_context",
+      "priority_score": 30385,
+      "raw_events": 50,
+      "recurrence": "cross_session",
+      "severity": "high",
+      "status": "candidate",
+      "template": "unclassified provider management: market context without a canonical action"
     },
     {
       "affected_channels": [],
@@ -1073,150 +922,7 @@
         "canal1",
         "canal2"
       ],
-      "affected_day_count": 11,
-      "affected_days": [
-        "2026-06-05",
-        "2026-06-10",
-        "2026-06-12",
-        "2026-06-16",
-        "2026-06-17",
-        "2026-06-23",
-        "2026-06-24",
-        "2026-07-06",
-        "2026-07-08",
-        "2026-07-13",
-        "2026-07-14"
-      ],
-      "affected_signal_count": 12,
-      "affected_signals": [
-        "canal1_20093",
-        "canal1_20236",
-        "canal1_20303",
-        "canal1_20341",
-        "canal1_20402",
-        "canal1_20504",
-        "canal1_20536",
-        "canal1_20717",
-        "canal1_20793",
-        "canal2_2810",
-        "canal2_3146",
-        "canal2_3220"
-      ],
-      "candidate_reason": "material reliability impact",
-      "category": "semantics",
-      "coverage": {
-        "covered_after_utc": null,
-        "fix_commit": null,
-        "regression_test": null,
-        "reviewed_at_utc": null,
-        "reviewed_by": null,
-        "rule_version": null,
-        "verification": null
-      },
-      "evidence": [
-        {
-          "channel": "canal1",
-          "detail": "🚨 NFP News pushed gold lower again. 📉\n\n✅ NFP: 172K vs 85K forecast\n✅ Stronger USD = bearish for gold\n\nGold is dumping further after the news. Stay patient and wait for the next setup. 🎯",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20093",
-          "ts_utc": "2026-06-05T12:45:45+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "Come on gold 🙏",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20236",
-          "ts_utc": "2026-06-10T13:58:49+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "Gold to the moon 🚀",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20303",
-          "ts_utc": "2026-06-12T15:27:13+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "Come one gold ✅🚀",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20341",
-          "ts_utc": "2026-06-16T10:46:58+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "Gold hit 4235.00🫣📉",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20402",
-          "ts_utc": "2026-06-17T19:26:56+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "Come on gold 🔥",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20504",
-          "ts_utc": "2026-06-23T15:51:01+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "Come on gold push",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20536",
-          "ts_utc": "2026-06-24T12:45:45+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "Look at gold now 📉",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20717",
-          "ts_utc": "2026-07-06T14:08:46+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "Come on gold give us the big waterfall 🙏📉",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20793",
-          "ts_utc": "2026-07-08T18:26:50+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "This was a clear sell but the market had other ideas first and stopped us just before dumping to TP5 +",
-          "event": "provider_catalog_management",
-          "signal": "canal2_2810",
-          "ts_utc": "2026-07-06T12:43:14+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "For those who were on the call 15m candle closed below the zone !",
-          "event": "provider_catalog_management",
-          "signal": "canal2_3146",
-          "ts_utc": "2026-07-13T13:15:36+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "Final buy zone approaching",
-          "event": "provider_catalog_management",
-          "signal": "canal2_3220",
-          "ts_utc": "2026-07-14T17:06:58+00:00"
-        }
-      ],
-      "financial_impact": null,
-      "first_seen_utc": "2026-06-05T12:45:45+00:00",
-      "last_seen_utc": "2026-07-14T17:06:58+00:00",
-      "occurrences": 12,
-      "pattern_id": "semantics.unclassified_management.market_context",
-      "priority_score": 30344,
-      "raw_events": 43,
-      "recurrence": "cross_session",
-      "severity": "high",
-      "status": "candidate",
-      "template": "unclassified provider management: market context without a canonical action"
-    },
-    {
-      "affected_channels": [
-        "canal1",
-        "canal2"
-      ],
-      "affected_day_count": 8,
+      "affected_day_count": 9,
       "affected_days": [
         "2026-06-09",
         "2026-06-19",
@@ -1225,9 +931,10 @@
         "2026-07-09",
         "2026-07-10",
         "2026-07-13",
-        "2026-07-14"
+        "2026-07-14",
+        "2026-07-16"
       ],
-      "affected_signal_count": 11,
+      "affected_signal_count": 12,
       "affected_signals": [
         "canal1_20147",
         "canal1_20437",
@@ -1239,7 +946,8 @@
         "canal2_2994",
         "canal2_3094",
         "canal2_3099",
-        "canal2_3220"
+        "canal2_3220",
+        "canal2_3337"
       ],
       "candidate_reason": "material reliability impact",
       "category": "semantics",
@@ -1329,15 +1037,22 @@
           "event": "provider_catalog_management",
           "signal": "canal2_3220",
           "ts_utc": "2026-07-14T16:36:27+00:00"
+        },
+        {
+          "channel": "canal2",
+          "detail": "This trade clipped us out by 2 pips and then flew 200 pips",
+          "event": "provider_catalog_management",
+          "signal": "canal2_3337",
+          "ts_utc": "2026-07-16T14:34:32+00:00"
         }
       ],
       "financial_impact": null,
       "first_seen_utc": "2026-06-09T13:24:01+00:00",
-      "last_seen_utc": "2026-07-14T16:36:27+00:00",
-      "occurrences": 11,
+      "last_seen_utc": "2026-07-16T14:34:32+00:00",
+      "occurrences": 12,
       "pattern_id": "semantics.unclassified_management.trade_progress_commentary",
-      "priority_score": 30273,
-      "raw_events": 33,
+      "priority_score": 30303,
+      "raw_events": 37,
       "recurrence": "cross_session",
       "severity": "high",
       "status": "candidate",
@@ -1348,7 +1063,7 @@
         "canal1",
         "canal2"
       ],
-      "affected_day_count": 7,
+      "affected_day_count": 8,
       "affected_days": [
         "2026-06-09",
         "2026-06-12",
@@ -1356,9 +1071,10 @@
         "2026-06-18",
         "2026-06-19",
         "2026-06-23",
-        "2026-07-09"
+        "2026-07-09",
+        "2026-07-16"
       ],
-      "affected_signal_count": 11,
+      "affected_signal_count": 12,
       "affected_signals": [
         "canal1_20158",
         "canal1_20163",
@@ -1368,6 +1084,7 @@
         "canal1_20504",
         "canal1_20517",
         "canal1_20798",
+        "canal1_20917",
         "canal2_13501",
         "canal2_13699",
         "canal2_2968"
@@ -1441,6 +1158,13 @@
           "ts_utc": "2026-07-09T12:22:09+00:00"
         },
         {
+          "channel": "canal1",
+          "detail": "Lock in some profits if you’re happy with your gains. 🙌\n\nI’m taking partial profits and letting the other half run with small risk. Let’s see if gold can give us more. 📈🔥",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20917",
+          "ts_utc": "2026-07-16T14:02:16+00:00"
+        },
+        {
           "channel": "canal2",
           "detail": "If the market reverses and we get stopped out - we will look for the next trade",
           "event": "provider_catalog_management",
@@ -1464,11 +1188,11 @@
       ],
       "financial_impact": null,
       "first_seen_utc": "2026-06-09T11:06:15+00:00",
-      "last_seen_utc": "2026-07-09T12:22:09+00:00",
-      "occurrences": 11,
+      "last_seen_utc": "2026-07-16T14:02:16+00:00",
+      "occurrences": 12,
       "pattern_id": "semantics.unclassified_management.conditional_plan",
-      "priority_score": 30253,
-      "raw_events": 35,
+      "priority_score": 30283,
+      "raw_events": 38,
       "recurrence": "cross_session",
       "severity": "high",
       "status": "candidate",
@@ -1476,7 +1200,7 @@
     },
     {
       "affected_channels": [],
-      "affected_day_count": 7,
+      "affected_day_count": 9,
       "affected_days": [
         "2026-06-11",
         "2026-06-16",
@@ -1484,9 +1208,11 @@
         "2026-06-30",
         "2026-07-09",
         "2026-07-12",
-        "2026-07-13"
+        "2026-07-13",
+        "2026-07-15",
+        "2026-07-16"
       ],
-      "affected_signal_count": 8,
+      "affected_signal_count": 10,
       "affected_signals": [
         "canal1_20281",
         "canal1_20341",
@@ -1494,6 +1220,8 @@
         "canal1_20642",
         "canal1_20655",
         "canal1_20827",
+        "canal1_20868",
+        "canal1_20917",
         "canal2_2982",
         "canal2_3114"
       ],
@@ -1576,24 +1304,31 @@
           "channel": null,
           "detail": "MT5 tiene una posicion del bot sin Signal viva en memoria",
           "event": "audit_issue_detected",
-          "signal": "canal2_2982",
-          "ts_utc": "2026-07-09T08:04:28.212+00:00"
+          "signal": "canal1_20868",
+          "ts_utc": "2026-07-15T12:55:10.415+00:00"
         },
         {
           "channel": null,
           "detail": "MT5 tiene una posicion del bot sin Signal viva en memoria",
           "event": "audit_issue_detected",
-          "signal": "canal2_3114",
-          "ts_utc": "2026-07-13T08:03:57.053+00:00"
+          "signal": "canal1_20917",
+          "ts_utc": "2026-07-16T13:42:02.502+00:00"
+        },
+        {
+          "channel": null,
+          "detail": "MT5 tiene una posicion del bot sin Signal viva en memoria",
+          "event": "audit_issue_detected",
+          "signal": "canal2_2982",
+          "ts_utc": "2026-07-09T08:04:28.212+00:00"
         }
       ],
       "financial_impact": null,
       "first_seen_utc": "2026-06-11T19:02:16.549+00:00",
-      "last_seen_utc": "2026-07-13T08:03:57.053+00:00",
-      "occurrences": 11,
+      "last_seen_utc": "2026-07-16T13:42:02.502+00:00",
+      "occurrences": 13,
       "pattern_id": "execution.mt5_orphan_position",
-      "priority_score": 30221,
-      "raw_events": 13,
+      "priority_score": 30281,
+      "raw_events": 15,
       "recurrence": "cross_session",
       "severity": "high",
       "status": "candidate",
@@ -1606,23 +1341,166 @@
       ],
       "affected_day_count": 5,
       "affected_days": [
+        "2026-07-10",
+        "2026-07-13",
+        "2026-07-14",
+        "2026-07-15",
+        "2026-07-16"
+      ],
+      "affected_signal_count": 15,
+      "affected_signals": [
+        "canal1_20838",
+        "canal1_20856",
+        "canal1_20880",
+        "canal1_20890",
+        "canal1_20902",
+        "canal1_20906",
+        "canal2_3056",
+        "canal2_3127",
+        "canal2_3150",
+        "canal2_3156",
+        "canal2_3219",
+        "canal2_3248",
+        "canal2_3311",
+        "canal2_3312",
+        "canal2_3345"
+      ],
+      "candidate_reason": "material reliability impact",
+      "category": "semantics",
+      "coverage": {
+        "covered_after_utc": null,
+        "fix_commit": null,
+        "regression_test": null,
+        "reviewed_at_utc": null,
+        "reviewed_by": null,
+        "rule_version": null,
+        "verification": null
+      },
+      "evidence": [
+        {
+          "channel": "canal1",
+          "detail": "Move sl to BE for 0% risk New York will open now lets goo 📉",
+          "event": "management_reply_unresolved",
+          "signal": "canal1_20838",
+          "ts_utc": "2026-07-13T12:59:45.886+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "Running almost 50+ pips move SL to BE for 0% risk 💰",
+          "event": "management_reply_unresolved",
+          "signal": "canal1_20856",
+          "ts_utc": "2026-07-13T18:34:48.950+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "Running 90+ pips move sl to be 4065.00 ✅🚀",
+          "event": "management_reply_unresolved",
+          "signal": "canal1_20880",
+          "ts_utc": "2026-07-15T13:36:43.609+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "TP1, TP2 and TP3 hit — 200+ pips secured! 🔥 Move SL to BE and let’s go for another full target! 🚀",
+          "event": "management_reply_unresolved",
+          "signal": "canal1_20890",
+          "ts_utc": "2026-07-15T17:31:02.144+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "First SL of the week got hit. Gold has broken key support, so we’re staying patient and waiting for new signals. No chasing trades. We stay disciplined, protect our capital, and look for the next high",
+          "event": "management_reply_unresolved",
+          "signal": "canal1_20902",
+          "ts_utc": "2026-07-16T13:04:05.624+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "TP1 HIT move sl to be 3975.00 💪🚀",
+          "event": "management_reply_unresolved",
+          "signal": "canal1_20906",
+          "ts_utc": "2026-07-16T15:54:07.982+00:00"
+        },
+        {
+          "channel": "canal2",
+          "detail": "+50 pips from best entries for those who layered |  | Make your trade risk free",
+          "event": "management_reply_unresolved",
+          "signal": "canal2_3056",
+          "ts_utc": "2026-07-10T10:33:06.446+00:00"
+        },
+        {
+          "channel": "canal2",
+          "detail": "For those with lower entries you can make your trade risk free or put stop lose above your entries now",
+          "event": "management_reply_unresolved",
+          "signal": "canal2_3127",
+          "ts_utc": "2026-07-13T08:36:03.764+00:00"
+        },
+        {
+          "channel": "canal2",
+          "detail": "For those who were on the call 15m candle closed below the zone !",
+          "event": "management_reply_unresolved",
+          "signal": "canal2_3150",
+          "ts_utc": "2026-07-13T13:15:36.904+00:00"
+        },
+        {
+          "channel": "canal2",
+          "detail": "Close TP7 when happy",
+          "event": "management_reply_unresolved",
+          "signal": "canal2_3156",
+          "ts_utc": "2026-07-13T13:52:13.705+00:00"
+        },
+        {
+          "channel": "canal2",
+          "detail": "For anyone who entered again lower |  | Make your trade risk free now ✅",
+          "event": "management_reply_unresolved",
+          "signal": "canal2_3219",
+          "ts_utc": "2026-07-14T14:10:14.576+00:00"
+        },
+        {
+          "channel": "canal2",
+          "detail": "All entries are in profit and I have made my trade risk free by closing partial profits",
+          "event": "management_reply_unresolved",
+          "signal": "canal2_3248",
+          "ts_utc": "2026-07-15T09:24:26.452+00:00"
+        }
+      ],
+      "financial_impact": null,
+      "first_seen_utc": "2026-07-10T10:33:06.446+00:00",
+      "last_seen_utc": "2026-07-16T15:54:07.982+00:00",
+      "occurrences": 15,
+      "pattern_id": "semantics.unresolved_actionable_management.target_signal_closed",
+      "priority_score": 30253,
+      "raw_events": 33,
+      "recurrence": "cross_session",
+      "severity": "high",
+      "status": "candidate",
+      "template": "actionable provider management could not be linked"
+    },
+    {
+      "affected_channels": [
+        "canal1",
+        "canal2"
+      ],
+      "affected_day_count": 6,
+      "affected_days": [
         "2026-06-08",
         "2026-06-15",
         "2026-06-24",
         "2026-07-08",
-        "2026-07-10"
+        "2026-07-10",
+        "2026-07-16"
       ],
-      "affected_signal_count": 9,
+      "affected_signal_count": 11,
       "affected_signals": [
         "canal1_20314",
         "canal1_20554",
         "canal1_20797",
+        "canal1_20904",
         "canal2_13465",
         "canal2_13478",
         "canal2_2912",
         "canal2_2958",
         "canal2_3067",
-        "canal2_3083"
+        "canal2_3083",
+        "canal2_3337"
       ],
       "candidate_reason": "material reliability impact",
       "category": "semantics",
@@ -1656,6 +1534,13 @@
           "event": "provider_catalog_management",
           "signal": "canal1_20797",
           "ts_utc": "2026-07-08T18:29:28+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "What a comeback! 🔥 Incredible recovery after the first SL of the week. Now sit back, relax, and let the trade work. We’re aiming for TP4! 🚀💰",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20904",
+          "ts_utc": "2026-07-16T13:17:55+00:00"
         },
         {
           "channel": "canal2",
@@ -1705,15 +1590,22 @@
           "event": "provider_catalog_management",
           "signal": "canal2_3083",
           "ts_utc": "2026-07-10T13:50:57+00:00"
+        },
+        {
+          "channel": "canal2",
+          "detail": "Move SL to 82",
+          "event": "provider_catalog_management",
+          "signal": "canal2_3337",
+          "ts_utc": "2026-07-16T13:38:51+00:00"
         }
       ],
       "financial_impact": null,
       "first_seen_utc": "2026-06-08T11:56:39+00:00",
-      "last_seen_utc": "2026-07-10T13:50:57+00:00",
-      "occurrences": 10,
+      "last_seen_utc": "2026-07-16T13:38:51+00:00",
+      "occurrences": 12,
       "pattern_id": "semantics.unclassified_management.level_or_outcome_variant",
-      "priority_score": 30193,
-      "raw_events": 36,
+      "priority_score": 30234,
+      "raw_events": 42,
       "recurrence": "cross_session",
       "severity": "high",
       "status": "candidate",
@@ -1726,21 +1618,17 @@
       ],
       "affected_day_count": 4,
       "affected_days": [
-        "2026-07-10",
-        "2026-07-13",
-        "2026-07-14",
-        "2026-07-15"
+        "2026-06-11",
+        "2026-06-12",
+        "2026-06-23",
+        "2026-07-16"
       ],
-      "affected_signal_count": 8,
+      "affected_signal_count": 4,
       "affected_signals": [
-        "canal1_20838",
-        "canal1_20856",
-        "canal2_3056",
-        "canal2_3127",
-        "canal2_3150",
-        "canal2_3156",
-        "canal2_3219",
-        "canal2_3248"
+        "canal1_20252",
+        "canal1_20495",
+        "canal1_20900",
+        "canal2_13703"
       ],
       "candidate_reason": "material reliability impact",
       "category": "semantics",
@@ -1756,72 +1644,44 @@
       "evidence": [
         {
           "channel": "canal1",
-          "detail": "Move sl to BE for 0% risk New York will open now lets goo 📉",
-          "event": "management_reply_unresolved",
-          "signal": "canal1_20838",
-          "ts_utc": "2026-07-13T12:59:45.886+00:00"
+          "detail": "Close buy entrys around entry now ✅",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20252",
+          "ts_utc": "2026-06-11T12:33:17+00:00"
         },
         {
           "channel": "canal1",
-          "detail": "Running almost 50+ pips move SL to BE for 0% risk 💰",
-          "event": "management_reply_unresolved",
-          "signal": "canal1_20856",
-          "ts_utc": "2026-07-13T18:34:48.950+00:00"
+          "detail": "Close around entry wait for next  entry✅",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20495",
+          "ts_utc": "2026-06-23T13:40:22+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "First SL of the week got hit. Gold has broken key support, so we’re staying patient and waiting for new signals. No chasing trades. We stay disciplined, protect our capital, and look for the next high-probability setup. We’ll recover. 💪📉",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20900",
+          "ts_utc": "2026-07-16T13:04:04+00:00"
         },
         {
           "channel": "canal2",
-          "detail": "+50 pips from best entries for those who layered |  | Make your trade risk free",
-          "event": "management_reply_unresolved",
-          "signal": "canal2_3056",
-          "ts_utc": "2026-07-10T10:33:06.446+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "For those with lower entries you can make your trade risk free or put stop lose above your entries now",
-          "event": "management_reply_unresolved",
-          "signal": "canal2_3127",
-          "ts_utc": "2026-07-13T08:36:03.764+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "For those who were on the call 15m candle closed below the zone !",
-          "event": "management_reply_unresolved",
-          "signal": "canal2_3150",
-          "ts_utc": "2026-07-13T13:15:36.904+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "Close TP7 when happy",
-          "event": "management_reply_unresolved",
-          "signal": "canal2_3156",
-          "ts_utc": "2026-07-13T13:52:13.705+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "For anyone who entered again lower |  | Make your trade risk free now ✅",
-          "event": "management_reply_unresolved",
-          "signal": "canal2_3219",
-          "ts_utc": "2026-07-14T14:10:14.576+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "All entries are in profit and I have made my trade risk free by closing partial profits",
-          "event": "management_reply_unresolved",
-          "signal": "canal2_3248",
-          "ts_utc": "2026-07-15T09:24:26.452+00:00"
+          "detail": "Make sure you secure overall profit",
+          "event": "provider_catalog_management",
+          "signal": "canal2_13703",
+          "ts_utc": "2026-06-12T12:20:42+00:00"
         }
       ],
       "financial_impact": null,
-      "first_seen_utc": "2026-07-10T10:33:06.446+00:00",
-      "last_seen_utc": "2026-07-15T09:24:26.540+00:00",
-      "occurrences": 8,
-      "pattern_id": "semantics.unresolved_actionable_management.target_signal_closed",
-      "priority_score": 30162,
-      "raw_events": 20,
+      "first_seen_utc": "2026-06-11T12:33:17+00:00",
+      "last_seen_utc": "2026-07-16T13:04:04+00:00",
+      "occurrences": 4,
+      "pattern_id": "semantics.unclassified_management.exit_or_risk_guidance",
+      "priority_score": 30121,
+      "raw_events": 13,
       "recurrence": "cross_session",
       "severity": "high",
       "status": "candidate",
-      "template": "actionable provider management could not be linked"
+      "template": "unclassified provider management: exit, partial-close or risk-management guidance"
     },
     {
       "affected_channels": [],
@@ -1913,69 +1773,6 @@
     },
     {
       "affected_channels": [
-        "canal1",
-        "canal2"
-      ],
-      "affected_day_count": 3,
-      "affected_days": [
-        "2026-06-11",
-        "2026-06-12",
-        "2026-06-23"
-      ],
-      "affected_signal_count": 3,
-      "affected_signals": [
-        "canal1_20252",
-        "canal1_20495",
-        "canal2_13703"
-      ],
-      "candidate_reason": "material reliability impact",
-      "category": "semantics",
-      "coverage": {
-        "covered_after_utc": null,
-        "fix_commit": null,
-        "regression_test": null,
-        "reviewed_at_utc": null,
-        "reviewed_by": null,
-        "rule_version": null,
-        "verification": null
-      },
-      "evidence": [
-        {
-          "channel": "canal1",
-          "detail": "Close buy entrys around entry now ✅",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20252",
-          "ts_utc": "2026-06-11T12:33:17+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "Close around entry wait for next  entry✅",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20495",
-          "ts_utc": "2026-06-23T13:40:22+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "Make sure you secure overall profit",
-          "event": "provider_catalog_management",
-          "signal": "canal2_13703",
-          "ts_utc": "2026-06-12T12:20:42+00:00"
-        }
-      ],
-      "financial_impact": null,
-      "first_seen_utc": "2026-06-11T12:33:17+00:00",
-      "last_seen_utc": "2026-06-23T13:40:22+00:00",
-      "occurrences": 3,
-      "pattern_id": "semantics.unclassified_management.exit_or_risk_guidance",
-      "priority_score": 30091,
-      "raw_events": 10,
-      "recurrence": "cross_session",
-      "severity": "high",
-      "status": "candidate",
-      "template": "unclassified provider management: exit, partial-close or risk-management guidance"
-    },
-    {
-      "affected_channels": [
         "canal1"
       ],
       "affected_day_count": 3,
@@ -2035,6 +1832,69 @@
       "severity": "high",
       "status": "candidate",
       "template": "unclassified provider management: unclassified provider vocabulary family"
+    },
+    {
+      "affected_channels": [
+        "canal1",
+        "canal2"
+      ],
+      "affected_day_count": 3,
+      "affected_days": [
+        "2026-07-10",
+        "2026-07-12",
+        "2026-07-15"
+      ],
+      "affected_signal_count": 3,
+      "affected_signals": [
+        "canal1_20834",
+        "canal2_3046",
+        "canal2_3298"
+      ],
+      "candidate_reason": "material reliability impact",
+      "category": "semantics",
+      "coverage": {
+        "covered_after_utc": null,
+        "fix_commit": null,
+        "regression_test": null,
+        "reviewed_at_utc": null,
+        "reviewed_by": null,
+        "rule_version": null,
+        "verification": null
+      },
+      "evidence": [
+        {
+          "channel": "canal1",
+          "detail": "What a way to start the new week! 🔥 |  | On Friday evening we already secured TP1 and moved our SL to BE. After the weekend, the market opened and every single target was hit! 🎯💰 |  | Congratulations to every",
+          "event": "management_reply_unresolved",
+          "signal": "canal1_20834",
+          "ts_utc": "2026-07-12T22:40:56.235+00:00"
+        },
+        {
+          "channel": "canal2",
+          "detail": "+40 pips from best entry  |  | Close overall profit or make your trade risk free",
+          "event": "management_reply_unresolved",
+          "signal": "canal2_3046",
+          "ts_utc": "2026-07-10T09:03:24.062+00:00"
+        },
+        {
+          "channel": "canal2",
+          "detail": "15m candle has closed above the zone",
+          "event": "management_reply_unresolved",
+          "signal": "canal2_3298",
+          "ts_utc": "2026-07-15T18:30:10.177+00:00"
+        }
+      ],
+      "financial_impact": null,
+      "first_seen_utc": "2026-07-10T09:03:24.062+00:00",
+      "last_seen_utc": "2026-07-15T18:30:12.165+00:00",
+      "occurrences": 3,
+      "pattern_id": "semantics.unresolved_actionable_management.unknown_reply_target",
+      "priority_score": 30090,
+      "raw_events": 8,
+      "recurrence": "cross_session",
+      "severity": "high",
+      "status": "candidate",
+      "template": "actionable provider management could not be linked"
     },
     {
       "affected_channels": [
@@ -2144,18 +2004,16 @@
     },
     {
       "affected_channels": [
-        "canal1",
         "canal2"
       ],
-      "affected_day_count": 2,
+      "affected_day_count": 1,
       "affected_days": [
-        "2026-07-10",
-        "2026-07-12"
+        "2026-07-16"
       ],
       "affected_signal_count": 2,
       "affected_signals": [
-        "canal1_20834",
-        "canal2_3046"
+        "canal2_3354",
+        "canal2_3365"
       ],
       "candidate_reason": "material reliability impact",
       "category": "semantics",
@@ -2170,75 +2028,31 @@
       },
       "evidence": [
         {
-          "channel": "canal1",
-          "detail": "What a way to start the new week! 🔥 |  | On Friday evening we already secured TP1 and moved our SL to BE. After the weekend, the market opened and every single target was hit! 🎯💰 |  | Congratulations to every",
-          "event": "management_reply_unresolved",
-          "signal": "canal1_20834",
-          "ts_utc": "2026-07-12T22:40:56.235+00:00"
+          "channel": "canal2",
+          "detail": "+200",
+          "event": "provider_catalog_management",
+          "signal": "canal2_3354",
+          "ts_utc": "2026-07-16T16:13:20+00:00"
         },
         {
           "channel": "canal2",
-          "detail": "+40 pips from best entry  |  | Close overall profit or make your trade risk free",
-          "event": "management_reply_unresolved",
-          "signal": "canal2_3046",
-          "ts_utc": "2026-07-10T09:03:24.062+00:00"
+          "detail": "+150",
+          "event": "provider_catalog_management",
+          "signal": "canal2_3365",
+          "ts_utc": "2026-07-16T19:36:31+00:00"
         }
       ],
       "financial_impact": null,
-      "first_seen_utc": "2026-07-10T09:03:24.062+00:00",
-      "last_seen_utc": "2026-07-12T22:41:07.763+00:00",
+      "first_seen_utc": "2026-07-16T16:13:20+00:00",
+      "last_seen_utc": "2026-07-16T19:36:31+00:00",
       "occurrences": 2,
-      "pattern_id": "semantics.unresolved_actionable_management.unknown_reply_target",
-      "priority_score": 30060,
-      "raw_events": 5,
-      "recurrence": "cross_session",
+      "pattern_id": "semantics.unclassified_management.other_d1854cae89",
+      "priority_score": 30040,
+      "raw_events": 7,
+      "recurrence": "multiple_incidents",
       "severity": "high",
       "status": "candidate",
-      "template": "actionable provider management could not be linked"
-    },
-    {
-      "affected_channels": [
-        "canal1"
-      ],
-      "affected_day_count": 1,
-      "affected_days": [
-        "2026-07-15"
-      ],
-      "affected_signal_count": 1,
-      "affected_signals": [
-        "canal1_20868"
-      ],
-      "candidate_reason": "material reliability impact",
-      "category": "replay",
-      "coverage": {
-        "covered_after_utc": null,
-        "fix_commit": null,
-        "regression_test": null,
-        "reviewed_at_utc": null,
-        "reviewed_by": null,
-        "rule_version": null,
-        "verification": null
-      },
-      "evidence": [
-        {
-          "channel": "canal1",
-          "detail": "pnl_mtn_incomplete",
-          "event": "simulation_blocker",
-          "signal": "canal1_20868",
-          "ts_utc": "2026-07-15T12:32:12.298+00:00"
-        }
-      ],
-      "financial_impact": null,
-      "first_seen_utc": "2026-07-15T12:32:12.298+00:00",
-      "last_seen_utc": "2026-07-15T12:32:12.298+00:00",
-      "occurrences": 1,
-      "pattern_id": "replay.pnl_mtn_incomplete",
-      "priority_score": 30030,
-      "raw_events": 1,
-      "recurrence": "single_incident",
-      "severity": "high",
-      "status": "candidate",
-      "template": "causal replay blocker: pnl mtn incomplete"
+      "template": "unclassified provider management: unclassified provider vocabulary family"
     },
     {
       "affected_channels": [
@@ -2946,6 +2760,57 @@
     },
     {
       "affected_channels": [
+        "canal1"
+      ],
+      "affected_day_count": 1,
+      "affected_days": [
+        "2026-07-15"
+      ],
+      "affected_signal_count": 1,
+      "affected_signals": [
+        "canal1_20886"
+      ],
+      "candidate_reason": "material reliability impact",
+      "category": "semantics",
+      "coverage": {
+        "covered_after_utc": null,
+        "fix_commit": null,
+        "regression_test": null,
+        "reviewed_at_utc": null,
+        "reviewed_by": null,
+        "rule_version": null,
+        "verification": null
+      },
+      "evidence": [
+        {
+          "channel": "canal1",
+          "detail": "WHO is still holding with me 🤩🚀",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20886",
+          "ts_utc": "2026-07-15T17:46:49+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "WHO is still holding with me 🤩🚀",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20886",
+          "ts_utc": "2026-07-15T17:47:06+00:00"
+        }
+      ],
+      "financial_impact": null,
+      "first_seen_utc": "2026-07-15T17:46:49+00:00",
+      "last_seen_utc": "2026-07-15T17:47:06+00:00",
+      "occurrences": 2,
+      "pattern_id": "semantics.unclassified_management.other_d748c4089c",
+      "priority_score": 30030,
+      "raw_events": 4,
+      "recurrence": "multiple_incidents",
+      "severity": "high",
+      "status": "candidate",
+      "template": "unclassified provider management: unclassified provider vocabulary family"
+    },
+    {
+      "affected_channels": [
         "canal2"
       ],
       "affected_day_count": 1,
@@ -3169,7 +3034,7 @@
         "canal1",
         "canal2"
       ],
-      "affected_day_count": 28,
+      "affected_day_count": 30,
       "affected_days": [
         "2026-06-05",
         "2026-06-08",
@@ -3198,9 +3063,11 @@
         "2026-07-10",
         "2026-07-13",
         "2026-07-14",
-        "2026-07-15"
+        "2026-07-15",
+        "2026-07-16",
+        "2026-07-17"
       ],
-      "affected_signal_count": 82,
+      "affected_signal_count": 89,
       "affected_signals": [
         "canal1_20102",
         "canal1_20132",
@@ -3258,6 +3125,9 @@
         "canal1_20827",
         "canal1_20836",
         "canal1_20861",
+        "canal1_20868",
+        "canal1_20882",
+        "canal1_20917",
         "canal2_13399",
         "canal2_13406",
         "canal2_13437",
@@ -3282,8 +3152,12 @@
         "canal2_3083",
         "canal2_3099",
         "canal2_3207",
-        "canal2_3259",
-        "canal2_3270"
+        "canal2_3270",
+        "canal2_3313",
+        "canal2_3320",
+        "canal2_3331",
+        "canal2_3341",
+        "canal2_3376"
       ],
       "candidate_reason": "pattern recurred across retained sessions",
       "category": "accounting",
@@ -3384,11 +3258,11 @@
       ],
       "financial_impact": 0.0,
       "first_seen_utc": "2026-06-05T08:00:07.670+00:00",
-      "last_seen_utc": "2026-07-15T12:38:44.048+00:00",
-      "occurrences": 82,
+      "last_seen_utc": "2026-07-17T07:00:19.964+00:00",
+      "occurrences": 89,
       "pattern_id": "accounting.reconstructed_trade",
-      "priority_score": 21388,
-      "raw_events": 82,
+      "priority_score": 21498,
+      "raw_events": 89,
       "recurrence": "cross_session",
       "severity": "medium",
       "status": "candidate",
@@ -3629,6 +3503,86 @@
     },
     {
       "affected_channels": [
+        "canal2"
+      ],
+      "affected_day_count": 5,
+      "affected_days": [
+        "2026-06-05",
+        "2026-06-09",
+        "2026-07-03",
+        "2026-07-16",
+        "2026-07-17"
+      ],
+      "affected_signal_count": 5,
+      "affected_signals": [
+        "canal2_13398",
+        "canal2_13492",
+        "canal2_2783",
+        "canal2_3301",
+        "canal2_3375"
+      ],
+      "candidate_reason": "pattern recurred across retained sessions",
+      "category": "semantics",
+      "coverage": {
+        "covered_after_utc": null,
+        "fix_commit": null,
+        "regression_test": null,
+        "reviewed_at_utc": null,
+        "reviewed_by": null,
+        "rule_version": null,
+        "verification": null
+      },
+      "evidence": [
+        {
+          "channel": "canal2",
+          "detail": "unclassified_provider_message",
+          "event": "provider_catalog",
+          "signal": "canal2_13398",
+          "ts_utc": "2026-06-05T06:57:55.104+00:00"
+        },
+        {
+          "channel": "canal2",
+          "detail": "unclassified_provider_message",
+          "event": "provider_catalog",
+          "signal": "canal2_13492",
+          "ts_utc": "2026-06-09T06:59:45.831+00:00"
+        },
+        {
+          "channel": "canal2",
+          "detail": "unclassified_provider_message",
+          "event": "provider_catalog",
+          "signal": "canal2_2783",
+          "ts_utc": "2026-07-03T09:10:10.978+00:00"
+        },
+        {
+          "channel": "canal2",
+          "detail": "unclassified_provider_message",
+          "event": "provider_catalog",
+          "signal": "canal2_3301",
+          "ts_utc": "2026-07-16T06:03:55.784+00:00"
+        },
+        {
+          "channel": "canal2",
+          "detail": "unclassified_provider_message",
+          "event": "provider_catalog",
+          "signal": "canal2_3375",
+          "ts_utc": "2026-07-17T06:33:47.119+00:00"
+        }
+      ],
+      "financial_impact": null,
+      "first_seen_utc": "2026-06-05T06:57:55.104+00:00",
+      "last_seen_utc": "2026-07-17T06:33:47.119+00:00",
+      "occurrences": 5,
+      "pattern_id": "semantics.unknown_provider_record.other_196475c876",
+      "priority_score": 20150,
+      "raw_events": 5,
+      "recurrence": "cross_session",
+      "severity": "medium",
+      "status": "candidate",
+      "template": "unknown provider record: unclassified provider vocabulary family"
+    },
+    {
+      "affected_channels": [
         "canal1"
       ],
       "affected_day_count": 5,
@@ -3773,68 +3727,6 @@
       "pattern_id": "semantics.unknown_provider_record.other_5ca36db5df",
       "priority_score": 20120,
       "raw_events": 4,
-      "recurrence": "cross_session",
-      "severity": "medium",
-      "status": "candidate",
-      "template": "unknown provider record: unclassified provider vocabulary family"
-    },
-    {
-      "affected_channels": [
-        "canal2"
-      ],
-      "affected_day_count": 3,
-      "affected_days": [
-        "2026-06-05",
-        "2026-06-09",
-        "2026-07-03"
-      ],
-      "affected_signal_count": 3,
-      "affected_signals": [
-        "canal2_13398",
-        "canal2_13492",
-        "canal2_2783"
-      ],
-      "candidate_reason": "pattern recurred across retained sessions",
-      "category": "semantics",
-      "coverage": {
-        "covered_after_utc": null,
-        "fix_commit": null,
-        "regression_test": null,
-        "reviewed_at_utc": null,
-        "reviewed_by": null,
-        "rule_version": null,
-        "verification": null
-      },
-      "evidence": [
-        {
-          "channel": "canal2",
-          "detail": "unclassified_provider_message",
-          "event": "provider_catalog",
-          "signal": "canal2_13398",
-          "ts_utc": "2026-06-05T06:57:55.104+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "unclassified_provider_message",
-          "event": "provider_catalog",
-          "signal": "canal2_13492",
-          "ts_utc": "2026-06-09T06:59:45.831+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "unclassified_provider_message",
-          "event": "provider_catalog",
-          "signal": "canal2_2783",
-          "ts_utc": "2026-07-03T09:10:10.978+00:00"
-        }
-      ],
-      "financial_impact": null,
-      "first_seen_utc": "2026-06-05T06:57:55.104+00:00",
-      "last_seen_utc": "2026-07-03T09:10:10.978+00:00",
-      "occurrences": 3,
-      "pattern_id": "semantics.unknown_provider_record.other_196475c876",
-      "priority_score": 20090,
-      "raw_events": 3,
       "recurrence": "cross_session",
       "severity": "medium",
       "status": "candidate",
@@ -4651,6 +4543,50 @@
     },
     {
       "affected_channels": [
+        "canal1"
+      ],
+      "affected_day_count": 1,
+      "affected_days": [
+        "2026-07-16"
+      ],
+      "affected_signal_count": 1,
+      "affected_signals": [
+        "canal1_20903"
+      ],
+      "candidate_reason": null,
+      "category": "semantics",
+      "coverage": {
+        "covered_after_utc": null,
+        "fix_commit": null,
+        "regression_test": null,
+        "reviewed_at_utc": null,
+        "reviewed_by": null,
+        "rule_version": null,
+        "verification": null
+      },
+      "evidence": [
+        {
+          "channel": "canal1",
+          "detail": "unclassified_provider_message",
+          "event": "provider_catalog",
+          "signal": "canal1_20903",
+          "ts_utc": "2026-07-16T13:06:06.676+00:00"
+        }
+      ],
+      "financial_impact": null,
+      "first_seen_utc": "2026-07-16T13:06:06.676+00:00",
+      "last_seen_utc": "2026-07-16T13:06:06.676+00:00",
+      "occurrences": 1,
+      "pattern_id": "semantics.unknown_provider_record.other_c558bb632e",
+      "priority_score": 20030,
+      "raw_events": 1,
+      "recurrence": "single_incident",
+      "severity": "medium",
+      "status": "observed",
+      "template": "unknown provider record: unclassified provider vocabulary family"
+    },
+    {
+      "affected_channels": [
         "canal2"
       ],
       "affected_day_count": 1,
@@ -4686,6 +4622,50 @@
       "last_seen_utc": "2026-07-13T06:23:20.871+00:00",
       "occurrences": 1,
       "pattern_id": "semantics.unknown_provider_record.other_cd24d1a6b3",
+      "priority_score": 20030,
+      "raw_events": 1,
+      "recurrence": "single_incident",
+      "severity": "medium",
+      "status": "observed",
+      "template": "unknown provider record: unclassified provider vocabulary family"
+    },
+    {
+      "affected_channels": [
+        "canal2"
+      ],
+      "affected_day_count": 1,
+      "affected_days": [
+        "2026-07-15"
+      ],
+      "affected_signal_count": 1,
+      "affected_signals": [
+        "canal2_3294"
+      ],
+      "candidate_reason": null,
+      "category": "semantics",
+      "coverage": {
+        "covered_after_utc": null,
+        "fix_commit": null,
+        "regression_test": null,
+        "reviewed_at_utc": null,
+        "reviewed_by": null,
+        "rule_version": null,
+        "verification": null
+      },
+      "evidence": [
+        {
+          "channel": "canal2",
+          "detail": "unclassified_provider_message",
+          "event": "provider_catalog",
+          "signal": "canal2_3294",
+          "ts_utc": "2026-07-15T16:39:15.078+00:00"
+        }
+      ],
+      "financial_impact": null,
+      "first_seen_utc": "2026-07-15T16:39:15.078+00:00",
+      "last_seen_utc": "2026-07-15T16:39:15.078+00:00",
+      "occurrences": 1,
+      "pattern_id": "semantics.unknown_provider_record.other_ddb1f88769",
       "priority_score": 20030,
       "raw_events": 1,
       "recurrence": "single_incident",
@@ -4786,14 +4766,15 @@
         "canal1",
         "canal2"
       ],
-      "affected_day_count": 4,
+      "affected_day_count": 5,
       "affected_days": [
         "2026-07-10",
         "2026-07-13",
         "2026-07-14",
-        "2026-07-15"
+        "2026-07-15",
+        "2026-07-16"
       ],
-      "affected_signal_count": 65,
+      "affected_signal_count": 112,
       "affected_signals": [
         "canal1_20812",
         "canal1_20815",
@@ -4801,6 +4782,17 @@
         "canal1_20849",
         "canal1_20864",
         "canal1_20865",
+        "canal1_20878",
+        "canal1_20891",
+        "canal1_20892",
+        "canal1_20893",
+        "canal1_20894",
+        "canal1_20895",
+        "canal1_20896",
+        "canal1_20897",
+        "canal1_20898",
+        "canal1_20915",
+        "canal1_20916",
         "canal2_3057",
         "canal2_3058",
         "canal2_3059",
@@ -4859,7 +4851,43 @@
         "canal2_3265",
         "canal2_3267",
         "canal2_3268",
-        "canal2_3269"
+        "canal2_3269",
+        "canal2_3289",
+        "canal2_3290",
+        "canal2_3291",
+        "canal2_3292",
+        "canal2_3293",
+        "canal2_3317",
+        "canal2_3323",
+        "canal2_3324",
+        "canal2_3325",
+        "canal2_3326",
+        "canal2_3327",
+        "canal2_3328",
+        "canal2_3329",
+        "canal2_3330",
+        "canal2_3335",
+        "canal2_3336",
+        "canal2_3340",
+        "canal2_3346",
+        "canal2_3347",
+        "canal2_3348",
+        "canal2_3349",
+        "canal2_3350",
+        "canal2_3351",
+        "canal2_3352",
+        "canal2_3353",
+        "canal2_3357",
+        "canal2_3358",
+        "canal2_3359",
+        "canal2_3360",
+        "canal2_3361",
+        "canal2_3362",
+        "canal2_3363",
+        "canal2_3364",
+        "canal2_3367",
+        "canal2_3368",
+        "canal2_3371"
       ],
       "candidate_reason": "pattern recurred across retained sessions",
       "category": "semantics",
@@ -4916,55 +4944,55 @@
           "ts_utc": "2026-07-14T16:14:41.037+00:00"
         },
         {
-          "channel": "canal2",
-          "detail": "Target 1 ✅",
+          "channel": "canal1",
+          "detail": "BAM TP1 AGAIN 50+ pips Lets go for a new full target ✅💰🚀",
           "event": "management_reply_unresolved",
-          "signal": "canal2_3057",
-          "ts_utc": "2026-07-10T11:00:21.791+00:00"
+          "signal": "canal1_20878",
+          "ts_utc": "2026-07-15T13:36:48.147+00:00"
         },
         {
-          "channel": "canal2",
-          "detail": "Target 2 ✅",
+          "channel": "canal1",
+          "detail": "target_signal_closed",
           "event": "management_reply_unresolved",
-          "signal": "canal2_3058",
-          "ts_utc": "2026-07-10T11:29:31.557+00:00"
+          "signal": "canal1_20891",
+          "ts_utc": "2026-07-15T17:31:02.144+00:00"
         },
         {
-          "channel": "canal2",
-          "detail": "Target 3 ✅",
+          "channel": "canal1",
+          "detail": "Full target hit — 250+ pips! 🎯🔥 Another amazing day for the VIP team. Congratulations to everyone who held the trade! Let’s keep this momentum going! 🚀",
           "event": "management_reply_unresolved",
-          "signal": "canal2_3059",
-          "ts_utc": "2026-07-10T11:30:27.266+00:00"
+          "signal": "canal1_20892",
+          "ts_utc": "2026-07-15T17:36:28.085+00:00"
         },
         {
-          "channel": "canal2",
-          "detail": "Zone failed",
+          "channel": "canal1",
+          "detail": "target_signal_closed",
           "event": "management_reply_unresolved",
-          "signal": "canal2_3066",
-          "ts_utc": "2026-07-10T12:14:02.196+00:00"
+          "signal": "canal1_20893",
+          "ts_utc": "2026-07-15T17:36:28.142+00:00"
         },
         {
-          "channel": "canal2",
-          "detail": "+60 pips from top entries",
+          "channel": "canal1",
+          "detail": "WHO is still holding with me 🤩🚀",
           "event": "management_reply_unresolved",
-          "signal": "canal2_3069",
-          "ts_utc": "2026-07-10T12:35:34.424+00:00"
+          "signal": "canal1_20894",
+          "ts_utc": "2026-07-15T17:46:50.476+00:00"
         },
         {
-          "channel": "canal2",
-          "detail": "Target 1 ✅",
+          "channel": "canal1",
+          "detail": "WHO is still holding with me 🤩🚀",
           "event": "management_reply_unresolved",
-          "signal": "canal2_3070",
-          "ts_utc": "2026-07-10T12:35:52.488+00:00"
+          "signal": "canal1_20895",
+          "ts_utc": "2026-07-15T17:47:06.514+00:00"
         }
       ],
       "financial_impact": null,
       "first_seen_utc": "2026-07-10T11:00:21.791+00:00",
-      "last_seen_utc": "2026-07-15T12:35:30.171+00:00",
-      "occurrences": 65,
+      "last_seen_utc": "2026-07-16T19:36:28.108+00:00",
+      "occurrences": 112,
       "pattern_id": "semantics.unresolved_informational_reply.target_signal_closed",
-      "priority_score": 10746,
-      "raw_events": 162,
+      "priority_score": 11126,
+      "raw_events": 262,
       "recurrence": "cross_session",
       "severity": "low",
       "status": "candidate",
@@ -4975,7 +5003,7 @@
         "canal1",
         "canal2"
       ],
-      "affected_day_count": 17,
+      "affected_day_count": 18,
       "affected_days": [
         "2026-06-05",
         "2026-06-08",
@@ -4993,9 +5021,10 @@
         "2026-07-11",
         "2026-07-13",
         "2026-07-14",
-        "2026-07-15"
+        "2026-07-15",
+        "2026-07-16"
       ],
-      "affected_signal_count": 39,
+      "affected_signal_count": 44,
       "affected_signals": [
         "canal1_20141",
         "canal1_20175",
@@ -5035,7 +5064,12 @@
         "canal2_3220",
         "canal2_3228",
         "canal2_3256",
-        "canal2_3261"
+        "canal2_3261",
+        "canal2_3295",
+        "canal2_3297",
+        "canal2_3318",
+        "canal2_3370",
+        "canal2_3373"
       ],
       "candidate_reason": "pattern recurred across retained sessions",
       "category": "semantics",
@@ -5136,11 +5170,11 @@
       ],
       "financial_impact": null,
       "first_seen_utc": "2026-06-05T11:00:37.194+00:00",
-      "last_seen_utc": "2026-07-15T12:28:33.391+00:00",
-      "occurrences": 39,
+      "last_seen_utc": "2026-07-16T20:12:51.961+00:00",
+      "occurrences": 44,
       "pattern_id": "semantics.context_media_not_extracted",
-      "priority_score": 10733,
-      "raw_events": 39,
+      "priority_score": 10804,
+      "raw_events": 44,
       "recurrence": "cross_session",
       "severity": "low",
       "status": "candidate",
@@ -5151,18 +5185,23 @@
         "canal1",
         "canal2"
       ],
-      "affected_day_count": 5,
+      "affected_day_count": 7,
       "affected_days": [
         "2026-07-09",
         "2026-07-10",
         "2026-07-13",
         "2026-07-14",
-        "2026-07-15"
+        "2026-07-15",
+        "2026-07-16",
+        "2026-07-17"
       ],
-      "affected_signal_count": 29,
+      "affected_signal_count": 40,
       "affected_signals": [
         "canal1_20679",
         "canal1_20806",
+        "canal1_20874",
+        "canal1_20875",
+        "canal1_20881",
         "canal2_3031",
         "canal2_3032",
         "canal2_3047",
@@ -5189,7 +5228,15 @@
         "canal2_3229",
         "canal2_3243",
         "canal2_3244",
-        "canal2_3266"
+        "canal2_3266",
+        "canal2_3296",
+        "canal2_3299",
+        "canal2_3300",
+        "canal2_3319",
+        "canal2_3366",
+        "canal2_3369",
+        "canal2_3372",
+        "canal2_3374"
       ],
       "candidate_reason": "pattern recurred across retained sessions",
       "category": "semantics",
@@ -5216,6 +5263,27 @@
           "event": "management_reply_unresolved",
           "signal": "canal1_20806",
           "ts_utc": "2026-07-10T09:52:16.530+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "🎯 TP4 hit! Full target smashed — 250+ pips! 🚀🔥 |  | What a beautiful move! Huge congratulations to everyone who held the trade until the end. Enjoy the profits and let’s get ready for the next setup! 💰📈",
+          "event": "management_reply_unresolved",
+          "signal": "canal1_20874",
+          "ts_utc": "2026-07-15T12:59:27.285+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "unknown_reply_target",
+          "event": "management_reply_unresolved",
+          "signal": "canal1_20875",
+          "ts_utc": "2026-07-15T12:59:27.187+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "BE hit Lets buy again",
+          "event": "management_reply_unresolved",
+          "signal": "canal1_20881",
+          "ts_utc": "2026-07-15T13:17:40.457+00:00"
         },
         {
           "channel": "canal2",
@@ -5265,36 +5333,15 @@
           "event": "management_reply_unresolved",
           "signal": "canal2_3052",
           "ts_utc": "2026-07-10T09:57:23.446+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "Target 4 ✅",
-          "event": "management_reply_unresolved",
-          "signal": "canal2_3053",
-          "ts_utc": "2026-07-10T10:03:18.100+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "We are LIVE ‼️",
-          "event": "management_reply_unresolved",
-          "signal": "canal2_3065",
-          "ts_utc": "2026-07-10T12:12:53.822+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "Wow |  | Smashed",
-          "event": "management_reply_unresolved",
-          "signal": "canal2_3082",
-          "ts_utc": "2026-07-10T13:28:04.745+00:00"
         }
       ],
       "financial_impact": null,
       "first_seen_utc": "2026-07-09T16:21:36.577+00:00",
-      "last_seen_utc": "2026-07-15T12:30:46.611+00:00",
-      "occurrences": 29,
+      "last_seen_utc": "2026-07-17T05:22:31.439+00:00",
+      "occurrences": 40,
       "pattern_id": "semantics.unresolved_informational_reply.unknown_reply_target",
-      "priority_score": 10397,
-      "raw_events": 72,
+      "priority_score": 10549,
+      "raw_events": 96,
       "recurrence": "cross_session",
       "severity": "low",
       "status": "candidate",
@@ -5303,20 +5350,20 @@
   ],
   "schema_version": 1,
   "source_fingerprints": {
-    "accounting": "e00c3357d55ed1e35b1f226daf6e751998e9cde9d916a794dec65b35c907da0b",
-    "events": "489aecb834fa8be1233dc9a7ef60514f22d3c5759816816a7f59b13a0c58dc9c",
-    "observed_ticks": "f60eff23d484d2796b072a45d8ad58a6476dfd3372b9cb4ef2c0cb918f217f3f",
-    "provider_catalog": "f17785256031f879a75ab364620dc55e63636cc3491880dd5f79a9fee187582a",
-    "replay": "e5ce8f42b0da086ee87187e043c3f79a5617531bd839ce104892ac9fea0c31b8",
+    "accounting": "83872af1fcf4e197c8d4e25422653b875887f70285bcc5ae55d88126831a9ce6",
+    "events": "e266c9832d8ff9e7a91845bb619223ba3665dbb5d09474b2a1a0330ff2129317",
+    "observed_ticks": "2bb5ba36a971a0e0d1d4205c61f439cb4912b0f75baa56e1e95633874dfd4e63",
+    "provider_catalog": "92ba9e3f5d6462847b04fd89d92464ffae6981026bc07a8973bfdfad5e7dee91",
+    "replay": "8f83f4942b4785fa281213cc674f34ae3d3845090f9d94f6ed1c779b9f5aad99",
     "review_metadata": "5991733f918759f7d59feba8a0c6c7ffd96f8ea955e25d1ad416b018f1f3a4af",
-    "strategy_farm": "fb85ceb7ed537ba5ce6d5dcd450f2fd7c690e247f95dc358d11e47cbc0c80769"
+    "strategy_farm": "418218f9bc8bca3cc8cb15f5602af2c82f459a5b932b837a5cceb378a94a1aa1"
   },
   "summary": {
-    "candidates": 57,
+    "candidates": 54,
     "covered": 0,
     "dismissed": 0,
-    "observed": 19,
-    "patterns": 77,
+    "observed": 21,
+    "patterns": 76,
     "regressed": 1
   }
 }

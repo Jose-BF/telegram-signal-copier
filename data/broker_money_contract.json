@@ -1,0 +1,39 @@
+{
+  "account": {
+    "currency": "EUR",
+    "currency_digits": 2,
+    "server": "VantageMarkets-Demo"
+  },
+  "captured_at_utc": "2026-07-17T08:57:45.238481+00:00",
+  "conversion": {
+    "max_quote_age_ms": 5000,
+    "negative_profit_side": "bid",
+    "orientation": "account_base_profit_quote",
+    "positive_profit_side": "ask",
+    "symbol": "EURUSD"
+  },
+  "costs": {
+    "commission_model": "observed_zero_intraday",
+    "fee_model": "observed_zero_intraday",
+    "swap_model": "intraday_only_zero"
+  },
+  "instrument": {
+    "contract_size": 100.0,
+    "currency_profit": "USD",
+    "symbol": "XAUUSD",
+    "tick_size": 0.01,
+    "trade_calc_mode": 4
+  },
+  "live_validation": {
+    "actual_tick_value_loss": 0.8740953113527501,
+    "actual_tick_value_profit": 0.8739883584750653,
+    "conversion_ask": 1.14418,
+    "conversion_bid": 1.14404,
+    "expected_tick_value_loss": 0.87409531135275,
+    "expected_tick_value_profit": 0.8739883584750652,
+    "tick_value_loss_delta": 1.1102230246251565e-16,
+    "tick_value_profit_delta": 1.1102230246251565e-16,
+    "valid": true
+  },
+  "schema_version": 1
+}

@@ -1,30 +1,30 @@
 {
   "schema_version": 2,
-  "generated_at": "2026-07-16T21:35:03+00:00",
+  "generated_at": "2026-07-17T08:58:40+00:00",
   "tick_cache_dir": "C:\\Users\\bot\\telegram-signal-copier\\data\\ticks_cache",
   "pad_minutes": 5,
   "scope": {
     "since": "2026-07-06",
     "until": null,
-    "input_trades": 223,
-    "selected_trades": 87
+    "input_trades": 225,
+    "selected_trades": 89
   },
   "summary": {
-    "total": 87,
-    "ready": 86,
+    "total": 89,
+    "ready": 87,
     "pending": 0,
-    "blocked": 1,
+    "blocked": 2,
     "top_blockers": [
       [
-        "observed_path_status:mismatch",
+        "observed_path_status:external_intervention",
         1
       ],
       [
-        "observed:missing_sl_transition_evidence:1567171589",
+        "accounting_status:blocked",
         1
       ],
       [
-        "observed:missing_sl_transition_evidence:1567171598",
+        "accounting_money_not_exact",
         1
       ]
     ]
@@ -101,6 +101,14 @@
       "ready": 13,
       "pending": 0,
       "blocked": 0
+    },
+    {
+      "date": "2026-07-17",
+      "status": "blocked",
+      "total": 2,
+      "ready": 1,
+      "pending": 0,
+      "blocked": 1
     }
   ],
   "trades": [
@@ -1131,15 +1139,13 @@
       "status": "blocked",
       "accounting_status": "reconstructed",
       "accounting_money_exact": true,
-      "observed_path_status": "mismatch",
+      "observed_path_status": "external_intervention",
       "tick_days": [
         "2026-07-09"
       ],
       "ticket_count": 4,
       "blockers": [
-        "observed_path_status:mismatch",
-        "observed:missing_sl_transition_evidence:1567171589",
-        "observed:missing_sl_transition_evidence:1567171598"
+        "observed_path_status:external_intervention"
       ],
       "warnings": [
         "accounting_reconstructed",
@@ -2784,6 +2790,65 @@
         "observed:observed_level_fill_delta:1606293522:+0.06",
         "observed:observed_close_execution_delta:1606293553:-0.32",
         "observed:observed_level_fill_delta:1606293553:+0.03"
+      ]
+    },
+    {
+      "sig_id": "canal2_3376",
+      "channel": "canal2",
+      "direction": "BUY",
+      "signal_dt_utc": "2026-07-17T07:00:19.964+00:00",
+      "open_dt_utc": "2026-07-17T07:00:19+00:00",
+      "close_dt_utc": "2026-07-17T07:07:05+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "reconstructed",
+      "accounting_money_exact": true,
+      "observed_path_status": "exact",
+      "tick_days": [
+        "2026-07-17"
+      ],
+      "ticket_count": 5,
+      "blockers": [],
+      "warnings": [
+        "accounting_reconstructed",
+        "accounting_assumption:journal_health_degraded",
+        "observed:observed_open_execution_delta:1610880265:+0.19",
+        "observed:observed_close_execution_delta:1610880265:+0.52",
+        "observed:observed_open_execution_delta:1610880289:+0.02",
+        "observed:observed_close_execution_delta:1610880289:+0.35",
+        "observed:observed_level_fill_delta:1610880289:-0.05",
+        "observed:observed_open_execution_delta:1610880299:+0.02",
+        "observed:observed_close_execution_delta:1610880299:+0.35",
+        "observed:observed_level_fill_delta:1610880299:-0.05",
+        "observed:observed_close_execution_delta:1610880316:+0.32",
+        "observed:observed_level_fill_delta:1610880316:-0.02",
+        "observed:observed_close_execution_delta:1610880331:+0.31"
+      ]
+    },
+    {
+      "sig_id": "canal2_3379",
+      "channel": "canal2",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-17T08:43:39.326+00:00",
+      "open_dt_utc": null,
+      "close_dt_utc": null,
+      "ready": false,
+      "status": "blocked",
+      "accounting_status": "blocked",
+      "accounting_money_exact": false,
+      "observed_path_status": "exact",
+      "tick_days": [
+        "2026-07-17"
+      ],
+      "ticket_count": 0,
+      "blockers": [
+        "accounting_status:blocked",
+        "accounting_money_not_exact"
+      ],
+      "warnings": [
+        "accounting_assumption:journal_pnl_missing",
+        "accounting_assumption:replay_gap:pnl_mt5_incomplete",
+        "accounting_assumption:flag:PNL_PARCIAL_mt5_identifico_0_de_5_pos (posiciones del journal no halladas en MT5)"
       ]
     }
   ]

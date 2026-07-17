@@ -1,21 +1,21 @@
 {
   "schema_version": 5,
   "summary": {
-    "records": 434,
-    "provider_signals": 243,
-    "formal_signals": 243,
-    "complete_signals": 236,
+    "records": 437,
+    "provider_signals": 245,
+    "formal_signals": 245,
+    "complete_signals": 238,
     "incomplete_signals": 7,
-    "executed_signals": 221,
+    "executed_signals": 223,
     "unexecuted_signals": 22,
     "duplicate_execution_signals": 2,
-    "management_events": 1249,
+    "management_events": 1253,
     "record_types": {
       "context_setup": 60,
       "daily_summary": 16,
-      "formal_signal": 243,
+      "formal_signal": 245,
       "management_only": 59,
-      "unknown_candidate": 56
+      "unknown_candidate": 57
     },
     "channels": {
       "canal1": {
@@ -34,19 +34,19 @@
         }
       },
       "canal2": {
-        "records": 214,
-        "provider_signals": 116,
-        "complete_signals": 115,
+        "records": 217,
+        "provider_signals": 118,
+        "complete_signals": 117,
         "incomplete_signals": 1,
-        "executed_signals": 96,
+        "executed_signals": 98,
         "unexecuted_signals": 20,
         "duplicate_execution_signals": 0,
         "record_types": {
           "context_setup": 37,
           "daily_summary": 16,
-          "formal_signal": 116,
+          "formal_signal": 118,
           "management_only": 18,
-          "unknown_candidate": 27
+          "unknown_candidate": 28
         }
       }
     }
@@ -111596,7 +111596,26 @@
       "entry_zone_timeline": [],
       "level_timeline": [],
       "runtime_level_timeline": [],
-      "management_events": [],
+      "management_events": [
+        {
+          "message_id": 3374,
+          "reply_to_msg_id": 3370,
+          "observed_ts_utc": "2026-07-17T05:22:31.369+00:00",
+          "telegram_ts_utc": "2026-07-17T05:22:21+00:00",
+          "text": "Good Morning All!\n\nAs mentioned above - the overall direction was sell\n\nWe saw a clear rejection at 4008-10 which we marked up here which is now 300 + pips in profit\n\nIf you took advantage of the chart mark ups let us know! \n\n@goldtradingsupport",
+          "classified_action": "PROGRESS_UPDATE",
+          "classifier_action": null,
+          "modality": "informational",
+          "semantic_source": "deterministic_parser",
+          "execution_options": [],
+          "raw_versions": 2,
+          "update_kinds": [
+            "edit",
+            "poll_new"
+          ],
+          "source": "telegram_raw"
+        }
+      ],
       "media": {
         "availability": "metadata_only",
         "has_photo": true,
@@ -111690,6 +111709,1162 @@
           "missing_direction",
           "missing_actionable_entry_trigger"
         ]
+      }
+    },
+    {
+      "schema_version": 5,
+      "provider_signal_id": "canal2_3375",
+      "record_type": "unknown_candidate",
+      "record_type_reason": "unclassified_provider_message",
+      "channel": "canal2",
+      "root_message_id": 3375,
+      "source_message_ids": [
+        3375
+      ],
+      "signal_ts_utc": "2026-07-17T06:33:46+00:00",
+      "first_observed_utc": "2026-07-17T06:33:47.119+00:00",
+      "direction": null,
+      "risk_label": "standard",
+      "effective_range": null,
+      "effective_tps": [],
+      "effective_sl": null,
+      "revisions": [
+        {
+          "message_id": 3375,
+          "observed_ts_utc": "2026-07-17T06:33:47.119+00:00",
+          "telegram_ts_utc": "2026-07-17T06:33:46+00:00",
+          "update_kinds": [
+            "poll_new",
+            "new",
+            "edit",
+            "poll_edit"
+          ],
+          "text": "Good Morning All\n\nWe are active & on the charts 📈",
+          "sticker_id": null,
+          "has_photo": false,
+          "has_document": false,
+          "media_sha256": null,
+          "media_path": null,
+          "media_extraction_status": null,
+          "parsed": {}
+        }
+      ],
+      "entry_zone_timeline": [],
+      "level_timeline": [],
+      "runtime_level_timeline": [],
+      "management_events": [],
+      "media": {
+        "availability": "none",
+        "has_photo": false,
+        "has_document": false,
+        "sha256": null,
+        "path": null,
+        "extraction_status": "not_applicable"
+      },
+      "execution_sig_ids": [],
+      "execution_count": 0,
+      "duplicate_execution": false,
+      "semantic_status": "needs_review",
+      "semantic_gaps": [
+        "unclassified_record_type"
+      ],
+      "canonicalization_issues": [],
+      "entry_contract": {
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
+        "direction": null,
+        "direction_source": null,
+        "blockers": [
+          "missing_direction",
+          "missing_actionable_entry_trigger"
+        ]
+      }
+    },
+    {
+      "schema_version": 5,
+      "provider_signal_id": "canal2_3376",
+      "record_type": "formal_signal",
+      "record_type_reason": "linked_execution_evidence",
+      "channel": "canal2",
+      "root_message_id": 3376,
+      "source_message_ids": [
+        3376
+      ],
+      "signal_ts_utc": "2026-07-17T07:00:18+00:00",
+      "first_observed_utc": "2026-07-17T07:00:19.962+00:00",
+      "direction": "BUY",
+      "risk_label": "standard",
+      "effective_range": [
+        3993.0,
+        3998.0
+      ],
+      "effective_tps": [
+        4001.0,
+        4003.0,
+        4005.0,
+        4007.0,
+        4010.0,
+        4015.0,
+        4027.0
+      ],
+      "effective_sl": 3990.0,
+      "revisions": [
+        {
+          "message_id": 3376,
+          "observed_ts_utc": "2026-07-17T07:00:19.962+00:00",
+          "telegram_ts_utc": "2026-07-17T07:00:18+00:00",
+          "update_kinds": [
+            "new",
+            "edit",
+            "poll_new"
+          ],
+          "text": "Buy Gold Now",
+          "sticker_id": null,
+          "has_photo": false,
+          "has_document": false,
+          "media_sha256": null,
+          "media_path": null,
+          "media_extraction_status": null,
+          "parsed": {
+            "direction": "BUY"
+          }
+        },
+        {
+          "message_id": 3376,
+          "observed_ts_utc": "2026-07-17T07:00:29.871+00:00",
+          "telegram_ts_utc": "2026-07-17T07:00:29+00:00",
+          "update_kinds": [
+            "edit",
+            "poll_edit"
+          ],
+          "text": "Buy Gold Now\n\n3998 - 3993",
+          "sticker_id": null,
+          "has_photo": false,
+          "has_document": false,
+          "media_sha256": null,
+          "media_path": null,
+          "media_extraction_status": null,
+          "parsed": {
+            "direction": "BUY",
+            "range": [
+              3993.0,
+              3998.0
+            ]
+          }
+        },
+        {
+          "message_id": 3376,
+          "observed_ts_utc": "2026-07-17T07:01:08.600+00:00",
+          "telegram_ts_utc": "2026-07-17T07:01:07+00:00",
+          "update_kinds": [
+            "edit",
+            "poll_edit"
+          ],
+          "text": "Buy Gold Now\n\n3998 - 3993\n\n🥇TP1 4001\n🥈TP2 4003\n🥉TP3 4005\n🏅TP4 4007\n      TP5 4010\n      TP6 4015\n      TP\n\n    🚫SL 4090",
+          "sticker_id": null,
+          "has_photo": false,
+          "has_document": false,
+          "media_sha256": null,
+          "media_path": null,
+          "media_extraction_status": null,
+          "parsed": {
+            "direction": "BUY",
+            "range": [
+              3993.0,
+              3998.0
+            ],
+            "tps": [
+              4001.0,
+              4003.0,
+              4005.0,
+              4007.0,
+              4010.0,
+              4015.0
+            ],
+            "sl": 4090.0
+          }
+        },
+        {
+          "message_id": 3376,
+          "observed_ts_utc": "2026-07-17T07:04:06.931+00:00",
+          "telegram_ts_utc": "2026-07-17T07:03:57+00:00",
+          "update_kinds": [
+            "edit",
+            "poll_edit"
+          ],
+          "text": "Buy Gold Now\n\n3998 - 3993\n\n🥇TP1 4001\n🥈TP2 4003\n🥉TP3 4005\n🏅TP4 4007\n      TP5 4010\n      TP6 4015\n      TP\n\n    🚫SL 3090",
+          "sticker_id": null,
+          "has_photo": false,
+          "has_document": false,
+          "media_sha256": null,
+          "media_path": null,
+          "media_extraction_status": null,
+          "parsed": {
+            "direction": "BUY",
+            "range": [
+              3993.0,
+              3998.0
+            ],
+            "tps": [
+              4001.0,
+              4003.0,
+              4005.0,
+              4007.0,
+              4010.0,
+              4015.0
+            ],
+            "sl": 3090.0
+          }
+        },
+        {
+          "message_id": 3376,
+          "observed_ts_utc": "2026-07-17T07:40:24.451+00:00",
+          "telegram_ts_utc": "2026-07-17T07:40:23+00:00",
+          "update_kinds": [
+            "edit",
+            "poll_edit"
+          ],
+          "text": "Buy Gold Now\n\n3998 - 3993\n\n🥇TP1 4001\n🥈TP2 4003\n🥉TP3 4005\n🏅TP4 4007\n      TP5 4010\n      TP6 4015\n      TP\n\n    🚫SL 3990",
+          "sticker_id": null,
+          "has_photo": false,
+          "has_document": false,
+          "media_sha256": null,
+          "media_path": null,
+          "media_extraction_status": null,
+          "parsed": {
+            "direction": "BUY",
+            "range": [
+              3993.0,
+              3998.0
+            ],
+            "tps": [
+              4001.0,
+              4003.0,
+              4005.0,
+              4007.0,
+              4010.0,
+              4015.0
+            ],
+            "sl": 3990.0
+          }
+        },
+        {
+          "message_id": 3376,
+          "observed_ts_utc": "2026-07-17T08:09:22.629+00:00",
+          "telegram_ts_utc": "2026-07-17T08:09:21+00:00",
+          "update_kinds": [
+            "edit",
+            "poll_edit"
+          ],
+          "text": "Buy Gold Now\n\n3998 - 3993\n\n🥇TP1 4001\n🥈TP2 4003\n🥉TP3 4005\n🏅TP4 4007\n      TP5 4010\n      TP6 4015\n      TP 4027\n\n    🚫SL 3990",
+          "sticker_id": null,
+          "has_photo": false,
+          "has_document": false,
+          "media_sha256": null,
+          "media_path": null,
+          "media_extraction_status": null,
+          "parsed": {
+            "direction": "BUY",
+            "range": [
+              3993.0,
+              3998.0
+            ],
+            "tps": [
+              4001.0,
+              4003.0,
+              4005.0,
+              4007.0,
+              4010.0,
+              4015.0,
+              4027.0
+            ],
+            "sl": 3990.0
+          }
+        },
+        {
+          "message_id": 3376,
+          "observed_ts_utc": "2026-07-17T08:11:00.744+00:00",
+          "telegram_ts_utc": "2026-07-17T08:10:59+00:00",
+          "update_kinds": [
+            "edit",
+            "poll_edit"
+          ],
+          "text": "Buy Gold Now\n\n3998 - 3993\n\n🥇TP1 4001\n🥈TP2 4003\n🥉TP3 4005\n🏅TP4 4007\n      TP5 4010\n      TP6 4015\n      TP 4027\n\n    🚫SL 3990",
+          "sticker_id": null,
+          "has_photo": true,
+          "has_document": false,
+          "media_sha256": null,
+          "media_path": null,
+          "media_extraction_status": null,
+          "parsed": {
+            "direction": "BUY",
+            "range": [
+              3993.0,
+              3998.0
+            ],
+            "tps": [
+              4001.0,
+              4003.0,
+              4005.0,
+              4007.0,
+              4010.0,
+              4015.0,
+              4027.0
+            ],
+            "sl": 3990.0
+          }
+        }
+      ],
+      "entry_zone_timeline": [
+        {
+          "telegram_ts_utc": "2026-07-17T07:00:29+00:00",
+          "observed_ts_utc": "2026-07-17T07:00:29.871+00:00",
+          "range": [
+            3993.0,
+            3998.0
+          ],
+          "raw_range": [
+            3993.0,
+            3998.0
+          ],
+          "source_message_id": 3376,
+          "source_kind": "revision",
+          "canonicalized_at_source_message_id": 3376
+        },
+        {
+          "telegram_ts_utc": "2026-07-17T07:01:07+00:00",
+          "observed_ts_utc": "2026-07-17T07:01:08.600+00:00",
+          "range": [
+            3993.0,
+            3998.0
+          ],
+          "raw_range": [
+            3993.0,
+            3998.0
+          ],
+          "source_message_id": 3376,
+          "source_kind": "revision",
+          "canonicalized_at_source_message_id": 3376
+        },
+        {
+          "telegram_ts_utc": "2026-07-17T07:03:57+00:00",
+          "observed_ts_utc": "2026-07-17T07:04:06.931+00:00",
+          "range": [
+            3993.0,
+            3998.0
+          ],
+          "raw_range": [
+            3993.0,
+            3998.0
+          ],
+          "source_message_id": 3376,
+          "source_kind": "revision",
+          "canonicalized_at_source_message_id": 3376
+        },
+        {
+          "telegram_ts_utc": "2026-07-17T07:40:23+00:00",
+          "observed_ts_utc": "2026-07-17T07:40:24.451+00:00",
+          "range": [
+            3993.0,
+            3998.0
+          ],
+          "raw_range": [
+            3993.0,
+            3998.0
+          ],
+          "source_message_id": 3376,
+          "source_kind": "revision",
+          "canonicalized_at_source_message_id": 3376
+        },
+        {
+          "telegram_ts_utc": "2026-07-17T08:09:21+00:00",
+          "observed_ts_utc": "2026-07-17T08:09:22.629+00:00",
+          "range": [
+            3993.0,
+            3998.0
+          ],
+          "raw_range": [
+            3993.0,
+            3998.0
+          ],
+          "source_message_id": 3376,
+          "source_kind": "revision",
+          "canonicalized_at_source_message_id": 3376
+        },
+        {
+          "telegram_ts_utc": "2026-07-17T08:10:59+00:00",
+          "observed_ts_utc": "2026-07-17T08:11:00.744+00:00",
+          "range": [
+            3993.0,
+            3998.0
+          ],
+          "raw_range": [
+            3993.0,
+            3998.0
+          ],
+          "source_message_id": 3376,
+          "source_kind": "revision",
+          "canonicalized_at_source_message_id": 3376
+        }
+      ],
+      "level_timeline": [
+        {
+          "telegram_ts_utc": "2026-07-17T07:01:07+00:00",
+          "observed_ts_utc": "2026-07-17T07:01:08.600+00:00",
+          "tps": [
+            4001.0,
+            4003.0,
+            4005.0,
+            4007.0,
+            4010.0,
+            4015.0
+          ],
+          "sl": 3990.0,
+          "source_message_id": 3376,
+          "source_kind": "revision",
+          "raw_tps": [
+            4001.0,
+            4003.0,
+            4005.0,
+            4007.0,
+            4010.0,
+            4015.0
+          ],
+          "raw_sl": 4090.0
+        },
+        {
+          "telegram_ts_utc": "2026-07-17T07:03:57+00:00",
+          "observed_ts_utc": "2026-07-17T07:04:06.931+00:00",
+          "tps": [
+            4001.0,
+            4003.0,
+            4005.0,
+            4007.0,
+            4010.0,
+            4015.0
+          ],
+          "sl": 3990.0,
+          "source_message_id": 3376,
+          "source_kind": "revision",
+          "raw_tps": [
+            4001.0,
+            4003.0,
+            4005.0,
+            4007.0,
+            4010.0,
+            4015.0
+          ],
+          "raw_sl": 3090.0
+        },
+        {
+          "telegram_ts_utc": "2026-07-17T07:40:23+00:00",
+          "observed_ts_utc": "2026-07-17T07:40:24.451+00:00",
+          "tps": [
+            4001.0,
+            4003.0,
+            4005.0,
+            4007.0,
+            4010.0,
+            4015.0
+          ],
+          "sl": 3990.0,
+          "source_message_id": 3376,
+          "source_kind": "revision",
+          "raw_tps": [
+            4001.0,
+            4003.0,
+            4005.0,
+            4007.0,
+            4010.0,
+            4015.0
+          ],
+          "raw_sl": 3990.0
+        },
+        {
+          "telegram_ts_utc": "2026-07-17T08:09:21+00:00",
+          "observed_ts_utc": "2026-07-17T08:09:22.629+00:00",
+          "tps": [
+            4001.0,
+            4003.0,
+            4005.0,
+            4007.0,
+            4010.0,
+            4015.0,
+            4027.0
+          ],
+          "sl": 3990.0,
+          "source_message_id": 3376,
+          "source_kind": "revision",
+          "raw_tps": [
+            4001.0,
+            4003.0,
+            4005.0,
+            4007.0,
+            4010.0,
+            4015.0,
+            4027.0
+          ],
+          "raw_sl": 3990.0
+        },
+        {
+          "telegram_ts_utc": "2026-07-17T08:10:59+00:00",
+          "observed_ts_utc": "2026-07-17T08:11:00.744+00:00",
+          "tps": [
+            4001.0,
+            4003.0,
+            4005.0,
+            4007.0,
+            4010.0,
+            4015.0,
+            4027.0
+          ],
+          "sl": 3990.0,
+          "source_message_id": 3376,
+          "source_kind": "revision",
+          "raw_tps": [
+            4001.0,
+            4003.0,
+            4005.0,
+            4007.0,
+            4010.0,
+            4015.0,
+            4027.0
+          ],
+          "raw_sl": 3990.0
+        }
+      ],
+      "runtime_level_timeline": [
+        {
+          "observed_ts_utc": "2026-07-17T07:00:19.966+00:00",
+          "telegram_ts_utc": null,
+          "range": [
+            3993.23,
+            3998.23
+          ],
+          "tps": [
+            4001.23,
+            4003.23,
+            4005.23,
+            4007.23
+          ],
+          "sl": 3989.23,
+          "provisional": true,
+          "corrections": [
+            {
+              "field": "range",
+              "kind": "inferred_from_reference",
+              "original": null,
+              "corrected": [
+                3993.23,
+                3998.23
+              ],
+              "reason": "missing_range"
+            },
+            {
+              "field": "tps",
+              "kind": "inferred",
+              "original": null,
+              "corrected": [
+                4001.23,
+                4003.23,
+                4005.23,
+                4007.23
+              ],
+              "reason": "missing_tps"
+            },
+            {
+              "field": "sl",
+              "kind": "inferred",
+              "original": null,
+              "corrected": 3989.23,
+              "reason": "missing_sl"
+            }
+          ],
+          "source_kind": "runtime_entry_interpreter",
+          "source_event": "entry_levels_interpreted"
+        },
+        {
+          "observed_ts_utc": "2026-07-17T07:00:29.040+00:00",
+          "telegram_ts_utc": null,
+          "range": [
+            3993.2,
+            3998.2
+          ],
+          "tps": [
+            4001.2,
+            4003.2,
+            4005.2,
+            4007.2
+          ],
+          "sl": 3989.2,
+          "provisional": true,
+          "corrections": [
+            {
+              "field": "range",
+              "kind": "inferred_from_reference",
+              "original": null,
+              "corrected": [
+                3993.2,
+                3998.2
+              ],
+              "reason": "missing_range"
+            },
+            {
+              "field": "tps",
+              "kind": "inferred",
+              "original": null,
+              "corrected": [
+                4001.2,
+                4003.2,
+                4005.2,
+                4007.2
+              ],
+              "reason": "missing_tps"
+            },
+            {
+              "field": "sl",
+              "kind": "inferred",
+              "original": null,
+              "corrected": 3989.2,
+              "reason": "missing_sl"
+            }
+          ],
+          "source_kind": "runtime_entry_interpreter",
+          "source_event": "entry_levels_interpreted"
+        },
+        {
+          "observed_ts_utc": "2026-07-17T07:00:29.873+00:00",
+          "telegram_ts_utc": null,
+          "range": [
+            3993.0,
+            3998.0
+          ],
+          "tps": [
+            4001.0,
+            4003.0,
+            4005.0,
+            4007.0
+          ],
+          "sl": 3989.0,
+          "provisional": true,
+          "corrections": [
+            {
+              "field": "tps",
+              "kind": "inferred",
+              "original": null,
+              "corrected": [
+                4001.0,
+                4003.0,
+                4005.0,
+                4007.0
+              ],
+              "reason": "missing_tps"
+            },
+            {
+              "field": "sl",
+              "kind": "inferred",
+              "original": null,
+              "corrected": 3989.0,
+              "reason": "missing_sl"
+            }
+          ],
+          "source_kind": "runtime_entry_interpreter",
+          "source_event": "entry_levels_interpreted"
+        },
+        {
+          "observed_ts_utc": "2026-07-17T07:01:08.602+00:00",
+          "telegram_ts_utc": null,
+          "range": [
+            3993.0,
+            3998.0
+          ],
+          "tps": [
+            4001.0,
+            4003.0,
+            4005.0,
+            4007.0,
+            4010.0,
+            4015.0
+          ],
+          "sl": 3989.0,
+          "provisional": true,
+          "corrections": [
+            {
+              "field": "sl",
+              "kind": "sl_replaced",
+              "original": 4090.0,
+              "corrected": 3989.0,
+              "reason": "SL=4090.0 >= entry=3998.2 (BUY requiere SL < entry)"
+            }
+          ],
+          "source_kind": "runtime_entry_interpreter",
+          "source_event": "entry_levels_interpreted"
+        }
+      ],
+      "management_events": [
+        {
+          "message_id": 3377,
+          "reply_to_msg_id": 3376,
+          "observed_ts_utc": "2026-07-17T07:01:30.975+00:00",
+          "telegram_ts_utc": "2026-07-17T07:01:27+00:00",
+          "text": "TP1 HIT",
+          "classified_action": "TP_HIT_ANNOUNCEMENT",
+          "classifier_action": null,
+          "modality": "informational",
+          "semantic_source": "deterministic_parser",
+          "execution_options": [],
+          "raw_versions": 3,
+          "update_kinds": [
+            "new",
+            "edit",
+            "poll_new"
+          ],
+          "source": "telegram_raw"
+        },
+        {
+          "message_id": 3378,
+          "reply_to_msg_id": 3376,
+          "observed_ts_utc": "2026-07-17T08:04:36.733+00:00",
+          "telegram_ts_utc": "2026-07-17T08:04:27+00:00",
+          "text": "For anyone holding this trade it should be risk free now\n\nThat means either you have taken 80% of the profits out OR you have moved stop loss above any lower entries you may have",
+          "classified_action": "MOVE_SL_TO_BE",
+          "classifier_action": null,
+          "modality": "direct",
+          "semantic_source": "deterministic_parser",
+          "execution_options": [
+            {
+              "action": "MOVE_SL_TO_BE"
+            }
+          ],
+          "raw_versions": 3,
+          "update_kinds": [
+            "new",
+            "edit",
+            "poll_new"
+          ],
+          "source": "telegram_raw"
+        }
+      ],
+      "media": {
+        "availability": "metadata_only",
+        "has_photo": true,
+        "has_document": false,
+        "sha256": null,
+        "path": null,
+        "extraction_status": "not_extracted"
+      },
+      "execution_sig_ids": [
+        "canal2_3376"
+      ],
+      "execution_count": 1,
+      "duplicate_execution": false,
+      "semantic_status": "complete",
+      "semantic_gaps": [],
+      "canonicalization_issues": [
+        {
+          "field": "sl",
+          "raw": 4090.0,
+          "canonical": 3990.0,
+          "decision": "repaired_prefix_typo",
+          "observed_ts_utc": "2026-07-17T07:01:08.600+00:00",
+          "source_kind": "revision",
+          "source_message_id": 3376
+        },
+        {
+          "field": "sl",
+          "raw": 3090.0,
+          "canonical": 3990.0,
+          "decision": "rejected_keep_previous",
+          "observed_ts_utc": "2026-07-17T07:04:06.931+00:00",
+          "source_kind": "revision",
+          "source_message_id": 3376
+        }
+      ],
+      "entry_contract": {
+        "status": "ready",
+        "trigger_observed_utc": "2026-07-17T07:00:19.962+00:00",
+        "trigger_telegram_utc": "2026-07-17T07:00:18+00:00",
+        "trigger_message_id": 3376,
+        "trigger_kind": "text",
+        "direction": "BUY",
+        "direction_source": "revision_parser:3376",
+        "blockers": []
+      }
+    },
+    {
+      "schema_version": 5,
+      "provider_signal_id": "canal2_3379",
+      "record_type": "formal_signal",
+      "record_type_reason": "linked_execution_evidence",
+      "channel": "canal2",
+      "root_message_id": 3379,
+      "source_message_ids": [
+        3379
+      ],
+      "signal_ts_utc": "2026-07-17T08:43:38+00:00",
+      "first_observed_utc": "2026-07-17T08:43:39.326+00:00",
+      "direction": "SELL",
+      "risk_label": "standard",
+      "effective_range": [
+        3991.0,
+        3996.0
+      ],
+      "effective_tps": [
+        3988.0,
+        3986.0,
+        3984.0,
+        3982.0,
+        3980.0,
+        3978.0
+      ],
+      "effective_sl": 4003.0,
+      "revisions": [
+        {
+          "message_id": 3379,
+          "observed_ts_utc": "2026-07-17T08:43:39.326+00:00",
+          "telegram_ts_utc": "2026-07-17T08:43:38+00:00",
+          "update_kinds": [
+            "new",
+            "poll_new",
+            "poll_edit",
+            "edit"
+          ],
+          "text": "Sell Gold Now",
+          "sticker_id": null,
+          "has_photo": false,
+          "has_document": false,
+          "media_sha256": null,
+          "media_path": null,
+          "media_extraction_status": null,
+          "parsed": {
+            "direction": "SELL"
+          }
+        },
+        {
+          "message_id": 3379,
+          "observed_ts_utc": "2026-07-17T08:43:56.973+00:00",
+          "telegram_ts_utc": "2026-07-17T08:43:49+00:00",
+          "update_kinds": [
+            "edit",
+            "poll_edit"
+          ],
+          "text": "Sell Gold Now\n\n3991 - 3996",
+          "sticker_id": null,
+          "has_photo": false,
+          "has_document": false,
+          "media_sha256": null,
+          "media_path": null,
+          "media_extraction_status": null,
+          "parsed": {
+            "direction": "SELL",
+            "range": [
+              3991.0,
+              3996.0
+            ]
+          }
+        },
+        {
+          "message_id": 3379,
+          "observed_ts_utc": "2026-07-17T08:44:31.998+00:00",
+          "telegram_ts_utc": "2026-07-17T08:44:31+00:00",
+          "update_kinds": [
+            "poll_edit",
+            "edit"
+          ],
+          "text": "Sell Gold Now\n\n3991 - 3996\n\n🥇TP1 3988\n🥈TP2 3986\n🥉TP3 3984\n🏅TP4 3982\n      TP5 3980\n      TP6 3978\n      TP \n\n    🚫SL 3999",
+          "sticker_id": null,
+          "has_photo": false,
+          "has_document": false,
+          "media_sha256": null,
+          "media_path": null,
+          "media_extraction_status": null,
+          "parsed": {
+            "direction": "SELL",
+            "range": [
+              3991.0,
+              3996.0
+            ],
+            "tps": [
+              3988.0,
+              3986.0,
+              3984.0,
+              3982.0,
+              3980.0,
+              3978.0
+            ],
+            "sl": 3999.0
+          }
+        }
+      ],
+      "entry_zone_timeline": [
+        {
+          "telegram_ts_utc": "2026-07-17T08:43:49+00:00",
+          "observed_ts_utc": "2026-07-17T08:43:56.973+00:00",
+          "range": [
+            3991.0,
+            3996.0
+          ],
+          "raw_range": [
+            3991.0,
+            3996.0
+          ],
+          "source_message_id": 3379,
+          "source_kind": "revision",
+          "canonicalized_at_source_message_id": 3379
+        },
+        {
+          "telegram_ts_utc": "2026-07-17T08:44:31+00:00",
+          "observed_ts_utc": "2026-07-17T08:44:31.998+00:00",
+          "range": [
+            3991.0,
+            3996.0
+          ],
+          "raw_range": [
+            3991.0,
+            3996.0
+          ],
+          "source_message_id": 3379,
+          "source_kind": "revision",
+          "canonicalized_at_source_message_id": 3379
+        }
+      ],
+      "level_timeline": [
+        {
+          "telegram_ts_utc": "2026-07-17T08:44:31+00:00",
+          "observed_ts_utc": "2026-07-17T08:44:31.998+00:00",
+          "tps": [
+            3988.0,
+            3986.0,
+            3984.0,
+            3982.0,
+            3980.0,
+            3978.0
+          ],
+          "sl": 3999.0,
+          "source_message_id": 3379,
+          "source_kind": "revision",
+          "raw_tps": [
+            3988.0,
+            3986.0,
+            3984.0,
+            3982.0,
+            3980.0,
+            3978.0
+          ],
+          "raw_sl": 3999.0
+        },
+        {
+          "telegram_ts_utc": "2026-07-17T08:49:02+00:00",
+          "observed_ts_utc": "2026-07-17T08:49:07.384+00:00",
+          "tps": [
+            3988.0,
+            3986.0,
+            3984.0,
+            3982.0,
+            3980.0,
+            3978.0
+          ],
+          "sl": 4003.0,
+          "source_message_id": 3380,
+          "source_kind": "management_sl_move",
+          "raw_tps": [],
+          "raw_sl": 4003.0
+        }
+      ],
+      "runtime_level_timeline": [
+        {
+          "observed_ts_utc": "2026-07-17T08:43:39.328+00:00",
+          "telegram_ts_utc": null,
+          "range": [
+            3990.86,
+            3995.86
+          ],
+          "tps": [
+            3987.86,
+            3985.86,
+            3983.86,
+            3981.86
+          ],
+          "sl": 3999.86,
+          "provisional": true,
+          "corrections": [
+            {
+              "field": "range",
+              "kind": "inferred_from_reference",
+              "original": null,
+              "corrected": [
+                3990.86,
+                3995.86
+              ],
+              "reason": "missing_range"
+            },
+            {
+              "field": "tps",
+              "kind": "inferred",
+              "original": null,
+              "corrected": [
+                3987.86,
+                3985.86,
+                3983.86,
+                3981.86
+              ],
+              "reason": "missing_tps"
+            },
+            {
+              "field": "sl",
+              "kind": "inferred",
+              "original": null,
+              "corrected": 3999.86,
+              "reason": "missing_sl"
+            }
+          ],
+          "source_kind": "runtime_entry_interpreter",
+          "source_event": "entry_levels_interpreted"
+        },
+        {
+          "observed_ts_utc": "2026-07-17T08:43:42.174+00:00",
+          "telegram_ts_utc": null,
+          "range": [
+            3990.88,
+            3995.88
+          ],
+          "tps": [
+            3987.88,
+            3985.88,
+            3983.88,
+            3981.88
+          ],
+          "sl": 3999.88,
+          "provisional": true,
+          "corrections": [
+            {
+              "field": "range",
+              "kind": "inferred_from_reference",
+              "original": null,
+              "corrected": [
+                3990.88,
+                3995.88
+              ],
+              "reason": "missing_range"
+            },
+            {
+              "field": "tps",
+              "kind": "inferred",
+              "original": null,
+              "corrected": [
+                3987.88,
+                3985.88,
+                3983.88,
+                3981.88
+              ],
+              "reason": "missing_tps"
+            },
+            {
+              "field": "sl",
+              "kind": "inferred",
+              "original": null,
+              "corrected": 3999.88,
+              "reason": "missing_sl"
+            }
+          ],
+          "source_kind": "runtime_entry_interpreter",
+          "source_event": "entry_levels_interpreted"
+        },
+        {
+          "observed_ts_utc": "2026-07-17T08:43:56.975+00:00",
+          "telegram_ts_utc": null,
+          "range": [
+            3991.0,
+            3996.0
+          ],
+          "tps": [
+            3988.0,
+            3986.0,
+            3984.0,
+            3982.0
+          ],
+          "sl": 4000.0,
+          "provisional": true,
+          "corrections": [
+            {
+              "field": "tps",
+              "kind": "inferred",
+              "original": null,
+              "corrected": [
+                3988.0,
+                3986.0,
+                3984.0,
+                3982.0
+              ],
+              "reason": "missing_tps"
+            },
+            {
+              "field": "sl",
+              "kind": "inferred",
+              "original": null,
+              "corrected": 4000.0,
+              "reason": "missing_sl"
+            }
+          ],
+          "source_kind": "runtime_entry_interpreter",
+          "source_event": "entry_levels_interpreted"
+        }
+      ],
+      "management_events": [
+        {
+          "message_id": 3380,
+          "reply_to_msg_id": 3379,
+          "observed_ts_utc": "2026-07-17T08:49:07.384+00:00",
+          "telegram_ts_utc": "2026-07-17T08:49:02+00:00",
+          "text": "Move SL to 4003",
+          "classified_action": "MOVE_SL_TO_PRICE",
+          "classifier_action": null,
+          "modality": "direct",
+          "semantic_source": "deterministic_parser",
+          "execution_options": [
+            {
+              "action": "MOVE_SL_TO_PRICE",
+              "price": 4003.0
+            }
+          ],
+          "raw_versions": 3,
+          "update_kinds": [
+            "new",
+            "edit",
+            "poll_new"
+          ],
+          "source": "telegram_raw",
+          "price": 4003.0
+        }
+      ],
+      "media": {
+        "availability": "none",
+        "has_photo": false,
+        "has_document": false,
+        "sha256": null,
+        "path": null,
+        "extraction_status": "not_applicable"
+      },
+      "execution_sig_ids": [
+        "canal2_3379"
+      ],
+      "execution_count": 1,
+      "duplicate_execution": false,
+      "semantic_status": "complete",
+      "semantic_gaps": [],
+      "canonicalization_issues": [],
+      "entry_contract": {
+        "status": "ready",
+        "trigger_observed_utc": "2026-07-17T08:43:39.326+00:00",
+        "trigger_telegram_utc": "2026-07-17T08:43:38+00:00",
+        "trigger_message_id": 3379,
+        "trigger_kind": "text",
+        "direction": "SELL",
+        "direction_source": "revision_parser:3379",
+        "blockers": []
       }
     }
   ]
