@@ -263,3 +263,25 @@ def test_data_rebase_conflict_blocks_on_preserved_local_history(tmp_path):
     assert (vm / "data" / "events.jsonl").read_text(encoding="utf-8") == (
         "local session\n"
     )
+
+def test_reverted_code_commit_is_still_not_auto_published(tmp_path):
+    _remote, _seed, vm = _repos(tmp_path)
+    remote_head = _must_git(vm, "rev-parse", "origin/main")
+    _write_commit(vm, "bot.py", "unsafe = True\n", "data: accidental code")
+    _must_git(vm, "rm", "bot.py")
+    _must_git(vm, "commit", "-m", "data: revert accidental code")
+    local_head = _write_commit(
+        vm,
+        "data/events.jsonl",
+        '{"event":"session"}\n',
+        "data: session",
+    )
+
+    result = git_sync.synchronize_repository(vm, publish_local=True)
+
+    assert result.ok is True
+    assert result.action == "local_non_data_rescued"
+    assert result.rescue_branch is not None
+    assert _must_git(vm, "rev-parse", result.rescue_branch) == local_head
+    assert _must_git(vm, "rev-parse", "HEAD") == remote_head
+    assert _must_git(vm, "rev-parse", "origin/main") == remote_head

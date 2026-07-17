@@ -100,28 +100,44 @@ def _local_commits_are_data_only(
     ):
         return False
 
-    merge_base = _output(repo_dir, "merge-base", remote_head, local_head)
-    if not merge_base:
-        return False
-    changed = _run_git(
+    commits_result = _run_git(
         repo_dir,
-        "diff",
-        "--name-only",
-        "--no-renames",
-        merge_base,
-        local_head,
+        "rev-list",
+        "--reverse",
+        f"{remote_head}..{local_head}",
     )
-    if changed.returncode != 0:
+    if commits_result.returncode != 0:
         return False
-    paths = [
-        line.strip().replace("\\", "/")
-        for line in (changed.stdout or "").splitlines()
+    commits = [
+        line.strip()
+        for line in (commits_result.stdout or "").splitlines()
         if line.strip()
     ]
-    return bool(paths) and all(
-        path == "data" or path.startswith("data/") for path in paths
-    )
-
+    if not commits:
+        return False
+    for commit in commits:
+        changed = _run_git(
+            repo_dir,
+            "diff-tree",
+            "--no-commit-id",
+            "--name-only",
+            "--no-renames",
+            "-r",
+            commit,
+        )
+        if changed.returncode != 0:
+            return False
+        paths = [
+            line.strip().replace("\\", "/")
+            for line in (changed.stdout or "").splitlines()
+            if line.strip()
+        ]
+        if not paths or any(
+            path != "data" and not path.startswith("data/")
+            for path in paths
+        ):
+            return False
+    return True
 
 def _rescue_branch(repo_dir: Path, head: str) -> str | None:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")

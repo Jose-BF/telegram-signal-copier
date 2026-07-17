@@ -83,6 +83,31 @@ def test_main_retries_transient_git_transport_failure(monkeypatch):
     assert watch.main() == watch.WATCHER_GIT_RETRY_EXIT_CODE
 
 
+def test_ctrl_c_without_new_commit_still_verifies_git(monkeypatch):
+    class InterruptedProcess:
+        def poll(self):
+            raise KeyboardInterrupt
+
+    verified = _sync_result()
+    blocked = _sync_result(
+        ok=False,
+        action="dirty_worktree",
+        error="uncommitted source file",
+    )
+    refreshes = []
+    monkeypatch.setattr(watch, "_prepare_repository_for_runtime", lambda: verified)
+    monkeypatch.setattr(watch, "_spawn_bot", lambda: InterruptedProcess())
+    monkeypatch.setattr(watch, "_stop_bot", lambda _proc: None)
+    monkeypatch.setattr(watch, "_push_session_data", lambda: None)
+    monkeypatch.setattr(
+        watch,
+        "_refresh_heads_after_session_data_push",
+        lambda: refreshes.append("sync") or blocked,
+    )
+
+    assert watch.main() == watch.WATCHER_GIT_BLOCKED_EXIT_CODE
+    assert refreshes == ["sync"]
+
 def _write_learning_artifacts(report_path, registry_path):
     sources = {
         "events": "a" * 64,

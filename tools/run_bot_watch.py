@@ -1131,8 +1131,11 @@ def main() -> int:
     except KeyboardInterrupt:
         print("\n[Watch] Ctrl+C — cerrando bot.", flush=True)
         _stop_bot(proc)
-        session_sync = _push_session_data()
-        if session_sync is not None and not session_sync.ok:
+        session_sync = (
+            _push_session_data()
+            or _refresh_heads_after_session_data_push()
+        )
+        if not session_sync.ok:
             return _sync_failure_exit_code(session_sync)
         return 0
 
