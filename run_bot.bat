@@ -40,12 +40,10 @@ REM                                siempre es 0 si el pipe no rompio)
 REM   • [Console]::OutputEncoding=UTF8 : evita que acentos y emojis salgan
 REM                                como ? en la consola al pasar por PS
 REM
-REM CAMBIO: lanzamos tools\run_bot_watch.py en vez de main.py directo. El
-REM watcher hace pull automatico al detectar commits nuevos en origin/main
-REM y reinicia main.py — asi nunca volvemos a quedarnos con codigo viejo
-REM como paso el 2026-05-06 (115min congelado por bug ya parcheado pero
-REM no aplicado). El watcher tambien hace git push de datos cada vez que
-REM reinicia main.py, asi que ya no necesitamos el bloque git de abajo.
+REM Lanzamos tools\run_bot_watch.py en vez de main.py directo. El watcher
+REM solo arranca cuando main coincide con origin/main y no hay rebase ni
+REM HEAD separado. Tambien publica los datos de sesion por la misma ruta
+REM verificada, por lo que este .bat no ejecuta comandos Git en paralelo.
 powershell -NoProfile -Command "[Console]::OutputEncoding = [Text.Encoding]::UTF8; python -u tools\run_bot_watch.py 2>&1 | Tee-Object -FilePath logs\bot_runtime.log -Append; exit $LASTEXITCODE"
 set EXITCODE=%errorlevel%
 

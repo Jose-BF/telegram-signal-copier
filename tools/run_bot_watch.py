@@ -1,25 +1,20 @@
 """
-run_bot_watch.py — Wrapper que lanza el bot y lo reinicia al detectar
-commits nuevos en `origin/main`.
+run_bot_watch.py - supervisor de produccion con sincronizacion Git segura.
 
 Uso:
     python tools/run_bot_watch.py
 
 Funcionamiento:
-  1. Lanza `python main.py` como subproceso.
-  2. Cada 60s hace `git fetch` y compara HEAD local vs origin/main.
-  3. Si hay commits nuevos:
-       - Para el bot (SIGTERM, espera 10s, SIGKILL si no responde).
-       - Hace `git pull --ff-only origin main`.
-       - Vuelve a lanzar el bot.
-  4. Si el bot termina inesperadamente, lo relanza tras 5s.
+  1. Normaliza Git antes de arrancar y verifica main == origin/main.
+  2. Solo lanza main.py cuando no hay rebase pendiente ni HEAD separado.
+  3. Cada 60 s consulta origin/main; publica commits data: locales o activa
+     la nueva version remota mediante una ruta determinista y comprobada.
+  4. Antes de reiniciar o cerrar, regenera los artefactos de sesion dentro
+     de una transaccion y publica los datos por esa misma ruta Git.
+  5. Si no puede garantizar el estado, preserva un rescate, no lanza el bot
+     y devuelve el codigo 76 para dejar el problema visible.
 
-Por qué: la sesión 2026-05-06 dejó al bot corriendo todo el día con
-código pre-f985140 porque nadie lo reinició tras el pull. Estos commits
-incluían fixes de bloqueo del event loop. Resultado: 115min congelado +
-13 señales perdidas + 1 posición huérfana sin SL/TP.
-
-Detener el wrapper: Ctrl+C (cierra el bot también).
+Detener el wrapper: Ctrl+C (cierra el bot tambien).
 """
 
 import argparse
@@ -960,7 +955,7 @@ def _push_session_data() -> git_sync.SyncResult | None:
     Antes de subir, regenera el ledger reconciliado (reconcile_mt5_ledger.py).
     """
     with _offline_output_transaction():
-        builder_results = _regenerate_session_outputs()
+        _regenerate_session_outputs()
     files = [
         "data/trade_events.jsonl",
         "data/ledger.jsonl",

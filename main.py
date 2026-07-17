@@ -49,7 +49,7 @@ import executor
 import journal
 import live_auditor
 import pending_actions
-from listener import client, poll_loop, _is_transient_telegram_history_error
+from listener import client, notify, poll_loop, _is_transient_telegram_history_error
 from parser import predict_sl_from_entry
 
 _freeze_traceback_file_handle = None
@@ -1084,10 +1084,48 @@ def _git_info() -> dict:
             return None
 
     commit = _run(["git", "rev-parse", "--short", "HEAD"])
+    remote_commit = _run(["git", "rev-parse", "--short", "origin/main"])
     branch = _run(["git", "rev-parse", "--abbrev-ref", "HEAD"])
     dirty_out = _run(["git", "status", "--porcelain"])
     dirty = bool(dirty_out) if dirty_out is not None else None
-    return {"git_commit": commit, "git_branch": branch, "git_dirty": dirty}
+    synced = (
+        commit is not None
+        and commit == remote_commit
+        and branch == "main"
+        and dirty is False
+    )
+    return {
+        "git_commit": commit,
+        "git_remote_commit": remote_commit,
+        "git_branch": branch,
+        "git_dirty": dirty,
+        "git_synced": synced,
+    }
+
+
+def _startup_status_message(git_info: dict) -> str:
+    """Build the concise production-version confirmation sent to the owner."""
+    commit = git_info.get("git_commit") or "desconocida"
+    branch = git_info.get("git_branch") or "desconocida"
+    verified = (
+        git_info.get("git_synced") is True
+        and commit != "desconocida"
+        and branch == "main"
+        and git_info.get("git_dirty") is False
+    )
+    code_status = (
+        "limpio y sincronizado"
+        if verified
+        else "estado local sin verificar"
+    )
+    return "\n".join([
+        "BOT ACTIVO",
+        f"Version: {commit}",
+        f"Rama: {branch}",
+        f"Codigo: {code_status}",
+        "MT5: conectado",
+        "Telegram: canales 1 y 2 activos",
+    ])
 
 
 async def main():
@@ -1100,7 +1138,8 @@ async def main():
     # Marca de sesión — versión del código que ejecuta este arranque.
     # El reconcile asocia cada trade con el session_started cuya ventana
     # lo cubre → cada fila del ledger carga su `bot_version`.
-    journal.event("bot", "session_started", **_git_info(),
+    git_info = _git_info()
+    journal.event("bot", "session_started", **git_info,
                   started_utc=datetime.utcnow().isoformat(timespec="seconds"))
 
     # Validar configuración mínima
@@ -1131,6 +1170,16 @@ async def main():
     print(f"[Telegram] Escuchando Canal 1 (ID={config.CANAL_1_ID})")
     print(f"[Telegram] Escuchando Canal 2 (ID={config.CANAL_2_ID})")
     print("\n  Bot activo. Ctrl+C para detener.\n")
+
+    journal.event(
+        "bot",
+        "startup_version_confirmed",
+        **git_info,
+        mt5_connected=True,
+        telegram_connected=True,
+        channels=["canal1", "canal2"],
+    )
+    await notify(_startup_status_message(git_info))
 
     asyncio.ensure_future(_runtime_heartbeat())
     asyncio.ensure_future(_heartbeat())
