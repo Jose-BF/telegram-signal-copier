@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "generated_at": "2026-07-17T08:58:40+00:00",
+  "generated_at": "2026-07-17T11:57:17+00:00",
   "tick_cache_dir": "C:\\Users\\bot\\telegram-signal-copier\\data\\ticks_cache",
   "pad_minutes": 5,
   "scope": {
@@ -12,19 +12,11 @@
   "summary": {
     "total": 89,
     "ready": 87,
-    "pending": 0,
-    "blocked": 2,
+    "pending": 1,
+    "blocked": 1,
     "top_blockers": [
       [
         "observed_path_status:external_intervention",
-        1
-      ],
-      [
-        "accounting_status:blocked",
-        1
-      ],
-      [
-        "accounting_money_not_exact",
         1
       ]
     ]
@@ -104,11 +96,11 @@
     },
     {
       "date": "2026-07-17",
-      "status": "blocked",
+      "status": "pending",
       "total": 2,
       "ready": 1,
-      "pending": 0,
-      "blocked": 1
+      "pending": 1,
+      "blocked": 0
     }
   ],
   "trades": [
@@ -2830,25 +2822,20 @@
       "channel": "canal2",
       "direction": "SELL",
       "signal_dt_utc": "2026-07-17T08:43:39.326+00:00",
-      "open_dt_utc": null,
+      "open_dt_utc": "2026-07-17T08:43:38+00:00",
       "close_dt_utc": null,
       "ready": false,
-      "status": "blocked",
-      "accounting_status": "blocked",
+      "status": "pending",
+      "accounting_status": null,
       "accounting_money_exact": false,
-      "observed_path_status": "exact",
+      "observed_path_status": null,
       "tick_days": [
         "2026-07-17"
       ],
-      "ticket_count": 0,
-      "blockers": [
-        "accounting_status:blocked",
-        "accounting_money_not_exact"
-      ],
+      "ticket_count": 5,
+      "blockers": [],
       "warnings": [
-        "accounting_assumption:journal_pnl_missing",
-        "accounting_assumption:replay_gap:pnl_mt5_incomplete",
-        "accounting_assumption:flag:PNL_PARCIAL_mt5_identifico_0_de_5_pos (posiciones del journal no halladas en MT5)"
+        "trade_still_open"
       ]
     }
   ]

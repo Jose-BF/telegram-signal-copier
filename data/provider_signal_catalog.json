@@ -1,7 +1,7 @@
 {
   "schema_version": 5,
   "summary": {
-    "records": 437,
+    "records": 438,
     "provider_signals": 245,
     "formal_signals": 245,
     "complete_signals": 238,
@@ -9,9 +9,9 @@
     "executed_signals": 223,
     "unexecuted_signals": 22,
     "duplicate_execution_signals": 2,
-    "management_events": 1253,
+    "management_events": 1255,
     "record_types": {
-      "context_setup": 60,
+      "context_setup": 61,
       "daily_summary": 16,
       "formal_signal": 245,
       "management_only": 59,
@@ -34,7 +34,7 @@
         }
       },
       "canal2": {
-        "records": 217,
+        "records": 218,
         "provider_signals": 118,
         "complete_signals": 117,
         "incomplete_signals": 1,
@@ -42,7 +42,7 @@
         "unexecuted_signals": 20,
         "duplicate_execution_signals": 0,
         "record_types": {
-          "context_setup": 37,
+          "context_setup": 38,
           "daily_summary": 16,
           "formal_signal": 118,
           "management_only": 18,
@@ -112838,6 +112838,48 @@
           ],
           "source": "telegram_raw",
           "price": 4003.0
+        },
+        {
+          "message_id": 3384,
+          "reply_to_msg_id": 3379,
+          "observed_ts_utc": "2026-07-17T10:51:07.972+00:00",
+          "telegram_ts_utc": "2026-07-17T10:51:01+00:00",
+          "text": "Entries for me\n\n3991\n3993.5\n3996\n3999\n\nCurrently sitting in PROFIT at this time I press send on this message and I have closed entries one and 2 and made 3 and 4 risk free\n\nI thought it would be helpful to say where I have entered",
+          "classified_action": "MOVE_SL_TO_BE",
+          "classifier_action": null,
+          "modality": "direct",
+          "semantic_source": "deterministic_parser",
+          "execution_options": [
+            {
+              "action": "MOVE_SL_TO_BE"
+            }
+          ],
+          "raw_versions": 2,
+          "update_kinds": [
+            "edit",
+            "poll_new"
+          ],
+          "source": "telegram_raw"
+        },
+        {
+          "message_id": 3385,
+          "reply_to_msg_id": 3379,
+          "observed_ts_utc": "2026-07-17T10:52:09.541+00:00",
+          "telegram_ts_utc": "2026-07-17T10:52:08+00:00",
+          "text": "All entries in profit ✅",
+          "classified_action": "PROGRESS_UPDATE",
+          "classifier_action": null,
+          "modality": "informational",
+          "semantic_source": "deterministic_parser",
+          "execution_options": [],
+          "raw_versions": 4,
+          "update_kinds": [
+            "new",
+            "poll_new",
+            "poll_edit",
+            "edit"
+          ],
+          "source": "telegram_raw"
         }
       ],
       "media": {
@@ -112865,6 +112907,76 @@
         "direction": "SELL",
         "direction_source": "revision_parser:3379",
         "blockers": []
+      }
+    },
+    {
+      "schema_version": 5,
+      "provider_signal_id": "canal2_3386",
+      "record_type": "context_setup",
+      "record_type_reason": "media_or_market_context",
+      "channel": "canal2",
+      "root_message_id": 3386,
+      "source_message_ids": [
+        3386
+      ],
+      "signal_ts_utc": "2026-07-17T11:30:05+00:00",
+      "first_observed_utc": "2026-07-17T11:30:05.990+00:00",
+      "direction": null,
+      "risk_label": "standard",
+      "effective_range": null,
+      "effective_tps": [],
+      "effective_sl": null,
+      "revisions": [
+        {
+          "message_id": 3386,
+          "observed_ts_utc": "2026-07-17T11:30:05.990+00:00",
+          "telegram_ts_utc": "2026-07-17T11:30:05+00:00",
+          "update_kinds": [
+            "poll_new",
+            "new",
+            "edit",
+            "poll_edit"
+          ],
+          "text": "Time: Jul 14, 2026 13:15 London\nJoin Zoom Meeting\nhttps://us02web.zoom.us/j/2941242254?omn=84051688351\n\nMeeting chat link\nhttps://us02web.zoom.us/launch/jc/84051688351\n\nMeeting ID: 294 124 2254\nPasscode: 0000\n\nsee you all at 1:15pm UK Time",
+          "sticker_id": null,
+          "has_photo": true,
+          "has_document": false,
+          "media_sha256": null,
+          "media_path": null,
+          "media_extraction_status": null,
+          "parsed": {}
+        }
+      ],
+      "entry_zone_timeline": [],
+      "level_timeline": [],
+      "runtime_level_timeline": [],
+      "management_events": [],
+      "media": {
+        "availability": "metadata_only",
+        "has_photo": true,
+        "has_document": false,
+        "sha256": null,
+        "path": null,
+        "extraction_status": "not_extracted"
+      },
+      "execution_sig_ids": [],
+      "execution_count": 0,
+      "duplicate_execution": false,
+      "semantic_status": "classified",
+      "semantic_gaps": [],
+      "canonicalization_issues": [],
+      "entry_contract": {
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
+        "direction": null,
+        "direction_source": null,
+        "blockers": [
+          "missing_direction",
+          "missing_actionable_entry_trigger"
+        ]
       }
     }
   ]
