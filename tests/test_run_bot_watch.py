@@ -5,6 +5,7 @@ from hashlib import sha256
 import pytest
 
 import tools.run_bot_watch as watch
+from tools import git_sync
 
 
 def _canonical_bytes(value):
@@ -12,6 +13,54 @@ def _canonical_bytes(value):
         json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
     ).encode("utf-8")
 
+
+def _sync_result(**overrides):
+    values = {
+        "ok": True,
+        "action": "up_to_date",
+        "branch": "main",
+        "local_head": "a" * 40,
+        "remote_head": "a" * 40,
+    }
+    values.update(overrides)
+    return git_sync.SyncResult(**values)
+
+
+def test_prepare_repository_for_runtime_delegates_to_state_machine(monkeypatch):
+    calls = []
+    expected = _sync_result(action="attached")
+
+    def fake_sync(repo_dir, *, publish_local):
+        calls.append((repo_dir, publish_local))
+        return expected
+
+    monkeypatch.setattr(watch.git_sync, "synchronize_repository", fake_sync)
+
+    assert watch._prepare_repository_for_runtime() == expected
+    assert calls == [(watch.REPO_DIR, True)]
+
+
+def test_main_blocks_bot_spawn_when_git_preflight_is_unsafe(monkeypatch):
+    blocked = _sync_result(
+        ok=False,
+        action="rebase_quit_failed",
+        branch=None,
+        remote_head="b" * 40,
+        error="stale rebase could not be closed",
+    )
+    monkeypatch.setattr(
+        watch,
+        "_prepare_repository_for_runtime",
+        lambda: blocked,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        watch,
+        "_spawn_bot",
+        lambda: pytest.fail("bot must not spawn after unsafe Git preflight"),
+    )
+
+    assert watch.main() == watch.WATCHER_GIT_BLOCKED_EXIT_CODE
 
 def _write_learning_artifacts(report_path, registry_path):
     sources = {
@@ -573,6 +622,41 @@ def test_regenerate_ledger_records_keyboard_interrupt_before_reraising(
     assert "ctrl-break" in status["stderr"]
 
 
+def test_push_session_data_uses_verified_sync_instead_of_legacy_pull(monkeypatch):
+    calls = []
+    expected = _sync_result(action="pushed")
+    monkeypatch.setattr(watch, "_clear_mutable_offline_outputs", lambda: None)
+    monkeypatch.setattr(watch, "_regenerate_ledger", lambda: False)
+    monkeypatch.setattr(
+        watch,
+        "_regenerate_recursive_learning_outputs",
+        lambda dependencies: False,
+    )
+    monkeypatch.setattr(
+        watch,
+        "_prepare_repository_for_runtime",
+        lambda: calls.append(("sync",)) or expected,
+    )
+
+    def fake_git(*args, capture=True):
+        calls.append(args)
+        returncode = 1 if args == ("diff", "--cached", "--quiet") else 0
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=returncode,
+            stdout="",
+            stderr="",
+        )
+
+    monkeypatch.setattr(watch, "_git", fake_git)
+
+    result = watch._push_session_data()
+
+    assert result == expected
+    assert calls.count(("sync",)) == 1
+    assert not any(call[:1] == ("pull",) for call in calls)
+    assert ("push", "origin", "main") not in calls
+
 def test_push_session_data_adds_reconcile_status(monkeypatch):
     added = []
 
@@ -763,61 +847,19 @@ def test_push_session_data_clears_stale_farm_when_pipeline_stops_early(
     assert not learning_status.exists()
 
 
-def test_pull_main_ff_uses_explicit_origin_main(monkeypatch):
+def test_refresh_after_session_data_push_uses_verified_state(monkeypatch):
+    expected = _sync_result(action="fast_forwarded")
     calls = []
+    monkeypatch.setattr(
+        watch,
+        "_prepare_repository_for_runtime",
+        lambda: calls.append("sync") or expected,
+    )
 
-    def fake_git(*args, capture=True):
-        calls.append((args, capture))
-        return subprocess.CompletedProcess(args=args, returncode=0,
-                                           stdout="", stderr="")
+    result = watch._refresh_heads_after_session_data_push()
 
-    monkeypatch.setattr(watch, "_git", fake_git)
-
-    watch._pull_main_ff(capture=False)
-
-    assert calls == [(("pull", "--ff-only", "origin", "main"), False)]
-
-
-def test_pull_main_and_refresh_heads_returns_remote_after_self_data_push(
-        monkeypatch):
-    calls = []
-
-    def fake_pull(capture=True):
-        calls.append(("pull", capture))
-        return subprocess.CompletedProcess(args=["git"], returncode=0,
-                                           stdout="Already up to date.\n",
-                                           stderr="")
-
-    monkeypatch.setattr(watch, "_pull_main_ff", fake_pull)
-    monkeypatch.setattr(watch, "_local_head", lambda: "self_data_commit")
-    monkeypatch.setattr(watch, "_remote_head", lambda: "self_data_commit")
-
-    pull, local, remote = watch._pull_main_and_refresh_heads()
-
-    assert pull.returncode == 0
-    assert local == "self_data_commit"
-    assert remote == "self_data_commit"
-    assert calls == [("pull", True)]
-
-
-def test_refresh_after_session_data_push_updates_last_remote(monkeypatch):
-    calls = []
-
-    def fake_git(*args, capture=True):
-        calls.append((args, capture))
-        return subprocess.CompletedProcess(args=args, returncode=0,
-                                           stdout="", stderr="")
-
-    monkeypatch.setattr(watch, "_git", fake_git)
-    monkeypatch.setattr(watch, "_local_head", lambda: "data_commit")
-    monkeypatch.setattr(watch, "_remote_head", lambda: "data_commit")
-
-    local, remote = watch._refresh_heads_after_session_data_push()
-
-    assert local == "data_commit"
-    assert remote == "data_commit"
-    assert calls == [(("fetch", "origin", "main"), True)]
-
+    assert result == expected
+    assert calls == ["sync"]
 
 def test_remote_update_data_only_does_not_require_restart(monkeypatch):
     def fake_git(*args, capture=True):

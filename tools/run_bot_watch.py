@@ -44,6 +44,7 @@ if str(REPO_DIR) not in sys.path:
     sys.path.insert(0, str(REPO_DIR))
 
 import log_learning_publication as learning_publication
+from tools import git_sync
 
 MAIN_PY  = REPO_DIR / "main.py"
 RECONCILE_STATUS_FILE = REPO_DIR / "data" / "reconcile_status.json"
@@ -75,6 +76,7 @@ POLL_SEC = 60   # cada cuánto comprobar commits nuevos
 RESTART_GRACE_SEC = 10  # tiempo para SIGTERM antes de SIGKILL
 RELAUNCH_DELAY_SEC = 5  # espera entre fin del bot y relanzamiento
 WATCHER_RELOAD_EXIT_CODE = 75
+WATCHER_GIT_BLOCKED_EXIT_CODE = 76
 WATCHER_SELF_UPDATE_PATHS = {"tools/run_bot_watch.py", "run_bot.bat"}
 WATCHDOG_HEARTBEAT_TIMEOUT_SEC = float(os.getenv(
     "WATCHDOG_HEARTBEAT_TIMEOUT_SEC", "180"))
@@ -99,21 +101,31 @@ def _git(*args: str, capture: bool = True) -> subprocess.CompletedProcess:
     )
 
 
+def _prepare_repository_for_runtime() -> git_sync.SyncResult:
+    return git_sync.synchronize_repository(REPO_DIR, publish_local=True)
+
+
+def _print_sync_result(result: git_sync.SyncResult) -> None:
+    local = (result.local_head or "unknown")[:8]
+    remote = (result.remote_head or "unknown")[:8]
+    print(
+        f"[Watch] Git action={result.action} branch={result.branch or 'DETACHED'} "
+        f"local={local} remote={remote}",
+        flush=True,
+    )
+    if result.rescue_branch:
+        print(f"[Watch] Rescate Git: {result.rescue_branch}", flush=True)
+    if result.autosave_ref:
+        print(f"[Watch] Autosave Git: {result.autosave_ref[:8]}", flush=True)
+    if result.error:
+        print(f"[Watch] Git ERROR: {result.error}", flush=True)
+
 def _local_head() -> str:
     return _git("rev-parse", "HEAD").stdout.strip()
 
 
 def _remote_head() -> str:
     return _git("rev-parse", "origin/main").stdout.strip()
-
-
-def _pull_main_ff(capture: bool = True) -> subprocess.CompletedProcess:
-    return _git("pull", "--ff-only", "origin", "main", capture=capture)
-
-
-def _pull_main_and_refresh_heads() -> tuple[subprocess.CompletedProcess, str, str]:
-    pull = _pull_main_ff()
-    return pull, _local_head(), _remote_head()
 
 
 def _remote_update_is_data_only(old_rev: str, new_rev: str) -> bool:
@@ -141,19 +153,11 @@ def _paths_changed_between(old_rev: str, new_rev: str,
     return bool(changed.intersection(watched_paths))
 
 
-def _refresh_heads_after_session_data_push() -> tuple[str, str]:
-    """Refresh refs after this watcher may have pushed a data commit."""
-    _git("fetch", "origin", "main")
-    local = _local_head()
-    remote = _remote_head()
-    if local == remote:
-        return local, remote
-
-    pull, local, remote = _pull_main_and_refresh_heads()
-    if pull.returncode != 0:
-        print(f"[Watch] git pull tras subir datos fallo:\n{pull.stderr}",
-              flush=True)
-    return local, remote
+def _refresh_heads_after_session_data_push() -> git_sync.SyncResult:
+    """Return one verified repository state after a session-data attempt."""
+    result = _prepare_repository_for_runtime()
+    _print_sync_result(result)
+    return result
 
 
 def _clear_runtime_heartbeat(path: Path = RUNTIME_HEARTBEAT_FILE) -> None:
@@ -860,7 +864,7 @@ def _regenerate_money_tick_cache_status() -> bool:
         if isinstance(exc, (KeyboardInterrupt, SystemExit)):
             raise
         return False
-def _push_session_data() -> None:
+def _push_session_data() -> git_sync.SyncResult | None:
     """Sube data/trade_events.jsonl + ledger + journal a GitHub si hay cambios.
 
     Replica el comportamiento del run_bot.bat original (que solo se ejecutaba
@@ -956,15 +960,17 @@ def _push_session_data() -> None:
         if msg.returncode != 0:
             print(f"[Watch] git commit falló: {msg.stderr}", flush=True)
             return
-        # Pull --rebase antes del push: si el repo remoto avanzó (e.g. fix
-        # nuevo), rebasamos los datos sobre el código nuevo en vez de
-        # rechazar con non-fast-forward.
-        _git("pull", "--rebase", "origin", "main")
-        push = _git("push", "origin", "main")
-        if push.returncode != 0:
-            print(f"[Watch] git push falló: {push.stderr}", flush=True)
+        sync = _prepare_repository_for_runtime()
+        _print_sync_result(sync)
+        if sync.ok:
+            print("[Watch] datos de sesión subidos a GitHub.", flush=True)
         else:
-            print(f"[Watch] datos de sesión subidos a GitHub.", flush=True)
+            print(
+                f"[Watch] datos preservados pero no publicados: "
+                f"{sync.action}: {sync.error or 'estado Git inseguro'}",
+                flush=True,
+            )
+        return sync
     except Exception as e:
         print(f"[Watch] _push_session_data error: {e}", flush=True)
 
@@ -974,17 +980,13 @@ def main() -> int:
         print(f"[Watch] No encuentro {MAIN_PY}", flush=True)
         return 1
 
-    # Fetch inicial para tener referencia clara del remoto
-    _git("fetch", "origin", "main")
-    last_local  = _local_head()
-    last_remote = _remote_head()
-    print(f"[Watch] HEAD local={last_local[:8]} remote={last_remote[:8]}", flush=True)
-    if last_local != last_remote:
-        print("[Watch] El local está desfasado — pull antes de arrancar.", flush=True)
-        _pull_main_ff(capture=False)
-        last_local = _local_head()
-        last_remote = _remote_head()
-
+    sync = _prepare_repository_for_runtime()
+    _print_sync_result(sync)
+    if not sync.ok:
+        print("[Watch] Arranque bloqueado: Git no está verificado.", flush=True)
+        return WATCHER_GIT_BLOCKED_EXIT_CODE
+    last_local = str(sync.local_head)
+    last_remote = str(sync.remote_head)
     proc = _spawn_bot()
     bot_started_at = time.time()
     last_check = time.time()
@@ -995,8 +997,14 @@ def main() -> int:
             if proc.poll() is not None:
                 print(f"[Watch] Bot terminó con código {proc.returncode}. "
                       f"Relanzo en {RELAUNCH_DELAY_SEC}s.", flush=True)
-                _push_session_data()  # sube datos antes de relanzar
-                last_local, last_remote = _refresh_heads_after_session_data_push()
+                session_sync = (
+                    _push_session_data()
+                    or _refresh_heads_after_session_data_push()
+                )
+                if not session_sync.ok:
+                    return WATCHER_GIT_BLOCKED_EXIT_CODE
+                last_local = str(session_sync.local_head)
+                last_remote = str(session_sync.remote_head)
                 time.sleep(RELAUNCH_DELAY_SEC)
                 proc = _spawn_bot()
                 bot_started_at = time.time()
@@ -1013,8 +1021,14 @@ def main() -> int:
                     detail = f"heartbeat viejo ({heartbeat_age_s:.1f}s)"
                 print(f"[Watch] Bot congelado: {detail}. Reinicio.", flush=True)
                 _stop_bot(proc)
-                _push_session_data()
-                last_local, last_remote = _refresh_heads_after_session_data_push()
+                session_sync = (
+                    _push_session_data()
+                    or _refresh_heads_after_session_data_push()
+                )
+                if not session_sync.ok:
+                    return WATCHER_GIT_BLOCKED_EXIT_CODE
+                last_local = str(session_sync.local_head)
+                last_remote = str(session_sync.remote_head)
                 time.sleep(RELAUNCH_DELAY_SEC)
                 proc = _spawn_bot()
                 bot_started_at = time.time()
@@ -1038,13 +1052,15 @@ def main() -> int:
                     print(f"[Watch] Commit nuevo detectado: {last_remote[:8]} -> "
                           f"{remote[:8]}. Reinicio.", flush=True)
                     _stop_bot(proc)
-                    _push_session_data()  # sube datos antes del pull
-                    pull, last_local, last_remote = _pull_main_and_refresh_heads()
-                    print(pull.stdout, end="", flush=True)
-                    if pull.returncode != 0:
-                        print(f"[Watch] git pull falló:\n{pull.stderr}", flush=True)
-                        # Aun así relanzamos con el código que haya
-                    if pull.returncode == 0 and watcher_self_update:
+                    session_sync = (
+                        _push_session_data()
+                        or _refresh_heads_after_session_data_push()
+                    )
+                    if not session_sync.ok:
+                        return WATCHER_GIT_BLOCKED_EXIT_CODE
+                    last_local = str(session_sync.local_head)
+                    last_remote = str(session_sync.remote_head)
+                    if watcher_self_update:
                         print("[Watch] Watcher actualizado. Saliendo para "
                               "que run_bot.bat lo relance.", flush=True)
                         return WATCHER_RELOAD_EXIT_CODE
@@ -1055,7 +1071,9 @@ def main() -> int:
     except KeyboardInterrupt:
         print("\n[Watch] Ctrl+C — cerrando bot.", flush=True)
         _stop_bot(proc)
-        _push_session_data()
+        session_sync = _push_session_data()
+        if session_sync is not None and not session_sync.ok:
+            return WATCHER_GIT_BLOCKED_EXIT_CODE
         return 0
 
 
