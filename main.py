@@ -1153,6 +1153,8 @@ async def main():
     finally:
         journal.event("bot", "session_closed",
                       ended_utc=datetime.utcnow().isoformat(timespec="seconds"))
+        if not journal.flush_events(timeout=10.0):
+            print("[journal] ERROR: eventos pendientes al cerrar")
         journal.set_notify_loop(None)
         executor.shutdown()
         print("\nBot detenido.")

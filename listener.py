@@ -31,6 +31,7 @@ import strategies
 from classifier import classify, classify_async
 from interpretation_firewall import (
     firewall_decision,
+    normalize_xauusd_management_price,
     normalize_classifier_outputs,
 )
 from level_interpreter import interpret_entry_levels
@@ -324,31 +325,25 @@ def _normalize_management_sl_price(signal: Signal, price, raw_text: str = ""):
     except (TypeError, ValueError):
         return None
 
-    if 1000 <= price_f <= 9999:
-        return price_f
-
     sig_id = _sig_id(signal)
     ref = _management_price_reference(signal)
+    normalized = normalize_xauusd_management_price(price, ref)
+    if normalized is not None:
+        if normalized != price_f:
+            journal.event(sig_id, "mgmt_price_normalized",
+                          action="MOVE_SL_TO_PRICE",
+                          raw_price=price_f,
+                          normalized_price=normalized,
+                          reference_price=ref,
+                          raw_snippet=raw_text[:120])
+        return normalized
+
     if ref is None:
         journal.anomaly(sig_id, "channel_msg", "warning",
                         "MOVE_SL_TO_PRICE con precio no absoluto y sin "
                         "referencia XAUUSD; accion ignorada",
                         raw_price=price_f, raw_snippet=raw_text[:120])
         return None
-
-    if 0 <= price_f < 100:
-        base = int(ref / 100) * 100
-        normalized = base + price_f
-        if abs(normalized - ref) > 50:
-            normalized += 100 if normalized < ref else -100
-        normalized = round(normalized, 3)
-        journal.event(sig_id, "mgmt_price_normalized",
-                      action="MOVE_SL_TO_PRICE",
-                      raw_price=price_f,
-                      normalized_price=normalized,
-                      reference_price=ref,
-                      raw_snippet=raw_text[:120])
-        return normalized
 
     journal.anomaly(sig_id, "channel_msg", "warning",
                     "MOVE_SL_TO_PRICE con precio implausible para XAUUSD; "
@@ -1390,6 +1385,15 @@ def _looks_actionable_management_text(text: str) -> bool:
     return any(marker in t for marker in actionable_markers)
 
 
+def _unresolved_management_severity(reason: str, actionable: bool) -> str:
+    """Classify routing failures without alarming on stale closed replies."""
+    if reason == "target_signal_closed":
+        return "info"
+    if actionable:
+        return "critical"
+    return "warning"
+
+
 def _log_unresolved_management_reply(msg, channel: str, reply_id: int,
                                      reason: str) -> None:
     text = _msg_text(msg)
@@ -1397,7 +1401,7 @@ def _log_unresolved_management_reply(msg, channel: str, reply_id: int,
     text_preview = (text or "")[:200].replace("\n", " | ")
     open_ids = [_sig_id(sig) for sig in state.open_signals(channel)]
     actionable = _looks_actionable_management_text(text)
-    severity = "critical" if actionable else "warning"
+    severity = _unresolved_management_severity(reason, actionable)
     journal.event(
         sig_id,
         "management_reply_unresolved",
@@ -2985,139 +2989,44 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
                   f"(tickets={len(tickets)}). Ignorado.")
 
     elif action == "MOVE_SL_TO_BE":
-        if signal.market_ticket:
-            # BE por ticket: cada posición se mueve a SU propio entry, no al
-            # del market original. Esto es lo correcto cuando hay DCAs con
-            # entries distintos (intra_dca).
-            #
-            # GUARD anti-Invalid-stops (sesion 2026-05-13, canal2_12347):
-            # mismo guard que position_lifecycle_monitor._arm_be. Si la posicion esta del
-            # lado adverso al BE (ej. SELL con ask >= entry), MT5 rechaza
-            # con 10016 y la cola reintenta hasta el cap de 30s. Caso real
-            # tras mensaje "Make your trade risk free" cuando precio ya
-            # estaba peor que entry: 382 reintentos de spam Invalid stops.
-            try:
-                import MetaTrader5 as _mt5
-                tick = await _run(_mt5.symbol_info_tick, config.MT5_SYMBOL)
-                si = await _run(_mt5.symbol_info, config.MT5_SYMBOL)
-                min_dist = (si.trade_stops_level * si.point) if si else 0.30
-            except Exception:
-                tick = None
-                min_dist = 0.30
+        requested = []
+        missing_entries = []
+        for ticket in list(signal.all_filled_tickets):
+            entry = await _run(executor.entry_price, ticket)
+            if entry is None:
+                missing_entries.append(ticket)
+                continue
+            entry = float(entry)
+            pending_actions.enqueue_modify_sl(
+                signal,
+                ticket,
+                entry,
+                label=f"BE #{ticket} -> {entry:.2f}",
+                persist_until_signal_close=True,
+            )
+            requested.append({"ticket": ticket, "entry": entry})
 
-            # ── ESTRATEGIA C+D para BE imposible ─────────────────────────
-            # Cuando el trader pide MOVE_SL_TO_BE pero el precio actual ya
-            # esta del lado adverso al entry (ej. SELL @ 4677 con ask=4680),
-            # MT5 rechaza SL=entry. En lugar de SKIP simple (mantener SL del
-            # proveedor lejos), aplicamos:
-            #
-            #   C. SL TRAILING TIGHT desde precio actual:
-            #      SELL: nuevo_sl = ask + min_dist + buffer (ej. ask+0.5)
-            #      BUY:  nuevo_sl = bid - min_dist - buffer
-            #      Solo si MEJORA (mas cerca al precio que el SL actual);
-            #      si SL del proveedor ya esta mas cerca, no tocar.
-            #
-            #   D. NOTIFY URGENT: alerta inmediata al usuario para que
-            #      decida manualmente si el bot decidio aplicar trailing
-            #      tight (porque el BE literal era imposible).
-            #
-            # Asi limitamos perdida (vs SL del provider que esta lejos) sin
-            # cerrar la pos (que perderia upside si el precio rebota), y el
-            # usuario queda informado de la situacion no-estandar.
-            BUFFER_USD = 0.5
-            moved_be = 0
-            moved_trailing = 0
-            skipped_no_improvement = 0
-            trailing_details = []
-            for t in signal.all_filled_tickets:
-                entry = await _run(executor.entry_price, t)
-                if entry is None:
-                    continue
-
-                # Validar BE contra precio actual
-                be_valid = True
-                if tick is not None:
-                    if signal.direction == "SELL":
-                        if entry <= tick.ask + min_dist:
-                            be_valid = False
-                    else:  # BUY
-                        if entry >= tick.bid - min_dist:
-                            be_valid = False
-
-                if be_valid:
-                    # Camino normal: BE = entry
-                    pending_actions.enqueue_modify_sl(
-                        signal, t, entry, label=f"BE #{t} → {entry:.2f}"
-                    )
-                    moved_be += 1
-                    continue
-
-                # BE imposible → estrategia C: trailing tight desde precio actual
-                if tick is None:
-                    # Sin tick no podemos calcular trailing → SKIP defensivo
-                    skipped_no_improvement += 1
-                    continue
-
-                # SL actual REAL de este ticket: si gestión ya lo movió antes,
-                # sl_by_ticket lo tiene; si no, el SL del proveedor. Antes esto
-                # leía signal.sl (proveedor), que queda obsoleto cuando un
-                # mensaje previo movió el SL → podía aplicar un SL PEOR que el
-                # que ya estaba en la orden (bug 2026-05-18, consecuencia B).
-                current_sl = signal.sl_by_ticket.get(t, signal.sl)
-                if signal.direction == "SELL":
-                    trailing_sl = round(tick.ask + min_dist + BUFFER_USD, 2)
-                    # Solo aplicar si mejora SL actual (mas cerca = menor)
-                    improves = current_sl is None or trailing_sl < current_sl
-                else:  # BUY
-                    trailing_sl = round(tick.bid - min_dist - BUFFER_USD, 2)
-                    improves = current_sl is None or trailing_sl > current_sl
-
-                if not improves:
-                    print(f"[Acción] BE→TRAILING SKIP ticket {t}: trailing "
-                          f"{trailing_sl} no mejora SL actual {current_sl}")
-                    skipped_no_improvement += 1
-                    continue
-
-                pending_actions.enqueue_modify_sl(
-                    signal, t, trailing_sl,
-                    label=f"BE_TRAILING #{t} → {trailing_sl:.2f} (entry={entry:.2f} adverso)"
-                )
-                moved_trailing += 1
-                trailing_details.append({
-                    "ticket": t, "entry": entry, "trailing_sl": trailing_sl,
-                    "current_ask": tick.ask, "current_bid": tick.bid,
-                    "previous_sl": current_sl,
-                })
-                print(f"[Acción] BE→TRAILING ticket {t}: BE imposible "
-                      f"(entry={entry:.2f}, ask/bid adverso) → SL trailing "
-                      f"{trailing_sl} (mejora vs anterior {current_sl})")
-
-            total_moved = moved_be + moved_trailing
-            journal.event(_sig_id(signal), "be_armed_classifier",
-                          n_moved_be=moved_be,
-                          n_moved_trailing=moved_trailing,
-                          n_skipped_no_improvement=skipped_no_improvement,
-                          trailing_details=trailing_details,
-                          source="MOVE_SL_TO_BE_action")
-
-            # Migrado a anomaly() — severity=warning, NO dispara notify (el
-            # bot YA aplicó trailing como mejor opción; mata el spam del 19,
-            # donde 8 BE imposibles generaron 8 pushes URGENT). Aparecerá
-            # en el parte de sesión sin interrumpir en el momento.
-            if moved_trailing > 0:
-                journal.anomaly(_sig_id(signal), "sl_be", "warning",
-                                f"BE imposible — SL trailing aplicado a "
-                                f"{moved_trailing} pos",
-                                direction=signal.direction,
-                                n_moved_be=moved_be,
-                                n_moved_trailing=moved_trailing,
-                                n_skipped=skipped_no_improvement)
-
-            if total_moved:
-                signal.be_armed = True  # coherente con el be_armed del monitor
-                logger.log_action(signal, action,
-                                  await _run(executor.entry_price, signal.market_ticket))
-
+        journal.event(
+            _sig_id(signal),
+            "be_armed_classifier",
+            source="MOVE_SL_TO_BE_action",
+            semantics="exact_entry_per_ticket",
+            n_requested_exact_be=len(requested),
+            requested=requested,
+            missing_entry_tickets=missing_entries,
+        )
+        if missing_entries:
+            journal.anomaly(
+                _sig_id(signal),
+                "sl_be",
+                "critical",
+                "No se pudo obtener el entry exacto para aplicar BE",
+                direction=signal.direction,
+                tickets=missing_entries,
+            )
+        if requested:
+            signal.be_armed = True
+            logger.log_action(signal, action, requested[0]["entry"])
     elif action == "MOVE_SL_TO_PRICE" and price:
         for t in signal.all_filled_tickets:
             pending_actions.enqueue_modify_sl(

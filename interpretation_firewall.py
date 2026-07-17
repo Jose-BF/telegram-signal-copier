@@ -8,6 +8,7 @@ review, or be rejected.
 """
 
 from dataclasses import dataclass
+from math import isfinite
 import re
 from typing import Any
 
@@ -85,6 +86,35 @@ def extract_provider_stated_be_price(text: str | None) -> float | None:
     """Extract the provider's stated entry near a BE instruction as evidence."""
     match = _PROVIDER_BE_PRICE_RE.search(str(text or ""))
     return float(match.group(1)) if match else None
+
+
+def normalize_xauusd_management_price(price, reference) -> float | None:
+    """Expand a provider shorthand SL against an absolute XAUUSD reference."""
+    if isinstance(price, bool) or isinstance(reference, bool):
+        return None
+    try:
+        price_f = float(price)
+    except (TypeError, ValueError):
+        return None
+    if not isfinite(price_f):
+        return None
+    if 1000 <= price_f <= 9999:
+        return price_f
+
+    try:
+        reference_f = float(reference)
+    except (TypeError, ValueError):
+        return None
+    if not isfinite(reference_f) or not 1000 <= reference_f <= 9999:
+        return None
+    if not 0 <= price_f < 100:
+        return None
+
+    base = int(reference_f / 100) * 100
+    normalized = base + price_f
+    if abs(normalized - reference_f) > 50:
+        normalized += 100 if normalized < reference_f else -100
+    return round(normalized, 3)
 
 
 @dataclass(frozen=True)

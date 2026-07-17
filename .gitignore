@@ -38,6 +38,9 @@ data/trade_journal*.csv
 
 # Datos históricos de ticks (grandes, se regeneran con download_xauusd_2026.py)
 data/ticks_cache/
+data/money_ticks_cache/
+data/broker_money_contract.json
+data/money_tick_cache_status.json
 data/xauusd_m1_2026.parquet
 data/canal1_signals_2026.parquet
 data/canal2_signals_2026.parquet

@@ -21,6 +21,7 @@ from listener import (
     _same_direction_overlap_candidate,
     _should_accept_canal1_text,
     _standalone_mgmt_route,
+    _unresolved_management_severity,
 )
 from state import Signal
 
@@ -319,3 +320,71 @@ class TestPollerTelegramBackoff:
                 ),
             })
         ]
+
+
+class TestUnresolvedManagementSeverity:
+    def test_closed_target_is_forensic_only_even_if_text_looks_actionable(self):
+        assert _unresolved_management_severity(
+            "target_signal_closed",
+            actionable=True,
+        ) == "info"
+
+    def test_unknown_actionable_target_remains_critical(self):
+        assert _unresolved_management_severity(
+            "unknown_reply_target",
+            actionable=True,
+        ) == "critical"
+
+
+@pytest.mark.asyncio
+async def test_move_sl_to_be_always_queues_each_exact_entry(monkeypatch):
+    sig = Signal(
+        channel="canal2",
+        message_id=3331,
+        direction="BUY",
+        market_ticket=101,
+        market_fill_price=4000.0,
+        sl=3980.0,
+    )
+    queued = []
+
+    def fake_entry_price(ticket):
+        assert ticket == 101
+        return 4000.0
+
+    async def fake_run(fn, *args):
+        if fn is fake_entry_price:
+            return fn(*args)
+        name = getattr(fn, "__name__", "")
+        if name == "symbol_info_tick":
+            return SimpleNamespace(bid=3990.0, ask=3990.2)
+        if name == "symbol_info":
+            return SimpleNamespace(point=0.01, trade_stops_level=30)
+        return fn(*args)
+
+    monkeypatch.setattr(listener.executor, "entry_price", fake_entry_price)
+    monkeypatch.setattr(listener, "_run", fake_run)
+    monkeypatch.setattr(
+        listener.pending_actions,
+        "enqueue_modify_sl",
+        lambda signal, ticket, new_sl, **kwargs: queued.append({
+            "ticket": ticket,
+            "new_sl": new_sl,
+            **kwargs,
+        }),
+    )
+    monkeypatch.setattr(listener.journal, "event", lambda *args, **kwargs: None)
+    monkeypatch.setattr(listener.journal, "anomaly", lambda *args, **kwargs: None)
+    monkeypatch.setattr(listener.logger, "log_action", lambda *args, **kwargs: None)
+
+    await listener._execute_one_action(
+        sig,
+        {"action": "MOVE_SL_TO_BE", "confidence": 0.99},
+    )
+
+    assert queued == [{
+        "ticket": 101,
+        "new_sl": 4000.0,
+        "label": "BE #101 -> 4000.00",
+        "persist_until_signal_close": True,
+    }]

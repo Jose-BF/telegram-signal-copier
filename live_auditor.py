@@ -28,6 +28,7 @@ class AuditSettings:
     interval_s: float = 5.0
     snapshot_every_s: float = 60.0
     orphan_adoption_grace_s: float = 2.0
+    orphan_confirmation_s: float = 2.0
     expected_legs_after_s: float = 15.0
     level_apply_grace_s: float = 15.0
     naked_after_s: float = 120.0
@@ -214,6 +215,7 @@ class LiveAuditor:
         self._missing_positions_since: dict[str, datetime] = {}
         self._active_issues: dict[tuple, tuple[str, str]] = {}
         self._last_position_levels: dict[tuple[str, int], dict] = {}
+        self._orphan_first_seen: dict[int, datetime] = {}
 
     def audit_cycle(
         self,
@@ -270,10 +272,17 @@ class LiveAuditor:
                 self._emit_issue_once(
                     key, sig_id, category, severity, detail, **ctx)
 
+        current_orphan_tickets: set[int] = set()
         for pos in positions:
             magic = getattr(pos, "magic", None)
             ticket = int(getattr(pos, "ticket", 0) or 0)
             if magic not in bot_magics or ticket in state_by_ticket:
+                continue
+            current_orphan_tickets.add(ticket)
+            first_seen = self._orphan_first_seen.setdefault(ticket, now)
+            confirmation_age_s = max(
+                0.0, (now - first_seen).total_seconds())
+            if confirmation_age_s < self.settings.orphan_confirmation_s:
                 continue
             if ticket in suppress_orphan_issue_tickets:
                 continue
@@ -290,6 +299,9 @@ class LiveAuditor:
                 parsed_signal_id=parsed_sig_id,
                 known_open_signals=sorted(state_sig_ids),
             )
+        for ticket in set(self._orphan_first_seen) - current_orphan_tickets:
+            self._orphan_first_seen.pop(ticket, None)
+
 
         for act in pending_actions:
             if act.get("state") == "waiting_market":

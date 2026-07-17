@@ -12,13 +12,14 @@ from typing import Iterable
 
 from parser import is_canal1_signal_text, is_canal2_entry, parse_canal2
 from interpretation_firewall import extract_provider_stated_be_price
+from interpretation_firewall import normalize_xauusd_management_price
 
 
 DATA_DIR = Path(__file__).parent / "data"
 DEFAULT_EVENTS = DATA_DIR / "trade_events.jsonl"
 DEFAULT_REPLAY = DATA_DIR / "replay_trades.jsonl"
 DEFAULT_OUTPUT = DATA_DIR / "provider_signal_catalog.json"
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 5
 RECORD_TYPES = {
     "formal_signal",
     "context_setup",
@@ -41,7 +42,7 @@ SINGLE_ENTRY_RE = re.compile(
 MOVE_SL_PRICE_RE = re.compile(
     r"\b(?:MOVE|MOVING|CHANGE|CHANGING|ADJUST|ADJUSTING|SET|SETTING|PUT)"
     r"\s+(?:MY\s+|YOUR\s+|THE\s+)?(?:SL|STOP\s*LOSS)"
-    r"(?:\s+\w+){0,3}?\s+(?:TO|AT)\s+(\d{3,5}(?:\.\d+)?)\b",
+    r"(?:\s+\w+){0,3}?\s+(?:TO|AT)\s+(\d{1,5}(?:\.\d+)?)\b",
     re.IGNORECASE,
 )
 CLOSE_TP_RE = re.compile(r"\bCLOSE\s+TP\s*(\d+)\b", re.IGNORECASE)
@@ -305,6 +306,7 @@ def _deterministic_management_semantics(text: str) -> dict | None:
                 "tps": parsed.get("tps") or [],
                 "sl": parsed.get("sl"),
             },
+            "tp_updates": _indexed_tp_updates(text, parsed.get("tps") or []),
             "modality": _management_modality(text, actionable=True),
         }
         result["execution_options"] = _execution_options(result)
@@ -348,6 +350,24 @@ def _single_entry_range(text: str) -> list[float] | None:
     return [value, value]
 
 
+def _indexed_tp_updates(
+    text: str,
+    fallback_tps: Iterable[float] = (),
+) -> dict[str, float]:
+    updates: dict[str, float] = {}
+    pattern = (
+        r"TPs*(d+)s*(?::|=|s)s*"
+        r"(d{3,5}(?:.d{1,3})?)"
+    )
+    for match in re.finditer(pattern, text or "", re.IGNORECASE):
+        updates[str(int(match.group(1)))] = float(match.group(2))
+    if updates:
+        return updates
+    return {
+        str(index): float(value)
+        for index, value in enumerate(fallback_tps, start=1)
+    }
+
 def _empty_signal(
     channel: str,
     message_id: int,
@@ -374,6 +394,7 @@ def _empty_signal(
         "revisions": [],
         "entry_zone_timeline": [],
         "level_timeline": [],
+        "runtime_level_timeline": [],
         "management_events": [],
         "media": {
             "availability": "none",
@@ -388,6 +409,7 @@ def _empty_signal(
         "duplicate_execution": False,
         "semantic_status": "incomplete",
         "semantic_gaps": [],
+        "canonicalization_issues": [],
         "_root_message_seen": False,
         "_last_revision_by_message": {},
         "_management_last_by_message": {},
@@ -565,6 +587,7 @@ def _append_management(signal: dict, row: dict) -> None:
         "reply_to_msg_id": row.get("reply_to_msg_id"),
         "observed_ts_utc": observed_ts,
         "telegram_ts_utc": telegram_ts,
+        "_source_order": int(row.get("_source_order") or 0),
         "text": text,
         "classified_action": semantics["action"],
         "classifier_action": classifier_action,
@@ -580,6 +603,7 @@ def _append_management(signal: dict, row: dict) -> None:
         "provider_stated_be_price",
         "target_tp_index",
         "levels",
+        "tp_updates",
     ):
         if semantics.get(field) is not None:
             event[field] = semantics[field]
@@ -589,6 +613,551 @@ def _append_management(signal: dict, row: dict) -> None:
         "event": event,
     }
 
+
+
+def _append_runtime_level(signal: dict, row: dict) -> None:
+    interpreted = row.get("interpreted")
+    if not isinstance(interpreted, dict):
+        return
+    entry_range = interpreted.get("range")
+    tps = interpreted.get("tps") or []
+    sl = interpreted.get("sl")
+    if not entry_range and not tps and sl is None:
+        return
+    corrections = [
+        dict(item)
+        for item in (row.get("corrections") or [])
+        if isinstance(item, dict)
+    ]
+    signal["runtime_level_timeline"].append({
+        "observed_ts_utc": row.get("ts"),
+        "telegram_ts_utc": row.get("tg_ts"),
+        "range": list(entry_range) if entry_range else None,
+        "tps": list(tps),
+        "sl": sl,
+        "provisional": bool(row.get("provisional")),
+        "corrections": corrections,
+        "source_kind": "runtime_entry_interpreter",
+        "source_event": "entry_levels_interpreted",
+        "_source_order": int(row.get("_source_order") or 0),
+    })
+
+_ENTRY_ZONE_MAX_WIDTH = 25.0
+_SL_MAX_DISTANCE_FROM_ENTRY = 50.0
+_TP_MAX_DISTANCE_FROM_ENTRY = 250.0
+
+
+def _prefix_price_variants(
+    raw: float,
+    references: Iterable[float],
+) -> list[float]:
+    raw = float(raw)
+    suffix = raw - int(raw // 100) * 100
+    variants: set[float] = set()
+    for reference in references:
+        reference = float(reference)
+        base = int(reference // 100) * 100
+        for shift in (-100, 0, 100):
+            candidate = round(base + shift + suffix, 3)
+            if 1_000 <= candidate <= 9_999:
+                variants.add(candidate)
+    return sorted(variants)
+
+
+def _range_compatible(
+    candidate: list[float],
+    direction: str | None,
+    tps: Iterable[float],
+    sl: float | None,
+) -> bool:
+    low, high = candidate
+    if high - low > _ENTRY_ZONE_MAX_WIDTH:
+        return False
+    tps = [float(value) for value in tps]
+    if direction == "BUY":
+        if tps and any(value <= high for value in tps):
+            return False
+        if sl is not None and float(sl) >= low:
+            return False
+    elif direction == "SELL":
+        if tps and any(value >= low for value in tps):
+            return False
+        if sl is not None and float(sl) <= high:
+            return False
+    return True
+
+
+def _canonical_range_candidate(
+    raw_range: Iterable[float],
+    *,
+    direction: str | None,
+    tps: Iterable[float],
+    sl: float | None,
+) -> tuple[list[float] | None, str | None]:
+    raw_values = [float(value) for value in raw_range]
+    if len(raw_values) != 2:
+        return None, None
+    raw_normalized = sorted(raw_values)
+    references = [*raw_values, *[float(value) for value in tps]]
+    if sl is not None:
+        references.append(float(sl))
+
+    choices = []
+    for raw in raw_values:
+        choices.append(sorted({
+            raw,
+            *_prefix_price_variants(raw, references),
+        }))
+
+    candidates: dict[tuple[float, float], int] = {}
+    for left in choices[0]:
+        for right in choices[1]:
+            normalized = tuple(sorted((left, right)))
+            if not _range_compatible(
+                list(normalized), direction, tps, sl,
+            ):
+                continue
+            edits = int(left != raw_values[0]) + int(right != raw_values[1])
+            candidates[normalized] = min(
+                edits,
+                candidates.get(normalized, edits),
+            )
+    if not candidates:
+        return None, None
+    minimum_edits = min(candidates.values())
+    best = sorted(
+        candidate
+        for candidate, edits in candidates.items()
+        if edits == minimum_edits
+    )
+    if len(best) != 1:
+        return None, None
+    canonical = list(best[0])
+    decision = (
+        "accepted" if canonical == raw_normalized
+        else "repaired_prefix_typo"
+    )
+    return canonical, decision
+
+
+def _entry_boundary(
+    direction: str | None,
+    entry_range: list[float] | None,
+    tps: Iterable[float],
+) -> float | None:
+    if entry_range:
+        return (
+            float(entry_range[0])
+            if direction == "BUY"
+            else float(entry_range[1])
+            if direction == "SELL"
+            else None
+        )
+    values = [float(value) for value in tps]
+    if not values:
+        return None
+    if direction == "BUY":
+        return min(values)
+    if direction == "SELL":
+        return max(values)
+    return None
+
+
+def _sl_compatible(
+    value: float,
+    *,
+    direction: str | None,
+    entry_range: list[float] | None,
+    tps: Iterable[float],
+) -> bool:
+    boundary = _entry_boundary(direction, entry_range, tps)
+    if boundary is None:
+        return True
+    value = float(value)
+    if direction == "BUY":
+        distance = boundary - value
+    elif direction == "SELL":
+        distance = value - boundary
+    else:
+        return True
+    maximum = (
+        _SL_MAX_DISTANCE_FROM_ENTRY if entry_range is not None else 100.0
+    )
+    return 0 < distance <= maximum
+
+
+def _canonical_sl_candidate(
+    raw: float,
+    *,
+    current: float | None,
+    direction: str | None,
+    entry_range: list[float] | None,
+    tps: Iterable[float],
+) -> tuple[float | None, str]:
+    raw = float(raw)
+    if _sl_compatible(
+        raw,
+        direction=direction,
+        entry_range=entry_range,
+        tps=tps,
+    ):
+        return raw, "accepted"
+
+    references = [
+        *([] if entry_range is None else entry_range),
+        *[float(value) for value in tps],
+    ]
+    if current is not None:
+        references.append(float(current))
+    repaired = [
+        value
+        for value in _prefix_price_variants(raw, references)
+        if value != raw and _sl_compatible(
+            value,
+            direction=direction,
+            entry_range=entry_range,
+            tps=tps,
+        )
+    ]
+    repaired = sorted(set(repaired))
+    if len(repaired) == 1:
+        candidate = repaired[0]
+        if current is not None:
+            return float(current), "rejected_keep_previous"
+        return candidate, "repaired_prefix_typo"
+    if current is not None:
+        return float(current), "rejected_keep_previous"
+    return None, "rejected_invalid"
+
+
+def _tp_compatible(
+    value: float,
+    *,
+    direction: str | None,
+    entry_range: list[float] | None,
+) -> bool:
+    if not entry_range or direction not in {"BUY", "SELL"}:
+        return True
+    value = float(value)
+    if direction == "BUY":
+        distance = value - float(entry_range[1])
+    else:
+        distance = float(entry_range[0]) - value
+    return 0 < distance <= _TP_MAX_DISTANCE_FROM_ENTRY
+
+
+def _canonical_tp_candidate(
+    raw: float,
+    *,
+    current: float | None,
+    direction: str | None,
+    entry_range: list[float] | None,
+    references: Iterable[float],
+) -> tuple[float | None, str]:
+    raw = float(raw)
+    if _tp_compatible(
+        raw,
+        direction=direction,
+        entry_range=entry_range,
+    ):
+        return raw, "accepted"
+    repaired = [
+        value
+        for value in _prefix_price_variants(raw, references)
+        if value != raw and _tp_compatible(
+            value,
+            direction=direction,
+            entry_range=entry_range,
+        )
+    ]
+    repaired = sorted(set(repaired))
+    if len(repaired) == 1:
+        if current is not None:
+            return float(current), "rejected_keep_previous"
+        return repaired[0], "repaired_prefix_typo"
+    if current is not None:
+        return float(current), "rejected_keep_previous"
+    return None, "rejected_invalid"
+
+
+def _canonical_management_sl_candidate(
+    raw: float,
+    *,
+    current: float | None,
+    entry_range: list[float] | None,
+    tps: Iterable[float],
+) -> tuple[float | None, str]:
+    references = [
+        *([] if entry_range is None else entry_range),
+        *([] if current is None else [current]),
+        *list(tps),
+    ]
+    reference = next(
+        (value for value in references if 1000 <= float(value) <= 9999),
+        None,
+    )
+    canonical = normalize_xauusd_management_price(raw, reference)
+    if canonical is None:
+        if current is not None:
+            return float(current), "rejected_keep_previous"
+        return None, "rejected_invalid"
+    if canonical != float(raw):
+        return canonical, "expanded_short_price"
+    return canonical, "accepted"
+
+
+def _canonical_issue(
+    observation: dict,
+    *,
+    field: str,
+    raw,
+    canonical,
+    decision: str,
+) -> dict:
+    return {
+        "field": field,
+        "raw": raw,
+        "canonical": canonical,
+        "decision": decision,
+        "observed_ts_utc": observation.get("observed_ts_utc"),
+        "source_kind": observation.get("source_kind"),
+        "source_message_id": observation.get("source_message_id"),
+    }
+
+
+def _canonical_observations(signal: dict) -> list[dict]:
+    observations: list[dict] = []
+    for revision in signal.get("revisions") or []:
+        parsed = revision.get("parsed") or {}
+        observations.append({
+            "observed_ts_utc": revision.get("observed_ts_utc"),
+            "telegram_ts_utc": revision.get("telegram_ts_utc"),
+            "source_kind": "revision",
+            "source_message_id": revision.get("message_id"),
+            "_source_order": int(revision.get("_source_order") or 0),
+            "raw_range": parsed.get("range"),
+            "raw_tps": parsed.get("tps") or [],
+            "raw_sl": parsed.get("sl"),
+            "full_tp_snapshot": bool(parsed.get("tps")),
+            "tp_updates": {
+                str(index): float(value)
+                for index, value in enumerate(
+                    parsed.get("tps") or [], start=1,
+                )
+            },
+        })
+    for event in signal.get("management_events") or []:
+        action = event.get("classified_action")
+        if action == "MOVE_SL_TO_PRICE":
+            price = event.get("price")
+            if price is not None:
+                observations.append({
+                    "observed_ts_utc": event.get("observed_ts_utc"),
+                    "telegram_ts_utc": event.get("telegram_ts_utc"),
+                    "source_kind": "management_sl_move",
+                    "source_message_id": event.get("message_id"),
+                    "_source_order": int(event.get("_source_order") or 0),
+                    "raw_range": None,
+                    "raw_tps": [],
+                    "raw_sl": float(price),
+                    "full_tp_snapshot": False,
+                    "tp_updates": {},
+                    "explicit_sl_move": True,
+                })
+            continue
+        if event.get("classified_action") != "LEVEL_UPDATE":
+            continue
+        levels = event.get("levels") or {}
+        observations.append({
+            "observed_ts_utc": event.get("observed_ts_utc"),
+            "telegram_ts_utc": event.get("telegram_ts_utc"),
+            "source_kind": "management_level_update",
+            "source_message_id": event.get("message_id"),
+            "_source_order": int(event.get("_source_order") or 0),
+            "raw_range": None,
+            "raw_tps": levels.get("tps") or [],
+            "raw_sl": levels.get("sl"),
+            "full_tp_snapshot": False,
+            "tp_updates": (
+                event.get("tp_updates")
+                or {
+                    str(index): float(value)
+                    for index, value in enumerate(
+                        levels.get("tps") or [], start=1,
+                    )
+                }
+            ),
+        })
+    observations.sort(
+        key=lambda row: _causal_row_sort_key(
+            row,
+            message_id_key="source_message_id",
+        )
+    )
+    return observations
+
+
+def _rebuild_canonical_timeline(signal: dict) -> None:
+    direction = signal.get("direction")
+    current_range: list[float] | None = None
+    current_sl: float | None = None
+    tp_state: dict[int, float] = {}
+    pending_range: dict | None = None
+    entry_timeline: list[dict] = []
+    level_timeline: list[dict] = []
+    issues: list[dict] = []
+
+    def current_tps() -> list[float]:
+        return [tp_state[index] for index in sorted(tp_state)]
+
+    def apply_range(
+        raw_observation: dict,
+        knowledge_observation: dict,
+    ) -> bool:
+        nonlocal current_range
+        candidate, decision = _canonical_range_candidate(
+            raw_observation["raw_range"],
+            direction=direction,
+            tps=current_tps(),
+            sl=current_sl,
+        )
+        if candidate is None:
+            return False
+        current_range = candidate
+        entry_timeline.append({
+            "telegram_ts_utc": raw_observation.get("telegram_ts_utc"),
+            "observed_ts_utc": knowledge_observation.get("observed_ts_utc"),
+            "range": candidate,
+            "raw_range": list(raw_observation["raw_range"]),
+            "source_message_id": raw_observation.get("source_message_id"),
+            "source_kind": raw_observation.get("source_kind"),
+            "canonicalized_at_source_message_id": (
+                knowledge_observation.get("source_message_id")
+            ),
+            "_source_order": int(
+                knowledge_observation.get("_source_order") or 0
+            ),
+        })
+        if decision != "accepted":
+            issues.append(_canonical_issue(
+                knowledge_observation,
+                field="entry_range",
+                raw=list(raw_observation["raw_range"]),
+                canonical=candidate,
+                decision=str(decision),
+            ))
+        return True
+
+    for observation in _canonical_observations(signal):
+        raw_range = observation.get("raw_range")
+        if raw_range:
+            if apply_range(observation, observation):
+                pending_range = None
+            else:
+                pending_range = observation
+
+        raw_tps = [float(value) for value in observation.get("raw_tps") or []]
+        raw_sl = observation.get("raw_sl")
+        has_level_update = bool(raw_tps or raw_sl is not None)
+
+        updates = {
+            int(index): float(value)
+            for index, value in (observation.get("tp_updates") or {}).items()
+        }
+        if updates:
+            references = [
+                *([] if current_range is None else current_range),
+                *current_tps(),
+                *updates.values(),
+            ]
+            if observation.get("full_tp_snapshot"):
+                next_tp_state: dict[int, float] = {}
+            else:
+                next_tp_state = dict(tp_state)
+            for index in sorted(updates):
+                raw = updates[index]
+                current = tp_state.get(index)
+                canonical, decision = _canonical_tp_candidate(
+                    raw,
+                    current=current,
+                    direction=direction,
+                    entry_range=current_range,
+                    references=references,
+                )
+                if canonical is not None:
+                    next_tp_state[index] = canonical
+                if decision != "accepted":
+                    issues.append(_canonical_issue(
+                        observation,
+                        field=f"tp{index}",
+                        raw=raw,
+                        canonical=canonical,
+                        decision=decision,
+                    ))
+            tp_state = next_tp_state
+
+        if raw_sl is not None:
+            previous_sl = current_sl
+            if observation.get("explicit_sl_move"):
+                canonical_sl, decision = _canonical_management_sl_candidate(
+                    float(raw_sl),
+                    current=current_sl,
+                    entry_range=current_range,
+                    tps=current_tps(),
+                )
+            else:
+                canonical_sl, decision = _canonical_sl_candidate(
+                    float(raw_sl),
+                    current=current_sl,
+                    direction=direction,
+                    entry_range=current_range,
+                    tps=current_tps(),
+                )
+            current_sl = canonical_sl
+            if decision != "accepted":
+                issues.append(_canonical_issue(
+                    observation,
+                    field="sl",
+                    raw=float(raw_sl),
+                    canonical=current_sl,
+                    decision=decision,
+                ))
+            elif previous_sl != current_sl:
+                current_sl = canonical_sl
+
+        if pending_range is not None and apply_range(
+            pending_range, observation,
+        ):
+            pending_range = None
+
+        if has_level_update:
+            level_timeline.append({
+                "telegram_ts_utc": observation.get("telegram_ts_utc"),
+                "observed_ts_utc": observation.get("observed_ts_utc"),
+                "tps": current_tps(),
+                "sl": current_sl,
+                "source_message_id": observation.get("source_message_id"),
+                "source_kind": observation.get("source_kind"),
+                "raw_tps": raw_tps,
+                "raw_sl": raw_sl,
+                "_source_order": int(observation.get("_source_order") or 0),
+            })
+
+    if pending_range is not None:
+        issues.append(_canonical_issue(
+            pending_range,
+            field="entry_range",
+            raw=list(pending_range["raw_range"]),
+            canonical=current_range,
+            decision="rejected_unresolved",
+        ))
+
+    signal["entry_zone_timeline"] = entry_timeline
+    signal["level_timeline"] = level_timeline
+    signal["effective_range"] = current_range
+    signal["effective_tps"] = current_tps()
+    signal["effective_sl"] = current_sl
+    signal["canonicalization_issues"] = issues
 
 def _finalize(signal: dict) -> dict:
     signal["revisions"].sort(key=_causal_row_sort_key)
@@ -604,6 +1173,7 @@ def _finalize(signal: dict) -> dict:
             message_id_key="source_message_id",
         )
     )
+    signal["runtime_level_timeline"].sort(key=_causal_row_sort_key)
     for revision in signal["revisions"]:
         parsed = revision.get("parsed", {})
         if parsed.get("range"):
@@ -710,6 +1280,7 @@ def _finalize(signal: dict) -> dict:
         signal["direction"] = effective_direction["direction"]
         signal["_direction_source"] = effective_direction["direction_source"]
         signal["_direction_observed_utc"] = effective_direction["observed_ts_utc"]
+    _rebuild_canonical_timeline(signal)
 
     gaps: list[str] = []
     root_seen = signal.pop("_root_message_seen")
@@ -1057,6 +1628,19 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
             continue
         signal = signals[(channel, root_id)]
         signal["_understood_direction_candidates"].extend(candidates)
+
+    for row in events:
+        if row.get("ev") != "entry_levels_interpreted":
+            continue
+        parsed_sig = _message_id_from_sig(row.get("sig"))
+        if not parsed_sig:
+            continue
+        channel, message_id = parsed_sig
+        root_id = canal1_text_roots.get(message_id, message_id)
+        key = (channel, root_id)
+        if key not in signals:
+            continue
+        _append_runtime_level(signals[key], row)
 
     for trade in replay_trades:
         parsed_sig = _message_id_from_sig(trade.get("sig_id"))

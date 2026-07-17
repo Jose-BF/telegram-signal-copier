@@ -31,6 +31,7 @@ class ProviderTradeSpec:
     execution_sig_ids: tuple[str, ...]
     entry_blockers: tuple[str, ...]
     policy_evidence_gaps: tuple[str, ...]
+    evidence_assumptions: tuple[str, ...] = ()
 
     @property
     def entry_ready(self) -> bool:
@@ -53,6 +54,7 @@ class ProviderTradeSpec:
             "execution_sig_ids": self.execution_sig_ids,
             "entry_blockers": self.entry_blockers,
             "policy_evidence_gaps": self.policy_evidence_gaps,
+            "evidence_assumptions": self.evidence_assumptions,
         }
         return cast(dict[str, object], _thaw_json_safe(fields))
 
@@ -229,6 +231,72 @@ def _provider_levels(
     return tuple(provider_tps), provider_sl, tuple(gaps)
 
 
+def _runtime_fallback_rows(
+    signal: Mapping[str, object],
+    *,
+    need_tps: bool,
+    need_sl: bool,
+) -> tuple[list[dict[str, object]], tuple[str, ...]]:
+    value = signal.get("runtime_level_timeline")
+    if value is None:
+        return [], ()
+    if isinstance(value, (str, bytes, bytearray, Mapping)):
+        raise ValueError("runtime_level_timeline must be a sequence of mappings")
+    try:
+        events = list(value)
+    except TypeError as exc:
+        raise ValueError(
+            "runtime_level_timeline must be a sequence of mappings"
+        ) from exc
+    if not all(isinstance(event, Mapping) for event in events):
+        raise ValueError(
+            "runtime_level_timeline must contain only mappings"
+        )
+
+    rows: list[dict[str, object]] = []
+    gaps: list[str] = []
+    for event_index, raw_event in enumerate(events):
+        event = cast(Mapping[str, object], raw_event)
+        selected_tps: list[float] = []
+        if need_tps:
+            raw_tps = event.get("tps") or ()
+            if isinstance(raw_tps, (list, tuple)):
+                for tp_index, raw_tp in enumerate(raw_tps):
+                    tp = _safe_price(raw_tp)
+                    if tp is None:
+                        gaps.append(
+                            f"invalid_runtime_tp:{event_index}:{tp_index}"
+                        )
+                    else:
+                        selected_tps.append(tp)
+            elif raw_tps:
+                gaps.append(f"invalid_runtime_tps:{event_index}")
+
+        selected_sl = None
+        if need_sl and event.get("sl") is not None:
+            selected_sl = _safe_price(event.get("sl"))
+            if selected_sl is None:
+                gaps.append(f"invalid_runtime_sl:{event_index}")
+
+        if not selected_tps and selected_sl is None:
+            continue
+        rows.append({
+            "observed_ts_utc": event.get("observed_ts_utc"),
+            "telegram_ts_utc": event.get("telegram_ts_utc"),
+            "tps": selected_tps,
+            "sl": selected_sl,
+            "provisional": bool(event.get("provisional")),
+            "corrections": event.get("corrections") or (),
+            "source_kind": (
+                event.get("source_kind") or "runtime_entry_interpreter"
+            ),
+            "source_event": (
+                event.get("source_event") or "entry_levels_interpreted"
+            ),
+        })
+    return rows, _stable_unique(gaps)
+
+
 def _normalize_execution_sig_ids(value: object) -> tuple[str, ...]:
     if value is None:
         return ()
@@ -291,21 +359,67 @@ def build_trade_spec(
 
     provider_tps, provider_sl, level_gaps = _provider_levels(signal)
     policy_evidence_gaps = list(level_gaps)
-    if not provider_tps:
-        policy_evidence_gaps.append("missing_provider_tps")
-    if provider_sl is None:
-        policy_evidence_gaps.append("missing_provider_sl")
-    level_timeline, level_timeline_gaps = _freeze_timeline(
+    evidence_assumptions: list[str] = []
+
+    provider_timeline, level_timeline_gaps = _freeze_timeline(
         signal.get("level_timeline"),
         "level_timeline",
         "invalid_level_timeline_observed_ts",
     )
+    runtime_rows, runtime_value_gaps = _runtime_fallback_rows(
+        signal,
+        need_tps=not provider_tps,
+        need_sl=provider_sl is None,
+    )
+    runtime_timeline, runtime_timeline_gaps = _freeze_timeline(
+        runtime_rows,
+        "runtime_level_timeline",
+        "invalid_runtime_level_timeline_observed_ts",
+    )
+
+    valid_runtime = [
+        event
+        for event in runtime_timeline
+        if _parse_trigger_utc(event.get("observed_ts_utc"))[0] is not None
+    ]
+    if not provider_tps:
+        for event in reversed(valid_runtime):
+            fallback_tps = tuple(
+                price
+                for raw_price in (event.get("tps") or ())
+                if (price := _safe_price(raw_price)) is not None
+            )
+            if fallback_tps:
+                provider_tps = fallback_tps
+                evidence_assumptions.append("runtime_inferred_tps_fallback")
+                break
+    if provider_sl is None:
+        for event in reversed(valid_runtime):
+            fallback_sl = _safe_price(event.get("sl"))
+            if fallback_sl is not None:
+                provider_sl = fallback_sl
+                evidence_assumptions.append("runtime_inferred_sl_fallback")
+                break
+
+    combined_timeline = list(enumerate((
+        *provider_timeline,
+        *runtime_timeline,
+    )))
+    combined_timeline.sort(key=_causal_sort_key)
+    level_timeline = tuple(event for _, event in combined_timeline)
+
+    if not provider_tps:
+        policy_evidence_gaps.append("missing_provider_tps")
+    if provider_sl is None:
+        policy_evidence_gaps.append("missing_provider_sl")
     management_events, management_event_gaps = _freeze_timeline(
         signal.get("management_events"),
         "management_events",
         "invalid_management_event_observed_ts",
     )
     policy_evidence_gaps.extend(level_timeline_gaps)
+    policy_evidence_gaps.extend(runtime_value_gaps)
+    policy_evidence_gaps.extend(runtime_timeline_gaps)
     policy_evidence_gaps.extend(management_event_gaps)
 
     execution_sig_ids = _normalize_execution_sig_ids(
@@ -326,6 +440,7 @@ def build_trade_spec(
         execution_sig_ids=execution_sig_ids,
         entry_blockers=entry_blockers,
         policy_evidence_gaps=tuple(policy_evidence_gaps),
+        evidence_assumptions=_stable_unique(evidence_assumptions),
     )
 
 

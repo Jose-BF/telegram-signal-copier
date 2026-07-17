@@ -107,6 +107,55 @@ def test_replay_ready_does_not_depend_on_non_causal_telemetry_events():
     assert replay["tickets"][0]["fill_event"]["ev"] == "market_filled"
     assert replay["gaps"] == []
 
+def test_replay_records_runtime_discontinuity_overlapping_trade_close():
+    row = _ledger_row(
+        close_dt_utc="2026-06-03T09:04:30+00:00",
+        positions=[_closed_position()],
+    )
+    all_events = [
+        {
+            "ts": "2026-06-03T09:00:01+00:00",
+            "sig": "canal2_13265",
+            "ev": "market_filled",
+            "ticket": 111,
+            "price": 4500.10,
+        },
+        {
+            "ts": "2026-06-03T09:01:00+00:00",
+            "sig": "canal2_13265",
+            "ev": "floating_pl_snapshot",
+            "pl": 0.5,
+        },
+        {
+            "ts": "2026-06-03T09:04:20+00:00",
+            "sig": "bot",
+            "ev": "session_started",
+        },
+        {
+            "ts": "2026-06-03T09:04:40+00:00",
+            "sig": "bot",
+            "ev": "mt5_connection_change",
+            "connected": True,
+        },
+    ]
+
+    replay = build_replay_trades.build_replay_trades(
+        [row],
+        build_replay_trades.events_by_signal(all_events),
+        operational_events=all_events,
+    )[0]
+
+    assert replay["simulation_ready"] is True
+    assert replay["operational_context"] == {
+        "runtime_discontinuities": [{
+            "kind": "session_restart_overlap",
+            "unobserved_from_utc": "2026-06-03T09:01:00+00:00",
+            "restart_observed_utc": "2026-06-03T09:04:20+00:00",
+            "observability_restored_utc": "2026-06-03T09:04:40+00:00",
+        }],
+    }
+
+
 
 def test_position_id_is_used_as_operational_ticket_for_event_matching():
     position = _closed_position(ticket=999)

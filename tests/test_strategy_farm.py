@@ -1,9 +1,11 @@
 import json
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pandas as pd
 import pytest
 
+import broker_money
 import strategy_farm
 import strategy_policies
 
@@ -69,6 +71,17 @@ def test_blocked_rows_are_visible_and_prevent_decision_pnl():
     assert metrics["exploratory_net_pnl"] == 10.0
     assert metrics["net_pnl"] is None
     assert metrics["blocked_trades"] == 1
+
+
+def test_unpriced_rows_are_not_treated_as_flat_money_trades():
+    metrics = strategy_farm.calculate_policy_metrics([
+        _row(10.0),
+        _row(None, status="simulated_price_path"),
+    ])
+
+    assert metrics["usable_trades"] == 1
+    assert metrics["blocked_trades"] == 1
+    assert metrics["net_pnl"] is None
 
 
 def test_selection_requires_minimum_sample_clean_calibration_and_oos():
@@ -211,6 +224,79 @@ def test_policy_score_is_compact_unless_trade_details_are_requested():
 
     assert "trades" not in compact
     assert detailed["trades"] == rows
+
+
+def test_provider_rows_receive_verified_account_currency_pnl():
+    quote_time = datetime(2026, 7, 6, 10, 0, 1, tzinfo=timezone.utc)
+    converter = broker_money.BrokerMoneyConverter(
+        {
+            "schema_version": 1,
+            "account": {"currency": "EUR", "currency_digits": 2},
+            "instrument": {
+                "symbol": "XAUUSD",
+                "trade_calc_mode": 4,
+                "contract_size": 100,
+                "tick_size": 0.01,
+                "currency_profit": "USD",
+            },
+            "conversion": {
+                "symbol": "EURUSD",
+                "orientation": "account_base_profit_quote",
+                "max_quote_age_ms": 5000,
+            },
+            "costs": {
+                "commission_model": "observed_zero_intraday",
+                "fee_model": "observed_zero_intraday",
+                "swap_model": "intraday_only_zero",
+            },
+            "live_validation": {"valid": True},
+        },
+        quote_loader=lambda _day: (
+            pd.DataFrame([{
+                "time_utc": quote_time,
+                "bid": 1.1999,
+                "ask": 1.2,
+            }]),
+            None,
+        ),
+    )
+    groups = [{
+        "policy_id": "policy_a",
+        "results": [{
+            "provider_signal_id": "signal_a",
+            "policy_id": "policy_a",
+            "status": "simulated_price_path",
+            "strategy_pnl": None,
+            "legs": [{
+                "status": "simulated",
+                "open_time_utc": "2026-07-06T10:00:00+00:00",
+                "open_price": 100.0,
+                "close_time_utc": quote_time.isoformat(),
+                "close_price": 100.05,
+                "volume": 0.1,
+            }],
+        }],
+    }]
+
+    updated, summary = strategy_farm._apply_provider_money_contract(
+        groups,
+        [{
+            "provider_signal_id": "signal_a",
+            "latency_ms": 0,
+            "direction": "BUY",
+        }],
+        converter,
+    )
+
+    row = updated[0]["results"][0]
+    assert row["money_status"] == "verified"
+    assert row["status"] == "simulated_price_path"
+    assert row["strategy_pnl"] == 0.42
+    assert summary == {
+        "rows": 1,
+        "verified_rows": 1,
+        "blocked_rows": 0,
+    }
 
 
 def test_canonical_scope_uses_when_bot_observed_signal_for_date_window():
@@ -453,6 +539,7 @@ def test_farm_execution_exposes_exact_provenance_payloads(
     assert execution.market_replay_summary == {
         "selected_trades": 2,
         "exact": 2,
+        "external_interventions": 0,
         "blocked": 0,
         "mismatched": 0,
     }
@@ -491,6 +578,7 @@ def test_legacy_exact_baseline_without_causal_contract_is_blocked(
 
     assert execution.market_replay_summary == {
         "selected_trades": 1,
+        "external_interventions": 0,
         "exact": 0,
         "blocked": 1,
         "mismatched": 0,
@@ -547,6 +635,23 @@ def test_blocked_market_replay_has_no_ranking_or_selected_policy(
     assert report["selection"]["selected_policy"] is None
     assert report["selection"]["exploratory_ranking"] == []
     assert "market_replay_not_exact" in report["selection"]["global_blockers"]
+
+
+def test_external_intervention_is_not_a_provider_strategy_blocker():
+    summary = strategy_farm._market_replay_summary([
+        {"baseline": {"status": "exact"}},
+        {"baseline": {"status": "external_intervention"}},
+    ])
+
+    assert summary == {
+        "selected_trades": 2,
+        "exact": 1,
+        "external_interventions": 1,
+        "blocked": 0,
+        "mismatched": 0,
+    }
+    assert strategy_farm._market_replay_verified(summary) is False
+    assert strategy_farm._market_replay_strategy_eligible(summary) is True
 
 
 def _write_empty_farm_inputs(root):
@@ -748,6 +853,12 @@ class _ProviderFirstTickLoader:
         self.required_days = []
         self.verified_contracts = {}
 
+    def load_contract_for_day(self, day):
+        day_text = day.isoformat()
+        contract = {"utc_offset_seconds": 10_800}
+        self.verified_contracts[day_text] = contract
+        return contract, None
+
     def load_ticks_for_trade(self, trade, *, pad_minutes=5):
         day = str(trade["open_dt_utc"])[:10]
         if day not in self.required_days:
@@ -848,7 +959,9 @@ def test_provider_first_farm_emits_every_signal_policy_pair(
     assert report["validation"] == {
         "price_path_mode": "provider_first",
         "money_mode": "diagnostic_only",
+        "money_contract_verified": False,
         "market_replay_verified": False,
+        "market_replay_strategy_eligible": False,
         "mode": "diagnostic_only",
     }
     assert report["selection"]["selected_policy"] is None
@@ -967,3 +1080,22 @@ def test_provider_first_farm_fails_closed_on_row_identity_mismatch(
                 _provider_first_signal("expected", executed=False),
             ]},
         )
+
+
+def test_provider_tick_window_ends_at_verified_broker_session_close():
+    spec = SimpleNamespace(
+        provider_signal_id="canal2_3331",
+        trigger_observed_utc=datetime(
+            2026, 7, 16, 12, 57, 55, tzinfo=timezone.utc,
+        ),
+        latency_ms=250,
+    )
+
+    window, blockers = strategy_farm._provider_tick_window(
+        spec,
+        utc_offset_seconds=10_800,
+    )
+
+    assert blockers == []
+    assert window["open_dt_utc"] == "2026-07-16T12:57:55.250000+00:00"
+    assert window["close_dt_utc"] == "2026-07-16T20:58:00+00:00"

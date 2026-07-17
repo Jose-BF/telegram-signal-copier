@@ -82,6 +82,81 @@ def _iso_seconds(value: str | None) -> str | None:
     return parsed.isoformat(timespec="seconds")
 
 
+
+
+def _runtime_discontinuities(events: Iterable[dict]) -> list[dict]:
+    ordered = sorted(
+        (
+            (_parse_dt(event.get("ts")), event)
+            for event in events
+            if _parse_dt(event.get("ts")) is not None
+        ),
+        key=lambda item: item[0],
+    )
+    discontinuities: list[dict] = []
+    for index, (restart_at, event) in enumerate(ordered):
+        if event.get("ev") != "session_started":
+            continue
+        previous = next(
+            (
+                event_at
+                for event_at, _previous_event in reversed(ordered[:index])
+                if event_at < restart_at
+            ),
+            None,
+        )
+        if previous is None:
+            continue
+        restored = next(
+            (
+                event_at
+                for event_at, later_event in ordered[index + 1:]
+                if (
+                    later_event.get("ev") == "mt5_connection_change"
+                    and later_event.get("connected") is True
+                )
+            ),
+            None,
+        )
+        if restored is None:
+            restored = next(
+                (
+                    event_at
+                    for event_at, later_event in ordered[index + 1:]
+                    if later_event.get("ev") == "poller_started"
+                ),
+                restart_at,
+            )
+        discontinuities.append({
+            "kind": "session_restart_overlap",
+            "unobserved_from_utc": previous.isoformat(timespec="seconds"),
+            "restart_observed_utc": restart_at.isoformat(timespec="seconds"),
+            "observability_restored_utc": restored.isoformat(timespec="seconds"),
+        })
+    return discontinuities
+
+
+def _operational_context_for_trade(
+    row: dict,
+    discontinuities: Iterable[dict],
+) -> dict:
+    opened = _parse_dt(row.get("open_dt_utc") or row.get("signal_dt_utc"))
+    closed = _parse_dt(row.get("close_dt_utc"))
+    if opened is None or closed is None:
+        return {"runtime_discontinuities": []}
+    overlapping = []
+    for item in discontinuities:
+        window_start = _parse_dt(item.get("unobserved_from_utc"))
+        window_end = _parse_dt(item.get("observability_restored_utc"))
+        if (
+            window_start is not None
+            and window_end is not None
+            and window_start <= closed
+            and window_end >= opened
+        ):
+            overlapping.append(dict(item))
+    return {"runtime_discontinuities": overlapping}
+
 def _events_by_ticket(events: Iterable[dict], event_names: set[str]) -> dict[str, list[dict]]:
     grouped: dict[str, list[dict]] = defaultdict(list)
     for event in events:
@@ -471,7 +546,12 @@ def _with_reconstructed_closure_state(row: dict, tickets: list[dict]) -> dict:
     return reconstructed
 
 
-def build_replay_trade(ledger_row: dict, events: Iterable[dict] | None = None) -> dict:
+def build_replay_trade(
+    ledger_row: dict,
+    events: Iterable[dict] | None = None,
+    *,
+    operational_context: dict | None = None,
+) -> dict:
     events = list(events or [])
     sig_id = ledger_row.get("sig_id") or ledger_row.get("sig")
     fill_events_by_ticket = _events_by_ticket(events, FILL_EVENTS)
@@ -533,6 +613,7 @@ def build_replay_trade(ledger_row: dict, events: Iterable[dict] | None = None) -
         "timeline": list(replay_row.get("timeline") or []),
         "order_lifecycle": list(replay_row.get("order_lifecycle") or []),
         "raw_event_count": len(events),
+        "operational_context": operational_context or {"runtime_discontinuities": []},
         **readiness,
     }
 
@@ -540,12 +621,22 @@ def build_replay_trade(ledger_row: dict, events: Iterable[dict] | None = None) -
 def build_replay_trades(
     ledger_rows: Iterable[dict],
     grouped_events: dict[str, list[dict]] | None = None,
+    *,
+    operational_events: Iterable[dict] | None = None,
 ) -> list[dict]:
     grouped_events = grouped_events or {}
+    discontinuities = _runtime_discontinuities(operational_events or [])
     trades = []
     for row in ledger_rows:
         sig_id = row.get("sig_id") or row.get("sig")
-        trades.append(build_replay_trade(row, grouped_events.get(sig_id, [])))
+        trades.append(build_replay_trade(
+            row,
+            grouped_events.get(sig_id, []),
+            operational_context=_operational_context_for_trade(
+                row,
+                discontinuities,
+            ),
+        ))
     return trades
 
 
@@ -553,8 +644,14 @@ def write_replay_trades(
     ledger_rows: Iterable[dict],
     grouped_events: dict[str, list[dict]] | None,
     output_path: Path,
+    *,
+    operational_events: Iterable[dict] | None = None,
 ) -> list[dict]:
-    trades = build_replay_trades(ledger_rows, grouped_events)
+    trades = build_replay_trades(
+        ledger_rows,
+        grouped_events,
+        operational_events=operational_events,
+    )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as handle:
         for trade in trades:
@@ -572,8 +669,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     ledger_rows = load_jsonl(args.ledger)
-    grouped_events = events_by_signal(load_jsonl(args.events))
-    trades = write_replay_trades(ledger_rows, grouped_events, args.output)
+    all_events = load_jsonl(args.events)
+    grouped_events = events_by_signal(all_events)
+    trades = write_replay_trades(
+        ledger_rows,
+        grouped_events,
+        args.output,
+        operational_events=all_events,
+    )
 
     if not args.quiet:
         replay_ready = sum(1 for t in trades if t["replay_ready"])

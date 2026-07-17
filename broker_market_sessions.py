@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from numbers import Integral
 
 import pandas as pd
@@ -18,6 +19,39 @@ def _verified_offset_seconds(value: int | None) -> int:
     if isinstance(value, bool) or not isinstance(value, Integral):
         raise ValueError("missing broker UTC offset evidence")
     return int(value)
+
+
+def broker_session_close_utc(
+    at_utc: datetime,
+    *,
+    utc_offset_seconds: int | None,
+) -> datetime | None:
+    """Return the exclusive XAUUSD session close for an UTC observation.
+
+    The broker publishes session boundaries in server time. Converting the
+    observation first also handles the Sunday UTC reopen, which already
+    belongs to Monday on the broker clock.
+    """
+    offset_seconds = _verified_offset_seconds(utc_offset_seconds)
+    if at_utc.tzinfo is None:
+        raise ValueError("at_utc must be timezone-aware")
+
+    at_utc = at_utc.astimezone(timezone.utc)
+    server_time = at_utc + timedelta(seconds=offset_seconds)
+    weekday = server_time.weekday()
+    if weekday > 4:
+        return None
+
+    close_second = (
+        _FRIDAY_CLOSE_SECOND if weekday == 4 else _WEEKDAY_CLOSE_SECOND
+    )
+    server_midnight = server_time.replace(
+        hour=0, minute=0, second=0, microsecond=0,
+    )
+    close_server = server_midnight + timedelta(seconds=close_second)
+    return (close_server - timedelta(seconds=offset_seconds)).astimezone(
+        timezone.utc
+    )
 
 
 def filter_tradable_ticks(

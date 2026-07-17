@@ -367,7 +367,10 @@ def _result_row(
         "strategy_pnl": None,
         "entry": _entry_payload(entry),
         "blockers": _stable_strings(blockers),
-        "assumptions": _stable_strings(assumptions),
+        "assumptions": _stable_strings((
+            *spec.evidence_assumptions,
+            *_stable_strings(assumptions),
+        )),
         "legs": list(legs or []),
     }
 
@@ -435,7 +438,12 @@ def _contextual_gap_blockers(
     return _stable_strings(blockers)
 
 
-def _virtual_trade(spec: ProviderTradeSpec, entry: VirtualEntry) -> dict:
+def _virtual_trade(
+    spec: ProviderTradeSpec,
+    entry: VirtualEntry,
+    *,
+    leg_count: int,
+) -> dict:
     opened = _iso_utc(entry.time_utc)
     tickets = [
         {
@@ -444,7 +452,7 @@ def _virtual_trade(spec: ProviderTradeSpec, entry: VirtualEntry) -> dict:
             "open_price": entry.price,
             "volume": spec.volume_per_leg,
         }
-        for index in range(spec.leg_count)
+        for index in range(leg_count)
     ]
     return {
         "provider_signal_id": spec.provider_signal_id,
@@ -495,12 +503,12 @@ def _policy_actions(
         ], []
 
     distances: dict[int, float] = {}
-    blockers: list[str] = []
     for ticket_index, ticket in survivors:
         tp_events = _provider_level_events(
             provider_signal,
             ticket_index,
             "tp",
+            clamp_tp_to_last=True,
         )
         distance = _ticket_tp_distance(
             trade,
@@ -508,14 +516,9 @@ def _policy_actions(
             trigger,
             tp_events=tp_events,
         )
-        if distance is None:
-            blockers.append(
-                f"missing_causal_tp_at_trigger:{ticket.get('ticket')}"
-            )
-        else:
-            distances[ticket_index] = distance
-    if blockers:
-        return [], _stable_strings(blockers)
+        distances[ticket_index] = (
+            float("inf") if distance is None else distance
+        )
 
     ordered = sorted(
         survivors,
@@ -623,6 +626,7 @@ def _classify_pre_management_legs(
             provider_signal,
             ticket_index,
             "tp",
+            clamp_tp_to_last=True,
         )
         assumptions: list[str] = []
         if close_only:
@@ -683,7 +687,12 @@ def _simulate_virtual_leg(
     policy: StrategyPolicy,
 ) -> dict:
     sl_events = _provider_level_events(provider_signal, ticket_index, "sl")
-    tp_events = _provider_level_events(provider_signal, ticket_index, "tp")
+    tp_events = _provider_level_events(
+        provider_signal,
+        ticket_index,
+        "tp",
+        clamp_tp_to_last=True,
+    )
     assumptions: list[str] = []
 
     if action == "follow_provider":
@@ -785,7 +794,11 @@ def simulate_provider_policy(
             blockers=entry.blockers,
         )
 
-    trade = _virtual_trade(spec, entry)
+    trade = _virtual_trade(
+        spec,
+        entry,
+        leg_count=min(spec.leg_count, policy.base_leg_count),
+    )
     cache_root = (
         {}
         if result_cache is None

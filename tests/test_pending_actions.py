@@ -430,3 +430,13 @@ class TestForensicLifecycleLogging:
                 "new_tp": None,
             },
         )]
+
+
+def test_persistent_provider_instruction_does_not_expire_before_signal_closes():
+    action = _make_action(new_sl=4000.0)
+    action.timeout_s = 0
+    action.persist_until_signal_close = True
+    action.created_at = time.time() - 10_000
+
+    assert action.signal.status == "open"
+    assert action.expired() is False

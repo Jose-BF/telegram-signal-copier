@@ -197,6 +197,8 @@ def _provider_level_events(
     provider_signal: dict,
     ticket_index: int,
     key: str,
+    *,
+    clamp_tp_to_last: bool = False,
 ) -> list[dict]:
     events: list[dict] = []
     for item in provider_signal.get("level_timeline") or []:
@@ -207,9 +209,14 @@ def _provider_level_events(
             continue
         if key == "tp":
             targets = item.get("tps") or []
-            if ticket_index >= len(targets):
+            if not targets:
                 continue
-            value = targets[ticket_index]
+            target_index = ticket_index
+            if clamp_tp_to_last:
+                target_index = min(target_index, len(targets) - 1)
+            if target_index >= len(targets):
+                continue
+            value = targets[target_index]
         else:
             value = item.get("sl")
         try:

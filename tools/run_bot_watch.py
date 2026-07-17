@@ -50,6 +50,9 @@ RECONCILE_STATUS_FILE = REPO_DIR / "data" / "reconcile_status.json"
 REPLAY_STATUS_FILE = REPO_DIR / "data" / "replay_status.json"
 ACCOUNTING_REPLAY_AUDIT_STATUS_FILE = REPO_DIR / "data" / "accounting_replay_audit_status.json"
 REPLAY_TICK_CACHE_STATUS_FILE = REPO_DIR / "data" / "replay_tick_cache_status.json"
+BROKER_MONEY_CONTRACT_FILE = REPO_DIR / "data" / "broker_money_contract.json"
+MONEY_TICK_CACHE_STATUS_FILE = REPO_DIR / "data" / "money_tick_cache_status.json"
+MONEY_TICK_CACHE_DIR = REPO_DIR / "data" / "money_ticks_cache"
 REPLAY_READINESS_REPORT_FILE = REPO_DIR / "data" / "replay_readiness_report.json"
 OBSERVED_TICK_REPLAY_AUDIT_FILE = REPO_DIR / "data" / "observed_tick_replay_audit.jsonl"
 OBSERVED_TICK_REPLAY_STATUS_FILE = REPO_DIR / "data" / "observed_tick_replay_status.json"
@@ -678,6 +681,12 @@ def _strategy_farm_command() -> list[str]:
     for latency_ms in latencies:
         command.extend(["--provider-latency-ms", str(latency_ms)])
     command.extend(["--provider-volume-per-leg", str(volume), "--quiet"])
+    command.extend([
+        "--money-contract",
+        str(REPO_DIR / "data" / "broker_money_contract.json"),
+        "--money-tick-cache-dir",
+        str(REPO_DIR / "data" / "money_ticks_cache"),
+    ])
     return command
 
 
@@ -781,6 +790,76 @@ def _regenerate_recursive_learning_outputs(
     return bool(status["ok"])
 
 
+def _regenerate_broker_money_contract() -> bool:
+    """Capture current MT5 money metadata; stale contracts are unsafe."""
+    BROKER_MONEY_CONTRACT_FILE.unlink(missing_ok=True)
+    try:
+        rec = subprocess.run(
+            [
+                sys.executable,
+                "tools/capture_broker_money_contract.py",
+                "--output",
+                str(BROKER_MONEY_CONTRACT_FILE),
+                "--quiet",
+            ],
+            cwd=REPO_DIR,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if rec.returncode == 0 and BROKER_MONEY_CONTRACT_FILE.exists():
+            print("[Watch] broker_money_contract verificado.", flush=True)
+            return True
+        print(
+            f"[Watch] contrato monetario no verificado (rc={rec.returncode}): "
+            f"{(rec.stderr or rec.stdout or '')[:500]}",
+            flush=True,
+        )
+        return False
+    except BaseException as exc:
+        print(f"[Watch] error capturando contrato monetario: {exc}", flush=True)
+        if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+            raise
+        return False
+
+
+def _regenerate_money_tick_cache_status() -> bool:
+    """Build EURUSD conversion ticks using XAUUSD time-contract evidence."""
+    MONEY_TICK_CACHE_STATUS_FILE.unlink(missing_ok=True)
+    try:
+        command = [
+            sys.executable,
+            "tools/ensure_money_tick_cache.py",
+            "--cache-dir",
+            str(MONEY_TICK_CACHE_DIR),
+            "--reference-cache-dir",
+            str(REPO_DIR / "data" / "ticks_cache"),
+        ]
+        from_date = _simulation_from_date()
+        if from_date:
+            command.extend(["--since", from_date])
+        command.append("--quiet")
+        rec = subprocess.run(
+            command,
+            cwd=REPO_DIR,
+            capture_output=True,
+            text=True,
+            timeout=900,
+        )
+        if rec.returncode == 0 and MONEY_TICK_CACHE_STATUS_FILE.exists():
+            print("[Watch] money_ticks_cache verificado/regenerado.", flush=True)
+            return True
+        print(
+            f"[Watch] money_ticks_cache no verificado (rc={rec.returncode}): "
+            f"{(rec.stderr or rec.stdout or '')[:700]}",
+            flush=True,
+        )
+        return False
+    except BaseException as exc:
+        print(f"[Watch] error generando money_ticks_cache: {exc}", flush=True)
+        if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+            raise
+        return False
 def _push_session_data() -> None:
     """Sube data/trade_events.jsonl + ledger + journal a GitHub si hay cambios.
 
@@ -801,6 +880,8 @@ def _push_session_data() -> None:
         "replay": False,
         "strategy_farm": False,
         "tick_cache": False,
+        "money_contract": False,
+        "money_ticks": False,
     }
     builder_results["ledger"] = _regenerate_ledger()
     if builder_results["ledger"]:
@@ -812,6 +893,12 @@ def _push_session_data() -> None:
             if builder_results["accounting"]:
                 builder_results["tick_cache"] = (
                     _regenerate_replay_tick_cache_status()
+                )
+                builder_results["money_contract"] = (
+                    _regenerate_broker_money_contract()
+                )
+                builder_results["money_ticks"] = (
+                    _regenerate_money_tick_cache_status()
                 )
                 builder_results["observed_ticks"] = (
                     _regenerate_observed_tick_replay_audit()
@@ -839,6 +926,8 @@ def _push_session_data() -> None:
         "data/accounting_replay_audit.jsonl",
         "data/accounting_replay_audit_status.json",
         "data/replay_tick_cache_status.json",
+        "data/broker_money_contract.json",
+        "data/money_tick_cache_status.json",
         "data/replay_readiness_report.json",
         "data/observed_tick_replay_audit.jsonl",
         "data/observed_tick_replay_status.json",

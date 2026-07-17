@@ -11,8 +11,13 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable
 
-
 REPO_DIR = Path(__file__).resolve().parent.parent
+if str(REPO_DIR) not in sys.path:
+    sys.path.insert(0, str(REPO_DIR))
+
+from broker_market_sessions import broker_session_close_utc
+
+
 DEFAULT_INPUT = REPO_DIR / "data" / "replay_trades.jsonl"
 DEFAULT_CACHE_DIR = REPO_DIR / "data" / "ticks_cache"
 DEFAULT_STATUS = REPO_DIR / "data" / "replay_tick_cache_status.json"
@@ -299,6 +304,7 @@ def build_tick_coverage(
     day: date,
     *,
     captured_at: datetime | None = None,
+    utc_offset_seconds: int | None = None,
 ) -> dict:
     """Describe the part of a requested UTC day proven by one MT5 download."""
     import pandas as pd
@@ -312,15 +318,37 @@ def build_tick_coverage(
     last_tick = None
     row_count = int(len(ticks)) if ticks is not None else 0
     if row_count and "time_utc" in ticks.columns:
-        times = pd.to_datetime(ticks["time_utc"], utc=True, errors="coerce").dropna()
+        times = pd.to_datetime(
+            ticks["time_utc"], utc=True, errors="coerce",
+        ).dropna()
         if not times.empty:
             first_tick = times.min().to_pydatetime()
             last_tick = times.max().to_pydatetime()
 
-    # Once the UTC day has ended, the completed full-day query also proves that
-    # no ticks existed between the last quote and midnight. During the live day
-    # only the timestamp of the last observed tick is provable.
     complete_through = day_end if captured_at >= day_end else last_tick
+    if (
+        complete_through != day_end
+        and utc_offset_seconds is not None
+        and last_tick is not None
+    ):
+        session_close = broker_session_close_utc(
+            day_start + timedelta(hours=12),
+            utc_offset_seconds=utc_offset_seconds,
+        )
+        gap = (
+            session_close - last_tick
+            if session_close is not None
+            else None
+        )
+        if (
+            session_close is not None
+            and day_start <= session_close <= day_end
+            and captured_at >= session_close
+            and gap is not None
+            and timedelta(0) <= gap <= timedelta(minutes=5)
+        ):
+            complete_through = session_close
+
     return {
         "source_query_start_utc": _utc_iso(day_start),
         "source_query_end_utc": _utc_iso(day_end),
@@ -331,7 +359,6 @@ def build_tick_coverage(
         "complete_through_utc": _utc_iso(complete_through),
         "row_count": row_count,
     }
-
 
 def _legacy_tick_coverage(parquet_path: Path, day: date) -> dict | None:
     """Safely infer old contracts from tick bounds without claiming future data."""
@@ -411,13 +438,38 @@ def coverage_satisfies_window(
         return False
     complete_from = _parse_dt(coverage.get("complete_from_utc"))
     complete_through = _parse_dt(coverage.get("complete_through_utc"))
-    return bool(
+    if (
         complete_from is not None
         and complete_through is not None
         and complete_from <= required_from
         and complete_through >= required_through
-    )
+    ):
+        return True
 
+    captured_at = _parse_dt(coverage.get("captured_at_utc"))
+    last_tick = _parse_dt(coverage.get("last_tick_utc"))
+    utc_offset_seconds = (contract or {}).get("utc_offset_seconds")
+    try:
+        session_close = broker_session_close_utc(
+            required_from,
+            utc_offset_seconds=utc_offset_seconds,
+        )
+    except ValueError:
+        return False
+    if (
+        complete_from is None
+        or captured_at is None
+        or last_tick is None
+        or session_close is None
+    ):
+        return False
+    gap = session_close - last_tick
+    return bool(
+        complete_from <= required_from
+        and required_through <= session_close
+        and captured_at >= session_close
+        and timedelta(0) <= gap <= timedelta(minutes=5)
+    )
 
 def write_day_contract(
     cache_dir: Path,
@@ -426,6 +478,7 @@ def write_day_contract(
     time_evidence: dict,
     semantic_validation: dict,
     coverage: dict | None = None,
+    symbol: str | None = None,
 ) -> Path:
     parquet_path = _day_file(cache_dir, day)
     if not parquet_path.is_file():
@@ -451,15 +504,18 @@ def write_day_contract(
         try:
             import pandas as pd
 
-            coverage = build_tick_coverage(pd.read_parquet(parquet_path), day)
+            coverage = build_tick_coverage(
+                pd.read_parquet(parquet_path),
+                day,
+                utc_offset_seconds=time_evidence["utc_offset_seconds"],
+            )
         except Exception as exc:
             raise ValueError("tick coverage evidence unavailable") from exc
     normalized_coverage = _normalized_coverage(coverage, day)
     if normalized_coverage is None:
         raise ValueError("invalid tick coverage evidence")
     contract_path = _day_contract_file(cache_dir, day)
-    contract_path.write_text(
-        json.dumps({
+    payload = {
             "tick_time_contract": TICK_TIME_CONTRACT,
             "time_basis": "UTC",
             "source_time_basis": time_evidence["source_time_basis"],
@@ -470,13 +526,22 @@ def write_day_contract(
             "anchor_validation": validation,
             "coverage": normalized_coverage,
             "parquet_sha256": _file_sha256(parquet_path),
-        }, indent=2) + "\n",
+        }
+    if symbol:
+        payload["symbol"] = str(symbol)
+    contract_path.write_text(
+        json.dumps(payload, indent=2) + "\n",
         encoding="utf-8",
     )
     return contract_path
 
 
-def load_valid_day_contract(cache_dir: Path, day: date) -> dict | None:
+def load_valid_day_contract(
+    cache_dir: Path,
+    day: date,
+    *,
+    expected_symbol: str | None = None,
+) -> dict | None:
     parquet_path = _day_file(cache_dir, day)
     contract_path = _day_contract_file(cache_dir, day)
     if not parquet_path.is_file() or not contract_path.is_file():
@@ -484,6 +549,8 @@ def load_valid_day_contract(cache_dir: Path, day: date) -> dict | None:
     try:
         contract = json.loads(contract_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
+        return None
+    if expected_symbol is not None and contract.get("symbol") != expected_symbol:
         return None
     digest = _file_sha256(parquet_path)
     anchor_validation = contract.get("anchor_validation")
@@ -656,6 +723,7 @@ class MT5TickSource:
         *,
         anchors_by_day: dict[date, list[FillAnchor]] | None = None,
         offset_candidates_seconds: Iterable[int] | None = None,
+        preloaded_time_evidence_by_day: dict[date, dict] | None = None,
     ):
         import MetaTrader5 as mt5
         import pandas as pd
@@ -666,7 +734,9 @@ class MT5TickSource:
         self.anchors_by_day = anchors_by_day or {}
         self.offset_candidates_seconds = tuple(
             offset_candidates_seconds or DEFAULT_OFFSET_CANDIDATES_SECONDS)
-        self._time_evidence_by_day: dict[date, dict] = {}
+        self._time_evidence_by_day: dict[date, dict] = dict(
+            preloaded_time_evidence_by_day or {}
+        )
         if not mt5.initialize():
             raise RuntimeError(f"MT5 initialize failed: {mt5.last_error()}")
         if not mt5.symbol_select(symbol, True):
@@ -905,10 +975,15 @@ def ensure_missing_days(
                 frame,
                 anchors_by_day.get(day) or [],
             )
+            time_evidence = source.time_evidence_for_day(day)
             day_contracts[day.isoformat()] = {
-                "time_evidence": source.time_evidence_for_day(day),
+                "time_evidence": time_evidence,
                 "semantic_validation": semantic_validation,
-                "coverage": build_tick_coverage(frame, day),
+                "coverage": build_tick_coverage(
+                    frame,
+                    day,
+                    utc_offset_seconds=time_evidence["utc_offset_seconds"],
+                ),
             }
         return {**stats, "day_contracts": day_contracts}
     finally:

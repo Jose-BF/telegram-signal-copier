@@ -306,6 +306,10 @@ def _normalize_market_replay(value: Mapping[str, Any]) -> dict[str, int]:
         key: int(value.get(key) or 0)
         for key in ("selected_trades", "exact", "blocked", "mismatched")
     }
+    if "external_interventions" in value:
+        normalized["external_interventions"] = int(
+            value.get("external_interventions") or 0
+        )
     if any(count < 0 for count in normalized.values()):
         raise ValueError("market replay counts cannot be negative")
     return normalized
@@ -316,6 +320,20 @@ def _market_replay_verified(summary: Mapping[str, int]) -> bool:
     return (
         selected > 0
         and int(summary.get("exact") or 0) == selected
+        and int(summary.get("blocked") or 0) == 0
+        and int(summary.get("mismatched") or 0) == 0
+    )
+
+
+def _market_replay_strategy_eligible(summary: Mapping[str, int]) -> bool:
+    selected = int(summary.get("selected_trades") or 0)
+    accounted = (
+        int(summary.get("exact") or 0)
+        + int(summary.get("external_interventions") or 0)
+    )
+    return (
+        selected > 0
+        and accounted == selected
         and int(summary.get("blocked") or 0) == 0
         and int(summary.get("mismatched") or 0) == 0
     )
@@ -402,10 +420,18 @@ def build_run_evidence(
         else "legacy_verified"
     )
     money_contract_verified = (
-        not provider_first or money_mode == "verified_account_currency"
+        not provider_first
+        or report_validation.get("money_contract_verified") is True
+        or money_mode == "verified_account_currency"
     )
     if provider_first and not money_contract_verified:
         limitations.append("broker_money_contract_unverified")
+    if (
+        provider_first
+        and not _market_replay_verified(market_replay_record)
+        and _market_replay_strategy_eligible(market_replay_record)
+    ):
+        limitations.append("market_replay_external_intervention")
     reproducibility = {
         "verified_now": not errors,
         "durable": not tick_days,
@@ -423,9 +449,16 @@ def build_run_evidence(
     }
     artifact_integrity_verified = not errors
     market_replay_verified = _market_replay_verified(market_replay_record)
+    market_replay_strategy_eligible = _market_replay_strategy_eligible(
+        market_replay_record
+    )
     conclusions_allowed = (
         artifact_integrity_verified
-        and market_replay_verified
+        and (
+            market_replay_strategy_eligible
+            if provider_first
+            else market_replay_verified
+        )
         and provider_row_accounting_verified
         and money_contract_verified
     )
@@ -447,6 +480,9 @@ def build_run_evidence(
                 provider_row_accounting_verified
             ),
             "money_contract_verified": money_contract_verified,
+            "market_replay_strategy_eligible": (
+                market_replay_strategy_eligible
+            ),
         })
 
     return {

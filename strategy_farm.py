@@ -7,7 +7,7 @@ import json
 import sys
 from collections import Counter
 from dataclasses import dataclass
-from datetime import datetime, time, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from math import isfinite
 from numbers import Integral, Real
 from pathlib import Path
@@ -15,7 +15,11 @@ from typing import Iterable
 
 import pandas as pd
 
-from broker_market_sessions import MARKET_SESSION_CONTRACT
+import broker_money
+from broker_market_sessions import (
+    MARKET_SESSION_CONTRACT,
+    broker_session_close_utc,
+)
 import observed_tick_replay_validator
 import provider_strategy_simulator
 import provider_trade_spec
@@ -29,6 +33,9 @@ DEFAULT_REPLAY = DATA_DIR / "replay_trades.jsonl"
 DEFAULT_BASELINE = DATA_DIR / "observed_tick_replay_audit.jsonl"
 DEFAULT_CATALOG = DATA_DIR / "provider_signal_catalog.json"
 DEFAULT_TICK_CACHE = DATA_DIR / "ticks_cache"
+DEFAULT_MONEY_CONTRACT = DATA_DIR / "broker_money_contract.json"
+DEFAULT_MONEY_TICK_CACHE = DATA_DIR / "money_ticks_cache"
+DEFAULT_MONEY_TICK_STATUS = DATA_DIR / "money_tick_cache_status.json"
 DEFAULT_OUTPUT = DATA_DIR / "strategy_farm.json"
 DEFAULT_RUN_ARCHIVE = DATA_DIR / "simulation_runs"
 SCHEMA_VERSION = 1
@@ -98,7 +105,12 @@ def _max_drawdown(values: list[float]) -> float:
 
 def calculate_policy_metrics(rows: Iterable[dict]) -> dict:
     rows = list(rows)
-    usable = [row for row in rows if row.get("status") != "blocked"]
+    usable = [
+        row
+        for row in rows
+        if row.get("status") != "blocked"
+        and row.get("strategy_pnl") is not None
+    ]
     blocked = len(rows) - len(usable)
     values = [float(row.get("strategy_pnl") or 0.0) for row in usable]
     wins = [value for value in values if value > 0]
@@ -320,18 +332,25 @@ def _market_replay_summary(effective_baselines: list[dict]) -> dict[str, int]:
         for row in effective_baselines
     ]
     exact = sum(status == "exact" for status in statuses)
+    external = sum(
+        status == "external_intervention" for status in statuses
+    )
     mismatched = sum(status == "mismatch" for status in statuses)
     return {
         "selected_trades": len(statuses),
         "exact": exact,
-        "blocked": len(statuses) - exact - mismatched,
+        "external_interventions": external,
+        "blocked": len(statuses) - exact - external - mismatched,
         "mismatched": mismatched,
     }
 
 
 def _require_current_causal_contract(baseline: dict | None) -> dict | None:
-    if not isinstance(baseline, dict) or baseline.get("status") != "exact":
+    if not isinstance(baseline, dict):
         return baseline
+    if baseline.get("status") not in {"exact", "external_intervention"}:
+        return baseline
+    original_status = baseline.get("status")
     blockers = []
     if baseline.get("validation_contract") != "causal_path_v2":
         blockers.append("causal_path_contract_unverified")
@@ -358,6 +377,21 @@ def _market_replay_verified(summary: dict[str, int]) -> bool:
         and summary["blocked"] == 0
         and summary["mismatched"] == 0
     )
+
+
+def _market_replay_strategy_eligible(summary: dict[str, int]) -> bool:
+    selected = summary["selected_trades"]
+    accounted = (
+        int(summary.get("exact") or 0)
+        + int(summary.get("external_interventions") or 0)
+    )
+    return (
+        selected > 0
+        and accounted == selected
+        and summary["blocked"] == 0
+        and summary["mismatched"] == 0
+    )
+
 
 
 def _provider_farm_configuration(
@@ -403,19 +437,26 @@ def _formal_signal_for_spec(signal: dict) -> dict:
 
 def _provider_tick_window(
     spec: provider_trade_spec.ProviderTradeSpec,
+    *,
+    utc_offset_seconds: int | None,
 ) -> tuple[dict | None, list[str]]:
     trigger = spec.trigger_observed_utc
     if trigger is None:
         return None, []
     try:
         threshold = trigger + timedelta(milliseconds=spec.latency_ms)
-        horizon = datetime.combine(
-            threshold.date(),
-            time(23, 59, 59, 999999),
-            tzinfo=timezone.utc,
+        horizon = broker_session_close_utc(
+            threshold,
+            utc_offset_seconds=utc_offset_seconds,
         )
     except (OverflowError, ValueError):
+        if utc_offset_seconds is None:
+            return None, [
+                f"missing_broker_session_offset:{trigger.date().isoformat()}"
+            ]
         return None, ["entry_threshold_out_of_range"]
+    if horizon is None or threshold >= horizon:
+        return None, ["provider_trigger_outside_broker_session"]
     return {
         "sig_id": spec.provider_signal_id,
         "provider_signal_id": spec.provider_signal_id,
@@ -423,7 +464,6 @@ def _provider_tick_window(
         "open_dt_utc": threshold.isoformat(),
         "close_dt_utc": horizon.isoformat(),
     }, []
-
 
 def _slice_provider_ticks(ticks: pd.DataFrame, tick_window: dict) -> pd.DataFrame:
     if ticks.empty or "time_utc" not in ticks.columns:
@@ -469,6 +509,126 @@ def _replace_missing_tick_blocker(
     return result
 
 
+def _load_money_converter(
+    contract_path: Path | None,
+    tick_cache_dir: Path | None,
+) -> tuple[broker_money.BrokerMoneyConverter | None, dict]:
+    if contract_path is None or tick_cache_dir is None:
+        return None, {
+            "contract_file": str(contract_path) if contract_path is not None else None,
+            "contract_verified": False,
+            "blockers": ["broker_money_contract_not_requested"],
+        }
+    path = Path(contract_path)
+    if not path.is_file():
+        return None, {
+            "contract_file": str(path),
+            "contract_verified": False,
+            "blockers": ["missing_broker_money_contract"],
+        }
+    try:
+        contract = broker_money.load_contract(path)
+        blockers = broker_money.validate_contract_metadata(contract)
+        if blockers:
+            return None, {
+                "contract_file": str(path),
+                "contract_verified": False,
+                "blockers": blockers,
+            }
+        converter = broker_money.BrokerMoneyConverter(
+            contract,
+            tick_cache_dir=tick_cache_dir,
+        )
+    except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+        return None, {
+            "contract_file": str(path),
+            "contract_verified": False,
+            "blockers": [
+                f"broker_money_contract_load_failed:{type(exc).__name__}"
+            ],
+        }
+    return converter, {
+        "contract_file": str(path),
+        "contract_verified": True,
+        "account_currency": converter.currency,
+        "blockers": [],
+    }
+
+
+def _apply_provider_money_contract(
+    groups: list[dict],
+    provider_specs: list[dict],
+    converter: broker_money.BrokerMoneyConverter,
+) -> tuple[list[dict], dict[str, int]]:
+    """Attach cent-rounded account-currency P&L to virtual provider rows.
+
+    Price-path simulation remains the source of truth for fills. This step only
+    translates those already-determined fills into the broker account currency
+    and turns a missing conversion quote into an explicit row blocker.
+    """
+    spec_by_key = {
+        (
+            str(spec.get("provider_signal_id") or ""),
+            int(spec.get("latency_ms") or 0),
+        ): spec
+        for spec in provider_specs
+    }
+    updated_groups: list[dict] = []
+    verified_rows = 0
+    blocked_rows = 0
+    for group in groups:
+        updated_group = dict(group)
+        updated_results: list[dict] = []
+        for raw_row in group.get("results") or []:
+            row = dict(raw_row)
+            if row.get("status") != "simulated_price_path":
+                row.setdefault("money_status", "not_applicable")
+                updated_results.append(row)
+                continue
+            key = (
+                str(row.get("provider_signal_id") or ""),
+                int(row.get("latency_scenario_ms") or 0),
+            )
+            spec = spec_by_key.get(key)
+            if spec is None or str(spec.get("direction") or "") not in {
+                "BUY",
+                "SELL",
+            }:
+                row["status"] = "blocked"
+                row["money_status"] = "blocked"
+                row["strategy_pnl"] = None
+                row["money_blockers"] = ["missing_provider_money_spec"]
+                row["blockers"] = list(dict.fromkeys(
+                    [*(row.get("blockers") or []),
+                     "missing_provider_money_spec"]
+                ))
+                blocked_rows += 1
+                updated_results.append(row)
+                continue
+            converted = broker_money.apply_money_contract(
+                row,
+                direction=str(spec["direction"]),
+                converter=converter,
+            )
+            if converted.get("money_status") == "verified":
+                verified_rows += 1
+            else:
+                converted["status"] = "blocked"
+                converted["blockers"] = list(dict.fromkeys(
+                    [*(converted.get("blockers") or []),
+                     *(converted.get("money_blockers") or [])]
+                ))
+                blocked_rows += 1
+            updated_results.append(converted)
+        updated_group["results"] = updated_results
+        updated_groups.append(updated_group)
+    return updated_groups, {
+        "rows": verified_rows + blocked_rows,
+        "verified_rows": verified_rows,
+        "blocked_rows": blocked_rows,
+    }
+
+
 def _build_provider_policy_results(
     provider_signals: list[dict],
     policies: list[strategy_policies.StrategyPolicy],
@@ -506,7 +666,25 @@ def _build_provider_policy_results(
             )
             selected_specs.append(spec.to_dict())
             ticks = pd.DataFrame()
-            tick_window, tick_blockers = _provider_tick_window(spec)
+            tick_window = None
+            tick_blockers: list[str] = []
+            if (
+                spec.entry_ready
+                and spec.trigger_observed_utc is not None
+            ):
+                contract, contract_error = tick_loader.load_contract_for_day(
+                    spec.trigger_observed_utc.date()
+                )
+                if contract_error is not None:
+                    tick_blockers.append(contract_error)
+                else:
+                    tick_window, window_blockers = _provider_tick_window(
+                        spec,
+                        utc_offset_seconds=contract.get(
+                            "utc_offset_seconds"
+                        ),
+                    )
+                    tick_blockers.extend(window_blockers)
             if spec.entry_ready and tick_window is not None:
                 ticks, missing = tick_loader.load_ticks_for_trade(
                     tick_window,
@@ -625,6 +803,8 @@ def build_farm_execution(
     include_trades: bool = False,
     provider_latency_scenarios_ms: Iterable[int] | None = None,
     provider_volume_per_leg: float = 0.01,
+    money_contract_path: Path | None = None,
+    money_tick_cache_dir: Path | None = None,
 ) -> FarmExecution:
     policies = policies or strategy_policies.default_policy_catalog()
     latency_scenarios_ms, provider_volume_per_leg = (
@@ -701,7 +881,10 @@ def build_farm_execution(
     canonical_scope = _canonical_scope(catalog, from_date, to_date)
     market_replay_summary = _market_replay_summary(effective_baselines)
     market_replay_verified = _market_replay_verified(market_replay_summary)
-    if not market_replay_verified:
+    market_replay_strategy_eligible = _market_replay_strategy_eligible(
+        market_replay_summary
+    )
+    if not market_replay_strategy_eligible:
         if "market_replay_not_exact" not in executed_selection["global_blockers"]:
             executed_selection["global_blockers"].append(
                 "market_replay_not_exact"
@@ -725,8 +908,79 @@ def build_farm_execution(
         latency_scenarios_ms=latency_scenarios_ms,
         volume_per_leg=provider_volume_per_leg,
     )
-    diagnostic_blockers = ["broker_money_contract_unverified"]
-    if not market_replay_verified:
+    money_converter, money_contract = _load_money_converter(
+        money_contract_path,
+        money_tick_cache_dir,
+    )
+    actual_money_validation = {
+        "verified": False,
+        "account_currency": None,
+        "tickets_checked": 0,
+        "exact_tickets": 0,
+        "mismatched_tickets": 0,
+        "blocked_tickets": 0,
+        "blockers": list(money_contract["blockers"]),
+    }
+    provider_money_summary = {
+        "rows": 0,
+        "verified_rows": 0,
+        "blocked_rows": 0,
+    }
+    if money_converter is not None:
+        actual_money_validation = (
+            broker_money.validate_executed_money_contract(
+                selected_trades,
+                money_converter,
+            )
+        )
+        provider_policy_results, provider_money_summary = (
+            _apply_provider_money_contract(
+                provider_policy_results,
+                provider_specs,
+                money_converter,
+            )
+        )
+    provider_policy_scores = [
+        {
+            "policy_id": group["policy_id"],
+            "policy": group["policy"],
+            "metrics": calculate_policy_metrics(group["results"]),
+        }
+        for group in provider_policy_results
+    ]
+    money_blockers = list(dict.fromkeys(
+        [
+            *(money_contract.get("blockers") or []),
+            *(actual_money_validation.get("blockers") or []),
+            *[
+                str(blocker)
+                for group in provider_policy_results
+                for row in group.get("results") or []
+                for blocker in row.get("money_blockers") or []
+            ],
+        ]
+    ))
+    money_verified = bool(
+        money_contract.get("contract_verified")
+        and actual_money_validation.get("verified")
+        and provider_money_summary["rows"] == provider_money_summary[
+            "verified_rows"
+        ]
+    )
+    if money_verified:
+        money_mode = "verified_account_currency"
+    elif money_contract.get("contract_verified"):
+        money_mode = "account_currency_diagnostic"
+    else:
+        money_mode = "diagnostic_only"
+    diagnostic_blockers = [] if money_verified else [
+        "broker_money_contract_unverified"
+    ]
+    diagnostic_blockers.extend(
+        blocker for blocker in money_blockers
+        if blocker not in diagnostic_blockers
+    )
+    if not market_replay_strategy_eligible:
         diagnostic_blockers.append("market_replay_not_exact")
     selection = {
         "minimum_trades": minimum_trades,
@@ -762,12 +1016,22 @@ def build_farm_execution(
         "market_replay": market_replay_summary,
         "validation": {
             "price_path_mode": "provider_first",
-            "money_mode": "diagnostic_only",
+            "money_mode": money_mode,
+            "money_contract_verified": money_verified,
             "market_replay_verified": market_replay_verified,
-            "mode": "diagnostic_only",
+            "market_replay_strategy_eligible": market_replay_strategy_eligible,
+            "mode": (
+                "verified_account_currency"
+                if money_verified and market_replay_strategy_eligible
+                else "diagnostic_only"
+            ),
         },
+        "money_contract": money_contract,
+        "money_validation": actual_money_validation,
+        "provider_money": provider_money_summary,
         "selection": selection,
         "policies": scores,
+        "provider_policy_scores": provider_policy_scores,
         "provider_policy_results": provider_policy_results,
         "executed_baseline_validation": {
             "executed_trade_count": len(selected_trades),
@@ -795,6 +1059,8 @@ def build_farm_execution(
             "provider_latency_scenarios_ms": list(latency_scenarios_ms),
             "provider_volume_per_leg": [provider_volume_per_leg],
             "provider_policy_results": provider_policy_results,
+            "provider_policy_scores": provider_policy_scores,
+            "money_validation": actual_money_validation,
         },
         policies=[policy.to_dict() for policy in policies],
         required_tick_days=tick_loader.required_days,
@@ -816,6 +1082,8 @@ def build_farm_report(
     include_trades: bool = False,
     provider_latency_scenarios_ms: Iterable[int] | None = None,
     provider_volume_per_leg: float = 0.01,
+    money_contract_path: Path | None = None,
+    money_tick_cache_dir: Path | None = None,
 ) -> dict:
     return build_farm_execution(
         trades,
@@ -829,6 +1097,8 @@ def build_farm_report(
         include_trades=include_trades,
         provider_latency_scenarios_ms=provider_latency_scenarios_ms,
         provider_volume_per_leg=provider_volume_per_leg,
+        money_contract_path=money_contract_path,
+        money_tick_cache_dir=money_tick_cache_dir,
     ).report
 
 
@@ -850,6 +1120,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--baseline", type=Path, default=DEFAULT_BASELINE)
     parser.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)
     parser.add_argument("--tick-cache-dir", type=Path, default=DEFAULT_TICK_CACHE)
+    parser.add_argument(
+        "--money-contract",
+        type=Path,
+        default=DEFAULT_MONEY_CONTRACT,
+    )
+    parser.add_argument(
+        "--money-tick-cache-dir",
+        type=Path,
+        default=DEFAULT_MONEY_TICK_CACHE,
+    )
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument(
         "--run-archive-dir",
@@ -879,6 +1159,8 @@ def main(argv: list[str] | None = None) -> int:
         "replay_trades": args.replay,
         "observed_baseline": args.baseline,
         "provider_catalog": args.catalog,
+        "broker_money_contract": args.money_contract,
+        "money_tick_cache_status": DEFAULT_MONEY_TICK_STATUS,
     }
     args.output.unlink(missing_ok=True)
     missing = [
@@ -905,6 +1187,8 @@ def main(argv: list[str] | None = None) -> int:
         include_trades=args.include_trades,
         provider_latency_scenarios_ms=args.provider_latency_scenarios_ms,
         provider_volume_per_leg=args.provider_volume_per_leg,
+        money_contract_path=args.money_contract,
+        money_tick_cache_dir=args.money_tick_cache_dir,
     )
     provider_configuration = execution.report["provider_configuration"]
     evidence = simulation_run_provenance.build_run_evidence(
@@ -933,6 +1217,15 @@ def main(argv: list[str] | None = None) -> int:
             "provider_trade_spec": Path(provider_trade_spec.__file__),
             "provider_strategy_simulator": Path(
                 provider_strategy_simulator.__file__
+            ),
+            "broker_money": Path(broker_money.__file__),
+            "capture_broker_money_contract": Path(
+                Path(__file__).parent / "tools" /
+                "capture_broker_money_contract.py"
+            ),
+            "ensure_money_tick_cache": Path(
+                Path(__file__).parent / "tools" /
+                "ensure_money_tick_cache.py"
             ),
             "observed_tick_replay_validator": Path(
                 observed_tick_replay_validator.__file__

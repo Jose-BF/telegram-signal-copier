@@ -582,3 +582,36 @@ def test_to_dict_marks_nested_nonfinite_floats_for_strict_json():
 
     encoded = json.dumps(payload, allow_nan=False, sort_keys=True)
     assert json.loads(encoded) == payload
+
+
+def test_missing_provider_sl_uses_audited_runtime_fallback_with_assumption():
+    signal = _formal_signal(
+        effective_sl=None,
+        level_timeline=[{
+            "observed_ts_utc": "2026-07-08T11:00:03+00:00",
+            "tps": [4108.0, 4110.0, 4112.0],
+            "sl": None,
+            "source_kind": "revision",
+        }],
+        runtime_level_timeline=[{
+            "observed_ts_utc": "2026-07-08T11:00:02.500+00:00",
+            "telegram_ts_utc": None,
+            "tps": [4107.0, 4109.0],
+            "sl": 4090.0,
+            "provisional": True,
+            "source_kind": "runtime_entry_interpreter",
+        }],
+    )
+
+    spec = build_trade_spec(signal, latency_ms=0, volume_per_leg=0.01)
+
+    assert spec.provider_sl == 4090.0
+    assert spec.evidence_assumptions == ("runtime_inferred_sl_fallback",)
+    assert "missing_provider_sl" not in spec.policy_evidence_gaps
+    runtime_events = [
+        row for row in spec.level_timeline
+        if row.get("source_kind") == "runtime_entry_interpreter"
+    ]
+    assert len(runtime_events) == 1
+    assert runtime_events[0]["sl"] == 4090.0
+    assert runtime_events[0]["tps"] == ()

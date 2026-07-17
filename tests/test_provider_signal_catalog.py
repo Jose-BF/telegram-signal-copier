@@ -1343,6 +1343,7 @@ def test_numeric_move_sl_survives_informational_classifier_disagreement():
     ]
 
     report = provider_signal_catalog.build_catalog_report(events, [])
+    signal = report["signals"][0]
     event = report["signals"][0]["management_events"][0]
 
     assert event["classified_action"] == "MOVE_SL_TO_PRICE"
@@ -1350,6 +1351,48 @@ def test_numeric_move_sl_survives_informational_classifier_disagreement():
     assert event["modality"] == "direct"
     assert event["semantic_source"] == "deterministic_parser"
     assert event["classifier_action"] == "INFORMATIONAL"
+    assert signal["effective_sl"] == 4061.0
+    assert signal["level_timeline"][-1]["tps"] == [4098.0, 4096.0]
+    assert signal["level_timeline"][-1]["sl"] == 4061.0
+    assert signal["level_timeline"][-1]["raw_sl"] == 4061.0
+    assert signal["level_timeline"][-1]["source_kind"] == (
+        "management_sl_move"
+    )
+
+
+def test_short_numeric_move_sl_is_expanded_in_canonical_level_timeline():
+    events = [
+        _raw(
+            "canal2",
+            702,
+            "Sell Gold Now\n4040 - 4044\nTargets\n4038\n4035\nSL 4048",
+        ),
+        _raw(
+            "canal2",
+            703,
+            "Move SL to 45",
+            reply_to_msg_id=702,
+            is_reply=True,
+        ),
+    ]
+
+    signal = provider_signal_catalog.build_catalog_report(events, [])[
+        "signals"
+    ][0]
+
+    assert signal["effective_sl"] == 4045.0
+    assert signal["level_timeline"][-1]["sl"] == 4045.0
+    assert signal["level_timeline"][-1]["raw_sl"] == 45.0
+    assert signal["level_timeline"][-1]["source_kind"] == (
+        "management_sl_move"
+    )
+    assert any(
+        issue["field"] == "sl"
+        and issue["decision"] == "expanded_short_price"
+        and issue["raw"] == 45.0
+        and issue["canonical"] == 4045.0
+        for issue in signal["canonicalization_issues"]
+    )
 
 
 def test_optional_close_preserves_choice_instead_of_forcing_execution():
@@ -1770,7 +1813,7 @@ def test_versioned_catalog_uses_current_schema_and_public_entry_contract():
                 found.extend(private_paths(child, f"{path}[{index}]"))
         return found
 
-    assert provider_signal_catalog.SCHEMA_VERSION == 3
+    assert provider_signal_catalog.SCHEMA_VERSION == 5
     assert catalog["schema_version"] == provider_signal_catalog.SCHEMA_VERSION
     assert catalog["signals"]
     for record in catalog["signals"]:
@@ -1826,3 +1869,157 @@ def test_versioned_catalog_exactly_matches_default_corpus_rebuild():
     )
 
     assert versioned == rebuilt
+
+
+def test_canonical_timeline_keeps_valid_reply_over_later_malformed_edits():
+    events = [
+        _raw(
+            "canal2",
+            3331,
+            "Buy Gold Now",
+            ts="2026-07-16T12:57:55.720+00:00",
+            date_utc="2026-07-16T12:57:51+00:00",
+        ),
+        _raw(
+            "canal2",
+            3331,
+            "Buy Gold Now\n\n3994 - 4988",
+            ts="2026-07-16T12:58:04.223+00:00",
+            update_kind="edit",
+            is_edit=True,
+            edit_date_utc="2026-07-16T12:58:03+00:00",
+        ),
+        _raw(
+            "canal2",
+            3332,
+            "TP1 3997\nSL 3986",
+            reply_to_msg_id=3331,
+            is_reply=True,
+            ts="2026-07-16T12:58:16.876+00:00",
+            date_utc="2026-07-16T12:58:16+00:00",
+        ),
+        _raw(
+            "canal2",
+            3331,
+            "Buy Gold Now\n\n3994 - 4988\n\n"
+            "TP1 3997\nTP2 3999\nTP3 4001\nTP4 4003\n"
+            "TP5 4005\nTP6 4007\nSL 4034",
+            ts="2026-07-16T12:58:46.592+00:00",
+            update_kind="edit",
+            is_edit=True,
+            edit_date_utc="2026-07-16T12:58:45+00:00",
+        ),
+        _raw(
+            "canal2",
+            3331,
+            "Buy Gold Now\n\n3994 - 4988\n\n"
+            "TP1 3997\nTP2 3999\nTP3 4001\nTP4 4003\n"
+            "TP5 4005\nTP6 4007\nSL 4086",
+            ts="2026-07-16T13:02:44.320+00:00",
+            update_kind="edit",
+            is_edit=True,
+            edit_date_utc="2026-07-16T13:02:43+00:00",
+        ),
+    ]
+
+    signal = provider_signal_catalog.build_catalog_report(events, [
+        {"sig_id": "canal2_3331"},
+    ])["signals"][0]
+
+    assert signal["effective_range"] == [3988.0, 3994.0]
+    assert signal["effective_tps"] == [
+        3997.0, 3999.0, 4001.0, 4003.0, 4005.0, 4007.0,
+    ]
+    assert signal["effective_sl"] == 3986.0
+    assert signal["semantic_status"] == "complete"
+    assert any(
+        row.get("source_kind") == "management_level_update"
+        and row.get("source_message_id") == 3332
+        and row.get("sl") == 3986.0
+        for row in signal["level_timeline"]
+    )
+    assert signal["level_timeline"][-1]["sl"] == 3986.0
+    assert any(
+        issue.get("field") == "sl"
+        and issue.get("raw") in {4034.0, 4086.0}
+        and issue.get("decision") == "rejected_keep_previous"
+        for issue in signal["canonicalization_issues"]
+    )
+
+
+def test_canonical_timeline_repairs_high_confidence_sl_prefix_typo():
+    events = [
+        _raw(
+            "canal2",
+            3340,
+            "High Risk\nBuy Gold Now\n3993 - 3987\n"
+            "TP1 3996\nTP2 3999\nSL 4083",
+        ),
+    ]
+
+    signal = provider_signal_catalog.build_catalog_report(events, [
+        {"sig_id": "canal2_3340"},
+    ])["signals"][0]
+
+    assert signal["effective_range"] == [3987.0, 3993.0]
+    assert signal["effective_sl"] == 3983.0
+    assert any(
+        issue.get("field") == "sl"
+        and issue.get("raw") == 4083.0
+        and issue.get("canonical") == 3983.0
+        and issue.get("decision") == "repaired_prefix_typo"
+        for issue in signal["canonicalization_issues"]
+    )
+
+
+def test_runtime_inferred_levels_remain_separate_provider_evidence():
+    events = [
+        _raw(
+            "canal2",
+            800,
+            "Buy Gold Now\n4000 - 4002\nTargets\n4005\n4008",
+        ),
+        {
+            "ts": "2026-07-08T10:00:21+00:00",
+            "sig": "canal2_800",
+            "ev": "entry_levels_interpreted",
+            "interpreted": {
+                "direction": "BUY",
+                "range": [4000.0, 4002.0],
+                "tps": [4005.0, 4008.0],
+                "sl": 3996.0,
+            },
+            "corrections": [{
+                "field": "sl",
+                "kind": "inferred",
+                "original": None,
+                "corrected": 3996.0,
+                "reason": "missing_sl",
+            }],
+            "provisional": True,
+        },
+    ]
+
+    signal = provider_signal_catalog.build_catalog_report(events, [])[
+        "signals"
+    ][0]
+
+    assert signal["effective_sl"] is None
+    assert "missing_sl" in signal["semantic_gaps"]
+    assert signal["runtime_level_timeline"] == [{
+        "observed_ts_utc": "2026-07-08T10:00:21+00:00",
+        "telegram_ts_utc": None,
+        "range": [4000.0, 4002.0],
+        "tps": [4005.0, 4008.0],
+        "sl": 3996.0,
+        "provisional": True,
+        "corrections": [{
+            "field": "sl",
+            "kind": "inferred",
+            "original": None,
+            "corrected": 3996.0,
+            "reason": "missing_sl",
+        }],
+        "source_kind": "runtime_entry_interpreter",
+        "source_event": "entry_levels_interpreted",
+    }]

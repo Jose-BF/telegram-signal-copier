@@ -1201,6 +1201,51 @@ def test_preclosed_tp1_tp2_leave_three_survivors_with_original_tp_indexes():
     )
 
 
+def test_policy_uses_its_five_virtual_legs_when_provider_later_publishes_seven_tps():
+    management_time = TRIGGER + timedelta(seconds=1)
+    full_levels_time = TRIGGER + timedelta(seconds=2)
+    targets = (102.0, 104.0, 106.0, 108.0, 110.0, 112.0, 114.0)
+    ticks = _ticks(
+        [
+            (TRIGGER, 99.80, 100.00),
+            (management_time, 101.00, 101.20),
+            (full_levels_time, 101.50, 101.70),
+            (TRIGGER + timedelta(seconds=3), 114.00, 114.20),
+        ]
+    )
+    spec = _spec(
+        provider_tps=targets,
+        provider_sl=90.0,
+        leg_count=7,
+        level_timeline=[
+            _level_event(TRIGGER, tps=targets[:4], sl=90.0),
+            _level_event(full_levels_time, tps=targets, sl=90.0),
+        ],
+        management_events=[_management_event(management_time)],
+    )
+
+    result = simulate_provider_policy(
+        spec,
+        ticks,
+        policy_by_id("close_1_be_0_runner_4"),
+    )
+
+    assert result["status"] == "simulated_price_path"
+    assert result["blockers"] == []
+    assert len(result["legs"]) == 5
+    assert [leg["action"] for leg in result["legs"]] == [
+        "close_now",
+        "runner",
+        "runner",
+        "runner",
+        "runner",
+    ]
+    assert all(
+        "missing_causal_tp_at_trigger" not in blocker
+        for blocker in result["blockers"]
+    )
+
+
 def test_all_legs_closed_before_trigger_produce_valid_result_without_later_tick():
     management_time = TRIGGER + timedelta(seconds=4)
     targets = (102.0, 104.0, 106.0)

@@ -405,6 +405,25 @@ def _execution_alignment(
     }
 
 
+def _runtime_gap_at_ticket_close(trade: dict, ticket: dict) -> dict | None:
+    close_dt = _parse_dt(ticket.get("close_dt_utc"))
+    if close_dt is None:
+        return None
+    context = trade.get("operational_context") or {}
+    for item in context.get("runtime_discontinuities") or []:
+        start = _parse_dt(item.get("unobserved_from_utc"))
+        end = _parse_dt(item.get("observability_restored_utc"))
+        if (
+            item.get("kind") == "session_restart_overlap"
+            and start is not None
+            and end is not None
+            and start <= close_dt <= end
+        ):
+            return dict(item)
+    return None
+
+
+
 def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
     label = _ticket_label(ticket)
     blockers: list[str] = []
@@ -447,6 +466,7 @@ def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
         "alignment": alignment,
         "blockers": list(dict.fromkeys(blockers)),
         "warnings": warnings,
+        "limitations": [],
     }
     if blockers:
         return base
@@ -498,6 +518,8 @@ def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
     if first_touch is None:
         mt5_sl_level = _mt5_close_level(ticket, "sl")
         mt5_tp_level = _mt5_close_level(ticket, "tp")
+        runtime_gap = _runtime_gap_at_ticket_close(trade, ticket)
+        external_transition = None
         if (
             expected_reason in {"sl", "be"}
             and mt5_sl_level is not None
@@ -510,6 +532,11 @@ def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
                 missing_touch_blocker = (
                     f"unattributed_sl_transition_window:{label}"
                 )
+            elif runtime_gap is not None:
+                external_transition = (
+                    f"unobserved_sl_transition_during_runtime_gap:{label}"
+                )
+                missing_touch_blocker = None
             else:
                 missing_touch_blocker = (
                     f"missing_sl_transition_evidence:{label}"
@@ -526,12 +553,24 @@ def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
                 missing_touch_blocker = (
                     f"unattributed_tp_transition_window:{label}"
                 )
+            elif runtime_gap is not None:
+                external_transition = (
+                    f"unobserved_tp_transition_during_runtime_gap:{label}"
+                )
+                missing_touch_blocker = None
             else:
                 missing_touch_blocker = (
                     f"missing_tp_transition_evidence:{label}"
                 )
         else:
             missing_touch_blocker = "no_level_touch_before_close"
+        if external_transition is not None:
+            return {
+                **base,
+                "status": "external_intervention",
+                "blockers": [],
+                "limitations": [external_transition],
+            }
         return {
             **base,
             "status": "mismatch",
@@ -618,18 +657,38 @@ class ReplayTickFrameCache:
             for day, contract in sorted(self._verified_contracts.items())
         }
 
+    def load_contract_for_day(
+        self,
+        day: date | str,
+    ) -> tuple[dict | None, str | None]:
+        day_text = day.isoformat() if isinstance(day, date) else str(day)
+        self._required_days.add(day_text)
+        cached = self._verified_contracts.get(day_text)
+        if cached is not None:
+            return cached, None
+        path = self.tick_cache_dir / f"{day_text}.parquet"
+        if not path.exists():
+            return None, f"missing_tick_cache:{day_text}"
+        try:
+            day_value = datetime.fromisoformat(day_text).date()
+        except ValueError:
+            return None, f"invalid_tick_cache_day:{day_text}"
+        contract = ensure_replay_tick_cache.load_valid_day_contract(
+            self.tick_cache_dir,
+            day_value,
+        )
+        if contract is None:
+            return None, f"invalid_tick_cache_contract:{day_text}"
+        self._verified_contracts[day_text] = dict(contract)
+        return self._verified_contracts[day_text], None
+
     def _load_day(self, day: str) -> tuple[pd.DataFrame | None, str | None]:
         if day in self._frames:
             return self._frames[day], None
         path = self.tick_cache_dir / f"{day}.parquet"
-        if not path.exists():
-            return None, f"missing_tick_cache:{day}"
-        contract = ensure_replay_tick_cache.load_valid_day_contract(
-            self.tick_cache_dir,
-            datetime.fromisoformat(day).date(),
-        )
-        if contract is None:
-            return None, f"invalid_tick_cache_contract:{day}"
+        contract, error = self.load_contract_for_day(day)
+        if error is not None:
+            return None, error
         try:
             frame = pd.read_parquet(path)
         except Exception as exc:
@@ -764,8 +823,16 @@ def validate_trade(
         blockers.append("missing_tickets")
     if blockers:
         status = "blocked" if statuses.get("blocked", 0) else "mismatch"
-    elif statuses.get("exact", 0) == len(ticket_results):
-        status = "exact"
+    elif (
+        statuses.get("exact", 0)
+        + statuses.get("external_intervention", 0)
+        == len(ticket_results)
+    ):
+        status = (
+            "external_intervention"
+            if statuses.get("external_intervention", 0)
+            else "exact"
+        )
     else:
         status = "mismatch"
 
@@ -781,6 +848,7 @@ def validate_trade(
         "status": status,
         "ticket_count": len(tickets),
         "exact_tickets": statuses.get("exact", 0),
+        "external_intervention_tickets": statuses.get("external_intervention", 0),
         "mismatch_tickets": statuses.get("mismatch", 0),
         "blocked_tickets": statuses.get("blocked", 0),
         "tick_days": _required_tick_days(trade, pad_minutes),
@@ -812,6 +880,7 @@ def summarize(rows: Iterable[dict]) -> dict:
     return {
         "total": len(rows),
         "exact": counts.get("exact", 0),
+        "external_intervention": counts.get("external_intervention", 0),
         "mismatch": counts.get("mismatch", 0),
         "blocked": counts.get("blocked", 0),
     }

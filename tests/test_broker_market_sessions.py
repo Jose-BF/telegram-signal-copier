@@ -2,6 +2,7 @@ import pandas as pd
 
 from broker_market_sessions import (
     MARKET_SESSION_CONTRACT,
+    broker_session_close_utc,
     filter_tradable_ticks,
 )
 
@@ -67,3 +68,21 @@ def test_filter_keeps_input_unchanged_and_rejects_missing_offset():
         raise AssertionError("missing UTC offset must fail closed")
 
     pd.testing.assert_frame_equal(ticks, original)
+
+
+def test_broker_session_close_uses_verified_server_day():
+    assert broker_session_close_utc(
+        pd.Timestamp("2026-07-16T12:57:55+00:00").to_pydatetime(),
+        utc_offset_seconds=10_800,
+    ).isoformat() == "2026-07-16T20:58:00+00:00"
+    assert broker_session_close_utc(
+        pd.Timestamp("2026-07-10T12:57:55+00:00").to_pydatetime(),
+        utc_offset_seconds=10_800,
+    ).isoformat() == "2026-07-10T20:57:00+00:00"
+
+
+def test_broker_session_close_maps_sunday_utc_reopen_to_monday_server_day():
+    assert broker_session_close_utc(
+        pd.Timestamp("2026-07-12T22:30:00+00:00").to_pydatetime(),
+        utc_offset_seconds=10_800,
+    ).isoformat() == "2026-07-13T20:58:00+00:00"

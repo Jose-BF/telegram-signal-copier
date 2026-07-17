@@ -27,13 +27,15 @@ Uso típico desde el listener:
     journal.finalize_trade(sig_id, closed_by="SL", total_pnl_usd=-22.5, ...)
 """
 
+import atexit
 import asyncio
 import contextvars
 import csv
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from threading import Lock
+from queue import Queue
+from threading import Event as ThreadEvent, Lock, Thread
 from typing import Optional
 
 # ─── Paths ──────────────────────────────────────────────────────────────────
@@ -117,6 +119,9 @@ _file_lock = Lock()         # protege escrituras a disco
 _trades_lock = Lock()       # protege el dict en memoria
 _trades: dict[str, dict] = {}   # signal_id -> dict acumulador
 _notify_loop: Optional[asyncio.AbstractEventLoop] = None
+_event_queue: Queue = Queue()
+_event_writer_guard = Lock()
+_event_writer_thread: Optional[Thread] = None
 
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
@@ -136,29 +141,79 @@ def _serialize(value):
 
 # ─── API: eventos atómicos (JSONL) ──────────────────────────────────────────
 
-def event(signal_id: str, ev: str, **fields):
-    """Escribe una línea al log de eventos JSONL.
+def _event_writer_loop() -> None:
+    while True:
+        target_file, line, ev, signal_id, barrier = _event_queue.get()
+        try:
+            if target_file is not None:
+                with _file_lock:
+                    with open(target_file, "a", encoding="utf-8") as handle:
+                        handle.write(line)
+        except Exception as exc:
+            print(
+                f"[journal] ERROR escribiendo evento {ev} "
+                f"para {signal_id}: {exc}"
+            )
+        finally:
+            if barrier is not None:
+                barrier.set()
+            _event_queue.task_done()
 
-    Rutea a EVENTS_TEST_FILE si la señal está marcada como test (vía contextvar
-    o registry). No bloquea el flujo del listener si hay error de I/O.
-    """
+
+def _ensure_event_writer() -> None:
+    global _event_writer_thread
+    with _event_writer_guard:
+        if (
+            _event_writer_thread is not None
+            and _event_writer_thread.is_alive()
+        ):
+            return
+        _event_writer_thread = Thread(
+            target=_event_writer_loop,
+            name="journal-event-writer",
+            daemon=True,
+        )
+        _event_writer_thread.start()
+
+
+def flush_events(timeout: float = 10.0) -> bool:
+    """Wait until every event queued before this call is durable on disk."""
+    if _event_writer_thread is None and _event_queue.empty():
+        return True
+    _ensure_event_writer()
+    barrier = ThreadEvent()
+    _event_queue.put((None, None, None, None, barrier))
+    return barrier.wait(timeout=max(0.0, float(timeout)))
+
+
+def _flush_events_at_exit() -> None:
+    if not flush_events(timeout=10.0):
+        print("[journal] ERROR: timeout vaciando eventos al cerrar")
+
+
+atexit.register(_flush_events_at_exit)
+
+
+def event(signal_id: str, ev: str, **fields):
+    """Queue one JSONL event without blocking Telegram on disk I/O."""
     is_test = _mark_and_get_test(signal_id)
     target_file = EVENTS_TEST_FILE if is_test else EVENTS_FILE
     record = {"ts": _now_iso(), "sig": signal_id, "ev": ev}
     if is_test:
-        record["test"] = True  # marca explícita por si algún día se mezclan
+        record["test"] = True
     record.update(fields)
     try:
-        with _file_lock:
-            with open(target_file, "a", encoding="utf-8") as f:
-                f.write(json.dumps(record, default=_serialize) + "\n")
-    except Exception as e:
-        # Nunca matamos al listener por un fallo de I/O del journal
-        print(f"[journal] ERROR escribiendo evento {ev} para {signal_id}: {e}")
+        line = json.dumps(record, default=_serialize) + "\n"
+        _ensure_event_writer()
+        _event_queue.put((target_file, line, ev, signal_id, None))
+    except Exception as exc:
+        print(
+            f"[journal] ERROR encolando evento {ev} "
+            f"para {signal_id}: {exc}"
+        )
 
 
-# ─── API: anomalías (capa estructurada sobre event()) ─────────────────────
-
+# Structured anomalies layered on the atomic event stream.
 SEVERITIES = ("info", "warning", "critical")
 CATEGORIES = (
     "naked", "sl_be", "fill", "channel_msg", "levels", "mt5", "outcome"

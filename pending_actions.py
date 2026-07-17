@@ -85,8 +85,11 @@ class PendingAction:
     applied_tp: Optional[float] = None
     waiting_reason: Optional[str] = None
     label: str = ""                 # descripción humana para logs
+    persist_until_signal_close: bool = False
 
     def expired(self) -> bool:
+        if self.persist_until_signal_close and self.signal.status == "open":
+            return False
         return (time.time() - self.created_at) > self.timeout_s
 
 
@@ -143,6 +146,9 @@ class PendingQueue:
                     existing.last_retcode = None
                     existing.waiting_reason = None
                 existing.label = action.label or existing.label
+                existing.persist_until_signal_close = (
+                    existing.persist_until_signal_close
+                    or action.persist_until_signal_close)
                 self._log_request(action)
                 self._log_coalesced(existing, changed=changed)
                 self._ensure_runner()
@@ -752,12 +758,20 @@ def snapshot(queue_obj: PendingQueue | None = None,
 
 # ─── Helpers de alto nivel ─────────────────────────────────────────────────────
 
-def enqueue_modify_sl(signal: Signal, ticket: int, new_sl: float, label: str = ""):
+def enqueue_modify_sl(
+    signal: Signal,
+    ticket: int,
+    new_sl: float,
+    label: str = "",
+    *,
+    persist_until_signal_close: bool = False,
+):
     queue.add(PendingAction(
         kind="MODIFY_SLTP",
         ticket=ticket,
         signal=signal,
         new_sl=new_sl,
+        persist_until_signal_close=persist_until_signal_close,
         label=label or f"modify SL→{new_sl}",
     ))
 

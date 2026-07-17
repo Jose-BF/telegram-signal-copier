@@ -789,3 +789,51 @@ def test_extract_fill_anchors_uses_direction_quote_side():
     assert list(anchors) == [date(2026, 7, 13)]
     assert anchors[date(2026, 7, 13)][0].quote_side == "bid"
     assert anchors[date(2026, 7, 13)][0].price == 4059.37
+
+
+def test_intraday_capture_after_broker_close_proves_session_horizon():
+    day = date(2026, 7, 16)
+    ticks = pd.DataFrame([{
+        "time_utc": pd.Timestamp("2026-07-16T20:57:59.173+00:00"),
+        "bid": 3990.0,
+        "ask": 3990.2,
+    }])
+
+    coverage = ensure_replay_tick_cache.build_tick_coverage(
+        ticks,
+        day,
+        captured_at=datetime(2026, 7, 16, 21, 35, tzinfo=timezone.utc),
+        utc_offset_seconds=10_800,
+    )
+
+    assert coverage["last_tick_utc"] == "2026-07-16T20:57:59.173000+00:00"
+    assert coverage["complete_through_utc"] == "2026-07-16T20:58:00+00:00"
+
+
+def test_legacy_intraday_contract_uses_verified_session_close_boundary():
+    contract = {
+        "utc_offset_seconds": 10_800,
+        "coverage": {
+            "captured_at_utc": "2026-07-16T21:35:00+00:00",
+            "last_tick_utc": "2026-07-16T20:57:59.173000+00:00",
+            "complete_from_utc": "2026-07-16T00:00:00+00:00",
+            "complete_through_utc": "2026-07-16T20:57:59.173000+00:00",
+        },
+    }
+    required_from = datetime(
+        2026, 7, 16, 12, 57, 55, tzinfo=timezone.utc,
+    )
+    session_close = datetime(
+        2026, 7, 16, 20, 58, tzinfo=timezone.utc,
+    )
+
+    assert ensure_replay_tick_cache.coverage_satisfies_window(
+        contract,
+        required_from,
+        session_close,
+    )
+    assert not ensure_replay_tick_cache.coverage_satisfies_window(
+        contract,
+        required_from,
+        session_close + timedelta(milliseconds=1),
+    )

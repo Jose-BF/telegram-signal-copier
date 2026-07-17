@@ -12,6 +12,8 @@ import json
 import sys
 import types
 import asyncio
+import threading
+import time
 
 import pytest
 
@@ -27,6 +29,7 @@ def isolated_journal(tmp_path, monkeypatch):
 
 
 def _events(path):
+    assert journal.flush_events(timeout=1.0) is True
     if not path.exists():
         return []
     return [json.loads(l) for l in
@@ -155,3 +158,30 @@ class TestHealthVerdict:
         assert journal.health_verdict([
             {"severity": "info"}, {"severity": "warning"},
             {"severity": "critical"}]) == "failed"
+
+
+def test_event_enqueue_does_not_wait_for_disk_lock(isolated_journal):
+    acquired = threading.Event()
+    release = threading.Event()
+
+    def hold_disk_lock():
+        with journal._file_lock:
+            acquired.set()
+            release.wait(timeout=2.0)
+
+    holder = threading.Thread(target=hold_disk_lock)
+    holder.start()
+    assert acquired.wait(timeout=1.0)
+    timer = threading.Timer(0.25, release.set)
+    timer.start()
+
+    started = time.perf_counter()
+    journal.event("canal2_3331", "telegram_raw", message_id=3331)
+    elapsed = time.perf_counter() - started
+
+    release.set()
+    holder.join(timeout=1.0)
+    timer.cancel()
+    assert elapsed < 0.05
+    assert journal.flush_events(timeout=1.0) is True
+    assert _events(isolated_journal)[0]["message_id"] == 3331

@@ -378,6 +378,10 @@ def test_regenerate_strategy_farm_accepts_complete_diagnostic_publication(
             "--provider-volume-per-leg",
             "0.01",
             "--quiet",
+            "--money-contract",
+            str(tmp_path / "data" / "broker_money_contract.json"),
+            "--money-tick-cache-dir",
+            str(tmp_path / "data" / "money_ticks_cache"),
         ]
         report.write_text(
             json.dumps(_valid_strategy_farm_publication(tmp_path)),
@@ -640,6 +644,10 @@ def test_push_pipeline_runs_learning_after_all_causal_builders(monkeypatch):
     monkeypatch.setattr(
         watch, "_regenerate_replay_tick_cache_status", step("tick_cache"))
     monkeypatch.setattr(
+        watch, "_regenerate_broker_money_contract", step("money_contract"))
+    monkeypatch.setattr(
+        watch, "_regenerate_money_tick_cache_status", step("money_ticks"))
+    monkeypatch.setattr(
         watch, "_regenerate_replay_readiness_report", step("readiness"))
     monkeypatch.setattr(
         watch, "_regenerate_observed_tick_replay_audit", step("observed"))
@@ -669,7 +677,8 @@ def test_push_pipeline_runs_learning_after_all_causal_builders(monkeypatch):
     watch._push_session_data()
 
     assert calls == [
-        "ledger", "replay", "accounting", "tick_cache", "observed",
+        "ledger", "replay", "accounting", "tick_cache", "money_contract",
+        "money_ticks", "observed",
         "readiness", "provider", "farm", "learning",
     ]
     assert all(learning_dependencies[0].values())
@@ -704,6 +713,8 @@ def test_push_pipeline_runs_learning_after_upstream_failure(monkeypatch):
         "replay": False,
         "strategy_farm": False,
         "tick_cache": False,
+        "money_contract": False,
+        "money_ticks": False,
     }
 
 

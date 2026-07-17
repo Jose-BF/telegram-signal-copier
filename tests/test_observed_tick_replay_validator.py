@@ -335,6 +335,61 @@ def test_mt5_sl_comment_without_recorded_level_change_names_missing_evidence():
     assert result["status"] == "mismatch"
     assert result["blockers"] == ["missing_sl_transition_evidence:101"]
 
+def test_unlogged_sl_during_runtime_gap_is_external_not_causal_mismatch():
+    trade = _trade(
+        direction="SELL",
+        operational_context={
+            "runtime_discontinuities": [{
+                "kind": "session_restart_overlap",
+                "unobserved_from_utc": "2026-07-06T10:00:30+00:00",
+                "restart_observed_utc": "2026-07-06T10:01:25+00:00",
+                "observability_restored_utc": "2026-07-06T10:01:40+00:00",
+            }],
+        },
+    )
+    ticket = _ticket(
+        open_price=4200.0,
+        close_dt_utc="2026-07-06T10:01:20+00:00",
+        close_price=4200.2,
+        close_reason="sl",
+        sl_history=[{
+            "ts": "2026-07-06T10:00:00+00:00",
+            "status": "confirmed",
+            "sl": 4210.0,
+        }],
+        tp_history=[{
+            "ts": "2026-07-06T10:00:00+00:00",
+            "status": "confirmed",
+            "tp": 4190.0,
+        }],
+        close_deal={"comment": "[sl 4200.20]"},
+    )
+    ticks = _ticks([
+        {
+            "time_utc": "2026-07-06T10:00:00+00:00",
+            "bid": 4200.0,
+            "ask": 4200.2,
+        },
+        {
+            "time_utc": "2026-07-06T10:01:20+00:00",
+            "bid": 4200.0,
+            "ask": 4200.2,
+        },
+    ])
+
+    ticket_result = observed_tick_replay_validator.validate_ticket(
+        trade,
+        ticket,
+        ticks,
+    )
+
+    assert ticket_result["status"] == "external_intervention"
+    assert ticket_result["blockers"] == []
+    assert ticket_result["limitations"] == [
+        "unobserved_sl_transition_during_runtime_gap:101"
+    ]
+
+
 
 def test_unattributed_observed_sl_window_remains_non_exact_but_identified():
     trade = _trade(direction="SELL")

@@ -96,7 +96,10 @@ def test_audit_snapshot_records_levels_missing_in_mt5():
 def test_orphan_mt5_position_with_bot_magic_is_detected():
     journal = FakeJournal()
     auditor = LiveAuditor(
-        settings=AuditSettings(snapshot_every_s=0),
+        settings=AuditSettings(
+            snapshot_every_s=0,
+            orphan_confirmation_s=0,
+        ),
         journal=journal,
     )
 
@@ -580,3 +583,38 @@ def test_pending_actions_snapshot_is_read_only_and_serializable():
         "label": "SL->4585 #1365772408",
     }]
     assert len(q._actions) == 1
+
+
+def test_orphan_mt5_position_requires_confirmation_before_critical_alert():
+    journal = FakeJournal()
+    auditor = LiveAuditor(
+        settings=AuditSettings(
+            snapshot_every_s=0,
+            orphan_confirmation_s=2.0,
+        ),
+        journal=journal,
+    )
+    orphan = _pos(999, sl=4583.0, tp=4572.0, comment="c2_13111")
+
+    auditor.audit_cycle(
+        signals=[],
+        positions=[orphan],
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 5, 0),
+    )
+
+    assert journal.anomalies == []
+
+    auditor.audit_cycle(
+        signals=[],
+        positions=[orphan],
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 5, 2, 100000),
+    )
+
+    issues = [
+        item for item in journal.anomalies
+        if item.get("code") == "mt5_orphan_position"
+    ]
+    assert len(issues) == 1
+    assert issues[0]["ticket"] == 999
