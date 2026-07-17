@@ -1,24 +1,23 @@
 from pathlib import Path
 
 
-def test_final_watcher_exit_backup_regenerates_and_tracks_ledger():
+def test_final_backup_delegates_to_watcher_cli_only():
     text = Path("run_bot.bat").read_text(encoding="utf-8")
 
-    assert "_regenerate_ledger()" in text
-    assert "_clear_mutable_offline_outputs()" in text
-    assert "_regenerate_provider_signal_catalog()" in text
-    assert "_regenerate_strategy_farm()" in text
-    assert r"data\ledger.jsonl" in text
-    assert r"data\reconcile_status.json" in text
-    assert r"git add -f data\provider_signal_catalog.json" in text
-    assert r"data\strategy_farm.json" in text
-    assert r"data\simulation_runs" in text
+    assert r"python -u tools\run_bot_watch.py --final-backup" in text
+    assert "git pull --rebase" not in text
+    assert "git push origin main" not in text
+    assert "python -c \"import tools.run_bot_watch" not in text
 
 
-def test_final_watcher_exit_builds_observed_audit_before_readiness():
+def test_batch_still_relaunches_after_controlled_watcher_exit():
     text = Path("run_bot.bat").read_text(encoding="utf-8")
 
-    observed = text.index("_regenerate_observed_tick_replay_audit()")
-    readiness = text.index("_regenerate_replay_readiness_report()")
+    assert "Reiniciando en 10 segundos" in text
+    assert "goto restart" in text
 
-    assert observed < readiness
+def test_restart_banner_keeps_batch_commands_on_separate_lines():
+    text = Path("run_bot.bat").read_text(encoding="utf-8").replace("\r\n", "\n")
+
+    assert "echo.echo" not in text
+    assert "\necho.\necho Reiniciando en 10 segundos..." in text

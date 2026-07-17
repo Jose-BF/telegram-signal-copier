@@ -53,25 +53,13 @@ echo.
 echo [%date% %time%] Watcher terminado. Exit code: %EXITCODE%
 echo [%date% %time%] === SALIDA codigo=%EXITCODE% === >> logs\bot_runtime.log
 
-REM El watcher ya sube los datos en cada reinicio. Aqui solo hacemos un
-REM "ultimo backup" por si murio sin oportunidad de subir.
-python -c "import tools.run_bot_watch as w; w._clear_mutable_offline_outputs(); ok=w._regenerate_ledger(); replay=w._regenerate_replay_trades() if ok else False; audit=w._regenerate_accounting_replay_audit() if replay else False; w._regenerate_replay_tick_cache_status() if audit else False; w._regenerate_broker_money_contract() if audit else False; w._regenerate_money_tick_cache_status() if audit else False; observed=w._regenerate_observed_tick_replay_audit() if audit else False; w._regenerate_replay_readiness_report() if audit else False; catalog=w._regenerate_provider_signal_catalog() if replay else False; w._regenerate_strategy_farm() if observed and catalog else False; raise SystemExit(0 if ok and replay and audit else 1)" 2>nul
-if errorlevel 1 echo [Watch] backup final fallo; ledger/replay/audit pueden quedar desfasados.
-git add -f data\trade_events.jsonl data\trade_events_TEST.jsonl 2>nul
-git add -f data\trade_journal.csv data\trade_journal_TEST.csv 2>nul
-git add -f data\ledger.jsonl data\reconcile_status.json 2>nul
-git add -f data\replay_trades.jsonl data\replay_status.json 2>nul
-git add -f data\accounting_replay_audit.jsonl data\accounting_replay_audit_status.json 2>nul
-git add -f data\replay_tick_cache_status.json data\replay_readiness_report.json 2>nul
-git add -f data\broker_money_contract.json data\money_tick_cache_status.json 2>nul
-git add -f data\observed_tick_replay_audit.jsonl data\observed_tick_replay_status.json 2>nul
-git add -f data\provider_signal_catalog.json data\strategy_farm.json 2>nul
-if exist data\simulation_runs git add -f data\simulation_runs 2>nul
-git diff --cached --quiet
-if errorlevel 1 (
-    git commit -m "data: sesion %date% %time% (watcher exit)" 2>nul
-    git pull --rebase origin main 2>nul
-    git push origin main 2>nul
+REM El watcher hace su propio backup en cierres controlados. Si muere antes,
+REM delegamos en el MISMO flujo; aqui no hay comandos Git paralelos.
+if not "%EXITCODE%"=="0" (
+    if not "%EXITCODE%"=="75" (
+        python -u tools\run_bot_watch.py --final-backup
+        if errorlevel 1 echo [Watch] backup final no publicado; estado preservado para rescate.
+    )
 )
 
 echo.

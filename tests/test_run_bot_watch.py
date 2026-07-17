@@ -622,6 +622,62 @@ def test_regenerate_ledger_records_keyboard_interrupt_before_reraising(
     assert "ctrl-break" in status["stderr"]
 
 
+def test_cli_final_backup_returns_verified_status(monkeypatch):
+    monkeypatch.setattr(
+        watch,
+        "_push_session_data",
+        lambda: _sync_result(action="pushed"),
+    )
+
+    assert watch.cli(["--final-backup"]) == 0
+
+
+def test_cli_final_backup_returns_blocked_status(monkeypatch):
+    monkeypatch.setattr(
+        watch,
+        "_push_session_data",
+        lambda: _sync_result(
+            ok=False,
+            action="push_failed",
+            error="remote unavailable",
+        ),
+    )
+
+    assert watch.cli(["--final-backup"]) == watch.WATCHER_GIT_BLOCKED_EXIT_CODE
+
+
+def test_interrupted_pipeline_restores_previous_mutable_reports(
+        tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    paths = [
+        data_dir / "provider_signal_catalog.json",
+        data_dir / "strategy_farm.json",
+        data_dir / "log_learning_report.json",
+        data_dir / "log_pattern_registry.json",
+        data_dir / "log_learning_status.json",
+    ]
+    for index, path in enumerate(paths):
+        path.write_text(f"old-{index}\n", encoding="utf-8")
+
+    monkeypatch.setattr(watch, "PROVIDER_SIGNAL_CATALOG_FILE", paths[0])
+    monkeypatch.setattr(watch, "STRATEGY_FARM_FILE", paths[1])
+    monkeypatch.setattr(watch, "LOG_LEARNING_REPORT_FILE", paths[2])
+    monkeypatch.setattr(watch, "LOG_PATTERN_REGISTRY_FILE", paths[3])
+    monkeypatch.setattr(watch, "LOG_LEARNING_STATUS_FILE", paths[4])
+    monkeypatch.setattr(
+        watch,
+        "_regenerate_ledger",
+        lambda: (_ for _ in ()).throw(KeyboardInterrupt("stop")),
+    )
+
+    with pytest.raises(KeyboardInterrupt):
+        watch._push_session_data()
+
+    assert [path.read_text(encoding="utf-8") for path in paths] == [
+        f"old-{index}\n" for index in range(len(paths))
+    ]
+
 def test_push_session_data_uses_verified_sync_instead_of_legacy_pull(monkeypatch):
     calls = []
     expected = _sync_result(action="pushed")

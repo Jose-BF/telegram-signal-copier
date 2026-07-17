@@ -22,6 +22,7 @@ incluían fixes de bloqueo del event loop. Resultado: 115min congelado +
 Detener el wrapper: Ctrl+C (cierra el bot también).
 """
 
+import argparse
 import os
 import json
 import math
@@ -29,6 +30,7 @@ import signal
 import subprocess
 import sys
 import time
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -864,16 +866,39 @@ def _regenerate_money_tick_cache_status() -> bool:
         if isinstance(exc, (KeyboardInterrupt, SystemExit)):
             raise
         return False
-def _push_session_data() -> git_sync.SyncResult | None:
-    """Sube data/trade_events.jsonl + ledger + journal a GitHub si hay cambios.
 
-    Replica el comportamiento del run_bot.bat original (que solo se ejecutaba
-    al cerrar el bot). Con el watcher el bot puede vivir días sin parar, así
-    que sin esto los logs no se subirían y no podríamos analizar la sesión.
-    Llamamos a esta función después de cada parada/reinicio del bot.
 
-    Antes de subir, regenera el ledger reconciliado (reconcile_mt5_ledger.py).
-    """
+def _mutable_offline_output_paths() -> tuple[Path, ...]:
+    return (
+        PROVIDER_SIGNAL_CATALOG_FILE,
+        STRATEGY_FARM_FILE,
+        LOG_LEARNING_REPORT_FILE,
+        LOG_PATTERN_REGISTRY_FILE,
+        LOG_LEARNING_STATUS_FILE,
+    )
+
+
+@contextmanager
+def _offline_output_transaction():
+    paths = _mutable_offline_output_paths()
+    snapshots = {
+        path: path.read_bytes()
+        for path in paths
+        if path.is_file()
+    }
+    try:
+        yield
+    except BaseException:
+        for path in paths:
+            if path in snapshots:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(snapshots[path])
+            else:
+                path.unlink(missing_ok=True)
+        raise
+
+
+def _regenerate_session_outputs() -> dict[str, bool]:
     _clear_mutable_offline_outputs()
     builder_results = {
         "accounting": False,
@@ -921,6 +946,21 @@ def _push_session_data() -> git_sync.SyncResult | None:
                         _regenerate_strategy_farm()
                     )
     _regenerate_recursive_learning_outputs(builder_results)
+    return builder_results
+
+
+def _push_session_data() -> git_sync.SyncResult | None:
+    """Sube data/trade_events.jsonl + ledger + journal a GitHub si hay cambios.
+
+    Replica el comportamiento del run_bot.bat original (que solo se ejecutaba
+    al cerrar el bot). Con el watcher el bot puede vivir días sin parar, así
+    que sin esto los logs no se subirían y no podríamos analizar la sesión.
+    Llamamos a esta función después de cada parada/reinicio del bot.
+
+    Antes de subir, regenera el ledger reconciliado (reconcile_mt5_ledger.py).
+    """
+    with _offline_output_transaction():
+        builder_results = _regenerate_session_outputs()
     files = [
         "data/trade_events.jsonl",
         "data/ledger.jsonl",
@@ -1077,5 +1117,17 @@ def main() -> int:
         return 0
 
 
+def cli(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Signal Copier VM watcher")
+    parser.add_argument("--final-backup", action="store_true")
+    args = parser.parse_args(argv)
+    if args.final_backup:
+        result = _push_session_data()
+        if result is not None and not result.ok:
+            return WATCHER_GIT_BLOCKED_EXIT_CODE
+        return 0
+    return main()
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(cli())
