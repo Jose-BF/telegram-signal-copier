@@ -26,18 +26,23 @@ After fetching `origin/main`, classify local HEAD using ancestry, not SHA
 inequality:
 
 - `equal`: attach `main` if necessary and continue.
-- `local_ahead`: attach `main` to HEAD and publish with
-  `git push origin HEAD:main`.
+- `local_ahead`: publish only when every local-only commit starts with `data:`
+  and its changed paths are exclusively under `data/`. Otherwise preserve the
+  local HEAD in `vm-rescue-*` and activate the remote code without publishing
+  VM-authored source changes.
 - `remote_ahead`: attach `main` and fast-forward to `origin/main`.
-- `diverged`: create a timestamped `vm-rescue-*` branch preserving local HEAD,
-  then attach `main` to `origin/main`. Never discard the rescue branch.
+- `diverged`: create a timestamped `vm-rescue-*` branch. Data-only local
+  commits may rebase onto the remote; any conflict aborts and blocks startup.
+  Non-data divergence activates the remote only after preserving the rescue.
 
 If stale rebase metadata exists, first preserve HEAD in a rescue branch and
-quit the abandoned rebase. No automatic conflict resolution is allowed.
+quit the abandoned rebase. No automatic conflict resolution is allowed. A
+dirty worktree is never stashed or moved: startup is blocked so the shared
+final-backup path can commit session data without hiding local files.
 
-The bot may launch only when the resulting active branch is `main`, local HEAD
-equals `origin/main`, and no rebase remains active. Failure returns a non-zero
-preflight result and does not spawn `main.py`.
+The bot may launch only when the active branch is `main`, local HEAD equals
+`origin/main`, the worktree is clean, and no rebase remains active. Failure
+returns a non-zero preflight result and does not spawn `main.py`.
 
 ## Session Data Publication
 
@@ -45,9 +50,9 @@ Session builders commit data normally, then call the same synchronizer. Pushes
 always target `HEAD:main`; no command may push a stale local branch name.
 
 If remote code advanced while local session data was being built, preserve the
-data commit, update safely through the state machine, and retry only when the
-relationship is fast-forwardable. Divergence is rescued and surfaced rather
-than hidden.
+data commit and reconcile it through the same state machine. A clean data-only
+divergence may rebase after creating a rescue branch. A conflict remains on the
+local data history and blocks production until it is resolved; it is never hidden.
 
 The final batch backup delegates to a watcher CLI operation. It does not run a
 second independent `git pull --rebase` sequence.

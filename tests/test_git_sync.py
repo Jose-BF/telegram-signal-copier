@@ -164,3 +164,102 @@ def test_stale_rebase_is_quit_after_preserving_head(tmp_path, monkeypatch):
     assert result.rescue_branch is not None
     assert not rebase_dir.exists()
     assert result.branch == "main"
+
+
+def test_dirty_worktree_blocks_without_stashing_or_moving_refs(tmp_path):
+    _remote, seed, vm = _repos(tmp_path)
+    local_head = _must_git(vm, "rev-parse", "HEAD")
+    live_events = vm / "data" / "live.jsonl"
+    live_events.parent.mkdir(parents=True, exist_ok=True)
+    live_events.write_text('{"event":"not-committed"}\n', encoding="utf-8")
+    remote_head = _write_commit(seed, "app.txt", "updated\n", "fix: update")
+    _must_git(seed, "push", "origin", "main")
+
+    result = git_sync.synchronize_repository(vm, publish_local=True)
+
+    assert result.ok is False
+    assert result.action == "dirty_worktree"
+    assert _must_git(vm, "rev-parse", "HEAD") == local_head
+    assert _must_git(vm, "rev-parse", "origin/main") == remote_head
+    assert live_events.read_text(encoding="utf-8") == (
+        '{"event":"not-committed"}\n'
+    )
+    assert _git(vm, "rev-parse", "refs/stash").returncode != 0
+
+
+def test_local_ahead_code_commit_is_rescued_but_not_pushed(tmp_path):
+    _remote, _seed, vm = _repos(tmp_path)
+    remote_head = _must_git(vm, "rev-parse", "origin/main")
+    local_head = _write_commit(vm, "local.py", "unsafe = True\n", "fix: local")
+
+    result = git_sync.synchronize_repository(vm, publish_local=True)
+
+    assert result.ok is True
+    assert result.action == "local_non_data_rescued"
+    assert result.rescue_branch is not None
+    assert _must_git(vm, "rev-parse", result.rescue_branch) == local_head
+    assert _must_git(vm, "rev-parse", "HEAD") == remote_head
+    assert _must_git(vm, "rev-parse", "origin/main") == remote_head
+
+
+def test_data_subject_with_code_changes_is_not_auto_published(tmp_path):
+    _remote, seed, vm = _repos(tmp_path)
+    local_head = _write_commit(
+        vm,
+        "bot.py",
+        "unsafe = True\n",
+        "data: misleading subject",
+    )
+    remote_head = _write_commit(
+        seed,
+        "app.txt",
+        "remote code\n",
+        "fix: production update",
+    )
+    _must_git(seed, "push", "origin", "main")
+
+    result = git_sync.synchronize_repository(vm, publish_local=True)
+
+    assert result.ok is True
+    assert result.action == "diverged_rescued"
+    assert result.rescue_branch is not None
+    assert _must_git(vm, "rev-parse", result.rescue_branch) == local_head
+    assert _must_git(vm, "rev-parse", "HEAD") == remote_head
+    assert _must_git(vm, "rev-parse", "origin/main") == remote_head
+
+def test_data_rebase_conflict_blocks_on_preserved_local_history(tmp_path):
+    _remote, seed, vm = _repos(tmp_path)
+    _write_commit(
+        seed,
+        "data/events.jsonl",
+        "base\n",
+        "data: seed events",
+    )
+    _must_git(seed, "push", "origin", "main")
+    _must_git(vm, "pull", "--ff-only", "origin", "main")
+    local_head = _write_commit(
+        vm,
+        "data/events.jsonl",
+        "local session\n",
+        "data: local session",
+    )
+    remote_head = _write_commit(
+        seed,
+        "data/events.jsonl",
+        "remote session\n",
+        "data: remote session",
+    )
+    _must_git(seed, "push", "origin", "main")
+
+    result = git_sync.synchronize_repository(vm, publish_local=True)
+
+    assert result.ok is False
+    assert result.action == "data_rebase_conflict"
+    assert result.rescue_branch is not None
+    assert _must_git(vm, "rev-parse", result.rescue_branch) == local_head
+    assert _must_git(vm, "rev-parse", "HEAD") == local_head
+    assert _must_git(vm, "rev-parse", "origin/main") == remote_head
+    assert not git_sync._rebase_in_progress(vm)
+    assert (vm / "data" / "events.jsonl").read_text(encoding="utf-8") == (
+        "local session\n"
+    )

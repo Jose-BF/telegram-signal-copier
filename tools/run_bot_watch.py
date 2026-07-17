@@ -74,6 +74,12 @@ RESTART_GRACE_SEC = 10  # tiempo para SIGTERM antes de SIGKILL
 RELAUNCH_DELAY_SEC = 5  # espera entre fin del bot y relanzamiento
 WATCHER_RELOAD_EXIT_CODE = 75
 WATCHER_GIT_BLOCKED_EXIT_CODE = 76
+WATCHER_GIT_RETRY_EXIT_CODE = 77
+RETRYABLE_GIT_ACTIONS = {
+    "fetch_failed",
+    "post_push_fetch_failed",
+    "push_failed",
+}
 WATCHER_SELF_UPDATE_PATHS = {"tools/run_bot_watch.py", "run_bot.bat"}
 WATCHDOG_HEARTBEAT_TIMEOUT_SEC = float(os.getenv(
     "WATCHDOG_HEARTBEAT_TIMEOUT_SEC", "180"))
@@ -112,10 +118,15 @@ def _print_sync_result(result: git_sync.SyncResult) -> None:
     )
     if result.rescue_branch:
         print(f"[Watch] Rescate Git: {result.rescue_branch}", flush=True)
-    if result.autosave_ref:
-        print(f"[Watch] Autosave Git: {result.autosave_ref[:8]}", flush=True)
     if result.error:
         print(f"[Watch] Git ERROR: {result.error}", flush=True)
+
+
+def _sync_failure_exit_code(result: git_sync.SyncResult) -> int:
+    if result.action in RETRYABLE_GIT_ACTIONS:
+        return WATCHER_GIT_RETRY_EXIT_CODE
+    return WATCHER_GIT_BLOCKED_EXIT_CODE
+
 
 def _local_head() -> str:
     return _git("rev-parse", "HEAD").stdout.strip()
@@ -134,9 +145,23 @@ def _remote_update_is_data_only(old_rev: str, new_rev: str) -> bool:
         return False
     subjects = [line.strip() for line in (log.stdout or "").splitlines()
                 if line.strip()]
-    if not subjects:
+    if not subjects or not all(
+        subject.startswith("data:") for subject in subjects
+    ):
         return False
-    return all(subject.startswith("data:") for subject in subjects)
+    diff = _git(
+        "diff", "--name-only", "--no-renames", f"{old_rev}..{new_rev}"
+    )
+    if diff.returncode != 0:
+        return False
+    paths = [
+        line.strip().replace("\\", "/")
+        for line in (diff.stdout or "").splitlines()
+        if line.strip()
+    ]
+    return bool(paths) and all(
+        path == "data" or path.startswith("data/") for path in paths
+    )
 
 
 def _paths_changed_between(old_rev: str, new_rev: str,
@@ -1019,7 +1044,7 @@ def main() -> int:
     _print_sync_result(sync)
     if not sync.ok:
         print("[Watch] Arranque bloqueado: Git no está verificado.", flush=True)
-        return WATCHER_GIT_BLOCKED_EXIT_CODE
+        return _sync_failure_exit_code(sync)
     last_local = str(sync.local_head)
     last_remote = str(sync.remote_head)
     proc = _spawn_bot()
@@ -1037,7 +1062,7 @@ def main() -> int:
                     or _refresh_heads_after_session_data_push()
                 )
                 if not session_sync.ok:
-                    return WATCHER_GIT_BLOCKED_EXIT_CODE
+                    return _sync_failure_exit_code(session_sync)
                 last_local = str(session_sync.local_head)
                 last_remote = str(session_sync.remote_head)
                 time.sleep(RELAUNCH_DELAY_SEC)
@@ -1061,7 +1086,7 @@ def main() -> int:
                     or _refresh_heads_after_session_data_push()
                 )
                 if not session_sync.ok:
-                    return WATCHER_GIT_BLOCKED_EXIT_CODE
+                    return _sync_failure_exit_code(session_sync)
                 last_local = str(session_sync.local_head)
                 last_remote = str(session_sync.remote_head)
                 time.sleep(RELAUNCH_DELAY_SEC)
@@ -1092,7 +1117,7 @@ def main() -> int:
                         or _refresh_heads_after_session_data_push()
                     )
                     if not session_sync.ok:
-                        return WATCHER_GIT_BLOCKED_EXIT_CODE
+                        return _sync_failure_exit_code(session_sync)
                     last_local = str(session_sync.local_head)
                     last_remote = str(session_sync.remote_head)
                     if watcher_self_update:
@@ -1108,7 +1133,7 @@ def main() -> int:
         _stop_bot(proc)
         session_sync = _push_session_data()
         if session_sync is not None and not session_sync.ok:
-            return WATCHER_GIT_BLOCKED_EXIT_CODE
+            return _sync_failure_exit_code(session_sync)
         return 0
 
 
@@ -1118,8 +1143,10 @@ def cli(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.final_backup:
         result = _push_session_data()
-        if result is not None and not result.ok:
-            return WATCHER_GIT_BLOCKED_EXIT_CODE
+        if result is None:
+            result = _refresh_heads_after_session_data_push()
+        if not result.ok:
+            return _sync_failure_exit_code(result)
         return 0
     return main()
 

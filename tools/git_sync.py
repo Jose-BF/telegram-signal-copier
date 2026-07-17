@@ -16,7 +16,6 @@ class SyncResult:
     local_head: str | None
     remote_head: str | None
     rescue_branch: str | None = None
-    autosave_ref: str | None = None
     error: str | None = None
 
 
@@ -96,9 +95,33 @@ def _local_commits_are_data_only(
         for line in (result.stdout or "").splitlines()
         if line.strip()
     ]
-    return bool(subjects) and all(
+    if not subjects or not all(
         subject.startswith("data:") for subject in subjects
+    ):
+        return False
+
+    merge_base = _output(repo_dir, "merge-base", remote_head, local_head)
+    if not merge_base:
+        return False
+    changed = _run_git(
+        repo_dir,
+        "diff",
+        "--name-only",
+        "--no-renames",
+        merge_base,
+        local_head,
     )
+    if changed.returncode != 0:
+        return False
+    paths = [
+        line.strip().replace("\\", "/")
+        for line in (changed.stdout or "").splitlines()
+        if line.strip()
+    ]
+    return bool(paths) and all(
+        path == "data" or path.startswith("data/") for path in paths
+    )
+
 
 def _rescue_branch(repo_dir: Path, head: str) -> str | None:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
@@ -112,34 +135,12 @@ def _rescue_branch(repo_dir: Path, head: str) -> str | None:
     return None
 
 
-def _dirty(repo_dir: Path) -> bool:
-    return bool(_output(repo_dir, "status", "--porcelain"))
-
-
-def _autosave(repo_dir: Path) -> tuple[str | None, str | None]:
-    if not _dirty(repo_dir):
-        return None, None
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    result = _run_git(
-        repo_dir,
-        "stash",
-        "push",
-        "--include-untracked",
-        "-m",
-        f"vm-autosave-{stamp}",
-    )
-    if result.returncode != 0:
-        return None, result.stderr or result.stdout or "git stash failed"
-    return _head(repo_dir, "refs/stash"), None
-
-
 def _failure(
     repo_dir: Path,
     action: str,
     error: str,
     *,
     rescue_branch: str | None = None,
-    autosave_ref: str | None = None,
 ) -> SyncResult:
     return SyncResult(
         ok=False,
@@ -148,7 +149,6 @@ def _failure(
         local_head=_head(repo_dir),
         remote_head=_head(repo_dir, "origin/main"),
         rescue_branch=rescue_branch,
-        autosave_ref=autosave_ref,
         error=str(error).strip(),
     )
 
@@ -167,7 +167,6 @@ def synchronize_repository(
     repo_dir = Path(repo_dir)
     remote_ref = f"{remote}/{branch}"
     rescue = None
-    autosave = None
 
     local = _head(repo_dir)
     if local is None:
@@ -209,6 +208,22 @@ def synchronize_repository(
             rescue_branch=rescue,
         )
 
+    worktree_status = _output(repo_dir, "status", "--porcelain")
+    if worktree_status is None:
+        return _failure(
+            repo_dir,
+            "worktree_status_failed",
+            "cannot verify the working tree",
+            rescue_branch=rescue,
+        )
+    if worktree_status:
+        return _failure(
+            repo_dir,
+            "dirty_worktree",
+            "uncommitted files must be preserved before moving Git refs",
+            rescue_branch=rescue,
+        )
+
     current_branch = _branch(repo_dir)
     if local == remote_head:
         action = "up_to_date"
@@ -223,47 +238,63 @@ def synchronize_repository(
                 )
             action = "attached"
     elif _is_ancestor(repo_dir, remote_head, local):
-        attached = _attach(repo_dir, branch, local)
-        if attached.returncode != 0:
-            return _failure(
-                repo_dir,
-                "attach_failed",
-                attached.stderr or attached.stdout,
-                rescue_branch=rescue,
+        if not _local_commits_are_data_only(repo_dir, remote_head, local):
+            if rescue is None:
+                rescue = _rescue_branch(repo_dir, local)
+            if rescue is None:
+                return _failure(
+                    repo_dir,
+                    "local_non_data_rescue_failed",
+                    "could not preserve local non-data commits",
+                )
+            attached = _attach(repo_dir, branch, remote_ref)
+            if attached.returncode != 0:
+                return _failure(
+                    repo_dir,
+                    "local_non_data_attach_failed",
+                    attached.stderr or attached.stdout,
+                    rescue_branch=rescue,
+                )
+            action = "local_non_data_rescued"
+        else:
+            attached = _attach(repo_dir, branch, local)
+            if attached.returncode != 0:
+                return _failure(
+                    repo_dir,
+                    "attach_failed",
+                    attached.stderr or attached.stdout,
+                    rescue_branch=rescue,
+                )
+            if not publish_local:
+                return _failure(
+                    repo_dir,
+                    "local_ahead_unpublished",
+                    "local data commits require publication",
+                    rescue_branch=rescue,
+                )
+            pushed = _run_git(repo_dir, "push", remote, f"HEAD:{branch}")
+            if pushed.returncode != 0:
+                return _failure(
+                    repo_dir,
+                    "push_failed",
+                    pushed.stderr or pushed.stdout,
+                    rescue_branch=rescue,
+                )
+            refreshed = _run_git(repo_dir, "fetch", remote, branch)
+            if refreshed.returncode != 0:
+                return _failure(
+                    repo_dir,
+                    "post_push_fetch_failed",
+                    refreshed.stderr or refreshed.stdout,
+                    rescue_branch=rescue,
+                )
+            action = (
+                "attached_and_pushed"
+                if current_branch != branch
+                else "pushed"
             )
-        if not publish_local:
-            return _failure(
-                repo_dir,
-                "local_ahead_unpublished",
-                "local commits require publication",
-                rescue_branch=rescue,
-            )
-        pushed = _run_git(repo_dir, "push", remote, f"HEAD:{branch}")
-        if pushed.returncode != 0:
-            return _failure(
-                repo_dir,
-                "push_failed",
-                pushed.stderr or pushed.stdout,
-                rescue_branch=rescue,
-            )
-        refreshed = _run_git(repo_dir, "fetch", remote, branch)
-        if refreshed.returncode != 0:
-            return _failure(
-                repo_dir,
-                "post_push_fetch_failed",
-                refreshed.stderr or refreshed.stdout,
-                rescue_branch=rescue,
-            )
-        action = "attached_and_pushed" if current_branch != branch else "pushed"
     elif _is_ancestor(repo_dir, local, remote_head):
-        autosave, stash_error = _autosave(repo_dir)
-        if stash_error:
-            return _failure(
-                repo_dir,
-                "autosave_failed",
-                stash_error,
-                rescue_branch=rescue,
-            )
+
         attached = _attach(repo_dir, branch, remote_ref)
         if attached.returncode != 0:
             return _failure(
@@ -271,7 +302,6 @@ def synchronize_repository(
                 "fast_forward_failed",
                 attached.stderr or attached.stdout,
                 rescue_branch=rescue,
-                autosave_ref=autosave,
             )
         action = "fast_forwarded"
     else:
@@ -283,14 +313,7 @@ def synchronize_repository(
                 "divergence_rescue_failed",
                 "could not preserve divergent local HEAD",
             )
-        autosave, stash_error = _autosave(repo_dir)
-        if stash_error:
-            return _failure(
-                repo_dir,
-                "autosave_failed",
-                stash_error,
-                rescue_branch=rescue,
-            )
+
         if (
             publish_local
             and _local_commits_are_data_only(repo_dir, remote_head, local)
@@ -304,7 +327,6 @@ def synchronize_repository(
                         "missing_rebased_head",
                         "rebase completed without a resolvable HEAD",
                         rescue_branch=rescue,
-                        autosave_ref=autosave,
                     )
                 attached = _attach(repo_dir, branch, rebased_head)
                 if attached.returncode != 0:
@@ -313,7 +335,6 @@ def synchronize_repository(
                         "attach_failed",
                         attached.stderr or attached.stdout,
                         rescue_branch=rescue,
-                        autosave_ref=autosave,
                     )
                 pushed = _run_git(repo_dir, "push", remote, f"HEAD:{branch}")
                 if pushed.returncode != 0:
@@ -322,22 +343,29 @@ def synchronize_repository(
                         "push_failed",
                         pushed.stderr or pushed.stdout,
                         rescue_branch=rescue,
-                        autosave_ref=autosave,
                     )
                 _run_git(repo_dir, "fetch", remote, branch)
                 action = "data_rebased_and_pushed"
             else:
-                _run_git(repo_dir, "rebase", "--abort")
-                attached = _attach(repo_dir, branch, remote_ref)
-                if attached.returncode != 0:
+                conflict_error = (
+                    rebased.stderr
+                    or rebased.stdout
+                    or "data rebase conflict"
+                )
+                aborted = _run_git(repo_dir, "rebase", "--abort")
+                if aborted.returncode != 0:
                     return _failure(
                         repo_dir,
-                        "divergence_attach_failed",
-                        attached.stderr or attached.stdout,
+                        "data_rebase_abort_failed",
+                        aborted.stderr or aborted.stdout,
                         rescue_branch=rescue,
-                        autosave_ref=autosave,
                     )
-                action = "data_conflict_rescued"
+                return _failure(
+                    repo_dir,
+                    "data_rebase_conflict",
+                    conflict_error,
+                    rescue_branch=rescue,
+                )
         else:
             attached = _attach(repo_dir, branch, remote_ref)
             if attached.returncode != 0:
@@ -346,7 +374,6 @@ def synchronize_repository(
                     "divergence_attach_failed",
                     attached.stderr or attached.stdout,
                     rescue_branch=rescue,
-                    autosave_ref=autosave,
                 )
             action = "diverged_rescued"
 
@@ -357,6 +384,7 @@ def synchronize_repository(
         final_branch != branch
         or final_local is None
         or final_local != final_remote
+        or _output(repo_dir, "status", "--porcelain") != ""
         or _rebase_in_progress(repo_dir)
     ):
         return _failure(
@@ -364,7 +392,6 @@ def synchronize_repository(
             "verification_failed",
             "repository did not reach verified main state",
             rescue_branch=rescue,
-            autosave_ref=autosave,
         )
     return SyncResult(
         ok=True,
@@ -373,5 +400,4 @@ def synchronize_repository(
         local_head=final_local,
         remote_head=final_remote,
         rescue_branch=rescue,
-        autosave_ref=autosave,
     )

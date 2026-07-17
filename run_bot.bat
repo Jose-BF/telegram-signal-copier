@@ -53,12 +53,27 @@ echo [%date% %time%] === SALIDA codigo=%EXITCODE% === >> logs\bot_runtime.log
 
 REM El watcher hace su propio backup en cierres controlados. Si muere antes,
 REM delegamos en el MISMO flujo; aqui no hay comandos Git paralelos.
-if not "%EXITCODE%"=="0" (
-    if not "%EXITCODE%"=="75" (
-        python -u tools\run_bot_watch.py --final-backup
-        if errorlevel 1 echo [Watch] backup final no publicado; estado preservado para rescate.
-    )
-)
+if "%EXITCODE%"=="77" goto retry_wait
+if "%EXITCODE%"=="0" goto restart_wait
+if "%EXITCODE%"=="75" goto restart_wait
+
+python -u tools\run_bot_watch.py --final-backup
+set BACKUPCODE=%errorlevel%
+if "%BACKUPCODE%"=="77" goto retry_wait
+if not "%BACKUPCODE%"=="0" goto backup_failed
+goto restart_wait
+
+:backup_failed
+echo [Watch] Estado Git bloqueado. Los datos siguen preservados; no arranco codigo sin verificar.
+exit /b 76
+
+:retry_wait
+echo.
+echo [Watch] Fallo temporal de red/Git. Reintento seguro en 60 segundos...
+timeout /t 60 /nobreak > nul
+goto restart
+
+:restart_wait
 
 echo.
 echo Reiniciando en 10 segundos...

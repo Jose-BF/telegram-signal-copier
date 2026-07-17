@@ -21,6 +21,7 @@ __pycache__/
 
 # Logs y datos de runtime
 logs/
+data_backup/
 *.log
 data/runtime_heartbeat.json
 data/runtime_heartbeat.json.tmp

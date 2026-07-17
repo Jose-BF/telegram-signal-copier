@@ -62,6 +62,27 @@ def test_main_blocks_bot_spawn_when_git_preflight_is_unsafe(monkeypatch):
 
     assert watch.main() == watch.WATCHER_GIT_BLOCKED_EXIT_CODE
 
+
+def test_main_retries_transient_git_transport_failure(monkeypatch):
+    retryable = _sync_result(
+        ok=False,
+        action="fetch_failed",
+        error="temporary network failure",
+    )
+    monkeypatch.setattr(
+        watch,
+        "_prepare_repository_for_runtime",
+        lambda: retryable,
+    )
+    monkeypatch.setattr(
+        watch,
+        "_spawn_bot",
+        lambda: pytest.fail("bot must not spawn before Git is verified"),
+    )
+
+    assert watch.main() == watch.WATCHER_GIT_RETRY_EXIT_CODE
+
+
 def _write_learning_artifacts(report_path, registry_path):
     sources = {
         "events": "a" * 64,
@@ -632,7 +653,7 @@ def test_cli_final_backup_returns_verified_status(monkeypatch):
     assert watch.cli(["--final-backup"]) == 0
 
 
-def test_cli_final_backup_returns_blocked_status(monkeypatch):
+def test_cli_final_backup_returns_retry_status_for_transport_failure(monkeypatch):
     monkeypatch.setattr(
         watch,
         "_push_session_data",
@@ -643,7 +664,26 @@ def test_cli_final_backup_returns_blocked_status(monkeypatch):
         ),
     )
 
+    assert watch.cli(["--final-backup"]) == watch.WATCHER_GIT_RETRY_EXIT_CODE
+
+
+def test_cli_final_backup_verifies_repository_when_nothing_was_committed(
+        monkeypatch):
+    calls = []
+    blocked = _sync_result(
+        ok=False,
+        action="dirty_worktree",
+        error="uncommitted source file",
+    )
+    monkeypatch.setattr(watch, "_push_session_data", lambda: None)
+    monkeypatch.setattr(
+        watch,
+        "_prepare_repository_for_runtime",
+        lambda: calls.append("sync") or blocked,
+    )
+
     assert watch.cli(["--final-backup"]) == watch.WATCHER_GIT_BLOCKED_EXIT_CODE
+    assert calls == ["sync"]
 
 
 def test_interrupted_pipeline_restores_previous_mutable_reports(
@@ -919,12 +959,20 @@ def test_refresh_after_session_data_push_uses_verified_state(monkeypatch):
 
 def test_remote_update_data_only_does_not_require_restart(monkeypatch):
     def fake_git(*args, capture=True):
-        assert args == ("log", "--format=%s", "old..new")
+        if args == ("log", "--format=%s", "old..new"):
+            stdout = (
+                "data: sesion 2026-05-27 03:10:29\n"
+                "data: sesion 2026-05-27 03:09:29\n"
+            )
+        elif args == (
+            "diff", "--name-only", "--no-renames", "old..new"
+        ):
+            stdout = "data/trade_events.jsonl\ndata/ledger.jsonl\n"
+        else:
+            raise AssertionError(args)
         return subprocess.CompletedProcess(
-            args=args, returncode=0,
-            stdout="data: sesion 2026-05-27 03:10:29\n"
-                   "data: sesion 2026-05-27 03:09:29\n",
-            stderr="")
+            args=args, returncode=0, stdout=stdout, stderr=""
+        )
 
     monkeypatch.setattr(watch, "_git", fake_git)
 
@@ -939,6 +987,25 @@ def test_remote_update_with_code_commit_requires_restart(monkeypatch):
             stdout="data: sesion 2026-05-27 03:10:29\n"
                    "fix: track ambiguous market fills\n",
             stderr="")
+
+    monkeypatch.setattr(watch, "_git", fake_git)
+
+    assert watch._remote_update_is_data_only("old", "new") is False
+
+
+def test_remote_data_subject_that_changes_code_requires_restart(monkeypatch):
+    def fake_git(*args, capture=True):
+        if args == ("log", "--format=%s", "old..new"):
+            stdout = "data: misleading subject\n"
+        elif args == (
+            "diff", "--name-only", "--no-renames", "old..new"
+        ):
+            stdout = "main.py\n"
+        else:
+            raise AssertionError(args)
+        return subprocess.CompletedProcess(
+            args=args, returncode=0, stdout=stdout, stderr=""
+        )
 
     monkeypatch.setattr(watch, "_git", fake_git)
 

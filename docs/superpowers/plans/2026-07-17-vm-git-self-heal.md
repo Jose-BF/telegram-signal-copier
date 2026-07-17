@@ -53,7 +53,6 @@ class SyncResult:
     local_head: str | None
     remote_head: str | None
     rescue_branch: str | None = None
-    autosave_ref: str | None = None
     error: str | None = None
 
 ```
@@ -62,10 +61,10 @@ Expose `synchronize_repository(repo_dir: Path, *, remote: str = "origin",
 branch: str = "main", publish_local: bool = True) -> SyncResult`. Use
 `git merge-base --is-ancestor` for relation classification. Before quitting a
 stale rebase, preserve HEAD in a unique `vm-rescue-*` branch. Use
-`git switch -C main <target>`, `git merge --ff-only origin/main`, and
-`git push origin HEAD:main`; never use an unbounded pull. Data-only divergence
-may rebase only after creating a rescue branch, and must abort cleanly on
-conflict. Non-data divergence switches to remote after rescue.
+`git switch -C main <target>` and `git push origin HEAD:main`; never use an
+unbounded pull. Auto-publish only commits whose subjects start with `data:`
+and whose changed paths stay under `data/`. A data conflict aborts and blocks
+startup. Non-data commits switch to remote only after a rescue branch exists.
 
 - [ ] **Step 4: Run tests and verify GREEN**
 
