@@ -16,7 +16,7 @@
 - Create: `tools/git_sync.py`
 - Create: `tests/test_git_sync.py`
 
-- [ ] **Step 1: Write real-repository failing tests**
+- [x] **Step 1: Write real-repository failing tests**
 
 Create temporary bare remotes and clones. Cover detached/equal, detached/local-ahead, remote-ahead, stale rebase, data-only divergence, and non-data divergence. Assert the public result contract:
 
@@ -30,7 +30,7 @@ assert result.action == "attached_and_pushed"
 
 For non-data divergence, assert that a `vm-rescue-*` branch preserves the old local HEAD and `main` activates `origin/main`.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run:
 
@@ -40,7 +40,7 @@ python -m pytest -q tests/test_git_sync.py
 
 Expected: collection/import failure because `tools.git_sync` does not exist.
 
-- [ ] **Step 3: Implement the minimal synchronizer**
+- [x] **Step 3: Implement the minimal synchronizer**
 
 Define:
 
@@ -66,7 +66,7 @@ unbounded pull. Auto-publish only commits whose subjects start with `data:`
 and whose changed paths stay under `data/`. A data conflict aborts and blocks
 startup. Non-data commits switch to remote only after a rescue branch exists.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
 Run:
 
@@ -76,7 +76,7 @@ python -m pytest -q tests/test_git_sync.py
 
 Expected: all Git state tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add tools/git_sync.py tests/test_git_sync.py
@@ -89,7 +89,7 @@ git commit -m "watch: add deterministic git synchronization"
 - Modify: `tools/run_bot_watch.py`
 - Modify: `tests/test_run_bot_watch.py`
 
-- [ ] **Step 1: Write failing watcher tests**
+- [x] **Step 1: Write failing watcher tests**
 
 Add tests that inject a `SyncResult` and prove:
 
@@ -101,7 +101,7 @@ assert spawn_calls == []
 
 The blocked case must not call `_spawn_bot`. The successful case must print the exact active commit and branch. Session publication must invoke the synchronizer and publish `HEAD:main` through it rather than calling `pull --rebase` or `push origin main` directly.
 
-- [ ] **Step 2: Run focused tests and verify RED**
+- [x] **Step 2: Run focused tests and verify RED**
 
 ```powershell
 python -m pytest -q tests/test_run_bot_watch.py
@@ -109,11 +109,11 @@ python -m pytest -q tests/test_run_bot_watch.py
 
 Expected: failures for missing preflight and launch gate.
 
-- [ ] **Step 3: Integrate the synchronizer**
+- [x] **Step 3: Integrate the synchronizer**
 
 Import `tools.git_sync`, add `WATCHER_GIT_BLOCKED_EXIT_CODE = 76`, and call the synchronizer before `_spawn_bot`. Replace `_pull_main_ff`, `_pull_main_and_refresh_heads`, and the post-commit pull/rebase/push block with one synchronization call. Return a structured result from `_push_session_data` so callers refresh their known heads from verified state.
 
-- [ ] **Step 4: Verify watcher tests**
+- [x] **Step 4: Verify watcher tests**
 
 ```powershell
 python -m pytest -q tests/test_run_bot_watch.py
@@ -121,7 +121,7 @@ python -m pytest -q tests/test_run_bot_watch.py
 
 Expected: all watcher tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add tools/run_bot_watch.py tests/test_run_bot_watch.py
@@ -136,7 +136,7 @@ git commit -m "watch: gate bot launch on verified main"
 - Modify: `tests/test_run_bot_watch.py`
 - Modify: `tests/test_run_bot_bat.py`
 
-- [ ] **Step 1: Write failing CLI and batch tests**
+- [x] **Step 1: Write failing CLI and batch tests**
 
 Assert that `cli(["--final-backup"])` invokes `_push_session_data` and returns non-zero when publication is unsafe. Assert batch text contains no `git pull --rebase`, no `git push origin main`, and delegates recovery with:
 
@@ -144,7 +144,7 @@ Assert that `cli(["--final-backup"])` invokes `_push_session_data` and returns n
 python -u tools\run_bot_watch.py --final-backup
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```powershell
 python -m pytest -q tests/test_run_bot_watch.py tests/test_run_bot_bat.py
@@ -152,11 +152,11 @@ python -m pytest -q tests/test_run_bot_watch.py tests/test_run_bot_bat.py
 
 Expected: failures because the CLI mode and batch delegation do not exist.
 
-- [ ] **Step 3: Implement CLI delegation and interruption recovery**
+- [x] **Step 3: Implement CLI delegation and interruption recovery**
 
 Add `cli(argv=None)` with normal and `--final-backup` modes. The final-backup mode calls the same data builder/publication path and exits according to its `SyncResult`. Replace the duplicated inline Python and Git commands in `run_bot.bat` with that mode. Snapshot mutable offline reports before regeneration and restore the snapshot only when `KeyboardInterrupt` or `SystemExit` aborts the pipeline, preventing deletion-only working trees.
 
-- [ ] **Step 4: Verify CLI and batch tests**
+- [x] **Step 4: Verify CLI and batch tests**
 
 ```powershell
 python -m pytest -q tests/test_run_bot_watch.py tests/test_run_bot_bat.py
@@ -164,7 +164,7 @@ python -m pytest -q tests/test_run_bot_watch.py tests/test_run_bot_bat.py
 
 Expected: all focused tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add tools/run_bot_watch.py run_bot.bat tests/test_run_bot_watch.py tests/test_run_bot_bat.py
@@ -177,7 +177,7 @@ git commit -m "watch: unify final backup and git recovery"
 - Modify: `main.py`
 - Modify: `tests/test_main_helpers.py`
 
-- [ ] **Step 1: Write the failing message test**
+- [x] **Step 1: Write the failing message test**
 
 Add a pure formatter test:
 
@@ -194,7 +194,7 @@ assert "MT5 conectado" in text
 assert "Canales 1 y 2 activos" in text
 ```
 
-- [ ] **Step 2: Run test and verify RED**
+- [x] **Step 2: Run test and verify RED**
 
 ```powershell
 python -m pytest -q tests/test_main_helpers.py
@@ -202,11 +202,11 @@ python -m pytest -q tests/test_main_helpers.py
 
 Expected: failure because `_startup_status_message` is missing.
 
-- [ ] **Step 3: Implement and send after successful connections**
+- [x] **Step 3: Implement and send after successful connections**
 
 Create the pure formatter and call the existing `listener.notify()` only after `executor.init()`, `client.start()`, and `client.get_me()` have succeeded. Journal `startup_version_confirmed` with the same Git fields before sending.
 
-- [ ] **Step 4: Verify helper tests**
+- [x] **Step 4: Verify helper tests**
 
 ```powershell
 python -m pytest -q tests/test_main_helpers.py
@@ -214,7 +214,7 @@ python -m pytest -q tests/test_main_helpers.py
 
 Expected: all helper tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add main.py tests/test_main_helpers.py
@@ -226,7 +226,7 @@ git commit -m "watch: notify active production version"
 **Files:**
 - Verify all modified files
 
-- [ ] **Step 1: Compile changed Python modules**
+- [x] **Step 1: Compile changed Python modules**
 
 ```powershell
 python -m py_compile tools/git_sync.py tools/run_bot_watch.py main.py
@@ -234,7 +234,7 @@ python -m py_compile tools/git_sync.py tools/run_bot_watch.py main.py
 
 Expected: exit code 0.
 
-- [ ] **Step 2: Run the complete test suite**
+- [x] **Step 2: Run the complete test suite**
 
 ```powershell
 python -m pytest -q
@@ -242,7 +242,7 @@ python -m pytest -q
 
 Expected: no failures.
 
-- [ ] **Step 3: Inspect repository state**
+- [x] **Step 3: Inspect repository state**
 
 ```powershell
 git diff --check
