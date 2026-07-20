@@ -1,4 +1,5 @@
 import copy
+import gzip
 import hashlib
 import importlib
 import json
@@ -417,7 +418,19 @@ def test_compact_run_is_published_once_and_idempotent(tmp_path):
     assert second.idempotent is True
     assert len(list((tmp_path / "runs").glob("[0-9a-f]*"))) == 1
     assert (first.run_dir / "run_card.json").is_file()
-    assert (first.run_dir / "strategy_farm.json").is_file()
+    archive = first.run_dir / "strategy_farm.json.gz"
+    assert archive.is_file()
+    assert not (first.run_dir / "strategy_farm.json").exists()
+    canonical = provenance.pretty_json_bytes(first.report)
+    assert gzip.decompress(archive.read_bytes()) == canonical
+    card = json.loads((first.run_dir / "run_card.json").read_text())
+    artifact = card["artifacts"][0]
+    assert artifact["path"] == "strategy_farm.json.gz"
+    assert artifact["compression"] == "gzip"
+    assert artifact["canonical_size_bytes"] == len(canonical)
+    assert artifact["canonical_sha256"] == hashlib.sha256(canonical).hexdigest()
+    assert artifact["size_bytes"] == archive.stat().st_size
+    assert artifact["sha256"] == provenance.sha256_file(archive)
 
 
 def test_blocked_market_replay_is_archived_as_diagnostic(tmp_path):
@@ -480,15 +493,43 @@ def test_corrupt_retained_artifact_fails_closed(tmp_path):
     first = provenance.publish_run_archive(
         **_publish_args(tmp_path, evidence, report),
     )
-    (first.run_dir / "strategy_farm.json").write_text(
-        "corrupt\n",
-        encoding="utf-8",
-    )
+    (first.run_dir / "strategy_farm.json.gz").write_bytes(b"corrupt\n")
 
     with pytest.raises(provenance.ProvenanceConflictError):
         provenance.publish_run_archive(
             **_publish_args(tmp_path, evidence, report),
         )
+
+
+def test_legacy_uncompressed_archive_remains_readable(tmp_path):
+    provenance = _provenance()
+    evidence, report = _complete_evidence(tmp_path)
+    first = provenance.publish_run_archive(
+        **_publish_args(tmp_path, evidence, report),
+    )
+    archive = first.run_dir / "strategy_farm.json.gz"
+    canonical = gzip.decompress(archive.read_bytes())
+    legacy = first.run_dir / "strategy_farm.json"
+    legacy.write_bytes(canonical)
+    archive.unlink()
+    card_path = first.run_dir / "run_card.json"
+    card = json.loads(card_path.read_text(encoding="utf-8"))
+    artifact = card["artifacts"][0]
+    artifact.clear()
+    artifact.update({
+        "path": "strategy_farm.json",
+        "size_bytes": len(canonical),
+        "sha256": hashlib.sha256(canonical).hexdigest(),
+        "retained": True,
+    })
+    card_path.write_text(json.dumps(card), encoding="utf-8")
+
+    repeated = provenance.publish_run_archive(
+        **_publish_args(tmp_path, evidence, {**report, "generated_at": "later"}),
+    )
+
+    assert repeated.idempotent is True
+    assert repeated.run_dir == first.run_dir
 
 
 def test_incomplete_evidence_marks_latest_report_without_archive(tmp_path):
@@ -521,6 +562,7 @@ def test_detailed_result_is_referenced_but_not_copied(tmp_path):
 
     card = json.loads((result.run_dir / "run_card.json").read_text())
     assert not (result.run_dir / "strategy_farm.json").exists()
+    assert not (result.run_dir / "strategy_farm.json.gz").exists()
     assert card["artifacts"][0]["retained"] is False
 
 

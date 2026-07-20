@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import gzip
 import hashlib
 import json
 import math
@@ -542,6 +543,51 @@ def _retained_artifact_path(run_dir: Path, relative_path: str) -> Path:
     return artifact_path
 
 
+def _gzip_bytes(data: bytes) -> bytes:
+    """Return deterministic gzip bytes for stable Git artifacts."""
+    return gzip.compress(data, compresslevel=9, mtime=0)
+
+
+def _decode_retained_artifact(
+    path: Path,
+    artifact: Mapping[str, Any],
+) -> bytes:
+    stored = path.read_bytes()
+    compression = artifact.get("compression")
+    if compression in (None, "", "none"):
+        canonical = stored
+    elif compression == "gzip":
+        try:
+            canonical = gzip.decompress(stored)
+        except (OSError, EOFError) as exc:
+            raise ProvenanceConflictError(
+                f"invalid_retained_artifact_gzip:{artifact.get('path')}"
+            ) from exc
+    else:
+        raise ProvenanceConflictError(
+            f"unsupported_retained_artifact_compression:{compression}"
+        )
+
+    if compression == "gzip":
+        try:
+            expected_size = int(artifact["canonical_size_bytes"])
+            expected_hash = str(artifact["canonical_sha256"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ProvenanceConflictError(
+                f"invalid_retained_artifact_canonical_record:"
+                f"{artifact.get('path')}"
+            ) from exc
+        if len(canonical) != expected_size:
+            raise ProvenanceConflictError(
+                f"artifact_canonical_size_mismatch:{artifact.get('path')}"
+            )
+        if hashlib.sha256(canonical).hexdigest() != expected_hash:
+            raise ProvenanceConflictError(
+                f"artifact_canonical_hash_mismatch:{artifact.get('path')}"
+            )
+    return canonical
+
+
 def _validate_existing(
     run_dir: Path,
     evidence: Mapping[str, Any],
@@ -606,8 +652,10 @@ def _validate_existing(
                 f"artifact_hash_mismatch:{relative_path}"
             )
         try:
-            retained_report = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
+            retained_report = json.loads(
+                _decode_retained_artifact(path, artifact).decode("utf-8")
+            )
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise ProvenanceConflictError(
                 f"invalid_retained_artifact_json:{relative_path}"
             ) from exc
@@ -655,15 +703,22 @@ def _validate_report_bytes(
     artifact = artifacts[0]
     if bool(artifact.get("retained")) == include_trades:
         raise ProvenanceConflictError("existing_artifact_retention_mismatch")
+    canonical_record = bool(
+        artifact.get("retained") and artifact.get("compression") == "gzip"
+    )
+    size_field = (
+        "canonical_size_bytes" if canonical_record else "size_bytes"
+    )
+    hash_field = "canonical_sha256" if canonical_record else "sha256"
     try:
-        expected_size = int(artifact.get("size_bytes") or -1)
+        expected_size = int(artifact.get(size_field) or -1)
     except (TypeError, ValueError) as exc:
         raise ProvenanceConflictError(
             "invalid_existing_report_artifact_size"
         ) from exc
     if expected_size != len(report_bytes):
         raise ProvenanceConflictError("existing_report_size_mismatch")
-    if str(artifact.get("sha256")) != hashlib.sha256(report_bytes).hexdigest():
+    if str(artifact.get(hash_field)) != hashlib.sha256(report_bytes).hexdigest():
         raise ProvenanceConflictError("existing_report_hash_mismatch")
 
 
@@ -758,6 +813,7 @@ def publish_run_archive(
 
     report_bytes = pretty_json_bytes(latest)
 
+    archive_bytes = None
     if include_trades:
         artifacts = [{
             "path": _portable_path(Path(output_path), Path(repo_dir)),
@@ -766,10 +822,14 @@ def publish_run_archive(
             "retained": False,
         }]
     else:
+        archive_bytes = _gzip_bytes(report_bytes)
         artifacts = [{
-            "path": "strategy_farm.json",
-            "size_bytes": len(report_bytes),
-            "sha256": hashlib.sha256(report_bytes).hexdigest(),
+            "path": "strategy_farm.json.gz",
+            "compression": "gzip",
+            "size_bytes": len(archive_bytes),
+            "sha256": hashlib.sha256(archive_bytes).hexdigest(),
+            "canonical_size_bytes": len(report_bytes),
+            "canonical_sha256": hashlib.sha256(report_bytes).hexdigest(),
             "retained": True,
         }]
 
@@ -790,7 +850,7 @@ def publish_run_archive(
     try:
         (temp_dir / "run_card.json").write_bytes(pretty_json_bytes(card))
         if not include_trades:
-            (temp_dir / "strategy_farm.json").write_bytes(report_bytes)
+            (temp_dir / "strategy_farm.json.gz").write_bytes(archive_bytes)
         try:
             temp_dir.replace(run_dir)
         except OSError:
