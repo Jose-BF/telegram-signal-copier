@@ -14,18 +14,10 @@
     "2026-07-17",
     "2026-07-20"
   ],
-  "ensure_stats": {
-    "cached_already": 0,
-    "downloaded": 1,
-    "empty_days": 0,
-    "total_ticks": 63680
-  },
+  "ensure_stats": {},
   "missing_days": [],
   "ok": true,
-  "reference_evidence_days": [
-    "2026-07-20"
-  ],
-  "refresh_removed_days": [],
+  "reference_evidence_days": [],
   "required_days": [
     "2026-07-06",
     "2026-07-07",

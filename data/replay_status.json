@@ -1,13 +1,13 @@
 {
   "ok": true,
-  "started_at": "2026-07-20T12:12:01+00:00",
-  "finished_at": "2026-07-20T12:12:03+00:00",
-  "duration_s": 1.99,
+  "started_at": "2026-07-20T22:29:52+00:00",
+  "finished_at": "2026-07-20T22:29:54+00:00",
+  "duration_s": 1.51,
   "returncode": 0,
   "stdout": "",
   "stderr": "",
   "replay_exists": true,
-  "replay_size_bytes": 11394310,
+  "replay_size_bytes": 11842438,
   "command": [
     "C:\\Program Files\\Python311\\python.exe",
     "build_replay_trades.py",
