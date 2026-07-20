@@ -1,6 +1,6 @@
 {
   "artifacts_valid": true,
-  "attempted_at_utc": "2026-07-20T22:42:32+00:00",
+  "attempted_at_utc": "2026-07-20T23:31:57+00:00",
   "blockers": [
     "dependency_failed:strategy_farm"
   ],
@@ -21,17 +21,17 @@
   },
   "error": null,
   "fresh": false,
-  "git_commit": "8ce9a461aef5713cebf1241aeb594113e50c8541",
+  "git_commit": "2b93c3749e3a32b849f53971ce41b4f012822335",
   "git_dirty": true,
-  "latest_evidence_utc": "2026-07-20T22:34:40.908+00:00",
+  "latest_evidence_utc": "2026-07-20T22:43:12.586+00:00",
   "ok": false,
-  "publication_id": "10ff781372e047851011e93e631d10f35b03b3e5a9a473a7c83a3a7f00d52ac9",
-  "registry_sha256": "1f22819e8e8c407e0a61e22f7e884ea66d907fdd7826d44a25e29f6bda2892e6",
-  "report_sha256": "9ee519bebcd692ddf720f82791ddb6124ca8534bf5a588ef7698b62e2eea3579",
+  "publication_id": "69edaaf4d6a6fa793d93846999efd5e6f00b1ee3358909a516f21e95a097402f",
+  "registry_sha256": "ac79c2e7a316601e5d87776a59aa4931c65cab7b3409052a31dfac75a68ce788",
+  "report_sha256": "864e2ec6d51d896541d87475dbacf397e58234a68836f32e13091e2b76f7113c",
   "review_fingerprint": "5991733f918759f7d59feba8a0c6c7ffd96f8ea955e25d1ad416b018f1f3a4af",
   "schema_version": 1,
   "source_dirty": false,
-  "source_fingerprint": "085217da498563443a4df4bd112d6d1886e8379173308b7c743d4dcdb0dac31e",
+  "source_fingerprint": "7817e1aa74961ba2466742f95fb7d4ec1c7560a3130c0555d5ee679416836b15",
   "strategy_blockers": [
     "accounting",
     "execution",
