@@ -36,7 +36,7 @@ class TestOk:
 
 class TestStops:
     """SL/TP inválidos respecto al precio actual. pending_actions reintenta
-    tick-a-tick. Si lleva >30s atascado → DROP_STOPS_STRUCTURAL + notify."""
+    con cooldown y avisa una vez si el bloqueo supera el umbral."""
 
     @pytest.mark.parametrize("retcode,name", [
         (10016, "TRADE_RETCODE_INVALID_STOPS"),
@@ -63,13 +63,14 @@ class TestTransient:
         (10021, "TRADE_RETCODE_PRICE_OFF"),
         (10018, "TRADE_RETCODE_MARKET_CLOSED"),
         (10027, "TRADE_RETCODE_CLIENT_DISABLES_AT"),
+        (10029, "TRADE_RETCODE_FROZEN"),
     ])
     def test_classified_as_transient(self, retcode, name):
         assert classify(retcode) == "TRANSIENT", \
             f"esperado TRANSIENT para {name} ({retcode})"
 
     def test_transient_set_membership(self):
-        assert TRANSIENT == {10004, 10008, 10021, 10018, 10027}
+        assert TRANSIENT == {10004, 10008, 10021, 10018, 10027, 10029}
 
 
 # ─── Categoría POSITION_GONE ────────────────────────────────────────────────
@@ -167,7 +168,7 @@ class TestPendingActionsContract:
       OK            → DONE
       POSITION_GONE → DONE (éxito implícito)
       TRANSIENT     → RETRY
-      STOPS         → RETRY si <30s, DROP_STOPS_STRUCTURAL si ≥30s
+      STOPS         → RETRY con preflight actualizado y cooldown
       PERMANENT     → DROP
       UNKNOWN       → DROP
     """

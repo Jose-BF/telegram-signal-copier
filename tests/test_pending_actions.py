@@ -22,6 +22,7 @@ from pending_actions import (
     PendingAction,
     DEFAULT_TIMEOUT_S,
     _record_confirmed_levels,
+    _should_alert_stuck_stops,
 )
 from state import Signal
 
@@ -242,7 +243,7 @@ class TestModifyPreconditions:
         assert act.signal.tp_by_ticket == {12345: 4052.0}
 
     @pytest.mark.asyncio
-    async def test_unexpected_broker_invalid_stops_drops_after_one_submission(
+    async def test_unexpected_broker_invalid_stops_rechecks_after_cooldown(
         self,
         monkeypatch,
     ):
@@ -265,9 +266,29 @@ class TestModifyPreconditions:
 
         result = await q._try_once(act)
 
-        assert result == "DROP_STOPS_STRUCTURAL"
+        assert result == "RETRY"
         assert act.attempts == 1
         assert act.last_retcode == 10016
+        assert act.retry_not_before > time.time()
+
+    @pytest.mark.asyncio
+    async def test_retry_cooldown_does_not_resubmit_same_modify(
+        self,
+        monkeypatch,
+    ):
+        q = PendingQueue()
+        act = _make_action(new_sl=4059.61)
+        act.retry_not_before = time.time() + 1.0
+        submitted = []
+        monkeypatch.setattr(
+            "pending_actions.executor.preflight_modify_sltp",
+            lambda *args, **kwargs: submitted.append("preflight"),
+        )
+
+        result = await q._try_once(act)
+
+        assert result == "WAIT_RETRY_COOLDOWN"
+        assert submitted == []
 
     def test_equivalent_modify_actions_share_one_queue_slot(self, monkeypatch):
         q = PendingQueue()
@@ -296,11 +317,19 @@ class TestModifyPreconditions:
 
         text = PendingQueue._format_structural_notification(actions)
 
-        assert "Canal 2" in text
+        assert "Gold Signals" in text
         assert "BUY" in text
         assert "5 posiciones" in text
         assert "101, 102, 103, 104, 105" in text
         assert "1 intento MT5 por posicion" in text
+        assert "continua reintentando" in text.lower()
+
+
+def test_stuck_stops_alerts_once_after_threshold():
+    assert _should_alert_stuck_stops(10016, 30.0, 30.0, False) is True
+    assert _should_alert_stuck_stops(10016, 29.9, 30.0, False) is False
+    assert _should_alert_stuck_stops(10016, 60.0, 30.0, True) is False
+    assert _should_alert_stuck_stops(10029, 60.0, 30.0, False) is False
 
 
 class TestForensicLifecycleLogging:

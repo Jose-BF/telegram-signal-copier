@@ -78,6 +78,22 @@ class TestClassifyPositionPnlsQuery:
         assert _classify_position_pnls_query(()) == "empty"
 
 
+class TestOpenEntryPrices:
+    def test_returns_only_tickets_that_are_still_open(self, monkeypatch):
+        positions = (
+            SimpleNamespace(ticket=101, price_open=4030.25),
+            SimpleNamespace(ticket=999, price_open=4100.0),
+        )
+        monkeypatch.setattr(executor.mt5, "positions_get", lambda: positions)
+
+        assert executor.open_entry_prices([101, 102]) == {101: 4030.25}
+
+    def test_returns_none_when_mt5_query_failed(self, monkeypatch):
+        monkeypatch.setattr(executor.mt5, "positions_get", lambda: None)
+
+        assert executor.open_entry_prices([101]) is None
+
+
 class TestSigIdFromOrderComment:
     def test_market_comment(self):
         assert _sig_id_from_order_comment("c2_12747") == "canal2_12747"

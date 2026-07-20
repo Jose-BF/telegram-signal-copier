@@ -72,6 +72,12 @@ _RX_SIG = re.compile(r"^(DCA_)?c([12])_(\d{4,})(_B\d*|_rescue)?")
 _RX_DCA_OLD = re.compile(r"^DCA_[\d.]+$")
 
 
+def _mt5_history_query_end(now_utc: datetime | None = None) -> datetime:
+    """Return a future-safe upper bound for broker-server timestamps."""
+    now_utc = now_utc or datetime.now(timezone.utc)
+    return now_utc + timedelta(days=1)
+
+
 def parse_sig_role(comment: str):
     """Del comment de un deal devuelve (sig_id, role).
 
@@ -1076,7 +1082,7 @@ def main():
                       - timedelta(days=1))
         else:
             t_from = datetime.now(timezone.utc) - timedelta(days=30)
-    t_to = datetime.now(timezone.utc) + timedelta(hours=2)
+    t_to = _mt5_history_query_end()
 
     # Senales que el journal dice que rellenaron posicion en las ultimas 48h.
     # Son las unicas sujetas a la race de sincronizacion del historial MT5:

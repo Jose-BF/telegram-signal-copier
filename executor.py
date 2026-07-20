@@ -885,6 +885,25 @@ def entry_price(ticket: int) -> Optional[float]:
     return pos[0].price_open if pos else None
 
 
+def open_entry_prices(tickets: list[int]) -> Optional[dict[int, float]]:
+    """Return exact entries for requested tickets that are currently open.
+
+    ``None`` means the MT5 query failed; an empty/partial dict means the
+    absent tickets are already closed.
+    """
+    if not tickets:
+        return {}
+    all_open = mt5.positions_get()
+    if all_open is None:
+        return None
+    wanted = set(tickets)
+    return {
+        int(position.ticket): float(position.price_open)
+        for position in all_open
+        if position.ticket in wanted
+    }
+
+
 def position_pnls(tickets: list[int]) -> list[tuple[int, float]]:
     """Devuelve [(ticket, floating_pnl), ...] para los tickets que SIGUEN abiertos.
 
@@ -1010,6 +1029,8 @@ def list_open_positions_grouped() -> dict[str, dict]:
                 "market_open_time": None,  # epoch UTC (MT5 position.time)
                 "extra_market_tickets": [],   # Market B del doble market
                 "dca_tickets": [],
+                "resync_anchor_role": None,
+                "_surviving_market_candidates": [],
             }
 
         if is_market:
@@ -1021,15 +1042,34 @@ def list_open_positions_grouped() -> dict[str, dict]:
             # Lo necesitamos para reconstruir signal.timestamp tras un restart
             # y que el time-stop dispare al cabo del tiempo correcto.
             groups[sig_id]["market_open_time"] = int(p.time) if p.time else None
+            groups[sig_id]["resync_anchor_role"] = "original_market"
         elif is_market_b:
             # Market B del doble market — antes se ignoraba (no matcheaba
             # ningun regex). canal2_12497 perdio +$6.05 por esto.
             groups[sig_id]["extra_market_tickets"].append(p.ticket)
+            groups[sig_id]["_surviving_market_candidates"].append(p)
         elif is_rescue or is_dca:
             groups[sig_id]["dca_tickets"].append(p.ticket)
 
     # Step 2: asociar DCAs viejos al market más cercano del mismo magic
     # abierto antes que el DCA. Heurística simple pero suficiente.
+    # The original leg can close before a restart while later scale-out legs
+    # remain open. Use the earliest survivor as a stable reconstruction anchor.
+    for group in groups.values():
+        if group["market_ticket"] or not group["_surviving_market_candidates"]:
+            continue
+        anchor = min(
+            group["_surviving_market_candidates"],
+            key=lambda p: (int(p.time or 0), int(p.ticket)),
+        )
+        group["market_ticket"] = anchor.ticket
+        group["market_price"] = anchor.price_open
+        group["market_sl"] = anchor.sl if anchor.sl > 0 else None
+        group["market_tp"] = anchor.tp if anchor.tp > 0 else None
+        group["market_open_time"] = int(anchor.time) if anchor.time else None
+        group["extra_market_tickets"].remove(anchor.ticket)
+        group["resync_anchor_role"] = "surviving_scale_out_leg"
+
     for dca in dcas_old_format:
         candidate_groups = [
             (sid, g) for sid, g in groups.items()
@@ -1043,4 +1083,9 @@ def list_open_positions_grouped() -> dict[str, dict]:
         best_g["dca_tickets"].append(dca.ticket)
 
     # Step 3: filtrar grupos sin market (no podemos reconstruir signal sin él)
-    return {sid: g for sid, g in groups.items() if g["market_ticket"]}
+    result = {}
+    for sid, group in groups.items():
+        group.pop("_surviving_market_candidates", None)
+        if group["market_ticket"]:
+            result[sid] = group
+    return result

@@ -171,7 +171,20 @@ class TestMoveSlToBe:
 
     def test_take_partials_set_breakeven_zero_risk(self):
         actions = _actions("Take partials\n\nSet breakeven for zero risk")
-        assert "MOVE_SL_TO_BE" in [a["action"] for a in actions]
+        names = [a["action"] for a in actions]
+        assert "CLOSE_PARTIAL" in names
+        assert "MOVE_SL_TO_BE" in names
+
+    def test_real_canal2_partial_profit_and_risk_free_preserves_both_intents(self):
+        actions = _actions(
+            "+35 pips from best entry. I am closing partial profits "
+            "and making my trade risk free."
+        )
+
+        assert [action["action"] for action in actions] == [
+            "CLOSE_PARTIAL",
+            "MOVE_SL_TO_BE",
+        ]
 
     def test_make_stop_loss_price_without_to(self):
         actions = _actions("For those with better entries make your stop loss 4099")

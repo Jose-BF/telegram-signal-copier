@@ -5,13 +5,14 @@ Clasificación de códigos de error de MT5 y manejo de stops_level del broker.
 import MetaTrader5 as mt5
 import config
 
-# Códigos que justifican reintentar inmediatamente
+# Códigos transitorios que justifican reintentar
 TRANSIENT = {
     10004,  # TRADE_RETCODE_REQUOTE           — requote
     10008,  # TRADE_RETCODE_PLACED            — placed pero no ejecutado aún
     10021,  # TRADE_RETCODE_PRICE_OFF         — precio desactualizado
     10018,  # TRADE_RETCODE_MARKET_CLOSED     — mercado cerrado (puede reabrir)
     10027,  # TRADE_RETCODE_CLIENT_DISABLES_AT — algoritmo desactivado temporalmente
+    10029,  # TRADE_RETCODE_FROZEN            — posicion congelada temporalmente
 }
 
 # Códigos por precio/stops — encolar para reintento en cada tick

@@ -40,6 +40,8 @@ Available actions:
 - CLOSE_ALL        → close ALL positions for this trade
 - CLOSE_FIRST      → close the FIRST/EARLIEST entries
 - CLOSE_AT_TP      → close position at specific TP (price = tp number 1..5)
+- CLOSE_PARTIAL    → record that the provider took partial profit; do not
+                     invent a live close quantity
 - MOVE_SL_TO_BE    → move stop loss to breakeven / entry / 0% risk
 - MOVE_SL_TO_PRICE → move stop loss to specific price (price = the number)
 - INFORMATIONAL    → no action needed (TP/SL hit announcements, status, commentary)
@@ -201,7 +203,7 @@ run every action through a firewall before MT5:
   "message_role": "direct_order|conditional_plan|optional_suggestion|daily_summary|weekly_summary|progress_update|market_commentary|media_companion|unknown",
   "actions": [
     {{
-      "type": "CLOSE_ALL|CLOSE_FIRST|CLOSE_AT_TP|MOVE_SL_TO_BE|MOVE_SL_TO_PRICE|LEVEL_UPDATE|LEVEL_CORRECTION|ENTRY_UPDATE|REENTRY_SIGNAL|CONDITIONAL_PLAN|OPTIONAL_SUGGESTION|TP_HIT_ANNOUNCEMENT|SL_HIT_ANNOUNCEMENT|BE_ANNOUNCEMENT|PROGRESS_UPDATE|DAILY_SUMMARY|WEEKLY_SUMMARY|MARKET_COMMENTARY|HIGH_RISK_WARNING|UNKNOWN",
+      "type": "CLOSE_ALL|CLOSE_FIRST|CLOSE_AT_TP|CLOSE_PARTIAL|MOVE_SL_TO_BE|MOVE_SL_TO_PRICE|LEVEL_UPDATE|LEVEL_CORRECTION|ENTRY_UPDATE|REENTRY_SIGNAL|CONDITIONAL_PLAN|OPTIONAL_SUGGESTION|TP_HIT_ANNOUNCEMENT|SL_HIT_ANNOUNCEMENT|BE_ANNOUNCEMENT|PROGRESS_UPDATE|DAILY_SUMMARY|WEEKLY_SUMMARY|MARKET_COMMENTARY|HIGH_RISK_WARNING|UNKNOWN",
       "price": null_or_number,
       "confidence": 0.0_to_1.0,
       "target": "all_open_positions|first_entries|single_position|none",
@@ -289,6 +291,19 @@ def _canal1_safe_regex_classify(text: str) -> list[dict]:
 
     actions: list[dict] = []
 
+    if re.search(
+        r"\b(?:TAKE|CLOSE|CLOSING|BOOK|SECURE)\s+(?:SOME\s+)?"
+        r"PARTIAL(?:S|\s+PROFITS?)?\b",
+        t,
+        re.IGNORECASE,
+    ):
+        actions.append({
+            "action": "CLOSE_PARTIAL",
+            "price": None,
+            "confidence": 0.95,
+            "_reason": "provider_partial_profit",
+        })
+
     be_phrases = [
         r"\bmove\s+(?:my\s+|your\s+|the\s+)?sl\s+to\s+be\b",
         r"\bmove\s+(?:my\s+|your\s+|the\s+)?stop.?loss\s+to\s+(?:be|breakeven|entry)\b",
@@ -375,6 +390,21 @@ def _regex_classify_all(text: str) -> list[dict]:
         if m and not any(neg in t for neg in _NEG_SL_HIT):
             actions.append({"action": "MOVE_SL_TO_PRICE",
                             "price": float(m.group(1)), "confidence": 0.80})
+
+    # Preserve the provider's partial-profit decision without inventing how
+    # many of our positions should close live.
+    if re.search(
+        r"\b(?:TAKE|CLOSE|CLOSING|BOOK|SECURE)\s+(?:SOME\s+)?"
+        r"PARTIAL(?:S|\s+PROFITS?)?\b",
+        t,
+        re.IGNORECASE,
+    ):
+        actions.append({
+            "action": "CLOSE_PARTIAL",
+            "price": None,
+            "confidence": 0.95,
+            "_reason": "provider_partial_profit",
+        })
 
     # 2. SL a BE / risk-free / breakeven
     be_phrases = [

@@ -22,12 +22,14 @@ from types import SimpleNamespace
 from telethon import TelegramClient, events
 
 import config
+import alert_graphics
 import executor
 import journal
 import logger
 import position_lifecycle_monitor
 import pending_actions
 import strategies
+import telegram_notifications
 from classifier import classify, classify_async
 from interpretation_firewall import (
     firewall_decision,
@@ -46,6 +48,7 @@ from parser import (
     predict_sl_from_entry,
     validate_range_vs_entry,
 )
+from provider_names import provider_display_name
 from state import Signal, state
 from market_context import compute_market_context
 
@@ -137,6 +140,7 @@ def _telegram_raw_payload(msg, channel: str, update_kind: str) -> dict:
 
     return {
         "channel": channel,
+        "chat_id": getattr(msg, "chat_id", None),
         "message_id": getattr(msg, "id", None),
         "update_kind": update_kind,
         "date_utc": _iso_or_none(getattr(msg, "date", None)),
@@ -939,6 +943,16 @@ async def notify(text: str):
                       text_preview=text_preview, text_len=len(text))
 
 
+async def _resolve_notify_chat_id():
+    chat_id = config.NOTIFY_CHAT_ID
+    if isinstance(chat_id, str) and chat_id.strip().lower() == "me":
+        me = await client.get_me()
+        return me.id
+    if isinstance(chat_id, str) and chat_id.lstrip("-").isdigit():
+        return int(chat_id)
+    return chat_id
+
+
 # ─── Notify contextual: decisión ambigua ──────────────────────────────────────
 #
 # Cuando el classifier (Gemini) devuelve una acción no-INFO con confianza
@@ -964,27 +978,63 @@ def _fmt_signed_money(value) -> str:
 
 
 def _human_channel(channel: str) -> str:
-    mapping = {
-        "canal1": "Canal 1",
-        "canal2": "Canal 2",
-    }
-    return mapping.get(str(channel or "").lower(), str(channel or "Canal ?"))
+    return provider_display_name(channel)
 
 
 def _human_review_action(action: str) -> str:
     mapping = {
-        "REENTRY_SIGNAL": "Posible reentrada o cambio de plan",
-        "ENTRY_UPDATE": "Cambio de entrada o niveles",
-        "SIGNAL_UPDATED": "Cambio amplio de la senal",
-        "PROTECT_AND_NOTIFY": "Proteger operacion",
-        "MOVE_SL_TO_BE": "Mover SL a BE",
-        "MOVE_SL_TO_PRICE": "Mover SL a precio",
-        "CLOSE_ALL": "Cerrar todo",
-        "CLOSE_FIRST": "Cerrar primeras posiciones",
-        "UNKNOWN": "Mensaje no claro",
-        "AMBIGUOUS": "Lectura ambigua",
+        "REENTRY_SIGNAL": "detectó una posible reentrada",
+        "ENTRY_UPDATE": "detectó un cambio de entrada o niveles",
+        "LEVEL_UPDATE": "detectó niveles nuevos",
+        "LEVEL_CORRECTION": "detectó una corrección de niveles",
+        "SIGNAL_UPDATED": "detectó un cambio general de la señal",
+        "PROTECT_AND_NOTIFY": "detectó una sugerencia de protección",
+        "OPTIONAL_SUGGESTION": "detectó una sugerencia opcional",
+        "MOVE_SL_TO_BE": "detectó una orden de mover el SL a BE",
+        "MOVE_SL_TO_PRICE": "detectó una orden de cambiar el SL",
+        "CLOSE_ALL": "detectó una posible orden de cierre total",
+        "CLOSE_FIRST": "detectó una posible toma parcial",
+        "CLOSE_PARTIAL": "detectó una toma parcial del proveedor",
+        "UNKNOWN": "no pudo interpretar el mensaje con seguridad",
+        "AMBIGUOUS": "encontró más de una interpretación posible",
+        "INFORMATIONAL": "no pudo clasificar el mensaje",
     }
-    return mapping.get(str(action or "").upper(), str(action or "Revision"))
+    return mapping.get(
+        str(action or "").upper(),
+        "detectó una situación que requiere revisión",
+    )
+
+
+def _review_decision(ctx, classification: dict) -> str:
+    action = str(classification.get("action") or "UNKNOWN").upper()
+    if classification.get("_gemini_failed"):
+        action = "UNKNOWN"
+    if action == "REENTRY_SIGNAL":
+        return "Decide ahora: abrir una entrada adicional o ignorar el mensaje."
+    if action in {"ENTRY_UPDATE", "LEVEL_UPDATE", "LEVEL_CORRECTION",
+                  "SIGNAL_UPDATED"}:
+        return "Decide ahora: mantener los niveles actuales o revisarlos en MT5."
+    if action == "MOVE_SL_TO_BE":
+        entry = getattr(ctx, "entry_price", None)
+        if entry is not None:
+            return ("Decide ahora: aplicar BE en la entrada real "
+                    f"{_fmt_level(entry)} o mantener el SL actual.")
+        return "Decide ahora: aplicar BE o mantener el SL actual."
+    if action == "MOVE_SL_TO_PRICE":
+        price = classification.get("price")
+        if price is not None:
+            return ("Decide ahora: aplicar el SL indicado "
+                    f"({_fmt_level(price)}) o mantener el actual.")
+        return "Decide ahora: cambiar el SL o mantener el actual."
+    if action == "CLOSE_ALL":
+        return (f"Decide ahora: cerrar las {getattr(ctx, 'n_open', 0)} "
+                "posiciones abiertas o mantener la operación.")
+    if action in {"CLOSE_FIRST", "CLOSE_PARTIAL"}:
+        return "Decide ahora: cerrar una parte o mantener la operación completa."
+    if action in {"PROTECT_AND_NOTIFY", "OPTIONAL_SUGGESTION"}:
+        return ("Decide ahora: aplicar la sugerencia manualmente o mantener "
+                "la gestión actual.")
+    return "Decide ahora: interpretar el mensaje y actuar solo si la orden es clara."
 
 
 def _compact_trader_message(raw_text: str, limit: int = 160) -> str:
@@ -997,110 +1047,119 @@ def _compact_trader_message(raw_text: str, limit: int = 160) -> str:
 
 
 def format_review_notification(ctx, classification: dict, raw_text: str) -> str:
-    """Formato corto para decisiones manuales desde MT5."""
+    """Render one human-first alert using only verified trade context."""
     action = str(classification.get("action") or "UNKNOWN").upper()
-    confidence = classification.get("confidence")
     try:
-        confidence_str = f"{float(confidence):.2f}"
+        elapsed_str = f"{float(ctx.elapsed_min):.0f} min"
     except (TypeError, ValueError):
-        confidence_str = "n/a"
+        elapsed_str = None
 
-    try:
-        elapsed_str = f"{float(ctx.elapsed_min):.0f} min activa"
-    except (TypeError, ValueError):
-        elapsed_str = "tiempo n/a"
+    heading = [_human_channel(ctx.channel), str(ctx.direction or "?")]
+    if elapsed_str:
+        heading.append(elapsed_str)
 
-    be_str = "si" if getattr(ctx, "be_armed", False) else "no"
+    market_items = []
+    if getattr(ctx, "current_price", None) is not None:
+        market_items.append(f"Mercado {_fmt_level(ctx.current_price)}")
+    if getattr(ctx, "entry_price", None) is not None:
+        market_items.append(f"Entrada {_fmt_level(ctx.entry_price)}")
+    if getattr(ctx, "sl", None) is not None:
+        market_items.append(f"SL {_fmt_level(ctx.sl)}")
+    if getattr(ctx, "be_armed", False):
+        market_items.append("BE activo")
 
     lines = [
-        "REVISION NECESARIA",
-        f"{_human_channel(ctx.channel)} | {ctx.direction} | {elapsed_str}",
-        (f"Resultado: {_fmt_signed_money(ctx.floating_pnl_total)} | "
-         f"{ctx.n_open}/{ctx.n_initial} abiertas"),
-        (f"Precio: {_fmt_level(ctx.current_price)} | "
-         f"Entrada: {_fmt_level(ctx.entry_price)}"),
-        f"SL: {_fmt_level(ctx.sl)} | BE: {be_str}",
-        "",
-        "Mensaje recibido:",
-        f"\"{_compact_trader_message(raw_text)}\"",
-        "",
-        "Lectura del bot:",
-        f"{_human_review_action(action)} ({action}, conf {confidence_str})",
-        "Estado: No ejecuto automatico.",
-        "Decision manual: revisar en MT5 si procede.",
+        "⚠️ REVISIÓN NECESARIA",
+        " · ".join(heading),
+        (f"Cuenta: {_fmt_signed_money(ctx.floating_pnl_total)} · "
+         f"{ctx.n_open}/{ctx.n_initial} posiciones abiertas"),
     ]
+    if market_items:
+        lines.append(" · ".join(market_items))
+    lines.extend([
+        "",
+        f"Proveedor: “{_compact_trader_message(raw_text)}”",
+        f"Bot: {_human_review_action(action)}; no ejecutó cambios.",
+        _review_decision(ctx, classification),
+    ])
     return "\n".join(lines)
+
+
+def format_review_graph_caption(ctx, classification: dict,
+                                raw_text: str) -> str:
+    """Compact caption; price context already lives in the verified chart."""
+    action = str(classification.get("action") or "UNKNOWN").upper()
+    return "\n".join([
+        "⚠️ ACCIÓN NECESARIA",
+        f"{_human_channel(ctx.channel)} · {ctx.direction}",
+        "",
+        f"💬 Trader: “{_compact_trader_message(raw_text)}”",
+        f"🤖 Bot: {_human_review_action(action)}; operación sin cambios.",
+        "",
+        f"👉 {_review_decision(ctx, classification)}",
+    ])
+
+
+async def notify_review_graph(signal: "Signal", ctx, classification: dict,
+                              raw_text: str) -> bool:
+    """Send a truthful chart, returning False so the caller can send text."""
+    if (not config.REVIEW_ALERT_GRAPH_ENABLED
+            or not getattr(config, "TELEGRAM_BOT_TOKEN", None)):
+        return False
+    caption = format_review_graph_caption(ctx, classification, raw_text)
+    try:
+        png = await asyncio.wait_for(
+            asyncio.to_thread(
+                alert_graphics.build_live_review_image,
+                signal,
+                ctx,
+                config.MT5_SYMBOL,
+                config.REVIEW_ALERT_GRAPH_WINDOW_MIN,
+            ),
+            timeout=config.REVIEW_ALERT_GRAPH_BUILD_TIMEOUT_S,
+        )
+        chat_id = await _resolve_notify_chat_id()
+        send_budget_s = max(2.0, config.REVIEW_ALERT_GRAPH_SEND_TIMEOUT_S)
+        request_timeout_s = max(1.0, send_budget_s / 2.0)
+        message_id = await asyncio.wait_for(
+            asyncio.to_thread(
+                telegram_notifications.send_photo_with_caption,
+                config.TELEGRAM_BOT_TOKEN,
+                chat_id,
+                png,
+                caption,
+                timeout_s=request_timeout_s,
+            ),
+            timeout=send_budget_s + 1.0,
+        )
+        journal.event(
+            ctx.signal_id,
+            "notify_graph_sent",
+            telegram_message_id=message_id,
+            image_bytes=len(png),
+            tick_window_min=config.REVIEW_ALERT_GRAPH_WINDOW_MIN,
+        )
+        return True
+    except Exception as exc:
+        journal.event(
+            ctx.signal_id,
+            "notify_graph_failed",
+            error_type=type(exc).__name__,
+            error=str(exc)[:300],
+            fallback="text",
+        )
+        print(f"[Notify Graph] fallback texto para {ctx.signal_id}: {exc}")
+        return False
 
 
 async def notify_ambiguous_decision(signal: "Signal", classification: dict,
                                     raw_text: str):
-    """Resumen contextual al usuario cuando hay duda de qué hacer.
-
-    Recoge un TradeContext fresco (consulta MT5), formatea info clave +
-    quote del mensaje del trader + propuesta de Gemini con su reasoning,
-    y manda por notify(). El bot NO actúa — espera decisión del usuario.
-
-    No bloquea: si Telegram falla, log y continúa.
-    """
+    """Send one concise human-review alert with fresh MT5 context."""
     try:
         ctx = signal.build_context()
-
-        # Marca TPs hit (precio cruzó en dirección correcta)
-        def _tp_hit_marker(tp_value: float) -> str:
-            cur = ctx.current_price
-            if cur is None or tp_value is None:
-                return ""
-            if ctx.direction == "BUY" and cur >= tp_value:
-                return "✅"
-            if ctx.direction == "SELL" and cur <= tp_value:
-                return "✅"
-            return ""
-
-        tps_str = " ".join(
-            f"TP{i+1}({tp:.1f}){_tp_hit_marker(tp)}"
-            for i, tp in enumerate(ctx.tps[:5])
-        ) if ctx.tps else "(sin TPs)"
-
-        sl_str = f"{ctx.sl:.2f}" if ctx.sl else "(sin SL)"
-        if ctx.be_armed and ctx.sl is not None:
-            sl_str += " [BE armado]"
-
-        cur_str = f"{ctx.current_price:.2f}" if ctx.current_price else "n/a"
         action = classification.get("action", "?")
         conf = classification.get("confidence", 0)
         reasoning = classification.get("reasoning") or classification.get("_reason") or "-"
-
-        # Trim del mensaje del trader para no inflar
-        trader_msg = (raw_text or "").strip().replace("\n\n", "\n")
-        if len(trader_msg) > 250:
-            trader_msg = trader_msg[:247] + "..."
-
-        text = (
-            f"⚠️ DECISIÓN REQUERIDA — {ctx.signal_id}\n"
-            f"\n"
-            f"📊 {ctx.direction} @{ctx.entry_price} (hace {ctx.elapsed_min:.0f} min)\n"
-            f"💰 P&L floating: ${ctx.floating_pnl_total:+.2f}\n"
-            f"🎯 Posiciones: {ctx.n_open} abiertas de {ctx.n_initial} originales\n"
-            f"\n"
-            f"📈 TPs: {tps_str}\n"
-            f"🛡️ SL: {sl_str}\n"
-            f"📍 Precio actual: {cur_str}\n"
-            f"\n"
-            f"💬 Trader dice:\n"
-            f"\"{trader_msg}\"\n"
-            f"\n"
-            f"🤖 Gemini propone: {action}\n"
-            f"   Confianza: {conf:.2f} (zona ambigua 0.5-0.8)\n"
-            f"   Razón: {reasoning}\n"
-            f"\n"
-            f"❓ Opciones:\n"
-            f"  1️⃣ Cerrar todo ahora → asegurar ${ctx.floating_pnl_total:+.2f}\n"
-            f"  2️⃣ Dejar correr según TPs/SL actuales\n"
-            f"  3️⃣ Mover SL al precio actual ({cur_str}) para asegurar\n"
-            f"\n"
-            f"(Bot NO actuará — decide y ejecuta tú en MT5.\n"
-            f"En próxima fase añadiremos respuesta automática)"
-        )
         text = format_review_notification(ctx, classification, raw_text)
         print(f"[Notify Ambig] enviado resumen para {ctx.signal_id} "
               f"action={action} conf={conf:.2f}")
@@ -1111,7 +1170,11 @@ async def notify_ambiguous_decision(signal: "Signal", classification: dict,
                           current_price=ctx.current_price)
         except Exception:
             pass
-        await notify(text)
+        graph_sent = await notify_review_graph(
+            signal, ctx, classification, raw_text,
+        )
+        if not graph_sent:
+            await notify(text)
     except Exception as e:
         print(f"[Notify Ambig] error enviando notify: {e}")
 
@@ -1370,6 +1433,18 @@ def _resolve_management_reply_target(channel: str, reply_id: int):
 
 def _looks_actionable_management_text(text: str) -> bool:
     t = (text or "").upper()
+    result_announcement = bool(re.search(
+        r"\b(?:BE|BREAKEVEN|BREAK\s+EVEN|SL|STOP\s*LOSS|TP\s*\d*|"
+        r"TARGET\s*\d*)\s+(?:WAS\s+)?(?:HIT|KISSED|REACHED|DONE)\b",
+        t,
+    ))
+    explicit_instruction = bool(re.search(
+        r"\b(?:MOVE\s+SL|SL\s+TO|CLOSE(?:\s+(?:ALL|NOW|HALF|PARTIALS?))?|"
+        r"MAKE\b[^\n]{0,40}\bRISK\s+FREE|SET\s+(?:SL|STOP)|CUT\b)",
+        t,
+    ))
+    if result_announcement and not explicit_instruction:
+        return False
     actionable_markers = (
         "MOVE SL",
         "SL TO",
@@ -2306,7 +2381,8 @@ async def _close_first_be_rescue(signal: Signal, pos_info: list,
 
     try:
         asyncio.create_task(notify(
-            f"🛟 Canal 2 {sig_id}: CLOSE_FIRST sin profit\n"
+            f"🛟 {provider_display_name(signal.channel)} · "
+            f"{signal.direction}\n"
             f"\n"
             f"El canal pidió cerrar primeras entradas pero la posición NO "
             f"está en profit (precio {cur_price:.2f} vs entry "
@@ -2543,6 +2619,58 @@ async def _maybe_handle_breakeven_close_negative(
         return False
 
 
+_REVIEW_ACTION_PRIORITY = {
+    "UNKNOWN": 100,
+    "AMBIGUOUS": 100,
+    "REENTRY_SIGNAL": 95,
+    "ENTRY_UPDATE": 90,
+    "LEVEL_UPDATE": 90,
+    "LEVEL_CORRECTION": 90,
+    "SIGNAL_UPDATED": 90,
+    "CLOSE_ALL": 85,
+    "CLOSE_FIRST": 85,
+    "MOVE_SL_TO_BE": 85,
+    "MOVE_SL_TO_PRICE": 85,
+    "PROTECT_AND_NOTIFY": 80,
+    "OPTIONAL_SUGGESTION": 80,
+    "CLOSE_PARTIAL": 75,
+    "TP_HIT_ANNOUNCEMENT": 10,
+    "PROGRESS_UPDATE": 5,
+    "MARKET_COMMENTARY": 1,
+}
+
+
+def _select_review_classification(signal: Signal, classifications: list[dict],
+                                  raw_text: str) -> dict | None:
+    """Choose one decision-bearing interpretation for one source message."""
+    candidates = []
+    for index, classification in enumerate(classifications):
+        action = str(classification.get("action") or "UNKNOWN").upper()
+        firewall = firewall_decision(signal, classification, raw_text=raw_text)
+        confidence = float(classification.get("confidence") or 0.0)
+        confidence_review = bool(
+            firewall.will_execute
+            and action != "INFORMATIONAL"
+            and confidence < 0.8
+            and not classification.get("_reason")
+        )
+        needs_review = bool(
+            classification.get("_gemini_failed")
+            or classification.get("requires_review")
+            or firewall.requires_review
+            or confidence_review
+        )
+        if not needs_review:
+            continue
+        priority = _REVIEW_ACTION_PRIORITY.get(action, 50)
+        if classification.get("_gemini_failed"):
+            priority = 110
+        candidates.append((priority, -index, classification))
+    if not candidates:
+        return None
+    return max(candidates, key=lambda item: (item[0], item[1]))[2]
+
+
 async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
                            tg_ts: str | None = None):
     """Orquesta la ejecución de TODAS las acciones detectadas en un mensaje.
@@ -2563,6 +2691,10 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
 
     sig_id = _sig_id(signal)
     sl_hit_detected = False
+    review_candidate = _select_review_classification(
+        signal, classifications, raw_text
+    )
+    review_notification_sent = False
     _log_telegram_understood(
         sig_id,
         channel=signal.channel,
@@ -2614,18 +2746,12 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
         if cl.get("_gemini_failed"):
             print(f"[REVIEW] Gemini fallo todos los retries para {_sig_id(signal)} "
                   f"— notify al usuario, mensaje sin clasificar.")
-            try:
-                await notify(
-                    f"[REVIEW] Gemini no clasificable — {_sig_id(signal)}\n"
-                    f"\n"
-                    f"Mensaje del trader:\n"
-                    f"\"{(raw_text or '')[:300]}\"\n"
-                    f"\n"
-                    f"El bot intento clasificar 3 veces y Gemini fallo "
-                    f"(probable 503/timeout). Decide manualmente y ejecuta en MT5."
-                )
-            except Exception as e:
-                print(f"[Notify gemini_failed] error: {e}")
+            if cl is review_candidate and not review_notification_sent:
+                try:
+                    await notify_ambiguous_decision(signal, cl, raw_text)
+                    review_notification_sent = True
+                except Exception as e:
+                    print(f"[Notify gemini_failed] error: {e}")
             journal.append_mgmt(sig_id, classified="GEMINI_FAILED", applied=False)
             journal.event(sig_id, "mgmt_msg",
                           action="GEMINI_FAILED", price=None,
@@ -2663,9 +2789,12 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
                       tg_ts=tg_ts,
                       raw_snippet=raw_text[:120])
         if not firewall.will_execute:
-            if firewall.requires_review:
+            if (firewall.requires_review
+                    and cl is review_candidate
+                    and not review_notification_sent):
                 try:
                     await notify_ambiguous_decision(signal, cl, raw_text)
+                    review_notification_sent = True
                 except Exception as e:
                     print(f"[Notify firewall] error: {e}")
             journal.append_mgmt(
@@ -2700,23 +2829,12 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
         if is_low_confidence:
             print(f"[REVIEW] {action_name} CONF={confidence:.2f} BAJA — "
                   f"notify al usuario, NO ejecuto automaticamente.")
-            try:
-                await notify(
-                    f"[REVIEW] Baja confianza ({confidence:.2f}) — "
-                    f"{_sig_id(signal)}\n"
-                    f"\n"
-                    f"Gemini propone: {action_name}"
-                    + (f" @ {cl.get('price')}" if cl.get('price') else "") + "\n"
-                    f"Razon: {cl.get('reasoning') or '(sin razon)'}\n"
-                    f"\n"
-                    f"Mensaje del trader:\n"
-                    f"\"{(raw_text or '')[:200]}\"\n"
-                    f"\n"
-                    f"El bot NO ejecuto. Decide y aplica manualmente en MT5 "
-                    f"si lo consideras correcto."
-                )
-            except Exception as e:
-                print(f"[Notify low_conf] error: {e}")
+            if cl is review_candidate and not review_notification_sent:
+                try:
+                    await notify_ambiguous_decision(signal, cl, raw_text)
+                    review_notification_sent = True
+                except Exception as e:
+                    print(f"[Notify low_conf] error: {e}")
             journal.append_mgmt(sig_id, classified=f"{action_name}_LOWCONF",
                                 applied=False)
             journal.event(sig_id, "mgmt_msg",
@@ -2743,10 +2861,12 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
         if is_ambiguous:
             print(f"[Acción] {action_name} CONF={confidence:.2f} AMBIGUO — "
                   f"notify al usuario, NO ejecuto automáticamente.")
-            try:
-                await notify_ambiguous_decision(signal, cl, raw_text)
-            except Exception as e:
-                print(f"[Notify Ambig] error: {e}")
+            if cl is review_candidate and not review_notification_sent:
+                try:
+                    await notify_ambiguous_decision(signal, cl, raw_text)
+                    review_notification_sent = True
+                except Exception as e:
+                    print(f"[Notify Ambig] error: {e}")
             # Marcar en journal como pendiente de decisión humana
             journal.append_mgmt(sig_id, classified=f"{action_name}_AMBIG", applied=False)
             journal.event(sig_id, "mgmt_msg",
@@ -2989,13 +3109,33 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
                   f"(tickets={len(tickets)}). Ignorado.")
 
     elif action == "MOVE_SL_TO_BE":
+        tickets = list(signal.all_filled_tickets)
         requested = []
-        missing_entries = []
-        for ticket in list(signal.all_filled_tickets):
-            entry = await _run(executor.entry_price, ticket)
-            if entry is None:
-                missing_entries.append(ticket)
-                continue
+        entry_prices = await _run(executor.open_entry_prices, tickets)
+        if entry_prices is None:
+            journal.event(
+                _sig_id(signal),
+                "be_armed_classifier",
+                source="MOVE_SL_TO_BE_action",
+                semantics="exact_entry_per_ticket",
+                n_requested_exact_be=0,
+                requested=[],
+                closed_tickets_skipped=[],
+                mt5_query_failed=True,
+            )
+            journal.anomaly(
+                _sig_id(signal),
+                "sl_be",
+                "critical",
+                "MT5 no respondio al consultar las entradas para aplicar BE",
+                direction=signal.direction,
+                tickets=tickets,
+            )
+            return
+
+        closed_tickets = [ticket for ticket in tickets
+                          if ticket not in entry_prices]
+        for ticket, entry in entry_prices.items():
             entry = float(entry)
             pending_actions.enqueue_modify_sl(
                 signal,
@@ -3013,17 +3153,9 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
             semantics="exact_entry_per_ticket",
             n_requested_exact_be=len(requested),
             requested=requested,
-            missing_entry_tickets=missing_entries,
+            closed_tickets_skipped=closed_tickets,
+            mt5_query_failed=False,
         )
-        if missing_entries:
-            journal.anomaly(
-                _sig_id(signal),
-                "sl_be",
-                "critical",
-                "No se pudo obtener el entry exacto para aplicar BE",
-                direction=signal.direction,
-                tickets=missing_entries,
-            )
         if requested:
             signal.be_armed = True
             logger.log_action(signal, action, requested[0]["entry"])
@@ -4041,7 +4173,7 @@ async def _process_canal1_edit(msg):
 
     try:
         asyncio.create_task(notify(
-            f"📝 Canal 1: edición de mensaje señal {sig_id}\n"
+            f"📝 {provider_display_name(sig.channel)} · edición de señal\n"
             f"\n"
             f"Cambios: \n  • " + "\n  • ".join(changes) + "\n"
             f"\n"
@@ -4159,7 +4291,8 @@ async def _handle_canal1_sticker(msg):
         # silenciosamente.
         try:
             asyncio.create_task(notify(
-                f"⚠ Canal 1: sticker desconocido (ID={sticker_id}).\n"
+                f"⚠ {provider_display_name('canal1')}: sticker desconocido "
+                f"(ID={sticker_id}).\n"
                 f"Si era una entrada BUY/SELL, añade el ID al .env "
                 f"como CANAL1_BUY_STICKER_ID o CANAL1_SELL_STICKER_ID."
             ))
@@ -4460,7 +4593,8 @@ async def _open_canal1_from_text(msg, parsed: dict):
     # problema con la recepcion de stickers que vale la pena investigar).
     try:
         asyncio.create_task(notify(
-            f"ℹ️ Canal 1: senal abierta desde TEXTO sin sticker previo\n"
+            f"ℹ️ {provider_display_name(sig.channel)} · señal abierta desde "
+            f"TEXTO sin sticker previo\n"
             f"\n"
             f"Direccion: {direction}\n"
             f"Ticket MT5: #{ticket}\n"

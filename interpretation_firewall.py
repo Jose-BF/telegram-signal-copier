@@ -44,6 +44,7 @@ LOG_ONLY_ACTIONS = {
     "MARKET_COMMENTARY",
     "MEDIA_COMPANION",
     "HIGH_RISK_WARNING",
+    "CLOSE_PARTIAL",
 }
 
 # These are not direct MT5 actions. They should be handled by parser/level
@@ -138,8 +139,7 @@ def _normalize_action_type(value: Any) -> str:
     if not raw:
         return "UNKNOWN"
     aliases = {
-        "PARTIAL_CLOSE": "CLOSE_FIRST",
-        "CLOSE_PARTIAL": "CLOSE_FIRST",
+        "PARTIAL_CLOSE": "CLOSE_PARTIAL",
         "MOVE_SL_BREAKEVEN": "MOVE_SL_TO_BE",
         "MOVE_SL_ENTRY": "MOVE_SL_TO_BE",
         "SL_TO_BE": "MOVE_SL_TO_BE",

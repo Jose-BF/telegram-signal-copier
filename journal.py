@@ -38,6 +38,8 @@ from queue import Queue
 from threading import Event as ThreadEvent, Lock, Thread
 from typing import Optional
 
+from provider_names import provider_display_name
+
 # ─── Paths ──────────────────────────────────────────────────────────────────
 DATA_DIR = Path(__file__).parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
@@ -253,16 +255,67 @@ def set_notify_loop(loop: Optional[asyncio.AbstractEventLoop]):
     _notify_loop = loop
 
 
+def format_critical_notification(signal_id: str, category: str,
+                                 detail: str, ctx: dict) -> str:
+    headings = {
+        "mt5": "🚨 MT5 NECESITA ATENCIÓN",
+        "naked": "🚨 OPERACIÓN SIN PROTECCIÓN",
+        "sl_be": "🚨 PROTECCIÓN NO APLICADA",
+        "fill": "🚨 APERTURA NO CONFIRMADA",
+        "channel_msg": "⚠️ MENSAJE SIN ASOCIAR",
+        "levels": "🚨 NIVELES NO APLICADOS",
+        "outcome": "🚨 CIERRE NO CONFIRMADO",
+    }
+    actions = {
+        "mt5": "Acción: revisa la conexión y el estado de MT5.",
+        "naked": "Acción urgente: comprueba la operación y coloca protección.",
+        "sl_be": "Acción: comprueba el SL de las posiciones indicadas.",
+        "fill": "Acción: confirma en MT5 si la posición llegó a abrirse.",
+        "channel_msg": "Acción: revisa el mensaje y la operación relacionada.",
+        "levels": "Acción: comprueba los niveles actuales en MT5.",
+        "outcome": "Acción: confirma qué posiciones siguen abiertas en MT5.",
+    }
+    lines = [headings.get(category, "🚨 REVISIÓN URGENTE"), str(detail)]
+
+    if signal_id.startswith("canal1_") or signal_id.startswith("canal2_"):
+        channel, message_id = signal_id.split("_", 1)
+        label = provider_display_name(channel)
+        lines.append(f"Referencia: {label} · mensaje {message_id}")
+    if ctx.get("direction"):
+        lines.append(f"Dirección: {ctx['direction']}")
+
+    tickets = ctx.get("tickets")
+    if tickets is None and ctx.get("ticket") is not None:
+        tickets = [ctx["ticket"]]
+    if tickets:
+        if not isinstance(tickets, (list, tuple, set)):
+            tickets = [tickets]
+        ticket_text = ", ".join(str(ticket) for ticket in tickets)
+        label = "Ticket" if len(tickets) == 1 else "Tickets"
+        lines.append(f"{label}: {ticket_text}")
+
+    market_parts = []
+    for key, label in (("entry", "Entrada"), ("sl", "SL"),
+                       ("current_price", "Mercado"), ("price", "Precio")):
+        if ctx.get(key) is not None:
+            market_parts.append(f"{label} {ctx[key]}")
+    if market_parts:
+        lines.append(" · ".join(market_parts))
+    if ctx.get("text_preview"):
+        preview = " ".join(str(ctx["text_preview"]).split())[:180]
+        lines.append(f"Proveedor: “{preview}”")
+
+    lines.append(actions.get(category, "Acción: revisa la situación en MT5."))
+    return "\n".join(lines)
+
+
 def _notify_critical(signal_id: str, category: str, detail: str, ctx: dict):
     """Dispara notify() para una anomalía crítica. Defensivo: nunca lanza
     al caller (try/except). Import lazy de listener.notify para evitar
     import circular journal→listener (listener importa journal)."""
     try:
         from listener import notify
-        lines = "\n".join(f"  {k}: {v}" for k, v in ctx.items()) if ctx else ""
-        text = (f"🚨 [CRITICAL] {category} — {signal_id}\n"
-                f"{detail}\n"
-                f"{lines}".rstrip())
+        text = format_critical_notification(signal_id, category, detail, ctx)
 
         def schedule(loop: asyncio.AbstractEventLoop):
             try:

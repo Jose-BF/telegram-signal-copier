@@ -11,6 +11,9 @@ resync las ignora y quedan como posiciones huérfanas. Estos tests fijan
 ese contrato.
 """
 
+from types import SimpleNamespace
+
+import executor
 from executor import _parse_signal_id_from_comment
 
 
@@ -67,3 +70,30 @@ class TestParseSignalIdFromComment:
     def test_empty_comment(self):
         assert _parse_signal_id_from_comment("") is None
         assert _parse_signal_id_from_comment(None) is None
+
+
+def test_resync_reconstructs_signal_from_surviving_scale_out_legs(monkeypatch):
+    """A restart must adopt B legs even when the original leg already closed."""
+    magic = executor.config.MT5_MAGIC_CANAL2
+    positions = (
+        SimpleNamespace(
+            ticket=2002, comment="c2_3379_B2", magic=magic,
+            type=executor.mt5.ORDER_TYPE_BUY, price_open=4031.25,
+            sl=4024.0, tp=4040.0, time=1002,
+        ),
+        SimpleNamespace(
+            ticket=2004, comment="c2_3379_B4", magic=magic,
+            type=executor.mt5.ORDER_TYPE_BUY, price_open=4031.30,
+            sl=4024.0, tp=4048.0, time=1004,
+        ),
+    )
+    monkeypatch.setattr(executor.mt5, "positions_get", lambda: positions)
+
+    grouped = executor.list_open_positions_grouped()
+
+    signal = grouped["canal2_3379"]
+    assert signal["market_ticket"] == 2002
+    assert signal["market_price"] == 4031.25
+    assert signal["market_open_time"] == 1002
+    assert signal["extra_market_tickets"] == [2004]
+    assert signal["resync_anchor_role"] == "surviving_scale_out_leg"

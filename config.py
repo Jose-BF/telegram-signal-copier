@@ -364,3 +364,15 @@ NOTIFY_CHAT_ID = os.getenv("NOTIFY_CHAT_ID", "me")
 # Si está configurado, notify() usa Bot HTTP API en lugar de client.send_message().
 # Ventaja: un bot sí dispara push notifications en mobile; el cliente Telethon no.
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+# Alertas graficas para situaciones que requieren revision humana. Son una
+# capa de presentacion: si faltan Pillow/ticks/Telegram, se envia el texto.
+REVIEW_ALERT_GRAPH_ENABLED = (
+    os.getenv("REVIEW_ALERT_GRAPH_ENABLED", "1") == "1"
+)
+REVIEW_ALERT_GRAPH_WINDOW_MIN = _float(
+    "REVIEW_ALERT_GRAPH_WINDOW_MIN", 15.0)
+REVIEW_ALERT_GRAPH_BUILD_TIMEOUT_S = _float(
+    "REVIEW_ALERT_GRAPH_BUILD_TIMEOUT_S", 3.0)
+REVIEW_ALERT_GRAPH_SEND_TIMEOUT_S = _float(
+    "REVIEW_ALERT_GRAPH_SEND_TIMEOUT_S", 8.0)

@@ -16,6 +16,7 @@ def test_msg_diag_emits_telegram_raw_event(monkeypatch):
     )
     msg = SimpleNamespace(
         id=12345,
+        chat_id=-1003828356530,
         text="BUY NOW\nTP1 4505\nSL 4490",
         message="BUY NOW\nTP1 4505\nSL 4490",
         date=datetime(2026, 6, 4, 9, 0, 0),
@@ -32,6 +33,7 @@ def test_msg_diag_emits_telegram_raw_event(monkeypatch):
     assert raw[0] == "canal2_12345"
     assert raw[2]["channel"] == "canal2"
     assert raw[2]["message_id"] == 12345
+    assert raw[2]["chat_id"] == -1003828356530
     assert raw[2]["update_kind"] == "new"
     assert raw[2]["text"] == "BUY NOW\nTP1 4505\nSL 4490"
     assert raw[2]["has_text"] is True
@@ -332,16 +334,20 @@ def test_review_notification_format_is_human_first_and_compact():
 
     first_lines = "\n".join(text.splitlines()[:3])
     assert "canal1_20700" not in first_lines
-    assert "Canal 1" in first_lines
+    assert "Dubai Investing" in first_lines
     assert "SELL" in first_lines
     assert "+4.20" in text
-    assert "2/4 abiertas" in text
+    assert "2/4 posiciones abiertas" in text
     assert "4321.50" in text
     assert "4336.00" in text
     assert "Reenter now SL to 4336.00" in text
-    assert "No ejecuto automatico" in text
+    assert "no ejecutó cambios" in text.lower()
+    assert "abrir una entrada adicional" in text.lower()
+    assert "REENTRY_SIGNAL" not in text
+    assert "conf 0.91" not in text
+    assert "n/a" not in text
     assert "Opciones" not in text
-    assert len(text.splitlines()) <= 14
+    assert len(text.splitlines()) <= 10
 
 
 @pytest.mark.asyncio
@@ -382,8 +388,192 @@ async def test_notify_ambiguous_decision_sends_compact_review(monkeypatch):
     )
 
     assert len(sent) == 1
-    assert sent[0].startswith("REVISION NECESARIA\nCanal 2 | BUY")
+    assert sent[0].startswith(
+        "⚠️ REVISIÓN NECESARIA\nGold Signals · BUY"
+    )
     assert "canal2_33001" not in "\n".join(sent[0].splitlines()[:3])
     assert "Opciones" not in sent[0]
-    assert "Decision manual: revisar en MT5 si procede." in sent[0]
+    assert "interpretar el mensaje" in sent[0].lower()
     assert events[0][1] == "ambiguous_decision_notified"
+
+
+@pytest.mark.asyncio
+async def test_notify_ambiguous_decision_prefers_graph(monkeypatch):
+    sent_graphs = []
+    sent_texts = []
+    ctx = TradeContext(
+        channel="canal2", signal_id="canal2_33002", direction="BUY",
+        entry_price=4310.0, tps=[4318.0], sl=4302.0,
+        n_initial=5, n_open=4, open_tickets_pnl=[],
+        floating_pnl_total=9.2, elapsed_min=7.2,
+        current_price=4312.3, be_armed=False,
+    )
+    sig = Signal(channel="canal2", message_id=33002, direction="BUY")
+    monkeypatch.setattr(sig, "build_context", lambda: ctx)
+    monkeypatch.setattr(
+        listener, "notify_review_graph",
+        lambda *args, **kwargs: _async_result(sent_graphs.append(args) or True),
+    )
+    monkeypatch.setattr(
+        listener, "notify",
+        lambda text: _async_result(sent_texts.append(text)),
+    )
+    monkeypatch.setattr(listener.journal, "event", lambda *a, **kw: None)
+
+    await listener.notify_ambiguous_decision(
+        sig, {"action": "UNKNOWN", "confidence": 0.0}, "Protect now",
+    )
+
+    assert len(sent_graphs) == 1
+    assert sent_texts == []
+
+
+@pytest.mark.asyncio
+async def test_notify_ambiguous_decision_falls_back_once(monkeypatch):
+    sent_texts = []
+    ctx = TradeContext(
+        channel="canal1", signal_id="canal1_20999", direction="SELL",
+        entry_price=4315.0, tps=[4310.0], sl=4322.0,
+        n_initial=4, n_open=2, open_tickets_pnl=[],
+        floating_pnl_total=-2.0, elapsed_min=3.0,
+        current_price=4316.0, be_armed=False,
+    )
+    sig = Signal(channel="canal1", message_id=20999, direction="SELL")
+    monkeypatch.setattr(sig, "build_context", lambda: ctx)
+    monkeypatch.setattr(
+        listener, "notify_review_graph",
+        lambda *args, **kwargs: _async_result(False),
+    )
+    monkeypatch.setattr(
+        listener, "notify",
+        lambda text: _async_result(sent_texts.append(text)),
+    )
+    monkeypatch.setattr(listener.journal, "event", lambda *a, **kw: None)
+
+    await listener.notify_ambiguous_decision(
+        sig, {"action": "UNKNOWN", "confidence": 0.0}, "Unclear",
+    )
+
+    assert len(sent_texts) == 1
+
+
+@pytest.mark.asyncio
+async def test_notify_review_graph_uses_png_and_compact_caption(monkeypatch):
+    sent = []
+    events = []
+    ctx = TradeContext(
+        channel="canal2", signal_id="canal2_33100", direction="BUY",
+        entry_price=4310.0, tps=[4318.0], sl=4302.0,
+        n_initial=5, n_open=4, open_tickets_pnl=[],
+        floating_pnl_total=9.2, elapsed_min=7.2,
+        current_price=4312.3, be_armed=False,
+    )
+    sig = Signal(channel="canal2", message_id=33100, direction="BUY")
+    monkeypatch.setattr(listener.config, "REVIEW_ALERT_GRAPH_ENABLED", True)
+    monkeypatch.setattr(listener.config, "TELEGRAM_BOT_TOKEN", "token")
+    monkeypatch.setattr(listener.config, "REVIEW_ALERT_GRAPH_SEND_TIMEOUT_S", 8.0)
+    monkeypatch.setattr(
+        listener.alert_graphics, "build_live_review_image",
+        lambda *args: b"\x89PNG\r\n\x1a\nimage",
+    )
+
+    async def resolve_chat():
+        return 123
+
+    def send_photo(token, chat_id, png, caption, **kwargs):
+        sent.append((token, chat_id, png, caption, kwargs))
+        return 88
+
+    monkeypatch.setattr(listener, "_resolve_notify_chat_id", resolve_chat)
+    monkeypatch.setattr(
+        listener.telegram_notifications, "send_photo_with_caption", send_photo,
+    )
+    monkeypatch.setattr(
+        listener.journal, "event",
+        lambda sig_id, event, **kw: events.append((sig_id, event, kw)),
+    )
+
+    result = await listener.notify_review_graph(
+        sig, ctx, {"action": "UNKNOWN"}, "Protect now",
+    )
+
+    assert result is True
+    assert sent[0][1] == 123
+    assert "Gold Signals · BUY" in sent[0][3]
+    assert "canal2_33100" not in sent[0][3]
+    assert sent[0][4]["timeout_s"] == 4.0
+    assert events[-1][1] == "notify_graph_sent"
+
+
+@pytest.mark.asyncio
+async def test_notify_review_graph_returns_false_on_render_error(monkeypatch):
+    events = []
+    ctx = TradeContext(
+        channel="canal1", signal_id="canal1_21000", direction="SELL",
+        entry_price=4315.0, tps=[4310.0], sl=4322.0,
+        n_initial=4, n_open=2, open_tickets_pnl=[],
+        floating_pnl_total=-2.0, elapsed_min=3.0,
+        current_price=4316.0, be_armed=False,
+    )
+    sig = Signal(channel="canal1", message_id=21000, direction="SELL")
+    monkeypatch.setattr(listener.config, "REVIEW_ALERT_GRAPH_ENABLED", True)
+    monkeypatch.setattr(listener.config, "TELEGRAM_BOT_TOKEN", "token")
+
+    def fail(*args):
+        raise RuntimeError("Pillow missing")
+
+    monkeypatch.setattr(
+        listener.alert_graphics, "build_live_review_image", fail,
+    )
+    monkeypatch.setattr(
+        listener.journal, "event",
+        lambda sig_id, event, **kw: events.append((sig_id, event, kw)),
+    )
+
+    result = await listener.notify_review_graph(
+        sig, ctx, {"action": "UNKNOWN"}, "Unclear",
+    )
+
+    assert result is False
+    assert events[-1][1] == "notify_graph_failed"
+
+
+async def _async_result(value):
+    return value
+
+
+@pytest.mark.asyncio
+async def test_execute_actions_sends_one_review_for_one_source_message(
+        monkeypatch):
+    notified = []
+    events = []
+    monkeypatch.setattr(
+        listener.journal,
+        "event",
+        lambda sig_id, ev, **kw: events.append((sig_id, ev, kw)),
+    )
+    monkeypatch.setattr(listener.journal, "append_mgmt", lambda *a, **kw: None)
+
+    async def fake_notify(signal, classification, raw_text):
+        notified.append(classification["action"])
+
+    monkeypatch.setattr(listener, "notify_ambiguous_decision", fake_notify)
+    listener._seen_management_actions.clear()
+    sig = Signal(channel="canal1", message_id=20945, direction="SELL")
+
+    await listener._execute_actions(
+        sig,
+        [
+            {"action": "TP_HIT_ANNOUNCEMENT", "confidence": 0.95,
+             "is_optional": True, "requires_review": True},
+            {"action": "PROGRESS_UPDATE", "confidence": 0.95,
+             "is_optional": True, "requires_review": True},
+            {"action": "OPTIONAL_SUGGESTION", "confidence": 0.90,
+             "is_optional": True, "requires_review": True},
+            {"action": "MARKET_COMMENTARY", "confidence": 0.95,
+             "is_optional": True, "requires_review": True},
+        ],
+        raw_text="TP hit. You can protect or close if you prefer.",
+    )
+
+    assert notified == ["OPTIONAL_SUGGESTION"]

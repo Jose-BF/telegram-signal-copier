@@ -37,6 +37,10 @@ class TradeContext:
     elapsed_min: float
     current_price: Optional[float]
     be_armed: bool
+    # Niveles confirmados directamente en las posiciones MT5 abiertas.
+    # El SL/TP del proveedor puede quedar obsoleto tras una gestion posterior.
+    effective_sls: list = field(default_factory=list)
+    effective_tps: list = field(default_factory=list)
 
     def summary_oneline(self) -> str:
         """Resumen de 1 línea para logs."""
@@ -278,11 +282,18 @@ class Signal:
 
             # Posiciones abiertas en MT5 entre las que originalmente abrimos
             open_pnls = []
+            effective_sls = []
+            effective_tps = []
             n_open = 0
             for ticket in self.all_filled_tickets:
                 pos = mt5.positions_get(ticket=ticket)
                 if pos:
-                    open_pnls.append((int(ticket), float(pos[0].profit)))
+                    position = pos[0]
+                    open_pnls.append((int(ticket), float(position.profit)))
+                    if float(getattr(position, "sl", 0.0) or 0.0) > 0:
+                        effective_sls.append(float(position.sl))
+                    if float(getattr(position, "tp", 0.0) or 0.0) > 0:
+                        effective_tps.append(float(position.tp))
                     n_open += 1
             floating_total = sum(p for _, p in open_pnls)
 
@@ -312,6 +323,8 @@ class Signal:
                 elapsed_min=round(elapsed_s / 60, 1),
                 current_price=current_price,
                 be_armed=self.be_armed,
+                effective_sls=effective_sls,
+                effective_tps=effective_tps,
             )
         except Exception as e:
             # Defensive: nunca crashear, devolver context mínimo

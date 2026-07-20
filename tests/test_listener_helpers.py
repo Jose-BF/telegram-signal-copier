@@ -335,6 +335,19 @@ class TestUnresolvedManagementSeverity:
             actionable=True,
         ) == "critical"
 
+    @pytest.mark.parametrize("text", [
+        "BE hit, we protected the trade and locked in the profit",
+        "SL HIT - out of this trade",
+        "TP2 hit, secure result recorded",
+    ])
+    def test_result_announcements_are_not_actionable_orders(self, text):
+        assert listener._looks_actionable_management_text(text) is False
+
+    def test_direct_management_instruction_remains_actionable(self):
+        assert listener._looks_actionable_management_text(
+            "Move SL to BE now and protect the remaining entries"
+        ) is True
+
 
 @pytest.mark.asyncio
 async def test_move_sl_to_be_always_queues_each_exact_entry(monkeypatch):
@@ -352,6 +365,10 @@ async def test_move_sl_to_be_always_queues_each_exact_entry(monkeypatch):
         assert ticket == 101
         return 4000.0
 
+    def fake_open_entry_prices(tickets):
+        assert tickets == [101]
+        return {101: 4000.0}
+
     async def fake_run(fn, *args):
         if fn is fake_entry_price:
             return fn(*args)
@@ -363,6 +380,9 @@ async def test_move_sl_to_be_always_queues_each_exact_entry(monkeypatch):
         return fn(*args)
 
     monkeypatch.setattr(listener.executor, "entry_price", fake_entry_price)
+    monkeypatch.setattr(
+        listener.executor, "open_entry_prices", fake_open_entry_prices,
+    )
     monkeypatch.setattr(listener, "_run", fake_run)
     monkeypatch.setattr(
         listener.pending_actions,
@@ -388,3 +408,62 @@ async def test_move_sl_to_be_always_queues_each_exact_entry(monkeypatch):
         "label": "BE #101 -> 4000.00",
         "persist_until_signal_close": True,
     }]
+
+
+@pytest.mark.asyncio
+async def test_move_sl_to_be_skips_already_closed_tickets_without_alert(
+        monkeypatch):
+    sig = Signal(
+        channel="canal1",
+        message_id=20945,
+        direction="SELL",
+        market_ticket=101,
+        extra_market_tickets=[102],
+        market_fill_price=4030.0,
+        sl=4040.0,
+    )
+    queued = []
+    anomalies = []
+    events = []
+
+    def fake_open_entry_prices(tickets):
+        assert tickets == [101, 102]
+        return {101: 4030.0}
+
+    def fake_entry_price(ticket):
+        return {101: 4030.0}.get(ticket)
+
+    async def fake_run(fn, *args):
+        return fn(*args)
+
+    monkeypatch.setattr(
+        listener.executor, "open_entry_prices", fake_open_entry_prices,
+        raising=False,
+    )
+    monkeypatch.setattr(listener.executor, "entry_price", fake_entry_price)
+    monkeypatch.setattr(listener, "_run", fake_run)
+    monkeypatch.setattr(
+        listener.pending_actions,
+        "enqueue_modify_sl",
+        lambda signal, ticket, new_sl, **kwargs: queued.append(ticket),
+    )
+    monkeypatch.setattr(
+        listener.journal, "event",
+        lambda sig_id, event, **fields: events.append((event, fields)),
+    )
+    monkeypatch.setattr(
+        listener.journal, "anomaly",
+        lambda *args, **kwargs: anomalies.append((args, kwargs)),
+    )
+    monkeypatch.setattr(listener.logger, "log_action", lambda *args, **kwargs: None)
+
+    await listener._execute_one_action(
+        sig,
+        {"action": "MOVE_SL_TO_BE", "confidence": 0.99},
+    )
+
+    assert queued == [101]
+    assert anomalies == []
+    armed = next(fields for event, fields in events
+                 if event == "be_armed_classifier")
+    assert armed["closed_tickets_skipped"] == [102]

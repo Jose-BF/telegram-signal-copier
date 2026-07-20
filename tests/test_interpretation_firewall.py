@@ -114,6 +114,24 @@ def test_daily_summary_is_log_only_even_when_it_mentions_sl_and_be():
     assert decision.will_execute is False
 
 
+def test_partial_close_is_preserved_as_log_only_simulation_evidence():
+    normalized = normalize_classifier_outputs({
+        "action": "CLOSE_PARTIAL",
+        "confidence": 0.95,
+        "evidence": "closing partial profits",
+    })
+    sig = Signal(channel="canal2", message_id=3470, direction="SELL")
+
+    decision = firewall_decision(
+        sig, normalized[0], raw_text="I am closing partial profits"
+    )
+
+    assert normalized[0]["action"] == "CLOSE_PARTIAL"
+    assert decision.policy == "log_only"
+    assert decision.will_execute is False
+    assert decision.requires_review is False
+
+
 def test_reentry_requires_review_until_specific_reentry_engine_exists():
     raw = {
         "message_role": "direct_order",

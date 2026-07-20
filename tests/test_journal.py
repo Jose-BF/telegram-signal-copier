@@ -40,6 +40,17 @@ def _events(path):
 
 class TestAnomaly:
 
+    def test_critical_notification_uses_provider_name(self):
+        text = journal.format_critical_notification(
+            "canal1_20955",
+            "sl_be",
+            "No se pudo aplicar BE",
+            {"direction": "SELL", "ticket": 123},
+        )
+
+        assert "Dubai Investing" in text
+        assert "Canal 1" not in text
+
     def test_writes_schema(self, isolated_journal):
         journal.anomaly("canal1_12345", "naked", "critical",
                         "position opened without SL", ticket=999)
@@ -108,8 +119,9 @@ class TestAnomaly:
         await asyncio.sleep(0)
 
         assert len(calls) == 1
-        assert "[CRITICAL] mt5" in calls[0]
-        assert "ticket: 1" in calls[0]
+        assert calls[0].startswith("🚨 MT5 NECESITA ATENCIÓN")
+        assert "Ticket: 1" in calls[0]
+        assert "s1" not in calls[0]
 
     @pytest.mark.asyncio
     async def test_notify_critical_from_worker_thread_uses_registered_loop(
@@ -129,8 +141,8 @@ class TestAnomaly:
         await asyncio.sleep(0.05)
 
         assert len(calls) == 1
-        assert "[CRITICAL] naked" in calls[0]
-        assert "ticket: 2" in calls[0]
+        assert calls[0].startswith("🚨 OPERACIÓN SIN PROTECCIÓN")
+        assert "Ticket: 2" in calls[0]
         journal.set_notify_loop(None)
 
 

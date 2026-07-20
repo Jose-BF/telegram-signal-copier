@@ -15,6 +15,7 @@ es critica. Estos tests usan casos REALES de comments MT5.
 """
 
 import json
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -362,6 +363,19 @@ class TestFetchDealsSynced:
             None, None, {"canal1_99999"}, quiet=True)
         assert len(result) == 1          # devuelve lo que hay, no se cuelga
         assert len(calls) >= 12          # agoto los reintentos
+
+
+def test_history_query_end_covers_positive_mt5_server_offsets():
+    """El cierre de historial no puede cortar deals recientes del broker.
+
+    Vantage expone timestamps de servidor hasta UTC+3. Una ventana terminada
+    en ``now + 2h`` deja fuera cierres que ya existen en MT5.
+    """
+    now = datetime(2026, 7, 20, 12, 11, tzinfo=timezone.utc)
+
+    query_end = reconcile_mt5_ledger._mt5_history_query_end(now)
+
+    assert query_end >= now + timedelta(hours=14)
 
 
 # ─── reconcile_signal enriquecido (T5 — Capa 2 Pt.1) ────────────────────────

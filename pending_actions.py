@@ -18,6 +18,7 @@ import MetaTrader5 as mt5
 import config
 import executor
 import mt5_errors
+from provider_names import provider_display_name
 from state import Signal
 
 
@@ -31,10 +32,12 @@ DEFAULT_TIMEOUT_S = 3600
 # que la accion se ejecute cuando lo haga. Solo emitimos warning una vez
 # para que el user sepa.
 TRANSIENT_STUCK_THRESHOLD_S = 300
+STOPS_STUCK_THRESHOLD_S = 30
 
 # Batch E: cuando _run() ve N ticks consecutivos None de mt5.symbol_info_tick,
 # es indicacion fuerte de broker/MT5 down. Emitimos anomaly criticla.
 NULL_TICK_STREAK_THRESHOLD = 500   # ~5s a 10ms por ciclo
+BROKER_RETRY_COOLDOWN_S = 1.0
 
 
 # ─── Helpers PUROS de Batch E (alertas de loops async atascados) ──────────
@@ -71,6 +74,17 @@ def _stuck_transient_severity(retcode: int, age_s: float,
     return "warning"
 
 
+def _should_alert_stuck_stops(retcode: int, age_s: float,
+                              threshold_s: float,
+                              already_alerted: bool) -> bool:
+    """True once when MT5 keeps rejecting an otherwise valid SL/TP."""
+    return bool(
+        mt5_errors.classify(retcode) == "STOPS"
+        and age_s >= threshold_s
+        and not already_alerted
+    )
+
+
 @dataclass
 class PendingAction:
     kind: str                       # "MODIFY_SLTP" | "CLOSE_POSITION" | "CANCEL_PENDING"
@@ -86,6 +100,8 @@ class PendingAction:
     waiting_reason: Optional[str] = None
     label: str = ""                 # descripción humana para logs
     persist_until_signal_close: bool = False
+    retry_not_before: float = 0.0
+    stops_alerted: bool = False
 
     def expired(self) -> bool:
         if self.persist_until_signal_close and self.signal.status == "open":
@@ -145,6 +161,8 @@ class PendingQueue:
                     existing.created_at = action.created_at
                     existing.last_retcode = None
                     existing.waiting_reason = None
+                    existing.retry_not_before = 0.0
+                    existing.stops_alerted = False
                 existing.label = action.label or existing.label
                 existing.persist_until_signal_close = (
                     existing.persist_until_signal_close
@@ -306,6 +324,14 @@ class PendingQueue:
                             pass
                         act._stuck_warned = True
 
+                    if _should_alert_stuck_stops(
+                            act.last_retcode,
+                            age,
+                            STOPS_STUCK_THRESHOLD_S,
+                            act.stops_alerted):
+                        self._record_stuck_stops(act)
+                        act.stops_alerted = True
+
                 if result == "DONE":
                     print(f"[Pending] ✓ Resuelto tras {act.attempts} intentos: {act.label}")
                     # SL movido y CONFIRMADO en MT5 → registrar el SL real de
@@ -322,17 +348,6 @@ class PendingQueue:
                 elif result == "DROP":
                     print(f"[Pending] Descartado (error permanente {act.last_retcode}): {act.label}")
                     self._log_failure(act, reason=f"permanent_error_retcode_{act.last_retcode}")
-                elif result == "DROP_STOPS_STRUCTURAL":
-                    # Retcode 10016/10017/10015 atascado >30s — error estructural,
-                    # no temporal. Logueamos y mandamos notificación urgente.
-                    age_s = int(time.time() - act.created_at)
-                    print(f"[Pending] ⚠ STOPS estructural ({act.last_retcode}) tras "
-                          f"{act.attempts} intentos en {age_s}s: {act.label}")
-                    self._log_failure(
-                        act,
-                        reason=f"stops_structural_after_{act.attempts}_attempts_{age_s}s"
-                    )
-                    self._record_structural_failure(act)
                 else:
                     still_pending.append(act)
 
@@ -354,7 +369,7 @@ class PendingQueue:
     @staticmethod
     def _format_structural_notification(actions: list[PendingAction]) -> str:
         first = actions[0]
-        channel = "Canal 1" if first.signal.channel == "canal1" else "Canal 2"
+        channel = provider_display_name(first.signal.channel)
         tickets = ", ".join(str(action.ticket) for action in actions)
         count = len(actions)
         position_label = "posicion" if count == 1 else "posiciones"
@@ -364,19 +379,17 @@ class PendingQueue:
         tp_value = first.new_tp if first.new_tp is not None else first.applied_tp
         tp_text = str(tp_value) if tp_value is not None else "sin cambio"
         return (
-            "GESTION MT5 NO APLICADA\n\n"
-            f"{channel} | {first.signal.direction}\n"
-            f"Mensaje Telegram: #{first.signal.message_id}\n\n"
-            f"Accion: SL {sl_text} | TP {tp_text}\n"
-            f"Afectadas: {count} {position_label}\n"
-            f"Tickets: {tickets}\n\n"
-            f"MT5 rechazo {attempts} {attempt_label} MT5 por posicion "
-            f"(retcode {first.last_retcode}).\n"
-            "El bot ha detenido los reenvios identicos para evitar ruido y "
-            "peticiones inutiles. Revisa estas posiciones en MT5."
+            "🚨 PROTECCIÓN PENDIENTE\n"
+            f"{channel} · {first.signal.direction}\n"
+            f"SL {sl_text} · TP {tp_text}\n"
+            f"{count} {position_label}: {tickets}\n\n"
+            f"MT5 la rechazó tras {attempts} {attempt_label} MT5 por posicion "
+            f"(código {first.last_retcode}).\n"
+            "Bot: continua reintentando con el precio actualizado.\n"
+            "Acción: revisa el SL en MT5 si sigue sin aplicarse."
         )
 
-    def _record_structural_failure(self, act: PendingAction) -> None:
+    def _record_stuck_stops(self, act: PendingAction) -> None:
         key = self._structural_incident_key(act)
         self._structural_incidents.setdefault(key, []).append(act)
         task = self._structural_flush_tasks.get(key)
@@ -443,19 +456,10 @@ class PendingQueue:
                           new_sl=act.new_sl,
                           new_tp=act.new_tp,
                           age_seconds=round(time.time() - act.created_at, 1))
-            # Capa de anomalía estructurada (T3 del plan). Severidad por retcode:
-            #   10036 (POSITION_CLOSED): pos ya cerrada → info (benigno).
-            #   reason='stops_structural_*': MT5 lleva bloqueado >30s sin poder
-            #       aplicar el modify → critical (dinero potencialmente en riesgo).
-            #   resto (timeout, otros permanent_errors): warning.
-            if act.last_retcode == 10036:
-                sev = "info"
-            elif reason.startswith("stops_structural"):
-                # The queue emits one grouped human notification separately.
-                # Keep per-ticket anomalies non-critical to avoid duplicates.
-                sev = "warning"
-            else:
-                sev = "warning"
+            # POSITION_CLOSED es benigno. Timeouts y errores permanentes
+            # quedan como warning; los stops atascados se notifican por
+            # separado mientras la cola sigue reintentando.
+            sev = "info" if act.last_retcode == 10036 else "warning"
             journal.anomaly(sig_id, "mt5", sev,
                             f"{act.kind} falló: {reason}",
                             ticket=act.ticket, retcode=act.last_retcode,
@@ -620,6 +624,8 @@ class PendingQueue:
         expected_magic = act.signal.magic
 
         if act.kind == "MODIFY_SLTP":
+            if act.retry_not_before > time.time():
+                return "WAIT_RETRY_COOLDOWN"
             decision = await loop.run_in_executor(
                 None,
                 lambda: executor.preflight_modify_sltp(
@@ -694,12 +700,15 @@ class PendingQueue:
             # La posición ya no existe → nada que hacer, éxito implícito
             return "DONE"
         if cls == "TRANSIENT":
+            if retcode == 10029:
+                act.retry_not_before = time.time() + BROKER_RETRY_COOLDOWN_S
             return "RETRY"
         if cls == "STOPS":
-            # El preflight ya evita enviar niveles ilegales por precio. Un
-            # rechazo STOPS posterior revela una regla del broker no modelada;
-            # no repetimos a ciegas la misma solicitud.
-            return "DROP_STOPS_STRUCTURAL"
+            # The preflight is recalculated on every retry. A broker-side
+            # race can still reject a level that was valid milliseconds ago,
+            # so wait briefly and evaluate the current market again.
+            act.retry_not_before = time.time() + BROKER_RETRY_COOLDOWN_S
+            return "RETRY"
         return "DROP"
 
 
