@@ -1,18 +1,18 @@
 {
   "ok": true,
-  "generated_at": "2026-07-17T11:56:31+00:00",
+  "generated_at": "2026-07-20T12:12:35+00:00",
   "tick_time_contract": "mt5_server_epoch_utc_v3",
   "time_basis": "UTC",
   "dry_run": false,
-  "ensure_attempted": false,
+  "ensure_attempted": true,
   "pad_minutes": 5,
   "cache_dir": "data/ticks_cache",
-  "n_trades": 89,
+  "n_trades": 104,
   "scope": {
     "since": "2026-07-06T00:00:00+00:00",
     "until": null,
-    "input_trades": 225,
-    "selected_trades": 89
+    "input_trades": 240,
+    "selected_trades": 104
   },
   "required_days": [
     "2026-07-06",
@@ -26,7 +26,8 @@
     "2026-07-14",
     "2026-07-15",
     "2026-07-16",
-    "2026-07-17"
+    "2026-07-17",
+    "2026-07-20"
   ],
   "cached_days": [
     "2026-07-06",
@@ -40,7 +41,8 @@
     "2026-07-14",
     "2026-07-15",
     "2026-07-16",
-    "2026-07-17"
+    "2026-07-17",
+    "2026-07-20"
   ],
   "invalid_days": [],
   "incomplete_days": [],
@@ -126,13 +128,99 @@
     "2026-07-17": {
       "status": "complete",
       "required_from_utc": "2026-07-17T06:55:19+00:00",
-      "required_through_utc": "2026-07-17T08:48:38+00:00",
+      "required_through_utc": "2026-07-17T20:01:57+00:00",
       "complete_from_utc": "2026-07-17T00:00:00+00:00",
-      "complete_through_utc": "2026-07-17T08:57:43.521000+00:00"
+      "complete_through_utc": "2026-07-18T00:00:00+00:00"
+    },
+    "2026-07-20": {
+      "status": "complete",
+      "required_from_utc": "2026-07-20T05:47:46+00:00",
+      "required_through_utc": "2026-07-20T11:35:46+00:00",
+      "complete_from_utc": "2026-07-20T00:00:00+00:00",
+      "complete_through_utc": "2026-07-20T12:12:32.011000+00:00"
     }
   },
-  "ensure_stats": {},
+  "ensure_stats": {
+    "downloaded": 2,
+    "cached_already": 0,
+    "total_ticks": 1041169,
+    "empty_days": 0,
+    "day_contracts": {
+      "2026-07-17": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal2_3376",
+            "ticket": 1610880265,
+            "anchor_time_utc": "2026-07-17T07:00:20.108000+00:00",
+            "raw_time_msc": 1784282419523,
+            "quote_side": "ask",
+            "fill_price": 3998.2,
+            "price_delta": 0.0,
+            "time_delta_ms": 585
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 51,
+          "anchors_matched": 51,
+          "max_time_delta_ms": 2400,
+          "max_price_delta": 0.0,
+          "errors": []
+        },
+        "coverage": {
+          "source_query_start_utc": "2026-07-17T00:00:00+00:00",
+          "source_query_end_utc": "2026-07-18T00:00:00+00:00",
+          "captured_at_utc": "2026-07-20T12:12:34.696877+00:00",
+          "first_tick_utc": "2026-07-17T00:00:00.047000+00:00",
+          "last_tick_utc": "2026-07-17T20:56:59.988000+00:00",
+          "complete_from_utc": "2026-07-17T00:00:00+00:00",
+          "complete_through_utc": "2026-07-18T00:00:00+00:00",
+          "row_count": 681085
+        }
+      },
+      "2026-07-20": {
+        "time_evidence": {
+          "source_time_basis": "mt5_server_epoch",
+          "utc_offset_seconds": 10800,
+          "offset_detection_method": "fill_anchor",
+          "offset_reference": {
+            "signal_id": "canal2_3456",
+            "ticket": 1619648634,
+            "anchor_time_utc": "2026-07-20T05:52:47.946000+00:00",
+            "raw_time_msc": 1784537568002,
+            "quote_side": "ask",
+            "fill_price": 4008.3,
+            "price_delta": 0.0,
+            "time_delta_ms": 56
+          }
+        },
+        "semantic_validation": {
+          "valid": true,
+          "anchors_checked": 29,
+          "anchors_matched": 29,
+          "max_time_delta_ms": 2474,
+          "max_price_delta": 0.0,
+          "errors": []
+        },
+        "coverage": {
+          "source_query_start_utc": "2026-07-20T00:00:00+00:00",
+          "source_query_end_utc": "2026-07-21T00:00:00+00:00",
+          "captured_at_utc": "2026-07-20T12:12:35.056446+00:00",
+          "first_tick_utc": "2026-07-20T00:00:00.055000+00:00",
+          "last_tick_utc": "2026-07-20T12:12:32.011000+00:00",
+          "complete_from_utc": "2026-07-20T00:00:00+00:00",
+          "complete_through_utc": "2026-07-20T12:12:32.011000+00:00",
+          "row_count": 360084
+        }
+      }
+    }
+  },
   "refresh_requested_days": [],
-  "refresh_removed_days": [],
+  "refresh_removed_days": [
+    "2026-07-17"
+  ],
   "error": null
 }
