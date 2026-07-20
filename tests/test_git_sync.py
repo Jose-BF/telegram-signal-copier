@@ -68,6 +68,28 @@ def test_detached_local_ahead_attaches_main_and_pushes_head(tmp_path):
     assert _must_git(vm, "rev-parse", "origin/main") == local_head
 
 
+def test_sync_progress_reports_fetch_push_and_final_verification(tmp_path):
+    _remote, _seed, vm = _repos(tmp_path)
+    _write_commit(
+        vm,
+        "data/events.jsonl",
+        '{"event":"session"}\n',
+        "data: session",
+    )
+    stages = []
+
+    result = git_sync.synchronize_repository(
+        vm,
+        publish_local=True,
+        progress_callback=stages.append,
+    )
+
+    assert result.ok is True
+    assert stages.index("fetch") < stages.index("push")
+    assert stages.index("push") < stages.index("post_push_fetch")
+    assert stages[-1] == "verify"
+
+
 def test_remote_ahead_fast_forwards_and_attaches_main(tmp_path):
     _remote, seed, vm = _repos(tmp_path)
     old_head = _must_git(vm, "rev-parse", "HEAD")

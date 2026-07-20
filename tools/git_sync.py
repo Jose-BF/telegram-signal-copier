@@ -6,6 +6,7 @@ import subprocess
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Callable
 
 
 @dataclass(frozen=True)
@@ -17,6 +18,19 @@ class SyncResult:
     remote_head: str | None
     rescue_branch: str | None = None
     error: str | None = None
+
+
+def _notify(
+    callback: Callable[[str], None] | None,
+    stage: str,
+) -> None:
+    if callback is None:
+        return
+    try:
+        callback(stage)
+    except Exception:
+        # Console progress must never weaken or interrupt Git recovery.
+        pass
 
 
 def _run_git(
@@ -179,11 +193,13 @@ def synchronize_repository(
     remote: str = "origin",
     branch: str = "main",
     publish_local: bool = True,
+    progress_callback: Callable[[str], None] | None = None,
 ) -> SyncResult:
     repo_dir = Path(repo_dir)
     remote_ref = f"{remote}/{branch}"
     rescue = None
 
+    _notify(progress_callback, "inspect")
     local = _head(repo_dir)
     if local is None:
         return _failure(repo_dir, "invalid_repository", "HEAD is unavailable")
@@ -205,6 +221,7 @@ def synchronize_repository(
                 rescue_branch=rescue,
             )
 
+    _notify(progress_callback, "fetch")
     fetch = _run_git(repo_dir, "fetch", remote, branch)
     if fetch.returncode != 0:
         return _failure(
@@ -288,6 +305,7 @@ def synchronize_repository(
                     "local data commits require publication",
                     rescue_branch=rescue,
                 )
+            _notify(progress_callback, "push")
             pushed = _run_git(repo_dir, "push", remote, f"HEAD:{branch}")
             if pushed.returncode != 0:
                 return _failure(
@@ -296,6 +314,7 @@ def synchronize_repository(
                     pushed.stderr or pushed.stdout,
                     rescue_branch=rescue,
                 )
+            _notify(progress_callback, "post_push_fetch")
             refreshed = _run_git(repo_dir, "fetch", remote, branch)
             if refreshed.returncode != 0:
                 return _failure(
@@ -334,6 +353,7 @@ def synchronize_repository(
             publish_local
             and _local_commits_are_data_only(repo_dir, remote_head, local)
         ):
+            _notify(progress_callback, "rebase")
             rebased = _run_git(repo_dir, "rebase", remote_ref)
             if rebased.returncode == 0:
                 rebased_head = _head(repo_dir)
@@ -352,6 +372,7 @@ def synchronize_repository(
                         attached.stderr or attached.stdout,
                         rescue_branch=rescue,
                     )
+                _notify(progress_callback, "push")
                 pushed = _run_git(repo_dir, "push", remote, f"HEAD:{branch}")
                 if pushed.returncode != 0:
                     return _failure(
@@ -360,6 +381,7 @@ def synchronize_repository(
                         pushed.stderr or pushed.stdout,
                         rescue_branch=rescue,
                     )
+                _notify(progress_callback, "post_push_fetch")
                 _run_git(repo_dir, "fetch", remote, branch)
                 action = "data_rebased_and_pushed"
             else:
@@ -393,6 +415,7 @@ def synchronize_repository(
                 )
             action = "diverged_rescued"
 
+    _notify(progress_callback, "verify")
     final_branch = _branch(repo_dir)
     final_local = _head(repo_dir)
     final_remote = _head(repo_dir, remote_ref)

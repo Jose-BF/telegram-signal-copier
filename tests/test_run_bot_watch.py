@@ -30,14 +30,14 @@ def test_prepare_repository_for_runtime_delegates_to_state_machine(monkeypatch):
     calls = []
     expected = _sync_result(action="attached")
 
-    def fake_sync(repo_dir, *, publish_local):
-        calls.append((repo_dir, publish_local))
+    def fake_sync(repo_dir, *, publish_local, progress_callback):
+        calls.append((repo_dir, publish_local, progress_callback))
         return expected
 
     monkeypatch.setattr(watch.git_sync, "synchronize_repository", fake_sync)
 
     assert watch._prepare_repository_for_runtime() == expected
-    assert calls == [(watch.REPO_DIR, True)]
+    assert calls == [(watch.REPO_DIR, True, watch._print_git_progress)]
 
 
 def test_main_blocks_bot_spawn_when_git_preflight_is_unsafe(monkeypatch):
@@ -473,11 +473,13 @@ def test_regenerate_strategy_farm_accepts_complete_diagnostic_publication(
             "--provider-volume-per-leg",
             "0.01",
             "--quiet",
+            "--progress",
             "--money-contract",
             str(tmp_path / "data" / "broker_money_contract.json"),
             "--money-tick-cache-dir",
             str(tmp_path / "data" / "money_ticks_cache"),
         ]
+        assert kwargs["capture_output"] is False
         report.write_text(
             json.dumps(_valid_strategy_farm_publication(tmp_path)),
             encoding="utf-8",
@@ -887,6 +889,93 @@ def test_push_pipeline_runs_learning_after_all_causal_builders(monkeypatch):
         "readiness", "provider", "farm", "learning",
     ]
     assert all(learning_dependencies[0].values())
+
+
+def test_session_pipeline_reports_every_stage_in_causal_order(monkeypatch):
+    monkeypatch.setattr(watch, "_clear_mutable_offline_outputs", lambda: None)
+    stages = [
+        ("_regenerate_ledger", "Ledger"),
+        ("_regenerate_replay_trades", "Replay"),
+        ("_regenerate_accounting_replay_audit", "Auditoria contable"),
+        ("_regenerate_replay_tick_cache_status", "Ticks XAUUSD"),
+        ("_regenerate_broker_money_contract", "Contrato monetario"),
+        ("_regenerate_money_tick_cache_status", "Ticks de conversion"),
+        ("_regenerate_observed_tick_replay_audit", "Replay tick a tick"),
+        ("_regenerate_replay_readiness_report", "Preparacion de replay"),
+        ("_regenerate_provider_signal_catalog", "Catalogo de senales"),
+        ("_regenerate_strategy_farm", "Granja de estrategias"),
+    ]
+    for function_name, _ in stages:
+        monkeypatch.setattr(watch, function_name, lambda: True)
+    monkeypatch.setattr(
+        watch,
+        "_regenerate_recursive_learning_outputs",
+        lambda dependencies: True,
+    )
+
+    class Recorder:
+        def __init__(self):
+            self.updates = []
+
+        def update(self, current, total, label, *, force=False):
+            self.updates.append((current, total, label, force))
+
+    reporter = Recorder()
+    watch._regenerate_session_outputs(progress_reporter=reporter)
+
+    completed = [
+        (current, total, label)
+        for current, total, label, _ in reporter.updates
+        if label.endswith(" OK")
+    ]
+    assert completed == [
+        (index, 11, f"{label} OK")
+        for index, (_, label) in enumerate(
+            [*stages, ("learning", "Aprendizaje recursivo")],
+            start=1,
+        )
+    ]
+
+
+def test_push_session_data_reports_exact_staged_worktree_bytes(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "one.json").write_bytes(b"abc")
+    (data_dir / "two.jsonl").write_bytes(b"12345")
+    monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
+    monkeypatch.setattr(watch, "_regenerate_session_outputs", lambda: {})
+
+    def fake_git(*args, capture=True):
+        if args == ("diff", "--cached", "--quiet"):
+            return subprocess.CompletedProcess(
+                args=args, returncode=1, stdout="", stderr=""
+            )
+        if args == ("diff", "--cached", "--name-only", "-z"):
+            return subprocess.CompletedProcess(
+                args=args,
+                returncode=0,
+                stdout="data/one.json\0data/two.jsonl\0",
+                stderr="",
+            )
+        if args[:2] == ("commit", "-m"):
+            return subprocess.CompletedProcess(
+                args=args, returncode=1, stdout="", stderr="stop after size"
+            )
+        return subprocess.CompletedProcess(
+            args=args, returncode=0, stdout="", stderr=""
+        )
+
+    monkeypatch.setattr(watch, "_git", fake_git)
+
+    watch._push_session_data()
+
+    output = capsys.readouterr().out
+    assert "2 archivos" in output
+    assert "8 B" in output
 
 
 def test_push_pipeline_runs_learning_after_upstream_failure(monkeypatch):

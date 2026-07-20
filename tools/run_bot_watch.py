@@ -41,6 +41,7 @@ if str(REPO_DIR) not in sys.path:
     sys.path.insert(0, str(REPO_DIR))
 
 import log_learning_publication as learning_publication
+import pipeline_progress
 from tools import git_sync
 
 MAIN_PY  = REPO_DIR / "main.py"
@@ -104,8 +105,24 @@ def _git(*args: str, capture: bool = True) -> subprocess.CompletedProcess:
     )
 
 
+def _print_git_progress(stage: str) -> None:
+    labels = {
+        "inspect": "comprobando estado local",
+        "fetch": "consultando origin/main",
+        "rebase": "integrando datos locales sobre main",
+        "push": "subiendo datos de sesion",
+        "post_push_fetch": "confirmando la referencia remota",
+        "verify": "verificando main limpio y sincronizado",
+    }
+    print(f"[Watch] Git: {labels.get(stage, stage)}...", flush=True)
+
+
 def _prepare_repository_for_runtime() -> git_sync.SyncResult:
-    return git_sync.synchronize_repository(REPO_DIR, publish_local=True)
+    return git_sync.synchronize_repository(
+        REPO_DIR,
+        publish_local=True,
+        progress_callback=_print_git_progress,
+    )
 
 
 def _print_sync_result(result: git_sync.SyncResult) -> None:
@@ -706,7 +723,12 @@ def _strategy_farm_command() -> list[str]:
         command.extend(["--from", from_date])
     for latency_ms in latencies:
         command.extend(["--provider-latency-ms", str(latency_ms)])
-    command.extend(["--provider-volume-per-leg", str(volume), "--quiet"])
+    command.extend([
+        "--provider-volume-per-leg",
+        str(volume),
+        "--quiet",
+        "--progress",
+    ])
     command.extend([
         "--money-contract",
         str(REPO_DIR / "data" / "broker_money_contract.json"),
@@ -723,7 +745,7 @@ def _regenerate_strategy_farm() -> bool:
         command = _strategy_farm_command()
         rec = subprocess.run(
             command,
-            cwd=REPO_DIR, capture_output=True, text=True, timeout=300,
+            cwd=REPO_DIR, capture_output=False, text=True, timeout=300,
         )
         if rec.returncode == 0 and STRATEGY_FARM_FILE.exists():
             if _strategy_farm_publication_valid(STRATEGY_FARM_FILE):
@@ -918,8 +940,17 @@ def _offline_output_transaction():
         raise
 
 
-def _regenerate_session_outputs() -> dict[str, bool]:
+def _regenerate_session_outputs(
+    *,
+    progress_reporter: pipeline_progress.ProgressReporter | None = None,
+) -> dict[str, bool]:
     _clear_mutable_offline_outputs()
+    reporter = progress_reporter or pipeline_progress.ProgressReporter(
+        min_interval_s=0.0,
+        width=24,
+    )
+    stage_total = 11
+    stage_current = 0
     builder_results = {
         "accounting": False,
         "ledger": False,
@@ -932,41 +963,133 @@ def _regenerate_session_outputs() -> dict[str, bool]:
         "money_contract": False,
         "money_ticks": False,
     }
-    builder_results["ledger"] = _regenerate_ledger()
-    if builder_results["ledger"]:
-        builder_results["replay"] = _regenerate_replay_trades()
-        if builder_results["replay"]:
-            builder_results["accounting"] = (
-                _regenerate_accounting_replay_audit()
+
+    def run_stage(
+        key: str | None,
+        label: str,
+        builder,
+        *,
+        enabled: bool = True,
+    ) -> bool:
+        nonlocal stage_current
+        if enabled:
+            reporter.update(
+                stage_current,
+                stage_total,
+                f"{label}: ejecutando",
+                force=True,
             )
-            if builder_results["accounting"]:
-                builder_results["tick_cache"] = (
-                    _regenerate_replay_tick_cache_status()
-                )
-                builder_results["money_contract"] = (
-                    _regenerate_broker_money_contract()
-                )
-                builder_results["money_ticks"] = (
-                    _regenerate_money_tick_cache_status()
-                )
-                builder_results["observed_ticks"] = (
-                    _regenerate_observed_tick_replay_audit()
-                )
-                builder_results["readiness"] = (
-                    _regenerate_replay_readiness_report()
-                )
-                builder_results["provider_catalog"] = (
-                    _regenerate_provider_signal_catalog()
-                )
-                if (
-                    builder_results["observed_ticks"]
-                    and builder_results["provider_catalog"]
-                ):
-                    builder_results["strategy_farm"] = (
-                        _regenerate_strategy_farm()
-                    )
-    _regenerate_recursive_learning_outputs(builder_results)
+            result = bool(builder())
+            status = "OK" if result else "FALLO"
+        else:
+            result = False
+            status = "OMITIDA por dependencia"
+        stage_current += 1
+        reporter.update(
+            stage_current,
+            stage_total,
+            f"{label} {status}",
+            force=True,
+        )
+        if key is not None:
+            builder_results[key] = result
+        return result
+
+    run_stage("ledger", "Ledger", _regenerate_ledger)
+    run_stage(
+        "replay",
+        "Replay",
+        _regenerate_replay_trades,
+        enabled=builder_results["ledger"],
+    )
+    run_stage(
+        "accounting",
+        "Auditoria contable",
+        _regenerate_accounting_replay_audit,
+        enabled=builder_results["replay"],
+    )
+    accounting_ok = builder_results["accounting"]
+    run_stage(
+        "tick_cache",
+        "Ticks XAUUSD",
+        _regenerate_replay_tick_cache_status,
+        enabled=accounting_ok,
+    )
+    run_stage(
+        "money_contract",
+        "Contrato monetario",
+        _regenerate_broker_money_contract,
+        enabled=accounting_ok,
+    )
+    run_stage(
+        "money_ticks",
+        "Ticks de conversion",
+        _regenerate_money_tick_cache_status,
+        enabled=accounting_ok,
+    )
+    run_stage(
+        "observed_ticks",
+        "Replay tick a tick",
+        _regenerate_observed_tick_replay_audit,
+        enabled=accounting_ok,
+    )
+    run_stage(
+        "readiness",
+        "Preparacion de replay",
+        _regenerate_replay_readiness_report,
+        enabled=accounting_ok,
+    )
+    run_stage(
+        "provider_catalog",
+        "Catalogo de senales",
+        _regenerate_provider_signal_catalog,
+        enabled=accounting_ok,
+    )
+    run_stage(
+        "strategy_farm",
+        "Granja de estrategias",
+        _regenerate_strategy_farm,
+        enabled=(
+            builder_results["observed_ticks"]
+            and builder_results["provider_catalog"]
+        ),
+    )
+    run_stage(
+        None,
+        "Aprendizaje recursivo",
+        lambda: _regenerate_recursive_learning_outputs(builder_results),
+    )
     return builder_results
+
+
+def _format_byte_size(size_bytes: int) -> str:
+    value = float(max(0, size_bytes))
+    units = ("B", "KB", "MB", "GB")
+    for unit in units:
+        if value < 1024.0 or unit == units[-1]:
+            if unit == "B":
+                return f"{int(value)} B"
+            return f"{value:.1f} {unit}"
+        value /= 1024.0
+    return f"{int(size_bytes)} B"
+
+
+def _staged_payload_summary() -> tuple[int, int]:
+    result = _git("diff", "--cached", "--name-only", "-z")
+    if result.returncode != 0:
+        return 0, 0
+    paths = [path for path in (result.stdout or "").split("\0") if path]
+    total_bytes = 0
+    root = REPO_DIR.resolve()
+    for raw_path in paths:
+        path = (REPO_DIR / raw_path).resolve()
+        try:
+            path.relative_to(root)
+        except ValueError:
+            continue
+        if path.is_file():
+            total_bytes += path.stat().st_size
+    return len(paths), total_bytes
 
 
 def _push_session_data() -> git_sync.SyncResult | None:
@@ -1013,6 +1136,13 @@ def _push_session_data() -> git_sync.SyncResult | None:
         diff = _git("diff", "--cached", "--quiet")
         if diff.returncode == 0:
             return  # sin cambios
+
+        staged_files, staged_bytes = _staged_payload_summary()
+        print(
+            "[Watch] Publicacion preparada: "
+            f"{staged_files} archivos, {_format_byte_size(staged_bytes)}.",
+            flush=True,
+        )
 
         from datetime import datetime
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
