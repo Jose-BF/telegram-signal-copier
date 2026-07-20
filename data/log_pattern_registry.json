@@ -6169,12 +6169,12 @@
   "schema_version": 1,
   "source_fingerprints": {
     "accounting": "c69c8dd7b870683e21216b80350811f96f07975f57d56e4d47244f6df2a83f6a",
-    "events": "fa7bc26e9c88818a94cecfb9a575e7dab62c6cc715a9989517dd0bf44c1dd5a1",
+    "events": "fd1f9f7fff1330af61d820eb446a4cacfdc7326a25139eca085d896fce1c0587",
     "observed_ticks": "b3d1364ad36ad6130ad5a2de9008eb7bbeb7356f3a8d7c8352813ccfa1b2783f",
     "provider_catalog": "dbc91cb1d7809162ab2fe34de0dda5a1d269bb24073ad7cee5a4ee7c4be8b689",
     "replay": "bd64c04942482913189023953e5ade0be6e5eeabebd7fbfa3a72d606a4bcb92c",
     "review_metadata": "5991733f918759f7d59feba8a0c6c7ffd96f8ea955e25d1ad416b018f1f3a4af",
-    "strategy_farm": "421e9a7b66a118b892affec0edfcd52c44d372989f6fd58a1d989f7c893fafc6"
+    "strategy_farm": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
   },
   "summary": {
     "candidates": 64,

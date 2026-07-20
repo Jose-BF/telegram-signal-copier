@@ -1326,26 +1326,27 @@
   ],
   "corpus": {
     "accounting_trades": 248,
-    "event_rows": 70143,
-    "latest_evidence_utc": "2026-07-20T22:17:30.707+00:00",
+    "event_rows": 70150,
+    "latest_evidence_utc": "2026-07-20T22:34:40.908+00:00",
     "observed_tick_trades": 112,
     "provider_records": 496,
     "replay_trades": 248,
     "source_fingerprints": {
       "accounting": "c69c8dd7b870683e21216b80350811f96f07975f57d56e4d47244f6df2a83f6a",
-      "events": "fa7bc26e9c88818a94cecfb9a575e7dab62c6cc715a9989517dd0bf44c1dd5a1",
+      "events": "fd1f9f7fff1330af61d820eb446a4cacfdc7326a25139eca085d896fce1c0587",
       "observed_ticks": "b3d1364ad36ad6130ad5a2de9008eb7bbeb7356f3a8d7c8352813ccfa1b2783f",
       "provider_catalog": "dbc91cb1d7809162ab2fe34de0dda5a1d269bb24073ad7cee5a4ee7c4be8b689",
       "replay": "bd64c04942482913189023953e5ade0be6e5eeabebd7fbfa3a72d606a4bcb92c",
       "review_metadata": "5991733f918759f7d59feba8a0c6c7ffd96f8ea955e25d1ad416b018f1f3a4af",
-      "strategy_farm": "421e9a7b66a118b892affec0edfcd52c44d372989f6fd58a1d989f7c893fafc6"
+      "strategy_farm": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
     }
   },
   "hard_gate_blockers": [
     "semantics",
     "execution",
     "accounting",
-    "market_replay"
+    "market_replay",
+    "provenance"
   ],
   "health": {
     "accounting": {
@@ -1403,16 +1404,18 @@
       "status": "blocked"
     },
     "provenance": {
-      "blockers": [],
+      "blockers": [
+        "farm_artifact_integrity_not_verified"
+      ],
       "hard_gate": true,
       "metrics": {
-        "artifact_integrity_verified": true,
-        "farm_mode": "diagnostic_only",
-        "market_replay_verified": false,
+        "artifact_integrity_verified": null,
+        "farm_mode": null,
+        "market_replay_verified": null,
         "replay_rows": 248
       },
-      "passed": true,
-      "status": "passed"
+      "passed": false,
+      "status": "blocked"
     },
     "semantics": {
       "blockers": [
@@ -1437,11 +1440,12 @@
         "accounting",
         "execution",
         "market_replay",
+        "provenance",
         "semantics"
       ],
       "hard_gate": true,
       "metrics": {
-        "hard_layers_passed": 2,
+        "hard_layers_passed": 1,
         "hard_layers_total": 6
       },
       "passed": false,
@@ -1487,7 +1491,7 @@
     "regressed_patterns": 1
   },
   "mode": "diagnostic_only",
-  "registry_fingerprint": "2edb009edebf38faaf63e29c449ed28570625232c7b07071d3f70697ef364181",
+  "registry_fingerprint": "1f22819e8e8c407e0a61e22f7e884ea66d907fdd7826d44a25e29f6bda2892e6",
   "safe_for_strategy_simulation": false,
   "schema_version": 1
 }
