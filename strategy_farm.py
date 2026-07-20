@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import sys
 from collections import Counter
@@ -1113,6 +1114,61 @@ def write_report(report: dict, path: Path) -> None:
     path.write_bytes(simulation_run_provenance.pretty_json_bytes(report))
 
 
+def compact_latest_report(
+    report: dict,
+    publication: simulation_run_provenance.PublicationResult,
+) -> dict:
+    """Keep routine analysis small while linking the lossless full report."""
+    compact = copy.deepcopy(report)
+    provider_rows = compact.pop("provider_policy_results", [])
+    compact["provider_policy_result_count"] = sum(
+        len(group.get("results") or [])
+        for group in provider_rows
+        if isinstance(group, dict)
+    )
+    archive_ref = {
+        "available": False,
+        "run_fingerprint": compact.get("provenance", {}).get(
+            "run_fingerprint"
+        ),
+        "result_fingerprint": compact.get("provenance", {}).get(
+            "result_fingerprint"
+        ),
+        "run_card": compact.get("provenance", {}).get("run_card"),
+    }
+    if publication.run_dir is not None:
+        card_path = publication.run_dir / "run_card.json"
+        card = json.loads(card_path.read_text(encoding="utf-8"))
+        artifact = next(
+            (
+                item
+                for item in card.get("artifacts") or []
+                if isinstance(item, dict) and item.get("retained")
+            ),
+            None,
+        )
+        if artifact is not None:
+            run_card_ref = str(archive_ref.get("run_card") or "run_card.json")
+            artifact_ref = (
+                Path(run_card_ref).parent / str(artifact["path"])
+            ).as_posix()
+            archive_ref.update({
+                "available": True,
+                "path": artifact_ref,
+                "compression": artifact.get("compression") or "none",
+                "size_bytes": artifact.get("size_bytes"),
+                "sha256": artifact.get("sha256"),
+                "canonical_size_bytes": artifact.get(
+                    "canonical_size_bytes", artifact.get("size_bytes")
+                ),
+                "canonical_sha256": artifact.get(
+                    "canonical_sha256", artifact.get("sha256")
+                ),
+            })
+    compact["details_archive"] = archive_ref
+    return compact
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Run the auditable management strategy farm")
@@ -1256,7 +1312,12 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     report = publication.report
-    write_report(report, args.output)
+    output_report = (
+        report
+        if args.include_trades
+        else compact_latest_report(report, publication)
+    )
+    write_report(output_report, args.output)
     if not args.quiet:
         print(f"Policies: {report['policy_count']}")
         print(f"Executed trades: {report['executed_trade_count']}")

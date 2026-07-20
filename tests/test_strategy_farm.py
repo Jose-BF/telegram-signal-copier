@@ -1,3 +1,4 @@
+import gzip
 import json
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -685,7 +686,16 @@ def test_cli_writes_latest_report_with_run_card_reference(tmp_path):
     assert exit_code == 0
     assert latest["provenance"]["status"] == "diagnostic_archived"
     assert latest["validation"]["mode"] == "diagnostic_only"
-    assert (tmp_path / "runs" / fingerprint / "run_card.json").is_file()
+    run_dir = tmp_path / "runs" / fingerprint
+    assert (run_dir / "run_card.json").is_file()
+    assert "provider_policy_results" not in latest
+    assert latest["details_archive"]["compression"] == "gzip"
+    assert latest["details_archive"]["run_fingerprint"] == fingerprint
+    archived = json.loads(gzip.decompress(
+        (run_dir / "strategy_farm.json.gz").read_bytes()
+    ))
+    assert "provider_policy_results" in archived
+    assert archived["provenance"] == latest["provenance"]
 
 
 def test_cli_preserves_ordered_provider_execution_scenarios(tmp_path):
@@ -730,6 +740,8 @@ def test_detailed_cli_reference_matches_exact_latest_report_bytes(tmp_path):
     ])
 
     latest = json.loads(output.read_text())
+    assert "provider_policy_results" in latest
+    assert "details_archive" not in latest
     run_dir = tmp_path / "runs" / latest["provenance"]["run_fingerprint"]
     card = json.loads((run_dir / "run_card.json").read_text())
     artifact = card["artifacts"][0]
