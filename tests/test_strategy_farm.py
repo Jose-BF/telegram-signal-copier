@@ -1016,6 +1016,65 @@ def test_provider_first_farm_accounts_for_every_latency_scenario(
     } == {0, 250, 1000}
 
 
+def test_farm_progress_accounts_for_every_executed_and_provider_row(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        strategy_farm.observed_tick_replay_validator,
+        "ReplayTickFrameCache",
+        _ProviderFirstTickLoader,
+    )
+    monkeypatch.setattr(
+        strategy_farm.strategy_simulator,
+        "simulate_trade",
+        lambda *args, **kwargs: _row(0.0, status="unchanged"),
+    )
+    policies = _two_provider_policies()
+    updates = []
+
+    strategy_farm.build_farm_execution(
+        [_farm_trade("executed")],
+        [_exact_baseline("executed")],
+        tick_cache_dir=tmp_path / "ticks",
+        policies=policies,
+        catalog={"signals": [
+            _provider_first_signal("executed", executed=True),
+            _provider_first_signal("unexecuted", executed=False),
+        ]},
+        provider_latency_scenarios_ms=(0, 250, 1000),
+        progress_callback=lambda current, total, label: updates.append(
+            (current, total, label)
+        ),
+    )
+
+    assert [current for current, _, _ in updates] == list(range(1, 15))
+    assert {total for _, total, _ in updates} == {14}
+    assert updates[-1][:2] == (14, 14)
+    assert any("Ejecutada" in label for _, _, label in updates)
+    assert any("Proveedor" in label for _, _, label in updates)
+
+
+def test_cli_progress_is_visible_even_in_quiet_mode(tmp_path, capsys):
+    paths = _write_empty_farm_inputs(tmp_path)
+
+    exit_code = strategy_farm.main([
+        "--replay", str(paths["replay"]),
+        "--baseline", str(paths["baseline"]),
+        "--catalog", str(paths["catalog"]),
+        "--tick-cache-dir", str(tmp_path / "ticks"),
+        "--output", str(tmp_path / "strategy_farm.json"),
+        "--run-archive-dir", str(tmp_path / "runs"),
+        "--quiet",
+        "--progress",
+    ])
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert "[0/0]" in output
+    assert "Policies:" not in output
+
+
 class _ProviderMissingContractTickLoader(_ProviderFirstTickLoader):
     def load_ticks_for_trade(self, trade, *, pad_minutes=5):
         day = str(trade["open_dt_utc"])[:10]

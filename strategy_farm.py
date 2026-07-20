@@ -12,11 +12,12 @@ from datetime import datetime, timedelta, timezone
 from math import isfinite
 from numbers import Integral, Real
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable
 
 import pandas as pd
 
 import broker_money
+import pipeline_progress
 from broker_market_sessions import (
     MARKET_SESSION_CONTRACT,
     broker_session_close_utc,
@@ -637,6 +638,7 @@ def _build_provider_policy_results(
     *,
     latency_scenarios_ms: tuple[int, ...],
     volume_per_leg: float,
+    progress_step: Callable[[str], None] | None = None,
 ) -> tuple[list[dict], dict, list[dict]]:
     signal_ids = [
         str(signal.get("provider_signal_id") or "")
@@ -714,6 +716,12 @@ def _build_provider_policy_results(
                 row = _replace_missing_tick_blocker(row, tick_blockers)
                 row["latency_scenario_ms"] = latency_ms
                 rows_by_policy[policy.policy_id].append(row)
+                if progress_step is not None:
+                    progress_step(
+                        "Proveedor "
+                        f"{spec.provider_signal_id} / {policy.policy_id} / "
+                        f"{latency_ms} ms"
+                    )
 
     groups = [
         {
@@ -806,6 +814,7 @@ def build_farm_execution(
     provider_volume_per_leg: float = 0.01,
     money_contract_path: Path | None = None,
     money_tick_cache_dir: Path | None = None,
+    progress_callback: Callable[[int, int, str], None] | None = None,
 ) -> FarmExecution:
     policies = policies or strategy_policies.default_policy_catalog()
     latency_scenarios_ms, provider_volume_per_leg = (
@@ -821,6 +830,25 @@ def build_farm_execution(
     ]
     baselines = strategy_simulator._baseline_by_sig(baseline_rows)
     providers = _provider_by_execution(catalog)
+    provider_signals = _provider_signals_in_scope(
+        catalog,
+        from_date,
+        to_date,
+    )
+    progress_total = (
+        len(selected_trades) * len(policies)
+        + len(provider_signals) * len(latency_scenarios_ms) * len(policies)
+    )
+    progress_current = 0
+
+    def progress_step(label: str) -> None:
+        nonlocal progress_current
+        progress_current += 1
+        if progress_callback is not None:
+            progress_callback(progress_current, progress_total, label)
+
+    if progress_callback is not None and progress_total == 0:
+        progress_callback(0, 0, "Sin combinaciones para simular")
     unit_value, unit_source = strategy_simulator._global_unit_value(
         selected_trades, None)
     tick_loader = observed_tick_replay_validator.ReplayTickFrameCache(
@@ -864,6 +892,9 @@ def build_farm_execution(
                     horizon_policy=policy.horizon_policy,
                 )
             )
+            progress_step(
+                f"Ejecutada {trade.get('sig_id')} / {policy.policy_id}"
+            )
 
     scores = []
     for policy in policies:
@@ -893,11 +924,6 @@ def build_farm_execution(
         executed_selection["selected_policy"] = None
         executed_selection["exploratory_ranking"] = []
 
-    provider_signals = _provider_signals_in_scope(
-        catalog,
-        from_date,
-        to_date,
-    )
     (
         provider_policy_results,
         provider_scope,
@@ -908,6 +934,7 @@ def build_farm_execution(
         tick_loader,
         latency_scenarios_ms=latency_scenarios_ms,
         volume_per_leg=provider_volume_per_leg,
+        progress_step=progress_step,
     )
     money_converter, money_contract = _load_money_converter(
         money_contract_path,
@@ -1085,6 +1112,7 @@ def build_farm_report(
     provider_volume_per_leg: float = 0.01,
     money_contract_path: Path | None = None,
     money_tick_cache_dir: Path | None = None,
+    progress_callback: Callable[[int, int, str], None] | None = None,
 ) -> dict:
     return build_farm_execution(
         trades,
@@ -1100,6 +1128,7 @@ def build_farm_report(
         provider_volume_per_leg=provider_volume_per_leg,
         money_contract_path=money_contract_path,
         money_tick_cache_dir=money_tick_cache_dir,
+        progress_callback=progress_callback,
     ).report
 
 
@@ -1209,6 +1238,7 @@ def main(argv: list[str] | None = None) -> int:
         default=0.01,
     )
     parser.add_argument("--quiet", action="store_true")
+    parser.add_argument("--progress", action="store_true")
     args = parser.parse_args(argv)
 
     required_inputs = {
@@ -1232,6 +1262,18 @@ def main(argv: list[str] | None = None) -> int:
     trades = strategy_simulator.load_jsonl(args.replay)
     baseline_rows = strategy_simulator.load_jsonl(args.baseline)
     catalog = _load_json(args.catalog)
+    progress_reporter = (
+        pipeline_progress.ProgressReporter() if args.progress else None
+    )
+
+    def report_progress(current: int, total: int, label: str) -> None:
+        if progress_reporter is None:
+            return
+        if total == 0 or current >= total:
+            progress_reporter.complete(current, total, label)
+        else:
+            progress_reporter.update(current, total, label)
+
     execution = build_farm_execution(
         trades,
         baseline_rows,
@@ -1245,6 +1287,7 @@ def main(argv: list[str] | None = None) -> int:
         provider_volume_per_leg=args.provider_volume_per_leg,
         money_contract_path=args.money_contract,
         money_tick_cache_dir=args.money_tick_cache_dir,
+        progress_callback=report_progress if args.progress else None,
     )
     provider_configuration = execution.report["provider_configuration"]
     evidence = simulation_run_provenance.build_run_evidence(
