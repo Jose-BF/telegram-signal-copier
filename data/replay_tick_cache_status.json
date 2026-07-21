@@ -1,10 +1,10 @@
 {
   "ok": true,
-  "generated_at": "2026-07-21T19:22:20+00:00",
+  "generated_at": "2026-07-21T21:04:25+00:00",
   "tick_time_contract": "mt5_server_epoch_utc_v3",
   "time_basis": "UTC",
   "dry_run": false,
-  "ensure_attempted": true,
+  "ensure_attempted": false,
   "pad_minutes": 5,
   "cache_dir": "data/ticks_cache",
   "n_trades": 126,
@@ -149,52 +149,8 @@
       "complete_through_utc": "2026-07-21T19:22:16.906000+00:00"
     }
   },
-  "ensure_stats": {
-    "downloaded": 1,
-    "cached_already": 0,
-    "total_ticks": 551597,
-    "empty_days": 0,
-    "day_contracts": {
-      "2026-07-21": {
-        "time_evidence": {
-          "source_time_basis": "mt5_server_epoch",
-          "utc_offset_seconds": 10800,
-          "offset_detection_method": "fill_anchor",
-          "offset_reference": {
-            "signal_id": "canal2_3526",
-            "ticket": 1627131053,
-            "anchor_time_utc": "2026-07-21T05:41:01.513000+00:00",
-            "raw_time_msc": 1784623261220,
-            "quote_side": "bid",
-            "fill_price": 4063.23,
-            "price_delta": 0.0,
-            "time_delta_ms": 293
-          }
-        },
-        "semantic_validation": {
-          "valid": true,
-          "anchors_checked": 67,
-          "anchors_matched": 67,
-          "max_time_delta_ms": 2412,
-          "max_price_delta": 0.0,
-          "errors": []
-        },
-        "coverage": {
-          "source_query_start_utc": "2026-07-21T00:00:00+00:00",
-          "source_query_end_utc": "2026-07-22T00:00:00+00:00",
-          "captured_at_utc": "2026-07-21T19:22:19.102117+00:00",
-          "first_tick_utc": "2026-07-21T00:00:00.014000+00:00",
-          "last_tick_utc": "2026-07-21T19:22:16.906000+00:00",
-          "complete_from_utc": "2026-07-21T00:00:00+00:00",
-          "complete_through_utc": "2026-07-21T19:22:16.906000+00:00",
-          "row_count": 551597
-        }
-      }
-    }
-  },
+  "ensure_stats": {},
   "refresh_requested_days": [],
-  "refresh_removed_days": [
-    "2026-07-21"
-  ],
+  "refresh_removed_days": [],
   "error": null
 }

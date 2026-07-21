@@ -1414,9 +1414,9 @@
         "2026-07-21"
       ],
       "candidate_reason": "pattern recurred across retained sessions",
-      "occurrences": 61,
+      "occurrences": 62,
       "pattern_id": "semantics.context_media_not_extracted",
-      "priority_score": 11076,
+      "priority_score": 11086,
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
@@ -1456,16 +1456,16 @@
   ],
   "corpus": {
     "accounting_trades": 262,
-    "event_rows": 73721,
-    "latest_evidence_utc": "2026-07-21T19:19:42.392+00:00",
+    "event_rows": 73748,
+    "latest_evidence_utc": "2026-07-21T20:57:16.660+00:00",
     "observed_tick_trades": 126,
-    "provider_records": 522,
+    "provider_records": 524,
     "replay_trades": 262,
     "source_fingerprints": {
       "accounting": "8243703d8bf16b98dd7283ef45c8fdc314088059274122825966e1cdae3d2b73",
-      "events": "ebe29adac760746033c151f62ee09444387267712ae2ad1118a82dae6eef4c82",
+      "events": "5b9ec393f7fb9456d60309c1c668ab6c06d4c62e1783f8e338d0ae2e2c0573f9",
       "observed_ticks": "c07c858c3718953bf3d0e6dd52306d33f6cdafe9d927b200cb7766af5fb3445d",
-      "provider_catalog": "246b6b6bc2e60af25bd599472b9c6b68cbbb02c2365c65be2e94e00352c7abe7",
+      "provider_catalog": "4f9be8e04ba9e5cca07a85b65c6e4002a739e34dcd58e80fce3e8c7a9b95d150",
       "replay": "95ea7a78fc1b8967ebe4fd5c3bc308c5a899557485a68d65692e56c005ef8488",
       "review_metadata": "5991733f918759f7d59feba8a0c6c7ffd96f8ea955e25d1ad416b018f1f3a4af",
       "strategy_farm": "840ee00b45ce7ef7ffb3de4c56e057ea1384d4ce20ac0dae5ab4193c336d6fb7"
@@ -1555,7 +1555,7 @@
         "complete_formal_signals": 275,
         "formal_signals": 282,
         "incomplete_formal_signals": 7,
-        "management_events": 1486,
+        "management_events": 1487,
         "unclassified_management_events": 146,
         "unknown_provider_records": 70
       },
@@ -1619,7 +1619,7 @@
     "regressed_patterns": 1
   },
   "mode": "diagnostic_only",
-  "registry_fingerprint": "27761b9cf3b68e126617cfdff5bdc826881fdf13dfac0981029dff60481081bc",
+  "registry_fingerprint": "385a75d64afe09e5603dddea5128c13e0b4fedc5525deacbd67090c0acdde90f",
   "safe_for_strategy_simulation": false,
   "schema_version": 1
 }
