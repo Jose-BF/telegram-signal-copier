@@ -1325,6 +1325,126 @@ def test_context_photo_and_progress_replies_do_not_inflate_formal_signals():
     assert event["modality"] == "informational"
 
 
+def test_zone_plan_is_preserved_without_becoming_a_live_market_trigger():
+    events = [
+        _raw(
+            "canal2",
+            3597,
+            "These are all the zones I would buy from. Target is 4125",
+            has_photo=True,
+        ),
+        _raw(
+            "canal2",
+            3598,
+            "Buy Zones Marked Out\n\n4075-4073\n4070-4069\n"
+            "4066-4064\n4062-4060\n4059-4057",
+            reply_to_msg_id=3597,
+            is_reply=True,
+        ),
+        _raw(
+            "canal2",
+            3599,
+            "First Zone\n\n+40 pips",
+            reply_to_msg_id=3598,
+            is_reply=True,
+        ),
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+
+    assert report["summary"]["provider_signals"] == 0
+    assert report["summary"]["record_types"] == {"zone_plan": 1}
+    assert len(report["signals"]) == 1
+    plan = report["signals"][0]
+    assert plan["provider_signal_id"] == "canal2_3597"
+    assert plan["record_type"] == "zone_plan"
+    assert plan["direction"] == "BUY"
+    assert plan["zone_target"] == 4125.0
+    assert plan["entry_zones"] == [
+        [4073.0, 4075.0],
+        [4069.0, 4070.0],
+        [4064.0, 4066.0],
+        [4060.0, 4062.0],
+        [4057.0, 4059.0],
+    ]
+    assert plan["source_message_ids"] == [3597, 3598]
+    assert plan["management_events"][0]["message_id"] == 3599
+    assert plan["entry_contract"]["status"] == "blocked"
+    assert plan["entry_contract"]["blockers"] == [
+        "provider_zone_plan_not_live_trigger"
+    ]
+
+
+def test_execution_quality_is_rechecked_against_final_provider_range():
+    events = [
+        _raw(
+            "canal2",
+            810,
+            "Buy Gold Now\n4000-4002\nTP1 4005\nSL 3996",
+        )
+    ]
+    replay = [{
+        "sig_id": "canal2_810",
+        "decisions": {
+            "entry_quality": {
+                "case": "A_inside",
+                "entry": 4004.0,
+                "range_low": 3999.0,
+                "range_high": 4005.0,
+            }
+        },
+        "tickets": [{
+            "ticket": 123,
+            "open_price": 4004.0,
+        }],
+    }]
+
+    signal = provider_signal_catalog.build_catalog_report(events, replay)[
+        "signals"
+    ][0]
+
+    assert signal["execution_range_assessments"] == [{
+        "sig_id": "canal2_810",
+        "canonical_range": [4000.0, 4002.0],
+        "runtime_entry_quality": replay[0]["decisions"]["entry_quality"],
+        "tickets": [{
+            "ticket": 123,
+            "open_price": 4004.0,
+            "inside_final_provider_range": False,
+            "distance_outside": 2.0,
+        }],
+        "all_entries_inside": False,
+        "max_distance_outside": 2.0,
+    }]
+
+
+def test_zone_commentary_does_not_overwrite_formal_signal_levels():
+    events = [
+        _raw(
+            "canal2",
+            820,
+            "Sell Gold Now\n4040-4045\nTP1 4036\nTP2 4032\nSL 4060",
+        ),
+        _raw(
+            "canal2",
+            821,
+            "SL got hit after price broke the 4055-4060 zone. "
+            "A retest may offer buy continuation; below 4055 we wait "
+            "for a new sell confirmation.",
+            reply_to_msg_id=820,
+            is_reply=True,
+        ),
+    ]
+
+    signal = provider_signal_catalog.build_catalog_report(events, [])["signals"][0]
+
+    assert signal["record_type"] == "formal_signal"
+    assert signal["effective_range"] == [4040.0, 4045.0]
+    assert signal["effective_tps"] == [4036.0, 4032.0]
+    assert signal["effective_sl"] == 4060.0
+    assert signal["semantic_status"] == "complete"
+
+
 def test_numeric_move_sl_survives_informational_classifier_disagreement():
     events = [
         _raw(
@@ -1813,7 +1933,7 @@ def test_versioned_catalog_uses_current_schema_and_public_entry_contract():
                 found.extend(private_paths(child, f"{path}[{index}]"))
         return found
 
-    assert provider_signal_catalog.SCHEMA_VERSION == 5
+    assert provider_signal_catalog.SCHEMA_VERSION == 6
     assert catalog["schema_version"] == provider_signal_catalog.SCHEMA_VERSION
     assert catalog["signals"]
     for record in catalog["signals"]:

@@ -12,6 +12,7 @@ Cubre:
 """
 
 import asyncio
+import threading
 import time
 from types import SimpleNamespace
 
@@ -304,6 +305,78 @@ class TestModifyPreconditions:
         assert len(q._actions) == 1
         assert q._actions[0].new_sl == 4059.61
         assert q._actions[0].new_tp == 4052.0
+
+    @pytest.mark.asyncio
+    async def test_coalesced_modify_during_mt5_call_keeps_latest_payload(
+        self,
+        monkeypatch,
+    ):
+        """A newer SL/TP must not be attributed to an older MT5 request."""
+        q = PendingQueue()
+        monkeypatch.setattr(q, "_ensure_runner", lambda: None)
+        monkeypatch.setattr(q, "_log_request", lambda *args: None)
+        monkeypatch.setattr(q, "_log_coalesced", lambda *args, **kwargs: None)
+        completed = []
+        monkeypatch.setattr(
+            q,
+            "_log_done",
+            lambda action: completed.append((
+                action.new_sl,
+                action.new_tp,
+                action.label,
+            )),
+        )
+        monkeypatch.setattr(
+            "pending_actions.executor.preflight_modify_sltp",
+            lambda *args, **kwargs: SimpleNamespace(
+                status="ready",
+                effective_sl=4044.49,
+                effective_tp=4060.49,
+                deferred_sl=None,
+                reason=None,
+            ),
+        )
+
+        entered_mt5 = threading.Event()
+        release_mt5 = threading.Event()
+        submitted = []
+
+        def slow_modify(ticket, new_sl, new_tp, expected_magic=None):
+            submitted.append((ticket, new_sl, new_tp, expected_magic))
+            entered_mt5.set()
+            assert release_mt5.wait(timeout=2.0)
+            return 10009
+
+        monkeypatch.setattr(
+            "pending_actions.executor.modify_sltp_rc",
+            slow_modify,
+        )
+
+        first = _make_action(
+            label="old levels",
+            new_sl=4044.49,
+            new_tp=4060.49,
+        )
+        q.add(first)
+        in_flight = asyncio.create_task(q._try_once(first))
+        assert await asyncio.to_thread(entered_mt5.wait, 1.0)
+
+        q.add(_make_action(
+            label="latest levels",
+            new_sl=4044.35,
+            new_tp=4060.35,
+        ))
+        release_mt5.set()
+        result = await asyncio.wait_for(in_flight, timeout=2.0)
+
+        assert result == "RETRY"
+        assert submitted == [(12345, 4044.49, 4060.49, first.signal.magic)]
+        assert completed == [(4044.49, 4060.49, "old levels")]
+        assert first.new_sl == 4044.35
+        assert first.new_tp == 4060.35
+        assert first.label == "latest levels"
+        assert first.signal.sl_by_ticket == {12345: 4044.49}
+        assert first.signal.tp_by_ticket == {12345: 4060.49}
 
     def test_structural_incident_message_aggregates_tickets(self):
         actions = [

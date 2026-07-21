@@ -19,9 +19,10 @@ DATA_DIR = Path(__file__).parent / "data"
 DEFAULT_EVENTS = DATA_DIR / "trade_events.jsonl"
 DEFAULT_REPLAY = DATA_DIR / "replay_trades.jsonl"
 DEFAULT_OUTPUT = DATA_DIR / "provider_signal_catalog.json"
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 RECORD_TYPES = {
     "formal_signal",
+    "zone_plan",
     "context_setup",
     "daily_summary",
     "management_only",
@@ -31,6 +32,7 @@ RECORD_TYPE_PRIORITY = {
     "unknown_candidate": 0,
     "management_only": 1,
     "context_setup": 2,
+    "zone_plan": 2,
     "daily_summary": 3,
     "formal_signal": 4,
 }
@@ -55,6 +57,49 @@ CONTEXT_SETUP_RE = re.compile(
     r"\b(?:SUPPORT|RESISTANCE|4\s*H(?:R|OUR)|ANALYSIS|LEVELS?|ZONE)\b",
     re.IGNORECASE,
 )
+ZONE_RANGE_RE = re.compile(
+    r"(?<!\d)(\d{3,5}(?:\.\d+)?)\s*[-\u2013\u2014]\s*"
+    r"(\d{3,5}(?:\.\d+)?)(?!\d)"
+)
+ZONE_TARGET_RE = re.compile(
+    r"\bTARGET(?:\s+IS|\s*:|\s+AT)?\s*(\d{3,5}(?:\.\d+)?)\b",
+    re.IGNORECASE,
+)
+
+
+def _parse_zone_plan(text: str) -> dict | None:
+    upper = str(text or "").upper()
+    if "ZONE" not in upper:
+        return None
+    if re.search(
+        r"\bBUY\s+ZONES?\b|\bZONES?\s+(?:I|WE)\s+WOULD\s+BUY\b",
+        upper,
+    ):
+        direction = "BUY"
+    elif re.search(
+        r"\bSELL\s+ZONES?\b|\bZONES?\s+(?:I|WE)\s+WOULD\s+SELL\b",
+        upper,
+    ):
+        direction = "SELL"
+    else:
+        return None
+    zones = [
+        sorted([float(match.group(1)), float(match.group(2))])
+        for match in ZONE_RANGE_RE.finditer(text or "")
+    ]
+    target_match = ZONE_TARGET_RE.search(text or "")
+    target = float(target_match.group(1)) if target_match else None
+    plan_language = bool(re.search(
+        r"\bZONES?\s+(?:I\s+)?WOULD\b|\bZONES?\s+MARKED\s+OUT\b",
+        upper,
+    ))
+    if not zones and target is None and not plan_language:
+        return None
+    return {
+        "direction": direction,
+        "zones": zones,
+        "target": target,
+    }
 
 
 def load_jsonl(path: Path) -> list[dict]:
@@ -318,6 +363,8 @@ def _record_type_for_root(row: dict, *, formal: bool) -> tuple[str, str]:
     if formal:
         return "formal_signal", "entry_or_execution_evidence"
     text = str(row.get("text") or "")
+    if _parse_zone_plan(text) is not None:
+        return "zone_plan", "provider_multi_zone_plan"
     if DAILY_SUMMARY_RE.search(text):
         return "daily_summary", "provider_session_summary"
     if _looks_like_management(text):
@@ -391,6 +438,9 @@ def _empty_signal(
         "effective_range": None,
         "effective_tps": [],
         "effective_sl": None,
+        "entry_zones": [],
+        "zone_target": None,
+        "zone_plan_timeline": [],
         "revisions": [],
         "entry_zone_timeline": [],
         "level_timeline": [],
@@ -405,6 +455,7 @@ def _empty_signal(
             "extraction_status": "not_applicable",
         },
         "execution_sig_ids": [],
+        "execution_range_assessments": [],
         "execution_count": 0,
         "duplicate_execution": False,
         "semantic_status": "incomplete",
@@ -529,6 +580,35 @@ def _append_revision(signal: dict, row: dict) -> None:
             "source_message_id": message_id,
             "_source_order": revision["_source_order"],
         })
+
+
+def _append_zone_plan(signal: dict, row: dict) -> bool:
+    parsed = _parse_zone_plan(str(row.get("text") or ""))
+    if parsed is None:
+        return False
+    signal["direction"] = parsed["direction"]
+    signal["_direction_source"] = f"zone_plan:{int(row['message_id'])}"
+    signal["_direction_observed_utc"] = row.get("ts")
+    if parsed["target"] is not None:
+        signal["zone_target"] = parsed["target"]
+    if parsed["zones"]:
+        signal["entry_zones"] = parsed["zones"]
+    timeline_row = {
+        "message_id": int(row["message_id"]),
+        "observed_ts_utc": row.get("ts"),
+        "telegram_ts_utc": _telegram_ts(row),
+        "direction": parsed["direction"],
+        "zones": parsed["zones"],
+        "target": parsed["target"],
+        "_source_order": int(row.get("_source_order") or 0),
+    }
+    previous = signal["zone_plan_timeline"][-1] if signal["zone_plan_timeline"] else None
+    if previous is None or any(
+        previous.get(key) != timeline_row.get(key)
+        for key in ("message_id", "zones", "target")
+    ):
+        signal["zone_plan_timeline"].append(timeline_row)
+    return True
 
 
 def _append_management(signal: dict, row: dict) -> None:
@@ -1174,6 +1254,7 @@ def _finalize(signal: dict) -> dict:
         )
     )
     signal["runtime_level_timeline"].sort(key=_causal_row_sort_key)
+    signal["zone_plan_timeline"].sort(key=_causal_row_sort_key)
     for revision in signal["revisions"]:
         parsed = revision.get("parsed", {})
         if parsed.get("range"):
@@ -1310,6 +1391,8 @@ def _finalize(signal: dict) -> dict:
         candidate["_source_order"],
     ))
     trigger = entry_candidates[0] if entry_candidates else None
+    if signal["record_type"] == "zone_plan":
+        trigger = None
 
     contract_direction = (
         trigger["direction"] if trigger is not None else signal.get("direction")
@@ -1322,7 +1405,9 @@ def _finalize(signal: dict) -> dict:
     blockers: list[str] = []
     if not contract_direction:
         blockers.append("missing_direction")
-    if trigger is None:
+    if signal["record_type"] == "zone_plan":
+        blockers.append("provider_zone_plan_not_live_trigger")
+    elif trigger is None:
         blockers.append("missing_actionable_entry_trigger")
 
     signal["entry_contract"] = {
@@ -1391,6 +1476,61 @@ def _summary(signals: list[dict]) -> dict:
     }
 
 
+def _attach_execution_range_assessments(
+    signal: dict,
+    replay_by_sig: dict[str, dict],
+) -> None:
+    entry_range = signal.get("effective_range")
+    if not entry_range or len(entry_range) != 2:
+        signal["execution_range_assessments"] = []
+        return
+    low, high = sorted(float(value) for value in entry_range)
+    assessments = []
+    for sig_id in signal.get("execution_sig_ids") or []:
+        trade = replay_by_sig.get(str(sig_id))
+        if trade is None:
+            continue
+        tickets = []
+        for ticket in trade.get("tickets") or []:
+            try:
+                open_price = float(ticket.get("open_price"))
+            except (TypeError, ValueError):
+                continue
+            inside = low <= open_price <= high
+            if open_price < low:
+                distance = low - open_price
+            elif open_price > high:
+                distance = open_price - high
+            else:
+                distance = 0.0
+            tickets.append({
+                "ticket": ticket.get("ticket") or ticket.get("position_ticket"),
+                "open_price": open_price,
+                "inside_final_provider_range": inside,
+                "distance_outside": round(distance, 3),
+            })
+        runtime_quality = (
+            (trade.get("decisions") or {}).get("entry_quality")
+        )
+        assessments.append({
+            "sig_id": str(sig_id),
+            "canonical_range": [low, high],
+            "runtime_entry_quality": (
+                dict(runtime_quality)
+                if isinstance(runtime_quality, dict) else None
+            ),
+            "tickets": tickets,
+            "all_entries_inside": bool(tickets) and all(
+                row["inside_final_provider_range"] for row in tickets
+            ),
+            "max_distance_outside": max(
+                (row["distance_outside"] for row in tickets),
+                default=None,
+            ),
+        })
+    signal["execution_range_assessments"] = assessments
+
+
 def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) -> dict:
     events = [
         {**row, "_source_order": source_order}
@@ -1422,6 +1562,22 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
         return signals[key]
 
     raw_events = [row for row in events if row.get("ev") == "telegram_raw"]
+    reply_parent_by_key: dict[tuple[str, int], int] = {}
+    for row in raw_events:
+        channel = str(row.get("channel") or "")
+        message_id = row.get("message_id")
+        reply_to = row.get("reply_to_msg_id")
+        if channel in ("canal1", "canal2") and message_id is not None and reply_to is not None:
+            reply_parent_by_key[(channel, int(message_id))] = int(reply_to)
+
+    def thread_root(channel: str, message_id: int) -> int:
+        current = int(message_id)
+        seen = set()
+        while (channel, current) in reply_parent_by_key and current not in seen:
+            seen.add(current)
+            current = reply_parent_by_key[(channel, current)]
+        return current
+
     sticker_evidence: dict[int, datetime] = {}
     text_evidence: dict[int, datetime] = {}
     for row in raw_events:
@@ -1600,9 +1756,20 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
         if row.get("is_reply") or reply_to is not None:
             if reply_to is None:
                 continue
-            root_id = canal1_text_roots.get(int(reply_to), int(reply_to))
+            resolved_root = thread_root(channel, message_id)
+            root_id = canal1_text_roots.get(resolved_root, resolved_root)
             key = (channel, root_id)
-            if key in signals or _looks_like_management(str(row.get("text") or "")):
+            zone_plan = _parse_zone_plan(str(row.get("text") or ""))
+            if zone_plan is not None:
+                signal = ensure(
+                    channel,
+                    root_id,
+                    "zone_plan",
+                    "provider_multi_zone_plan",
+                )
+                _append_revision(signal, row)
+                _append_zone_plan(signal, row)
+            elif key in signals or _looks_like_management(str(row.get("text") or "")):
                 signal = ensure(
                     channel,
                     root_id,
@@ -1619,6 +1786,8 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
         if message_id == root_id:
             signal["_root_message_seen"] = True
         _append_revision(signal, row)
+        if signal["record_type"] == "zone_plan":
+            _append_zone_plan(signal, row)
         if signal["record_type"] == "management_only":
             _append_management(signal, row)
 
@@ -1674,6 +1843,13 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
         )
 
     finalized = [_finalize(signal) for signal in signals.values()]
+    replay_by_sig = {
+        str(trade.get("sig_id")): trade
+        for trade in replay_trades
+        if trade.get("sig_id")
+    }
+    for signal in finalized:
+        _attach_execution_range_assessments(signal, replay_by_sig)
     finalized.sort(key=lambda row: (
         *_timestamp_sort_key(row.get("first_observed_utc")),
         row["provider_signal_id"],

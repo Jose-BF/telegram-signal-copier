@@ -953,6 +953,70 @@ def _resync_orphan_positions():
             pass
 
 
+def _orphan_history_query_end(now_utc=None):
+    """Future-safe bound for MT5 histories stored in broker-server time."""
+    from datetime import datetime, timezone, timedelta
+
+    now_utc = now_utc or datetime.now(timezone.utc)
+    return now_utc + timedelta(days=1)
+
+
+def _closed_position_ids(deals) -> set[int]:
+    closed = set()
+    for deal in deals or ():
+        if getattr(deal, "entry", None) not in (1, 3):
+            continue
+        position_id = getattr(deal, "position_id", None)
+        if position_id is not None:
+            closed.add(int(position_id))
+    return closed
+
+
+def _fetch_orphan_deals_synced(
+    t_from,
+    t_to,
+    expected_position_ids: set[int],
+    *,
+    history_get=None,
+    sleep_fn=None,
+    retries: int = 10,
+    pause_s: float = 1.0,
+):
+    """Wait until expected closes are present and history is stable."""
+    import time
+
+    history_get = history_get or mt5.history_deals_get
+    sleep_fn = sleep_fn or time.sleep
+    expected = {int(ticket) for ticket in expected_position_ids}
+    deals = tuple(history_get(t_from, t_to) or ())
+    previous_signature = None
+    for attempt in range(max(1, retries)):
+        signature = tuple(sorted(
+            (
+                getattr(deal, "ticket", None),
+                getattr(deal, "position_id", None),
+                getattr(deal, "entry", None),
+                getattr(deal, "time_msc", None),
+            )
+            for deal in deals
+        ))
+        expected_closed = expected.issubset(_closed_position_ids(deals))
+        if expected_closed and signature == previous_signature:
+            return deals
+        previous_signature = signature
+        if attempt + 1 >= max(1, retries):
+            break
+        sleep_fn(pause_s)
+        deals = tuple(history_get(t_from, t_to) or ())
+    missing = sorted(expected - _closed_position_ids(deals))
+    if missing:
+        print(
+            "[OrphanFinalizer] historial MT5 aun incompleto; "
+            f"faltan cierres de tickets {missing}"
+        )
+    return deals
+
+
 def _finalize_journal_orphans():
     """Finaliza señales HUERFANAS del journal usando el historial de MT5.
 
@@ -984,6 +1048,14 @@ def _finalize_journal_orphans():
     # 1. Detectar huerfanos del journal
     received = {}
     closed = set()
+    filled_tickets = defaultdict(set)
+    fill_events = {
+        "market_filled",
+        "market_b_filled",
+        "scale_out_leg_filled",
+        "dca_filled",
+        "rescue_market_filled",
+    }
     try:
         for line in events_file.read_text(encoding="utf-8").splitlines():
             if not line.strip():
@@ -994,6 +1066,11 @@ def _finalize_journal_orphans():
                 received[sid] = e.get("ts", "")
             elif ev == "signal_closed":
                 closed.add(sid)
+            elif ev in fill_events and e.get("ticket") is not None:
+                try:
+                    filled_tickets[sid].add(int(e["ticket"]))
+                except (TypeError, ValueError):
+                    pass
     except Exception as e:
         print(f"[OrphanFinalizer] error leyendo journal: {e}")
         return
@@ -1011,9 +1088,18 @@ def _finalize_journal_orphans():
 
     # 2. Consultar MT5 history
     t_from = datetime.now(timezone.utc) - timedelta(days=7)
-    t_to = datetime.now(timezone.utc) + timedelta(hours=1)
+    t_to = _orphan_history_query_end()
+    expected_tickets = {
+        ticket
+        for sid in orphans
+        for ticket in filled_tickets.get(sid, set())
+    }
     try:
-        deals = mt5.history_deals_get(t_from, t_to) or []
+        deals = _fetch_orphan_deals_synced(
+            t_from,
+            t_to,
+            expected_tickets,
+        )
     except Exception as e:
         print(f"[OrphanFinalizer] error consultando MT5: {e}")
         return
@@ -1034,15 +1120,63 @@ def _finalize_journal_orphans():
     sig_pnl = defaultdict(float)
     sig_has_open = defaultdict(bool)
     sig_has_deals = set()
+    sig_closures = defaultdict(list)
+    sig_close_times = defaultdict(list)
     for pid, dl in pos_deals.items():
         sig = pos_to_sig.get(pid)
         if not sig:
             continue
         sig_has_deals.add(sig)
-        if any(d.entry == 1 for d in dl):
-            sig_pnl[sig] += sum(d.profit for d in dl if d.entry == 1)
-        else:
+        exits = [d for d in dl if getattr(d, "entry", None) in (1, 3)]
+        if not exits:
             sig_has_open[sig] = True
+            continue
+        position_pnl = sum(
+            float(getattr(d, field, 0.0) or 0.0)
+            for d in dl
+            for field in ("profit", "commission", "swap", "fee")
+        )
+        sig_pnl[sig] += position_pnl
+        close_deal = max(
+            exits,
+            key=lambda d: (
+                getattr(d, "time_msc", 0) or 0,
+                getattr(d, "time", 0) or 0,
+            ),
+        )
+        comment = str(getattr(close_deal, "comment", "") or "").lower()
+        if comment.startswith("[tp"):
+            tag = "TP"
+        elif comment.startswith("[sl"):
+            tag = "SL"
+        elif "bot_close" in comment:
+            tag = "BOT_CLOSE"
+        else:
+            tag = "MT5_AUTO"
+        sig_closures[sig].append({
+            "ticket": int(pid),
+            "exit_price": round(float(getattr(close_deal, "price", 0.0)), 3),
+            "pnl": round(position_pnl, 2),
+            "closed_by_tag": tag,
+            "distance_to_tag": None,
+        })
+        raw_close_msc = getattr(close_deal, "time_msc", None)
+        if raw_close_msc is not None:
+            sig_close_times[sig].append(float(raw_close_msc) / 1000.0)
+        elif getattr(close_deal, "time", None) is not None:
+            sig_close_times[sig].append(float(close_deal.time))
+
+    server_offset_s = 0
+    try:
+        tick = mt5.symbol_info_tick(config.MT5_SYMBOL)
+        if tick and tick.time:
+            server_now = datetime.fromtimestamp(tick.time, tz=timezone.utc)
+            server_offset_s = round(
+                (server_now - datetime.now(timezone.utc)).total_seconds()
+                / 3600
+            ) * 3600
+    except Exception:
+        pass
 
     # 3. Finalizar los huerfanos cuyas posiciones cerraron TODAS en MT5
     n_fixed = 0
@@ -1054,11 +1188,76 @@ def _finalize_journal_orphans():
             # Aun tiene posiciones abiertas — el resync/reconciler la maneja
             continue
         pnl = round(sig_pnl.get(sid, 0.0), 2)
+        closures = sig_closures.get(sid, [])
+        tags = defaultdict(int)
+        for closure in closures:
+            tags[closure["closed_by_tag"]] += 1
+        dominant_tag = (
+            max(tags.items(), key=lambda item: item[1])[0]
+            if tags else "MT5_AUTO"
+        )
+        close_epoch = max(sig_close_times.get(sid, [0]))
+        close_dt = (
+            datetime.fromtimestamp(
+                close_epoch - server_offset_s,
+                tz=timezone.utc,
+            )
+            if close_epoch else datetime.now(timezone.utc)
+        )
+        opened_dt = None
         try:
+            opened_dt = datetime.fromisoformat(
+                str(received[sid]).replace("Z", "+00:00")
+            )
+            if opened_dt.tzinfo is None:
+                opened_dt = opened_dt.replace(tzinfo=timezone.utc)
+            else:
+                opened_dt = opened_dt.astimezone(timezone.utc)
+        except (TypeError, ValueError):
+            pass
+        duration_s = (
+            max(0.0, (close_dt - opened_dt).total_seconds())
+            if opened_dt is not None else None
+        )
+        try:
+            journal.event(
+                sid,
+                "positions_closed_by_mt5",
+                closures=closures,
+                summary_by_tag=dict(tags),
+                recovery_source="startup_history",
+            )
+            journal.event(
+                sid,
+                "pos_summary",
+                n_positions=len(closures),
+                positions=[{
+                    "ticket": item["ticket"],
+                    "type": "recovered",
+                    "tp_override_idx": None,
+                    "pl": item["pnl"],
+                    "close_price": item["exit_price"],
+                } for item in closures],
+                entry_mode="recovered",
+                had_double_market=len(closures) > 1,
+            )
             journal.event(sid, "journal_orphan_finalized",
-                          total_pl=pnl, source="mt5_history_startup")
-            journal.event(sid, "signal_closed",
-                          tag="ORPHAN_RECONCILED", total_pl=pnl)
+                          total_pl=pnl, source="mt5_history_startup",
+                          expected_tickets=sorted(filled_tickets.get(sid, set())),
+                          recovered_tickets=sorted(
+                              item["ticket"] for item in closures),
+                          mt5_server_offset_s=server_offset_s)
+            journal.finalize_trade(
+                sid,
+                closed_at_utc=close_dt.isoformat(timespec="milliseconds"),
+                closed_by=dominant_tag,
+                duration_sec=(
+                    round(duration_s, 1) if duration_s is not None else None
+                ),
+                total_pnl_usd=pnl,
+                n_tickets_opened=len(closures),
+                notes="startup orphan recovery from synchronized MT5 history",
+            )
             print(f"  • {sid}: finalizado retroactivo P&L=${pnl:+.2f} "
                   f"(cierre detectado en MT5 history)")
             n_fixed += 1
@@ -1125,6 +1324,8 @@ def _startup_status_message(git_info: dict) -> str:
         f"Codigo: {code_status}",
         "MT5: conectado",
         "Telegram: canales 1 y 2 activos",
+        f"Dubai Investing: {config.CANAL_1_ID}",
+        f"Gold Signals: {config.CANAL_2_ID}",
     ])
 
 
@@ -1178,6 +1379,10 @@ async def main():
         mt5_connected=True,
         telegram_connected=True,
         channels=["canal1", "canal2"],
+        channel_ids={
+            "canal1": config.CANAL_1_ID,
+            "canal2": config.CANAL_2_ID,
+        },
     )
     await notify(_startup_status_message(git_info))
 

@@ -30,6 +30,7 @@ SCHEMA_VERSION = 2
 PRICE_EPSILON = 0.01
 ALIGNMENT_NEAR_SECONDS = 5
 CLOSE_TOUCH_TIME_TOLERANCE_SECONDS = 5
+CAUSAL_ORDERING_RACE_TOLERANCE_MS = 100
 CAUSAL_PATH_CONTRACT = "causal_path_v2"
 FILL_PRICE_AUTHORITY = "mt5_deals"
 MARKET_CLOSE_REASONS = {"bot_close", "other", "manual_close"}
@@ -333,6 +334,89 @@ def _mt5_close_level(ticket: dict, level_kind: str) -> float | None:
     return None
 
 
+def _broker_close_time_utc(trade: dict, ticket: dict) -> datetime | None:
+    close_deal = ticket.get("close_deal")
+    raw_msc = close_deal.get("time_msc") if isinstance(close_deal, dict) else None
+    if raw_msc is None:
+        return _parse_dt(ticket.get("close_dt_utc"))
+    try:
+        offset_s = int(
+            ticket.get("mt5_time_offset_s")
+            if ticket.get("mt5_time_offset_s") is not None
+            else trade.get("mt5_time_offset_s") or 0
+        )
+        return datetime.fromtimestamp(
+            float(raw_msc) / 1000.0 - offset_s,
+            tz=timezone.utc,
+        )
+    except (TypeError, ValueError, OSError):
+        return _parse_dt(ticket.get("close_dt_utc"))
+
+
+def _near_close_requested_transition(
+    trade: dict,
+    ticket: dict,
+    history: Iterable[dict],
+    key: str,
+    expected_level: float,
+) -> tuple[datetime, float] | None:
+    """Find a matching request inside the broker-close ordering race."""
+    close_dt = _broker_close_time_utc(trade, ticket)
+    if close_dt is None:
+        return None
+    candidates: list[tuple[datetime, float]] = []
+    for item in history or []:
+        if item.get("status") != "requested":
+            continue
+        ts = _parse_dt(item.get("ts"))
+        try:
+            level = float(item.get(key))
+        except (TypeError, ValueError):
+            continue
+        if ts is None or abs(level - expected_level) > PRICE_EPSILON:
+            continue
+        delta_ms = (ts - close_dt).total_seconds() * 1000.0
+        if abs(delta_ms) <= CAUSAL_ORDERING_RACE_TOLERANCE_MS:
+            candidates.append((ts, delta_ms))
+    if not candidates:
+        return None
+    return min(candidates, key=lambda item: abs(item[1]))
+
+
+def _broker_confirmed_race_touch(
+    trade: dict,
+    ticket: dict,
+    ticks: pd.DataFrame,
+    *,
+    level: float,
+) -> dict:
+    direction = _direction(trade)
+    side = "bid" if direction == "BUY" else "ask"
+    close_dt = _broker_close_time_utc(trade, ticket)
+    side_price = ticket.get("close_price")
+    if close_dt is not None and not ticks.empty and "time_utc" in ticks.columns:
+        times = pd.to_datetime(ticks["time_utc"], utc=True)
+        near = ticks.loc[
+            (times >= close_dt - timedelta(seconds=1))
+            & (times <= close_dt + timedelta(seconds=1))
+        ]
+        if not near.empty:
+            near_times = pd.to_datetime(near["time_utc"], utc=True)
+            nearest = int(np.abs(
+                near_times.dt.as_unit("ns").astype("int64").to_numpy()
+                - pd.Timestamp(close_dt).value
+            ).argmin())
+            side_price = near.iloc[nearest].get(side, side_price)
+    return {
+        "reason": _sl_reason(ticket, level),
+        "level": round(level, 2),
+        "side": side,
+        "side_price": round(float(side_price), 2),
+        "time_utc": _iso(close_dt),
+        "evidence": "mt5_close_comment_plus_nearby_request",
+    }
+
+
 def _filter_ticket_ticks(ticket: dict, ticks: pd.DataFrame,
                          close_grace_s: int = 2) -> pd.DataFrame:
     opened = _parse_dt(ticket.get("open_dt_utc"))
@@ -524,6 +608,47 @@ def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
             expected_reason in {"sl", "be"}
             and mt5_sl_level is not None
         ):
+            ordering_race = _near_close_requested_transition(
+                trade,
+                ticket,
+                sl_history,
+                "sl",
+                mt5_sl_level,
+            )
+            if ordering_race is not None:
+                request_dt, delta_ms = ordering_race
+                race_blockers = []
+                close_alignment = alignment["close"]
+                if close_alignment.get("status") != "verified":
+                    race_blockers.append(
+                        f"close_tick_alignment_unverified:{label}"
+                    )
+                elif abs(float(
+                    close_alignment.get("price_delta") or 0.0
+                )) > PRICE_EPSILON:
+                    warnings.append(
+                        f"observed_close_execution_delta:{label}:"
+                        f"{float(close_alignment['price_delta']):+.2f}"
+                    )
+                return {
+                    **base,
+                    "status": "exact" if not race_blockers else "mismatch",
+                    "first_touch": _broker_confirmed_race_touch(
+                        trade,
+                        ticket,
+                        window_ticks,
+                        level=mt5_sl_level,
+                    ),
+                    "blockers": race_blockers,
+                    "warnings": warnings,
+                    "limitations": [
+                        f"causal_ordering_tolerance_applied:{label}:"
+                        f"{delta_ms:+.0f}ms"
+                    ],
+                    "ordering_race_request_utc": request_dt.isoformat(
+                        timespec="milliseconds"
+                    ),
+                }
             if _has_unattributed_level_marker(
                 sl_history,
                 "sl",
