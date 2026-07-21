@@ -96,6 +96,7 @@ def test_ctrl_c_without_new_commit_still_verifies_git(monkeypatch):
     )
     refreshes = []
     monkeypatch.setattr(watch, "_prepare_repository_for_runtime", lambda: verified)
+    monkeypatch.setattr(watch, "_apply_active_channel_manifest", lambda: True)
     monkeypatch.setattr(watch, "_spawn_bot", lambda: InterruptedProcess())
     monkeypatch.setattr(watch, "_stop_bot", lambda _proc: None)
     monkeypatch.setattr(watch, "_push_session_data", lambda: None)
@@ -107,6 +108,54 @@ def test_ctrl_c_without_new_commit_still_verifies_git(monkeypatch):
 
     assert watch.main() == watch.WATCHER_GIT_BLOCKED_EXIT_CODE
     assert refreshes == ["sync"]
+
+
+def test_active_channel_manifest_is_applied_before_bot_spawn(monkeypatch):
+    calls = []
+
+    monkeypatch.setattr(
+        watch,
+        "_apply_active_channel_manifest",
+        lambda: calls.append("channels") or True,
+    )
+    monkeypatch.setattr(
+        watch,
+        "_spawn_bot",
+        lambda: calls.append("spawn") or "process",
+    )
+
+    process = watch._spawn_bot_with_active_channels()
+
+    assert process == "process"
+    assert calls == ["channels", "spawn"]
+
+
+def test_active_channel_manifest_failure_blocks_bot_spawn(monkeypatch):
+    monkeypatch.setattr(watch, "_apply_active_channel_manifest", lambda: False)
+    monkeypatch.setattr(
+        watch,
+        "_spawn_bot",
+        lambda: pytest.fail("bot must not start with stale channel routing"),
+    )
+
+    assert watch._spawn_bot_with_active_channels() is None
+
+
+def test_active_channel_manifest_refuses_to_create_partial_env(
+    tmp_path,
+    monkeypatch,
+):
+    manifest = tmp_path / "active_telegram_channels.json"
+    manifest.write_text(
+        '{"schema_version": 1, "channels": '
+        '{"canal2": {"id": -1003908582492}}}\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(watch, "ACTIVE_CHANNEL_MANIFEST_FILE", manifest)
+    monkeypatch.setattr(watch, "ENV_FILE", tmp_path / ".env")
+
+    assert watch._apply_active_channel_manifest() is False
+    assert not (tmp_path / ".env").exists()
 
 def _write_learning_artifacts(report_path, registry_path):
     sources = {

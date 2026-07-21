@@ -43,8 +43,11 @@ if str(REPO_DIR) not in sys.path:
 import log_learning_publication as learning_publication
 import pipeline_progress
 from tools import git_sync
+from tools import set_channel_id
 
 MAIN_PY  = REPO_DIR / "main.py"
+ACTIVE_CHANNEL_MANIFEST_FILE = REPO_DIR / "active_telegram_channels.json"
+ENV_FILE = REPO_DIR / ".env"
 RECONCILE_STATUS_FILE = REPO_DIR / "data" / "reconcile_status.json"
 REPLAY_STATUS_FILE = REPO_DIR / "data" / "replay_status.json"
 ACCOUNTING_REPLAY_AUDIT_STATUS_FILE = REPO_DIR / "data" / "accounting_replay_audit_status.json"
@@ -123,6 +126,50 @@ def _prepare_repository_for_runtime() -> git_sync.SyncResult:
         publish_local=True,
         progress_callback=_print_git_progress,
     )
+
+
+def _apply_active_channel_manifest() -> bool:
+    """Synchronize public Telegram routing before importing `config` in main."""
+    if not ENV_FILE.is_file():
+        print(
+            f"[Watch] Canales: ERROR no existe el .env completo: {ENV_FILE}",
+            flush=True,
+        )
+        return False
+    try:
+        result = set_channel_id.apply_channel_manifest(
+            ACTIVE_CHANNEL_MANIFEST_FILE,
+            env_file=ENV_FILE,
+        )
+    except (OSError, ValueError) as exc:
+        print(
+            f"[Watch] Canales: ERROR verificando configuracion: {exc}",
+            flush=True,
+        )
+        return False
+    active = result["active_ids"]
+    if result["changed"]:
+        changed = ", ".join(result["changed"])
+        print(
+            f"[Watch] Canales: configuracion actualizada ({changed}).",
+            flush=True,
+        )
+        if result["backup"] is not None:
+            print(
+                f"[Watch] Canales: backup local {result['backup'].name}",
+                flush=True,
+            )
+    else:
+        print("[Watch] Canales: configuracion verificada.", flush=True)
+    for channel, channel_id in active.items():
+        print(f"[Watch] Canal activo {channel}={channel_id}", flush=True)
+    return True
+
+
+def _spawn_bot_with_active_channels():
+    if not _apply_active_channel_manifest():
+        return None
+    return _spawn_bot()
 
 
 def _print_sync_result(result: git_sync.SyncResult) -> None:
@@ -1177,7 +1224,9 @@ def main() -> int:
         return _sync_failure_exit_code(sync)
     last_local = str(sync.local_head)
     last_remote = str(sync.remote_head)
-    proc = _spawn_bot()
+    proc = _spawn_bot_with_active_channels()
+    if proc is None:
+        return WATCHER_GIT_BLOCKED_EXIT_CODE
     bot_started_at = time.time()
     last_check = time.time()
 
@@ -1196,7 +1245,9 @@ def main() -> int:
                 last_local = str(session_sync.local_head)
                 last_remote = str(session_sync.remote_head)
                 time.sleep(RELAUNCH_DELAY_SEC)
-                proc = _spawn_bot()
+                proc = _spawn_bot_with_active_channels()
+                if proc is None:
+                    return WATCHER_GIT_BLOCKED_EXIT_CODE
                 bot_started_at = time.time()
                 continue
 
@@ -1220,7 +1271,9 @@ def main() -> int:
                 last_local = str(session_sync.local_head)
                 last_remote = str(session_sync.remote_head)
                 time.sleep(RELAUNCH_DELAY_SEC)
-                proc = _spawn_bot()
+                proc = _spawn_bot_with_active_channels()
+                if proc is None:
+                    return WATCHER_GIT_BLOCKED_EXIT_CODE
                 bot_started_at = time.time()
                 last_check = bot_started_at
                 continue
@@ -1254,7 +1307,9 @@ def main() -> int:
                         print("[Watch] Watcher actualizado. Saliendo para "
                               "que run_bot.bat lo relance.", flush=True)
                         return WATCHER_RELOAD_EXIT_CODE
-                    proc = _spawn_bot()
+                    proc = _spawn_bot_with_active_channels()
+                    if proc is None:
+                        return WATCHER_GIT_BLOCKED_EXIT_CODE
                     bot_started_at = time.time()
 
             time.sleep(2)
