@@ -102,6 +102,7 @@ class PendingAction:
     persist_until_signal_close: bool = False
     retry_not_before: float = 0.0
     stops_alerted: bool = False
+    revision: int = 0
 
     def expired(self) -> bool:
         if self.persist_until_signal_close and self.signal.status == "open":
@@ -163,10 +164,14 @@ class PendingQueue:
                     existing.waiting_reason = None
                     existing.retry_not_before = 0.0
                     existing.stops_alerted = False
-                existing.label = action.label or existing.label
+                next_label = action.label or existing.label
+                label_changed = next_label != existing.label
+                existing.label = next_label
                 existing.persist_until_signal_close = (
                     existing.persist_until_signal_close
                     or action.persist_until_signal_close)
+                if changed or label_changed:
+                    existing.revision += 1
                 self._log_request(action)
                 self._log_coalesced(existing, changed=changed)
                 self._ensure_runner()
@@ -614,6 +619,40 @@ class PendingQueue:
         )
         self._log_done(partial)
 
+    def _finish_superseded_attempt(
+        self,
+        current: PendingAction,
+        completed: PendingAction,
+    ) -> str:
+        """Record the immutable MT5 attempt and retain the newer payload."""
+        cls = mt5_errors.classify(completed.last_retcode)
+        if cls in ("OK", "POSITION_GONE"):
+            _record_confirmed_levels(completed)
+            self._log_done(completed)
+        else:
+            try:
+                import journal
+                sig_id = (
+                    f"{completed.signal.channel}_"
+                    f"{completed.signal.message_id}"
+                )
+                journal.event(
+                    sig_id,
+                    "mt5_modify_attempt_superseded",
+                    ticket=completed.ticket,
+                    attempted_sl=completed.new_sl,
+                    attempted_tp=completed.new_tp,
+                    attempted_label=completed.label,
+                    attempted_revision=completed.revision,
+                    current_revision=current.revision,
+                    retcode=completed.last_retcode,
+                )
+            except Exception:
+                pass
+        current.last_retcode = None
+        current.retry_not_before = 0.0
+        return "RETRY"
+
     async def _try_once(self, act: PendingAction) -> str:
         """Ejecuta el intento. Devuelve 'DONE', 'RETRY' o 'DROP'.
 
@@ -622,6 +661,10 @@ class PendingQueue:
         executor devuelve INVALID y la acción se descarta sin tocar nada."""
         loop = asyncio.get_event_loop()
         expected_magic = act.signal.magic
+        # Never read the mutable queue payload again during this attempt.
+        # add() may coalesce a newer SL/TP while MT5 is still responding.
+        attempt = replace(act)
+        attempt_revision = act.revision
 
         if act.kind == "MODIFY_SLTP":
             if act.retry_not_before > time.time():
@@ -629,12 +672,15 @@ class PendingQueue:
             decision = await loop.run_in_executor(
                 None,
                 lambda: executor.preflight_modify_sltp(
-                    act.ticket,
-                    act.new_sl,
-                    act.new_tp,
+                    attempt.ticket,
+                    attempt.new_sl,
+                    attempt.new_tp,
                     expected_magic=expected_magic,
                 ),
             )
+            if act.revision != attempt_revision:
+                act.last_retcode = None
+                return "RETRY"
             if decision.status == "mt5_unavailable":
                 act.last_retcode = mt5.TRADE_RETCODE_MARKET_CLOSED
                 return "RETRY"
@@ -649,20 +695,29 @@ class PendingQueue:
                 return "WAIT_PRECONDITION"
             if decision.status == "apply_tp_defer_sl":
                 self._log_waiting_precondition(act, decision)
-                tp_to_apply = act.new_tp
+                tp_to_apply = attempt.new_tp
                 if tp_to_apply is None:
                     return "WAIT_PRECONDITION"
                 act.attempts += 1
                 retcode = await loop.run_in_executor(
                     None,
                     lambda: executor.modify_sltp_rc(
-                        act.ticket,
+                        attempt.ticket,
                         None,
                         tp_to_apply,
                         expected_magic=expected_magic,
                     ),
                 )
                 act.last_retcode = retcode
+                completed = replace(
+                    attempt,
+                    new_sl=None,
+                    new_tp=tp_to_apply,
+                    attempts=act.attempts,
+                    last_retcode=retcode,
+                )
+                if act.revision != attempt_revision:
+                    return self._finish_superseded_attempt(act, completed)
                 if mt5_errors.classify(retcode) == "OK":
                     act.applied_tp = tp_to_apply
                     act.new_tp = None
@@ -674,10 +729,17 @@ class PendingQueue:
                 act.attempts += 1
                 retcode = await loop.run_in_executor(
                     None, lambda: executor.modify_sltp_rc(
-                        act.ticket, act.new_sl, act.new_tp,
+                        attempt.ticket, attempt.new_sl, attempt.new_tp,
                         expected_magic=expected_magic,
                     )
                 )
+                completed = replace(
+                    attempt,
+                    attempts=act.attempts,
+                    last_retcode=retcode,
+                )
+                if act.revision != attempt_revision:
+                    return self._finish_superseded_attempt(act, completed)
         elif act.kind == "CLOSE_POSITION":
             act.attempts += 1
             retcode = await loop.run_in_executor(

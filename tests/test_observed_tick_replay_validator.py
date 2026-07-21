@@ -335,6 +335,66 @@ def test_mt5_sl_comment_without_recorded_level_change_names_missing_evidence():
     assert result["status"] == "mismatch"
     assert result["blockers"] == ["missing_sl_transition_evidence:101"]
 
+
+def test_be_request_four_ms_after_broker_close_is_causal_race_not_mismatch():
+    trade = _trade(direction="SELL", mt5_time_offset_s=10_800)
+    raw_broker_close_msc = int(
+        pd.Timestamp("2026-07-06T13:01:30.887+00:00").timestamp() * 1000
+    )
+    ticket = _ticket(
+        open_price=4200.2,
+        close_dt_utc="2026-07-06T10:01:30.887+00:00",
+        close_price=4200.2,
+        close_reason="sl",
+        sl_history=[
+            {
+                "ts": "2026-07-06T10:00:00+00:00",
+                "status": "confirmed",
+                "sl": 4210.0,
+            },
+            {
+                "ts": "2026-07-06T10:01:30.891+00:00",
+                "status": "requested",
+                "sl": 4200.2,
+            },
+        ],
+        tp_history=[{
+            "ts": "2026-07-06T10:00:00+00:00",
+            "status": "confirmed",
+            "tp": 4190.0,
+        }],
+        close_deal={
+            "comment": "[sl 4200.20]",
+            "time_msc": raw_broker_close_msc,
+        },
+    )
+    ticks = _ticks([
+        {
+            "time_utc": "2026-07-06T10:00:00.000+00:00",
+            "bid": 4200.0,
+            "ask": 4200.2,
+        },
+        {
+            "time_utc": "2026-07-06T10:01:30.887+00:00",
+            "bid": 4200.0,
+            "ask": 4200.2,
+        },
+    ])
+
+    result = observed_tick_replay_validator.validate_ticket(
+        trade,
+        ticket,
+        ticks,
+    )
+
+    assert result["status"] == "exact"
+    assert result["first_touch"]["reason"] == "be"
+    assert result["blockers"] == []
+    assert any(
+        item.startswith("causal_ordering_tolerance_applied:101:")
+        for item in result["limitations"]
+    )
+
 def test_unlogged_sl_during_runtime_gap_is_external_not_causal_mismatch():
     trade = _trade(
         direction="SELL",
