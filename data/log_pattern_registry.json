@@ -437,6 +437,50 @@
     },
     {
       "affected_channels": [
+        "canal2"
+      ],
+      "affected_day_count": 1,
+      "affected_days": [
+        "2026-07-21"
+      ],
+      "affected_signal_count": 1,
+      "affected_signals": [
+        "canal2_3546"
+      ],
+      "candidate_reason": "material reliability impact",
+      "category": "accounting",
+      "coverage": {
+        "covered_after_utc": null,
+        "fix_commit": null,
+        "regression_test": null,
+        "reviewed_at_utc": null,
+        "reviewed_by": null,
+        "rule_version": null,
+        "verification": null
+      },
+      "evidence": [
+        {
+          "channel": "canal2",
+          "detail": "ticket_still_open:1628404668; ticket_still_open:1628404680; ticket_still_open:1628404687; ticket_still_open:1628404708; ticket_still_open:1628404716",
+          "event": "accounting_replay",
+          "signal": "canal2_3546",
+          "ts_utc": "2026-07-21T09:49:12.399+00:00"
+        }
+      ],
+      "financial_impact": null,
+      "first_seen_utc": "2026-07-21T09:49:12.399+00:00",
+      "last_seen_utc": "2026-07-21T09:49:12.399+00:00",
+      "occurrences": 1,
+      "pattern_id": "accounting.blocked",
+      "priority_score": 40030,
+      "raw_events": 1,
+      "recurrence": "single_incident",
+      "severity": "critical",
+      "status": "candidate",
+      "template": "accounting replay status is blocked"
+    },
+    {
+      "affected_channels": [
         "canal1"
       ],
       "affected_day_count": 1,
@@ -522,6 +566,138 @@
       "severity": "critical",
       "status": "candidate",
       "template": "observed-tick replay blocker: missing sl transition evidence"
+    },
+    {
+      "affected_channels": [
+        "canal2"
+      ],
+      "affected_day_count": 1,
+      "affected_days": [
+        "2026-07-21"
+      ],
+      "affected_signal_count": 1,
+      "affected_signals": [
+        "canal2_3546"
+      ],
+      "candidate_reason": "material reliability impact",
+      "category": "market_replay",
+      "coverage": {
+        "covered_after_utc": null,
+        "fix_commit": null,
+        "regression_test": null,
+        "reviewed_at_utc": null,
+        "reviewed_by": null,
+        "rule_version": null,
+        "verification": null
+      },
+      "evidence": [
+        {
+          "channel": "canal2",
+          "detail": "missing_ticket_close",
+          "event": "observed_tick_replay",
+          "signal": "canal2_3546",
+          "ts_utc": "2026-07-21T09:49:12.399+00:00"
+        }
+      ],
+      "financial_impact": null,
+      "first_seen_utc": "2026-07-21T09:49:12.399+00:00",
+      "last_seen_utc": "2026-07-21T09:49:12.399+00:00",
+      "occurrences": 1,
+      "pattern_id": "market_replay.missing_ticket_close",
+      "priority_score": 40030,
+      "raw_events": 5,
+      "recurrence": "single_incident",
+      "severity": "critical",
+      "status": "candidate",
+      "template": "observed-tick replay blocker: missing ticket close"
+    },
+    {
+      "affected_channels": [
+        "canal2"
+      ],
+      "affected_day_count": 1,
+      "affected_days": [
+        "2026-07-21"
+      ],
+      "affected_signal_count": 1,
+      "affected_signals": [
+        "canal2_3546"
+      ],
+      "candidate_reason": "material reliability impact",
+      "category": "market_replay",
+      "coverage": {
+        "covered_after_utc": null,
+        "fix_commit": null,
+        "regression_test": null,
+        "reviewed_at_utc": null,
+        "reviewed_by": null,
+        "rule_version": null,
+        "verification": null
+      },
+      "evidence": [
+        {
+          "channel": "canal2",
+          "detail": "ticket_not_closed",
+          "event": "observed_tick_replay",
+          "signal": "canal2_3546",
+          "ts_utc": "2026-07-21T09:49:12.399+00:00"
+        }
+      ],
+      "financial_impact": null,
+      "first_seen_utc": "2026-07-21T09:49:12.399+00:00",
+      "last_seen_utc": "2026-07-21T09:49:12.399+00:00",
+      "occurrences": 1,
+      "pattern_id": "market_replay.ticket_not_closed",
+      "priority_score": 40030,
+      "raw_events": 5,
+      "recurrence": "single_incident",
+      "severity": "critical",
+      "status": "candidate",
+      "template": "observed-tick replay blocker: ticket not closed"
+    },
+    {
+      "affected_channels": [
+        "canal2"
+      ],
+      "affected_day_count": 1,
+      "affected_days": [
+        "2026-07-21"
+      ],
+      "affected_signal_count": 1,
+      "affected_signals": [
+        "canal2_3546"
+      ],
+      "candidate_reason": "material reliability impact",
+      "category": "market_replay",
+      "coverage": {
+        "covered_after_utc": null,
+        "fix_commit": null,
+        "regression_test": null,
+        "reviewed_at_utc": null,
+        "reviewed_by": null,
+        "rule_version": null,
+        "verification": null
+      },
+      "evidence": [
+        {
+          "channel": "canal2",
+          "detail": "unsupported_close_reason",
+          "event": "observed_tick_replay",
+          "signal": "canal2_3546",
+          "ts_utc": "2026-07-21T09:49:12.399+00:00"
+        }
+      ],
+      "financial_impact": null,
+      "first_seen_utc": "2026-07-21T09:49:12.399+00:00",
+      "last_seen_utc": "2026-07-21T09:49:12.399+00:00",
+      "occurrences": 1,
+      "pattern_id": "market_replay.unsupported_close_reason",
+      "priority_score": 40030,
+      "raw_events": 5,
+      "recurrence": "single_incident",
+      "severity": "critical",
+      "status": "candidate",
+      "template": "observed-tick replay blocker: unsupported close reason"
     },
     {
       "affected_channels": [
@@ -2157,6 +2333,94 @@
     },
     {
       "affected_channels": [
+        "canal2"
+      ],
+      "affected_day_count": 1,
+      "affected_days": [
+        "2026-07-21"
+      ],
+      "affected_signal_count": 1,
+      "affected_signals": [
+        "canal2_3546"
+      ],
+      "candidate_reason": "material reliability impact",
+      "category": "replay",
+      "coverage": {
+        "covered_after_utc": null,
+        "fix_commit": null,
+        "regression_test": null,
+        "reviewed_at_utc": null,
+        "reviewed_by": null,
+        "rule_version": null,
+        "verification": null
+      },
+      "evidence": [
+        {
+          "channel": "canal2",
+          "detail": "open_positions",
+          "event": "simulation_blocker",
+          "signal": "canal2_3546",
+          "ts_utc": "2026-07-21T09:49:12.399+00:00"
+        }
+      ],
+      "financial_impact": null,
+      "first_seen_utc": "2026-07-21T09:49:12.399+00:00",
+      "last_seen_utc": "2026-07-21T09:49:12.399+00:00",
+      "occurrences": 1,
+      "pattern_id": "replay.open_positions",
+      "priority_score": 30030,
+      "raw_events": 1,
+      "recurrence": "single_incident",
+      "severity": "high",
+      "status": "candidate",
+      "template": "causal replay blocker: open positions"
+    },
+    {
+      "affected_channels": [
+        "canal2"
+      ],
+      "affected_day_count": 1,
+      "affected_days": [
+        "2026-07-21"
+      ],
+      "affected_signal_count": 1,
+      "affected_signals": [
+        "canal2_3546"
+      ],
+      "candidate_reason": "material reliability impact",
+      "category": "replay",
+      "coverage": {
+        "covered_after_utc": null,
+        "fix_commit": null,
+        "regression_test": null,
+        "reviewed_at_utc": null,
+        "reviewed_by": null,
+        "rule_version": null,
+        "verification": null
+      },
+      "evidence": [
+        {
+          "channel": "canal2",
+          "detail": "ticket_still_open",
+          "event": "simulation_blocker",
+          "signal": "canal2_3546",
+          "ts_utc": "2026-07-21T09:49:12.399+00:00"
+        }
+      ],
+      "financial_impact": null,
+      "first_seen_utc": "2026-07-21T09:49:12.399+00:00",
+      "last_seen_utc": "2026-07-21T09:49:12.399+00:00",
+      "occurrences": 1,
+      "pattern_id": "replay.ticket_still_open",
+      "priority_score": 30030,
+      "raw_events": 5,
+      "recurrence": "single_incident",
+      "severity": "high",
+      "status": "candidate",
+      "template": "causal replay blocker: ticket still open"
+    },
+    {
+      "affected_channels": [
         "canal1"
       ],
       "affected_day_count": 1,
@@ -3575,7 +3839,7 @@
         "canal1",
         "canal2"
       ],
-      "affected_day_count": 31,
+      "affected_day_count": 32,
       "affected_days": [
         "2026-06-05",
         "2026-06-08",
@@ -3607,9 +3871,10 @@
         "2026-07-15",
         "2026-07-16",
         "2026-07-17",
-        "2026-07-20"
+        "2026-07-20",
+        "2026-07-21"
       ],
-      "affected_signal_count": 98,
+      "affected_signal_count": 99,
       "affected_signals": [
         "canal1_20102",
         "canal1_20132",
@@ -3708,7 +3973,8 @@
         "canal2_3417",
         "canal2_3470",
         "canal2_3500",
-        "canal2_3503"
+        "canal2_3503",
+        "canal2_3526"
       ],
       "candidate_reason": "pattern recurred across retained sessions",
       "category": "accounting",
@@ -3809,11 +4075,11 @@
       ],
       "financial_impact": 0.0,
       "first_seen_utc": "2026-06-05T08:00:07.670+00:00",
-      "last_seen_utc": "2026-07-20T14:00:51.492+00:00",
-      "occurrences": 98,
+      "last_seen_utc": "2026-07-21T05:41:01.369+00:00",
+      "occurrences": 99,
       "pattern_id": "accounting.reconstructed_trade",
-      "priority_score": 21609,
-      "raw_events": 98,
+      "priority_score": 21639,
+      "raw_events": 99,
       "recurrence": "cross_session",
       "severity": "medium",
       "status": "candidate",
@@ -4093,23 +4359,25 @@
       "affected_channels": [
         "canal2"
       ],
-      "affected_day_count": 6,
+      "affected_day_count": 7,
       "affected_days": [
         "2026-06-05",
         "2026-06-09",
         "2026-07-03",
         "2026-07-16",
         "2026-07-17",
-        "2026-07-20"
+        "2026-07-20",
+        "2026-07-21"
       ],
-      "affected_signal_count": 6,
+      "affected_signal_count": 7,
       "affected_signals": [
         "canal2_13398",
         "canal2_13492",
         "canal2_2783",
         "canal2_3301",
         "canal2_3375",
-        "canal2_3454"
+        "canal2_3454",
+        "canal2_3525"
       ],
       "candidate_reason": "pattern recurred across retained sessions",
       "category": "semantics",
@@ -4164,15 +4432,22 @@
           "event": "provider_catalog",
           "signal": "canal2_3454",
           "ts_utc": "2026-07-20T05:50:45.087+00:00"
+        },
+        {
+          "channel": "canal2",
+          "detail": "unclassified_provider_message",
+          "event": "provider_catalog",
+          "signal": "canal2_3525",
+          "ts_utc": "2026-07-21T05:20:40.991+00:00"
         }
       ],
       "financial_impact": null,
       "first_seen_utc": "2026-06-05T06:57:55.104+00:00",
-      "last_seen_utc": "2026-07-20T05:50:45.087+00:00",
-      "occurrences": 6,
+      "last_seen_utc": "2026-07-21T05:20:40.991+00:00",
+      "occurrences": 7,
       "pattern_id": "semantics.unknown_provider_record.other_196475c876",
-      "priority_score": 20180,
-      "raw_events": 6,
+      "priority_score": 20210,
+      "raw_events": 7,
       "recurrence": "cross_session",
       "severity": "medium",
       "status": "candidate",
@@ -5495,7 +5770,7 @@
         "canal1",
         "canal2"
       ],
-      "affected_day_count": 8,
+      "affected_day_count": 9,
       "affected_days": [
         "2026-07-10",
         "2026-07-13",
@@ -5504,9 +5779,10 @@
         "2026-07-16",
         "2026-07-17",
         "2026-07-19",
-        "2026-07-20"
+        "2026-07-20",
+        "2026-07-21"
       ],
-      "affected_signal_count": 154,
+      "affected_signal_count": 159,
       "affected_signals": [
         "canal1_20812",
         "canal1_20815",
@@ -5661,7 +5937,12 @@
         "canal2_3518",
         "canal2_3519",
         "canal2_3521",
-        "canal2_3522"
+        "canal2_3522",
+        "canal2_3538",
+        "canal2_3539",
+        "canal2_3540",
+        "canal2_3544",
+        "canal2_3545"
       ],
       "candidate_reason": "pattern recurred across retained sessions",
       "category": "semantics",
@@ -5762,11 +6043,11 @@
       ],
       "financial_impact": null,
       "first_seen_utc": "2026-07-10T11:00:21.791+00:00",
-      "last_seen_utc": "2026-07-20T19:32:54.879+00:00",
-      "occurrences": 154,
+      "last_seen_utc": "2026-07-21T09:23:28.335+00:00",
+      "occurrences": 159,
       "pattern_id": "semantics.unresolved_informational_reply.target_signal_closed",
-      "priority_score": 11195,
-      "raw_events": 356,
+      "priority_score": 11216,
+      "raw_events": 368,
       "recurrence": "cross_session",
       "severity": "low",
       "status": "candidate",
@@ -5977,7 +6258,7 @@
         "canal1",
         "canal2"
       ],
-      "affected_day_count": 10,
+      "affected_day_count": 11,
       "affected_days": [
         "2026-07-09",
         "2026-07-10",
@@ -5988,9 +6269,10 @@
         "2026-07-17",
         "2026-07-18",
         "2026-07-19",
-        "2026-07-20"
+        "2026-07-20",
+        "2026-07-21"
       ],
-      "affected_signal_count": 63,
+      "affected_signal_count": 64,
       "affected_signals": [
         "canal1_20679",
         "canal1_20806",
@@ -6054,7 +6336,8 @@
         "canal2_3495",
         "canal2_3497",
         "canal2_3498",
-        "canal2_3499"
+        "canal2_3499",
+        "canal2_3524"
       ],
       "candidate_reason": "pattern recurred across retained sessions",
       "category": "semantics",
@@ -6155,11 +6438,11 @@
       ],
       "financial_impact": null,
       "first_seen_utc": "2026-07-09T16:21:36.577+00:00",
-      "last_seen_utc": "2026-07-20T12:58:56.332+00:00",
-      "occurrences": 63,
+      "last_seen_utc": "2026-07-21T03:34:12.261+00:00",
+      "occurrences": 64,
       "pattern_id": "semantics.unresolved_informational_reply.unknown_reply_target",
-      "priority_score": 10845,
-      "raw_events": 152,
+      "priority_score": 10875,
+      "raw_events": 155,
       "recurrence": "cross_session",
       "severity": "low",
       "status": "candidate",
@@ -6168,20 +6451,20 @@
   ],
   "schema_version": 1,
   "source_fingerprints": {
-    "accounting": "c69c8dd7b870683e21216b80350811f96f07975f57d56e4d47244f6df2a83f6a",
-    "events": "b509cae0e0684e6a4add4d5d95cba6f7d5f32360d0522c6c3d28007bb1b71978",
-    "observed_ticks": "b3d1364ad36ad6130ad5a2de9008eb7bbeb7356f3a8d7c8352813ccfa1b2783f",
-    "provider_catalog": "dbc91cb1d7809162ab2fe34de0dda5a1d269bb24073ad7cee5a4ee7c4be8b689",
-    "replay": "bd64c04942482913189023953e5ade0be6e5eeabebd7fbfa3a72d606a4bcb92c",
+    "accounting": "f513b94c37465d7a678e56e8003153035dfd995c9c3c436e8d9eb38350e209ad",
+    "events": "067c894553f6d01daa40f52f89a03f9443c76f9b630d75e6d63e518df4517c1f",
+    "observed_ticks": "df313f785c8a970e70e5fa02fdb26bb56febe6ac5ad36ea7524c06356f3ec6db",
+    "provider_catalog": "b48d770bbb7b3122fbf0a3603d810df9ef69ae5e5b237d287dd183ed9af3bde9",
+    "replay": "ed74c41d4582da4e4e14e911e0b107e10d45b3d2b279512c42b6fa4f6011d0ee",
     "review_metadata": "5991733f918759f7d59feba8a0c6c7ffd96f8ea955e25d1ad416b018f1f3a4af",
-    "strategy_farm": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+    "strategy_farm": "fb8f7e0b63a6a7ffb42564c34698b59290c4cef44df46544f59e4da75de33d4c"
   },
   "summary": {
-    "candidates": 64,
+    "candidates": 70,
     "covered": 0,
     "dismissed": 0,
     "observed": 24,
-    "patterns": 89,
+    "patterns": 95,
     "regressed": 1
   }
 }

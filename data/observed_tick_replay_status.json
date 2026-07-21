@@ -3,18 +3,18 @@
   "validation_contract": "causal_path_v2",
   "fill_price_authority": "mt5_deals",
   "market_session_contract": "vantage_xauusd_standard_v1",
-  "generated_at": "2026-07-20T23:28:54+00:00",
+  "generated_at": "2026-07-21T10:00:46+00:00",
   "scope": {
     "since": "2026-07-06",
     "until": null,
-    "input_trades": 248,
-    "selected_trades": 112
+    "input_trades": 253,
+    "selected_trades": 117
   },
   "summary": {
-    "total": 112,
-    "exact": 110,
+    "total": 117,
+    "exact": 114,
     "external_intervention": 1,
     "mismatch": 1,
-    "blocked": 0
+    "blocked": 1
   }
 }

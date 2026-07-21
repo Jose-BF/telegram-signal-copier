@@ -12,12 +12,21 @@
     "2026-07-15",
     "2026-07-16",
     "2026-07-17",
-    "2026-07-20"
+    "2026-07-20",
+    "2026-07-21"
   ],
-  "ensure_stats": {},
+  "ensure_stats": {
+    "cached_already": 0,
+    "downloaded": 1,
+    "empty_days": 0,
+    "total_ticks": 43410
+  },
   "missing_days": [],
   "ok": true,
-  "reference_evidence_days": [],
+  "reference_evidence_days": [
+    "2026-07-21"
+  ],
+  "refresh_removed_days": [],
   "required_days": [
     "2026-07-06",
     "2026-07-07",
@@ -31,7 +40,8 @@
     "2026-07-15",
     "2026-07-16",
     "2026-07-17",
-    "2026-07-20"
+    "2026-07-20",
+    "2026-07-21"
   ],
   "symbol": "EURUSD"
 }

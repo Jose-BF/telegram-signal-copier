@@ -1,18 +1,18 @@
 {
   "schema_version": 2,
-  "generated_at": "2026-07-20T23:28:59+00:00",
+  "generated_at": "2026-07-21T10:00:51+00:00",
   "tick_cache_dir": "C:\\Users\\bot\\telegram-signal-copier\\data\\ticks_cache",
   "pad_minutes": 5,
   "scope": {
     "since": "2026-07-06",
     "until": null,
-    "input_trades": 248,
-    "selected_trades": 112
+    "input_trades": 253,
+    "selected_trades": 117
   },
   "summary": {
-    "total": 112,
-    "ready": 110,
-    "pending": 0,
+    "total": 117,
+    "ready": 114,
+    "pending": 1,
     "blocked": 2,
     "top_blockers": [
       [
@@ -117,6 +117,14 @@
       "ready": 13,
       "pending": 0,
       "blocked": 1
+    },
+    {
+      "date": "2026-07-21",
+      "status": "pending",
+      "total": 5,
+      "ready": 4,
+      "pending": 1,
+      "blocked": 0
     }
   ],
   "trades": [
@@ -3577,6 +3585,143 @@
         "observed:observed_level_fill_delta:1623880647:-0.04",
         "observed:observed_open_execution_delta:1623880711:+0.07",
         "observed:observed_close_execution_delta:1623880711:+0.27"
+      ]
+    },
+    {
+      "sig_id": "canal2_3526",
+      "channel": "canal2",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-21T05:41:01.369+00:00",
+      "open_dt_utc": "2026-07-21T05:41:01+00:00",
+      "close_dt_utc": "2026-07-21T05:52:37+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "reconstructed",
+      "accounting_money_exact": true,
+      "observed_path_status": "exact",
+      "tick_days": [
+        "2026-07-21"
+      ],
+      "ticket_count": 5,
+      "blockers": [],
+      "warnings": [
+        "accounting_reconstructed",
+        "accounting_assumption:journal_health_degraded",
+        "observed:observed_close_execution_delta:1627131053:-0.19",
+        "observed:observed_open_execution_delta:1627131114:-0.14",
+        "observed:observed_close_execution_delta:1627131114:-0.15",
+        "observed:observed_open_execution_delta:1627131145:-0.16",
+        "observed:observed_close_execution_delta:1627131145:-0.17",
+        "observed:observed_open_execution_delta:1627131196:-0.10",
+        "observed:observed_close_execution_delta:1627131196:-0.11",
+        "observed:observed_level_fill_delta:1627131196:+0.03",
+        "observed:observed_open_execution_delta:1627131231:-0.11",
+        "observed:observed_close_execution_delta:1627131231:-0.12",
+        "observed:observed_level_fill_delta:1627131231:+0.02"
+      ]
+    },
+    {
+      "sig_id": "canal2_3530",
+      "channel": "canal2",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-21T06:23:33.810+00:00",
+      "open_dt_utc": "2026-07-21T06:23:33+00:00",
+      "close_dt_utc": "2026-07-21T06:28:07+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "exact",
+      "accounting_money_exact": true,
+      "observed_path_status": "exact",
+      "tick_days": [
+        "2026-07-21"
+      ],
+      "ticket_count": 5,
+      "blockers": [],
+      "warnings": [
+        "observed:observed_open_execution_delta:1627402640:-0.04",
+        "observed:observed_close_execution_delta:1627402640:-0.05",
+        "observed:observed_close_execution_delta:1627402645:-0.13",
+        "observed:observed_close_execution_delta:1627402656:-0.02",
+        "observed:observed_level_fill_delta:1627402656:+0.03",
+        "observed:observed_close_execution_delta:1627402665:-0.03",
+        "observed:observed_level_fill_delta:1627402665:+0.02",
+        "observed:observed_close_execution_delta:1627402673:-0.03",
+        "observed:observed_level_fill_delta:1627402673:+0.02"
+      ]
+    },
+    {
+      "sig_id": "canal2_3532",
+      "channel": "canal2",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-21T07:00:52.747+00:00",
+      "open_dt_utc": "2026-07-21T07:00:52+00:00",
+      "close_dt_utc": "2026-07-21T08:02:27+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "exact",
+      "accounting_money_exact": true,
+      "observed_path_status": "exact",
+      "tick_days": [
+        "2026-07-21"
+      ],
+      "ticket_count": 5,
+      "blockers": [],
+      "warnings": [
+        "observed:observed_open_execution_delta:1627635380:-0.06",
+        "observed:observed_close_execution_delta:1627635380:+0.03",
+        "observed:observed_open_execution_delta:1627635395:-0.05",
+        "observed:observed_close_execution_delta:1627635395:+0.08",
+        "observed:observed_open_execution_delta:1627635411:-0.08",
+        "observed:observed_close_execution_delta:1627635411:-0.04",
+        "observed:observed_close_execution_delta:1627635427:+0.47",
+        "observed:observed_close_execution_delta:1627635441:+0.05"
+      ]
+    },
+    {
+      "sig_id": "canal2_3541",
+      "channel": "canal2",
+      "direction": "BUY",
+      "signal_dt_utc": "2026-07-21T08:36:41.966+00:00",
+      "open_dt_utc": "2026-07-21T08:36:41+00:00",
+      "close_dt_utc": "2026-07-21T08:45:32+00:00",
+      "ready": true,
+      "status": "ready",
+      "accounting_status": "exact",
+      "accounting_money_exact": true,
+      "observed_path_status": "exact",
+      "tick_days": [
+        "2026-07-21"
+      ],
+      "ticket_count": 5,
+      "blockers": [],
+      "warnings": [
+        "observed:observed_open_execution_delta:1628093229:+0.05",
+        "observed:observed_open_execution_delta:1628093235:+0.04",
+        "observed:observed_close_execution_delta:1628093235:+0.04",
+        "observed:observed_close_execution_delta:1628093238:+0.04",
+        "observed:observed_close_execution_delta:1628093247:+0.04",
+        "observed:observed_close_execution_delta:1628093251:+0.05"
+      ]
+    },
+    {
+      "sig_id": "canal2_3546",
+      "channel": "canal2",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-21T09:49:12.399+00:00",
+      "open_dt_utc": "2026-07-21T09:49:12+00:00",
+      "close_dt_utc": null,
+      "ready": false,
+      "status": "pending",
+      "accounting_status": null,
+      "accounting_money_exact": false,
+      "observed_path_status": null,
+      "tick_days": [
+        "2026-07-21"
+      ],
+      "ticket_count": 5,
+      "blockers": [],
+      "warnings": [
+        "trade_still_open"
       ]
     }
   ]
