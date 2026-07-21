@@ -16,15 +16,15 @@
   },
   "details_archive": {
     "available": true,
-    "canonical_sha256": "4d589d1b2b9886d3abaf540a8cf68bfec23961aeb2d0b64f08e8847438302ae3",
-    "canonical_size_bytes": 15538227,
+    "canonical_sha256": "2dbc95d3e85629c0dd48a2924523f83d0043f7e89fb5ac9fb030dd96bf6c4ff7",
+    "canonical_size_bytes": 15751008,
     "compression": "gzip",
-    "path": "data/simulation_runs/e7f52cf845fbede4b56cd853966f61d38e763427927dd8dc1a88ca87b669a310/strategy_farm.json.gz",
-    "result_fingerprint": "ba94070196a0e94bf3575b802e27705ac22c4e5f9481a2f0279b9181d850a0a7",
-    "run_card": "data/simulation_runs/e7f52cf845fbede4b56cd853966f61d38e763427927dd8dc1a88ca87b669a310/run_card.json",
-    "run_fingerprint": "e7f52cf845fbede4b56cd853966f61d38e763427927dd8dc1a88ca87b669a310",
-    "sha256": "b0d33640ddc5b522ed6fcada8bcb8f2a83a72cc6d1940634af83812c827a2270",
-    "size_bytes": 571800
+    "path": "data/simulation_runs/05050e5bc075df68dc4cd5312e59b1a702cf828f56bf91322a4ab8b7be17c274/strategy_farm.json.gz",
+    "result_fingerprint": "02540a4dab29469affa94f940c2c3573ca8ecaf1d01929bd90468da4c45616b8",
+    "run_card": "data/simulation_runs/05050e5bc075df68dc4cd5312e59b1a702cf828f56bf91322a4ab8b7be17c274/run_card.json",
+    "run_fingerprint": "05050e5bc075df68dc4cd5312e59b1a702cf828f56bf91322a4ab8b7be17c274",
+    "sha256": "4b17b9110ba6961258a9d72b0481e1bece077478922e45c4c3bf70674ab6960a",
+    "size_bytes": 584526
   },
   "executed_baseline_validation": {
     "calibration": {
@@ -2850,7 +2850,7 @@
   },
   "executed_trade_count": 126,
   "from_date": "2026-07-06",
-  "generated_at": "2026-07-21T19:26:30+00:00",
+  "generated_at": "2026-07-21T22:18:22+00:00",
   "includes_trade_details": false,
   "market_replay": {
     "blocked": 0,
@@ -2867,11 +2867,11 @@
   },
   "money_validation": {
     "account_currency": "EUR",
-    "blocked_tickets": 130,
+    "blocked_tickets": 4,
     "blockers": [
-      "actual_money_reconciliation_blocked:130"
+      "actual_money_reconciliation_blocked:4"
     ],
-    "exact_tickets": 457,
+    "exact_tickets": 583,
     "mismatched_tickets": 0,
     "rows": [
       {
@@ -6547,509 +6547,417 @@
         "ticket": 1610880331
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3379",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1611459949
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 4.27,
         "observed": 4.27,
         "sig_id": "canal2_3379",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1611459954
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 6.03,
         "observed": 6.03,
         "sig_id": "canal2_3379",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1611459958
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 7.78,
         "observed": 7.78,
         "sig_id": "canal2_3379",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1611459967
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 9.53,
         "observed": 9.53,
         "sig_id": "canal2_3379",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1611459970
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": -11.62,
         "observed": -11.62,
         "sig_id": "canal2_3393",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1612559727
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": -11.61,
         "observed": -11.61,
         "sig_id": "canal2_3393",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1612559735
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": -11.56,
         "observed": -11.56,
         "sig_id": "canal2_3393",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1612559749
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": -11.56,
         "observed": -11.56,
         "sig_id": "canal2_3393",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1612559758
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": -11.38,
         "observed": -11.38,
         "sig_id": "canal2_3393",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1612559798
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.83,
         "observed": 0.83,
         "sig_id": "canal2_3395",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1612821160
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3395",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1612821208
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 4.35,
         "observed": 4.35,
         "sig_id": "canal2_3395",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1612821236
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 5.71,
         "observed": 5.71,
         "sig_id": "canal2_3395",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1612821353
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 7.28,
         "observed": 7.28,
         "sig_id": "canal2_3395",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1612821512
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 3.69,
         "observed": 3.69,
         "sig_id": "canal1_20921",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1613062259
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 8.07,
         "observed": 8.07,
         "sig_id": "canal1_20921",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1613062281
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 12.39,
         "observed": 12.39,
         "sig_id": "canal1_20921",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1613062298
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 16.79,
         "observed": 16.79,
         "sig_id": "canal1_20921",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1613062313
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 2.23,
         "observed": 2.23,
         "sig_id": "canal2_3405",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1613089694
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 4.0,
         "observed": 4.0,
         "sig_id": "canal2_3405",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1613089706
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 5.76,
         "observed": 5.76,
         "sig_id": "canal2_3405",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1613089746
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 7.51,
         "observed": 7.51,
         "sig_id": "canal2_3405",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1613089790
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 9.26,
         "observed": 9.26,
         "sig_id": "canal2_3405",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1613089813
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 2.28,
         "observed": 2.28,
         "sig_id": "canal2_3417",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1613574343
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 3.95,
         "observed": 3.95,
         "sig_id": "canal2_3417",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1613574392
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3417",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1613574426
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3417",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1613574472
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3417",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1613574508
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 2.32,
         "observed": 2.32,
         "sig_id": "canal2_3421",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1613799603
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 3.89,
         "observed": 3.89,
         "sig_id": "canal2_3421",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1613799669
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3421",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1613799768
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3421",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1613799984
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3421",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1613800392
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": -6.27,
         "observed": -6.27,
         "sig_id": "canal1_20929",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1613934184
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": -6.27,
         "observed": -6.27,
         "sig_id": "canal1_20929",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1613934215
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": -6.27,
         "observed": -6.27,
         "sig_id": "canal1_20929",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1613934227
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": -6.24,
         "observed": -6.24,
         "sig_id": "canal1_20929",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1613934244
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 2.88,
         "observed": 2.88,
         "sig_id": "canal1_20937",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1614651089
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal1_20937",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1614651090
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal1_20937",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1614651093
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal1_20937",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1614651099
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 1.45,
         "observed": 1.45,
         "sig_id": "canal1_20945",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1615028644
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 5.81,
         "observed": 5.81,
         "sig_id": "canal1_20945",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1615028648
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 10.18,
         "observed": 10.18,
         "sig_id": "canal1_20945",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1615028650
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal1_20945",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1615028653
       },
       {
@@ -7314,58 +7222,48 @@
         "ticket": 1621313399
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 3.1,
         "observed": 3.1,
         "sig_id": "canal1_20960",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1622549248
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal1_20960",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1622549259
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal1_20960",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1622549274
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal1_20960",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1622549283
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 2.49,
         "observed": 2.49,
         "sig_id": "canal2_3500",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1622584676
       },
       {
@@ -7413,311 +7311,255 @@
         "ticket": 1622584763
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3503",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1622696888
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 3.71,
         "observed": 3.71,
         "sig_id": "canal2_3503",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1622697003
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 5.44,
         "observed": 5.44,
         "sig_id": "canal2_3503",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1622697057
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3503",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1622697120
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3503",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1622697156
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3508",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1622953792
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3508",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1622953804
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3508",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1622953822
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3508",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1622953834
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3508",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1622953844
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal1_20969",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1623300379
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal1_20969",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1623300547
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal1_20969",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1623300735
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal1_20969",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1623300864
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal1_20975",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1623562732
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal1_20975",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1623562736
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal1_20975",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1623562745
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal1_20975",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1623562755
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": -7.75,
         "observed": -7.75,
         "sig_id": "canal2_3513",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1623694829
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": -7.76,
         "observed": -7.76,
         "sig_id": "canal2_3513",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1623694854
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": -7.76,
         "observed": -7.76,
         "sig_id": "canal2_3513",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1623694874
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": -7.75,
         "observed": -7.75,
         "sig_id": "canal2_3513",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1623694902
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": -7.75,
         "observed": -7.75,
         "sig_id": "canal2_3513",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1623694918
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3515",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1623880570
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3515",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1623880588
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3515",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1623880637
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3515",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1623880647
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3515",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1623880711
       },
       {
@@ -7901,520 +7743,426 @@
         "ticket": 1628093251
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3546",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1628404668
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3546",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1628404680
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3546",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1628404687
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3546",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1628404708
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3546",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1628404716
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 1.45,
         "observed": 1.45,
         "sig_id": "canal2_3558",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1629247307
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 3.29,
         "observed": 3.29,
         "sig_id": "canal2_3558",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1629247340
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 4.96,
         "observed": 4.96,
         "sig_id": "canal2_3558",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1629247371
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 6.58,
         "observed": 6.58,
         "sig_id": "canal2_3558",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1629247426
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3558",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1629247478
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 3.5,
         "observed": 3.5,
         "sig_id": "canal1_20983",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1629559354
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal1_20983",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1629559365
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal1_20983",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1629559368
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal1_20983",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1629559373
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 2.24,
         "observed": 2.24,
         "sig_id": "canal2_3565",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1629579801
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 4.02,
         "observed": 4.02,
         "sig_id": "canal2_3565",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1629579821
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3565",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1629579844
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3565",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1629579865
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3565",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1629579968
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3570",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1629727586
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3570",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1629727614
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3570",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1629727631
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3570",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1629727649
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3570",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1629727661
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": -10.16,
         "observed": -10.16,
         "sig_id": "canal2_3576",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1629902413
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": -10.17,
         "observed": -10.17,
         "sig_id": "canal2_3576",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1629902428
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": -10.19,
         "observed": -10.19,
         "sig_id": "canal2_3576",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1629902441
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": -10.19,
         "observed": -10.19,
         "sig_id": "canal2_3576",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1629902455
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": -10.16,
         "observed": -10.16,
         "sig_id": "canal2_3576",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1629902470
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": -13.13,
         "observed": -13.13,
         "sig_id": "canal1_20989",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1630036733
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": -13.03,
         "observed": -13.03,
         "sig_id": "canal1_20989",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1630036764
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": -12.99,
         "observed": -12.99,
         "sig_id": "canal1_20989",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1630036791
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": -12.99,
         "observed": -12.99,
         "sig_id": "canal1_20989",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1630036814
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3579",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1630154379
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3579",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1630154399
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3579",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1630154422
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3579",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1630154444
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3579",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1630154460
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3587",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1630301010
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3587",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1630301020
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3587",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1630301031
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3587",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1630301043
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal2_3587",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1630301058
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 5.15,
         "observed": 5.15,
         "sig_id": "canal1_20995",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1630673179
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal1_20995",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1630673204
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal1_20995",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1630673229
       },
       {
-        "blockers": [
-          "stale_conversion_quote:EURUSD"
-        ],
-        "difference": null,
-        "expected": null,
+        "blockers": [],
+        "difference": 0.0,
+        "expected": 0.0,
         "observed": 0.0,
         "sig_id": "canal1_20995",
-        "status": "blocked",
+        "status": "exact",
         "ticket": 1630673260
       }
     ],
@@ -10961,9 +10709,9 @@
       "broker_money_contract_unverified"
     ],
     "mode": "diagnostic_only",
-    "result_fingerprint": "ba94070196a0e94bf3575b802e27705ac22c4e5f9481a2f0279b9181d850a0a7",
-    "run_card": "data/simulation_runs/e7f52cf845fbede4b56cd853966f61d38e763427927dd8dc1a88ca87b669a310/run_card.json",
-    "run_fingerprint": "e7f52cf845fbede4b56cd853966f61d38e763427927dd8dc1a88ca87b669a310",
+    "result_fingerprint": "02540a4dab29469affa94f940c2c3573ca8ecaf1d01929bd90468da4c45616b8",
+    "run_card": "data/simulation_runs/05050e5bc075df68dc4cd5312e59b1a702cf828f56bf91322a4ab8b7be17c274/run_card.json",
+    "run_fingerprint": "05050e5bc075df68dc4cd5312e59b1a702cf828f56bf91322a4ab8b7be17c274",
     "status": "diagnostic_archived",
     "verified_now": true
   },
@@ -10974,9 +10722,9 @@
     "volume_per_leg": 0.01
   },
   "provider_money": {
-    "blocked_rows": 408,
+    "blocked_rows": 45,
     "rows": 2709,
-    "verified_rows": 2301
+    "verified_rows": 2664
   },
   "provider_policy_result_count": 3146,
   "provider_policy_scores": [
@@ -11034,20 +10782,20 @@
     {
       "metrics": {
         "best_trade": 47.01,
-        "blocked_trades": 34,
+        "blocked_trades": 17,
         "changed_exit_price_exposure": 0,
-        "coverage": 0.7622,
-        "expectancy": -6.07,
-        "exploratory_net_pnl": -661.49,
+        "coverage": 0.8811,
+        "expectancy": -5.18,
+        "exploratory_net_pnl": -652.82,
         "flat": 0,
-        "gross_loss": 1850.11,
-        "gross_profit": 1188.62,
-        "losses": 60,
+        "gross_loss": 2088.42,
+        "gross_profit": 1435.6,
+        "losses": 66,
         "max_consecutive_losses": 5,
-        "max_drawdown": 680.85,
+        "max_drawdown": 688.78,
         "mfe_capture_ratio": null,
         "net_pnl": null,
-        "profit_factor": 0.6425,
+        "profit_factor": 0.6874,
         "slippage_stress": {
           "0.10_price": null,
           "0.25_price": null,
@@ -11057,9 +10805,9 @@
         "total_profit_giveback": null,
         "total_trades": 143,
         "unsafe_calibration_trades": 0,
-        "usable_trades": 109,
-        "win_rate": 0.4495,
-        "wins": 49,
+        "usable_trades": 126,
+        "win_rate": 0.4762,
+        "wins": 60,
         "worst_trade": -85.48
       },
       "policy": {
@@ -11087,20 +10835,20 @@
     {
       "metrics": {
         "best_trade": 47.01,
-        "blocked_trades": 34,
+        "blocked_trades": 17,
         "changed_exit_price_exposure": 0,
-        "coverage": 0.7622,
-        "expectancy": -5.43,
-        "exploratory_net_pnl": -591.88,
+        "coverage": 0.8811,
+        "expectancy": -4.59,
+        "exploratory_net_pnl": -577.9,
         "flat": 0,
-        "gross_loss": 1731.91,
-        "gross_profit": 1140.03,
-        "losses": 60,
+        "gross_loss": 1941.78,
+        "gross_profit": 1363.88,
+        "losses": 67,
         "max_consecutive_losses": 5,
-        "max_drawdown": 604.96,
+        "max_drawdown": 610.08,
         "mfe_capture_ratio": null,
         "net_pnl": null,
-        "profit_factor": 0.6583,
+        "profit_factor": 0.7024,
         "slippage_stress": {
           "0.10_price": null,
           "0.25_price": null,
@@ -11110,9 +10858,9 @@
         "total_profit_giveback": null,
         "total_trades": 143,
         "unsafe_calibration_trades": 0,
-        "usable_trades": 109,
-        "win_rate": 0.4495,
-        "wins": 49,
+        "usable_trades": 126,
+        "win_rate": 0.4683,
+        "wins": 59,
         "worst_trade": -85.48
       },
       "policy": {
@@ -11140,20 +10888,20 @@
     {
       "metrics": {
         "best_trade": 47.01,
-        "blocked_trades": 34,
+        "blocked_trades": 17,
         "changed_exit_price_exposure": 0,
-        "coverage": 0.7622,
-        "expectancy": -5.1,
-        "exploratory_net_pnl": -556.07,
+        "coverage": 0.8811,
+        "expectancy": -4.28,
+        "exploratory_net_pnl": -538.92,
         "flat": 0,
-        "gross_loss": 1630.65,
-        "gross_profit": 1074.58,
-        "losses": 61,
+        "gross_loss": 1804.25,
+        "gross_profit": 1265.33,
+        "losses": 68,
         "max_consecutive_losses": 5,
-        "max_drawdown": 556.07,
+        "max_drawdown": 569.26,
         "mfe_capture_ratio": null,
         "net_pnl": null,
-        "profit_factor": 0.659,
+        "profit_factor": 0.7013,
         "slippage_stress": {
           "0.10_price": null,
           "0.25_price": null,
@@ -11163,9 +10911,9 @@
         "total_profit_giveback": null,
         "total_trades": 143,
         "unsafe_calibration_trades": 0,
-        "usable_trades": 109,
-        "win_rate": 0.4404,
-        "wins": 48,
+        "usable_trades": 126,
+        "win_rate": 0.4603,
+        "wins": 58,
         "worst_trade": -85.48
       },
       "policy": {
@@ -11193,20 +10941,20 @@
     {
       "metrics": {
         "best_trade": 47.01,
-        "blocked_trades": 34,
+        "blocked_trades": 17,
         "changed_exit_price_exposure": 0,
-        "coverage": 0.7622,
-        "expectancy": -4.6,
-        "exploratory_net_pnl": -501.6,
+        "coverage": 0.8811,
+        "expectancy": -3.96,
+        "exploratory_net_pnl": -499.46,
         "flat": 0,
-        "gross_loss": 1538.18,
-        "gross_profit": 1036.58,
-        "losses": 62,
+        "gross_loss": 1700.61,
+        "gross_profit": 1201.15,
+        "losses": 69,
         "max_consecutive_losses": 5,
-        "max_drawdown": 501.6,
+        "max_drawdown": 533.68,
         "mfe_capture_ratio": null,
         "net_pnl": null,
-        "profit_factor": 0.6739,
+        "profit_factor": 0.7063,
         "slippage_stress": {
           "0.10_price": null,
           "0.25_price": null,
@@ -11216,9 +10964,9 @@
         "total_profit_giveback": null,
         "total_trades": 143,
         "unsafe_calibration_trades": 0,
-        "usable_trades": 109,
-        "win_rate": 0.4312,
-        "wins": 47,
+        "usable_trades": 126,
+        "win_rate": 0.4524,
+        "wins": 57,
         "worst_trade": -85.48
       },
       "policy": {
@@ -11246,20 +10994,20 @@
     {
       "metrics": {
         "best_trade": 47.01,
-        "blocked_trades": 34,
+        "blocked_trades": 17,
         "changed_exit_price_exposure": 0,
-        "coverage": 0.7622,
-        "expectancy": -3.59,
-        "exploratory_net_pnl": -391.51,
+        "coverage": 0.8811,
+        "expectancy": -3.25,
+        "exploratory_net_pnl": -408.97,
         "flat": 0,
-        "gross_loss": 1322.15,
-        "gross_profit": 930.64,
-        "losses": 63,
+        "gross_loss": 1448.43,
+        "gross_profit": 1039.46,
+        "losses": 71,
         "max_consecutive_losses": 8,
-        "max_drawdown": 413.84,
+        "max_drawdown": 440.56,
         "mfe_capture_ratio": null,
         "net_pnl": null,
-        "profit_factor": 0.7039,
+        "profit_factor": 0.7176,
         "slippage_stress": {
           "0.10_price": null,
           "0.25_price": null,
@@ -11269,9 +11017,9 @@
         "total_profit_giveback": null,
         "total_trades": 143,
         "unsafe_calibration_trades": 0,
-        "usable_trades": 109,
-        "win_rate": 0.422,
-        "wins": 46,
+        "usable_trades": 126,
+        "win_rate": 0.4365,
+        "wins": 55,
         "worst_trade": -85.48
       },
       "policy": {
@@ -11299,20 +11047,20 @@
     {
       "metrics": {
         "best_trade": 47.01,
-        "blocked_trades": 32,
+        "blocked_trades": 14,
         "changed_exit_price_exposure": 0,
-        "coverage": 0.7762,
-        "expectancy": -2.47,
-        "exploratory_net_pnl": -274.21,
-        "flat": 5,
-        "gross_loss": 1150.6,
-        "gross_profit": 876.39,
-        "losses": 63,
+        "coverage": 0.9021,
+        "expectancy": -2.2,
+        "exploratory_net_pnl": -283.84,
+        "flat": 6,
+        "gross_loss": 1259.3,
+        "gross_profit": 975.46,
+        "losses": 74,
         "max_consecutive_losses": 9,
-        "max_drawdown": 328.06,
+        "max_drawdown": 339.04,
         "mfe_capture_ratio": null,
         "net_pnl": null,
-        "profit_factor": 0.7617,
+        "profit_factor": 0.7746,
         "slippage_stress": {
           "0.10_price": null,
           "0.25_price": null,
@@ -11322,9 +11070,9 @@
         "total_profit_giveback": null,
         "total_trades": 143,
         "unsafe_calibration_trades": 0,
-        "usable_trades": 111,
-        "win_rate": 0.4057,
-        "wins": 43,
+        "usable_trades": 129,
+        "win_rate": 0.3984,
+        "wins": 49,
         "worst_trade": -85.48
       },
       "policy": {
@@ -11352,20 +11100,20 @@
     {
       "metrics": {
         "best_trade": 47.01,
-        "blocked_trades": 34,
+        "blocked_trades": 17,
         "changed_exit_price_exposure": 0,
-        "coverage": 0.7622,
-        "expectancy": -5.45,
-        "exploratory_net_pnl": -594.56,
+        "coverage": 0.8811,
+        "expectancy": -4.52,
+        "exploratory_net_pnl": -569.32,
         "flat": 0,
-        "gross_loss": 1720.27,
-        "gross_profit": 1125.71,
-        "losses": 60,
+        "gross_loss": 1920.54,
+        "gross_profit": 1351.22,
+        "losses": 66,
         "max_consecutive_losses": 5,
-        "max_drawdown": 609.24,
+        "max_drawdown": 611.18,
         "mfe_capture_ratio": null,
         "net_pnl": null,
-        "profit_factor": 0.6544,
+        "profit_factor": 0.7036,
         "slippage_stress": {
           "0.10_price": null,
           "0.25_price": null,
@@ -11375,9 +11123,9 @@
         "total_profit_giveback": null,
         "total_trades": 143,
         "unsafe_calibration_trades": 0,
-        "usable_trades": 109,
-        "win_rate": 0.4495,
-        "wins": 49,
+        "usable_trades": 126,
+        "win_rate": 0.4762,
+        "wins": 60,
         "worst_trade": -85.48
       },
       "policy": {
@@ -11405,20 +11153,20 @@
     {
       "metrics": {
         "best_trade": 47.01,
-        "blocked_trades": 34,
+        "blocked_trades": 17,
         "changed_exit_price_exposure": 0,
-        "coverage": 0.7622,
-        "expectancy": -4.74,
-        "exploratory_net_pnl": -516.85,
+        "coverage": 0.8811,
+        "expectancy": -3.88,
+        "exploratory_net_pnl": -488.44,
         "flat": 0,
-        "gross_loss": 1558.65,
-        "gross_profit": 1041.8,
-        "losses": 61,
+        "gross_loss": 1722.65,
+        "gross_profit": 1234.21,
+        "losses": 67,
         "max_consecutive_losses": 5,
-        "max_drawdown": 516.85,
+        "max_drawdown": 528.1,
         "mfe_capture_ratio": null,
         "net_pnl": null,
-        "profit_factor": 0.6684,
+        "profit_factor": 0.7165,
         "slippage_stress": {
           "0.10_price": null,
           "0.25_price": null,
@@ -11428,9 +11176,9 @@
         "total_profit_giveback": null,
         "total_trades": 143,
         "unsafe_calibration_trades": 0,
-        "usable_trades": 109,
-        "win_rate": 0.4404,
-        "wins": 48,
+        "usable_trades": 126,
+        "win_rate": 0.4683,
+        "wins": 59,
         "worst_trade": -85.48
       },
       "policy": {
@@ -11458,20 +11206,20 @@
     {
       "metrics": {
         "best_trade": 47.01,
-        "blocked_trades": 34,
+        "blocked_trades": 17,
         "changed_exit_price_exposure": 0,
-        "coverage": 0.7622,
-        "expectancy": -4.24,
-        "exploratory_net_pnl": -462.38,
+        "coverage": 0.8811,
+        "expectancy": -3.56,
+        "exploratory_net_pnl": -448.98,
         "flat": 0,
-        "gross_loss": 1466.18,
-        "gross_profit": 1003.8,
-        "losses": 62,
+        "gross_loss": 1619.01,
+        "gross_profit": 1170.03,
+        "losses": 68,
         "max_consecutive_losses": 5,
-        "max_drawdown": 465.07,
+        "max_drawdown": 492.89,
         "mfe_capture_ratio": null,
         "net_pnl": null,
-        "profit_factor": 0.6846,
+        "profit_factor": 0.7227,
         "slippage_stress": {
           "0.10_price": null,
           "0.25_price": null,
@@ -11481,9 +11229,9 @@
         "total_profit_giveback": null,
         "total_trades": 143,
         "unsafe_calibration_trades": 0,
-        "usable_trades": 109,
-        "win_rate": 0.4312,
-        "wins": 47,
+        "usable_trades": 126,
+        "win_rate": 0.4603,
+        "wins": 58,
         "worst_trade": -85.48
       },
       "policy": {
@@ -11511,20 +11259,20 @@
     {
       "metrics": {
         "best_trade": 47.01,
-        "blocked_trades": 34,
+        "blocked_trades": 17,
         "changed_exit_price_exposure": 0,
-        "coverage": 0.7622,
-        "expectancy": -3.62,
-        "exploratory_net_pnl": -394.19,
+        "coverage": 0.8811,
+        "expectancy": -3.18,
+        "exploratory_net_pnl": -400.39,
         "flat": 0,
-        "gross_loss": 1310.32,
-        "gross_profit": 916.13,
-        "losses": 64,
+        "gross_loss": 1426.88,
+        "gross_profit": 1026.49,
+        "losses": 70,
         "max_consecutive_losses": 8,
-        "max_drawdown": 417.54,
+        "max_drawdown": 442.23,
         "mfe_capture_ratio": null,
         "net_pnl": null,
-        "profit_factor": 0.6992,
+        "profit_factor": 0.7194,
         "slippage_stress": {
           "0.10_price": null,
           "0.25_price": null,
@@ -11534,9 +11282,9 @@
         "total_profit_giveback": null,
         "total_trades": 143,
         "unsafe_calibration_trades": 0,
-        "usable_trades": 109,
-        "win_rate": 0.4128,
-        "wins": 45,
+        "usable_trades": 126,
+        "win_rate": 0.4444,
+        "wins": 56,
         "worst_trade": -85.48
       },
       "policy": {
@@ -11564,20 +11312,20 @@
     {
       "metrics": {
         "best_trade": 46.53,
-        "blocked_trades": 32,
+        "blocked_trades": 14,
         "changed_exit_price_exposure": 0,
-        "coverage": 0.7762,
-        "expectancy": -2.62,
-        "exploratory_net_pnl": -290.76,
+        "coverage": 0.9021,
+        "expectancy": -2.27,
+        "exploratory_net_pnl": -292.98,
         "flat": 0,
-        "gross_loss": 1150.95,
-        "gross_profit": 860.19,
-        "losses": 56,
+        "gross_loss": 1252.59,
+        "gross_profit": 959.61,
+        "losses": 62,
         "max_consecutive_losses": 9,
-        "max_drawdown": 351.59,
+        "max_drawdown": 354.63,
         "mfe_capture_ratio": null,
         "net_pnl": null,
-        "profit_factor": 0.7474,
+        "profit_factor": 0.7661,
         "slippage_stress": {
           "0.10_price": null,
           "0.25_price": null,
@@ -11587,9 +11335,9 @@
         "total_profit_giveback": null,
         "total_trades": 143,
         "unsafe_calibration_trades": 0,
-        "usable_trades": 111,
-        "win_rate": 0.4955,
-        "wins": 55,
+        "usable_trades": 129,
+        "win_rate": 0.5194,
+        "wins": 67,
         "worst_trade": -85.48
       },
       "policy": {
@@ -11617,20 +11365,20 @@
     {
       "metrics": {
         "best_trade": 47.01,
-        "blocked_trades": 34,
+        "blocked_trades": 17,
         "changed_exit_price_exposure": 0,
-        "coverage": 0.7622,
-        "expectancy": -5.25,
-        "exploratory_net_pnl": -572.23,
+        "coverage": 0.8811,
+        "expectancy": -4.24,
+        "exploratory_net_pnl": -533.76,
         "flat": 0,
-        "gross_loss": 1623.52,
-        "gross_profit": 1051.29,
-        "losses": 62,
+        "gross_loss": 1784.6,
+        "gross_profit": 1250.84,
+        "losses": 68,
         "max_consecutive_losses": 10,
-        "max_drawdown": 572.23,
+        "max_drawdown": 582.25,
         "mfe_capture_ratio": null,
         "net_pnl": null,
-        "profit_factor": 0.6475,
+        "profit_factor": 0.7009,
         "slippage_stress": {
           "0.10_price": null,
           "0.25_price": null,
@@ -11640,9 +11388,9 @@
         "total_profit_giveback": null,
         "total_trades": 143,
         "unsafe_calibration_trades": 0,
-        "usable_trades": 109,
-        "win_rate": 0.4312,
-        "wins": 47,
+        "usable_trades": 126,
+        "win_rate": 0.4603,
+        "wins": 58,
         "worst_trade": -85.48
       },
       "policy": {
@@ -11670,20 +11418,20 @@
     {
       "metrics": {
         "best_trade": 47.01,
-        "blocked_trades": 34,
+        "blocked_trades": 17,
         "changed_exit_price_exposure": 0,
-        "coverage": 0.7622,
-        "expectancy": -4.36,
-        "exploratory_net_pnl": -475.33,
+        "coverage": 0.8811,
+        "expectancy": -3.65,
+        "exploratory_net_pnl": -459.83,
         "flat": 0,
-        "gross_loss": 1468.3,
-        "gross_profit": 992.97,
-        "losses": 63,
+        "gross_loss": 1620.88,
+        "gross_profit": 1161.05,
+        "losses": 69,
         "max_consecutive_losses": 10,
-        "max_drawdown": 475.33,
+        "max_drawdown": 504.61,
         "mfe_capture_ratio": null,
         "net_pnl": null,
-        "profit_factor": 0.6763,
+        "profit_factor": 0.7163,
         "slippage_stress": {
           "0.10_price": null,
           "0.25_price": null,
@@ -11693,9 +11441,9 @@
         "total_profit_giveback": null,
         "total_trades": 143,
         "unsafe_calibration_trades": 0,
-        "usable_trades": 109,
-        "win_rate": 0.422,
-        "wins": 46,
+        "usable_trades": 126,
+        "win_rate": 0.4524,
+        "wins": 57,
         "worst_trade": -85.48
       },
       "policy": {
@@ -11723,20 +11471,20 @@
     {
       "metrics": {
         "best_trade": 47.01,
-        "blocked_trades": 34,
+        "blocked_trades": 17,
         "changed_exit_price_exposure": 0,
-        "coverage": 0.7622,
-        "expectancy": -3.74,
-        "exploratory_net_pnl": -407.67,
+        "coverage": 0.8811,
+        "expectancy": -3.2,
+        "exploratory_net_pnl": -403.81,
         "flat": 0,
-        "gross_loss": 1314.83,
-        "gross_profit": 907.16,
-        "losses": 65,
+        "gross_loss": 1428.98,
+        "gross_profit": 1025.17,
+        "losses": 70,
         "max_consecutive_losses": 10,
-        "max_drawdown": 426.66,
+        "max_drawdown": 454.48,
         "mfe_capture_ratio": null,
         "net_pnl": null,
-        "profit_factor": 0.6899,
+        "profit_factor": 0.7174,
         "slippage_stress": {
           "0.10_price": null,
           "0.25_price": null,
@@ -11746,9 +11494,9 @@
         "total_profit_giveback": null,
         "total_trades": 143,
         "unsafe_calibration_trades": 0,
-        "usable_trades": 109,
-        "win_rate": 0.4037,
-        "wins": 44,
+        "usable_trades": 126,
+        "win_rate": 0.4444,
+        "wins": 56,
         "worst_trade": -85.48
       },
       "policy": {
@@ -11776,20 +11524,20 @@
     {
       "metrics": {
         "best_trade": 46.53,
-        "blocked_trades": 32,
+        "blocked_trades": 14,
         "changed_exit_price_exposure": 0,
-        "coverage": 0.7762,
-        "expectancy": -2.62,
-        "exploratory_net_pnl": -290.54,
+        "coverage": 0.9021,
+        "expectancy": -2.27,
+        "exploratory_net_pnl": -292.21,
         "flat": 0,
-        "gross_loss": 1157.42,
-        "gross_profit": 866.88,
-        "losses": 56,
+        "gross_loss": 1259.06,
+        "gross_profit": 966.85,
+        "losses": 62,
         "max_consecutive_losses": 9,
-        "max_drawdown": 344.58,
+        "max_drawdown": 353.23,
         "mfe_capture_ratio": null,
         "net_pnl": null,
-        "profit_factor": 0.749,
+        "profit_factor": 0.7679,
         "slippage_stress": {
           "0.10_price": null,
           "0.25_price": null,
@@ -11799,9 +11547,9 @@
         "total_profit_giveback": null,
         "total_trades": 143,
         "unsafe_calibration_trades": 0,
-        "usable_trades": 111,
-        "win_rate": 0.4955,
-        "wins": 55,
+        "usable_trades": 129,
+        "win_rate": 0.5194,
+        "wins": 67,
         "worst_trade": -85.48
       },
       "policy": {
@@ -11829,20 +11577,20 @@
     {
       "metrics": {
         "best_trade": 47.01,
-        "blocked_trades": 34,
+        "blocked_trades": 17,
         "changed_exit_price_exposure": 0,
-        "coverage": 0.7622,
-        "expectancy": -4.99,
-        "exploratory_net_pnl": -543.39,
+        "coverage": 0.8811,
+        "expectancy": -4.11,
+        "exploratory_net_pnl": -517.83,
         "flat": 0,
-        "gross_loss": 1540.87,
-        "gross_profit": 997.48,
-        "losses": 63,
+        "gross_loss": 1690.53,
+        "gross_profit": 1172.7,
+        "losses": 69,
         "max_consecutive_losses": 10,
-        "max_drawdown": 543.39,
+        "max_drawdown": 570.35,
         "mfe_capture_ratio": null,
         "net_pnl": null,
-        "profit_factor": 0.6473,
+        "profit_factor": 0.6937,
         "slippage_stress": {
           "0.10_price": null,
           "0.25_price": null,
@@ -11852,9 +11600,9 @@
         "total_profit_giveback": null,
         "total_trades": 143,
         "unsafe_calibration_trades": 0,
-        "usable_trades": 109,
-        "win_rate": 0.422,
-        "wins": 46,
+        "usable_trades": 126,
+        "win_rate": 0.4524,
+        "wins": 57,
         "worst_trade": -85.48
       },
       "policy": {
@@ -11882,20 +11630,20 @@
     {
       "metrics": {
         "best_trade": 47.01,
-        "blocked_trades": 34,
+        "blocked_trades": 17,
         "changed_exit_price_exposure": 0,
-        "coverage": 0.7622,
-        "expectancy": -3.98,
-        "exploratory_net_pnl": -433.3,
+        "coverage": 0.8811,
+        "expectancy": -3.39,
+        "exploratory_net_pnl": -427.34,
         "flat": 0,
-        "gross_loss": 1324.65,
-        "gross_profit": 891.35,
-        "losses": 65,
+        "gross_loss": 1438.55,
+        "gross_profit": 1011.21,
+        "losses": 70,
         "max_consecutive_losses": 10,
-        "max_drawdown": 435.84,
+        "max_drawdown": 477.13,
         "mfe_capture_ratio": null,
         "net_pnl": null,
-        "profit_factor": 0.6729,
+        "profit_factor": 0.7029,
         "slippage_stress": {
           "0.10_price": null,
           "0.25_price": null,
@@ -11905,9 +11653,9 @@
         "total_profit_giveback": null,
         "total_trades": 143,
         "unsafe_calibration_trades": 0,
-        "usable_trades": 109,
-        "win_rate": 0.4037,
-        "wins": 44,
+        "usable_trades": 126,
+        "win_rate": 0.4444,
+        "wins": 56,
         "worst_trade": -85.48
       },
       "policy": {
@@ -11935,20 +11683,20 @@
     {
       "metrics": {
         "best_trade": 46.53,
-        "blocked_trades": 32,
+        "blocked_trades": 14,
         "changed_exit_price_exposure": 0,
-        "coverage": 0.7762,
-        "expectancy": -2.85,
-        "exploratory_net_pnl": -316.17,
+        "coverage": 0.9021,
+        "expectancy": -2.45,
+        "exploratory_net_pnl": -315.74,
         "flat": 0,
-        "gross_loss": 1171.98,
-        "gross_profit": 855.81,
-        "losses": 56,
+        "gross_loss": 1273.62,
+        "gross_profit": 957.88,
+        "losses": 62,
         "max_consecutive_losses": 9,
-        "max_drawdown": 353.81,
+        "max_drawdown": 375.93,
         "mfe_capture_ratio": null,
         "net_pnl": null,
-        "profit_factor": 0.7302,
+        "profit_factor": 0.7521,
         "slippage_stress": {
           "0.10_price": null,
           "0.25_price": null,
@@ -11958,9 +11706,9 @@
         "total_profit_giveback": null,
         "total_trades": 143,
         "unsafe_calibration_trades": 0,
-        "usable_trades": 111,
-        "win_rate": 0.4955,
-        "wins": 55,
+        "usable_trades": 129,
+        "win_rate": 0.5194,
+        "wins": 67,
         "worst_trade": -85.48
       },
       "policy": {
@@ -11988,20 +11736,20 @@
     {
       "metrics": {
         "best_trade": 47.01,
-        "blocked_trades": 34,
+        "blocked_trades": 17,
         "changed_exit_price_exposure": 0,
-        "coverage": 0.7622,
-        "expectancy": -3.75,
-        "exploratory_net_pnl": -409.07,
+        "coverage": 0.8811,
+        "expectancy": -3.13,
+        "exploratory_net_pnl": -394.34,
         "flat": 0,
-        "gross_loss": 1277.54,
-        "gross_profit": 868.47,
-        "losses": 63,
+        "gross_loss": 1391.19,
+        "gross_profit": 996.85,
+        "losses": 68,
         "max_consecutive_losses": 8,
-        "max_drawdown": 415.12,
+        "max_drawdown": 448.17,
         "mfe_capture_ratio": null,
         "net_pnl": null,
-        "profit_factor": 0.6798,
+        "profit_factor": 0.7165,
         "slippage_stress": {
           "0.10_price": null,
           "0.25_price": null,
@@ -12011,9 +11759,9 @@
         "total_profit_giveback": null,
         "total_trades": 143,
         "unsafe_calibration_trades": 0,
-        "usable_trades": 109,
-        "win_rate": 0.422,
-        "wins": 46,
+        "usable_trades": 126,
+        "win_rate": 0.4603,
+        "wins": 58,
         "worst_trade": -85.48
       },
       "policy": {
@@ -12041,20 +11789,20 @@
     {
       "metrics": {
         "best_trade": 46.53,
-        "blocked_trades": 32,
+        "blocked_trades": 14,
         "changed_exit_price_exposure": 0,
-        "coverage": 0.7762,
-        "expectancy": -2.67,
-        "exploratory_net_pnl": -296.78,
+        "coverage": 0.9021,
+        "expectancy": -2.22,
+        "exploratory_net_pnl": -286.29,
         "flat": 0,
-        "gross_loss": 1148.91,
-        "gross_profit": 852.13,
-        "losses": 55,
+        "gross_loss": 1250.55,
+        "gross_profit": 964.26,
+        "losses": 61,
         "max_consecutive_losses": 9,
-        "max_drawdown": 349.23,
+        "max_drawdown": 351.86,
         "mfe_capture_ratio": null,
         "net_pnl": null,
-        "profit_factor": 0.7417,
+        "profit_factor": 0.7711,
         "slippage_stress": {
           "0.10_price": null,
           "0.25_price": null,
@@ -12064,9 +11812,9 @@
         "total_profit_giveback": null,
         "total_trades": 143,
         "unsafe_calibration_trades": 0,
-        "usable_trades": 111,
-        "win_rate": 0.5045,
-        "wins": 56,
+        "usable_trades": 129,
+        "win_rate": 0.5271,
+        "wins": 68,
         "worst_trade": -85.48
       },
       "policy": {
@@ -12094,20 +11842,20 @@
     {
       "metrics": {
         "best_trade": 46.53,
-        "blocked_trades": 32,
+        "blocked_trades": 14,
         "changed_exit_price_exposure": 0,
-        "coverage": 0.7762,
-        "expectancy": -2.66,
-        "exploratory_net_pnl": -295.05,
+        "coverage": 0.9021,
+        "expectancy": -2.09,
+        "exploratory_net_pnl": -269.78,
         "flat": 0,
-        "gross_loss": 1145.43,
-        "gross_profit": 850.38,
-        "losses": 53,
+        "gross_loss": 1247.07,
+        "gross_profit": 977.29,
+        "losses": 59,
         "max_consecutive_losses": 9,
-        "max_drawdown": 340.72,
+        "max_drawdown": 343.7,
         "mfe_capture_ratio": null,
         "net_pnl": null,
-        "profit_factor": 0.7424,
+        "profit_factor": 0.7837,
         "slippage_stress": {
           "0.10_price": null,
           "0.25_price": null,
@@ -12117,9 +11865,9 @@
         "total_profit_giveback": null,
         "total_trades": 143,
         "unsafe_calibration_trades": 0,
-        "usable_trades": 111,
-        "win_rate": 0.5225,
-        "wins": 58,
+        "usable_trades": 129,
+        "win_rate": 0.5426,
+        "wins": 70,
         "worst_trade": -85.48
       },
       "policy": {
@@ -12162,7 +11910,7 @@
     "exploratory_ranking": [],
     "global_blockers": [
       "broker_money_contract_unverified",
-      "actual_money_reconciliation_blocked:130",
+      "actual_money_reconciliation_blocked:4",
       "stale_conversion_quote:EURUSD",
       "market_replay_not_exact"
     ],
