@@ -1,7 +1,7 @@
 {
   "schema_version": 6,
   "summary": {
-    "records": 507,
+    "records": 509,
     "provider_signals": 282,
     "formal_signals": 282,
     "complete_signals": 275,
@@ -9,12 +9,12 @@
     "executed_signals": 260,
     "unexecuted_signals": 22,
     "duplicate_execution_signals": 2,
-    "management_events": 1485,
+    "management_events": 1486,
     "record_types": {
-      "context_setup": 80,
+      "context_setup": 81,
       "daily_summary": 19,
       "formal_signal": 282,
-      "management_only": 55,
+      "management_only": 56,
       "unknown_candidate": 70,
       "zone_plan": 1
     },
@@ -35,7 +35,7 @@
         }
       },
       "canal2": {
-        "records": 276,
+        "records": 278,
         "provider_signals": 144,
         "complete_signals": 143,
         "incomplete_signals": 1,
@@ -43,10 +43,10 @@
         "unexecuted_signals": 20,
         "duplicate_execution_signals": 0,
         "record_types": {
-          "context_setup": 51,
+          "context_setup": 52,
           "daily_summary": 19,
           "formal_signal": 144,
-          "management_only": 21,
+          "management_only": 22,
           "unknown_candidate": 40,
           "zone_plan": 1
         }
@@ -148206,6 +148206,224 @@
         "availability": "metadata_only",
         "has_photo": false,
         "has_document": true,
+        "sha256": null,
+        "path": null,
+        "extraction_status": "not_extracted"
+      },
+      "execution_sig_ids": [],
+      "execution_range_assessments": [],
+      "execution_count": 0,
+      "duplicate_execution": false,
+      "semantic_status": "classified",
+      "semantic_gaps": [],
+      "canonicalization_issues": [],
+      "entry_contract": {
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
+        "direction": null,
+        "direction_source": null,
+        "blockers": [
+          "missing_direction",
+          "missing_actionable_entry_trigger"
+        ]
+      }
+    },
+    {
+      "schema_version": 6,
+      "provider_signal_id": "canal2_3610",
+      "record_type": "management_only",
+      "record_type_reason": "standalone_management_message",
+      "channel": "canal2",
+      "root_message_id": 3610,
+      "source_message_ids": [
+        3610
+      ],
+      "signal_ts_utc": "2026-07-21T19:33:12+00:00",
+      "first_observed_utc": "2026-07-21T19:33:12.665+00:00",
+      "direction": "BUY",
+      "risk_label": "high_risk",
+      "effective_range": [
+        4121.0,
+        4125.0
+      ],
+      "effective_tps": [],
+      "effective_sl": null,
+      "entry_zones": [],
+      "zone_target": null,
+      "zone_plan_timeline": [],
+      "revisions": [
+        {
+          "message_id": 3610,
+          "observed_ts_utc": "2026-07-21T19:33:12.665+00:00",
+          "telegram_ts_utc": "2026-07-21T19:33:12+00:00",
+          "update_kinds": [
+            "poll_new",
+            "new",
+            "edit",
+            "poll_edit"
+          ],
+          "text": "Good Evening All\n\nI am still holding my buys risk free\n\nI am looking at a possible sell around 4121 - 4125 area \n\nWe can expect a reaction at this zone. \n\nYou can consider a Sell Limit with the following parameters\n\nSell Limit \nEntry 4121-4125\nTaps 4118/4115/4110/4100\nSL 4131\n\nLimit orders carry more risk as you may not be able to manage it depending on what time price reaches it. Please keep in mind any unexpected news releases around the time price reaches there can also cause volatility therefore this is high risk \n\nHappy trading",
+          "sticker_id": null,
+          "has_photo": false,
+          "has_document": false,
+          "media_sha256": null,
+          "media_path": null,
+          "media_extraction_status": null,
+          "parsed": {
+            "direction": "BUY",
+            "range": [
+              4121.0,
+              4125.0
+            ],
+            "sl": 4131.0
+          }
+        }
+      ],
+      "entry_zone_timeline": [
+        {
+          "telegram_ts_utc": "2026-07-21T19:33:12+00:00",
+          "observed_ts_utc": "2026-07-21T19:33:12.665+00:00",
+          "range": [
+            4121.0,
+            4125.0
+          ],
+          "raw_range": [
+            4121.0,
+            4125.0
+          ],
+          "source_message_id": 3610,
+          "source_kind": "revision",
+          "canonicalized_at_source_message_id": 3610
+        }
+      ],
+      "level_timeline": [
+        {
+          "telegram_ts_utc": "2026-07-21T19:33:12+00:00",
+          "observed_ts_utc": "2026-07-21T19:33:12.665+00:00",
+          "tps": [],
+          "sl": null,
+          "source_message_id": 3610,
+          "source_kind": "revision",
+          "raw_tps": [],
+          "raw_sl": 4131.0
+        }
+      ],
+      "runtime_level_timeline": [],
+      "management_events": [
+        {
+          "message_id": 3610,
+          "reply_to_msg_id": null,
+          "observed_ts_utc": "2026-07-21T19:33:12.665+00:00",
+          "telegram_ts_utc": "2026-07-21T19:33:12+00:00",
+          "text": "Good Evening All\n\nI am still holding my buys risk free\n\nI am looking at a possible sell around 4121 - 4125 area \n\nWe can expect a reaction at this zone. \n\nYou can consider a Sell Limit with the following parameters\n\nSell Limit \nEntry 4121-4125\nTaps 4118/4115/4110/4100\nSL 4131\n\nLimit orders carry more risk as you may not be able to manage it depending on what time price reaches it. Please keep in mind any unexpected news releases around the time price reaches there can also cause volatility therefore this is high risk \n\nHappy trading",
+          "classified_action": "MOVE_SL_TO_BE",
+          "classifier_action": null,
+          "modality": "direct",
+          "semantic_source": "deterministic_parser",
+          "execution_options": [
+            {
+              "action": "MOVE_SL_TO_BE",
+              "provider_stated_be_price": 4121.0
+            }
+          ],
+          "raw_versions": 4,
+          "update_kinds": [
+            "poll_new",
+            "new",
+            "edit",
+            "poll_edit"
+          ],
+          "source": "telegram_raw",
+          "provider_stated_be_price": 4121.0
+        }
+      ],
+      "media": {
+        "availability": "none",
+        "has_photo": false,
+        "has_document": false,
+        "sha256": null,
+        "path": null,
+        "extraction_status": "not_applicable"
+      },
+      "execution_sig_ids": [],
+      "execution_range_assessments": [],
+      "execution_count": 0,
+      "duplicate_execution": false,
+      "semantic_status": "classified",
+      "semantic_gaps": [],
+      "canonicalization_issues": [
+        {
+          "field": "sl",
+          "raw": 4131.0,
+          "canonical": null,
+          "decision": "rejected_invalid",
+          "observed_ts_utc": "2026-07-21T19:33:12.665+00:00",
+          "source_kind": "revision",
+          "source_message_id": 3610
+        }
+      ],
+      "entry_contract": {
+        "status": "ready",
+        "trigger_observed_utc": "2026-07-21T19:33:12.665+00:00",
+        "trigger_telegram_utc": "2026-07-21T19:33:12+00:00",
+        "trigger_message_id": 3610,
+        "trigger_kind": "text",
+        "direction": "BUY",
+        "direction_source": "revision_parser:3610",
+        "blockers": []
+      }
+    },
+    {
+      "schema_version": 6,
+      "provider_signal_id": "canal2_3611",
+      "record_type": "context_setup",
+      "record_type_reason": "media_or_market_context",
+      "channel": "canal2",
+      "root_message_id": 3611,
+      "source_message_ids": [
+        3611
+      ],
+      "signal_ts_utc": "2026-07-21T20:37:27+00:00",
+      "first_observed_utc": "2026-07-21T20:37:28.126+00:00",
+      "direction": null,
+      "risk_label": "standard",
+      "effective_range": null,
+      "effective_tps": [],
+      "effective_sl": null,
+      "entry_zones": [],
+      "zone_target": null,
+      "zone_plan_timeline": [],
+      "revisions": [
+        {
+          "message_id": 3611,
+          "observed_ts_utc": "2026-07-21T20:37:28.126+00:00",
+          "telegram_ts_utc": "2026-07-21T20:37:27+00:00",
+          "update_kinds": [
+            "new",
+            "poll_new",
+            "edit"
+          ],
+          "text": "",
+          "sticker_id": null,
+          "has_photo": true,
+          "has_document": false,
+          "media_sha256": null,
+          "media_path": null,
+          "media_extraction_status": null,
+          "parsed": {}
+        }
+      ],
+      "entry_zone_timeline": [],
+      "level_timeline": [],
+      "runtime_level_timeline": [],
+      "management_events": [],
+      "media": {
+        "availability": "metadata_only",
+        "has_photo": true,
+        "has_document": false,
         "sha256": null,
         "path": null,
         "extraction_status": "not_extracted"

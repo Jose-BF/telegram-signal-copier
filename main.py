@@ -985,7 +985,10 @@ def _fetch_orphan_deals_synced(
     """Wait until expected closes are present and history is stable."""
     import time
 
-    history_get = history_get or mt5.history_deals_get
+    if history_get is None:
+        import MetaTrader5 as _mt5
+
+        history_get = _mt5.history_deals_get
     sleep_fn = sleep_fn or time.sleep
     expected = {int(ticket) for ticket in expected_position_ids}
     deals = tuple(history_get(t_from, t_to) or ())

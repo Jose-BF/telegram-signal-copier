@@ -1,6 +1,7 @@
 """Tests for production startup confirmation and orphan recovery."""
 
 import subprocess
+import sys
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
@@ -103,3 +104,35 @@ def test_orphan_history_waits_for_expected_position_close():
 
     assert deals == (opening, closing)
     assert len(calls) == 3
+
+
+def test_orphan_history_default_uses_metatrader5_module(monkeypatch):
+    closing = SimpleNamespace(
+        ticket=501,
+        position_id=101,
+        entry=1,
+        time_msc=1_000,
+    )
+    calls = []
+
+    def history_get(_start, _end):
+        calls.append(True)
+        return (closing,)
+
+    monkeypatch.setitem(
+        sys.modules,
+        "MetaTrader5",
+        SimpleNamespace(history_deals_get=history_get),
+    )
+
+    deals = main._fetch_orphan_deals_synced(
+        datetime(2026, 7, 20, tzinfo=timezone.utc),
+        datetime(2026, 7, 22, tzinfo=timezone.utc),
+        {101},
+        sleep_fn=lambda _seconds: None,
+        retries=2,
+        pause_s=0,
+    )
+
+    assert deals == (closing,)
+    assert len(calls) == 2
