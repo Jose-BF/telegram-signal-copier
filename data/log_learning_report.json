@@ -105,23 +105,6 @@
     },
     {
       "affected_days": [
-        "2026-07-21"
-      ],
-      "candidate_reason": "material reliability impact",
-      "occurrences": 1,
-      "pattern_id": "accounting.blocked",
-      "priority_score": 40030,
-      "required_promotion_evidence": [
-        "deterministic_fixture",
-        "regression_test",
-        "deterministic_corpus_rebuild",
-        "human_review"
-      ],
-      "severity": "critical",
-      "suggested_fixture_id": "fixture.accounting.blocked"
-    },
-    {
-      "affected_days": [
         "2026-07-09"
       ],
       "candidate_reason": "material reliability impact",
@@ -156,57 +139,6 @@
     },
     {
       "affected_days": [
-        "2026-07-21"
-      ],
-      "candidate_reason": "material reliability impact",
-      "occurrences": 1,
-      "pattern_id": "market_replay.missing_ticket_close",
-      "priority_score": 40030,
-      "required_promotion_evidence": [
-        "deterministic_fixture",
-        "regression_test",
-        "deterministic_corpus_rebuild",
-        "human_review"
-      ],
-      "severity": "critical",
-      "suggested_fixture_id": "fixture.market_replay.missing_ticket_close"
-    },
-    {
-      "affected_days": [
-        "2026-07-21"
-      ],
-      "candidate_reason": "material reliability impact",
-      "occurrences": 1,
-      "pattern_id": "market_replay.ticket_not_closed",
-      "priority_score": 40030,
-      "required_promotion_evidence": [
-        "deterministic_fixture",
-        "regression_test",
-        "deterministic_corpus_rebuild",
-        "human_review"
-      ],
-      "severity": "critical",
-      "suggested_fixture_id": "fixture.market_replay.ticket_not_closed"
-    },
-    {
-      "affected_days": [
-        "2026-07-21"
-      ],
-      "candidate_reason": "material reliability impact",
-      "occurrences": 1,
-      "pattern_id": "market_replay.unsupported_close_reason",
-      "priority_score": 40030,
-      "required_promotion_evidence": [
-        "deterministic_fixture",
-        "regression_test",
-        "deterministic_corpus_rebuild",
-        "human_review"
-      ],
-      "severity": "critical",
-      "suggested_fixture_id": "fixture.market_replay.unsupported_close_reason"
-    },
-    {
-      "affected_days": [
         "2026-06-10",
         "2026-06-11",
         "2026-06-15",
@@ -223,12 +155,13 @@
         "2026-07-16",
         "2026-07-17",
         "2026-07-19",
-        "2026-07-20"
+        "2026-07-20",
+        "2026-07-21"
       ],
       "candidate_reason": "material reliability impact",
-      "occurrences": 23,
+      "occurrences": 26,
       "pattern_id": "semantics.unclassified_management.non_trading_announcement",
-      "priority_score": 30578,
+      "priority_score": 30619,
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
@@ -237,6 +170,35 @@
       ],
       "severity": "high",
       "suggested_fixture_id": "fixture.semantics.unclassified_management.non_trading_announcement"
+    },
+    {
+      "affected_days": [
+        "2026-06-05",
+        "2026-06-10",
+        "2026-06-12",
+        "2026-06-16",
+        "2026-06-17",
+        "2026-06-23",
+        "2026-06-24",
+        "2026-07-06",
+        "2026-07-08",
+        "2026-07-13",
+        "2026-07-14",
+        "2026-07-15",
+        "2026-07-21"
+      ],
+      "candidate_reason": "material reliability impact",
+      "occurrences": 16,
+      "pattern_id": "semantics.unclassified_management.market_context",
+      "priority_score": 30415,
+      "required_promotion_evidence": [
+        "deterministic_fixture",
+        "regression_test",
+        "deterministic_corpus_rebuild",
+        "human_review"
+      ],
+      "severity": "high",
+      "suggested_fixture_id": "fixture.semantics.unclassified_management.market_context"
     },
     {
       "affected_days": [
@@ -276,46 +238,19 @@
     },
     {
       "affected_days": [
-        "2026-06-05",
-        "2026-06-10",
-        "2026-06-12",
-        "2026-06-16",
-        "2026-06-17",
-        "2026-06-23",
-        "2026-06-24",
-        "2026-07-06",
-        "2026-07-08",
-        "2026-07-13",
-        "2026-07-14",
-        "2026-07-15"
-      ],
-      "candidate_reason": "material reliability impact",
-      "occurrences": 14,
-      "pattern_id": "semantics.unclassified_management.market_context",
-      "priority_score": 30385,
-      "required_promotion_evidence": [
-        "deterministic_fixture",
-        "regression_test",
-        "deterministic_corpus_rebuild",
-        "human_review"
-      ],
-      "severity": "high",
-      "suggested_fixture_id": "fixture.semantics.unclassified_management.market_context"
-    },
-    {
-      "affected_days": [
         "2026-07-10",
         "2026-07-13",
         "2026-07-14",
         "2026-07-15",
         "2026-07-16",
         "2026-07-17",
-        "2026-07-20"
+        "2026-07-20",
+        "2026-07-21"
       ],
       "candidate_reason": "material reliability impact",
-      "occurrences": 20,
+      "occurrences": 22,
       "pattern_id": "semantics.unresolved_actionable_management.target_signal_closed",
-      "priority_score": 30344,
+      "priority_score": 30384,
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
@@ -324,6 +259,32 @@
       ],
       "severity": "high",
       "suggested_fixture_id": "fixture.semantics.unresolved_actionable_management.target_signal_closed"
+    },
+    {
+      "affected_days": [
+        "2026-06-09",
+        "2026-06-12",
+        "2026-06-17",
+        "2026-06-18",
+        "2026-06-19",
+        "2026-06-23",
+        "2026-07-09",
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-21"
+      ],
+      "candidate_reason": "material reliability impact",
+      "occurrences": 16,
+      "pattern_id": "semantics.unclassified_management.conditional_plan",
+      "priority_score": 30365,
+      "required_promotion_evidence": [
+        "deterministic_fixture",
+        "regression_test",
+        "deterministic_corpus_rebuild",
+        "human_review"
+      ],
+      "severity": "high",
+      "suggested_fixture_id": "fixture.semantics.unclassified_management.conditional_plan"
     },
     {
       "affected_days": [
@@ -350,31 +311,6 @@
       ],
       "severity": "high",
       "suggested_fixture_id": "fixture.semantics.unclassified_management.trade_progress_commentary"
-    },
-    {
-      "affected_days": [
-        "2026-06-09",
-        "2026-06-12",
-        "2026-06-17",
-        "2026-06-18",
-        "2026-06-19",
-        "2026-06-23",
-        "2026-07-09",
-        "2026-07-16",
-        "2026-07-17"
-      ],
-      "candidate_reason": "material reliability impact",
-      "occurrences": 14,
-      "pattern_id": "semantics.unclassified_management.conditional_plan",
-      "priority_score": 30324,
-      "required_promotion_evidence": [
-        "deterministic_fixture",
-        "regression_test",
-        "deterministic_corpus_rebuild",
-        "human_review"
-      ],
-      "severity": "high",
-      "suggested_fixture_id": "fixture.semantics.unclassified_management.conditional_plan"
     },
     {
       "affected_days": [
@@ -451,12 +387,13 @@
         "2026-06-11",
         "2026-06-12",
         "2026-06-23",
-        "2026-07-16"
+        "2026-07-16",
+        "2026-07-21"
       ],
       "candidate_reason": "material reliability impact",
-      "occurrences": 4,
+      "occurrences": 5,
       "pattern_id": "semantics.unclassified_management.exit_or_risk_guidance",
-      "priority_score": 30121,
+      "priority_score": 30151,
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
@@ -563,40 +500,6 @@
     },
     {
       "affected_days": [
-        "2026-07-21"
-      ],
-      "candidate_reason": "material reliability impact",
-      "occurrences": 1,
-      "pattern_id": "replay.open_positions",
-      "priority_score": 30030,
-      "required_promotion_evidence": [
-        "deterministic_fixture",
-        "regression_test",
-        "deterministic_corpus_rebuild",
-        "human_review"
-      ],
-      "severity": "high",
-      "suggested_fixture_id": "fixture.replay.open_positions"
-    },
-    {
-      "affected_days": [
-        "2026-07-21"
-      ],
-      "candidate_reason": "material reliability impact",
-      "occurrences": 1,
-      "pattern_id": "replay.ticket_still_open",
-      "priority_score": 30030,
-      "required_promotion_evidence": [
-        "deterministic_fixture",
-        "regression_test",
-        "deterministic_corpus_rebuild",
-        "human_review"
-      ],
-      "severity": "high",
-      "suggested_fixture_id": "fixture.replay.ticket_still_open"
-    },
-    {
-      "affected_days": [
         "2026-07-17"
       ],
       "candidate_reason": "material reliability impact",
@@ -611,6 +514,23 @@
       ],
       "severity": "high",
       "suggested_fixture_id": "fixture.semantics.unclassified_management.other_06b8f76584"
+    },
+    {
+      "affected_days": [
+        "2026-07-21"
+      ],
+      "candidate_reason": "material reliability impact",
+      "occurrences": 1,
+      "pattern_id": "semantics.unclassified_management.other_0a81765994",
+      "priority_score": 30030,
+      "required_promotion_evidence": [
+        "deterministic_fixture",
+        "regression_test",
+        "deterministic_corpus_rebuild",
+        "human_review"
+      ],
+      "severity": "high",
+      "suggested_fixture_id": "fixture.semantics.unclassified_management.other_0a81765994"
     },
     {
       "affected_days": [
@@ -801,6 +721,23 @@
     },
     {
       "affected_days": [
+        "2026-07-21"
+      ],
+      "candidate_reason": "material reliability impact",
+      "occurrences": 1,
+      "pattern_id": "semantics.unclassified_management.other_3dea481e51",
+      "priority_score": 30030,
+      "required_promotion_evidence": [
+        "deterministic_fixture",
+        "regression_test",
+        "deterministic_corpus_rebuild",
+        "human_review"
+      ],
+      "severity": "high",
+      "suggested_fixture_id": "fixture.semantics.unclassified_management.other_3dea481e51"
+    },
+    {
+      "affected_days": [
         "2026-06-23"
       ],
       "candidate_reason": "material reliability impact",
@@ -866,6 +803,23 @@
       ],
       "severity": "high",
       "suggested_fixture_id": "fixture.semantics.unclassified_management.other_58058fdaee"
+    },
+    {
+      "affected_days": [
+        "2026-07-21"
+      ],
+      "candidate_reason": "material reliability impact",
+      "occurrences": 1,
+      "pattern_id": "semantics.unclassified_management.other_5f176e8b1b",
+      "priority_score": 30030,
+      "required_promotion_evidence": [
+        "deterministic_fixture",
+        "regression_test",
+        "deterministic_corpus_rebuild",
+        "human_review"
+      ],
+      "severity": "high",
+      "suggested_fixture_id": "fixture.semantics.unclassified_management.other_5f176e8b1b"
     },
     {
       "affected_days": [
@@ -988,6 +942,23 @@
     },
     {
       "affected_days": [
+        "2026-07-21"
+      ],
+      "candidate_reason": "material reliability impact",
+      "occurrences": 1,
+      "pattern_id": "semantics.unclassified_management.other_a9e7f76efb",
+      "priority_score": 30030,
+      "required_promotion_evidence": [
+        "deterministic_fixture",
+        "regression_test",
+        "deterministic_corpus_rebuild",
+        "human_review"
+      ],
+      "severity": "high",
+      "suggested_fixture_id": "fixture.semantics.unclassified_management.other_a9e7f76efb"
+    },
+    {
+      "affected_days": [
         "2026-07-17"
       ],
       "candidate_reason": "material reliability impact",
@@ -1022,6 +993,23 @@
     },
     {
       "affected_days": [
+        "2026-07-21"
+      ],
+      "candidate_reason": "material reliability impact",
+      "occurrences": 1,
+      "pattern_id": "semantics.unclassified_management.other_ca70283743",
+      "priority_score": 30030,
+      "required_promotion_evidence": [
+        "deterministic_fixture",
+        "regression_test",
+        "deterministic_corpus_rebuild",
+        "human_review"
+      ],
+      "severity": "high",
+      "suggested_fixture_id": "fixture.semantics.unclassified_management.other_ca70283743"
+    },
+    {
+      "affected_days": [
         "2026-07-15"
       ],
       "candidate_reason": "material reliability impact",
@@ -1053,6 +1041,23 @@
       ],
       "severity": "high",
       "suggested_fixture_id": "fixture.semantics.unclassified_management.other_dd635a5567"
+    },
+    {
+      "affected_days": [
+        "2026-07-21"
+      ],
+      "candidate_reason": "material reliability impact",
+      "occurrences": 1,
+      "pattern_id": "semantics.unclassified_management.other_e04fe1df87",
+      "priority_score": 30030,
+      "required_promotion_evidence": [
+        "deterministic_fixture",
+        "regression_test",
+        "deterministic_corpus_rebuild",
+        "human_review"
+      ],
+      "severity": "high",
+      "suggested_fixture_id": "fixture.semantics.unclassified_management.other_e04fe1df87"
     },
     {
       "affected_days": [
@@ -1124,6 +1129,23 @@
     },
     {
       "affected_days": [
+        "2026-07-21"
+      ],
+      "candidate_reason": "material reliability impact",
+      "occurrences": 1,
+      "pattern_id": "semantics.unclassified_management.other_fa1e9bfac8",
+      "priority_score": 30030,
+      "required_promotion_evidence": [
+        "deterministic_fixture",
+        "regression_test",
+        "deterministic_corpus_rebuild",
+        "human_review"
+      ],
+      "severity": "high",
+      "suggested_fixture_id": "fixture.semantics.unclassified_management.other_fa1e9bfac8"
+    },
+    {
+      "affected_days": [
         "2026-06-11"
       ],
       "candidate_reason": "material reliability impact",
@@ -1175,9 +1197,9 @@
         "2026-07-21"
       ],
       "candidate_reason": "pattern recurred across retained sessions",
-      "occurrences": 99,
+      "occurrences": 103,
       "pattern_id": "accounting.reconstructed_trade",
-      "priority_score": 21639,
+      "priority_score": 21650,
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
@@ -1200,12 +1222,13 @@
         "2026-07-15",
         "2026-07-18",
         "2026-07-19",
-        "2026-07-20"
+        "2026-07-20",
+        "2026-07-21"
       ],
       "candidate_reason": "pattern recurred across retained sessions",
-      "occurrences": 13,
+      "occurrences": 14,
       "pattern_id": "semantics.unknown_provider_record.non_trading_announcement",
-      "priority_score": 20371,
+      "priority_score": 20401,
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
@@ -1352,9 +1375,9 @@
         "2026-07-21"
       ],
       "candidate_reason": "pattern recurred across retained sessions",
-      "occurrences": 159,
+      "occurrences": 172,
       "pattern_id": "semantics.unresolved_informational_reply.target_signal_closed",
-      "priority_score": 11216,
+      "priority_score": 11219,
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
@@ -1387,12 +1410,13 @@
         "2026-07-17",
         "2026-07-18",
         "2026-07-19",
-        "2026-07-20"
+        "2026-07-20",
+        "2026-07-21"
       ],
       "candidate_reason": "pattern recurred across retained sessions",
-      "occurrences": 58,
+      "occurrences": 61,
       "pattern_id": "semantics.context_media_not_extracted",
-      "priority_score": 11025,
+      "priority_score": 11076,
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
@@ -1417,9 +1441,9 @@
         "2026-07-21"
       ],
       "candidate_reason": "pattern recurred across retained sessions",
-      "occurrences": 64,
+      "occurrences": 78,
       "pattern_id": "semantics.unresolved_informational_reply.unknown_reply_target",
-      "priority_score": 10875,
+      "priority_score": 11019,
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
@@ -1431,20 +1455,20 @@
     }
   ],
   "corpus": {
-    "accounting_trades": 253,
-    "event_rows": 71285,
-    "latest_evidence_utc": "2026-07-21T09:59:41.007+00:00",
-    "observed_tick_trades": 117,
-    "provider_records": 502,
-    "replay_trades": 253,
+    "accounting_trades": 262,
+    "event_rows": 73721,
+    "latest_evidence_utc": "2026-07-21T19:19:42.392+00:00",
+    "observed_tick_trades": 126,
+    "provider_records": 522,
+    "replay_trades": 262,
     "source_fingerprints": {
-      "accounting": "f513b94c37465d7a678e56e8003153035dfd995c9c3c436e8d9eb38350e209ad",
-      "events": "067c894553f6d01daa40f52f89a03f9443c76f9b630d75e6d63e518df4517c1f",
-      "observed_ticks": "df313f785c8a970e70e5fa02fdb26bb56febe6ac5ad36ea7524c06356f3ec6db",
-      "provider_catalog": "b48d770bbb7b3122fbf0a3603d810df9ef69ae5e5b237d287dd183ed9af3bde9",
-      "replay": "ed74c41d4582da4e4e14e911e0b107e10d45b3d2b279512c42b6fa4f6011d0ee",
+      "accounting": "8243703d8bf16b98dd7283ef45c8fdc314088059274122825966e1cdae3d2b73",
+      "events": "ebe29adac760746033c151f62ee09444387267712ae2ad1118a82dae6eef4c82",
+      "observed_ticks": "c07c858c3718953bf3d0e6dd52306d33f6cdafe9d927b200cb7766af5fb3445d",
+      "provider_catalog": "246b6b6bc2e60af25bd599472b9c6b68cbbb02c2365c65be2e94e00352c7abe7",
+      "replay": "95ea7a78fc1b8967ebe4fd5c3bc308c5a899557485a68d65692e56c005ef8488",
       "review_metadata": "5991733f918759f7d59feba8a0c6c7ffd96f8ea955e25d1ad416b018f1f3a4af",
-      "strategy_farm": "fb8f7e0b63a6a7ffb42564c34698b59290c4cef44df46544f59e4da75de33d4c"
+      "strategy_farm": "840ee00b45ce7ef7ffb3de4c56e057ea1384d4ce20ac0dae5ab4193c336d6fb7"
     }
   },
   "hard_gate_blockers": [
@@ -1456,14 +1480,14 @@
   "health": {
     "accounting": {
       "blockers": [
-        "accounting_not_exact:100"
+        "accounting_not_exact:103"
       ],
       "hard_gate": true,
       "metrics": {
-        "blocked_or_mismatched": 1,
-        "exact": 153,
-        "reconstructed": 99,
-        "trades": 253
+        "blocked_or_mismatched": 0,
+        "exact": 159,
+        "reconstructed": 103,
+        "trades": 262
       },
       "passed": false,
       "status": "blocked"
@@ -1472,9 +1496,9 @@
       "blockers": [],
       "hard_gate": true,
       "metrics": {
-        "formal_signals": 273,
+        "formal_signals": 282,
         "missing_root_messages": 0,
-        "root_messages_captured": 273
+        "root_messages_captured": 282
       },
       "passed": true,
       "status": "passed"
@@ -1496,14 +1520,14 @@
     },
     "market_replay": {
       "blockers": [
-        "market_replay_not_exact:3"
+        "market_replay_not_exact:2"
       ],
       "hard_gate": true,
       "metrics": {
-        "blocked": 1,
-        "exact": 114,
+        "blocked": 0,
+        "exact": 124,
         "mismatch": 1,
-        "trades": 117
+        "trades": 126
       },
       "passed": false,
       "status": "blocked"
@@ -1515,7 +1539,7 @@
         "artifact_integrity_verified": true,
         "farm_mode": "diagnostic_only",
         "market_replay_verified": false,
-        "replay_rows": 253
+        "replay_rows": 262
       },
       "passed": true,
       "status": "passed"
@@ -1523,17 +1547,17 @@
     "semantics": {
       "blockers": [
         "incomplete_formal_signals:7",
-        "unclassified_management:131",
-        "unknown_provider_records:67"
+        "unclassified_management:146",
+        "unknown_provider_records:70"
       ],
       "hard_gate": true,
       "metrics": {
-        "complete_formal_signals": 266,
-        "formal_signals": 273,
+        "complete_formal_signals": 275,
+        "formal_signals": 282,
         "incomplete_formal_signals": 7,
-        "management_events": 1414,
-        "unclassified_management_events": 131,
-        "unknown_provider_records": 67
+        "management_events": 1486,
+        "unclassified_management_events": 146,
+        "unknown_provider_records": 70
       },
       "passed": false,
       "status": "blocked"
@@ -1555,37 +1579,47 @@
     }
   },
   "learning_flywheel": {
-    "candidate_patterns": 71,
+    "candidate_patterns": 72,
     "coverage_ratio": 0.0,
     "covered_patterns": 0,
     "cross_session_patterns": 29,
     "latest_day_delta": {
       "evidence_day": "2026-07-21",
-      "new_pattern_count": 6,
+      "new_pattern_count": 9,
       "new_patterns": [
-        "accounting.blocked",
-        "market_replay.missing_ticket_close",
-        "market_replay.ticket_not_closed",
-        "market_replay.unsupported_close_reason",
-        "replay.open_positions",
-        "replay.ticket_still_open"
+        "semantics.unclassified_management.other_0a81765994",
+        "semantics.unclassified_management.other_3dea481e51",
+        "semantics.unclassified_management.other_5f176e8b1b",
+        "semantics.unclassified_management.other_a9e7f76efb",
+        "semantics.unclassified_management.other_ca70283743",
+        "semantics.unclassified_management.other_e04fe1df87",
+        "semantics.unclassified_management.other_fa1e9bfac8",
+        "semantics.unknown_provider_record.other_2f906f3993",
+        "semantics.unknown_provider_record.other_c25993907b"
       ],
-      "recurring_pattern_count": 4,
+      "recurring_pattern_count": 11,
       "recurring_patterns": [
         "accounting.reconstructed_trade",
+        "semantics.context_media_not_extracted",
+        "semantics.unclassified_management.conditional_plan",
+        "semantics.unclassified_management.exit_or_risk_guidance",
+        "semantics.unclassified_management.market_context",
+        "semantics.unclassified_management.non_trading_announcement",
+        "semantics.unknown_provider_record.non_trading_announcement",
         "semantics.unknown_provider_record.other_196475c876",
+        "semantics.unresolved_actionable_management.target_signal_closed",
         "semantics.unresolved_informational_reply.target_signal_closed",
         "semantics.unresolved_informational_reply.unknown_reply_target"
       ],
       "regressed_pattern_count": 0,
       "regressed_patterns": []
     },
-    "patterns_total": 95,
+    "patterns_total": 98,
     "promotion_boundary": "logs propose; fixtures, tests, deterministic whole-corpus rebuild and human review promote",
     "regressed_patterns": 1
   },
   "mode": "diagnostic_only",
-  "registry_fingerprint": "4443e252aae17a64b3739564cdf0318c3ba2405cbda174f584d25f0fb9983465",
+  "registry_fingerprint": "27761b9cf3b68e126617cfdff5bdc826881fdf13dfac0981029dff60481081bc",
   "safe_for_strategy_simulation": false,
   "schema_version": 1
 }

@@ -437,50 +437,6 @@
     },
     {
       "affected_channels": [
-        "canal2"
-      ],
-      "affected_day_count": 1,
-      "affected_days": [
-        "2026-07-21"
-      ],
-      "affected_signal_count": 1,
-      "affected_signals": [
-        "canal2_3546"
-      ],
-      "candidate_reason": "material reliability impact",
-      "category": "accounting",
-      "coverage": {
-        "covered_after_utc": null,
-        "fix_commit": null,
-        "regression_test": null,
-        "reviewed_at_utc": null,
-        "reviewed_by": null,
-        "rule_version": null,
-        "verification": null
-      },
-      "evidence": [
-        {
-          "channel": "canal2",
-          "detail": "ticket_still_open:1628404668; ticket_still_open:1628404680; ticket_still_open:1628404687; ticket_still_open:1628404708; ticket_still_open:1628404716",
-          "event": "accounting_replay",
-          "signal": "canal2_3546",
-          "ts_utc": "2026-07-21T09:49:12.399+00:00"
-        }
-      ],
-      "financial_impact": null,
-      "first_seen_utc": "2026-07-21T09:49:12.399+00:00",
-      "last_seen_utc": "2026-07-21T09:49:12.399+00:00",
-      "occurrences": 1,
-      "pattern_id": "accounting.blocked",
-      "priority_score": 40030,
-      "raw_events": 1,
-      "recurrence": "single_incident",
-      "severity": "critical",
-      "status": "candidate",
-      "template": "accounting replay status is blocked"
-    },
-    {
-      "affected_channels": [
         "canal1"
       ],
       "affected_day_count": 1,
@@ -569,142 +525,10 @@
     },
     {
       "affected_channels": [
-        "canal2"
-      ],
-      "affected_day_count": 1,
-      "affected_days": [
-        "2026-07-21"
-      ],
-      "affected_signal_count": 1,
-      "affected_signals": [
-        "canal2_3546"
-      ],
-      "candidate_reason": "material reliability impact",
-      "category": "market_replay",
-      "coverage": {
-        "covered_after_utc": null,
-        "fix_commit": null,
-        "regression_test": null,
-        "reviewed_at_utc": null,
-        "reviewed_by": null,
-        "rule_version": null,
-        "verification": null
-      },
-      "evidence": [
-        {
-          "channel": "canal2",
-          "detail": "missing_ticket_close",
-          "event": "observed_tick_replay",
-          "signal": "canal2_3546",
-          "ts_utc": "2026-07-21T09:49:12.399+00:00"
-        }
-      ],
-      "financial_impact": null,
-      "first_seen_utc": "2026-07-21T09:49:12.399+00:00",
-      "last_seen_utc": "2026-07-21T09:49:12.399+00:00",
-      "occurrences": 1,
-      "pattern_id": "market_replay.missing_ticket_close",
-      "priority_score": 40030,
-      "raw_events": 5,
-      "recurrence": "single_incident",
-      "severity": "critical",
-      "status": "candidate",
-      "template": "observed-tick replay blocker: missing ticket close"
-    },
-    {
-      "affected_channels": [
-        "canal2"
-      ],
-      "affected_day_count": 1,
-      "affected_days": [
-        "2026-07-21"
-      ],
-      "affected_signal_count": 1,
-      "affected_signals": [
-        "canal2_3546"
-      ],
-      "candidate_reason": "material reliability impact",
-      "category": "market_replay",
-      "coverage": {
-        "covered_after_utc": null,
-        "fix_commit": null,
-        "regression_test": null,
-        "reviewed_at_utc": null,
-        "reviewed_by": null,
-        "rule_version": null,
-        "verification": null
-      },
-      "evidence": [
-        {
-          "channel": "canal2",
-          "detail": "ticket_not_closed",
-          "event": "observed_tick_replay",
-          "signal": "canal2_3546",
-          "ts_utc": "2026-07-21T09:49:12.399+00:00"
-        }
-      ],
-      "financial_impact": null,
-      "first_seen_utc": "2026-07-21T09:49:12.399+00:00",
-      "last_seen_utc": "2026-07-21T09:49:12.399+00:00",
-      "occurrences": 1,
-      "pattern_id": "market_replay.ticket_not_closed",
-      "priority_score": 40030,
-      "raw_events": 5,
-      "recurrence": "single_incident",
-      "severity": "critical",
-      "status": "candidate",
-      "template": "observed-tick replay blocker: ticket not closed"
-    },
-    {
-      "affected_channels": [
-        "canal2"
-      ],
-      "affected_day_count": 1,
-      "affected_days": [
-        "2026-07-21"
-      ],
-      "affected_signal_count": 1,
-      "affected_signals": [
-        "canal2_3546"
-      ],
-      "candidate_reason": "material reliability impact",
-      "category": "market_replay",
-      "coverage": {
-        "covered_after_utc": null,
-        "fix_commit": null,
-        "regression_test": null,
-        "reviewed_at_utc": null,
-        "reviewed_by": null,
-        "rule_version": null,
-        "verification": null
-      },
-      "evidence": [
-        {
-          "channel": "canal2",
-          "detail": "unsupported_close_reason",
-          "event": "observed_tick_replay",
-          "signal": "canal2_3546",
-          "ts_utc": "2026-07-21T09:49:12.399+00:00"
-        }
-      ],
-      "financial_impact": null,
-      "first_seen_utc": "2026-07-21T09:49:12.399+00:00",
-      "last_seen_utc": "2026-07-21T09:49:12.399+00:00",
-      "occurrences": 1,
-      "pattern_id": "market_replay.unsupported_close_reason",
-      "priority_score": 40030,
-      "raw_events": 5,
-      "recurrence": "single_incident",
-      "severity": "critical",
-      "status": "candidate",
-      "template": "observed-tick replay blocker: unsupported close reason"
-    },
-    {
-      "affected_channels": [
         "canal1",
         "canal2"
       ],
-      "affected_day_count": 17,
+      "affected_day_count": 18,
       "affected_days": [
         "2026-06-10",
         "2026-06-11",
@@ -722,9 +546,10 @@
         "2026-07-16",
         "2026-07-17",
         "2026-07-19",
-        "2026-07-20"
+        "2026-07-20",
+        "2026-07-21"
       ],
-      "affected_signal_count": 23,
+      "affected_signal_count": 25,
       "affected_signals": [
         "canal1_20230",
         "canal1_20402",
@@ -748,7 +573,9 @@
         "canal2_3437",
         "canal2_3441",
         "canal2_3451",
-        "canal2_3496"
+        "canal2_3496",
+        "canal2_3555",
+        "canal2_3608"
       ],
       "candidate_reason": "material reliability impact",
       "category": "semantics",
@@ -849,15 +676,163 @@
       ],
       "financial_impact": null,
       "first_seen_utc": "2026-06-10T14:29:43+00:00",
-      "last_seen_utc": "2026-07-20T12:30:59+00:00",
-      "occurrences": 23,
+      "last_seen_utc": "2026-07-21T18:32:54+00:00",
+      "occurrences": 26,
       "pattern_id": "semantics.unclassified_management.non_trading_announcement",
-      "priority_score": 30578,
-      "raw_events": 80,
+      "priority_score": 30619,
+      "raw_events": 90,
       "recurrence": "cross_session",
       "severity": "high",
       "status": "candidate",
       "template": "unclassified provider management: provider announcement outside trade management"
+    },
+    {
+      "affected_channels": [
+        "canal1",
+        "canal2"
+      ],
+      "affected_day_count": 13,
+      "affected_days": [
+        "2026-06-05",
+        "2026-06-10",
+        "2026-06-12",
+        "2026-06-16",
+        "2026-06-17",
+        "2026-06-23",
+        "2026-06-24",
+        "2026-07-06",
+        "2026-07-08",
+        "2026-07-13",
+        "2026-07-14",
+        "2026-07-15",
+        "2026-07-21"
+      ],
+      "affected_signal_count": 15,
+      "affected_signals": [
+        "canal1_20093",
+        "canal1_20236",
+        "canal1_20303",
+        "canal1_20341",
+        "canal1_20402",
+        "canal1_20504",
+        "canal1_20536",
+        "canal1_20717",
+        "canal1_20793",
+        "canal1_20882",
+        "canal2_2810",
+        "canal2_3146",
+        "canal2_3220",
+        "canal2_3297",
+        "canal2_3598"
+      ],
+      "candidate_reason": "material reliability impact",
+      "category": "semantics",
+      "coverage": {
+        "covered_after_utc": null,
+        "fix_commit": null,
+        "regression_test": null,
+        "reviewed_at_utc": null,
+        "reviewed_by": null,
+        "rule_version": null,
+        "verification": null
+      },
+      "evidence": [
+        {
+          "channel": "canal1",
+          "detail": "🚨 NFP News pushed gold lower again. 📉\n\n✅ NFP: 172K vs 85K forecast\n✅ Stronger USD = bearish for gold\n\nGold is dumping further after the news. Stay patient and wait for the next setup. 🎯",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20093",
+          "ts_utc": "2026-06-05T12:45:45+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "Come on gold 🙏",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20236",
+          "ts_utc": "2026-06-10T13:58:49+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "Gold to the moon 🚀",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20303",
+          "ts_utc": "2026-06-12T15:27:13+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "Come one gold ✅🚀",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20341",
+          "ts_utc": "2026-06-16T10:46:58+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "Gold hit 4235.00🫣📉",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20402",
+          "ts_utc": "2026-06-17T19:26:56+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "Come on gold 🔥",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20504",
+          "ts_utc": "2026-06-23T15:51:01+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "Come on gold push",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20536",
+          "ts_utc": "2026-06-24T12:45:45+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "Look at gold now 📉",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20717",
+          "ts_utc": "2026-07-06T14:08:46+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "Come on gold give us the big waterfall 🙏📉",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20793",
+          "ts_utc": "2026-07-08T18:26:50+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "Come on gold Lets fly to the moon 🚀",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20882",
+          "ts_utc": "2026-07-15T14:10:53+00:00"
+        },
+        {
+          "channel": "canal2",
+          "detail": "This was a clear sell but the market had other ideas first and stopped us just before dumping to TP5 +",
+          "event": "provider_catalog_management",
+          "signal": "canal2_2810",
+          "ts_utc": "2026-07-06T12:43:14+00:00"
+        },
+        {
+          "channel": "canal2",
+          "detail": "For those who were on the call 15m candle closed below the zone !",
+          "event": "provider_catalog_management",
+          "signal": "canal2_3146",
+          "ts_utc": "2026-07-13T13:15:36+00:00"
+        }
+      ],
+      "financial_impact": null,
+      "first_seen_utc": "2026-06-05T12:45:45+00:00",
+      "last_seen_utc": "2026-07-21T18:18:34+00:00",
+      "occurrences": 16,
+      "pattern_id": "semantics.unclassified_management.market_context",
+      "priority_score": 30415,
+      "raw_events": 57,
+      "recurrence": "cross_session",
+      "severity": "high",
+      "status": "candidate",
+      "template": "unclassified provider management: market context without a canonical action"
     },
     {
       "affected_channels": [],
@@ -1002,153 +977,7 @@
         "canal1",
         "canal2"
       ],
-      "affected_day_count": 12,
-      "affected_days": [
-        "2026-06-05",
-        "2026-06-10",
-        "2026-06-12",
-        "2026-06-16",
-        "2026-06-17",
-        "2026-06-23",
-        "2026-06-24",
-        "2026-07-06",
-        "2026-07-08",
-        "2026-07-13",
-        "2026-07-14",
-        "2026-07-15"
-      ],
-      "affected_signal_count": 14,
-      "affected_signals": [
-        "canal1_20093",
-        "canal1_20236",
-        "canal1_20303",
-        "canal1_20341",
-        "canal1_20402",
-        "canal1_20504",
-        "canal1_20536",
-        "canal1_20717",
-        "canal1_20793",
-        "canal1_20882",
-        "canal2_2810",
-        "canal2_3146",
-        "canal2_3220",
-        "canal2_3297"
-      ],
-      "candidate_reason": "material reliability impact",
-      "category": "semantics",
-      "coverage": {
-        "covered_after_utc": null,
-        "fix_commit": null,
-        "regression_test": null,
-        "reviewed_at_utc": null,
-        "reviewed_by": null,
-        "rule_version": null,
-        "verification": null
-      },
-      "evidence": [
-        {
-          "channel": "canal1",
-          "detail": "🚨 NFP News pushed gold lower again. 📉\n\n✅ NFP: 172K vs 85K forecast\n✅ Stronger USD = bearish for gold\n\nGold is dumping further after the news. Stay patient and wait for the next setup. 🎯",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20093",
-          "ts_utc": "2026-06-05T12:45:45+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "Come on gold 🙏",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20236",
-          "ts_utc": "2026-06-10T13:58:49+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "Gold to the moon 🚀",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20303",
-          "ts_utc": "2026-06-12T15:27:13+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "Come one gold ✅🚀",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20341",
-          "ts_utc": "2026-06-16T10:46:58+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "Gold hit 4235.00🫣📉",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20402",
-          "ts_utc": "2026-06-17T19:26:56+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "Come on gold 🔥",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20504",
-          "ts_utc": "2026-06-23T15:51:01+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "Come on gold push",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20536",
-          "ts_utc": "2026-06-24T12:45:45+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "Look at gold now 📉",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20717",
-          "ts_utc": "2026-07-06T14:08:46+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "Come on gold give us the big waterfall 🙏📉",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20793",
-          "ts_utc": "2026-07-08T18:26:50+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "Come on gold Lets fly to the moon 🚀",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20882",
-          "ts_utc": "2026-07-15T14:10:53+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "This was a clear sell but the market had other ideas first and stopped us just before dumping to TP5 +",
-          "event": "provider_catalog_management",
-          "signal": "canal2_2810",
-          "ts_utc": "2026-07-06T12:43:14+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "For those who were on the call 15m candle closed below the zone !",
-          "event": "provider_catalog_management",
-          "signal": "canal2_3146",
-          "ts_utc": "2026-07-13T13:15:36+00:00"
-        }
-      ],
-      "financial_impact": null,
-      "first_seen_utc": "2026-06-05T12:45:45+00:00",
-      "last_seen_utc": "2026-07-15T18:30:10+00:00",
-      "occurrences": 14,
-      "pattern_id": "semantics.unclassified_management.market_context",
-      "priority_score": 30385,
-      "raw_events": 50,
-      "recurrence": "cross_session",
-      "severity": "high",
-      "status": "candidate",
-      "template": "unclassified provider management: market context without a canonical action"
-    },
-    {
-      "affected_channels": [
-        "canal1",
-        "canal2"
-      ],
-      "affected_day_count": 7,
+      "affected_day_count": 8,
       "affected_days": [
         "2026-07-10",
         "2026-07-13",
@@ -1156,9 +985,10 @@
         "2026-07-15",
         "2026-07-16",
         "2026-07-17",
-        "2026-07-20"
+        "2026-07-20",
+        "2026-07-21"
       ],
-      "affected_signal_count": 20,
+      "affected_signal_count": 22,
       "affected_signals": [
         "canal1_20838",
         "canal1_20856",
@@ -1170,6 +1000,7 @@
         "canal1_20952",
         "canal1_20966",
         "canal1_20967",
+        "canal1_21004",
         "canal2_3056",
         "canal2_3127",
         "canal2_3150",
@@ -1179,7 +1010,8 @@
         "canal2_3311",
         "canal2_3312",
         "canal2_3345",
-        "canal2_3510"
+        "canal2_3510",
+        "canal2_3590"
       ],
       "candidate_reason": "material reliability impact",
       "category": "semantics",
@@ -1264,31 +1096,177 @@
           "ts_utc": "2026-07-20T14:04:02.889+00:00"
         },
         {
+          "channel": "canal1",
+          "detail": "**Close the previous trade at break even. ✅ Keep only the latest sell position running. We’re protecting our profits while giving the strongest entry room to reach the next targets. Let’s stay discipl",
+          "event": "management_reply_unresolved",
+          "signal": "canal1_21004",
+          "ts_utc": "2026-07-21T18:00:04.799+00:00"
+        },
+        {
           "channel": "canal2",
           "detail": "+50 pips from best entries for those who layered |  | Make your trade risk free",
           "event": "management_reply_unresolved",
           "signal": "canal2_3056",
           "ts_utc": "2026-07-10T10:33:06.446+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "For those with lower entries you can make your trade risk free or put stop lose above your entries now",
-          "event": "management_reply_unresolved",
-          "signal": "canal2_3127",
-          "ts_utc": "2026-07-13T08:36:03.764+00:00"
         }
       ],
       "financial_impact": null,
       "first_seen_utc": "2026-07-10T10:33:06.446+00:00",
-      "last_seen_utc": "2026-07-20T14:43:53.570+00:00",
-      "occurrences": 20,
+      "last_seen_utc": "2026-07-21T18:00:23.608+00:00",
+      "occurrences": 22,
       "pattern_id": "semantics.unresolved_actionable_management.target_signal_closed",
-      "priority_score": 30344,
-      "raw_events": 42,
+      "priority_score": 30384,
+      "raw_events": 47,
       "recurrence": "cross_session",
       "severity": "high",
       "status": "candidate",
       "template": "actionable provider management could not be linked"
+    },
+    {
+      "affected_channels": [
+        "canal1",
+        "canal2"
+      ],
+      "affected_day_count": 10,
+      "affected_days": [
+        "2026-06-09",
+        "2026-06-12",
+        "2026-06-17",
+        "2026-06-18",
+        "2026-06-19",
+        "2026-06-23",
+        "2026-07-09",
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-21"
+      ],
+      "affected_signal_count": 16,
+      "affected_signals": [
+        "canal1_20158",
+        "canal1_20163",
+        "canal1_20363",
+        "canal1_20404",
+        "canal1_20447",
+        "canal1_20504",
+        "canal1_20517",
+        "canal1_20798",
+        "canal1_20917",
+        "canal1_20982",
+        "canal1_20995",
+        "canal2_13501",
+        "canal2_13699",
+        "canal2_2968",
+        "canal2_3432",
+        "canal2_3441"
+      ],
+      "candidate_reason": "material reliability impact",
+      "category": "semantics",
+      "coverage": {
+        "covered_after_utc": null,
+        "fix_commit": null,
+        "regression_test": null,
+        "reviewed_at_utc": null,
+        "reviewed_by": null,
+        "rule_version": null,
+        "verification": null
+      },
+      "evidence": [
+        {
+          "channel": "canal1",
+          "detail": "Gold is moving crazy if you dont want tot take more risk close now around entry en wait for better entry ✅",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20158",
+          "ts_utc": "2026-06-09T14:07:32+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "As long as gold does **not close below 4325 on the 5-minute candle**, I’m staying in the buy ✅\n\nThat level is the key support for me now. If M5 closes below 4325, I will manage/close the buy and wait for the next setup.",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20163",
+          "ts_utc": "2026-06-09T14:10:07+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "New York session is open. 🔥\n\nGold trade is running in profit now, manage your trade properly. Secure some profits if needed and protect your account. Let’s stay patient and follow the plan.",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20363",
+          "ts_utc": "2026-06-17T13:02:13+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "Gold is back around entry.\n\nThe market is still hesitating, so manage your risk well. If you don’t want to take any risk, you can close around entry and wait for the next confirmation.\n\nPatience guys, we only want clean moves.",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20404",
+          "ts_utc": "2026-06-18T13:24:37+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "What a move secure Some profits if you are happy 😍✅ for all my holders Lets go 🚀",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20447",
+          "ts_utc": "2026-06-19T16:42:10+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "Gold is still moving around our sell zone. TP1 was not confirmed yet, so we stay honest and patient.\nH4/H1 are still bearish, but M5/M15 are showing manipulation and fake pushes. As long as gold stays below 4142–4145, our sell idea is still valid.\nWe need a clean push below 4134 for TP1, then we look for 4128 → 4124 → 4118.\nManage your risk, don’t overtrade and if you want to play safe, keep SL protected.\nLet’s wait for gold to show the real move. 🔥",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20504",
+          "ts_utc": "2026-06-23T15:59:00+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "We are back around entry now. Gold rejected the higher zone, but we still need patience.\n\nIf you don’t want risk, you can close around entry or keep SL protected.\nAs long as gold stays below **4145**, our sell can still play out.\n\nNo stress, manage your risk and wait for the next move. ✅",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20517",
+          "ts_utc": "2026-06-23T16:52:00+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "Gold update:\n\nGold is still bearish on the higher timeframes, but right now we are seeing a short-term push up into resistance.\n\n4112 - 4120 is the key zone to watch.\nIf price rejects here, sells can continue toward 4100, 4090 and possibly lower.\nIf gold breaks and holds above 4120, we could see a deeper retracement first.\n\nFor now, patience.\nMain bias still looks sell, but let this resistance confirm the move. Manage risk and keep SL tight.",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20798",
+          "ts_utc": "2026-07-09T12:22:09+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "Lock in some profits if you’re happy with your gains. 🙌\n\nI’m taking partial profits and letting the other half run with small risk. Let’s see if gold can give us more. 📈🔥",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20917",
+          "ts_utc": "2026-07-16T14:02:16+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "**Gold Update (XAUUSD) 📊**\n\nGold is currently pulling back after a strong bullish impulse into the **4068-4080 resistance zone**. We’re seeing profit-taking, but the overall higher-timeframe structure remains bullish as long as **4050-4053** holds as support.\n\n🔹 **Support:** 4050-4053, then 4038-4042\n🔹 **Resistance:** 4068-4080\n\nWe’re waiting for confirmation before taking a new position. A clean rejection from resistance could offer a sell scalp, while holding above support may provide another buying opportunity. Stay patient and wait for the setup. 👀📈",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20982",
+          "ts_utc": "2026-07-21T12:03:38+00:00"
+        },
+        {
+          "channel": "canal1",
+          "detail": "Gold is finally showing the downside momentum we were waiting for. 📉🔥 Our sell positions are moving deeper into profit. Stay patient and trust the plan—don’t let small pullbacks shake you out. As long as we stay below our resistance levels, we’re targeting **4070.00** and potentially lower. Let’s finish this move strong! 💪💰",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20995",
+          "ts_utc": "2026-07-21T16:42:48+00:00"
+        },
+        {
+          "channel": "canal2",
+          "detail": "If the market reverses and we get stopped out - we will look for the next trade",
+          "event": "provider_catalog_management",
+          "signal": "canal2_13501",
+          "ts_utc": "2026-06-09T11:06:15+00:00"
+        }
+      ],
+      "financial_impact": null,
+      "first_seen_utc": "2026-06-09T11:06:15+00:00",
+      "last_seen_utc": "2026-07-21T16:42:48+00:00",
+      "occurrences": 16,
+      "pattern_id": "semantics.unclassified_management.conditional_plan",
+      "priority_score": 30365,
+      "raw_events": 51,
+      "recurrence": "cross_session",
+      "severity": "high",
+      "status": "candidate",
+      "template": "unclassified provider management: conditional provider management or market plan"
     },
     {
       "affected_channels": [
@@ -1432,149 +1410,6 @@
       "severity": "high",
       "status": "candidate",
       "template": "unclassified provider management: trade progress or floating-profit commentary"
-    },
-    {
-      "affected_channels": [
-        "canal1",
-        "canal2"
-      ],
-      "affected_day_count": 9,
-      "affected_days": [
-        "2026-06-09",
-        "2026-06-12",
-        "2026-06-17",
-        "2026-06-18",
-        "2026-06-19",
-        "2026-06-23",
-        "2026-07-09",
-        "2026-07-16",
-        "2026-07-17"
-      ],
-      "affected_signal_count": 14,
-      "affected_signals": [
-        "canal1_20158",
-        "canal1_20163",
-        "canal1_20363",
-        "canal1_20404",
-        "canal1_20447",
-        "canal1_20504",
-        "canal1_20517",
-        "canal1_20798",
-        "canal1_20917",
-        "canal2_13501",
-        "canal2_13699",
-        "canal2_2968",
-        "canal2_3432",
-        "canal2_3441"
-      ],
-      "candidate_reason": "material reliability impact",
-      "category": "semantics",
-      "coverage": {
-        "covered_after_utc": null,
-        "fix_commit": null,
-        "regression_test": null,
-        "reviewed_at_utc": null,
-        "reviewed_by": null,
-        "rule_version": null,
-        "verification": null
-      },
-      "evidence": [
-        {
-          "channel": "canal1",
-          "detail": "Gold is moving crazy if you dont want tot take more risk close now around entry en wait for better entry ✅",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20158",
-          "ts_utc": "2026-06-09T14:07:32+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "As long as gold does **not close below 4325 on the 5-minute candle**, I’m staying in the buy ✅\n\nThat level is the key support for me now. If M5 closes below 4325, I will manage/close the buy and wait for the next setup.",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20163",
-          "ts_utc": "2026-06-09T14:10:07+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "New York session is open. 🔥\n\nGold trade is running in profit now, manage your trade properly. Secure some profits if needed and protect your account. Let’s stay patient and follow the plan.",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20363",
-          "ts_utc": "2026-06-17T13:02:13+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "Gold is back around entry.\n\nThe market is still hesitating, so manage your risk well. If you don’t want to take any risk, you can close around entry and wait for the next confirmation.\n\nPatience guys, we only want clean moves.",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20404",
-          "ts_utc": "2026-06-18T13:24:37+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "What a move secure Some profits if you are happy 😍✅ for all my holders Lets go 🚀",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20447",
-          "ts_utc": "2026-06-19T16:42:10+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "Gold is still moving around our sell zone. TP1 was not confirmed yet, so we stay honest and patient.\nH4/H1 are still bearish, but M5/M15 are showing manipulation and fake pushes. As long as gold stays below 4142–4145, our sell idea is still valid.\nWe need a clean push below 4134 for TP1, then we look for 4128 → 4124 → 4118.\nManage your risk, don’t overtrade and if you want to play safe, keep SL protected.\nLet’s wait for gold to show the real move. 🔥",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20504",
-          "ts_utc": "2026-06-23T15:59:00+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "We are back around entry now. Gold rejected the higher zone, but we still need patience.\n\nIf you don’t want risk, you can close around entry or keep SL protected.\nAs long as gold stays below **4145**, our sell can still play out.\n\nNo stress, manage your risk and wait for the next move. ✅",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20517",
-          "ts_utc": "2026-06-23T16:52:00+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "Gold update:\n\nGold is still bearish on the higher timeframes, but right now we are seeing a short-term push up into resistance.\n\n4112 - 4120 is the key zone to watch.\nIf price rejects here, sells can continue toward 4100, 4090 and possibly lower.\nIf gold breaks and holds above 4120, we could see a deeper retracement first.\n\nFor now, patience.\nMain bias still looks sell, but let this resistance confirm the move. Manage risk and keep SL tight.",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20798",
-          "ts_utc": "2026-07-09T12:22:09+00:00"
-        },
-        {
-          "channel": "canal1",
-          "detail": "Lock in some profits if you’re happy with your gains. 🙌\n\nI’m taking partial profits and letting the other half run with small risk. Let’s see if gold can give us more. 📈🔥",
-          "event": "provider_catalog_management",
-          "signal": "canal1_20917",
-          "ts_utc": "2026-07-16T14:02:16+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "If the market reverses and we get stopped out - we will look for the next trade",
-          "event": "provider_catalog_management",
-          "signal": "canal2_13501",
-          "ts_utc": "2026-06-09T11:06:15+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "It’s Friday and it’s been a great week so far. 🔥\n\nWe’ve had another strong day, with 4 trades delivering around 650 pips.\n\nWe’ll continue monitoring the charts and sharing high-quality setups, but if you’re happy with your profits, there’s absolutely nothing wrong with calling it a week or reducing your risk.\n\nRemember, protecting profits is just as important as making them. 👊📈",
-          "event": "provider_catalog_management",
-          "signal": "canal2_13699",
-          "ts_utc": "2026-06-12T11:23:53+00:00"
-        },
-        {
-          "channel": "canal2",
-          "detail": "Good Morning All!\n\nFor those who attended the live call last night \n\nThe sell we mapped our from the 4hr resistance at 4091-2 is currently 300 pips in profit\n\nDouble tap if you took it & congratulations to those who did !",
-          "event": "provider_catalog_management",
-          "signal": "canal2_2968",
-          "ts_utc": "2026-07-09T04:18:09+00:00"
-        }
-      ],
-      "financial_impact": null,
-      "first_seen_utc": "2026-06-09T11:06:15+00:00",
-      "last_seen_utc": "2026-07-17T19:16:33+00:00",
-      "occurrences": 14,
-      "pattern_id": "semantics.unclassified_management.conditional_plan",
-      "priority_score": 30324,
-      "raw_events": 45,
-      "recurrence": "cross_session",
-      "severity": "high",
-      "status": "candidate",
-      "template": "unclassified provider management: conditional provider management or market plan"
     },
     {
       "affected_channels": [],
@@ -1938,18 +1773,20 @@
         "canal1",
         "canal2"
       ],
-      "affected_day_count": 4,
+      "affected_day_count": 5,
       "affected_days": [
         "2026-06-11",
         "2026-06-12",
         "2026-06-23",
-        "2026-07-16"
+        "2026-07-16",
+        "2026-07-21"
       ],
-      "affected_signal_count": 4,
+      "affected_signal_count": 5,
       "affected_signals": [
         "canal1_20252",
         "canal1_20495",
         "canal1_20900",
+        "canal1_20995",
         "canal2_13703"
       ],
       "candidate_reason": "material reliability impact",
@@ -1986,6 +1823,13 @@
           "ts_utc": "2026-07-16T13:04:04+00:00"
         },
         {
+          "channel": "canal1",
+          "detail": "**Gold Update 📉**\n\nGold is finally starting to react from our sell zone. The pullback has brought our latest entries close to break-even and reduced the pressure on the overall position.\n\nWe are still waiting for stronger bearish confirmation. A clean break below **4074** could accelerate the move toward **4070** and **4065**.\n\nStay patient, don’t panic, and avoid adding new positions. Let the market do the work. We stick to the plan. 🔥📊",
+          "event": "provider_catalog_management",
+          "signal": "canal1_20995",
+          "ts_utc": "2026-07-21T16:28:50+00:00"
+        },
+        {
           "channel": "canal2",
           "detail": "Make sure you secure overall profit",
           "event": "provider_catalog_management",
@@ -1995,11 +1839,11 @@
       ],
       "financial_impact": null,
       "first_seen_utc": "2026-06-11T12:33:17+00:00",
-      "last_seen_utc": "2026-07-16T13:04:04+00:00",
-      "occurrences": 4,
+      "last_seen_utc": "2026-07-21T16:28:50+00:00",
+      "occurrences": 5,
       "pattern_id": "semantics.unclassified_management.exit_or_risk_guidance",
-      "priority_score": 30121,
-      "raw_events": 13,
+      "priority_score": 30151,
+      "raw_events": 16,
       "recurrence": "cross_session",
       "severity": "high",
       "status": "candidate",
@@ -2333,94 +2177,6 @@
     },
     {
       "affected_channels": [
-        "canal2"
-      ],
-      "affected_day_count": 1,
-      "affected_days": [
-        "2026-07-21"
-      ],
-      "affected_signal_count": 1,
-      "affected_signals": [
-        "canal2_3546"
-      ],
-      "candidate_reason": "material reliability impact",
-      "category": "replay",
-      "coverage": {
-        "covered_after_utc": null,
-        "fix_commit": null,
-        "regression_test": null,
-        "reviewed_at_utc": null,
-        "reviewed_by": null,
-        "rule_version": null,
-        "verification": null
-      },
-      "evidence": [
-        {
-          "channel": "canal2",
-          "detail": "open_positions",
-          "event": "simulation_blocker",
-          "signal": "canal2_3546",
-          "ts_utc": "2026-07-21T09:49:12.399+00:00"
-        }
-      ],
-      "financial_impact": null,
-      "first_seen_utc": "2026-07-21T09:49:12.399+00:00",
-      "last_seen_utc": "2026-07-21T09:49:12.399+00:00",
-      "occurrences": 1,
-      "pattern_id": "replay.open_positions",
-      "priority_score": 30030,
-      "raw_events": 1,
-      "recurrence": "single_incident",
-      "severity": "high",
-      "status": "candidate",
-      "template": "causal replay blocker: open positions"
-    },
-    {
-      "affected_channels": [
-        "canal2"
-      ],
-      "affected_day_count": 1,
-      "affected_days": [
-        "2026-07-21"
-      ],
-      "affected_signal_count": 1,
-      "affected_signals": [
-        "canal2_3546"
-      ],
-      "candidate_reason": "material reliability impact",
-      "category": "replay",
-      "coverage": {
-        "covered_after_utc": null,
-        "fix_commit": null,
-        "regression_test": null,
-        "reviewed_at_utc": null,
-        "reviewed_by": null,
-        "rule_version": null,
-        "verification": null
-      },
-      "evidence": [
-        {
-          "channel": "canal2",
-          "detail": "ticket_still_open",
-          "event": "simulation_blocker",
-          "signal": "canal2_3546",
-          "ts_utc": "2026-07-21T09:49:12.399+00:00"
-        }
-      ],
-      "financial_impact": null,
-      "first_seen_utc": "2026-07-21T09:49:12.399+00:00",
-      "last_seen_utc": "2026-07-21T09:49:12.399+00:00",
-      "occurrences": 1,
-      "pattern_id": "replay.ticket_still_open",
-      "priority_score": 30030,
-      "raw_events": 5,
-      "recurrence": "single_incident",
-      "severity": "high",
-      "status": "candidate",
-      "template": "causal replay blocker: ticket still open"
-    },
-    {
-      "affected_channels": [
         "canal1"
       ],
       "affected_day_count": 1,
@@ -2458,6 +2214,50 @@
       "pattern_id": "semantics.unclassified_management.other_06b8f76584",
       "priority_score": 30030,
       "raw_events": 3,
+      "recurrence": "single_incident",
+      "severity": "high",
+      "status": "candidate",
+      "template": "unclassified provider management: unclassified provider vocabulary family"
+    },
+    {
+      "affected_channels": [
+        "canal2"
+      ],
+      "affected_day_count": 1,
+      "affected_days": [
+        "2026-07-21"
+      ],
+      "affected_signal_count": 1,
+      "affected_signals": [
+        "canal2_3597"
+      ],
+      "candidate_reason": "material reliability impact",
+      "category": "semantics",
+      "coverage": {
+        "covered_after_utc": null,
+        "fix_commit": null,
+        "regression_test": null,
+        "reviewed_at_utc": null,
+        "reviewed_by": null,
+        "rule_version": null,
+        "verification": null
+      },
+      "evidence": [
+        {
+          "channel": "canal2",
+          "detail": "Buy Zones Marked Out\n\n4075-4073\n\n4070 - 4069\n\n4066 - 4064\n\n4062 - 4060\n\n4059",
+          "event": "provider_catalog_management",
+          "signal": "canal2_3597",
+          "ts_utc": "2026-07-21T15:59:06+00:00"
+        }
+      ],
+      "financial_impact": null,
+      "first_seen_utc": "2026-07-21T15:59:06+00:00",
+      "last_seen_utc": "2026-07-21T15:59:06+00:00",
+      "occurrences": 1,
+      "pattern_id": "semantics.unclassified_management.other_0a81765994",
+      "priority_score": 30030,
+      "raw_events": 2,
       "recurrence": "single_incident",
       "severity": "high",
       "status": "candidate",
@@ -2949,6 +2749,50 @@
     },
     {
       "affected_channels": [
+        "canal2"
+      ],
+      "affected_day_count": 1,
+      "affected_days": [
+        "2026-07-21"
+      ],
+      "affected_signal_count": 1,
+      "affected_signals": [
+        "canal2_3597"
+      ],
+      "candidate_reason": "material reliability impact",
+      "category": "semantics",
+      "coverage": {
+        "covered_after_utc": null,
+        "fix_commit": null,
+        "regression_test": null,
+        "reviewed_at_utc": null,
+        "reviewed_by": null,
+        "rule_version": null,
+        "verification": null
+      },
+      "evidence": [
+        {
+          "channel": "canal2",
+          "detail": "Buy Zones Marked Out\n\n4075-4073\n\n4070 - 4069\n\n4066 - 4064\n\n4062 - 4060\n\n4059 - 4057",
+          "event": "provider_catalog_management",
+          "signal": "canal2_3597",
+          "ts_utc": "2026-07-21T15:59:23+00:00"
+        }
+      ],
+      "financial_impact": null,
+      "first_seen_utc": "2026-07-21T15:59:23+00:00",
+      "last_seen_utc": "2026-07-21T15:59:23+00:00",
+      "occurrences": 1,
+      "pattern_id": "semantics.unclassified_management.other_3dea481e51",
+      "priority_score": 30030,
+      "raw_events": 2,
+      "recurrence": "single_incident",
+      "severity": "high",
+      "status": "candidate",
+      "template": "unclassified provider management: unclassified provider vocabulary family"
+    },
+    {
+      "affected_channels": [
         "canal1"
       ],
       "affected_day_count": 1,
@@ -3118,6 +2962,50 @@
       "pattern_id": "semantics.unclassified_management.other_58058fdaee",
       "priority_score": 30030,
       "raw_events": 3,
+      "recurrence": "single_incident",
+      "severity": "high",
+      "status": "candidate",
+      "template": "unclassified provider management: unclassified provider vocabulary family"
+    },
+    {
+      "affected_channels": [
+        "canal2"
+      ],
+      "affected_day_count": 1,
+      "affected_days": [
+        "2026-07-21"
+      ],
+      "affected_signal_count": 1,
+      "affected_signals": [
+        "canal2_3597"
+      ],
+      "candidate_reason": "material reliability impact",
+      "category": "semantics",
+      "coverage": {
+        "covered_after_utc": null,
+        "fix_commit": null,
+        "regression_test": null,
+        "reviewed_at_utc": null,
+        "reviewed_by": null,
+        "rule_version": null,
+        "verification": null
+      },
+      "evidence": [
+        {
+          "channel": "canal2",
+          "detail": "Buy Zones Marked Out\n\n4075-4073\n\n4070 - 4069\n\n4066 - 4064\n\n4062 - 4060",
+          "event": "provider_catalog_management",
+          "signal": "canal2_3597",
+          "ts_utc": "2026-07-21T15:58:56+00:00"
+        }
+      ],
+      "financial_impact": null,
+      "first_seen_utc": "2026-07-21T15:58:56+00:00",
+      "last_seen_utc": "2026-07-21T15:58:56+00:00",
+      "occurrences": 1,
+      "pattern_id": "semantics.unclassified_management.other_5f176e8b1b",
+      "priority_score": 30030,
+      "raw_events": 2,
       "recurrence": "single_incident",
       "severity": "high",
       "status": "candidate",
@@ -3437,6 +3325,50 @@
       ],
       "affected_day_count": 1,
       "affected_days": [
+        "2026-07-21"
+      ],
+      "affected_signal_count": 1,
+      "affected_signals": [
+        "canal2_3597"
+      ],
+      "candidate_reason": "material reliability impact",
+      "category": "semantics",
+      "coverage": {
+        "covered_after_utc": null,
+        "fix_commit": null,
+        "regression_test": null,
+        "reviewed_at_utc": null,
+        "reviewed_by": null,
+        "rule_version": null,
+        "verification": null
+      },
+      "evidence": [
+        {
+          "channel": "canal2",
+          "detail": "Buy Zones Marked Out\n\n4075-4073\n\n4070 - 4069",
+          "event": "provider_catalog_management",
+          "signal": "canal2_3597",
+          "ts_utc": "2026-07-21T15:58:34+00:00"
+        }
+      ],
+      "financial_impact": null,
+      "first_seen_utc": "2026-07-21T15:58:34+00:00",
+      "last_seen_utc": "2026-07-21T15:58:34+00:00",
+      "occurrences": 1,
+      "pattern_id": "semantics.unclassified_management.other_a9e7f76efb",
+      "priority_score": 30030,
+      "raw_events": 2,
+      "recurrence": "single_incident",
+      "severity": "high",
+      "status": "candidate",
+      "template": "unclassified provider management: unclassified provider vocabulary family"
+    },
+    {
+      "affected_channels": [
+        "canal2"
+      ],
+      "affected_day_count": 1,
+      "affected_days": [
         "2026-07-17"
       ],
       "affected_signal_count": 1,
@@ -3514,6 +3446,50 @@
       "pattern_id": "semantics.unclassified_management.other_c2dc39e85e",
       "priority_score": 30030,
       "raw_events": 4,
+      "recurrence": "single_incident",
+      "severity": "high",
+      "status": "candidate",
+      "template": "unclassified provider management: unclassified provider vocabulary family"
+    },
+    {
+      "affected_channels": [
+        "canal2"
+      ],
+      "affected_day_count": 1,
+      "affected_days": [
+        "2026-07-21"
+      ],
+      "affected_signal_count": 1,
+      "affected_signals": [
+        "canal2_3587"
+      ],
+      "candidate_reason": "material reliability impact",
+      "category": "semantics",
+      "coverage": {
+        "covered_after_utc": null,
+        "fix_commit": null,
+        "regression_test": null,
+        "reviewed_at_utc": null,
+        "reviewed_by": null,
+        "rule_version": null,
+        "verification": null
+      },
+      "evidence": [
+        {
+          "channel": "canal2",
+          "detail": "TP6 SMASHEDDDDDD",
+          "event": "provider_catalog_management",
+          "signal": "canal2_3587",
+          "ts_utc": "2026-07-21T18:25:31+00:00"
+        }
+      ],
+      "financial_impact": null,
+      "first_seen_utc": "2026-07-21T18:25:31+00:00",
+      "last_seen_utc": "2026-07-21T18:25:31+00:00",
+      "occurrences": 1,
+      "pattern_id": "semantics.unclassified_management.other_ca70283743",
+      "priority_score": 30030,
+      "raw_events": 3,
       "recurrence": "single_incident",
       "severity": "high",
       "status": "candidate",
@@ -3609,6 +3585,50 @@
       "pattern_id": "semantics.unclassified_management.other_dd635a5567",
       "priority_score": 30030,
       "raw_events": 3,
+      "recurrence": "single_incident",
+      "severity": "high",
+      "status": "candidate",
+      "template": "unclassified provider management: unclassified provider vocabulary family"
+    },
+    {
+      "affected_channels": [
+        "canal2"
+      ],
+      "affected_day_count": 1,
+      "affected_days": [
+        "2026-07-21"
+      ],
+      "affected_signal_count": 1,
+      "affected_signals": [
+        "canal2_3597"
+      ],
+      "candidate_reason": "material reliability impact",
+      "category": "semantics",
+      "coverage": {
+        "covered_after_utc": null,
+        "fix_commit": null,
+        "regression_test": null,
+        "reviewed_at_utc": null,
+        "reviewed_by": null,
+        "rule_version": null,
+        "verification": null
+      },
+      "evidence": [
+        {
+          "channel": "canal2",
+          "detail": "Buy Zones Marked Out\n\n4075-4073",
+          "event": "provider_catalog_management",
+          "signal": "canal2_3597",
+          "ts_utc": "2026-07-21T15:58:26+00:00"
+        }
+      ],
+      "financial_impact": null,
+      "first_seen_utc": "2026-07-21T15:58:26+00:00",
+      "last_seen_utc": "2026-07-21T15:58:26+00:00",
+      "occurrences": 1,
+      "pattern_id": "semantics.unclassified_management.other_e04fe1df87",
+      "priority_score": 30030,
+      "raw_events": 4,
       "recurrence": "single_incident",
       "severity": "high",
       "status": "candidate",
@@ -3792,6 +3812,50 @@
     },
     {
       "affected_channels": [
+        "canal2"
+      ],
+      "affected_day_count": 1,
+      "affected_days": [
+        "2026-07-21"
+      ],
+      "affected_signal_count": 1,
+      "affected_signals": [
+        "canal2_3597"
+      ],
+      "candidate_reason": "material reliability impact",
+      "category": "semantics",
+      "coverage": {
+        "covered_after_utc": null,
+        "fix_commit": null,
+        "regression_test": null,
+        "reviewed_at_utc": null,
+        "reviewed_by": null,
+        "rule_version": null,
+        "verification": null
+      },
+      "evidence": [
+        {
+          "channel": "canal2",
+          "detail": "Buy Zones Marked Out\n\n4075-4073\n\n4070 - 4069\n\n4066 - 4064",
+          "event": "provider_catalog_management",
+          "signal": "canal2_3597",
+          "ts_utc": "2026-07-21T15:58:47+00:00"
+        }
+      ],
+      "financial_impact": null,
+      "first_seen_utc": "2026-07-21T15:58:47+00:00",
+      "last_seen_utc": "2026-07-21T15:58:47+00:00",
+      "occurrences": 1,
+      "pattern_id": "semantics.unclassified_management.other_fa1e9bfac8",
+      "priority_score": 30030,
+      "raw_events": 2,
+      "recurrence": "single_incident",
+      "severity": "high",
+      "status": "candidate",
+      "template": "unclassified provider management: unclassified provider vocabulary family"
+    },
+    {
+      "affected_channels": [
         "canal1"
       ],
       "affected_day_count": 1,
@@ -3874,7 +3938,7 @@
         "2026-07-20",
         "2026-07-21"
       ],
-      "affected_signal_count": 99,
+      "affected_signal_count": 103,
       "affected_signals": [
         "canal1_20102",
         "canal1_20132",
@@ -3939,6 +4003,7 @@
         "canal1_20937",
         "canal1_20945",
         "canal1_20960",
+        "canal1_20989",
         "canal2_13399",
         "canal2_13406",
         "canal2_13437",
@@ -3974,7 +4039,10 @@
         "canal2_3470",
         "canal2_3500",
         "canal2_3503",
-        "canal2_3526"
+        "canal2_3526",
+        "canal2_3546",
+        "canal2_3558",
+        "canal2_3579"
       ],
       "candidate_reason": "pattern recurred across retained sessions",
       "category": "accounting",
@@ -4075,11 +4143,11 @@
       ],
       "financial_impact": 0.0,
       "first_seen_utc": "2026-06-05T08:00:07.670+00:00",
-      "last_seen_utc": "2026-07-21T05:41:01.369+00:00",
-      "occurrences": 99,
+      "last_seen_utc": "2026-07-21T14:29:20.985+00:00",
+      "occurrences": 103,
       "pattern_id": "accounting.reconstructed_trade",
-      "priority_score": 21639,
-      "raw_events": 99,
+      "priority_score": 21650,
+      "raw_events": 103,
       "recurrence": "cross_session",
       "severity": "medium",
       "status": "candidate",
@@ -4090,7 +4158,7 @@
         "canal1",
         "canal2"
       ],
-      "affected_day_count": 12,
+      "affected_day_count": 13,
       "affected_days": [
         "2026-06-13",
         "2026-06-15",
@@ -4103,9 +4171,10 @@
         "2026-07-15",
         "2026-07-18",
         "2026-07-19",
-        "2026-07-20"
+        "2026-07-20",
+        "2026-07-21"
       ],
-      "affected_signal_count": 13,
+      "affected_signal_count": 14,
       "affected_signals": [
         "canal1_20340",
         "canal1_20371",
@@ -4119,7 +4188,8 @@
         "canal2_3447",
         "canal2_3448",
         "canal2_3453",
-        "canal2_3469"
+        "canal2_3469",
+        "canal2_3600"
       ],
       "candidate_reason": "pattern recurred across retained sessions",
       "category": "semantics",
@@ -4220,11 +4290,11 @@
       ],
       "financial_impact": null,
       "first_seen_utc": "2026-06-13T11:56:58.907+00:00",
-      "last_seen_utc": "2026-07-20T07:46:12.065+00:00",
-      "occurrences": 13,
+      "last_seen_utc": "2026-07-21T16:33:02.081+00:00",
+      "occurrences": 14,
       "pattern_id": "semantics.unknown_provider_record.non_trading_announcement",
-      "priority_score": 20371,
-      "raw_events": 13,
+      "priority_score": 20401,
+      "raw_events": 14,
       "recurrence": "cross_session",
       "severity": "medium",
       "status": "candidate",
@@ -4931,6 +5001,50 @@
     },
     {
       "affected_channels": [
+        "canal2"
+      ],
+      "affected_day_count": 1,
+      "affected_days": [
+        "2026-07-21"
+      ],
+      "affected_signal_count": 1,
+      "affected_signals": [
+        "canal2_3564"
+      ],
+      "candidate_reason": null,
+      "category": "semantics",
+      "coverage": {
+        "covered_after_utc": null,
+        "fix_commit": null,
+        "regression_test": null,
+        "reviewed_at_utc": null,
+        "reviewed_by": null,
+        "rule_version": null,
+        "verification": null
+      },
+      "evidence": [
+        {
+          "channel": "canal2",
+          "detail": "unclassified_provider_message",
+          "event": "provider_catalog",
+          "signal": "canal2_3564",
+          "ts_utc": "2026-07-21T13:27:57.958+00:00"
+        }
+      ],
+      "financial_impact": null,
+      "first_seen_utc": "2026-07-21T13:27:57.958+00:00",
+      "last_seen_utc": "2026-07-21T13:27:57.958+00:00",
+      "occurrences": 1,
+      "pattern_id": "semantics.unknown_provider_record.other_2f906f3993",
+      "priority_score": 20030,
+      "raw_events": 1,
+      "recurrence": "single_incident",
+      "severity": "medium",
+      "status": "observed",
+      "template": "unknown provider record: unclassified provider vocabulary family"
+    },
+    {
+      "affected_channels": [
         "canal1"
       ],
       "affected_day_count": 1,
@@ -5547,6 +5661,50 @@
     },
     {
       "affected_channels": [
+        "canal2"
+      ],
+      "affected_day_count": 1,
+      "affected_days": [
+        "2026-07-21"
+      ],
+      "affected_signal_count": 1,
+      "affected_signals": [
+        "canal2_3605"
+      ],
+      "candidate_reason": null,
+      "category": "semantics",
+      "coverage": {
+        "covered_after_utc": null,
+        "fix_commit": null,
+        "regression_test": null,
+        "reviewed_at_utc": null,
+        "reviewed_by": null,
+        "rule_version": null,
+        "verification": null
+      },
+      "evidence": [
+        {
+          "channel": "canal2",
+          "detail": "unclassified_provider_message",
+          "event": "provider_catalog",
+          "signal": "canal2_3605",
+          "ts_utc": "2026-07-21T18:13:11.177+00:00"
+        }
+      ],
+      "financial_impact": null,
+      "first_seen_utc": "2026-07-21T18:13:11.177+00:00",
+      "last_seen_utc": "2026-07-21T18:13:11.177+00:00",
+      "occurrences": 1,
+      "pattern_id": "semantics.unknown_provider_record.other_c25993907b",
+      "priority_score": 20030,
+      "raw_events": 1,
+      "recurrence": "single_incident",
+      "severity": "medium",
+      "status": "observed",
+      "template": "unknown provider record: unclassified provider vocabulary family"
+    },
+    {
+      "affected_channels": [
         "canal1"
       ],
       "affected_day_count": 1,
@@ -5782,7 +5940,7 @@
         "2026-07-20",
         "2026-07-21"
       ],
-      "affected_signal_count": 159,
+      "affected_signal_count": 172,
       "affected_signals": [
         "canal1_20812",
         "canal1_20815",
@@ -5812,6 +5970,8 @@
         "canal1_20979",
         "canal1_20980",
         "canal1_20981",
+        "canal1_20987",
+        "canal1_20988",
         "canal2_3057",
         "canal2_3058",
         "canal2_3059",
@@ -5942,7 +6102,18 @@
         "canal2_3539",
         "canal2_3540",
         "canal2_3544",
-        "canal2_3545"
+        "canal2_3545",
+        "canal2_3574",
+        "canal2_3575",
+        "canal2_3578",
+        "canal2_3589",
+        "canal2_3591",
+        "canal2_3592",
+        "canal2_3593",
+        "canal2_3594",
+        "canal2_3595",
+        "canal2_3596",
+        "canal2_3607"
       ],
       "candidate_reason": "pattern recurred across retained sessions",
       "category": "semantics",
@@ -6043,11 +6214,11 @@
       ],
       "financial_impact": null,
       "first_seen_utc": "2026-07-10T11:00:21.791+00:00",
-      "last_seen_utc": "2026-07-21T09:23:28.335+00:00",
-      "occurrences": 159,
+      "last_seen_utc": "2026-07-21T18:25:35.837+00:00",
+      "occurrences": 172,
       "pattern_id": "semantics.unresolved_informational_reply.target_signal_closed",
-      "priority_score": 11216,
-      "raw_events": 368,
+      "priority_score": 11219,
+      "raw_events": 398,
       "recurrence": "cross_session",
       "severity": "low",
       "status": "candidate",
@@ -6058,7 +6229,7 @@
         "canal1",
         "canal2"
       ],
-      "affected_day_count": 22,
+      "affected_day_count": 23,
       "affected_days": [
         "2026-06-05",
         "2026-06-08",
@@ -6081,9 +6252,10 @@
         "2026-07-17",
         "2026-07-18",
         "2026-07-19",
-        "2026-07-20"
+        "2026-07-20",
+        "2026-07-21"
       ],
-      "affected_signal_count": 58,
+      "affected_signal_count": 61,
       "affected_signals": [
         "canal1_20141",
         "canal1_20175",
@@ -6098,6 +6270,7 @@
         "canal1_20867",
         "canal1_20943",
         "canal1_20959",
+        "canal1_20996",
         "canal2_13405",
         "canal2_13489",
         "canal2_13551",
@@ -6142,7 +6315,9 @@
         "canal2_3492",
         "canal2_3496",
         "canal2_3520",
-        "canal2_3523"
+        "canal2_3523",
+        "canal2_3555",
+        "canal2_3609"
       ],
       "candidate_reason": "pattern recurred across retained sessions",
       "category": "semantics",
@@ -6243,11 +6418,11 @@
       ],
       "financial_impact": null,
       "first_seen_utc": "2026-06-05T11:00:37.194+00:00",
-      "last_seen_utc": "2026-07-20T20:04:01.145+00:00",
-      "occurrences": 58,
+      "last_seen_utc": "2026-07-21T19:01:26.162+00:00",
+      "occurrences": 61,
       "pattern_id": "semantics.context_media_not_extracted",
-      "priority_score": 11025,
-      "raw_events": 58,
+      "priority_score": 11076,
+      "raw_events": 61,
       "recurrence": "cross_session",
       "severity": "low",
       "status": "candidate",
@@ -6272,7 +6447,7 @@
         "2026-07-20",
         "2026-07-21"
       ],
-      "affected_signal_count": 64,
+      "affected_signal_count": 78,
       "affected_signals": [
         "canal1_20679",
         "canal1_20806",
@@ -6337,7 +6512,21 @@
         "canal2_3497",
         "canal2_3498",
         "canal2_3499",
-        "canal2_3524"
+        "canal2_3524",
+        "canal2_3550",
+        "canal2_3551",
+        "canal2_3552",
+        "canal2_3553",
+        "canal2_3554",
+        "canal2_3556",
+        "canal2_3557",
+        "canal2_3598",
+        "canal2_3599",
+        "canal2_3601",
+        "canal2_3602",
+        "canal2_3603",
+        "canal2_3604",
+        "canal2_3606"
       ],
       "candidate_reason": "pattern recurred across retained sessions",
       "category": "semantics",
@@ -6438,11 +6627,11 @@
       ],
       "financial_impact": null,
       "first_seen_utc": "2026-07-09T16:21:36.577+00:00",
-      "last_seen_utc": "2026-07-21T03:34:12.261+00:00",
-      "occurrences": 64,
+      "last_seen_utc": "2026-07-21T18:18:36.621+00:00",
+      "occurrences": 78,
       "pattern_id": "semantics.unresolved_informational_reply.unknown_reply_target",
-      "priority_score": 10875,
-      "raw_events": 155,
+      "priority_score": 11019,
+      "raw_events": 199,
       "recurrence": "cross_session",
       "severity": "low",
       "status": "candidate",
@@ -6451,20 +6640,20 @@
   ],
   "schema_version": 1,
   "source_fingerprints": {
-    "accounting": "f513b94c37465d7a678e56e8003153035dfd995c9c3c436e8d9eb38350e209ad",
-    "events": "067c894553f6d01daa40f52f89a03f9443c76f9b630d75e6d63e518df4517c1f",
-    "observed_ticks": "df313f785c8a970e70e5fa02fdb26bb56febe6ac5ad36ea7524c06356f3ec6db",
-    "provider_catalog": "b48d770bbb7b3122fbf0a3603d810df9ef69ae5e5b237d287dd183ed9af3bde9",
-    "replay": "ed74c41d4582da4e4e14e911e0b107e10d45b3d2b279512c42b6fa4f6011d0ee",
+    "accounting": "8243703d8bf16b98dd7283ef45c8fdc314088059274122825966e1cdae3d2b73",
+    "events": "ebe29adac760746033c151f62ee09444387267712ae2ad1118a82dae6eef4c82",
+    "observed_ticks": "c07c858c3718953bf3d0e6dd52306d33f6cdafe9d927b200cb7766af5fb3445d",
+    "provider_catalog": "246b6b6bc2e60af25bd599472b9c6b68cbbb02c2365c65be2e94e00352c7abe7",
+    "replay": "95ea7a78fc1b8967ebe4fd5c3bc308c5a899557485a68d65692e56c005ef8488",
     "review_metadata": "5991733f918759f7d59feba8a0c6c7ffd96f8ea955e25d1ad416b018f1f3a4af",
-    "strategy_farm": "fb8f7e0b63a6a7ffb42564c34698b59290c4cef44df46544f59e4da75de33d4c"
+    "strategy_farm": "840ee00b45ce7ef7ffb3de4c56e057ea1384d4ce20ac0dae5ab4193c336d6fb7"
   },
   "summary": {
-    "candidates": 70,
+    "candidates": 71,
     "covered": 0,
     "dismissed": 0,
-    "observed": 24,
-    "patterns": 95,
+    "observed": 26,
+    "patterns": 98,
     "regressed": 1
   }
 }

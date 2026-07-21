@@ -1,18 +1,18 @@
 {
   "ok": true,
-  "generated_at": "2026-07-21T09:59:56+00:00",
+  "generated_at": "2026-07-21T19:22:20+00:00",
   "tick_time_contract": "mt5_server_epoch_utc_v3",
   "time_basis": "UTC",
   "dry_run": false,
   "ensure_attempted": true,
   "pad_minutes": 5,
   "cache_dir": "data/ticks_cache",
-  "n_trades": 117,
+  "n_trades": 126,
   "scope": {
     "since": "2026-07-06T00:00:00+00:00",
     "until": null,
-    "input_trades": 253,
-    "selected_trades": 117
+    "input_trades": 262,
+    "selected_trades": 126
   },
   "required_days": [
     "2026-07-06",
@@ -144,15 +144,15 @@
     "2026-07-21": {
       "status": "complete",
       "required_from_utc": "2026-07-21T05:36:01+00:00",
-      "required_through_utc": "2026-07-21T09:54:12+00:00",
+      "required_through_utc": "2026-07-21T18:28:00+00:00",
       "complete_from_utc": "2026-07-21T00:00:00+00:00",
-      "complete_through_utc": "2026-07-21T09:59:55.496000+00:00"
+      "complete_through_utc": "2026-07-21T19:22:16.906000+00:00"
     }
   },
   "ensure_stats": {
     "downloaded": 1,
     "cached_already": 0,
-    "total_ticks": 275854,
+    "total_ticks": 551597,
     "empty_days": 0,
     "day_contracts": {
       "2026-07-21": {
@@ -173,8 +173,8 @@
         },
         "semantic_validation": {
           "valid": true,
-          "anchors_checked": 25,
-          "anchors_matched": 25,
+          "anchors_checked": 67,
+          "anchors_matched": 67,
           "max_time_delta_ms": 2412,
           "max_price_delta": 0.0,
           "errors": []
@@ -182,17 +182,19 @@
         "coverage": {
           "source_query_start_utc": "2026-07-21T00:00:00+00:00",
           "source_query_end_utc": "2026-07-22T00:00:00+00:00",
-          "captured_at_utc": "2026-07-21T09:59:56.279715+00:00",
+          "captured_at_utc": "2026-07-21T19:22:19.102117+00:00",
           "first_tick_utc": "2026-07-21T00:00:00.014000+00:00",
-          "last_tick_utc": "2026-07-21T09:59:55.496000+00:00",
+          "last_tick_utc": "2026-07-21T19:22:16.906000+00:00",
           "complete_from_utc": "2026-07-21T00:00:00+00:00",
-          "complete_through_utc": "2026-07-21T09:59:55.496000+00:00",
-          "row_count": 275854
+          "complete_through_utc": "2026-07-21T19:22:16.906000+00:00",
+          "row_count": 551597
         }
       }
     }
   },
   "refresh_requested_days": [],
-  "refresh_removed_days": [],
+  "refresh_removed_days": [
+    "2026-07-21"
+  ],
   "error": null
 }
