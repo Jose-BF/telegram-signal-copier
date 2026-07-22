@@ -48,10 +48,17 @@ class TestParseSigRole:
     def test_canal1(self):
         assert parse_sig_role("c1_19717") == ("canal1_19717", "market_a")
 
-    def test_basura_descartada(self):
-        # comments de pruebas viejas con message_id corto → None
-        assert parse_sig_role("c2_55") == (None, None)
-        assert parse_sig_role("c2_57") == (None, None)
+    def test_ids_cortos_del_canal_nuevo(self):
+        # El proveedor cambio de canal y Telegram reinicio sus message_id.
+        assert parse_sig_role("c2_55") == ("canal2_55", "market_a")
+        assert parse_sig_role("c2_278") == ("canal2_278", "market_a")
+        assert parse_sig_role("c2_278_B4") == (
+            "canal2_278", "scale_out_leg"
+        )
+
+    def test_ids_malformados_se_descartan(self):
+        assert parse_sig_role("c2_0") == (None, None)
+        assert parse_sig_role("c2_no") == (None, None)
 
     def test_dca_viejo_sin_sigid(self):
         # DCA formato viejo: NO tiene sig_id → no se puede parsear

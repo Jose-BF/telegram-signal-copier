@@ -61,11 +61,11 @@ MT5_TIME_OFFSET_MAX_HOURS = 12
 
 # ─── Parsing de comments MT5 ───────────────────────────────────────────────────
 
-# c1_19569 / c2_12497 / c2_12497_B / c2_12497_B1..B4 / c2_12015_rescue /
-# DCA_c1_19569_4593.5. El message_id de Telegram tiene >=4 digitos.
-# Exigir \d{4,} descarta comments basura de pruebas viejas (c2_55, c2_57...).
+# c1_19569 / c2_278 / c2_12497_B / c2_12497_B1..B4 / c2_12015_rescue /
+# DCA_c1_19569_4593.5. Telegram reinicia los message_id al cambiar de canal,
+# por lo que IDs cortos como c2_278 son produccion valida desde julio de 2026.
 # Sufijo _B = doble market legacy; _B1.._B4 = legs del modo scale_out.
-_RX_SIG = re.compile(r"^(DCA_)?c([12])_(\d{4,})(_B\d*|_rescue)?")
+_RX_SIG = re.compile(r"^(DCA_)?c([12])_([1-9]\d*)(_B\d*|_rescue)?")
 # DCA formato VIEJO (abril 2026): "DCA_4572.0" — sin sig_id. Estos DCAs se
 # asocian al market del mismo magic abierto justo antes (proximidad temporal),
 # misma heuristica que executor.list_open_positions_grouped.

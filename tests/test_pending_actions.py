@@ -12,6 +12,7 @@ Cubre:
 """
 
 import asyncio
+import json
 import threading
 import time
 from types import SimpleNamespace
@@ -38,6 +39,64 @@ def _make_action(label="test", new_sl=None, new_tp=None, kind="MODIFY_SLTP"):
         new_tp=new_tp,
         label=label,
     )
+
+
+def test_pending_action_spool_survives_process_restart(tmp_path, monkeypatch):
+    monkeypatch.setattr("journal.event", lambda *args, **kwargs: None)
+    spool = tmp_path / "runtime_pending_actions.json"
+    signal = Signal(channel="canal2", message_id=278, direction="SELL")
+    first = PendingQueue(spool_path=spool)
+    first._ensure_runner = lambda: None
+    first.add(PendingAction(
+        kind="MODIFY_SLTP",
+        ticket=1634685403,
+        signal=signal,
+        new_sl=4122.10,
+        new_tp=4119.0,
+        label="BE #1634685403",
+        persist_until_signal_close=True,
+    ))
+
+    payload = json.loads(spool.read_text(encoding="utf-8"))
+    assert payload["actions"][0]["message_id"] == 278
+    assert payload["actions"][0]["new_sl"] == 4122.10
+
+    restored_signal = Signal(
+        channel="canal2",
+        message_id=278,
+        direction="SELL",
+    )
+    state_manager = SimpleNamespace(
+        get=lambda channel, message_id: (
+            restored_signal
+            if (channel, message_id) == ("canal2", 278)
+            else None
+        )
+    )
+    second = PendingQueue(spool_path=spool)
+    second._ensure_runner = lambda: None
+
+    restored = second.restore_from_spool(state_manager)
+
+    assert restored == 1
+    assert len(second._actions) == 1
+    assert second._actions[0].ticket == 1634685403
+    assert second._actions[0].signal is restored_signal
+    assert second._actions[0].persist_until_signal_close is True
+
+
+def test_pending_spool_is_rewritten_when_action_leaves_queue(tmp_path, monkeypatch):
+    monkeypatch.setattr("journal.event", lambda *args, **kwargs: None)
+    spool = tmp_path / "runtime_pending_actions.json"
+    queue = PendingQueue(spool_path=spool)
+    queue._ensure_runner = lambda: None
+    queue.add(_make_action(new_sl=4100.0))
+
+    queue._actions = []
+    queue._persist_spool()
+
+    payload = json.loads(spool.read_text(encoding="utf-8"))
+    assert payload["actions"] == []
 
 
 # ─── PendingAction.expired ──────────────────────────────────────────────────

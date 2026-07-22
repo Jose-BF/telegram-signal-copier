@@ -129,7 +129,7 @@ def _classify_position_pnls_query(raw):
     return "ok"
 
 
-_RX_ORDER_SIG = re.compile(r"^(DCA_)?c([12])_(\d{4,})(?:_[A-Za-z0-9.]+)?")
+_RX_ORDER_SIG = re.compile(r"^(DCA_)?c([12])_([1-9]\d*)(?:_[A-Za-z0-9.]+)?")
 
 
 def _sig_id_from_order_comment(comment: str | None) -> Optional[str]:

@@ -62,7 +62,8 @@ def test_git_info_compares_head_with_origin_main(monkeypatch):
         ("git", "status", "--porcelain"): "",
     }
 
-    def fake_check_output(args, **_kwargs):
+    def fake_check_output(args, **kwargs):
+        assert kwargs["timeout"] == 10
         return outputs[tuple(args)]
 
     monkeypatch.setattr(subprocess, "check_output", fake_check_output)
@@ -112,6 +113,34 @@ def test_watcher_attestation_rejects_head_before_its_push_finishes():
 
     assert "origin/main" in reason
     assert "aaaaaaaa" in reason
+
+
+def test_watcher_attestation_accepts_data_only_remote_mismatch_when_authorized():
+    info = {
+        "git_commit_full": "b" * 40,
+        "git_remote_commit_full": "a" * 40,
+        "git_branch": "main",
+        "git_dirty": False,
+    }
+
+    assert main._watcher_attestation_error(
+        info,
+        "b" * 40,
+        allow_remote_mismatch=True,
+    ) is None
+
+
+def test_startup_status_names_verified_local_checkpoint_without_false_alarm():
+    text = main._startup_status_message({
+        "git_commit": "bbbbbbb",
+        "git_branch": "main",
+        "git_dirty": False,
+        "git_synced": False,
+        "git_runtime_verified": True,
+    })
+
+    assert "Codigo: verificado; datos pendientes de subir" in text
+    assert "estado local sin verificar" not in text
 
 
 def test_unattested_main_terminates_only_a_legacy_watcher_parent():

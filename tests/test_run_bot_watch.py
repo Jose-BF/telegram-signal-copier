@@ -6,7 +6,7 @@ from hashlib import sha256
 import pytest
 
 import tools.run_bot_watch as watch
-from tools import git_sync
+from tools import git_sync, runtime_recovery
 
 
 def _canonical_bytes(value):
@@ -27,18 +27,131 @@ def _sync_result(**overrides):
     return git_sync.SyncResult(**values)
 
 
+def _recovery_result(**overrides):
+    values = {
+        "ok": True,
+        "action": "clean",
+        "source_paths": (),
+        "restored_paths": (),
+        "archived_paths": (),
+        "unsafe_paths": (),
+        "commit": None,
+        "error": None,
+    }
+    values.update(overrides)
+    return runtime_recovery.RecoveryResult(**values)
+
+
 def test_prepare_repository_for_runtime_delegates_to_state_machine(monkeypatch):
     calls = []
     expected = _sync_result(action="attached")
 
-    def fake_sync(repo_dir, *, publish_local, progress_callback):
-        calls.append((repo_dir, publish_local, progress_callback))
+    monkeypatch.setattr(
+        watch.runtime_recovery,
+        "prepare_runtime_worktree",
+        lambda repo_dir: calls.append(("recover", repo_dir))
+        or _recovery_result(),
+    )
+
+    def fake_sync(
+        repo_dir,
+        *,
+        publish_local,
+        progress_callback,
+        worktree_recovery,
+    ):
+        calls.append(("sync", repo_dir, publish_local, progress_callback))
+        worktree_recovery(repo_dir)
         return expected
 
     monkeypatch.setattr(watch.git_sync, "synchronize_repository", fake_sync)
 
     assert watch._prepare_repository_for_runtime() == expected
-    assert calls == [(watch.REPO_DIR, True, watch._print_git_progress)]
+    assert calls == [
+        ("sync", watch.REPO_DIR, True, watch._print_git_progress),
+        ("recover", watch.REPO_DIR),
+    ]
+
+
+def test_prepare_repository_passes_unsafe_local_code_to_sync_state_machine(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        watch.runtime_recovery,
+        "prepare_runtime_worktree",
+        lambda repo_dir: _recovery_result(
+            ok=False,
+            action="unsafe_worktree",
+            unsafe_paths=("main.py",),
+            error="source changes require manual review",
+        ),
+    )
+    def fake_sync(repo_dir, **kwargs):
+        recovery = kwargs["worktree_recovery"](repo_dir)
+        assert recovery.ok is False
+        return _sync_result(
+            ok=False,
+            action=recovery.action,
+            error=recovery.error,
+        )
+
+    monkeypatch.setattr(watch.git_sync, "synchronize_repository", fake_sync)
+
+    result = watch._prepare_repository_for_runtime()
+
+    assert result.ok is False
+    assert result.action == "unsafe_worktree"
+    assert result.error == "source changes require manual review"
+
+
+def test_fast_checkpoint_is_local_and_never_calls_remote_sync(monkeypatch):
+    monkeypatch.setattr(
+        watch.runtime_recovery,
+        "prepare_runtime_worktree",
+        lambda repo_dir: _recovery_result(
+            action="checkpointed",
+            source_paths=("data/trade_events.jsonl",),
+            commit="abc123",
+        ),
+    )
+    monkeypatch.setattr(
+        watch.git_sync,
+        "synchronize_repository",
+        lambda *args, **kwargs: pytest.fail(
+            "fast checkpoint must not contact Git remote"
+        ),
+    )
+    monkeypatch.setattr(watch, "_local_head", lambda: "abc123")
+    monkeypatch.setattr(watch, "_remote_head", lambda: "def456")
+    monkeypatch.setattr(watch, "_current_branch", lambda: "main")
+
+    result = watch._checkpoint_runtime_data()
+
+    assert result.ok is True
+    assert result.action == "local_checkpointed"
+    assert result.local_head == "abc123"
+    assert result.remote_head == "def456"
+
+
+def test_transport_failure_can_fall_back_to_verified_local_runtime(monkeypatch):
+    failed = _sync_result(
+        ok=False,
+        action="fetch_failed",
+        error="github unavailable",
+    )
+    monkeypatch.setattr(
+        watch.git_sync,
+        "runtime_head_is_safe",
+        lambda repo_dir: True,
+    )
+    monkeypatch.setattr(watch, "_local_head", lambda: "abc123")
+    monkeypatch.setattr(watch, "_remote_head", lambda: "def456")
+    monkeypatch.setattr(watch, "_current_branch", lambda: "main")
+
+    fallback = watch._offline_runtime_fallback(failed)
+
+    assert fallback.ok is True
+    assert fallback.action == "offline_local_verified"
 
 
 def test_main_blocks_bot_spawn_when_git_preflight_is_unsafe(monkeypatch):
@@ -100,7 +213,7 @@ def test_ctrl_c_without_new_commit_still_verifies_git(monkeypatch):
     monkeypatch.setattr(watch, "_apply_active_channel_manifest", lambda: True)
     monkeypatch.setattr(watch, "_spawn_bot", lambda: InterruptedProcess())
     monkeypatch.setattr(watch, "_stop_bot", lambda _proc: None)
-    monkeypatch.setattr(watch, "_push_session_data", lambda: None)
+    monkeypatch.setattr(watch, "_checkpoint_runtime_data", lambda: None)
     monkeypatch.setattr(
         watch,
         "_refresh_heads_after_session_data_push",
@@ -109,6 +222,41 @@ def test_ctrl_c_without_new_commit_still_verifies_git(monkeypatch):
 
     assert watch.main() == watch.WATCHER_GIT_BLOCKED_EXIT_CODE
     assert refreshes == ["sync"]
+
+
+def test_unexpected_watcher_failure_stops_child_before_batch_recovery(
+    monkeypatch,
+):
+    class RunningProcess:
+        returncode = None
+
+        def poll(self):
+            return None
+
+    proc = RunningProcess()
+    stopped = []
+    monkeypatch.setattr(
+        watch,
+        "_prepare_repository_for_runtime",
+        lambda: _sync_result(),
+    )
+    monkeypatch.setattr(watch, "_print_sync_result", lambda result: None)
+    monkeypatch.setattr(
+        watch,
+        "_spawn_bot_with_active_channels",
+        lambda: proc,
+    )
+    monkeypatch.setattr(watch, "_stop_bot", lambda child: stopped.append(child))
+    monkeypatch.setattr(
+        watch,
+        "_runtime_heartbeat_age_s",
+        lambda **kwargs: (_ for _ in ()).throw(RuntimeError("watcher failure")),
+    )
+
+    with pytest.raises(RuntimeError, match="watcher failure"):
+        watch.main()
+
+    assert stopped == [proc]
 
 
 def test_active_channel_manifest_is_applied_before_bot_spawn(monkeypatch):
@@ -148,6 +296,12 @@ def test_spawn_bot_attests_the_exact_verified_head(monkeypatch):
     monkeypatch.setattr(watch, "_local_head", lambda: full_head)
     monkeypatch.setattr(watch, "_remote_head", lambda: full_head)
     monkeypatch.setattr(watch, "_clear_runtime_heartbeat", lambda: None)
+    monkeypatch.setattr(
+        watch.git_sync,
+        "runtime_head_is_safe",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(watch.runtime_control, "clear_for_spawn", lambda: None)
 
     def fake_popen(args, **kwargs):
         captured["args"] = args
@@ -161,9 +315,14 @@ def test_spawn_bot_attests_the_exact_verified_head(monkeypatch):
     assert captured["kwargs"]["env"]["BOT_WATCHER_PID"] == str(watch.os.getpid())
 
 
-def test_spawn_bot_refuses_head_that_is_not_published(monkeypatch):
+def test_spawn_bot_refuses_head_that_is_not_runtime_safe(monkeypatch):
     monkeypatch.setattr(watch, "_local_head", lambda: "b" * 40)
     monkeypatch.setattr(watch, "_remote_head", lambda: "a" * 40)
+    monkeypatch.setattr(
+        watch.git_sync,
+        "runtime_head_is_safe",
+        lambda *_args, **_kwargs: False,
+    )
     monkeypatch.setattr(
         watch.subprocess,
         "Popen",
@@ -801,6 +960,21 @@ def test_cli_final_backup_returns_verified_status(monkeypatch):
     )
 
     assert watch.cli(["--final-backup"]) == 0
+
+
+def test_cli_recovery_checkpoint_skips_offline_analysis(monkeypatch):
+    monkeypatch.setattr(
+        watch,
+        "_checkpoint_runtime_data",
+        lambda: _sync_result(action="pushed"),
+    )
+    monkeypatch.setattr(
+        watch,
+        "_push_session_data",
+        lambda: pytest.fail("recovery checkpoint must not run analysis"),
+    )
+
+    assert watch.cli(["--recovery-checkpoint"]) == 0
 
 
 def test_cli_final_backup_returns_retry_status_for_transport_failure(monkeypatch):

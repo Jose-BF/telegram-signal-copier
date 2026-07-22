@@ -25,3 +25,19 @@ def test_runtime_heartbeat_old_is_stale():
         process_uptime_s=600.0,
         timeout_s=180.0,
     )
+
+
+def test_supervisor_loop_gap_detects_machine_resume_even_with_fresh_heartbeat():
+    assert run_bot_watch._supervisor_loop_gap_is_stale(
+        previous_tick=100.0,
+        current_tick=7300.0,
+        timeout_s=90.0,
+    )
+
+
+def test_normal_supervisor_loop_delay_does_not_trigger_resume_recovery():
+    assert not run_bot_watch._supervisor_loop_gap_is_stale(
+        previous_tick=100.0,
+        current_tick=102.2,
+        timeout_s=90.0,
+    )

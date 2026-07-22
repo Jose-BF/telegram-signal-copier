@@ -9,8 +9,10 @@ Cubre:
   - _should_accept_canal1_text (fix C6 — cutoff 5min tras restart)
 """
 
+import json
+
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import listener
@@ -320,6 +322,615 @@ class TestPollerTelegramBackoff:
                 ),
             })
         ]
+
+
+class TestPollerStartupCatchup:
+    @staticmethod
+    def _reset_poller_state():
+        listener._poller_msg_state.clear()
+        listener._poller_initialized_channels.clear()
+        listener._poller_last_coverage_log.clear()
+        listener._seen_new_msg_ids.clear()
+        listener._seen_new_msgs_order.clear()
+        listener._seen_edits.clear()
+        listener._seen_edits_order.clear()
+
+    def test_unseen_message_during_downtime_is_dispatched_as_new(self):
+        history = {
+            "has_channel_history": True,
+            "coverage_cutoff": datetime(
+                2026, 7, 22, 11, 59, 58, tzinfo=timezone.utc
+            ),
+            "message_versions": {278: "2026-07-22T11:59:57+00:00"},
+        }
+        message = SimpleNamespace(
+            id=279,
+            date=datetime(2026, 7, 22, 12, 1, tzinfo=timezone.utc),
+            edit_date=None,
+        )
+
+        assert listener._poller_startup_action(message, history) == "new"
+
+    def test_seen_message_is_not_replayed_but_new_edit_is(self):
+        history = {
+            "has_channel_history": True,
+            "coverage_cutoff": datetime(
+                2026, 7, 22, 11, 59, 58, tzinfo=timezone.utc
+            ),
+            "message_versions": {278: "2026-07-22T11:59:57+00:00"},
+        }
+        unchanged = SimpleNamespace(
+            id=278,
+            date=datetime(2026, 7, 22, 11, 59, 35, tzinfo=timezone.utc),
+            edit_date=datetime(
+                2026, 7, 22, 11, 59, 57, tzinfo=timezone.utc
+            ),
+        )
+        edited = SimpleNamespace(
+            id=278,
+            date=unchanged.date,
+            edit_date=datetime(2026, 7, 22, 12, 3, tzinfo=timezone.utc),
+        )
+
+        assert listener._poller_startup_action(unchanged, history) == "seen"
+        assert listener._poller_startup_action(edited, history) == "edit"
+
+    def test_unknown_new_channel_establishes_baseline_without_replaying_history(
+        self,
+    ):
+        history = {
+            "has_channel_history": False,
+            "coverage_cutoff": None,
+            "message_versions": {},
+        }
+        message = SimpleNamespace(
+            id=1,
+            date=datetime(2026, 7, 22, 12, 1, tzinfo=timezone.utc),
+            edit_date=None,
+        )
+
+        assert listener._poller_startup_action(message, history) == "baseline"
+
+    def test_legacy_history_cutoff_adds_safe_overlap_before_startup(
+        self,
+        tmp_path,
+    ):
+        path = tmp_path / "trade_events.jsonl"
+        rows = [
+            {
+                "ts": "2026-07-22T11:59:58+00:00",
+                "sig": "canal2_278",
+                "ev": "telegram_raw",
+                "channel": "canal2",
+                "chat_id": -1003908582492,
+                "message_id": 278,
+                "edit_date_utc": "2026-07-22T11:59:57+00:00",
+            },
+            {
+                "ts": "2026-07-22T11:59:59+00:00",
+                "sig": "bot",
+                "ev": "heartbeat",
+            },
+            {
+                "ts": "2026-07-22T14:05:13+00:00",
+                "sig": "bot",
+                "ev": "session_started",
+            },
+            {
+                "ts": "2026-07-22T14:05:14+00:00",
+                "sig": "canal2_279",
+                "ev": "telegram_raw",
+                "channel": "canal2",
+                "chat_id": -1003908582492,
+                "message_id": 279,
+                "edit_date_utc": None,
+            },
+        ]
+        path.write_text(
+            "".join(json.dumps(row) + "\n" for row in rows),
+            encoding="utf-8",
+        )
+
+        history = listener._load_poller_startup_history(
+            "canal2",
+            -1003908582492,
+            path=path,
+        )
+
+        assert history["coverage_cutoff"] == datetime(
+            2026, 7, 21, 11, 59, 59, tzinfo=timezone.utc
+        )
+        assert history["message_versions"] == {
+            278: "2026-07-22T11:59:57+00:00",
+            279: None,
+        }
+
+    def test_explicit_channel_coverage_survives_a_later_failed_startup(
+        self,
+        tmp_path,
+    ):
+        path = tmp_path / "trade_events.jsonl"
+        rows = [
+            {
+                "ts": "2026-07-22T11:55:00+00:00",
+                "sig": "bot",
+                "ev": "telegram_poll_coverage",
+                "channel": "canal2",
+                "channel_id": -1003908582492,
+                "covered_through_utc": "2026-07-22T11:53:00+00:00",
+            },
+            {
+                "ts": "2026-07-22T12:05:00+00:00",
+                "sig": "bot",
+                "ev": "session_started",
+            },
+            {
+                "ts": "2026-07-22T12:05:01+00:00",
+                "sig": "bot",
+                "ev": "telegram_history_backoff",
+            },
+            {
+                "ts": "2026-07-22T12:06:00+00:00",
+                "sig": "bot",
+                "ev": "session_started",
+            },
+        ]
+        path.write_text(
+            "".join(json.dumps(row) + "\n" for row in rows),
+            encoding="utf-8",
+        )
+
+        history = listener._load_poller_startup_history(
+            "canal2",
+            -1003908582492,
+            path=path,
+        )
+        missed = SimpleNamespace(
+            id=279,
+            date=datetime(2026, 7, 22, 11, 58, tzinfo=timezone.utc),
+            edit_date=None,
+        )
+
+        assert history["coverage_cutoff"] == datetime(
+            2026, 7, 22, 11, 53, tzinfo=timezone.utc
+        )
+        assert listener._poller_startup_action(missed, history) == "new"
+
+    def test_raw_capture_after_processing_contract_is_not_treated_as_done(
+        self,
+        tmp_path,
+    ):
+        path = tmp_path / "trade_events.jsonl"
+        rows = [
+            {
+                "ts": "2026-07-22T12:00:00+00:00",
+                "sig": "bot",
+                "ev": "telegram_processing_contract",
+                "channel": "canal2",
+                "channel_id": -1003908582492,
+                "activated_utc": "2026-07-22T12:00:00+00:00",
+            },
+            {
+                "ts": "2026-07-22T12:01:00+00:00",
+                "sig": "canal2_279",
+                "ev": "telegram_raw",
+                "channel": "canal2",
+                "chat_id": -1003908582492,
+                "message_id": 279,
+                "edit_date_utc": None,
+            },
+        ]
+        path.write_text(
+            "".join(json.dumps(row) + "\n" for row in rows),
+            encoding="utf-8",
+        )
+        message = SimpleNamespace(
+            id=279,
+            date=datetime(2026, 7, 22, 12, 1, tzinfo=timezone.utc),
+            edit_date=None,
+        )
+
+        history = listener._load_poller_startup_history(
+            "canal2",
+            -1003908582492,
+            path=path,
+        )
+
+        assert listener._poller_startup_action(message, history) == "new"
+
+        rows.append({
+            "ts": "2026-07-22T12:01:01+00:00",
+            "sig": "canal2_279",
+            "ev": "telegram_processed",
+            "channel": "canal2",
+            "chat_id": -1003908582492,
+            "message_id": 279,
+            "revision_token": "new",
+        })
+        path.write_text(
+            "".join(json.dumps(row) + "\n" for row in rows),
+            encoding="utf-8",
+        )
+        history = listener._load_poller_startup_history(
+            "canal2",
+            -1003908582492,
+            path=path,
+        )
+
+        assert listener._poller_startup_action(message, history) == "seen"
+
+    def test_unprocessed_raw_revision_moves_recovery_cutoff_back(
+        self,
+        tmp_path,
+    ):
+        path = tmp_path / "trade_events.jsonl"
+        rows = [
+            {
+                "ts": "2026-07-22T12:00:00+00:00",
+                "sig": "bot",
+                "ev": "telegram_processing_contract",
+                "channel": "canal2",
+                "channel_id": -1003908582492,
+                "activated_utc": "2026-07-22T12:00:00+00:00",
+            },
+            {
+                "ts": "2026-07-22T14:00:00+00:00",
+                "sig": "bot",
+                "ev": "telegram_poll_coverage",
+                "channel": "canal2",
+                "channel_id": -1003908582492,
+                "covered_through_utc": "2026-07-22T13:58:00+00:00",
+            },
+            {
+                "ts": "2026-07-22T14:00:01+00:00",
+                "sig": "canal2_279",
+                "ev": "telegram_raw",
+                "channel": "canal2",
+                "chat_id": -1003908582492,
+                "message_id": 279,
+                "date_utc": "2026-07-22T12:30:00+00:00",
+                "edit_date_utc": None,
+            },
+        ]
+        path.write_text(
+            "".join(json.dumps(row) + "\n" for row in rows),
+            encoding="utf-8",
+        )
+
+        history = listener._load_poller_startup_history(
+            "canal2",
+            -1003908582492,
+            path=path,
+        )
+
+        assert history["coverage_cutoff"] == datetime(
+            2026, 7, 22, 12, 28, tzinfo=timezone.utc
+        )
+
+    @pytest.mark.asyncio
+    async def test_dispatch_marks_processed_only_after_handler_completes(
+        self,
+        monkeypatch,
+    ):
+        self._reset_poller_state()
+        message = SimpleNamespace(
+            id=279,
+            chat_id=-1003908582492,
+            date=datetime(2026, 7, 22, 12, 1, tzinfo=timezone.utc),
+            edit_date=None,
+        )
+        events = []
+        monkeypatch.setattr(
+            listener.journal,
+            "event",
+            lambda sig, ev, **fields: events.append((sig, ev, fields)),
+        )
+        flushes = []
+        monkeypatch.setattr(
+            listener.journal,
+            "flush_events",
+            lambda timeout=10.0: flushes.append(timeout) or True,
+        )
+
+        async def successful(msg, label="Canal2", dedup=True):
+            assert not any(ev == "telegram_processed" for _, ev, _ in events)
+            listener._new_msg_already_seen("canal2", msg.id)
+
+        monkeypatch.setattr(listener, "_process_canal2_new", successful)
+
+        await listener._dispatch_telegram_message(
+            message,
+            "canal2",
+            "new",
+            label="Canal2_catchup",
+        )
+
+        assert [ev for _, ev, _ in events] == ["telegram_processed"]
+        assert flushes == [2.0, 2.0]
+
+        async def failed(msg, label="Canal2", dedup=True):
+            raise RuntimeError("interrupted")
+
+        failed_message = SimpleNamespace(
+            id=280,
+            chat_id=-1003908582492,
+            date=message.date,
+            edit_date=None,
+        )
+        monkeypatch.setattr(listener, "_process_canal2_new", failed)
+        with pytest.raises(RuntimeError, match="interrupted"):
+            await listener._dispatch_telegram_message(
+                failed_message,
+                "canal2",
+                "new",
+                label="Canal2_catchup",
+            )
+
+        assert [ev for _, ev, _ in events] == ["telegram_processed"]
+        assert flushes == [2.0, 2.0, 2.0]
+
+    @pytest.mark.asyncio
+    async def test_canal1_edit_missed_during_downtime_is_dispatched(
+        self,
+        monkeypatch,
+    ):
+        self._reset_poller_state()
+        edited = SimpleNamespace(
+            id=20700,
+            chat_id=-1001642806869,
+            date=datetime(2026, 7, 22, 11, 59, tzinfo=timezone.utc),
+            edit_date=datetime(2026, 7, 22, 12, 3, tzinfo=timezone.utc),
+        )
+
+        class FakeClient:
+            async def get_messages(self, channel_id, limit):
+                return [edited]
+
+        processed = []
+        monkeypatch.setattr(listener, "client", FakeClient())
+        monkeypatch.setattr(
+            listener,
+            "_load_poller_startup_history",
+            lambda channel, channel_id: {
+                "has_channel_history": True,
+                "coverage_cutoff": datetime(
+                    2026, 7, 22, 11, 58, tzinfo=timezone.utc
+                ),
+                "message_versions": {
+                    20700: "2026-07-22T11:59:30+00:00"
+                },
+            },
+        )
+        monkeypatch.setattr(listener, "_msg_diag", lambda *args: None)
+        monkeypatch.setattr(listener.journal, "event", lambda *args, **kwargs: None)
+
+        async def process_edit(msg):
+            processed.append(msg.id)
+
+        monkeypatch.setattr(listener, "_process_canal1_edit", process_edit)
+
+        assert await listener._poller_initial_scan_channel(
+            -1001642806869,
+            "canal1",
+        ) is True
+        assert processed == [20700]
+
+    @pytest.mark.asyncio
+    async def test_initial_scan_dispatches_only_downtime_messages(
+        self,
+        monkeypatch,
+    ):
+        self._reset_poller_state()
+        old = SimpleNamespace(
+            id=278,
+            date=datetime(2026, 7, 22, 11, 59, 35, tzinfo=timezone.utc),
+            edit_date=datetime(
+                2026, 7, 22, 11, 59, 57, tzinfo=timezone.utc
+            ),
+        )
+        missed = SimpleNamespace(
+            id=279,
+            date=datetime(2026, 7, 22, 12, 1, tzinfo=timezone.utc),
+            edit_date=None,
+        )
+
+        class FakeClient:
+            async def get_messages(self, channel_id, limit):
+                assert channel_id == -1003908582492
+                assert limit == listener._POLL_STARTUP_SCAN_LIMIT
+                return [missed, old]
+
+        processed = []
+        monkeypatch.setattr(listener, "client", FakeClient())
+        monkeypatch.setattr(
+            listener,
+            "_load_poller_startup_history",
+            lambda channel, channel_id: {
+                "has_channel_history": True,
+                "coverage_cutoff": datetime(
+                    2026, 7, 22, 11, 59, 58, tzinfo=timezone.utc
+                ),
+                "message_versions": {
+                    278: "2026-07-22T11:59:57+00:00"
+                },
+            },
+        )
+        monkeypatch.setattr(listener, "_msg_diag", lambda *args: None)
+
+        async def process_new(msg, label):
+            processed.append((msg.id, label))
+
+        monkeypatch.setattr(listener, "_process_canal2_new", process_new)
+        monkeypatch.setattr(
+            listener,
+            "_process_canal2_edit",
+            lambda *args, **kwargs: pytest.fail("unchanged message was edited"),
+        )
+        monkeypatch.setattr(listener.journal, "event", lambda *args, **kwargs: None)
+
+        assert await listener._poller_initial_scan_channel(
+            -1003908582492,
+            "canal2",
+        ) is True
+        assert processed == [(279, "Canal2_catchup")]
+        assert "canal2" in listener._poller_initialized_channels
+
+    @pytest.mark.asyncio
+    async def test_initial_scan_dispatches_revision_missed_during_downtime(
+        self,
+        monkeypatch,
+    ):
+        self._reset_poller_state()
+        edited = SimpleNamespace(
+            id=278,
+            date=datetime(2026, 7, 22, 11, 59, 35, tzinfo=timezone.utc),
+            edit_date=datetime(2026, 7, 22, 12, 3, tzinfo=timezone.utc),
+        )
+
+        class FakeClient:
+            async def get_messages(self, channel_id, limit):
+                return [edited]
+
+        processed = []
+        monkeypatch.setattr(listener, "client", FakeClient())
+        monkeypatch.setattr(
+            listener,
+            "_load_poller_startup_history",
+            lambda channel, channel_id: {
+                "has_channel_history": True,
+                "coverage_cutoff": datetime(
+                    2026, 7, 22, 11, 59, 58, tzinfo=timezone.utc
+                ),
+                "message_versions": {
+                    278: "2026-07-22T11:59:57+00:00"
+                },
+            },
+        )
+        monkeypatch.setattr(listener, "_msg_diag", lambda *args: None)
+        monkeypatch.setattr(
+            listener,
+            "_process_canal2_new",
+            lambda *args, **kwargs: pytest.fail("edit was treated as new"),
+        )
+
+        async def process_edit(msg, label):
+            processed.append((msg.id, label))
+
+        monkeypatch.setattr(listener, "_process_canal2_edit", process_edit)
+        monkeypatch.setattr(listener.journal, "event", lambda *args, **kwargs: None)
+
+        assert await listener._poller_initial_scan_channel(
+            -1003908582492,
+            "canal2",
+        ) is True
+        assert processed == [(278, "Canal2_catchup")]
+
+    @pytest.mark.asyncio
+    async def test_startup_fetch_paginates_until_previous_coverage(
+        self,
+        monkeypatch,
+    ):
+        cutoff = datetime(2026, 7, 22, 12, 0, tzinfo=timezone.utc)
+        messages = {
+            4: SimpleNamespace(
+                id=4,
+                date=cutoff + timedelta(minutes=4),
+                edit_date=None,
+            ),
+            3: SimpleNamespace(
+                id=3,
+                date=cutoff + timedelta(minutes=3),
+                edit_date=None,
+            ),
+            2: SimpleNamespace(
+                id=2,
+                date=cutoff + timedelta(minutes=2),
+                edit_date=None,
+            ),
+            1: SimpleNamespace(
+                id=1,
+                date=cutoff - timedelta(minutes=1),
+                edit_date=None,
+            ),
+        }
+
+        class FakeClient:
+            def __init__(self):
+                self.offsets = []
+
+            async def get_messages(self, channel_id, limit, **kwargs):
+                self.offsets.append(kwargs.get("offset_id"))
+                if kwargs.get("offset_id") is None:
+                    return [messages[4], messages[3]]
+                return [messages[2], messages[1]]
+
+        fake_client = FakeClient()
+        monkeypatch.setattr(listener, "client", fake_client)
+        monkeypatch.setattr(listener, "_POLL_STARTUP_SCAN_LIMIT", 2)
+        history = {
+            "has_channel_history": True,
+            "coverage_cutoff": cutoff,
+            "message_versions": {},
+        }
+
+        fetched, complete = await listener._poller_fetch_startup_messages(
+            -1003908582492,
+            "canal2",
+            history,
+        )
+
+        assert complete is True
+        assert [message.id for message in fetched] == [4, 3, 2, 1]
+        assert fake_client.offsets == [None, 3]
+
+    @pytest.mark.asyncio
+    async def test_active_poll_paginates_until_a_known_message(
+        self,
+        monkeypatch,
+    ):
+        self._reset_poller_state()
+        now = datetime(2026, 7, 22, 12, 0, tzinfo=timezone.utc)
+        messages = {
+            msg_id: SimpleNamespace(
+                id=msg_id,
+                chat_id=-1003908582492,
+                date=now + timedelta(seconds=msg_id),
+                edit_date=None,
+            )
+            for msg_id in (1, 2, 3, 4)
+        }
+        listener._poller_msg_state[("canal2", 1)] = None
+
+        class FakeClient:
+            def __init__(self):
+                self.offsets = []
+
+            async def get_messages(self, channel_id, limit, **kwargs):
+                self.offsets.append(kwargs.get("offset_id"))
+                if kwargs.get("offset_id") is None:
+                    return [messages[4], messages[3]]
+                return [messages[2], messages[1]]
+
+        fake_client = FakeClient()
+        processed = []
+        monkeypatch.setattr(listener, "client", fake_client)
+        monkeypatch.setattr(listener, "_POLL_MSG_LIMIT", 2)
+        monkeypatch.setattr(listener, "_msg_diag", lambda *args: None)
+        monkeypatch.setattr(listener, "_poller_record_coverage", lambda *args, **kwargs: None)
+
+        async def dispatch(msg, channel, kind, **kwargs):
+            processed.append((msg.id, channel, kind))
+
+        monkeypatch.setattr(listener, "_dispatch_telegram_message", dispatch)
+
+        await listener._poll_channel(-1003908582492, "canal2")
+
+        assert processed == [
+            (2, "canal2", "new"),
+            (3, "canal2", "new"),
+            (4, "canal2", "new"),
+        ]
+        assert fake_client.offsets == [None, 3]
 
 
 class TestUnresolvedManagementSeverity:

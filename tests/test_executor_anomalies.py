@@ -98,6 +98,9 @@ class TestSigIdFromOrderComment:
     def test_market_comment(self):
         assert _sig_id_from_order_comment("c2_12747") == "canal2_12747"
 
+    def test_short_message_id_from_new_channel(self):
+        assert _sig_id_from_order_comment("c2_278_B4") == "canal2_278"
+
     def test_scale_out_leg_comment(self):
         assert _sig_id_from_order_comment("c1_19822_B3") == "canal1_19822"
 

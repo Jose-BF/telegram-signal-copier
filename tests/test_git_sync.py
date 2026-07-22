@@ -1,7 +1,7 @@
 import subprocess
 from pathlib import Path
 
-from tools import git_sync
+from tools import git_sync, runtime_recovery
 
 
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
@@ -88,6 +88,52 @@ def test_sync_progress_reports_fetch_push_and_final_verification(tmp_path):
     assert stages.index("fetch") < stages.index("push")
     assert stages.index("push") < stages.index("post_push_fetch")
     assert stages[-1] == "verify"
+
+
+def test_git_timeout_becomes_a_bounded_failure(monkeypatch, tmp_path):
+    def timeout(*args, **kwargs):
+        raise subprocess.TimeoutExpired(args[0], kwargs["timeout"])
+
+    monkeypatch.setattr(git_sync.subprocess, "run", timeout)
+
+    result = git_sync._run_git(tmp_path, "fetch", "origin", "main")
+
+    assert result.returncode == 124
+    assert "timed out" in result.stderr
+
+
+def test_rescue_branch_attempts_are_bounded(monkeypatch, tmp_path):
+    attempts = []
+
+    def always_fail(repo_dir, *args, **kwargs):
+        attempts.append((args, kwargs))
+        return subprocess.CompletedProcess(args, 1, "", "exists")
+
+    monkeypatch.setattr(git_sync, "_run_git", always_fail)
+
+    assert git_sync._rescue_branch(tmp_path, "a" * 40) is None
+    assert len(attempts) == 3
+    assert all(call[1]["timeout_sec"] <= 5 for call in attempts)
+
+
+def test_runtime_head_is_safe_with_unpublished_data_commit(tmp_path):
+    _remote, _seed, vm = _repos(tmp_path)
+    events = vm / "data" / "trade_events.jsonl"
+    events.parent.mkdir()
+    events.write_text('{"ev":"checkpoint"}\n', encoding="utf-8")
+    _must_git(vm, "add", "data/trade_events.jsonl")
+    _must_git(vm, "commit", "-m", "data: local checkpoint")
+
+    assert git_sync.runtime_head_is_safe(vm) is True
+
+
+def test_runtime_head_rejects_unpublished_code_commit(tmp_path):
+    _remote, _seed, vm = _repos(tmp_path)
+    (vm / "main.py").write_text("print('unsafe code')\n", encoding="utf-8")
+    _must_git(vm, "add", "main.py")
+    _must_git(vm, "commit", "-m", "fix: local code")
+
+    assert git_sync.runtime_head_is_safe(vm) is False
 
 
 def test_remote_ahead_fast_forwards_and_attaches_main(tmp_path):
@@ -186,6 +232,52 @@ def test_stale_rebase_is_quit_after_preserving_head(tmp_path, monkeypatch):
     assert result.rescue_branch is not None
     assert not rebase_dir.exists()
     assert result.branch == "main"
+
+
+def test_stale_rebase_is_quit_before_crash_evidence_checkpoint(tmp_path):
+    _remote, _seed, vm = _repos(tmp_path)
+    events = vm / "data" / "trade_events.jsonl"
+    events.parent.mkdir()
+    events.write_text('{"ev":"base"}\n', encoding="utf-8")
+    _must_git(vm, "add", "data/trade_events.jsonl")
+    _must_git(vm, "commit", "-m", "data: base evidence")
+    _must_git(vm, "push", "origin", "main")
+    events.write_text(
+        '{"ev":"base"}\n{"ev":"after-crash"}\n',
+        encoding="utf-8",
+    )
+    git_dir = Path(_must_git(vm, "rev-parse", "--git-dir"))
+    if not git_dir.is_absolute():
+        git_dir = vm / git_dir
+    rebase_dir = git_dir / "rebase-merge"
+    rebase_dir.mkdir(parents=True)
+    (rebase_dir / "head-name").write_text("refs/heads/main\n", encoding="utf-8")
+    (rebase_dir / "orig-head").write_text(
+        _must_git(vm, "rev-parse", "HEAD") + "\n",
+        encoding="utf-8",
+    )
+    callback_saw_rebase = []
+
+    def recover(repo):
+        callback_saw_rebase.append(git_sync._rebase_in_progress(repo))
+        return runtime_recovery.prepare_runtime_worktree(
+            repo,
+            timestamp="20260722-160500",
+        )
+
+    result = git_sync.synchronize_repository(
+        vm,
+        publish_local=True,
+        worktree_recovery=recover,
+    )
+
+    assert result.ok is True
+    assert callback_saw_rebase == [False]
+    assert not rebase_dir.exists()
+    assert _must_git(vm, "status", "--porcelain") == ""
+    assert "after-crash" in _must_git(
+        vm, "show", "origin/main:data/trade_events.jsonl"
+    )
 
 
 def test_dirty_worktree_blocks_without_stashing_or_moving_refs(tmp_path):

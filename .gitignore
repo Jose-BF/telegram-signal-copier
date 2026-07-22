@@ -25,6 +25,12 @@ data_backup/
 *.log
 data/runtime_heartbeat.json
 data/runtime_heartbeat.json.tmp
+data/runtime_pending_actions.json
+data/runtime_pending_actions.json.tmp
+data/runtime_pause.json
+data/runtime_pause.json.tmp
+data/runtime_handler_activity.json
+data/runtime_handler_activity.json.tmp
 data/strategy_sim*.json
 
 # Eventos y journal: gitignored por defecto, EXCEPTO los ficheros canónicos

@@ -9,8 +9,11 @@ sin enviar solicitudes repetidas a MT5 hasta que el mercado cumpla la condición
 """
 
 import asyncio
+import json
+import os
 import time
 from dataclasses import dataclass, field, replace
+from pathlib import Path
 from typing import Optional
 
 import MetaTrader5 as mt5
@@ -38,6 +41,10 @@ STOPS_STUCK_THRESHOLD_S = 30
 # es indicacion fuerte de broker/MT5 down. Emitimos anomaly criticla.
 NULL_TICK_STREAK_THRESHOLD = 500   # ~5s a 10ms por ciclo
 BROKER_RETRY_COOLDOWN_S = 1.0
+PENDING_SPOOL_FILE = Path(os.getenv(
+    "BOT_PENDING_ACTIONS_FILE",
+    str(Path(__file__).parent / "data" / "runtime_pending_actions.json"),
+))
 
 
 # ─── Helpers PUROS de Batch E (alertas de loops async atascados) ──────────
@@ -131,11 +138,127 @@ def _record_confirmed_levels(action: PendingAction) -> bool:
 
 
 class PendingQueue:
-    def __init__(self):
+    def __init__(self, spool_path: Path | None = None):
         self._actions: list[PendingAction] = []
         self._task: Optional[asyncio.Task] = None
         self._structural_incidents: dict[tuple, list[PendingAction]] = {}
         self._structural_flush_tasks: dict[tuple, asyncio.Task] = {}
+        self._spool_path = Path(spool_path) if spool_path is not None else None
+
+    @staticmethod
+    def _spool_payload(action: PendingAction) -> dict:
+        return {
+            "kind": action.kind,
+            "ticket": int(action.ticket),
+            "channel": action.signal.channel,
+            "message_id": int(action.signal.message_id),
+            "direction": action.signal.direction,
+            "new_sl": action.new_sl,
+            "new_tp": action.new_tp,
+            "created_at": action.created_at,
+            "timeout_s": action.timeout_s,
+            "applied_tp": action.applied_tp,
+            "label": action.label,
+            "persist_until_signal_close": action.persist_until_signal_close,
+            "revision": action.revision,
+        }
+
+    def _spool_fingerprint(self) -> tuple:
+        return tuple(
+            json.dumps(
+                self._spool_payload(action),
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            for action in self._actions
+        )
+
+    def _persist_spool(self) -> None:
+        if self._spool_path is None:
+            return
+        payload = {
+            "version": 1,
+            "saved_at": time.time(),
+            "actions": [
+                self._spool_payload(action) for action in self._actions
+            ],
+        }
+        self._spool_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self._spool_path.with_name(
+            f"{self._spool_path.name}.tmp"
+        )
+        temporary.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        os.replace(temporary, self._spool_path)
+
+    def restore_from_spool(self, state_manager) -> int:
+        """Restore unresolved MT5 actions after state was rebuilt from MT5."""
+        if self._spool_path is None or not self._spool_path.is_file():
+            return 0
+        try:
+            payload = json.loads(self._spool_path.read_text(encoding="utf-8"))
+            rows = payload.get("actions") or []
+        except (OSError, TypeError, ValueError) as exc:
+            print(f"[Pending] spool ilegible, se conserva para revision: {exc}")
+            return 0
+
+        restored = 0
+        skipped = 0
+        for row in rows:
+            try:
+                channel = str(row["channel"])
+                message_id = int(row["message_id"])
+                signal = state_manager.get(channel, message_id)
+                if signal is None:
+                    signal = Signal(
+                        channel=channel,
+                        message_id=message_id,
+                        direction=str(row["direction"]),
+                    )
+                action = PendingAction(
+                    kind=str(row["kind"]),
+                    ticket=int(row["ticket"]),
+                    signal=signal,
+                    new_sl=row.get("new_sl"),
+                    new_tp=row.get("new_tp"),
+                    created_at=time.time(),
+                    timeout_s=float(row.get("timeout_s") or DEFAULT_TIMEOUT_S),
+                    applied_tp=row.get("applied_tp"),
+                    label=str(row.get("label") or "restored pending action"),
+                    persist_until_signal_close=bool(
+                        row.get("persist_until_signal_close", False)
+                    ),
+                    revision=int(row.get("revision") or 0),
+                )
+            except (KeyError, TypeError, ValueError):
+                skipped += 1
+                continue
+            self._actions.append(action)
+            restored += 1
+            try:
+                import journal
+                journal.event(
+                    f"{channel}_{message_id}",
+                    "mt5_pending_action_restored",
+                    kind=action.kind,
+                    ticket=action.ticket,
+                    new_sl=action.new_sl,
+                    new_tp=action.new_tp,
+                    label=action.label,
+                )
+            except Exception:
+                pass
+
+        self._persist_spool()
+        if restored:
+            print(
+                f"[Pending] Recuperadas {restored} acciones MT5 pendientes "
+                f"tras reinicio (omitidas={skipped})."
+            )
+            self._ensure_runner()
+        return restored
 
     def add(self, action: PendingAction):
         for existing in self._actions:
@@ -174,11 +297,13 @@ class PendingQueue:
                     existing.revision += 1
                 self._log_request(action)
                 self._log_coalesced(existing, changed=changed)
+                self._persist_spool()
                 self._ensure_runner()
                 return
         self._actions.append(action)
         print(f"[Pending] Encolado: {action.label} (ticket={action.ticket})")
         self._log_request(action)
+        self._persist_spool()
         self._ensure_runner()
 
     def _log_coalesced(self, action: PendingAction, *, changed: bool) -> None:
@@ -223,6 +348,7 @@ class PendingQueue:
         null_tick_alerted = False
 
         while self._actions:
+            spool_before = self._spool_fingerprint()
             tick = await asyncio.to_thread(mt5.symbol_info_tick, symbol)
             if not tick:
                 null_tick_streak += 1
@@ -357,6 +483,8 @@ class PendingQueue:
                     still_pending.append(act)
 
             self._actions = still_pending
+            if self._spool_fingerprint() != spool_before:
+                self._persist_spool()
             await asyncio.sleep(0)
 
     @staticmethod
@@ -799,7 +927,7 @@ def _runner_done_callback(task):
         pass
 
 
-queue = PendingQueue()
+queue = PendingQueue(spool_path=PENDING_SPOOL_FILE)
 
 
 def snapshot(queue_obj: PendingQueue | None = None,

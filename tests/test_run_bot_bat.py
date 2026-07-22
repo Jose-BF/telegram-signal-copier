@@ -1,10 +1,11 @@
 from pathlib import Path
 
 
-def test_final_backup_delegates_to_watcher_cli_only():
+def test_crash_backup_uses_fast_recovery_checkpoint_only():
     text = Path("run_bot.bat").read_text(encoding="utf-8")
 
-    assert r"python -u tools\run_bot_watch.py --final-backup" in text
+    assert r"python -u tools\run_bot_watch.py --recovery-checkpoint" in text
+    assert r"python -u tools\run_bot_watch.py --final-backup" not in text
     assert "git pull --rebase" not in text
     assert "git push origin main" not in text
     assert "python -c \"import tools.run_bot_watch" not in text

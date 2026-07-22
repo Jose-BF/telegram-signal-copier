@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
+
+
+GIT_TIMEOUT_SEC = float(os.getenv("BOT_GIT_TIMEOUT_SEC", "15"))
 
 
 @dataclass(frozen=True)
@@ -37,14 +41,31 @@ def _run_git(
     repo_dir: Path,
     *args: str,
     capture: bool = True,
+    timeout_sec: float | None = None,
 ) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        ["git", *args],
-        cwd=Path(repo_dir),
-        capture_output=capture,
-        text=True,
-        check=False,
+    command = ["git", *args]
+    effective_timeout = (
+        GIT_TIMEOUT_SEC if timeout_sec is None else float(timeout_sec)
     )
+    try:
+        return subprocess.run(
+            command,
+            cwd=Path(repo_dir),
+            capture_output=capture,
+            text=True,
+            check=False,
+            timeout=effective_timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        return subprocess.CompletedProcess(
+            command,
+            returncode=124,
+            stdout=exc.stdout or "",
+            stderr=(
+                f"git {' '.join(args)} timed out after "
+                f"{effective_timeout:g}s"
+            ),
+        )
 
 
 def _output(repo_dir: Path, *args: str) -> str | None:
@@ -153,13 +174,71 @@ def _local_commits_are_data_only(
             return False
     return True
 
+
+def runtime_head_is_safe(
+    repo_dir: Path,
+    *,
+    remote: str = "origin",
+    branch: str = "main",
+) -> bool:
+    """Allow runtime when code is identical and refs differ only by data."""
+    repo_dir = Path(repo_dir)
+    if _rebase_in_progress(repo_dir) or _branch(repo_dir) != branch:
+        return False
+    if _output(repo_dir, "status", "--porcelain") != "":
+        return False
+
+    local = _head(repo_dir)
+    remote_head = _head(repo_dir, f"{remote}/{branch}")
+    if local is None or remote_head is None:
+        return False
+    if local == remote_head:
+        return True
+    if _is_ancestor(repo_dir, remote_head, local):
+        return _local_commits_are_data_only(repo_dir, remote_head, local)
+    if _is_ancestor(repo_dir, local, remote_head):
+        return _local_commits_are_data_only(repo_dir, local, remote_head)
+
+    merge_base = _output(repo_dir, "merge-base", local, remote_head)
+    if not merge_base:
+        return False
+    return (
+        _local_commits_are_data_only(repo_dir, merge_base, local)
+        and _local_commits_are_data_only(repo_dir, merge_base, remote_head)
+    )
+
+
+def local_data_commits_are_publishable(
+    repo_dir: Path,
+    *,
+    remote: str = "origin",
+    branch: str = "main",
+) -> bool:
+    """Return whether HEAD can be pushed without touching the live worktree."""
+    repo_dir = Path(repo_dir)
+    local = _head(repo_dir)
+    remote_head = _head(repo_dir, f"{remote}/{branch}")
+    return bool(
+        local
+        and remote_head
+        and local != remote_head
+        and _is_ancestor(repo_dir, remote_head, local)
+        and _local_commits_are_data_only(repo_dir, remote_head, local)
+    )
+
 def _rescue_branch(repo_dir: Path, head: str) -> str | None:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     short = head[:8]
     base = f"vm-rescue-{stamp}-{short}"
-    for suffix in range(100):
+    for suffix in range(3):
         name = base if suffix == 0 else f"{base}-{suffix}"
-        result = _run_git(repo_dir, "branch", name, head)
+        result = _run_git(
+            repo_dir,
+            "branch",
+            name,
+            head,
+            timeout_sec=min(GIT_TIMEOUT_SEC, 5.0),
+        )
         if result.returncode == 0:
             return name
     return None
@@ -194,6 +273,7 @@ def synchronize_repository(
     branch: str = "main",
     publish_local: bool = True,
     progress_callback: Callable[[str], None] | None = None,
+    worktree_recovery: Callable[[Path], object] | None = None,
 ) -> SyncResult:
     repo_dir = Path(repo_dir)
     remote_ref = f"{remote}/{branch}"
@@ -218,6 +298,30 @@ def synchronize_repository(
                 repo_dir,
                 "rebase_quit_failed",
                 quit_result.stderr or quit_result.stdout,
+                rescue_branch=rescue,
+            )
+
+    if worktree_recovery is not None:
+        _notify(progress_callback, "recover")
+        try:
+            recovery = worktree_recovery(repo_dir)
+        except Exception as exc:
+            return _failure(
+                repo_dir,
+                "runtime_recovery_failed",
+                str(exc),
+                rescue_branch=rescue,
+            )
+        if not bool(getattr(recovery, "ok", False)):
+            action = str(getattr(recovery, "action", "runtime_recovery_failed"))
+            error = str(getattr(recovery, "error", "runtime recovery failed"))
+            unsafe_paths = tuple(getattr(recovery, "unsafe_paths", ()) or ())
+            if unsafe_paths:
+                error = f"{error}; paths: {', '.join(unsafe_paths)}"
+            return _failure(
+                repo_dir,
+                action,
+                error,
                 rescue_branch=rescue,
             )
 

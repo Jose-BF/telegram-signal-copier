@@ -51,6 +51,7 @@ import live_auditor
 import pending_actions
 from listener import client, notify, poll_loop, _is_transient_telegram_history_error
 from parser import predict_sl_from_entry
+from state import state
 
 _freeze_traceback_file_handle = None
 _freeze_traceback_file_path: Path | None = None
@@ -1281,7 +1282,7 @@ def _git_info() -> dict:
         try:
             return subprocess.check_output(
                 args, cwd=Path(__file__).parent,
-                stderr=subprocess.DEVNULL, text=True).strip()
+                stderr=subprocess.DEVNULL, text=True, timeout=10).strip()
         except Exception:
             return None
 
@@ -1309,8 +1310,12 @@ def _git_info() -> dict:
     }
 
 
-def _watcher_attestation_error(git_info: dict,
-                               expected_head: str | None) -> str | None:
+def _watcher_attestation_error(
+    git_info: dict,
+    expected_head: str | None,
+    *,
+    allow_remote_mismatch: bool = False,
+) -> str | None:
     """Return why this process is not the exact build verified by the watcher."""
     if not expected_head:
         return "sin atestacion del supervisor"
@@ -1322,7 +1327,7 @@ def _watcher_attestation_error(git_info: dict,
             f"HEAD={(local_head or 'desconocido')[:8]} no coincide con "
             f"watcher={expected_head[:8]}"
         )
-    if remote_head != expected_head:
+    if remote_head != expected_head and not allow_remote_mismatch:
         return (
             f"origin/main={(remote_head or 'desconocido')[:8]} no coincide "
             f"con watcher={expected_head[:8]}"
@@ -1358,24 +1363,31 @@ def _startup_status_message(git_info: dict) -> str:
     """Build the concise production-version confirmation sent to the owner."""
     commit = git_info.get("git_commit") or "desconocida"
     branch = git_info.get("git_branch") or "desconocida"
-    verified = (
+    synced = (
         git_info.get("git_synced") is True
         and commit != "desconocida"
         and branch == "main"
         and git_info.get("git_dirty") is False
     )
-    code_status = (
-        "limpio y sincronizado"
-        if verified
-        else "estado local sin verificar"
+    runtime_verified = (
+        git_info.get("git_runtime_verified") is True
+        and commit != "desconocida"
+        and branch == "main"
+        and git_info.get("git_dirty") is False
     )
+    if synced:
+        code_status = "limpio y sincronizado"
+    elif runtime_verified:
+        code_status = "verificado; datos pendientes de subir"
+    else:
+        code_status = "estado local sin verificar"
     lines = [
         "BOT ACTIVO",
         f"Version: {commit}",
         f"Rama: {branch}",
         f"Codigo: {code_status}",
     ]
-    if not verified and git_info.get("git_verification_error"):
+    if not runtime_verified and git_info.get("git_verification_error"):
         lines.append(f"Motivo: {git_info['git_verification_error']}")
     lines.extend([
         "MT5: conectado",
@@ -1397,9 +1409,17 @@ async def main():
     # Run this before MT5 and Telegram so an unsafe process cannot trade.
     git_info = _git_info()
     expected_head = os.getenv("BOT_WATCHER_VERIFIED_HEAD")
-    verification_error = _watcher_attestation_error(git_info, expected_head)
+    allow_remote_mismatch = os.getenv("BOT_WATCHER_RUNTIME_SAFE") == "1"
+    verification_error = _watcher_attestation_error(
+        git_info,
+        expected_head,
+        allow_remote_mismatch=allow_remote_mismatch,
+    )
     git_info["git_verification_error"] = verification_error
-    git_info["git_synced"] = verification_error is None
+    git_info["git_runtime_verified"] = verification_error is None
+    git_info["git_synced"] = bool(
+        git_info.get("git_synced") is True and verification_error is None
+    )
     if verification_error:
         print(f"[Startup] ARRANQUE BLOQUEADO: {verification_error}")
         print("[Startup] Usa run_bot.bat; no ejecutes main.py directamente.")
@@ -1436,6 +1456,7 @@ async def main():
     # Resync posiciones huérfanas: si el bot reinició dejando posiciones
     # abiertas en MT5, las recoge para que auto-finalize las trackee.
     _resync_orphan_positions()
+    pending_actions.queue.restore_from_spool(state)
 
     # Finaliza huerfanos del journal: senales que cerraron en MT5 mientras
     # el bot no las trackeaba (reinicio + posiciones ya cerradas). Registra

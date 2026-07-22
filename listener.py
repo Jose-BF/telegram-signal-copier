@@ -14,9 +14,11 @@ Canal 1 flujo:
 
 import asyncio
 import hashlib
+import json
 import re
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from types import SimpleNamespace
 
 from telethon import TelegramClient, events
@@ -28,6 +30,7 @@ import journal
 import logger
 import position_lifecycle_monitor
 import pending_actions
+import runtime_control
 import strategies
 import telegram_notifications
 from classifier import classify, classify_async
@@ -3672,13 +3675,13 @@ def _msg_diag(msg, channel: str, kind: str):
 @client.on(events.NewMessage(chats=[config.CANAL_2_ID]))
 async def canal2_new(event):
     _msg_diag(event.message, "canal2", "new")
-    await _process_canal2_new(event.message)
+    await _dispatch_telegram_message(event.message, "canal2", "new")
 
 
 @client.on(events.MessageEdited(chats=[config.CANAL_2_ID]))
 async def canal2_edit(event):
     _msg_diag(event.message, "canal2", "edit")
-    await _process_canal2_edit(event.message)
+    await _dispatch_telegram_message(event.message, "canal2", "edit")
 
 
 # ─── Helpers PUROS de la estrategia C — CLOSE_FIRST canal2 (rescate BE) ───
@@ -4059,7 +4062,7 @@ async def _process_canal1_new(msg):
 @client.on(events.NewMessage(chats=[config.CANAL_1_ID]))
 async def canal1_new(event):
     _msg_diag(event.message, "canal1", "new")
-    await _process_canal1_new(event.message)
+    await _dispatch_telegram_message(event.message, "canal1", "new")
 
 
 async def _process_canal1_edit(msg):
@@ -4187,7 +4190,7 @@ async def _process_canal1_edit(msg):
 @client.on(events.MessageEdited(chats=[config.CANAL_1_ID]))
 async def canal1_edit(event):
     _msg_diag(event.message, "canal1", "edit")
-    await _process_canal1_edit(event.message)
+    await _dispatch_telegram_message(event.message, "canal1", "edit")
 
 
 @client.on(events.MessageDeleted(chats=[config.CANAL_1_ID, config.CANAL_2_ID]))
@@ -4953,6 +4956,11 @@ async def _send_sim_data(event, canal_num: str, direction: str,
 
 _POLL_INTERVAL_S = 0.5   # segundos de sleep entre ciclos de poll
 _POLL_MSG_LIMIT  = 10    # últimos N mensajes a revisar por canal en cada ciclo
+_POLL_STARTUP_SCAN_LIMIT = 200
+_POLL_STARTUP_MAX_MESSAGES = 2000
+_POLL_COVERAGE_LOG_INTERVAL_S = 300
+_POLL_COVERAGE_OVERLAP_S = 120
+_POLL_LEGACY_COVERAGE_LOOKBACK_S = 24 * 60 * 60
 
 # Estado del poller: (channel, msg_id) → edit_date de la última versión vista.
 # "UNSEEN" indica que el mensaje aún no fue registrado en el primer scan.
@@ -5030,6 +5038,544 @@ def _poller_clear_history_backoff(channel_name: str) -> None:
             failures=failures,
         )
 _poller_msg_state: dict[tuple, object] = {}  # (channel, msg_id) → edit_date
+_poller_initialized_channels: set[str] = set()
+_poller_last_coverage_log: dict[str, float] = {}
+
+
+def _as_utc_datetime(value) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    if not isinstance(value, datetime):
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _poller_message_edit_token(msg) -> str | None:
+    edit_date = _as_utc_datetime(getattr(msg, "edit_date", None))
+    return edit_date.isoformat(timespec="seconds") if edit_date else None
+
+
+def _load_poller_startup_history(
+    channel_name: str,
+    channel_id: int,
+    *,
+    path: Path | None = None,
+) -> dict:
+    """Load the previous coverage boundary and Telegram revisions from JSONL."""
+    path = Path(path or journal.EVENTS_FILE)
+    message_versions: dict[int, str | None] = {}
+    raw_revisions: dict[tuple[int, str], datetime | None] = {}
+    raw_revision_dates: dict[tuple[int, str], datetime | None] = {}
+    processed_revisions: set[tuple[int, str]] = set()
+    previous_event_ts = None
+    fallback_coverage_cutoff = None
+    explicit_coverage_cutoff = None
+    processing_contract_utc = None
+    if not path.is_file():
+        return {
+            "has_channel_history": False,
+            "coverage_cutoff": None,
+            "message_versions": message_versions,
+            "raw_revisions": raw_revisions,
+            "processed_revisions": processed_revisions,
+            "processing_contract_utc": None,
+        }
+
+    with path.open("r", encoding="utf-8", errors="replace") as source:
+        for raw_line in source:
+            try:
+                row = json.loads(raw_line)
+            except (TypeError, ValueError):
+                continue
+            row_ts = _as_utc_datetime(row.get("ts"))
+            if row.get("ev") == "session_started":
+                fallback_coverage_cutoff = (
+                    previous_event_ts - timedelta(
+                        seconds=_POLL_LEGACY_COVERAGE_LOOKBACK_S
+                    )
+                    if previous_event_ts is not None
+                    else None
+                )
+            if row_ts is not None:
+                previous_event_ts = row_ts
+
+            if (
+                row.get("ev") == "telegram_processing_contract"
+                and row.get("channel") == channel_name
+            ):
+                try:
+                    contract_channel_id = int(row.get("channel_id"))
+                except (TypeError, ValueError):
+                    contract_channel_id = None
+                activated = _as_utc_datetime(
+                    row.get("activated_utc") or row.get("ts")
+                )
+                if (
+                    contract_channel_id == int(channel_id)
+                    and activated is not None
+                ):
+                    processing_contract_utc = activated
+
+            if (
+                row.get("ev") == "telegram_poll_coverage"
+                and row.get("channel") == channel_name
+            ):
+                try:
+                    coverage_channel_id = int(row.get("channel_id"))
+                except (TypeError, ValueError):
+                    coverage_channel_id = None
+                covered_through = _as_utc_datetime(
+                    row.get("covered_through_utc")
+                )
+                if (
+                    coverage_channel_id == int(channel_id)
+                    and covered_through is not None
+                ):
+                    explicit_coverage_cutoff = covered_through
+
+            if row.get("channel") != channel_name:
+                continue
+            try:
+                row_chat_id = int(row.get("chat_id"))
+                message_id = int(row.get("message_id"))
+            except (TypeError, ValueError):
+                continue
+            if row_chat_id != int(channel_id):
+                continue
+            if row.get("ev") == "telegram_raw":
+                edit_token = row.get("edit_date_utc") or "new"
+                revision = (message_id, str(edit_token))
+                message_versions[message_id] = row.get("edit_date_utc")
+                raw_revisions[revision] = row_ts
+                raw_revision_dates[revision] = _as_utc_datetime(
+                    row.get("date_utc")
+                )
+            elif row.get("ev") == "telegram_processed":
+                revision_token = str(row.get("revision_token") or "new")
+                processed_revisions.add((message_id, revision_token))
+
+    for revision, captured_at in raw_revisions.items():
+        if (
+            processing_contract_utc is None
+            or (
+                captured_at is not None
+                and captured_at < processing_contract_utc
+            )
+        ):
+            processed_revisions.add(revision)
+
+    coverage_cutoff = (
+        explicit_coverage_cutoff
+        if explicit_coverage_cutoff is not None
+        else fallback_coverage_cutoff
+    )
+    unprocessed_revisions = set(raw_revisions) - processed_revisions
+    unresolved_dates = []
+    for revision in unprocessed_revisions:
+        message_date = raw_revision_dates.get(revision)
+        if message_date is None:
+            captured_at = raw_revisions.get(revision)
+            if captured_at is not None:
+                message_date = captured_at - timedelta(
+                    seconds=_POLL_LEGACY_COVERAGE_LOOKBACK_S
+                )
+        if message_date is not None:
+            unresolved_dates.append(message_date)
+    if unresolved_dates:
+        unresolved_cutoff = min(unresolved_dates) - timedelta(
+            seconds=_POLL_COVERAGE_OVERLAP_S
+        )
+        coverage_cutoff = (
+            unresolved_cutoff
+            if coverage_cutoff is None
+            else min(coverage_cutoff, unresolved_cutoff)
+        )
+    return {
+        "has_channel_history": bool(message_versions)
+        or bool(processed_revisions)
+        or explicit_coverage_cutoff is not None,
+        "coverage_cutoff": coverage_cutoff,
+        "message_versions": message_versions,
+        "raw_revisions": raw_revisions,
+        "unprocessed_revisions": unprocessed_revisions,
+        "processed_revisions": processed_revisions,
+        "processing_contract_utc": processing_contract_utc,
+    }
+
+
+def _poller_record_coverage(
+    channel_name: str,
+    channel_id: int,
+    observed_at: datetime,
+    messages: list,
+    *,
+    force: bool = False,
+) -> None:
+    """Persist a conservative per-channel watermark without logging each poll."""
+    monotonic_now = time.monotonic()
+    previous = _poller_last_coverage_log.get(channel_name)
+    if (
+        not force
+        and previous is not None
+        and monotonic_now - previous < _POLL_COVERAGE_LOG_INTERVAL_S
+    ):
+        return
+
+    observed_utc = _as_utc_datetime(observed_at) or datetime.now(timezone.utc)
+    covered_through = observed_utc - timedelta(
+        seconds=_POLL_COVERAGE_OVERLAP_S
+    )
+    message_ids = [int(msg.id) for msg in messages]
+    journal.event(
+        "bot",
+        "telegram_poll_coverage",
+        channel=channel_name,
+        channel_id=int(channel_id),
+        covered_through_utc=covered_through.isoformat(),
+        overlap_sec=_POLL_COVERAGE_OVERLAP_S,
+        observed_messages=len(message_ids),
+        latest_message_id=max(message_ids) if message_ids else None,
+    )
+    _poller_last_coverage_log[channel_name] = monotonic_now
+
+
+def _poller_startup_action(msg, history: dict) -> str:
+    """Return baseline, seen, new or edit for one startup history message."""
+    if not history.get("has_channel_history"):
+        return "baseline"
+
+    message_id = int(msg.id)
+    current_edit = _poller_message_edit_token(msg)
+    current_revision = (message_id, current_edit or "new")
+    if "processed_revisions" in history:
+        processed_revisions = set(history.get("processed_revisions") or ())
+        if current_revision in processed_revisions:
+            return "seen"
+        processed_for_message = {
+            token for known_id, token in processed_revisions
+            if known_id == message_id
+        }
+        if processed_for_message:
+            return "edit" if current_edit is not None else "seen"
+        raw_revisions = set((history.get("raw_revisions") or {}).keys())
+        if current_revision in raw_revisions:
+            return "new"
+
+    versions = history.get("message_versions") or {}
+    if message_id in versions:
+        if current_edit is not None and current_edit != versions[message_id]:
+            return "edit"
+        return "seen"
+
+    cutoff = _as_utc_datetime(history.get("coverage_cutoff"))
+    message_date = _as_utc_datetime(getattr(msg, "date", None))
+    if cutoff is not None and message_date is not None and message_date > cutoff:
+        return "new"
+    return "baseline"
+
+
+def _telegram_revision_token(msg) -> str:
+    return _poller_message_edit_token(msg) or "new"
+
+
+def _message_chat_id(msg, channel_name: str) -> int:
+    value = getattr(msg, "chat_id", None)
+    if value is not None:
+        return int(value)
+    return int(
+        config.CANAL_2_ID if channel_name == "canal2" else config.CANAL_1_ID
+    )
+
+
+async def _dispatch_telegram_message(
+    msg,
+    channel_name: str,
+    update_kind: str,
+    *,
+    label: str | None = None,
+) -> bool:
+    """Dispatch once and acknowledge only after durable handler completion."""
+    if not runtime_control.begin_handler():
+        journal.event(
+            f"{channel_name}_{msg.id}",
+            "telegram_deferred_for_restart",
+            channel=channel_name,
+            chat_id=_message_chat_id(msg, channel_name),
+            message_id=int(msg.id),
+            update_kind=update_kind,
+        )
+        return False
+
+    revision_token = _telegram_revision_token(msg)
+    try:
+        if not await asyncio.to_thread(journal.flush_events, 2.0):
+            print(
+                f"[Telegram] No se pudo confirmar el registro raw de "
+                f"{channel_name}_{msg.id}; se reintentara.",
+                flush=True,
+            )
+            return False
+        if update_kind == "new":
+            claimed_before = (channel_name, msg.id) in _seen_new_msg_ids
+            if channel_name == "canal2":
+                await _process_canal2_new(msg, label=label or "Canal2")
+            else:
+                await _process_canal1_new(msg)
+        else:
+            edit_date = getattr(msg, "edit_date", None)
+            edit_key = (
+                channel_name,
+                msg.id,
+                edit_date.isoformat()
+                if edit_date is not None else revision_token,
+            )
+            claimed_before = edit_key in _seen_edits
+            if channel_name == "canal2":
+                await _process_canal2_edit(msg, label=label or "Canal2")
+            else:
+                await _process_canal1_edit(msg)
+
+        if claimed_before:
+            return True
+        journal.event(
+            f"{channel_name}_{msg.id}",
+            "telegram_processed",
+            channel=channel_name,
+            chat_id=_message_chat_id(msg, channel_name),
+            message_id=int(msg.id),
+            update_kind=update_kind,
+            revision_token=revision_token,
+        )
+        if not await asyncio.to_thread(journal.flush_events, 2.0):
+            print(
+                f"[Telegram] Procesado sin confirmacion durable para "
+                f"{channel_name}_{msg.id}; se reintentara.",
+                flush=True,
+            )
+            return False
+        return True
+    finally:
+        runtime_control.end_handler()
+
+
+async def _poller_fetch_startup_messages(
+    channel_id: int,
+    channel_name: str,
+    history: dict,
+) -> tuple[list, bool]:
+    """Fetch backward until the previous journal coverage boundary is reached."""
+    del channel_name  # Included for diagnostic-friendly call sites.
+    fetched: list = []
+    seen_ids: set[int] = set()
+    offset_id = None
+    cutoff = _as_utc_datetime(history.get("coverage_cutoff"))
+
+    while True:
+        kwargs = {"offset_id": offset_id} if offset_id is not None else {}
+        page = await client.get_messages(
+            channel_id,
+            limit=_POLL_STARTUP_SCAN_LIMIT,
+            **kwargs,
+        )
+        if not page:
+            return fetched, True
+
+        new_page = [msg for msg in page if int(msg.id) not in seen_ids]
+        if not new_page:
+            return fetched, False
+        fetched.extend(new_page)
+        seen_ids.update(int(msg.id) for msg in new_page)
+
+        if not history.get("has_channel_history"):
+            return fetched, True
+        page_dates = [
+            parsed
+            for msg in new_page
+            if (parsed := _as_utc_datetime(getattr(msg, "date", None)))
+            is not None
+        ]
+        oldest_date = min(page_dates) if page_dates else None
+        if (
+            len(page) < _POLL_STARTUP_SCAN_LIMIT
+            or cutoff is None
+            or oldest_date is None
+            or oldest_date <= cutoff
+        ):
+            return fetched, True
+        if len(fetched) >= _POLL_STARTUP_MAX_MESSAGES:
+            return fetched, False
+
+        next_offset = min(int(msg.id) for msg in new_page)
+        if next_offset == offset_id:
+            return fetched, False
+        offset_id = next_offset
+
+
+async def _poller_initial_scan_channel(
+    channel_id: int,
+    channel_name: str,
+) -> bool:
+    if _poller_in_history_backoff(channel_name):
+        return False
+    history = _load_poller_startup_history(channel_name, channel_id)
+    scan_started_utc = datetime.now(timezone.utc)
+    if history.get("processing_contract_utc") is None:
+        journal.event(
+            "bot",
+            "telegram_processing_contract",
+            channel=channel_name,
+            channel_id=int(channel_id),
+            activated_utc=scan_started_utc.isoformat(),
+        )
+        history["processing_contract_utc"] = scan_started_utc
+    try:
+        msgs, coverage_complete = await _poller_fetch_startup_messages(
+            channel_id,
+            channel_name,
+            history,
+        )
+        _poller_clear_history_backoff(channel_name)
+    except Exception as exc:
+        if _is_transient_telegram_history_error(exc):
+            _poller_record_history_backoff(channel_name, "initial_scan", exc)
+            return False
+        print(f"[Poller] Error scan inicial {channel_name}: {exc}")
+        return False
+
+    if not coverage_complete:
+        journal.anomaly(
+            "bot",
+            "telegram",
+            "critical",
+            "startup catch-up excedio el limite sin alcanzar la cobertura previa",
+            channel=channel_name,
+            channel_id=channel_id,
+            fetched=len(msgs),
+            limit=_POLL_STARTUP_MAX_MESSAGES,
+        )
+        await notify(
+            "ATENCION: no pude revisar todo el intervalo sin conexion de "
+            f"{provider_display_name(channel_name)}. El canal sigue protegido "
+            "por los eventos en vivo, pero hace falta revisar el historial."
+        )
+        return False
+
+    counts = {"baseline": 0, "seen": 0, "new": 0, "edit": 0}
+    for msg in reversed(msgs):
+        action = _poller_startup_action(msg, history)
+        counts[action] += 1
+        key = (channel_name, msg.id)
+
+        if action in {"baseline", "seen"}:
+            _poller_msg_state[key] = msg.edit_date
+            _new_msg_already_seen(channel_name, msg.id)
+            if msg.edit_date:
+                _edit_already_seen(channel_name, msg)
+            continue
+
+        if action == "new":
+            _msg_diag(msg, channel_name, "startup_catchup_new")
+            dispatched = await _dispatch_telegram_message(
+                msg,
+                channel_name,
+                "new",
+                label="Canal2_catchup" if channel_name == "canal2" else None,
+            )
+        else:
+            _msg_diag(msg, channel_name, "startup_catchup_edit")
+            dispatched = await _dispatch_telegram_message(
+                msg,
+                channel_name,
+                "edit",
+                label="Canal2_catchup" if channel_name == "canal2" else None,
+            )
+        if dispatched is False:
+            print(
+                f"[Poller] {channel_name}: recuperacion pausada en "
+                f"mensaje {msg.id}; se reintentara sin avanzar cobertura.",
+                flush=True,
+            )
+            return False
+        _poller_msg_state[key] = msg.edit_date
+
+    _poller_initialized_channels.add(channel_name)
+    cutoff = history.get("coverage_cutoff")
+    journal.event(
+        "bot",
+        "poller_startup_scan",
+        channel=channel_name,
+        channel_id=channel_id,
+        history_known=history.get("has_channel_history", False),
+        coverage_cutoff=(cutoff.isoformat() if cutoff else None),
+        fetched=len(msgs),
+        **{f"count_{key}": value for key, value in counts.items()},
+    )
+    print(
+        f"[Poller] {channel_name}: {len(msgs)} revisados | "
+        f"recuperados={counts['new']} edits={counts['edit']} | "
+        f"ya vistos={counts['seen']} base={counts['baseline']}"
+    )
+    _poller_record_coverage(
+        channel_name,
+        channel_id,
+        scan_started_utc,
+        msgs,
+        force=True,
+    )
+    return True
+
+
+async def _poller_poll_or_initialize(channel_id: int, channel_name: str):
+    if channel_name not in _poller_initialized_channels:
+        await _poller_initial_scan_channel(channel_id, channel_name)
+        return
+    await _poll_channel(channel_id, channel_name)
+
+
+async def _poller_expand_active_messages(
+    channel_id: int,
+    channel_name: str,
+    initial_messages: list,
+) -> tuple[list, bool]:
+    """Page backwards when a burst fills the active ten-message window."""
+    fetched = list(initial_messages)
+    seen_ids = {int(msg.id) for msg in fetched}
+
+    def reached_known(messages: list) -> bool:
+        return any(
+            (channel_name, int(msg.id)) in _poller_msg_state
+            for msg in messages
+        )
+
+    page = list(initial_messages)
+    if len(page) < _POLL_MSG_LIMIT or reached_known(page):
+        return fetched, True
+
+    while len(fetched) < _POLL_STARTUP_MAX_MESSAGES:
+        offset_id = min(int(msg.id) for msg in page)
+        page = list(await client.get_messages(
+            channel_id,
+            limit=_POLL_MSG_LIMIT,
+            offset_id=offset_id,
+        ))
+        if not page:
+            return fetched, True
+        new_page = [msg for msg in page if int(msg.id) not in seen_ids]
+        if not new_page:
+            return fetched, False
+        fetched.extend(new_page)
+        seen_ids.update(int(msg.id) for msg in new_page)
+        if len(page) < _POLL_MSG_LIMIT or reached_known(new_page):
+            return fetched, True
+        page = new_page
+    return fetched, False
 
 
 async def _poll_channel(channel_id: int, channel_name: str):
@@ -5046,8 +5592,17 @@ async def _poll_channel(channel_id: int, channel_name: str):
     if _poller_in_history_backoff(channel_name):
         return
 
+    poll_started_utc = datetime.now(timezone.utc)
     try:
-        msgs = await client.get_messages(channel_id, limit=_POLL_MSG_LIMIT)
+        initial_msgs = await client.get_messages(
+            channel_id,
+            limit=_POLL_MSG_LIMIT,
+        )
+        msgs, coverage_complete = await _poller_expand_active_messages(
+            channel_id,
+            channel_name,
+            list(initial_msgs),
+        )
         _poller_clear_history_backoff(channel_name)
     except Exception as e:
         if _is_transient_telegram_history_error(e):
@@ -5056,6 +5611,7 @@ async def _poll_channel(channel_id: int, channel_name: str):
         print(f"[Poller] Error get_messages {channel_name}: {e}")
         return
 
+    all_dispatched = True
     for msg in reversed(msgs):  # oldest-first = orden cronológico natural
         key = (channel_name, msg.id)
         edit_date = msg.edit_date
@@ -5063,7 +5619,6 @@ async def _poll_channel(channel_id: int, channel_name: str):
 
         if prev is _POLLER_UNSEEN:
             # Primera vez que vemos este mensaje desde el poller.
-            _poller_msg_state[key] = edit_date
             # CRITICAL FIX (sesion 2026-05-08): NO pre-marcar via
             # _new_msg_already_seen aqui. Bug raiz: pre-marcar provocaba
             # que el handler _process_canal1_new (que tiene su propio
@@ -5077,18 +5632,49 @@ async def _poll_channel(channel_id: int, channel_name: str):
             # (que es el unico que llama _new_msg_already_seen). Eso
             # garantiza single-processing sin race con el poller.
             _msg_diag(msg, channel_name, "poll_new")
-            if channel_name == "canal2":
-                await _process_canal2_new(msg, label="Canal2_poll")
-            else:
-                await _process_canal1_new(msg)
+            dispatched = await _dispatch_telegram_message(
+                msg,
+                channel_name,
+                "new",
+                label="Canal2_poll" if channel_name == "canal2" else None,
+            )
+            if dispatched is False:
+                all_dispatched = False
+                break
+            _poller_msg_state[key] = edit_date
 
         elif edit_date != prev:
             # Mensaje editado desde el último poll
+            _msg_diag(msg, channel_name, "poll_edit")
+            dispatched = await _dispatch_telegram_message(
+                msg,
+                channel_name,
+                "edit",
+                label="Canal2_poll" if channel_name == "canal2" else None,
+            )
+            if dispatched is False:
+                all_dispatched = False
+                break
             _poller_msg_state[key] = edit_date
-            if channel_name == "canal2":
-                _msg_diag(msg, channel_name, "poll_edit")
-                await _process_canal2_edit(msg, label="Canal2_poll")
-            # Canal 1 no usa edits para señales → no hace falta dispatch
+
+    if coverage_complete and all_dispatched:
+        _poller_record_coverage(
+            channel_name,
+            channel_id,
+            poll_started_utc,
+            list(msgs),
+        )
+    elif not coverage_complete:
+        journal.anomaly(
+            "bot",
+            "telegram",
+            "critical",
+            "active poll excedio el limite sin alcanzar un mensaje conocido",
+            channel=channel_name,
+            channel_id=channel_id,
+            fetched=len(msgs),
+            limit=_POLL_STARTUP_MAX_MESSAGES,
+        )
 
 
 async def poll_loop():
@@ -5097,11 +5683,11 @@ async def poll_loop():
     Corre en paralelo con los event handlers de Telethon (no los reemplaza).
     Resuelve el delay estructural de Canal 2 causado por updateChannelTooLong.
 
-    Fase 1 — scan inicial (sin procesar):
-        Lee los mensajes recientes de ambos canales y los marca como "ya
-        vistos" sin despacharlos. Esto evita que el bot re-procese señales
-        activas o históricas cuando arranca o reinicia. También marca los
-        edits como vistos para no re-aplicar SL/TPs de señales previas.
+    Fase 1 — recuperación desde el último punto cubierto:
+        Contrasta los mensajes recientes con telegram_raw. Lo ya registrado
+        se marca como visto; mensajes o edits posteriores al último evento de
+        la sesión anterior se despachan en orden. En un canal sin historial se
+        establece una línea base para no reabrir señales antiguas.
 
     Fase 2 — polling activo:
         Cada POLL_INTERVAL_S segundos revisa ambos canales. Solo procesa
@@ -5115,28 +5701,10 @@ async def poll_loop():
         (config.CANAL_1_ID, "canal1"),
     ]
 
-    # ── Fase 1: scan inicial ────────────────────────────────────────────────
-    print("[Poller] Scan inicial — marcando mensajes recientes como vistos...")
+    # ── Fase 1: scan inicial con recuperación del intervalo sin cobertura ──
+    print("[Poller] Scan inicial — comprobando mensajes durante la parada...")
     for channel_id, channel_name in watched:
-        if _poller_in_history_backoff(channel_name):
-            continue
-        try:
-            msgs = await client.get_messages(channel_id, limit=_POLL_MSG_LIMIT)
-            _poller_clear_history_backoff(channel_name)
-            for msg in msgs:
-                key = (channel_name, msg.id)
-                _poller_msg_state[key] = msg.edit_date
-                # Marcar como "visto" en los sets globales de dedup
-                _new_msg_already_seen(channel_name, msg.id)
-                if msg.edit_date:
-                    _edit_already_seen(channel_name, msg)
-            print(f"[Poller] {channel_name}: {len(msgs)} mensajes marcados "
-                  f"(sin procesar — señales previas)")
-        except Exception as e:
-            if _is_transient_telegram_history_error(e):
-                _poller_record_history_backoff(channel_name, "initial_scan", e)
-                continue
-            print(f"[Poller] Error scan inicial {channel_name}: {e}")
+        await _poller_initial_scan_channel(channel_id, channel_name)
 
     print(f"[Poller] Activo. Polling cada {_POLL_INTERVAL_S}s | "
           f"canales: {[c for _, c in watched]} | limit={_POLL_MSG_LIMIT}")
@@ -5154,7 +5722,7 @@ async def poll_loop():
     while True:
         await asyncio.sleep(_POLL_INTERVAL_S)
         await asyncio.gather(*[
-            _poll_channel(channel_id, channel_name)
+            _poller_poll_or_initialize(channel_id, channel_name)
             for channel_id, channel_name in watched
         ])
 

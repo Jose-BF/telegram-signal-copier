@@ -5,14 +5,14 @@ Uso:
     python tools/run_bot_watch.py
 
 Funcionamiento:
-  1. Normaliza Git antes de arrancar y verifica main == origin/main.
-  2. Solo lanza main.py cuando no hay rebase pendiente ni HEAD separado.
+  1. Normaliza Git antes de arrancar y verifica que el codigo sea seguro.
+  2. Exige main limpio y sin rebase; permite diferencias data: pendientes.
   3. Cada 60 s consulta origin/main; publica commits data: locales o activa
      la nueva version remota mediante una ruta determinista y comprobada.
-  4. Antes de reiniciar o cerrar, regenera los artefactos de sesion dentro
-     de una transaccion y publica los datos por esa misma ruta Git.
-  5. Si no puede garantizar el estado, preserva un rescate, no lanza el bot
-     y devuelve el codigo 76 para dejar el problema visible.
+  4. Antes de reiniciar o cerrar, guarda solo la evidencia cruda de la sesion.
+     El pipeline pesado se ejecuta unicamente con --final-backup.
+  5. Una caida de GitHub no detiene la captura. Solo un estado de codigo
+     inseguro bloquea el arranque con codigo 76.
 
 Detener el wrapper: Ctrl+C (cierra el bot tambien).
 """
@@ -43,7 +43,9 @@ if str(REPO_DIR) not in sys.path:
 
 import log_learning_publication as learning_publication
 import pipeline_progress
+import runtime_control
 from tools import git_sync
+from tools import runtime_recovery
 from tools import set_channel_id
 
 MAIN_PY  = REPO_DIR / "main.py"
@@ -87,9 +89,20 @@ RETRYABLE_GIT_ACTIONS = {
     "post_push_fetch_failed",
     "push_failed",
 }
-WATCHER_SELF_UPDATE_PATHS = {"tools/run_bot_watch.py", "run_bot.bat"}
+WATCHER_SELF_UPDATE_PATHS = {
+    "tools/git_sync.py",
+    "tools/run_bot_watch.py",
+    "tools/runtime_recovery.py",
+    "runtime_control.py",
+    "run_bot.bat",
+}
 WATCHDOG_HEARTBEAT_TIMEOUT_SEC = float(os.getenv(
     "WATCHDOG_HEARTBEAT_TIMEOUT_SEC", "180"))
+WATCHDOG_SUPERVISOR_GAP_SEC = float(os.getenv(
+    "WATCHDOG_SUPERVISOR_GAP_SEC", "90"))
+GIT_TIMEOUT_SEC = float(os.getenv("BOT_GIT_TIMEOUT_SEC", "15"))
+WATCHER_QUIESCE_TIMEOUT_SEC = float(os.getenv(
+    "BOT_HANDLER_QUIESCE_TIMEOUT_SEC", "30"))
 
 
 class WatcherInstanceGuard:
@@ -134,14 +147,32 @@ def _simulation_scope_args() -> list[str]:
 
 
 def _git(*args: str, capture: bool = True) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        ["git", *args], cwd=REPO_DIR, capture_output=capture, text=True, check=False
-    )
+    command = ["git", *args]
+    try:
+        return subprocess.run(
+            command,
+            cwd=REPO_DIR,
+            capture_output=capture,
+            text=True,
+            check=False,
+            timeout=GIT_TIMEOUT_SEC,
+        )
+    except subprocess.TimeoutExpired as exc:
+        return subprocess.CompletedProcess(
+            command,
+            returncode=124,
+            stdout=exc.stdout or "",
+            stderr=(
+                f"git {' '.join(args)} timed out after "
+                f"{GIT_TIMEOUT_SEC:g}s"
+            ),
+        )
 
 
 def _print_git_progress(stage: str) -> None:
     labels = {
         "inspect": "comprobando estado local",
+        "recover": "protegiendo datos de una sesion interrumpida",
         "fetch": "consultando origin/main",
         "rebase": "integrando datos locales sobre main",
         "push": "subiendo datos de sesion",
@@ -151,11 +182,87 @@ def _print_git_progress(stage: str) -> None:
     print(f"[Watch] Git: {labels.get(stage, stage)}...", flush=True)
 
 
+def _recover_runtime_worktree(repo_dir: Path):
+    recovery = runtime_recovery.prepare_runtime_worktree(repo_dir)
+    if recovery.action != "clean":
+        print(
+            f"[Watch] Recuperacion local action={recovery.action} "
+            f"raw={len(recovery.source_paths)} "
+            f"restaurados={len(recovery.restored_paths)} "
+            f"archivados={len(recovery.archived_paths)}",
+            flush=True,
+        )
+    return recovery
+
+
 def _prepare_repository_for_runtime() -> git_sync.SyncResult:
     return git_sync.synchronize_repository(
         REPO_DIR,
         publish_local=True,
         progress_callback=_print_git_progress,
+        worktree_recovery=_recover_runtime_worktree,
+    )
+
+
+def _checkpoint_runtime_data() -> git_sync.SyncResult:
+    """Commit raw evidence locally; network publication is never critical."""
+    recovery = _recover_runtime_worktree(REPO_DIR)
+    local_head = _local_head()
+    remote_head = _remote_head()
+    if not recovery.ok:
+        error = recovery.error or "runtime recovery failed"
+        if recovery.unsafe_paths:
+            error = f"{error}; paths: {', '.join(recovery.unsafe_paths)}"
+        result = git_sync.SyncResult(
+            ok=False,
+            action=recovery.action,
+            branch=_current_branch(),
+            local_head=local_head or None,
+            remote_head=remote_head or None,
+            error=error,
+        )
+    else:
+        action = (
+            "local_checkpointed"
+            if recovery.commit is not None
+            else "local_checkpoint_clean"
+        )
+        result = git_sync.SyncResult(
+            ok=True,
+            action=action,
+            branch=_current_branch(),
+            local_head=local_head or None,
+            remote_head=remote_head or None,
+        )
+    _print_sync_result(result)
+    if result.ok:
+        print(
+            "[Watch] Checkpoint local confirmado; Git remoto queda fuera "
+            "del reinicio critico.",
+            flush=True,
+        )
+    return result
+
+
+def _offline_runtime_fallback(
+    failed: git_sync.SyncResult,
+) -> git_sync.SyncResult:
+    """Keep known-safe code available when only Git transport is down."""
+    if failed.action not in RETRYABLE_GIT_ACTIONS:
+        return failed
+    if not git_sync.runtime_head_is_safe(REPO_DIR):
+        return failed
+    print(
+        "[Watch] Git remoto no disponible; continuo con el mismo codigo "
+        "verificado y reintentare la publicacion en segundo plano.",
+        flush=True,
+    )
+    return git_sync.SyncResult(
+        ok=True,
+        action="offline_local_verified",
+        branch=_current_branch(),
+        local_head=_local_head() or None,
+        remote_head=_remote_head() or None,
     )
 
 
@@ -229,6 +336,12 @@ def _local_head() -> str:
 
 def _remote_head() -> str:
     return _git("rev-parse", "origin/main").stdout.strip()
+
+
+def _current_branch() -> str | None:
+    result = _git("symbolic-ref", "--quiet", "--short", "HEAD")
+    value = (result.stdout or "").strip()
+    return value or None
 
 
 def _remote_update_is_data_only(old_rev: str, new_rev: str) -> bool:
@@ -306,23 +419,36 @@ def _runtime_heartbeat_is_stale(heartbeat_age_s: float | None,
     return heartbeat_age_s > timeout_s
 
 
+def _supervisor_loop_gap_is_stale(
+    previous_tick: float,
+    current_tick: float,
+    timeout_s: float,
+) -> bool:
+    if timeout_s <= 0:
+        return False
+    return current_tick - previous_tick > timeout_s
+
+
 def _spawn_bot() -> subprocess.Popen | None:
     local_head = _local_head()
     remote_head = _remote_head()
-    if not local_head or local_head != remote_head:
+    if not local_head or not git_sync.runtime_head_is_safe(REPO_DIR):
         print(
-            f"[Watch] Spawn bloqueado: HEAD={(local_head or 'unknown')[:8]} "
+            f"[Watch] Spawn bloqueado: codigo local no verificable "
+            f"HEAD={(local_head or 'unknown')[:8]} "
             f"origin/main={(remote_head or 'unknown')[:8]}",
             flush=True,
         )
         return None
 
     _clear_runtime_heartbeat()
+    runtime_control.clear_for_spawn()
     print(f"[Watch] Lanzando bot: python {MAIN_PY}", flush=True)
     # Usamos el mismo intérprete que ejecuta este script.
     # creationflags en Windows para poder mandar Ctrl-Break al subproceso.
     child_env = os.environ.copy()
     child_env["BOT_WATCHER_VERIFIED_HEAD"] = local_head
+    child_env["BOT_WATCHER_RUNTIME_SAFE"] = "1"
     child_env["BOT_WATCHER_PID"] = str(os.getpid())
     kwargs = {"env": child_env}
     if sys.platform == "win32":
@@ -333,6 +459,30 @@ def _spawn_bot() -> subprocess.Popen | None:
 def _stop_bot(proc: subprocess.Popen) -> None:
     if proc.poll() is not None:
         return  # ya terminó
+    child_pid = getattr(proc, "pid", None)
+    if child_pid is not None:
+        runtime_control.request_pause("watcher_restart")
+        deadline = time.time() + WATCHER_QUIESCE_TIMEOUT_SEC
+        active = runtime_control.active_handler_count(child_pid)
+        if active:
+            print(
+                f"[Watch] Esperando {active} handler(s) Telegram en curso "
+                "antes de reiniciar...",
+                flush=True,
+            )
+        while (
+            active > 0
+            and proc.poll() is None
+            and time.time() < deadline
+        ):
+            time.sleep(0.1)
+            active = runtime_control.active_handler_count(child_pid)
+        if active > 0:
+            print(
+                f"[Watch] Quiesce agotado con {active} handler(s); "
+                "la recuperacion los reintentara.",
+                flush=True,
+            )
     print("[Watch] Parando bot...", flush=True)
     try:
         if sys.platform == "win32":
@@ -1184,14 +1334,11 @@ def _staged_payload_summary() -> tuple[int, int]:
 
 
 def _push_session_data() -> git_sync.SyncResult | None:
-    """Sube data/trade_events.jsonl + ledger + journal a GitHub si hay cambios.
+    """Regenera y publica el snapshot offline completo bajo peticion explicita.
 
-    Replica el comportamiento del run_bot.bat original (que solo se ejecutaba
-    al cerrar el bot). Con el watcher el bot puede vivir días sin parar, así
-    que sin esto los logs no se subirían y no podríamos analizar la sesión.
-    Llamamos a esta función después de cada parada/reinicio del bot.
-
-    Antes de subir, regenera el ledger reconciliado (reconcile_mt5_ledger.py).
+    Los reinicios normales usan el checkpoint rapido de evidencia cruda. Este
+    pipeline pesado queda reservado para ``--final-backup`` y nunca participa
+    en la recuperacion critica del bot.
     """
     with _offline_output_transaction():
         _regenerate_session_outputs()
@@ -1262,6 +1409,8 @@ def main() -> int:
         return 1
 
     sync = _prepare_repository_for_runtime()
+    if not sync.ok:
+        sync = _offline_runtime_fallback(sync)
     _print_sync_result(sync)
     if not sync.ok:
         print("[Watch] Arranque bloqueado: Git no está verificado.", flush=True)
@@ -1273,15 +1422,48 @@ def main() -> int:
         return WATCHER_GIT_BLOCKED_EXIT_CODE
     bot_started_at = time.time()
     last_check = time.time()
+    last_supervisor_tick = time.time()
 
     try:
         while True:
+            supervisor_tick = time.time()
+            supervisor_gap_s = supervisor_tick - last_supervisor_tick
+            previous_supervisor_tick = last_supervisor_tick
+            last_supervisor_tick = supervisor_tick
+            if _supervisor_loop_gap_is_stale(
+                previous_supervisor_tick,
+                supervisor_tick,
+                WATCHDOG_SUPERVISOR_GAP_SEC,
+            ):
+                print(
+                    f"[Watch] Pausa del sistema detectada "
+                    f"({supervisor_gap_s:.1f}s). Reinicio conexiones.",
+                    flush=True,
+                )
+                _stop_bot(proc)
+                session_sync = (
+                    _checkpoint_runtime_data()
+                    or _refresh_heads_after_session_data_push()
+                )
+                if not session_sync.ok:
+                    return _sync_failure_exit_code(session_sync)
+                last_local = str(session_sync.local_head)
+                last_remote = str(session_sync.remote_head)
+                time.sleep(RELAUNCH_DELAY_SEC)
+                proc = _spawn_bot_with_active_channels()
+                if proc is None:
+                    return WATCHER_GIT_BLOCKED_EXIT_CODE
+                bot_started_at = time.time()
+                last_check = bot_started_at
+                last_supervisor_tick = bot_started_at
+                continue
+
             # Si el bot murió inesperadamente, relanzar
             if proc.poll() is not None:
                 print(f"[Watch] Bot terminó con código {proc.returncode}. "
                       f"Relanzo en {RELAUNCH_DELAY_SEC}s.", flush=True)
                 session_sync = (
-                    _push_session_data()
+                    _checkpoint_runtime_data()
                     or _refresh_heads_after_session_data_push()
                 )
                 if not session_sync.ok:
@@ -1307,7 +1489,7 @@ def main() -> int:
                 print(f"[Watch] Bot congelado: {detail}. Reinicio.", flush=True)
                 _stop_bot(proc)
                 session_sync = (
-                    _push_session_data()
+                    _checkpoint_runtime_data()
                     or _refresh_heads_after_session_data_push()
                 )
                 if not session_sync.ok:
@@ -1325,8 +1507,38 @@ def main() -> int:
             # Cada POLL_SEC comprobar commits nuevos
             if now - last_check >= POLL_SEC:
                 last_check = now
-                _git("fetch", "origin", "main")
+                fetched = _git("fetch", "origin", "main")
+                if fetched.returncode != 0:
+                    print(
+                        "[Watch] Git remoto no disponible; el bot sigue "
+                        f"activo y se reintentara: "
+                        f"{(fetched.stderr or fetched.stdout or '').strip()[:300]}",
+                        flush=True,
+                    )
+                    continue
                 remote = _remote_head()
+                if (
+                    remote == last_remote
+                    and git_sync.local_data_commits_are_publishable(REPO_DIR)
+                ):
+                    published = _git("push", "origin", "HEAD:main")
+                    if published.returncode == 0:
+                        _git("fetch", "origin", "main")
+                        last_local = _local_head()
+                        last_remote = _remote_head()
+                        print(
+                            "[Watch] Checkpoint local publicado sin detener "
+                            "el bot.",
+                            flush=True,
+                        )
+                    else:
+                        print(
+                            "[Watch] Checkpoint local pendiente de subir; "
+                            "el bot sigue activo: "
+                            f"{(published.stderr or published.stdout or '').strip()[:300]}",
+                            flush=True,
+                        )
+                    continue
                 if remote != last_remote:
                     if _remote_update_is_data_only(last_remote, remote):
                         print(f"[Watch] Solo commits de datos: "
@@ -1340,9 +1552,13 @@ def main() -> int:
                           f"{remote[:8]}. Reinicio.", flush=True)
                     _stop_bot(proc)
                     session_sync = (
-                        _push_session_data()
+                        _checkpoint_runtime_data()
                         or _refresh_heads_after_session_data_push()
                     )
+                    if not session_sync.ok:
+                        return _sync_failure_exit_code(session_sync)
+                    session_sync = _prepare_repository_for_runtime()
+                    _print_sync_result(session_sync)
                     if not session_sync.ok:
                         return _sync_failure_exit_code(session_sync)
                     last_local = str(session_sync.local_head)
@@ -1361,17 +1577,36 @@ def main() -> int:
         print("\n[Watch] Ctrl+C — cerrando bot.", flush=True)
         _stop_bot(proc)
         session_sync = (
-            _push_session_data()
+            _checkpoint_runtime_data()
             or _refresh_heads_after_session_data_push()
         )
         if not session_sync.ok:
             return _sync_failure_exit_code(session_sync)
         return 0
+    finally:
+        try:
+            child_running = proc.poll() is None
+        except BaseException:
+            child_running = True
+        if child_running:
+            print(
+                "[Watch] Supervisor interrumpido; cerrando el bot antes de "
+                "la recuperacion.",
+                flush=True,
+            )
+            try:
+                _stop_bot(proc)
+            except Exception as exc:
+                print(
+                    f"[Watch] No pude confirmar el cierre del bot: {exc}",
+                    flush=True,
+                )
 
 
 def cli(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Signal Copier VM watcher")
     parser.add_argument("--final-backup", action="store_true")
+    parser.add_argument("--recovery-checkpoint", action="store_true")
     args = parser.parse_args(argv)
     guard = WatcherInstanceGuard()
     if not guard.acquire():
@@ -1381,6 +1616,11 @@ def cli(argv: list[str] | None = None) -> int:
         )
         return WATCHER_DUPLICATE_EXIT_CODE
     try:
+        if args.recovery_checkpoint:
+            result = _checkpoint_runtime_data()
+            if not result.ok:
+                return _sync_failure_exit_code(result)
+            return 0
         if args.final_backup:
             result = _push_session_data()
             if result is None:
