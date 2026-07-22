@@ -38,3 +38,11 @@ def test_transient_git_failure_retries_slowly_without_starting_old_code():
     assert 'if "%EXITCODE%"=="77" goto retry_wait' in text
     assert ':retry_wait' in text
     assert 'timeout /t 60 /nobreak' in text
+
+
+def test_duplicate_watcher_exits_without_running_a_concurrent_backup():
+    text = Path("run_bot.bat").read_text(encoding="utf-8")
+
+    assert 'if "%EXITCODE%"=="78" goto duplicate_exit' in text
+    assert ':duplicate_exit' in text
+    assert 'exit /b 78' in text

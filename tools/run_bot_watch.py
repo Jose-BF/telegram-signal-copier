@@ -22,6 +22,7 @@ import os
 import json
 import math
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -79,6 +80,8 @@ RELAUNCH_DELAY_SEC = 5  # espera entre fin del bot y relanzamiento
 WATCHER_RELOAD_EXIT_CODE = 75
 WATCHER_GIT_BLOCKED_EXIT_CODE = 76
 WATCHER_GIT_RETRY_EXIT_CODE = 77
+WATCHER_DUPLICATE_EXIT_CODE = 78
+WATCHER_INSTANCE_PORT = int(os.getenv("BOT_WATCHER_INSTANCE_PORT", "47628"))
 RETRYABLE_GIT_ACTIONS = {
     "fetch_failed",
     "post_push_fetch_failed",
@@ -87,6 +90,34 @@ RETRYABLE_GIT_ACTIONS = {
 WATCHER_SELF_UPDATE_PATHS = {"tools/run_bot_watch.py", "run_bot.bat"}
 WATCHDOG_HEARTBEAT_TIMEOUT_SEC = float(os.getenv(
     "WATCHDOG_HEARTBEAT_TIMEOUT_SEC", "180"))
+
+
+class WatcherInstanceGuard:
+    """Atomic localhost lock held for the complete watcher lifetime."""
+
+    def __init__(self, port: int = WATCHER_INSTANCE_PORT):
+        self.port = port
+        self._socket: socket.socket | None = None
+
+    def acquire(self) -> bool:
+        if self._socket is not None:
+            return True
+        owner = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+                owner.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            owner.bind(("127.0.0.1", self.port))
+            owner.listen(1)
+        except OSError:
+            owner.close()
+            return False
+        self._socket = owner
+        return True
+
+    def release(self) -> None:
+        if self._socket is not None:
+            self._socket.close()
+            self._socket = None
 
 
 def _simulation_from_date() -> str:
@@ -275,12 +306,25 @@ def _runtime_heartbeat_is_stale(heartbeat_age_s: float | None,
     return heartbeat_age_s > timeout_s
 
 
-def _spawn_bot() -> subprocess.Popen:
+def _spawn_bot() -> subprocess.Popen | None:
+    local_head = _local_head()
+    remote_head = _remote_head()
+    if not local_head or local_head != remote_head:
+        print(
+            f"[Watch] Spawn bloqueado: HEAD={(local_head or 'unknown')[:8]} "
+            f"origin/main={(remote_head or 'unknown')[:8]}",
+            flush=True,
+        )
+        return None
+
     _clear_runtime_heartbeat()
     print(f"[Watch] Lanzando bot: python {MAIN_PY}", flush=True)
     # Usamos el mismo intérprete que ejecuta este script.
     # creationflags en Windows para poder mandar Ctrl-Break al subproceso.
-    kwargs = {}
+    child_env = os.environ.copy()
+    child_env["BOT_WATCHER_VERIFIED_HEAD"] = local_head
+    child_env["BOT_WATCHER_PID"] = str(os.getpid())
+    kwargs = {"env": child_env}
     if sys.platform == "win32":
         kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
     return subprocess.Popen([sys.executable, str(MAIN_PY)], cwd=REPO_DIR, **kwargs)
@@ -1329,14 +1373,24 @@ def cli(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Signal Copier VM watcher")
     parser.add_argument("--final-backup", action="store_true")
     args = parser.parse_args(argv)
-    if args.final_backup:
-        result = _push_session_data()
-        if result is None:
-            result = _refresh_heads_after_session_data_push()
-        if not result.ok:
-            return _sync_failure_exit_code(result)
-        return 0
-    return main()
+    guard = WatcherInstanceGuard()
+    if not guard.acquire():
+        print(
+            "[Watch] Ya existe otro supervisor activo; esta instancia no hara cambios.",
+            flush=True,
+        )
+        return WATCHER_DUPLICATE_EXIT_CODE
+    try:
+        if args.final_backup:
+            result = _push_session_data()
+            if result is None:
+                result = _refresh_heads_after_session_data_push()
+            if not result.ok:
+                return _sync_failure_exit_code(result)
+            return 0
+        return main()
+    finally:
+        guard.release()
 
 
 if __name__ == "__main__":

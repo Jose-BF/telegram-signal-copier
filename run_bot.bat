@@ -54,6 +54,7 @@ echo [%date% %time%] === SALIDA codigo=%EXITCODE% === >> logs\bot_runtime.log
 REM El watcher hace su propio backup en cierres controlados. Si muere antes,
 REM delegamos en el MISMO flujo; aqui no hay comandos Git paralelos.
 if "%EXITCODE%"=="77" goto retry_wait
+if "%EXITCODE%"=="78" goto duplicate_exit
 if "%EXITCODE%"=="0" goto restart_wait
 if "%EXITCODE%"=="75" goto restart_wait
 
@@ -72,6 +73,11 @@ echo.
 echo [Watch] Fallo temporal de red/Git. Reintento seguro en 60 segundos...
 timeout /t 60 /nobreak > nul
 goto restart
+
+:duplicate_exit
+echo.
+echo [Watch] Ya hay otro supervisor activo. Cierro esta instancia duplicada.
+exit /b 78
 
 :restart_wait
 

@@ -32,11 +32,13 @@ def test_startup_status_message_warns_about_unverified_git_state():
         "git_branch": "HEAD",
         "git_dirty": True,
         "git_synced": False,
+        "git_verification_error": "sin atestacion del supervisor",
     })
 
     assert "Version: desconocida" in text
     assert "Rama: HEAD" in text
     assert "Codigo: estado local sin verificar" in text
+    assert "Motivo: sin atestacion del supervisor" in text
 
 
 def test_startup_status_message_does_not_infer_sync_from_clean_main():
@@ -54,6 +56,8 @@ def test_git_info_compares_head_with_origin_main(monkeypatch):
     outputs = {
         ("git", "rev-parse", "--short", "HEAD"): "0457a0e",
         ("git", "rev-parse", "--short", "origin/main"): "0457a0e",
+        ("git", "rev-parse", "HEAD"): "0457a0e" + "1" * 33,
+        ("git", "rev-parse", "origin/main"): "0457a0e" + "1" * 33,
         ("git", "rev-parse", "--abbrev-ref", "HEAD"): "main",
         ("git", "status", "--porcelain"): "",
     }
@@ -67,6 +71,47 @@ def test_git_info_compares_head_with_origin_main(monkeypatch):
 
     assert info["git_remote_commit"] == "0457a0e"
     assert info["git_synced"] is True
+
+
+def test_watcher_attestation_accepts_the_exact_verified_head():
+    full_head = "a" * 40
+    info = {
+        "git_commit_full": full_head,
+        "git_remote_commit_full": full_head,
+        "git_branch": "main",
+        "git_dirty": False,
+    }
+
+    assert main._watcher_attestation_error(info, full_head) is None
+
+
+def test_watcher_attestation_rejects_a_direct_main_launch():
+    full_head = "a" * 40
+    info = {
+        "git_commit_full": full_head,
+        "git_remote_commit_full": full_head,
+        "git_branch": "main",
+        "git_dirty": False,
+    }
+
+    assert (
+        main._watcher_attestation_error(info, None)
+        == "sin atestacion del supervisor"
+    )
+
+
+def test_watcher_attestation_rejects_head_before_its_push_finishes():
+    info = {
+        "git_commit_full": "b" * 40,
+        "git_remote_commit_full": "a" * 40,
+        "git_branch": "main",
+        "git_dirty": False,
+    }
+
+    reason = main._watcher_attestation_error(info, "b" * 40)
+
+    assert "origin/main" in reason
+    assert "aaaaaaaa" in reason
 
 
 def test_orphan_history_query_end_covers_positive_broker_offset():

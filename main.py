@@ -1287,22 +1287,51 @@ def _git_info() -> dict:
 
     commit = _run(["git", "rev-parse", "--short", "HEAD"])
     remote_commit = _run(["git", "rev-parse", "--short", "origin/main"])
+    commit_full = _run(["git", "rev-parse", "HEAD"])
+    remote_commit_full = _run(["git", "rev-parse", "origin/main"])
     branch = _run(["git", "rev-parse", "--abbrev-ref", "HEAD"])
     dirty_out = _run(["git", "status", "--porcelain"])
     dirty = bool(dirty_out) if dirty_out is not None else None
     synced = (
-        commit is not None
-        and commit == remote_commit
+        commit_full is not None
+        and commit_full == remote_commit_full
         and branch == "main"
         and dirty is False
     )
     return {
         "git_commit": commit,
         "git_remote_commit": remote_commit,
+        "git_commit_full": commit_full,
+        "git_remote_commit_full": remote_commit_full,
         "git_branch": branch,
         "git_dirty": dirty,
         "git_synced": synced,
     }
+
+
+def _watcher_attestation_error(git_info: dict,
+                               expected_head: str | None) -> str | None:
+    """Return why this process is not the exact build verified by the watcher."""
+    if not expected_head:
+        return "sin atestacion del supervisor"
+
+    local_head = git_info.get("git_commit_full")
+    remote_head = git_info.get("git_remote_commit_full")
+    if local_head != expected_head:
+        return (
+            f"HEAD={(local_head or 'desconocido')[:8]} no coincide con "
+            f"watcher={expected_head[:8]}"
+        )
+    if remote_head != expected_head:
+        return (
+            f"origin/main={(remote_head or 'desconocido')[:8]} no coincide "
+            f"con watcher={expected_head[:8]}"
+        )
+    if git_info.get("git_branch") != "main":
+        return f"rama={git_info.get('git_branch') or 'desconocida'}; se exige main"
+    if git_info.get("git_dirty") is not False:
+        return "el arbol de trabajo tiene cambios locales"
+    return None
 
 
 def _startup_status_message(git_info: dict) -> str:
@@ -1320,16 +1349,21 @@ def _startup_status_message(git_info: dict) -> str:
         if verified
         else "estado local sin verificar"
     )
-    return "\n".join([
+    lines = [
         "BOT ACTIVO",
         f"Version: {commit}",
         f"Rama: {branch}",
         f"Codigo: {code_status}",
+    ]
+    if not verified and git_info.get("git_verification_error"):
+        lines.append(f"Motivo: {git_info['git_verification_error']}")
+    lines.extend([
         "MT5: conectado",
         "Telegram: canales 1 y 2 activos",
         f"Dubai Investing: {config.CANAL_1_ID}",
         f"Gold Signals: {config.CANAL_2_ID}",
     ])
+    return "\n".join(lines)
 
 
 async def main():
@@ -1339,10 +1373,30 @@ async def main():
 
     journal.set_notify_loop(asyncio.get_running_loop())
 
+    # Only the watcher may authorize the exact, already-published build.
+    # Run this before MT5 and Telegram so an unsafe process cannot trade.
+    git_info = _git_info()
+    expected_head = os.getenv("BOT_WATCHER_VERIFIED_HEAD")
+    verification_error = _watcher_attestation_error(git_info, expected_head)
+    git_info["git_verification_error"] = verification_error
+    git_info["git_synced"] = verification_error is None
+    if verification_error:
+        print(f"[Startup] ARRANQUE BLOQUEADO: {verification_error}")
+        print("[Startup] Usa run_bot.bat; no ejecutes main.py directamente.")
+        journal.event(
+            "bot",
+            "startup_blocked_unverified",
+            **git_info,
+            watcher_verified_head=expected_head,
+            watcher_pid=os.getenv("BOT_WATCHER_PID"),
+            started_utc=datetime.utcnow().isoformat(timespec="seconds"),
+        )
+        journal.flush_events(timeout=10.0)
+        raise SystemExit(78)
+
     # Marca de sesión — versión del código que ejecuta este arranque.
     # El reconcile asocia cada trade con el session_started cuya ventana
     # lo cubre → cada fila del ledger carga su `bot_version`.
-    git_info = _git_info()
     journal.event("bot", "session_started", **git_info,
                   started_utc=datetime.utcnow().isoformat(timespec="seconds"))
 

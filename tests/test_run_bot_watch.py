@@ -1,4 +1,5 @@
 import json
+import socket
 import subprocess
 from hashlib import sha256
 
@@ -139,6 +140,79 @@ def test_active_channel_manifest_failure_blocks_bot_spawn(monkeypatch):
     )
 
     assert watch._spawn_bot_with_active_channels() is None
+
+
+def test_spawn_bot_attests_the_exact_verified_head(monkeypatch):
+    captured = {}
+    full_head = "c" * 40
+    monkeypatch.setattr(watch, "_local_head", lambda: full_head)
+    monkeypatch.setattr(watch, "_remote_head", lambda: full_head)
+    monkeypatch.setattr(watch, "_clear_runtime_heartbeat", lambda: None)
+
+    def fake_popen(args, **kwargs):
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return "process"
+
+    monkeypatch.setattr(watch.subprocess, "Popen", fake_popen)
+
+    assert watch._spawn_bot() == "process"
+    assert captured["kwargs"]["env"]["BOT_WATCHER_VERIFIED_HEAD"] == full_head
+    assert captured["kwargs"]["env"]["BOT_WATCHER_PID"] == str(watch.os.getpid())
+
+
+def test_spawn_bot_refuses_head_that_is_not_published(monkeypatch):
+    monkeypatch.setattr(watch, "_local_head", lambda: "b" * 40)
+    monkeypatch.setattr(watch, "_remote_head", lambda: "a" * 40)
+    monkeypatch.setattr(
+        watch.subprocess,
+        "Popen",
+        lambda *_args, **_kwargs: pytest.fail("unverified bot must not spawn"),
+    )
+
+    assert watch._spawn_bot() is None
+
+
+def test_watcher_instance_guard_allows_only_one_owner():
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    probe.bind(("127.0.0.1", 0))
+    port = probe.getsockname()[1]
+    probe.close()
+    first = watch.WatcherInstanceGuard(port=port)
+    second = watch.WatcherInstanceGuard(port=port)
+
+    try:
+        assert first.acquire() is True
+        assert second.acquire() is False
+    finally:
+        second.release()
+        first.release()
+
+    assert second.acquire() is True
+    second.release()
+
+
+def test_cli_rejects_a_duplicate_watcher_before_any_work(monkeypatch):
+    class DuplicateGuard:
+        def acquire(self):
+            return False
+
+        def release(self):
+            pytest.fail("a guard that was not acquired must not be released")
+
+    monkeypatch.setattr(watch, "WatcherInstanceGuard", DuplicateGuard)
+    monkeypatch.setattr(
+        watch,
+        "main",
+        lambda: pytest.fail("a duplicate watcher must not run the bot"),
+    )
+    monkeypatch.setattr(
+        watch,
+        "_push_session_data",
+        lambda: pytest.fail("a duplicate watcher must not publish data"),
+    )
+
+    assert watch.cli([]) == watch.WATCHER_DUPLICATE_EXIT_CODE
 
 
 def test_active_channel_manifest_refuses_to_create_partial_env(
