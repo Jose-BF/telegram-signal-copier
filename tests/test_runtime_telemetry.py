@@ -275,6 +275,42 @@ def test_materialize_rejects_a_missing_range(tmp_path):
     assert any("range gap" in error for error in result.errors)
 
 
+def test_materialize_selects_longest_contiguous_alternate_tail(tmp_path):
+    old_runtime = tmp_path / "old-runtime"
+    old_runtime.mkdir()
+    (old_runtime / "trade_events.jsonl").write_bytes(b'{"ev":"one"}\n')
+    old = runtime_telemetry.checkpoint_runtime(
+        old_runtime,
+        stream_names=("trade_events.jsonl",),
+    )
+    assert old.ok is True
+
+    new_runtime = tmp_path / "new-runtime"
+    new_runtime.mkdir()
+    newest_payload = b'{"ev":"one"}\n{"ev":"two"}\n'
+    (new_runtime / "trade_events.jsonl").write_bytes(newest_payload)
+    new = runtime_telemetry.checkpoint_runtime(
+        new_runtime,
+        stream_names=("trade_events.jsonl",),
+    )
+    assert new.ok is True
+
+    combined = tmp_path / "combined"
+    for runtime in (old_runtime, new_runtime):
+        source = runtime / runtime_telemetry.TELEMETRY_DIR_NAME / "outbox"
+        for path in source.rglob("*"):
+            if path.is_file():
+                destination = combined / path.relative_to(source)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_bytes(path.read_bytes())
+
+    output = tmp_path / "materialized"
+    result = runtime_telemetry.materialize_chunks(combined, output)
+
+    assert result.ok is True
+    assert (output / "trade_events.jsonl").read_bytes() == newest_payload
+
+
 def test_materialize_validation_failure_leaves_existing_corpus_untouched(
     tmp_path,
 ):

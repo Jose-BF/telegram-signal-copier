@@ -96,12 +96,12 @@ seed used during the transition; the bot never appends to it. On the first
 start, `run_bot.bat` copies the complete raw seed into ignored
 `runtime_data/`, preserving any existing runtime file.
 
-Every five minutes a separate process checkpoints complete records, verifies
-the SHA-256 of the complete exported prefix and pushes immutable gzip chunks to
-the `telemetry` branch. It uses its own Git checkout. A GitHub outage leaves the
-chunks pending locally and cannot stop or delay Telegram/MT5 processing. The
-console diagnostic is stored at `runtime_data/bot_runtime.log` and travels
-through the same channel.
+As soon as the bot is active, and then every five minutes, a separate process
+checkpoints complete records, verifies the SHA-256 of the complete exported
+prefix and pushes immutable gzip chunks to the `telemetry` branch. It uses its
+own Git checkout. A GitHub outage leaves the chunks pending locally and cannot
+stop or delay Telegram/MT5 processing. The console diagnostic is stored at
+`runtime_data/bot_runtime.log` and travels through the same channel.
 
 Normal VM start:
 

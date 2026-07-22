@@ -444,6 +444,58 @@ def _manifest_payload_path(manifest_path: Path, manifest: dict) -> Path:
     return manifest_path.parent / payload_name
 
 
+def _select_contiguous_payload(
+    stream: str,
+    chunks: list[tuple[int, int, str, bytes]],
+) -> bytes:
+    """Choose the unique chain from byte zero with the greatest coverage."""
+
+    if not chunks:
+        return b""
+    by_start: dict[int, list[tuple[int, bytes]]] = {}
+    maximum_end = 0
+    for start, end, _raw_hash, payload in chunks:
+        by_start.setdefault(start, []).append((end, payload))
+        maximum_end = max(maximum_end, end)
+
+    # Each node stores the furthest reachable offset and up to two distinct
+    # payload variants. More than one variant at the same furthest offset is
+    # ambiguous and must fail closed.
+    solutions: dict[int, tuple[int, dict[str, bytes]]] = {}
+    for start in sorted(by_start, reverse=True):
+        options: list[tuple[int, bytes]] = []
+        for end, payload in by_start[start]:
+            suffix_end, suffixes = solutions.get(
+                end,
+                (end, {_sha256(b""): b""}),
+            )
+            for suffix in suffixes.values():
+                options.append((suffix_end, payload + suffix))
+        furthest = max(final for final, _payload in options)
+        variants: dict[str, bytes] = {}
+        for final, payload in options:
+            if final != furthest:
+                continue
+            variants.setdefault(_sha256(payload), payload)
+            if len(variants) > 1:
+                break
+        solutions[start] = (furthest, variants)
+
+    if 0 not in solutions:
+        first = min(by_start)
+        raise ValueError(f"range gap: expected 0, got {first}")
+    final_end, variants = solutions[0]
+    if final_end != maximum_end:
+        later = sorted(start for start in by_start if start >= final_end)
+        detail = str(later[0]) if later else "overlapping unreachable range"
+        raise ValueError(f"range gap: expected {final_end}, got {detail}")
+    if len(variants) != 1:
+        raise ValueError(
+            f"ambiguous contiguous history for {stream} at byte {final_end}"
+        )
+    return next(iter(variants.values()))
+
+
 def _assemble_chunks(
     outbox_dir: Path,
 ) -> tuple[dict[str, bytes], tuple[str, ...]]:
@@ -462,15 +514,7 @@ def _assemble_chunks(
 
     payloads: dict[str, bytes] = {}
     for stream, entries in sorted(grouped.items()):
-        entries.sort(
-            key=lambda item: (
-                int(item[0].get("byte_start", -1)),
-                int(item[0].get("byte_end", -1)),
-                str(item[0].get("sha256", "")),
-            )
-        )
-        expected_start = 0
-        assembled = bytearray()
+        verified: list[tuple[int, int, str, bytes]] = []
         seen_ranges: dict[tuple[int, int], str] = {}
         stream_failed = False
         for manifest, manifest_path in entries:
@@ -478,6 +522,8 @@ def _assemble_chunks(
                 start = int(manifest["byte_start"])
                 end = int(manifest["byte_end"])
                 raw_hash = str(manifest["sha256"])
+                if start < 0 or end <= start:
+                    raise ValueError(f"invalid range {start}:{end}")
                 range_key = (start, end)
                 if range_key in seen_ranges:
                     if seen_ranges[range_key] != raw_hash:
@@ -485,25 +531,26 @@ def _assemble_chunks(
                             f"conflicting duplicate range {start}:{end}"
                         )
                     continue
-                if start != expected_start:
-                    raise ValueError(
-                        f"range gap: expected {expected_start}, got {start}"
-                    )
+                if str(manifest.get("compression") or "") != "gzip":
+                    raise ValueError("unsupported compression")
                 payload_path = _manifest_payload_path(manifest_path, manifest)
                 compressed = payload_path.read_bytes()
                 if _sha256(compressed) != str(
                     manifest.get("compressed_sha256") or ""
                 ):
                     raise ValueError("compressed hash mismatch")
+                if len(compressed) != int(manifest["compressed_bytes"]):
+                    raise ValueError("compressed size mismatch")
                 payload = gzip.decompress(compressed)
                 if len(payload) != end - start:
                     raise ValueError("uncompressed size mismatch")
+                if len(payload) != int(manifest["uncompressed_bytes"]):
+                    raise ValueError("manifest size mismatch")
                 if _sha256(payload) != raw_hash:
                     raise ValueError("uncompressed hash mismatch")
                 _validate_jsonl(stream, payload)
-                assembled.extend(payload)
                 seen_ranges[range_key] = raw_hash
-                expected_start = end
+                verified.append((start, end, raw_hash, payload))
             except (
                 KeyError,
                 OSError,
@@ -516,7 +563,10 @@ def _assemble_chunks(
                 break
         if stream_failed:
             continue
-        payloads[stream] = bytes(assembled)
+        try:
+            payloads[stream] = _select_contiguous_payload(stream, verified)
+        except ValueError as exc:
+            errors.append(f"{stream}: {exc}")
 
     if errors:
         return {}, tuple(errors)

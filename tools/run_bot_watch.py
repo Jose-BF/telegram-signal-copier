@@ -1482,7 +1482,9 @@ def _run_main() -> int:
         return WATCHER_GIT_BLOCKED_EXIT_CODE
     bot_started_at = time.time()
     last_check = time.time()
-    last_telemetry_publish = time.time()
+    # El primer intento se lanza ya con el bot activo; los siguientes respetan
+    # el intervalo. Siempre ocurre en otro proceso y nunca bloquea Telegram/MT5.
+    last_telemetry_publish = 0.0
     last_supervisor_tick = time.time()
 
     try:
