@@ -437,94 +437,6 @@
     },
     {
       "affected_channels": [
-        "canal1"
-      ],
-      "affected_day_count": 1,
-      "affected_days": [
-        "2026-07-09"
-      ],
-      "affected_signal_count": 1,
-      "affected_signals": [
-        "canal1_20801"
-      ],
-      "candidate_reason": "material reliability impact",
-      "category": "market_replay",
-      "coverage": {
-        "covered_after_utc": null,
-        "fix_commit": null,
-        "regression_test": null,
-        "reviewed_at_utc": null,
-        "reviewed_by": null,
-        "rule_version": null,
-        "verification": null
-      },
-      "evidence": [
-        {
-          "channel": "canal1",
-          "detail": "external_intervention",
-          "event": "observed_tick_replay",
-          "signal": "canal1_20801",
-          "ts_utc": "2026-07-09T14:24:55.199+00:00"
-        }
-      ],
-      "financial_impact": null,
-      "first_seen_utc": "2026-07-09T14:24:55.199+00:00",
-      "last_seen_utc": "2026-07-09T14:24:55.199+00:00",
-      "occurrences": 1,
-      "pattern_id": "market_replay.external_intervention",
-      "priority_score": 40030,
-      "raw_events": 1,
-      "recurrence": "single_incident",
-      "severity": "critical",
-      "status": "candidate",
-      "template": "observed-tick replay blocker: external intervention"
-    },
-    {
-      "affected_channels": [
-        "canal2"
-      ],
-      "affected_day_count": 1,
-      "affected_days": [
-        "2026-07-20"
-      ],
-      "affected_signal_count": 1,
-      "affected_signals": [
-        "canal2_3503"
-      ],
-      "candidate_reason": "material reliability impact",
-      "category": "market_replay",
-      "coverage": {
-        "covered_after_utc": null,
-        "fix_commit": null,
-        "regression_test": null,
-        "reviewed_at_utc": null,
-        "reviewed_by": null,
-        "rule_version": null,
-        "verification": null
-      },
-      "evidence": [
-        {
-          "channel": "canal2",
-          "detail": "missing_sl_transition_evidence",
-          "event": "observed_tick_replay",
-          "signal": "canal2_3503",
-          "ts_utc": "2026-07-20T14:00:51.492+00:00"
-        }
-      ],
-      "financial_impact": null,
-      "first_seen_utc": "2026-07-20T14:00:51.492+00:00",
-      "last_seen_utc": "2026-07-20T14:00:51.492+00:00",
-      "occurrences": 1,
-      "pattern_id": "market_replay.missing_sl_transition_evidence",
-      "priority_score": 40030,
-      "raw_events": 1,
-      "recurrence": "single_incident",
-      "severity": "critical",
-      "status": "candidate",
-      "template": "observed-tick replay blocker: missing sl transition evidence"
-    },
-    {
-      "affected_channels": [
         "canal1",
         "canal2"
       ],
@@ -693,6 +605,145 @@
       "template": "unclassified provider management: provider announcement outside trade management"
     },
     {
+      "affected_channels": [],
+      "affected_day_count": 21,
+      "affected_days": [
+        "2026-06-05",
+        "2026-06-07",
+        "2026-06-09",
+        "2026-06-12",
+        "2026-06-13",
+        "2026-06-14",
+        "2026-06-19",
+        "2026-06-20",
+        "2026-06-21",
+        "2026-06-26",
+        "2026-06-28",
+        "2026-07-01",
+        "2026-07-02",
+        "2026-07-08",
+        "2026-07-10",
+        "2026-07-12",
+        "2026-07-15",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-22"
+      ],
+      "affected_signal_count": 1,
+      "affected_signals": [
+        "bot"
+      ],
+      "candidate_reason": "material reliability impact",
+      "category": "capture",
+      "coverage": {
+        "covered_after_utc": null,
+        "fix_commit": null,
+        "regression_test": null,
+        "reviewed_at_utc": null,
+        "reviewed_by": null,
+        "rule_version": null,
+        "verification": null
+      },
+      "evidence": [
+        {
+          "channel": null,
+          "detail": "connected=false",
+          "event": "mt5_connection_change",
+          "signal": "bot",
+          "ts_utc": "2026-06-05T22:24:03.440+00:00"
+        },
+        {
+          "channel": null,
+          "detail": "connected=false",
+          "event": "mt5_connection_change",
+          "signal": "bot",
+          "ts_utc": "2026-06-05T22:26:03.601+00:00"
+        },
+        {
+          "channel": null,
+          "detail": "connected=false",
+          "event": "mt5_connection_change",
+          "signal": "bot",
+          "ts_utc": "2026-06-07T02:04:30.438+00:00"
+        },
+        {
+          "channel": null,
+          "detail": "connected=false",
+          "event": "mt5_connection_change",
+          "signal": "bot",
+          "ts_utc": "2026-06-09T03:00:24.252+00:00"
+        },
+        {
+          "channel": null,
+          "detail": "connected=false",
+          "event": "mt5_connection_change",
+          "signal": "bot",
+          "ts_utc": "2026-06-12T21:55:23.739+00:00"
+        },
+        {
+          "channel": null,
+          "detail": "connected=false",
+          "event": "mt5_connection_change",
+          "signal": "bot",
+          "ts_utc": "2026-06-13T04:01:10.433+00:00"
+        },
+        {
+          "channel": null,
+          "detail": "connected=false",
+          "event": "mt5_connection_change",
+          "signal": "bot",
+          "ts_utc": "2026-06-14T01:26:03.100+00:00"
+        },
+        {
+          "channel": null,
+          "detail": "connected=false",
+          "event": "mt5_connection_change",
+          "signal": "bot",
+          "ts_utc": "2026-06-14T02:03:26.698+00:00"
+        },
+        {
+          "channel": null,
+          "detail": "connected=false",
+          "event": "mt5_connection_change",
+          "signal": "bot",
+          "ts_utc": "2026-06-19T01:00:54.725+00:00"
+        },
+        {
+          "channel": null,
+          "detail": "connected=false",
+          "event": "mt5_connection_change",
+          "signal": "bot",
+          "ts_utc": "2026-06-19T21:37:32.795+00:00"
+        },
+        {
+          "channel": null,
+          "detail": "connected=false",
+          "event": "mt5_connection_change",
+          "signal": "bot",
+          "ts_utc": "2026-06-20T02:09:30.903+00:00"
+        },
+        {
+          "channel": null,
+          "detail": "connected=false",
+          "event": "mt5_connection_change",
+          "signal": "bot",
+          "ts_utc": "2026-06-20T02:14:51.394+00:00"
+        }
+      ],
+      "financial_impact": null,
+      "first_seen_utc": "2026-06-05T22:24:03.440+00:00",
+      "last_seen_utc": "2026-07-22T06:00:10.251+00:00",
+      "occurrences": 34,
+      "pattern_id": "capture.mt5_connection_lost",
+      "priority_score": 30433,
+      "raw_events": 34,
+      "recurrence": "cross_session",
+      "severity": "high",
+      "status": "candidate",
+      "template": "mt5 connection entered a disconnected state"
+    },
+    {
       "affected_channels": [
         "canal1",
         "canal2"
@@ -840,144 +891,6 @@
       "severity": "high",
       "status": "candidate",
       "template": "unclassified provider management: market context without a canonical action"
-    },
-    {
-      "affected_channels": [],
-      "affected_day_count": 20,
-      "affected_days": [
-        "2026-06-05",
-        "2026-06-07",
-        "2026-06-09",
-        "2026-06-12",
-        "2026-06-13",
-        "2026-06-14",
-        "2026-06-19",
-        "2026-06-20",
-        "2026-06-21",
-        "2026-06-26",
-        "2026-06-28",
-        "2026-07-01",
-        "2026-07-02",
-        "2026-07-08",
-        "2026-07-10",
-        "2026-07-12",
-        "2026-07-15",
-        "2026-07-17",
-        "2026-07-18",
-        "2026-07-19"
-      ],
-      "affected_signal_count": 1,
-      "affected_signals": [
-        "bot"
-      ],
-      "candidate_reason": "material reliability impact",
-      "category": "capture",
-      "coverage": {
-        "covered_after_utc": null,
-        "fix_commit": null,
-        "regression_test": null,
-        "reviewed_at_utc": null,
-        "reviewed_by": null,
-        "rule_version": null,
-        "verification": null
-      },
-      "evidence": [
-        {
-          "channel": null,
-          "detail": "connected=false",
-          "event": "mt5_connection_change",
-          "signal": "bot",
-          "ts_utc": "2026-06-05T22:24:03.440+00:00"
-        },
-        {
-          "channel": null,
-          "detail": "connected=false",
-          "event": "mt5_connection_change",
-          "signal": "bot",
-          "ts_utc": "2026-06-05T22:26:03.601+00:00"
-        },
-        {
-          "channel": null,
-          "detail": "connected=false",
-          "event": "mt5_connection_change",
-          "signal": "bot",
-          "ts_utc": "2026-06-07T02:04:30.438+00:00"
-        },
-        {
-          "channel": null,
-          "detail": "connected=false",
-          "event": "mt5_connection_change",
-          "signal": "bot",
-          "ts_utc": "2026-06-09T03:00:24.252+00:00"
-        },
-        {
-          "channel": null,
-          "detail": "connected=false",
-          "event": "mt5_connection_change",
-          "signal": "bot",
-          "ts_utc": "2026-06-12T21:55:23.739+00:00"
-        },
-        {
-          "channel": null,
-          "detail": "connected=false",
-          "event": "mt5_connection_change",
-          "signal": "bot",
-          "ts_utc": "2026-06-13T04:01:10.433+00:00"
-        },
-        {
-          "channel": null,
-          "detail": "connected=false",
-          "event": "mt5_connection_change",
-          "signal": "bot",
-          "ts_utc": "2026-06-14T01:26:03.100+00:00"
-        },
-        {
-          "channel": null,
-          "detail": "connected=false",
-          "event": "mt5_connection_change",
-          "signal": "bot",
-          "ts_utc": "2026-06-14T02:03:26.698+00:00"
-        },
-        {
-          "channel": null,
-          "detail": "connected=false",
-          "event": "mt5_connection_change",
-          "signal": "bot",
-          "ts_utc": "2026-06-19T01:00:54.725+00:00"
-        },
-        {
-          "channel": null,
-          "detail": "connected=false",
-          "event": "mt5_connection_change",
-          "signal": "bot",
-          "ts_utc": "2026-06-19T21:37:32.795+00:00"
-        },
-        {
-          "channel": null,
-          "detail": "connected=false",
-          "event": "mt5_connection_change",
-          "signal": "bot",
-          "ts_utc": "2026-06-20T02:09:30.903+00:00"
-        },
-        {
-          "channel": null,
-          "detail": "connected=false",
-          "event": "mt5_connection_change",
-          "signal": "bot",
-          "ts_utc": "2026-06-20T02:14:51.394+00:00"
-        }
-      ],
-      "financial_impact": null,
-      "first_seen_utc": "2026-06-05T22:24:03.440+00:00",
-      "last_seen_utc": "2026-07-19T02:30:42.708+00:00",
-      "occurrences": 33,
-      "pattern_id": "capture.mt5_connection_lost",
-      "priority_score": 30413,
-      "raw_events": 33,
-      "recurrence": "cross_session",
-      "severity": "high",
-      "status": "candidate",
-      "template": "mt5 connection entered a disconnected state"
     },
     {
       "affected_channels": [
@@ -6530,19 +6443,19 @@
   "schema_version": 1,
   "source_fingerprints": {
     "accounting": "c90f976f89e564dd02aa84a8ae4eb2a6cad60ba08463235c00e31886e4e2c11f",
-    "events": "0a858cc0c03956a73f42504fc05e43c4b3779a3dfda0227a5bc97050b7e79fed",
-    "observed_ticks": "c07c858c3718953bf3d0e6dd52306d33f6cdafe9d927b200cb7766af5fb3445d",
+    "events": "a9ee977fce560a006611be99ec7095cc9b6b299f36f2b46612e39a8f81f59782",
+    "observed_ticks": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
     "provider_catalog": "ee9f93bdbf2645a5e88bec85e2842b77d5ea1d91fd4cc9c70edb960f896ec4ee",
     "replay": "7438adf37e8a8994cfae0fbb576738ddc212bd94dad3624f5dd10d94b9bc716c",
     "review_metadata": "5991733f918759f7d59feba8a0c6c7ffd96f8ea955e25d1ad416b018f1f3a4af",
-    "strategy_farm": "1c4a9cc2a8eca6f5a72efefcab9599985950992d2fbd7777dbf733054837e1b6"
+    "strategy_farm": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
   },
   "summary": {
-    "candidates": 68,
+    "candidates": 66,
     "covered": 0,
     "dismissed": 0,
     "observed": 26,
-    "patterns": 95,
+    "patterns": 93,
     "regressed": 1
   }
 }

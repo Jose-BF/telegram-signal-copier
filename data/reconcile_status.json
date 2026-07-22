@@ -1,8 +1,8 @@
 {
   "ok": true,
-  "started_at": "2026-07-22T05:55:01+00:00",
-  "finished_at": "2026-07-22T05:55:06+00:00",
-  "duration_s": 4.45,
+  "started_at": "2026-07-22T06:00:54+00:00",
+  "finished_at": "2026-07-22T06:00:58+00:00",
+  "duration_s": 3.98,
   "returncode": 0,
   "stdout": "\n>>> Ledger escrito: C:\\Users\\bot\\telegram-signal-copier\\data\\ledger.jsonl (262 trades)\n",
   "stderr": "",
