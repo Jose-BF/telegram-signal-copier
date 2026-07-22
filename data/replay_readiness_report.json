@@ -1,20 +1,24 @@
 {
   "schema_version": 2,
-  "generated_at": "2026-07-22T06:49:11+00:00",
+  "generated_at": "2026-07-22T14:01:21+00:00",
   "tick_cache_dir": "C:\\Users\\bot\\telegram-signal-copier\\data\\ticks_cache",
   "pad_minutes": 5,
   "scope": {
     "since": "2026-07-06",
     "until": null,
-    "input_trades": 262,
-    "selected_trades": 126
+    "input_trades": 266,
+    "selected_trades": 130
   },
   "summary": {
-    "total": 126,
+    "total": 130,
     "ready": 124,
     "pending": 0,
-    "blocked": 2,
+    "blocked": 6,
     "top_blockers": [
+      [
+        "observed_path_status:blocked",
+        3
+      ],
       [
         "observed_path_status:external_intervention",
         1
@@ -25,6 +29,70 @@
       ],
       [
         "observed:missing_sl_transition_evidence:1622697156",
+        1
+      ],
+      [
+        "missing_ticket_open_deal:1634455411",
+        1
+      ],
+      [
+        "missing_ticket_open_deal:1634455437",
+        1
+      ],
+      [
+        "missing_ticket_open_deal:1634455445",
+        1
+      ],
+      [
+        "missing_ticket_open_deal:1634455461",
+        1
+      ],
+      [
+        "missing_ticket_open_deal:1634455469",
+        1
+      ],
+      [
+        "observed:unsupported_close_reason:1634455411:close_first",
+        1
+      ],
+      [
+        "observed:unsupported_close_reason:1634455437:close_first",
+        1
+      ],
+      [
+        "observed:unsupported_close_reason:1634455445:close_first",
+        1
+      ],
+      [
+        "observed:unsupported_close_reason:1634455461:close_first",
+        1
+      ],
+      [
+        "observed:unsupported_close_reason:1634455469:close_first",
+        1
+      ],
+      [
+        "missing_ticket_open_deal:1634685403",
+        1
+      ],
+      [
+        "missing_ticket_open_deal:1634685438",
+        1
+      ],
+      [
+        "missing_ticket_open_deal:1634685443",
+        1
+      ],
+      [
+        "missing_ticket_open_deal:1634685466",
+        1
+      ],
+      [
+        "missing_ticket_open_deal:1634685481",
+        1
+      ],
+      [
+        "observed:first_touch_time_mismatch:1634685403:-3328.000s",
         1
       ]
     ]
@@ -125,6 +193,14 @@
       "ready": 14,
       "pending": 0,
       "blocked": 0
+    },
+    {
+      "date": "2026-07-22",
+      "status": "blocked",
+      "total": 4,
+      "ready": 0,
+      "pending": 0,
+      "blocked": 4
     }
   ],
   "trades": [
@@ -4008,6 +4084,166 @@
         "observed:observed_open_execution_delta:1630673260:+0.03",
         "observed:observed_close_execution_delta:1630673260:-0.33",
         "observed:observed_level_fill_delta:1630673260:+0.23"
+      ]
+    },
+    {
+      "sig_id": "canal2_261",
+      "channel": "canal2",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-22T08:21:21.548+00:00",
+      "open_dt_utc": "2026-07-22T08:21:21+00:00",
+      "close_dt_utc": "2026-07-22T08:41:14+00:00",
+      "ready": false,
+      "status": "blocked",
+      "accounting_status": "reconstructed",
+      "accounting_money_exact": true,
+      "observed_path_status": "blocked",
+      "tick_days": [
+        "2026-07-22"
+      ],
+      "ticket_count": 5,
+      "blockers": [
+        "missing_ticket_open_deal:1634455411",
+        "missing_ticket_open_deal:1634455437",
+        "missing_ticket_open_deal:1634455445",
+        "missing_ticket_open_deal:1634455461",
+        "missing_ticket_open_deal:1634455469",
+        "observed_path_status:blocked",
+        "observed:unsupported_close_reason:1634455411:close_first",
+        "observed:unsupported_close_reason:1634455437:close_first",
+        "observed:unsupported_close_reason:1634455445:close_first",
+        "observed:unsupported_close_reason:1634455461:close_first",
+        "observed:unsupported_close_reason:1634455469:close_first"
+      ],
+      "warnings": [
+        "accounting_reconstructed",
+        "accounting_assumption:mt5_closure_event_fallback",
+        "accounting_assumption:journal_health_degraded",
+        "accounting_assumption:flag:PNL_PARCIAL_mt5_identifico_0_de_5_pos (posiciones del journal no halladas en MT5)",
+        "observed:observed_open_execution_delta:1634455469:-0.02",
+        "ticket_close_deal_reconstructed:1634455411",
+        "ticket_close_deal_reconstructed:1634455437",
+        "ticket_close_deal_reconstructed:1634455445",
+        "ticket_close_deal_reconstructed:1634455461",
+        "ticket_close_deal_reconstructed:1634455469"
+      ]
+    },
+    {
+      "sig_id": "canal2_266",
+      "channel": "canal2",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-22T09:13:31.015+00:00",
+      "open_dt_utc": "2026-07-22T09:13:31+00:00",
+      "close_dt_utc": "2026-07-22T10:24:44+00:00",
+      "ready": false,
+      "status": "blocked",
+      "accounting_status": "reconstructed",
+      "accounting_money_exact": true,
+      "observed_path_status": "blocked",
+      "tick_days": [
+        "2026-07-22"
+      ],
+      "ticket_count": 5,
+      "blockers": [
+        "missing_ticket_open_deal:1634685403",
+        "missing_ticket_open_deal:1634685438",
+        "missing_ticket_open_deal:1634685443",
+        "missing_ticket_open_deal:1634685466",
+        "missing_ticket_open_deal:1634685481",
+        "observed_path_status:blocked",
+        "observed:first_touch_time_mismatch:1634685403:-3328.000s",
+        "observed:first_touch_time_mismatch:1634685438:-3010.000s",
+        "observed:first_touch_time_mismatch:1634685443:-2697.000s",
+        "observed:unsupported_close_reason:1634685466:loss_be",
+        "observed:unsupported_close_reason:1634685481:loss_be"
+      ],
+      "warnings": [
+        "accounting_reconstructed",
+        "accounting_assumption:mt5_closure_event_fallback",
+        "accounting_assumption:flag:PNL_PARCIAL_mt5_identifico_0_de_5_pos (posiciones del journal no halladas en MT5)",
+        "observed:observed_open_execution_delta:1634685403:-0.14",
+        "observed:observed_close_execution_delta:1634685403:+2.56",
+        "observed:observed_open_execution_delta:1634685438:+0.06",
+        "observed:observed_close_execution_delta:1634685438:+4.56",
+        "observed:observed_open_execution_delta:1634685443:+0.02",
+        "observed:observed_close_execution_delta:1634685443:+6.56",
+        "observed:observed_open_execution_delta:1634685481:+0.02",
+        "ticket_close_deal_reconstructed:1634685403",
+        "ticket_close_deal_reconstructed:1634685438",
+        "ticket_close_deal_reconstructed:1634685443",
+        "ticket_close_deal_reconstructed:1634685466",
+        "ticket_close_deal_reconstructed:1634685481"
+      ]
+    },
+    {
+      "sig_id": "canal2_272",
+      "channel": "canal2",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-22T10:05:24.932+00:00",
+      "open_dt_utc": "2026-07-22T10:05:25+00:00",
+      "close_dt_utc": "2026-07-22T10:37:09+00:00",
+      "ready": false,
+      "status": "blocked",
+      "accounting_status": "reconstructed",
+      "accounting_money_exact": true,
+      "observed_path_status": "blocked",
+      "tick_days": [
+        "2026-07-22"
+      ],
+      "ticket_count": 5,
+      "blockers": [
+        "missing_ticket_open_deal:1634906306",
+        "missing_ticket_open_deal:1634906315",
+        "missing_ticket_open_deal:1634906351",
+        "missing_ticket_open_deal:1634906366",
+        "missing_ticket_open_deal:1634906375",
+        "observed_path_status:blocked",
+        "observed:unsupported_close_reason:1634906306:close_first",
+        "observed:unsupported_close_reason:1634906315:close_first",
+        "observed:unsupported_close_reason:1634906351:close_first",
+        "observed:unsupported_close_reason:1634906366:close_first",
+        "observed:unsupported_close_reason:1634906375:close_first"
+      ],
+      "warnings": [
+        "accounting_reconstructed",
+        "accounting_assumption:mt5_closure_event_fallback",
+        "accounting_assumption:journal_health_degraded",
+        "accounting_assumption:flag:PNL_PARCIAL_mt5_identifico_0_de_5_pos (posiciones del journal no halladas en MT5)",
+        "observed:observed_open_execution_delta:1634906306:+0.14",
+        "observed:observed_open_execution_delta:1634906315:+0.07",
+        "observed:observed_open_execution_delta:1634906351:+0.02",
+        "ticket_close_deal_reconstructed:1634906306",
+        "ticket_close_deal_reconstructed:1634906315",
+        "ticket_close_deal_reconstructed:1634906351",
+        "ticket_close_deal_reconstructed:1634906366",
+        "ticket_close_deal_reconstructed:1634906375"
+      ]
+    },
+    {
+      "sig_id": "canal2_278",
+      "channel": "canal2",
+      "direction": "SELL",
+      "signal_dt_utc": "2026-07-22T11:59:36.118+00:00",
+      "open_dt_utc": null,
+      "close_dt_utc": null,
+      "ready": false,
+      "status": "blocked",
+      "accounting_status": "blocked",
+      "accounting_money_exact": false,
+      "observed_path_status": "exact",
+      "tick_days": [
+        "2026-07-22"
+      ],
+      "ticket_count": 0,
+      "blockers": [
+        "accounting_status:blocked",
+        "accounting_money_not_exact"
+      ],
+      "warnings": [
+        "accounting_assumption:journal_pnl_missing",
+        "accounting_assumption:journal_health_degraded",
+        "accounting_assumption:replay_gap:pnl_mt5_incomplete",
+        "accounting_assumption:flag:PNL_PARCIAL_mt5_identifico_0_de_5_pos (posiciones del journal no halladas en MT5)"
       ]
     }
   ]

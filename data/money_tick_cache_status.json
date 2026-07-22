@@ -13,18 +13,28 @@
     "2026-07-16",
     "2026-07-17",
     "2026-07-20",
-    "2026-07-21"
+    "2026-07-21",
+    "2026-07-22"
   ],
-  "ensure_stats": {},
+  "ensure_stats": {
+    "cached_already": 0,
+    "downloaded": 1,
+    "empty_days": 0,
+    "total_ticks": 74884
+  },
   "incomplete_days": [],
   "initial_incomplete_days": [],
   "initial_invalid_days": [],
   "invalid_days": [],
   "missing_days": [],
   "ok": true,
-  "reference_evidence_days": [],
+  "reference_evidence_days": [
+    "2026-07-22"
+  ],
   "refresh_removed_days": [],
-  "refresh_requested_days": [],
+  "refresh_requested_days": [
+    "2026-07-22"
+  ],
   "required_days": [
     "2026-07-06",
     "2026-07-07",
@@ -39,7 +49,8 @@
     "2026-07-16",
     "2026-07-17",
     "2026-07-20",
-    "2026-07-21"
+    "2026-07-21",
+    "2026-07-22"
   ],
   "symbol": "EURUSD"
 }
