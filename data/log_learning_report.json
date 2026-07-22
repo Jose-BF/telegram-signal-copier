@@ -1413,14 +1413,14 @@
   ],
   "corpus": {
     "accounting_trades": 262,
-    "event_rows": 73896,
-    "latest_evidence_utc": "2026-07-22T06:01:40.339+00:00",
+    "event_rows": 73902,
+    "latest_evidence_utc": "2026-07-22T06:07:28.567+00:00",
     "observed_tick_trades": 126,
     "provider_records": 513,
     "replay_trades": 262,
     "source_fingerprints": {
       "accounting": "c90f976f89e564dd02aa84a8ae4eb2a6cad60ba08463235c00e31886e4e2c11f",
-      "events": "6909f46c39490058a6f04c9a124ed1aec9efe1bc6782ead2ed040128dde16e44",
+      "events": "e6e972641b83497c7f621b2e09ec796c01ce2edbb9badc3d70e11086deecbaa1",
       "observed_ticks": "c07c858c3718953bf3d0e6dd52306d33f6cdafe9d927b200cb7766af5fb3445d",
       "provider_catalog": "ee9f93bdbf2645a5e88bec85e2842b77d5ea1d91fd4cc9c70edb960f896ec4ee",
       "replay": "7438adf37e8a8994cfae0fbb576738ddc212bd94dad3624f5dd10d94b9bc716c",
@@ -1559,7 +1559,7 @@
     "regressed_patterns": 1
   },
   "mode": "diagnostic_only",
-  "registry_fingerprint": "a98f1d63cb7293528a12f8d23193825aae6bc07c8027cdbad54a0abd487f36fd",
+  "registry_fingerprint": "a3fc2d6a2b9d116e342bec68e36846306874b286152779dafac98ab1dcfdc92f",
   "safe_for_strategy_simulation": false,
   "schema_version": 1
 }

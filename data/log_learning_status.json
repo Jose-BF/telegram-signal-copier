@@ -1,7 +1,9 @@
 {
-  "artifacts_valid": true,
-  "attempted_at_utc": "2026-07-22T06:06:37+00:00",
-  "blockers": [],
+  "artifacts_valid": false,
+  "attempted_at_utc": "2026-07-22T06:07:31+00:00",
+  "blockers": [
+    "artifacts_invalid:learning artifacts do not match the current repository corpus"
+  ],
   "build_returncode": 0,
   "build_succeeded": true,
   "conclusions_allowed": false,
@@ -18,22 +20,17 @@
     "tick_cache": true
   },
   "error": null,
-  "fresh": true,
-  "git_commit": "3b0144244ce21771c6de614e9b957df50aa5ac86",
+  "fresh": false,
+  "git_commit": "c08a9c26d8dc53988ccfd8437c911171515febf9",
   "git_dirty": true,
-  "latest_evidence_utc": "2026-07-22T06:01:40.339+00:00",
-  "ok": true,
-  "publication_id": "057f07509623572e4f20c06a072f1a583a187d88b02cc7170cf0f00acc5672e2",
-  "registry_sha256": "a98f1d63cb7293528a12f8d23193825aae6bc07c8027cdbad54a0abd487f36fd",
-  "report_sha256": "54753a3d8d754aa302f29645518e1cb29c9278aa77a153502836ed4c325641ac",
-  "review_fingerprint": "5991733f918759f7d59feba8a0c6c7ffd96f8ea955e25d1ad416b018f1f3a4af",
+  "latest_evidence_utc": null,
+  "ok": false,
+  "publication_id": null,
+  "registry_sha256": null,
+  "report_sha256": null,
+  "review_fingerprint": null,
   "schema_version": 1,
   "source_dirty": false,
-  "source_fingerprint": "d3ddd17b602b571f58900f47b4e1aebfa7a12c1740e59316fd4e4cf62d2b1d77",
-  "strategy_blockers": [
-    "accounting",
-    "execution",
-    "market_replay",
-    "semantics"
-  ]
+  "source_fingerprint": null,
+  "strategy_blockers": []
 }
