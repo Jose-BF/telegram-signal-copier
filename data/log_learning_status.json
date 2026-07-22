@@ -1,8 +1,9 @@
 {
   "artifacts_valid": false,
-  "attempted_at_utc": "2026-07-22T06:07:31+00:00",
+  "attempted_at_utc": "2026-07-22T06:12:27+00:00",
   "blockers": [
-    "artifacts_invalid:learning artifacts do not match the current repository corpus"
+    "artifacts_invalid:learning artifacts do not match the current repository corpus",
+    "dependency_failed:strategy_farm"
   ],
   "build_returncode": 0,
   "build_succeeded": true,
@@ -16,12 +17,12 @@
     "provider_catalog": true,
     "readiness": true,
     "replay": true,
-    "strategy_farm": true,
+    "strategy_farm": false,
     "tick_cache": true
   },
   "error": null,
   "fresh": false,
-  "git_commit": "c08a9c26d8dc53988ccfd8437c911171515febf9",
+  "git_commit": "90f503649e30af22d0c53d48adffc606a9f02045",
   "git_dirty": true,
   "latest_evidence_utc": null,
   "ok": false,
