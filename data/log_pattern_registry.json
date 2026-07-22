@@ -522,12 +522,13 @@
       "affected_days": [
         "2026-07-22"
       ],
-      "affected_signal_count": 1,
+      "affected_signal_count": 2,
       "affected_signals": [
+        "canal2_266",
         "canal2_278"
       ],
       "candidate_reason": "material reliability impact",
-      "category": "accounting",
+      "category": "market_replay",
       "coverage": {
         "covered_after_utc": null,
         "fix_commit": null,
@@ -540,23 +541,30 @@
       "evidence": [
         {
           "channel": "canal2",
-          "detail": "pnl_mt5_incomplete",
-          "event": "accounting_replay",
+          "detail": "first_touch_time_mismatch",
+          "event": "observed_tick_replay",
+          "signal": "canal2_266",
+          "ts_utc": "2026-07-22T09:13:31.015+00:00"
+        },
+        {
+          "channel": "canal2",
+          "detail": "first_touch_time_mismatch",
+          "event": "observed_tick_replay",
           "signal": "canal2_278",
           "ts_utc": "2026-07-22T11:59:36.118+00:00"
         }
       ],
-      "financial_impact": 0.0,
-      "first_seen_utc": "2026-07-22T11:59:36.118+00:00",
+      "financial_impact": null,
+      "first_seen_utc": "2026-07-22T09:13:31.015+00:00",
       "last_seen_utc": "2026-07-22T11:59:36.118+00:00",
-      "occurrences": 1,
-      "pattern_id": "accounting.blocked",
-      "priority_score": 40030,
-      "raw_events": 1,
-      "recurrence": "single_incident",
+      "occurrences": 2,
+      "pattern_id": "market_replay.first_touch_time_mismatch",
+      "priority_score": 40040,
+      "raw_events": 8,
+      "recurrence": "multiple_incidents",
       "severity": "critical",
       "status": "candidate",
-      "template": "accounting replay status is blocked"
+      "template": "observed-tick replay blocker: first touch time mismatch"
     },
     {
       "affected_channels": [
@@ -601,50 +609,6 @@
       "severity": "critical",
       "status": "candidate",
       "template": "observed-tick replay blocker: external intervention"
-    },
-    {
-      "affected_channels": [
-        "canal2"
-      ],
-      "affected_day_count": 1,
-      "affected_days": [
-        "2026-07-22"
-      ],
-      "affected_signal_count": 1,
-      "affected_signals": [
-        "canal2_266"
-      ],
-      "candidate_reason": "material reliability impact",
-      "category": "market_replay",
-      "coverage": {
-        "covered_after_utc": null,
-        "fix_commit": null,
-        "regression_test": null,
-        "reviewed_at_utc": null,
-        "reviewed_by": null,
-        "rule_version": null,
-        "verification": null
-      },
-      "evidence": [
-        {
-          "channel": "canal2",
-          "detail": "first_touch_time_mismatch",
-          "event": "observed_tick_replay",
-          "signal": "canal2_266",
-          "ts_utc": "2026-07-22T09:13:31.015+00:00"
-        }
-      ],
-      "financial_impact": null,
-      "first_seen_utc": "2026-07-22T09:13:31.015+00:00",
-      "last_seen_utc": "2026-07-22T09:13:31.015+00:00",
-      "occurrences": 1,
-      "pattern_id": "market_replay.first_touch_time_mismatch",
-      "priority_score": 40030,
-      "raw_events": 3,
-      "recurrence": "single_incident",
-      "severity": "critical",
-      "status": "candidate",
-      "template": "observed-tick replay blocker: first touch time mismatch"
     },
     {
       "affected_channels": [
@@ -2373,50 +2337,6 @@
     },
     {
       "affected_channels": [
-        "canal2"
-      ],
-      "affected_day_count": 1,
-      "affected_days": [
-        "2026-07-22"
-      ],
-      "affected_signal_count": 1,
-      "affected_signals": [
-        "canal2_278"
-      ],
-      "candidate_reason": "material reliability impact",
-      "category": "replay",
-      "coverage": {
-        "covered_after_utc": null,
-        "fix_commit": null,
-        "regression_test": null,
-        "reviewed_at_utc": null,
-        "reviewed_by": null,
-        "rule_version": null,
-        "verification": null
-      },
-      "evidence": [
-        {
-          "channel": "canal2",
-          "detail": "pnl_mtn_incomplete",
-          "event": "simulation_blocker",
-          "signal": "canal2_278",
-          "ts_utc": "2026-07-22T11:59:36.118+00:00"
-        }
-      ],
-      "financial_impact": null,
-      "first_seen_utc": "2026-07-22T11:59:36.118+00:00",
-      "last_seen_utc": "2026-07-22T11:59:36.118+00:00",
-      "occurrences": 1,
-      "pattern_id": "replay.pnl_mtn_incomplete",
-      "priority_score": 30030,
-      "raw_events": 1,
-      "recurrence": "single_incident",
-      "severity": "high",
-      "status": "candidate",
-      "template": "causal replay blocker: pnl mtn incomplete"
-    },
-    {
-      "affected_channels": [
         "canal1"
       ],
       "affected_day_count": 1,
@@ -4047,7 +3967,7 @@
         "2026-07-21",
         "2026-07-22"
       ],
-      "affected_signal_count": 104,
+      "affected_signal_count": 105,
       "affected_signals": [
         "canal1_20102",
         "canal1_20132",
@@ -4131,6 +4051,7 @@
         "canal2_261",
         "canal2_266",
         "canal2_272",
+        "canal2_278",
         "canal2_2787",
         "canal2_2810",
         "canal2_2830",
@@ -4253,11 +4174,11 @@
       ],
       "financial_impact": 0.0,
       "first_seen_utc": "2026-06-05T08:00:07.670+00:00",
-      "last_seen_utc": "2026-07-22T10:05:24.932+00:00",
-      "occurrences": 104,
+      "last_seen_utc": "2026-07-22T11:59:36.118+00:00",
+      "occurrences": 105,
       "pattern_id": "accounting.reconstructed_trade",
       "priority_score": 21670,
-      "raw_events": 104,
+      "raw_events": 105,
       "recurrence": "cross_session",
       "severity": "medium",
       "status": "candidate",
@@ -6765,20 +6686,20 @@
   ],
   "schema_version": 1,
   "source_fingerprints": {
-    "accounting": "4290e6cab54b55ab54478657c5dddd9c3ff285ed1c4ad3dfb824c6059d2fdd2a",
-    "events": "d00033bf14d8b7fd607edea7e605a412519ae63e90528c175098bf0dba470318",
-    "observed_ticks": "ca454d241f2072d77f3a8caa6e4d896d5922a8294959df2bb5d3823fb62c8d96",
-    "provider_catalog": "3fadeaa6099252df4210bb78ca71a3478a3d61734bc734d0f18a3e652c816a6c",
-    "replay": "711c40620103c8679425f44f0e3cc8e58ba2c70328558b264be722f4c1d2912a",
+    "accounting": "ca49162a8fed60d85b5853e04e7a2dff850815a52103f7b880937fd883131385",
+    "events": "af1515a341999ab8cba588eab5cda32488ede4b47fe10837b1f1ffc9dad401b9",
+    "observed_ticks": "19f4c5bd6adff2d10563c2a82092b221fccf869d86b8d44bb9330b284abd4951",
+    "provider_catalog": "ee870b84540235fabc24cbbd621bbb65437e3f93cc112ea3baded67a5f9fedab",
+    "replay": "21de370c8c209b81b05ebe5090ed91b1740800d035ca909f01fa103026886641",
     "review_metadata": "5991733f918759f7d59feba8a0c6c7ffd96f8ea955e25d1ad416b018f1f3a4af",
-    "strategy_farm": "a081dfc48c9959243d26e03ccf64117793c6ec97b60238b044831d74b984bc52"
+    "strategy_farm": "e8d0e3611d7b10d942b67ba2fb078e6216784ceaf646869cb526506b44e6f7ed"
   },
   "summary": {
-    "candidates": 72,
+    "candidates": 70,
     "covered": 0,
     "dismissed": 0,
     "observed": 26,
-    "patterns": 99,
+    "patterns": 97,
     "regressed": 1
   }
 }

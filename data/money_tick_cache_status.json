@@ -20,10 +20,12 @@
     "cached_already": 0,
     "downloaded": 1,
     "empty_days": 0,
-    "total_ticks": 74884
+    "total_ticks": 89137
   },
   "incomplete_days": [],
-  "initial_incomplete_days": [],
+  "initial_incomplete_days": [
+    "2026-07-22"
+  ],
   "initial_invalid_days": [],
   "invalid_days": [],
   "missing_days": [],
@@ -31,7 +33,9 @@
   "reference_evidence_days": [
     "2026-07-22"
   ],
-  "refresh_removed_days": [],
+  "refresh_removed_days": [
+    "2026-07-22"
+  ],
   "refresh_requested_days": [
     "2026-07-22"
   ],

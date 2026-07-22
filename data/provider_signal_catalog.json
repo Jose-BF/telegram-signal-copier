@@ -150796,9 +150796,40 @@
             "range_high": 4127.67,
             "action_planned": "normal_flow"
           },
-          "tickets": [],
-          "all_entries_inside": false,
-          "max_distance_outside": null
+          "tickets": [
+            {
+              "ticket": 1635368813,
+              "open_price": 4122.66,
+              "inside_final_provider_range": true,
+              "distance_outside": 0.0
+            },
+            {
+              "ticket": 1635368820,
+              "open_price": 4122.66,
+              "inside_final_provider_range": true,
+              "distance_outside": 0.0
+            },
+            {
+              "ticket": 1635368829,
+              "open_price": 4122.66,
+              "inside_final_provider_range": true,
+              "distance_outside": 0.0
+            },
+            {
+              "ticket": 1635368832,
+              "open_price": 4122.66,
+              "inside_final_provider_range": true,
+              "distance_outside": 0.0
+            },
+            {
+              "ticket": 1635368842,
+              "open_price": 4122.64,
+              "inside_final_provider_range": true,
+              "distance_outside": 0.0
+            }
+          ],
+          "all_entries_inside": true,
+          "max_distance_outside": 0.0
         }
       ],
       "execution_count": 1,

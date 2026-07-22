@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-07-22T14:00:19+00:00",
+  "generated_at": "2026-07-22T15:57:13+00:00",
   "tick_time_contract": "mt5_server_epoch_utc_v3",
   "time_basis": "UTC",
   "dry_run": false,
@@ -153,15 +153,15 @@
     "2026-07-22": {
       "status": "complete",
       "required_from_utc": "2026-07-22T08:16:21+00:00",
-      "required_through_utc": "2026-07-22T12:04:36.118000+00:00",
+      "required_through_utc": "2026-07-22T14:10:17+00:00",
       "complete_from_utc": "2026-07-22T00:00:00+00:00",
-      "complete_through_utc": "2026-07-22T14:00:17.876000+00:00"
+      "complete_through_utc": "2026-07-22T15:57:11.710000+00:00"
     }
   },
   "ensure_stats": {
     "downloaded": 1,
     "cached_already": 0,
-    "total_ticks": 420012,
+    "total_ticks": 493978,
     "empty_days": 0,
     "day_contracts": {
       "2026-07-22": {
@@ -182,8 +182,8 @@
         },
         "semantic_validation": {
           "valid": true,
-          "anchors_checked": 15,
-          "anchors_matched": 15,
+          "anchors_checked": 20,
+          "anchors_matched": 20,
           "max_time_delta_ms": 2149,
           "max_price_delta": 0.0,
           "errors": []
@@ -191,17 +191,19 @@
         "coverage": {
           "source_query_start_utc": "2026-07-22T00:00:00+00:00",
           "source_query_end_utc": "2026-07-23T00:00:00+00:00",
-          "captured_at_utc": "2026-07-22T14:00:19.348998+00:00",
+          "captured_at_utc": "2026-07-22T15:57:13.100942+00:00",
           "first_tick_utc": "2026-07-22T00:00:00.002000+00:00",
-          "last_tick_utc": "2026-07-22T14:00:17.876000+00:00",
+          "last_tick_utc": "2026-07-22T15:57:11.710000+00:00",
           "complete_from_utc": "2026-07-22T00:00:00+00:00",
-          "complete_through_utc": "2026-07-22T14:00:17.876000+00:00",
-          "row_count": 420012
+          "complete_through_utc": "2026-07-22T15:57:11.710000+00:00",
+          "row_count": 493978
         }
       }
     }
   },
   "refresh_requested_days": [],
-  "refresh_removed_days": [],
+  "refresh_removed_days": [
+    "2026-07-22"
+  ],
   "error": null
 }

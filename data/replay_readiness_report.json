@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "generated_at": "2026-07-22T14:01:21+00:00",
+  "generated_at": "2026-07-22T15:58:14+00:00",
   "tick_cache_dir": "C:\\Users\\bot\\telegram-signal-copier\\data\\ticks_cache",
   "pad_minutes": 5,
   "scope": {
@@ -20,11 +20,11 @@
         3
       ],
       [
-        "observed_path_status:external_intervention",
-        1
+        "observed_path_status:mismatch",
+        2
       ],
       [
-        "observed_path_status:mismatch",
+        "observed_path_status:external_intervention",
         1
       ],
       [
@@ -4224,26 +4224,54 @@
       "channel": "canal2",
       "direction": "SELL",
       "signal_dt_utc": "2026-07-22T11:59:36.118+00:00",
-      "open_dt_utc": null,
-      "close_dt_utc": null,
+      "open_dt_utc": "2026-07-22T11:59:36+00:00",
+      "close_dt_utc": "2026-07-22T14:05:17+00:00",
       "ready": false,
       "status": "blocked",
-      "accounting_status": "blocked",
-      "accounting_money_exact": false,
-      "observed_path_status": "exact",
+      "accounting_status": "reconstructed",
+      "accounting_money_exact": true,
+      "observed_path_status": "mismatch",
       "tick_days": [
         "2026-07-22"
       ],
-      "ticket_count": 0,
+      "ticket_count": 5,
       "blockers": [
-        "accounting_status:blocked",
-        "accounting_money_not_exact"
+        "missing_ticket_open_deal:1635368813",
+        "missing_ticket_open_deal:1635368820",
+        "missing_ticket_open_deal:1635368829",
+        "missing_ticket_open_deal:1635368832",
+        "missing_ticket_open_deal:1635368842",
+        "observed_path_status:mismatch",
+        "observed:first_touch_time_mismatch:1635368813:-5836.000s",
+        "observed:first_touch_time_mismatch:1635368820:-5836.000s",
+        "observed:first_touch_time_mismatch:1635368829:-5836.000s",
+        "observed:first_touch_time_mismatch:1635368832:-5836.000s",
+        "observed:first_touch_time_mismatch:1635368842:-5836.000s"
       ],
       "warnings": [
-        "accounting_assumption:journal_pnl_missing",
+        "accounting_reconstructed",
+        "accounting_assumption:mt5_closure_event_fallback",
         "accounting_assumption:journal_health_degraded",
-        "accounting_assumption:replay_gap:pnl_mt5_incomplete",
-        "accounting_assumption:flag:PNL_PARCIAL_mt5_identifico_0_de_5_pos (posiciones del journal no halladas en MT5)"
+        "accounting_assumption:flag:PNL_PARCIAL_mt5_identifico_0_de_5_pos (posiciones del journal no halladas en MT5)",
+        "observed:observed_open_execution_delta:1635368813:-0.02",
+        "observed:observed_close_execution_delta:1635368813:+24.87",
+        "observed:observed_level_fill_delta:1635368813:+0.29",
+        "observed:observed_open_execution_delta:1635368820:-0.02",
+        "observed:observed_close_execution_delta:1635368820:+24.87",
+        "observed:observed_level_fill_delta:1635368820:+0.29",
+        "observed:observed_open_execution_delta:1635368829:-0.02",
+        "observed:observed_close_execution_delta:1635368829:+24.87",
+        "observed:observed_level_fill_delta:1635368829:+0.29",
+        "observed:observed_open_execution_delta:1635368832:-0.02",
+        "observed:observed_close_execution_delta:1635368832:+24.70",
+        "observed:observed_level_fill_delta:1635368832:+0.12",
+        "observed:observed_close_execution_delta:1635368842:+24.70",
+        "observed:observed_level_fill_delta:1635368842:+0.12",
+        "ticket_close_deal_reconstructed:1635368813",
+        "ticket_close_deal_reconstructed:1635368820",
+        "ticket_close_deal_reconstructed:1635368829",
+        "ticket_close_deal_reconstructed:1635368832",
+        "ticket_close_deal_reconstructed:1635368842"
       ]
     }
   ]
