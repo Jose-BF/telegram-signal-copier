@@ -15,37 +15,16 @@
     "2026-07-20",
     "2026-07-21"
   ],
-  "ensure_stats": {
-    "cached_already": 0,
-    "downloaded": 3,
-    "empty_days": 0,
-    "total_ticks": 335679
-  },
+  "ensure_stats": {},
   "incomplete_days": [],
-  "initial_incomplete_days": [
-    "2026-07-17",
-    "2026-07-20",
-    "2026-07-21"
-  ],
+  "initial_incomplete_days": [],
   "initial_invalid_days": [],
   "invalid_days": [],
   "missing_days": [],
   "ok": true,
-  "reference_evidence_days": [
-    "2026-07-17",
-    "2026-07-20",
-    "2026-07-21"
-  ],
-  "refresh_removed_days": [
-    "2026-07-17",
-    "2026-07-20",
-    "2026-07-21"
-  ],
-  "refresh_requested_days": [
-    "2026-07-17",
-    "2026-07-20",
-    "2026-07-21"
-  ],
+  "reference_evidence_days": [],
+  "refresh_removed_days": [],
+  "refresh_requested_days": [],
   "required_days": [
     "2026-07-06",
     "2026-07-07",

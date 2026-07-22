@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "generated_at": "2026-07-21T22:15:14+00:00",
+  "generated_at": "2026-07-22T05:26:07+00:00",
   "tick_cache_dir": "C:\\Users\\bot\\telegram-signal-copier\\data\\ticks_cache",
   "pad_minutes": 5,
   "scope": {
@@ -2178,7 +2178,7 @@
       "close_dt_utc": "2026-07-15T12:58:27+00:00",
       "ready": true,
       "status": "ready",
-      "accounting_status": "reconstructed",
+      "accounting_status": "exact",
       "accounting_money_exact": true,
       "observed_path_status": "exact",
       "tick_days": [
@@ -2187,10 +2187,6 @@
       "ticket_count": 4,
       "blockers": [],
       "warnings": [
-        "accounting_reconstructed",
-        "accounting_assumption:journal_missing_signal_closed",
-        "accounting_assumption:journal_pnl_missing",
-        "accounting_assumption:flag:HUERFANO_journal_sin_signal_closed",
         "observed:observed_close_execution_delta:1597360679:-0.16",
         "observed:observed_close_execution_delta:1597360852:-0.67",
         "observed:observed_open_execution_delta:1597360952:+0.45",
@@ -2860,10 +2856,7 @@
       "blockers": [],
       "warnings": [
         "accounting_reconstructed",
-        "accounting_assumption:journal_missing_signal_closed",
-        "accounting_assumption:journal_pnl_missing",
         "accounting_assumption:journal_health_degraded",
-        "accounting_assumption:flag:HUERFANO_journal_sin_signal_closed",
         "accounting_assumption:flag:vivio_1_resync(s)",
         "observed:observed_close_execution_delta:1611459949:+0.09",
         "observed:observed_level_fill_delta:1611459949:+0.11",
@@ -3712,7 +3705,7 @@
       "close_dt_utc": "2026-07-21T10:00:03+00:00",
       "ready": true,
       "status": "ready",
-      "accounting_status": "reconstructed",
+      "accounting_status": "exact",
       "accounting_money_exact": true,
       "observed_path_status": "exact",
       "tick_days": [
@@ -3721,10 +3714,6 @@
       "ticket_count": 5,
       "blockers": [],
       "warnings": [
-        "accounting_reconstructed",
-        "accounting_assumption:journal_missing_signal_closed",
-        "accounting_assumption:journal_pnl_missing",
-        "accounting_assumption:flag:HUERFANO_journal_sin_signal_closed",
         "observed:observed_close_execution_delta:1628404668:-0.04",
         "observed:observed_close_execution_delta:1628404680:-0.02",
         "observed:observed_level_fill_delta:1628404680:+0.02",

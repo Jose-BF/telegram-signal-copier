@@ -158,12 +158,13 @@
         "2026-07-18",
         "2026-07-19",
         "2026-07-20",
-        "2026-07-21"
+        "2026-07-21",
+        "2026-07-22"
       ],
       "candidate_reason": "material reliability impact",
-      "occurrences": 28,
+      "occurrences": 29,
       "pattern_id": "semantics.unclassified_management.non_trading_announcement",
-      "priority_score": 30679,
+      "priority_score": 30709,
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
@@ -1150,7 +1151,7 @@
         "2026-07-21"
       ],
       "candidate_reason": "pattern recurred across retained sessions",
-      "occurrences": 103,
+      "occurrences": 101,
       "pattern_id": "accounting.reconstructed_trade",
       "priority_score": 21650,
       "required_promotion_evidence": [
@@ -1364,12 +1365,13 @@
         "2026-07-18",
         "2026-07-19",
         "2026-07-20",
-        "2026-07-21"
+        "2026-07-21",
+        "2026-07-22"
       ],
       "candidate_reason": "pattern recurred across retained sessions",
-      "occurrences": 62,
+      "occurrences": 63,
       "pattern_id": "semantics.context_media_not_extracted",
-      "priority_score": 11086,
+      "priority_score": 11116,
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
@@ -1391,12 +1393,13 @@
         "2026-07-18",
         "2026-07-19",
         "2026-07-20",
-        "2026-07-21"
+        "2026-07-21",
+        "2026-07-22"
       ],
       "candidate_reason": "pattern recurred across retained sessions",
-      "occurrences": 78,
+      "occurrences": 80,
       "pattern_id": "semantics.unresolved_informational_reply.unknown_reply_target",
-      "priority_score": 11019,
+      "priority_score": 11060,
       "required_promotion_evidence": [
         "deterministic_fixture",
         "regression_test",
@@ -1409,19 +1412,19 @@
   ],
   "corpus": {
     "accounting_trades": 262,
-    "event_rows": 73755,
-    "latest_evidence_utc": "2026-07-21T22:01:03.629+00:00",
+    "event_rows": 73844,
+    "latest_evidence_utc": "2026-07-22T05:18:58.311+00:00",
     "observed_tick_trades": 126,
-    "provider_records": 509,
+    "provider_records": 513,
     "replay_trades": 262,
     "source_fingerprints": {
-      "accounting": "8243703d8bf16b98dd7283ef45c8fdc314088059274122825966e1cdae3d2b73",
-      "events": "4511997d0808fac1892978251f5fc0bcaccac5816529588859b8843b2ec26eac",
+      "accounting": "c90f976f89e564dd02aa84a8ae4eb2a6cad60ba08463235c00e31886e4e2c11f",
+      "events": "0add61a79cd6bb153caf8337673b8ba8c2198dfb918e271a047f4001a548f5ec",
       "observed_ticks": "c07c858c3718953bf3d0e6dd52306d33f6cdafe9d927b200cb7766af5fb3445d",
-      "provider_catalog": "2d491d6759174ceff23d1b867dc60f05e42b8873e2ecdf70c5e7aa5f23c04922",
-      "replay": "95ea7a78fc1b8967ebe4fd5c3bc308c5a899557485a68d65692e56c005ef8488",
+      "provider_catalog": "ee9f93bdbf2645a5e88bec85e2842b77d5ea1d91fd4cc9c70edb960f896ec4ee",
+      "replay": "7438adf37e8a8994cfae0fbb576738ddc212bd94dad3624f5dd10d94b9bc716c",
       "review_metadata": "5991733f918759f7d59feba8a0c6c7ffd96f8ea955e25d1ad416b018f1f3a4af",
-      "strategy_farm": "1a3488bb3380c718857ba66130a6f869b2cc4230c6035a8b3984a8fcafc435e9"
+      "strategy_farm": "1c4a9cc2a8eca6f5a72efefcab9599985950992d2fbd7777dbf733054837e1b6"
     }
   },
   "hard_gate_blockers": [
@@ -1433,13 +1436,13 @@
   "health": {
     "accounting": {
       "blockers": [
-        "accounting_not_exact:103"
+        "accounting_not_exact:101"
       ],
       "hard_gate": true,
       "metrics": {
         "blocked_or_mismatched": 0,
-        "exact": 159,
-        "reconstructed": 103,
+        "exact": 161,
+        "reconstructed": 101,
         "trades": 262
       },
       "passed": false,
@@ -1500,7 +1503,7 @@
     "semantics": {
       "blockers": [
         "incomplete_formal_signals:7",
-        "unclassified_management:146",
+        "unclassified_management:147",
         "unknown_provider_records:70"
       ],
       "hard_gate": true,
@@ -1508,8 +1511,8 @@
         "complete_formal_signals": 275,
         "formal_signals": 282,
         "incomplete_formal_signals": 7,
-        "management_events": 1486,
-        "unclassified_management_events": 146,
+        "management_events": 1489,
+        "unclassified_management_events": 147,
         "unknown_provider_records": 70
       },
       "passed": false,
@@ -1537,25 +1540,13 @@
     "covered_patterns": 0,
     "cross_session_patterns": 29,
     "latest_day_delta": {
-      "evidence_day": "2026-07-21",
-      "new_pattern_count": 3,
-      "new_patterns": [
-        "semantics.unclassified_management.other_ca70283743",
-        "semantics.unknown_provider_record.other_2f906f3993",
-        "semantics.unknown_provider_record.other_c25993907b"
-      ],
-      "recurring_pattern_count": 11,
+      "evidence_day": "2026-07-22",
+      "new_pattern_count": 0,
+      "new_patterns": [],
+      "recurring_pattern_count": 3,
       "recurring_patterns": [
-        "accounting.reconstructed_trade",
         "semantics.context_media_not_extracted",
-        "semantics.unclassified_management.conditional_plan",
-        "semantics.unclassified_management.exit_or_risk_guidance",
-        "semantics.unclassified_management.market_context",
         "semantics.unclassified_management.non_trading_announcement",
-        "semantics.unknown_provider_record.non_trading_announcement",
-        "semantics.unknown_provider_record.other_196475c876",
-        "semantics.unresolved_actionable_management.target_signal_closed",
-        "semantics.unresolved_informational_reply.target_signal_closed",
         "semantics.unresolved_informational_reply.unknown_reply_target"
       ],
       "regressed_pattern_count": 0,
@@ -1566,7 +1557,7 @@
     "regressed_patterns": 1
   },
   "mode": "diagnostic_only",
-  "registry_fingerprint": "95dfc956e71145fb5bb26f5923e2c8cdb0168f0d0e282d923cb2951e18225a9f",
+  "registry_fingerprint": "b018c7c4aad08e8a1b09f8945a9a734d003d8dba00c7bd9c77e35d5ba527fa7d",
   "safe_for_strategy_simulation": false,
   "schema_version": 1
 }

@@ -1,7 +1,7 @@
 {
   "schema_version": 6,
   "summary": {
-    "records": 509,
+    "records": 513,
     "provider_signals": 282,
     "formal_signals": 282,
     "complete_signals": 275,
@@ -9,12 +9,12 @@
     "executed_signals": 260,
     "unexecuted_signals": 22,
     "duplicate_execution_signals": 2,
-    "management_events": 1486,
+    "management_events": 1489,
     "record_types": {
-      "context_setup": 81,
+      "context_setup": 82,
       "daily_summary": 19,
       "formal_signal": 282,
-      "management_only": 56,
+      "management_only": 59,
       "unknown_candidate": 70,
       "zone_plan": 1
     },
@@ -35,7 +35,7 @@
         }
       },
       "canal2": {
-        "records": 278,
+        "records": 282,
         "provider_signals": 144,
         "complete_signals": 143,
         "incomplete_signals": 1,
@@ -43,10 +43,10 @@
         "unexecuted_signals": 20,
         "duplicate_execution_signals": 0,
         "record_types": {
-          "context_setup": 52,
+          "context_setup": 53,
           "daily_summary": 19,
           "formal_signal": 144,
-          "management_only": 22,
+          "management_only": 25,
           "unknown_candidate": 40,
           "zone_plan": 1
         }
@@ -148447,6 +148447,312 @@
           "missing_direction",
           "missing_actionable_entry_trigger"
         ]
+      }
+    },
+    {
+      "schema_version": 6,
+      "provider_signal_id": "canal2_230",
+      "record_type": "management_only",
+      "record_type_reason": "reply_to_missing_root",
+      "channel": "canal2",
+      "root_message_id": 230,
+      "source_message_ids": [],
+      "signal_ts_utc": "2026-07-22T01:25:35+00:00",
+      "first_observed_utc": "2026-07-22T01:25:36.356+00:00",
+      "direction": null,
+      "risk_label": "standard",
+      "effective_range": null,
+      "effective_tps": [],
+      "effective_sl": null,
+      "entry_zones": [],
+      "zone_target": null,
+      "zone_plan_timeline": [],
+      "revisions": [],
+      "entry_zone_timeline": [],
+      "level_timeline": [],
+      "runtime_level_timeline": [],
+      "management_events": [
+        {
+          "message_id": 253,
+          "reply_to_msg_id": 230,
+          "observed_ts_utc": "2026-07-22T01:25:36.356+00:00",
+          "telegram_ts_utc": "2026-07-22T01:25:35+00:00",
+          "text": "TP7 SMASHED +500 pips",
+          "classified_action": "TP_HIT_ANNOUNCEMENT",
+          "classifier_action": null,
+          "modality": "informational",
+          "semantic_source": "deterministic_parser",
+          "execution_options": [],
+          "raw_versions": 4,
+          "update_kinds": [
+            "poll_new",
+            "edit",
+            "poll_edit"
+          ],
+          "source": "telegram_raw"
+        }
+      ],
+      "media": {
+        "availability": "none",
+        "has_photo": false,
+        "has_document": false,
+        "sha256": null,
+        "path": null,
+        "extraction_status": "not_applicable"
+      },
+      "execution_sig_ids": [],
+      "execution_range_assessments": [],
+      "execution_count": 0,
+      "duplicate_execution": false,
+      "semantic_status": "classified",
+      "semantic_gaps": [],
+      "canonicalization_issues": [],
+      "entry_contract": {
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
+        "direction": null,
+        "direction_source": null,
+        "blockers": [
+          "missing_direction",
+          "missing_actionable_entry_trigger"
+        ]
+      }
+    },
+    {
+      "schema_version": 6,
+      "provider_signal_id": "canal2_251",
+      "record_type": "management_only",
+      "record_type_reason": "reply_to_missing_root",
+      "channel": "canal2",
+      "root_message_id": 251,
+      "source_message_ids": [],
+      "signal_ts_utc": "2026-07-22T01:26:27+00:00",
+      "first_observed_utc": "2026-07-22T01:26:28.436+00:00",
+      "direction": null,
+      "risk_label": "standard",
+      "effective_range": null,
+      "effective_tps": [],
+      "effective_sl": null,
+      "entry_zones": [],
+      "zone_target": null,
+      "zone_plan_timeline": [],
+      "revisions": [],
+      "entry_zone_timeline": [],
+      "level_timeline": [],
+      "runtime_level_timeline": [],
+      "management_events": [
+        {
+          "message_id": 254,
+          "reply_to_msg_id": 251,
+          "observed_ts_utc": "2026-07-22T01:26:28.436+00:00",
+          "telegram_ts_utc": "2026-07-22T01:26:27+00:00",
+          "text": "Sell Limit Active \nRunning +90 pips\n\nTP1 & 2 HIT",
+          "classified_action": "TP_HIT_ANNOUNCEMENT",
+          "classifier_action": null,
+          "modality": "informational",
+          "semantic_source": "deterministic_parser",
+          "execution_options": [],
+          "raw_versions": 3,
+          "update_kinds": [
+            "new",
+            "edit",
+            "poll_new"
+          ],
+          "source": "telegram_raw"
+        }
+      ],
+      "media": {
+        "availability": "none",
+        "has_photo": false,
+        "has_document": false,
+        "sha256": null,
+        "path": null,
+        "extraction_status": "not_applicable"
+      },
+      "execution_sig_ids": [],
+      "execution_range_assessments": [],
+      "execution_count": 0,
+      "duplicate_execution": false,
+      "semantic_status": "classified",
+      "semantic_gaps": [],
+      "canonicalization_issues": [],
+      "entry_contract": {
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
+        "direction": null,
+        "direction_source": null,
+        "blockers": [
+          "missing_direction",
+          "missing_actionable_entry_trigger"
+        ]
+      }
+    },
+    {
+      "schema_version": 6,
+      "provider_signal_id": "canal2_252",
+      "record_type": "context_setup",
+      "record_type_reason": "media_or_market_context",
+      "channel": "canal2",
+      "root_message_id": 252,
+      "source_message_ids": [
+        252
+      ],
+      "signal_ts_utc": "2026-07-22T01:27:47+00:00",
+      "first_observed_utc": "2026-07-22T01:27:47.870+00:00",
+      "direction": null,
+      "risk_label": "standard",
+      "effective_range": null,
+      "effective_tps": [],
+      "effective_sl": null,
+      "entry_zones": [],
+      "zone_target": null,
+      "zone_plan_timeline": [],
+      "revisions": [
+        {
+          "message_id": 252,
+          "observed_ts_utc": "2026-07-22T01:27:47.870+00:00",
+          "telegram_ts_utc": "2026-07-22T01:27:47+00:00",
+          "update_kinds": [
+            "edit",
+            "poll_edit"
+          ],
+          "text": "",
+          "sticker_id": null,
+          "has_photo": true,
+          "has_document": false,
+          "media_sha256": null,
+          "media_path": null,
+          "media_extraction_status": null,
+          "parsed": {}
+        }
+      ],
+      "entry_zone_timeline": [],
+      "level_timeline": [],
+      "runtime_level_timeline": [],
+      "management_events": [],
+      "media": {
+        "availability": "metadata_only",
+        "has_photo": true,
+        "has_document": false,
+        "sha256": null,
+        "path": null,
+        "extraction_status": "not_extracted"
+      },
+      "execution_sig_ids": [],
+      "execution_range_assessments": [],
+      "execution_count": 0,
+      "duplicate_execution": false,
+      "semantic_status": "classified",
+      "semantic_gaps": [],
+      "canonicalization_issues": [],
+      "entry_contract": {
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
+        "direction": null,
+        "direction_source": null,
+        "blockers": [
+          "missing_direction",
+          "missing_actionable_entry_trigger"
+        ]
+      }
+    },
+    {
+      "schema_version": 6,
+      "provider_signal_id": "canal2_255",
+      "record_type": "management_only",
+      "record_type_reason": "standalone_management_message",
+      "channel": "canal2",
+      "root_message_id": 255,
+      "source_message_ids": [
+        255
+      ],
+      "signal_ts_utc": "2026-07-22T04:27:08+00:00",
+      "first_observed_utc": "2026-07-22T04:27:09.135+00:00",
+      "direction": "BUY",
+      "risk_label": "standard",
+      "effective_range": null,
+      "effective_tps": [],
+      "effective_sl": null,
+      "entry_zones": [],
+      "zone_target": null,
+      "zone_plan_timeline": [],
+      "revisions": [
+        {
+          "message_id": 255,
+          "observed_ts_utc": "2026-07-22T04:27:09.135+00:00",
+          "telegram_ts_utc": "2026-07-22T04:27:08+00:00",
+          "update_kinds": [
+            "poll_new",
+            "new"
+          ],
+          "text": "Good Morning All!\n\nWho held the buys with me?\n& who woke up to profits from the sell limit ?\n\nProfit shots to \n\n@goldtradingsupport",
+          "sticker_id": null,
+          "has_photo": false,
+          "has_document": false,
+          "media_sha256": null,
+          "media_path": null,
+          "media_extraction_status": null,
+          "parsed": {
+            "direction": "BUY"
+          }
+        }
+      ],
+      "entry_zone_timeline": [],
+      "level_timeline": [],
+      "runtime_level_timeline": [],
+      "management_events": [
+        {
+          "message_id": 255,
+          "reply_to_msg_id": null,
+          "observed_ts_utc": "2026-07-22T04:27:09.135+00:00",
+          "telegram_ts_utc": "2026-07-22T04:27:08+00:00",
+          "text": "Good Morning All!\n\nWho held the buys with me?\n& who woke up to profits from the sell limit ?\n\nProfit shots to \n\n@goldtradingsupport",
+          "classified_action": null,
+          "classifier_action": null,
+          "modality": "informational",
+          "semantic_source": "unclassified",
+          "execution_options": [],
+          "raw_versions": 2,
+          "update_kinds": [
+            "poll_new",
+            "new"
+          ],
+          "source": "telegram_raw"
+        }
+      ],
+      "media": {
+        "availability": "none",
+        "has_photo": false,
+        "has_document": false,
+        "sha256": null,
+        "path": null,
+        "extraction_status": "not_applicable"
+      },
+      "execution_sig_ids": [],
+      "execution_range_assessments": [],
+      "execution_count": 0,
+      "duplicate_execution": false,
+      "semantic_status": "classified",
+      "semantic_gaps": [],
+      "canonicalization_issues": [],
+      "entry_contract": {
+        "status": "ready",
+        "trigger_observed_utc": "2026-07-22T04:27:09.135+00:00",
+        "trigger_telegram_utc": "2026-07-22T04:27:08+00:00",
+        "trigger_message_id": 255,
+        "trigger_kind": "text",
+        "direction": "BUY",
+        "direction_source": "revision_parser:255",
+        "blockers": []
       }
     }
   ]

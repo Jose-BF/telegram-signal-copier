@@ -16,14 +16,14 @@
   },
   "details_archive": {
     "available": true,
-    "canonical_sha256": "2dbc95d3e85629c0dd48a2924523f83d0043f7e89fb5ac9fb030dd96bf6c4ff7",
+    "canonical_sha256": "b653328d90af7b66e76820d02adf4da9039fea6464096930d16ab818632bd315",
     "canonical_size_bytes": 15751008,
     "compression": "gzip",
-    "path": "data/simulation_runs/05050e5bc075df68dc4cd5312e59b1a702cf828f56bf91322a4ab8b7be17c274/strategy_farm.json.gz",
+    "path": "data/simulation_runs/cf5d45a18d3da87eea8e91a7d9cdbfb6a4b2f47c65b07f1b03c675376cf83870/strategy_farm.json.gz",
     "result_fingerprint": "02540a4dab29469affa94f940c2c3573ca8ecaf1d01929bd90468da4c45616b8",
-    "run_card": "data/simulation_runs/05050e5bc075df68dc4cd5312e59b1a702cf828f56bf91322a4ab8b7be17c274/run_card.json",
-    "run_fingerprint": "05050e5bc075df68dc4cd5312e59b1a702cf828f56bf91322a4ab8b7be17c274",
-    "sha256": "4b17b9110ba6961258a9d72b0481e1bece077478922e45c4c3bf70674ab6960a",
+    "run_card": "data/simulation_runs/cf5d45a18d3da87eea8e91a7d9cdbfb6a4b2f47c65b07f1b03c675376cf83870/run_card.json",
+    "run_fingerprint": "cf5d45a18d3da87eea8e91a7d9cdbfb6a4b2f47c65b07f1b03c675376cf83870",
+    "sha256": "1e76011bcb255e91859d671f049b699cb855976123fedc5b80a2227864e7d56f",
     "size_bytes": 584526
   },
   "executed_baseline_validation": {
@@ -2850,7 +2850,7 @@
   },
   "executed_trade_count": 126,
   "from_date": "2026-07-06",
-  "generated_at": "2026-07-21T22:18:22+00:00",
+  "generated_at": "2026-07-22T05:29:19+00:00",
   "includes_trade_details": false,
   "market_replay": {
     "blocked": 0,
@@ -10710,8 +10710,8 @@
     ],
     "mode": "diagnostic_only",
     "result_fingerprint": "02540a4dab29469affa94f940c2c3573ca8ecaf1d01929bd90468da4c45616b8",
-    "run_card": "data/simulation_runs/05050e5bc075df68dc4cd5312e59b1a702cf828f56bf91322a4ab8b7be17c274/run_card.json",
-    "run_fingerprint": "05050e5bc075df68dc4cd5312e59b1a702cf828f56bf91322a4ab8b7be17c274",
+    "run_card": "data/simulation_runs/cf5d45a18d3da87eea8e91a7d9cdbfb6a4b2f47c65b07f1b03c675376cf83870/run_card.json",
+    "run_fingerprint": "cf5d45a18d3da87eea8e91a7d9cdbfb6a4b2f47c65b07f1b03c675376cf83870",
     "status": "diagnostic_archived",
     "verified_now": true
   },
