@@ -1334,6 +1334,26 @@ def _watcher_attestation_error(git_info: dict,
     return None
 
 
+def _terminate_legacy_watcher_parent(parent=None) -> bool:
+    """Stop an old watcher that cannot attest the child it just launched."""
+    try:
+        if parent is None:
+            import psutil
+            parent = psutil.Process(os.getppid())
+        if not str(parent.name()).lower().startswith("python"):
+            return False
+        script_names = {
+            str(arg).replace("\\", "/").lower().rsplit("/", 1)[-1]
+            for arg in parent.cmdline()
+        }
+        if "run_bot_watch.py" not in script_names:
+            return False
+        parent.terminate()
+        return True
+    except Exception:
+        return False
+
+
 def _startup_status_message(git_info: dict) -> str:
     """Build the concise production-version confirmation sent to the owner."""
     commit = git_info.get("git_commit") or "desconocida"
@@ -1392,6 +1412,8 @@ async def main():
             started_utc=datetime.utcnow().isoformat(timespec="seconds"),
         )
         journal.flush_events(timeout=10.0)
+        if not expected_head and _terminate_legacy_watcher_parent():
+            print("[Startup] Watcher antiguo terminado para cortar el relanzamiento.")
         raise SystemExit(78)
 
     # Marca de sesión — versión del código que ejecuta este arranque.

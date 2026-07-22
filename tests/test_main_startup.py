@@ -114,6 +114,46 @@ def test_watcher_attestation_rejects_head_before_its_push_finishes():
     assert "aaaaaaaa" in reason
 
 
+def test_unattested_main_terminates_only_a_legacy_watcher_parent():
+    class LegacyWatcher:
+        def __init__(self):
+            self.terminated = False
+
+        def name(self):
+            return "python.exe"
+
+        def cmdline(self):
+            return ["python.exe", "-u", r"tools\run_bot_watch.py"]
+
+        def terminate(self):
+            self.terminated = True
+
+    parent = LegacyWatcher()
+
+    assert main._terminate_legacy_watcher_parent(parent) is True
+    assert parent.terminated is True
+
+
+def test_unattested_main_does_not_terminate_a_normal_shell_parent():
+    class NormalShell:
+        def __init__(self):
+            self.terminated = False
+
+        def name(self):
+            return "cmd.exe"
+
+        def cmdline(self):
+            return ["cmd.exe", "/c", "python main.py"]
+
+        def terminate(self):
+            self.terminated = True
+
+    parent = NormalShell()
+
+    assert main._terminate_legacy_watcher_parent(parent) is False
+    assert parent.terminated is False
+
+
 def test_orphan_history_query_end_covers_positive_broker_offset():
     now = datetime(2026, 7, 21, 10, 0, tzinfo=timezone.utc)
 
