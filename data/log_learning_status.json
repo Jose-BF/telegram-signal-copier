@@ -1,9 +1,7 @@
 {
   "artifacts_valid": true,
-  "attempted_at_utc": "2026-07-22T06:01:10+00:00",
-  "blockers": [
-    "dependency_failed:strategy_farm"
-  ],
+  "attempted_at_utc": "2026-07-22T06:06:37+00:00",
+  "blockers": [],
   "build_returncode": 0,
   "build_succeeded": true,
   "conclusions_allowed": false,
@@ -16,27 +14,26 @@
     "provider_catalog": true,
     "readiness": true,
     "replay": true,
-    "strategy_farm": false,
+    "strategy_farm": true,
     "tick_cache": true
   },
   "error": null,
-  "fresh": false,
-  "git_commit": "24852d35559e182659e84bebed5d50462ac01390",
+  "fresh": true,
+  "git_commit": "3b0144244ce21771c6de614e9b957df50aa5ac86",
   "git_dirty": true,
-  "latest_evidence_utc": "2026-07-22T06:00:20.271+00:00",
-  "ok": false,
-  "publication_id": "d5993685351a74daffa70344d6a4b05a085087678a28f32673ae4ccd3591f073",
-  "registry_sha256": "c5d3411994d57fad3b1f891cccc609986e48d0fadd6f479b2af2fe4c2a69031f",
-  "report_sha256": "866c0d84def5061f26aba8fb7bd206beff2b3e412bad76b062b600828868bcfb",
+  "latest_evidence_utc": "2026-07-22T06:01:40.339+00:00",
+  "ok": true,
+  "publication_id": "057f07509623572e4f20c06a072f1a583a187d88b02cc7170cf0f00acc5672e2",
+  "registry_sha256": "a98f1d63cb7293528a12f8d23193825aae6bc07c8027cdbad54a0abd487f36fd",
+  "report_sha256": "54753a3d8d754aa302f29645518e1cb29c9278aa77a153502836ed4c325641ac",
   "review_fingerprint": "5991733f918759f7d59feba8a0c6c7ffd96f8ea955e25d1ad416b018f1f3a4af",
   "schema_version": 1,
   "source_dirty": false,
-  "source_fingerprint": "5ba97b383e364251c334a134e9f7f695cafedfa0ce4fe01e3d508f998c88d96e",
+  "source_fingerprint": "d3ddd17b602b571f58900f47b4e1aebfa7a12c1740e59316fd4e4cf62d2b1d77",
   "strategy_blockers": [
     "accounting",
     "execution",
     "market_replay",
-    "provenance",
     "semantics"
   ]
 }

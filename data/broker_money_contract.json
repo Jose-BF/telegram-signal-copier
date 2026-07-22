@@ -4,7 +4,7 @@
     "currency_digits": 2,
     "server": "VantageMarkets-Demo"
   },
-  "captured_at_utc": "2026-07-22T06:01:03.708762+00:00",
+  "captured_at_utc": "2026-07-22T06:01:49.801605+00:00",
   "conversion": {
     "max_quote_age_ms": 5000,
     "negative_profit_side": "bid",
@@ -25,12 +25,12 @@
     "trade_calc_mode": 4
   },
   "live_validation": {
-    "actual_tick_value_loss": 0.876485643165165,
-    "actual_tick_value_profit": 0.8763857850225671,
-    "conversion_ask": 1.14105,
-    "conversion_bid": 1.14092,
-    "expected_tick_value_loss": 0.876485643165165,
-    "expected_tick_value_profit": 0.876385785022567,
+    "actual_tick_value_loss": 0.8764241893076249,
+    "actual_tick_value_profit": 0.8763243451666332,
+    "conversion_ask": 1.14113,
+    "conversion_bid": 1.141,
+    "expected_tick_value_loss": 0.8764241893076249,
+    "expected_tick_value_profit": 0.876324345166633,
     "tick_value_loss_delta": 0.0,
     "tick_value_profit_delta": 1.1102230246251565e-16,
     "valid": true
