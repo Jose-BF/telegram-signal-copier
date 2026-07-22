@@ -8,8 +8,9 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
+import runtime_paths
 
-DATA_DIR = Path(__file__).parent / "data"
+DATA_DIR = runtime_paths.active_data_dir()
 PAUSE_FILE = Path(os.getenv(
     "BOT_RUNTIME_PAUSE_FILE",
     str(DATA_DIR / "runtime_pause.json"),

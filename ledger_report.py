@@ -25,10 +25,12 @@ import statistics
 from collections import defaultdict
 from pathlib import Path
 
+import runtime_paths
+
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8")
 
-LEDGER_FILE = Path(__file__).parent / "data" / "ledger.jsonl"
+LEDGER_FILE = runtime_paths.active_data_dir() / "ledger.jsonl"
 
 
 def parse_ledger_text(text: str) -> list:

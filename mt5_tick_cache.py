@@ -24,7 +24,10 @@ from typing import Optional
 
 import pandas as pd
 
-DATA_DIR = Path(__file__).parent / "data"
+import runtime_paths
+
+
+DATA_DIR = runtime_paths.active_data_dir()
 TICKS_CACHE = DATA_DIR / "ticks_cache"
 TICKS_CACHE.mkdir(exist_ok=True, parents=True)
 

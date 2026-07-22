@@ -7,7 +7,8 @@ Telegram signal copier for MetaTrader 5.
 Production runtime:
 
 - `run_bot.bat` starts the Windows watcher loop.
-- `tools/run_bot_watch.py` keeps the bot updated, restarts it, regenerates reports and pushes session data.
+- `tools/run_bot_watch.py` keeps code updated, restarts the bot and launches telemetry publication without waiting for the network.
+- `runtime_data/` contains live evidence and console diagnostics. It is ignored by Git; production never writes into tracked `data/` files.
 - `main.py` starts Telegram, MT5, reconciliation/resync and runtime monitors.
 - `listener.py` interprets Telegram messages and routes signal/management actions.
 - `executor.py` sends and modifies MT5 orders.
@@ -16,9 +17,9 @@ Production runtime:
 
 Replay and simulation foundation:
 
-- `reconcile_mt5_ledger.py` rebuilds `data/ledger.jsonl` from bot logs plus MT5 history.
-- `build_replay_trades.py` builds `data/replay_trades.jsonl` from ledger and event history.
-- `accounting_replay_validator.py` validates reconstructed trade accounting into `data/accounting_replay_audit.jsonl`.
+- `reconcile_mt5_ledger.py` rebuilds `runtime_data/ledger.jsonl` from bot logs plus MT5 history.
+- `build_replay_trades.py` builds `runtime_data/replay_trades.jsonl` from ledger and event history.
+- `accounting_replay_validator.py` validates reconstructed trade accounting into `runtime_data/accounting_replay_audit.jsonl`.
 - `tools/ensure_replay_tick_cache.py` ensures MT5 tick parquet files exist and verifies the `mt5_server_epoch_utc_v3` time/anchor contract and SHA-256 for every cached day.
 - `replay_readiness_report.py` reports whether each trade has enough data for full replay.
 - `observed_tick_replay_validator.py` checks whether cached bid/ask ticks reproduce the observed MT5 ticket closures.
@@ -30,10 +31,10 @@ Replay and simulation foundation:
 - `strategy_simulator.py` retains observed-ticket replay as an independent execution control.
 - `strategy_farm.py` evaluates every formal Telegram signal, including unexecuted signals, once per policy and ordered latency scenario. It also keeps observed-ticket validation in a separate section.
 - `simulation_run_provenance.py` fingerprints the exact selected farm inputs, policy order, source files, runtime versions and tick contracts already verified by the replay loader.
-- `data/simulation_runs/<fingerprint>/run_card.json` is immutable run evidence. Repeating identical computational inputs reuses the same directory; a contradictory result fails closed.
+- `runtime_data/simulation_runs/<fingerprint>/run_card.json` is immutable run evidence. Repeating identical computational inputs reuses the same directory; a contradictory result fails closed.
 
-`data/provider_signal_catalog.json` is a canonical, versioned farm input. It
-must travel with `data/strategy_farm.json` and the corresponding run card; it
+`runtime_data/provider_signal_catalog.json` is a canonical, versioned farm input. It
+must travel with `runtime_data/strategy_farm.json` and the corresponding run card; it
 is not a disposable intermediate report.
 
 Run the current clean-window diagnostics manually:
@@ -42,7 +43,7 @@ Run the current clean-window diagnostics manually:
 python provider_signal_catalog.py
 python strategy_farm.py --from 2026-07-06
 python strategy_farm.py --from 2026-07-06 --provider-latency-ms 0 --provider-latency-ms 150 --provider-latency-ms 250
-python strategy_farm.py --from 2026-07-06 --include-trades --output data/strategy_farm_detail.json
+python strategy_farm.py --from 2026-07-06 --include-trades --output runtime_data/strategy_farm_detail.json
 ```
 
 The watcher accepts the same assumptions through
@@ -52,7 +53,7 @@ immutable run fingerprint. Use measured latency percentiles when available;
 do not silently replace them between runs.
 
 Use `--run-archive-dir <path>` to override the default
-`data/simulation_runs` archive. Compact farm runs retain a copy of the report
+`runtime_data/simulation_runs` archive. Compact farm runs retain a copy of the report
 inside their fingerprint directory. `--include-trades` reports can be large,
 so the first-published output path, exact size and SHA-256 are recorded but the
 report is not copied into the archive.
@@ -88,6 +89,46 @@ Analysis:
 - `analysis/patterns.py`, `analysis/daily_report.py` and `analysis/bot_execution_quality.py` are still useful for session review.
 - Many other scripts in `analysis/` are historical research helpers. Prefer the replay pipeline above for new simulation work.
 
+## Runtime Data And Git
+
+`main` is code-only. The tracked `data/` directory is a read-only historical
+seed used during the transition; the bot never appends to it. On the first
+start, `run_bot.bat` copies the complete raw seed into ignored
+`runtime_data/`, preserving any existing runtime file.
+
+Every five minutes a separate process checkpoints complete records, verifies
+the SHA-256 of the complete exported prefix and pushes immutable gzip chunks to
+the `telemetry` branch. It uses its own Git checkout. A GitHub outage leaves the
+chunks pending locally and cannot stop or delay Telegram/MT5 processing. The
+console diagnostic is stored at `runtime_data/bot_runtime.log` and travels
+through the same channel.
+
+Normal VM start:
+
+```powershell
+run_bot.bat
+```
+
+Manual local checkpoint or publication, neither of which changes `main`:
+
+```powershell
+python tools/runtime_telemetry.py --checkpoint --runtime-dir runtime_data
+python tools/runtime_telemetry.py --publish-once --runtime-dir runtime_data
+```
+
+Download and verify the latest corpus on an analysis computer:
+
+```powershell
+python tools/runtime_telemetry.py --pull
+```
+
+The pull command writes only to ignored `runtime_data/`, verifies every stream,
+chunk range and SHA-256 before changing the current corpus, then installs all
+files with a recoverable transaction. Heavy ledger, tick, learning and
+strategy-farm generation is not part of bot startup; run
+`python tools/run_bot_watch.py --final-backup` only when an explicit offline
+snapshot is wanted.
+
 ## Local Setup
 
 1. Install dependencies:
@@ -105,10 +146,10 @@ Analysis:
    The script asks for Telegram, Gemini and MT5 credentials and writes them to
    `.env`. That file is ignored by Git and must not be committed.
 
-3. Run the bot:
+3. Run the production wrapper:
 
    ```powershell
-   python main.py
+   run_bot.bat
    ```
 
 ## Security Notes

@@ -25,12 +25,13 @@ from broker_market_sessions import (
 import observed_tick_replay_validator
 import provider_strategy_simulator
 import provider_trade_spec
+import runtime_paths
 import simulation_run_provenance
 import strategy_policies
 import strategy_simulator
 
 
-DATA_DIR = Path(__file__).parent / "data"
+DATA_DIR = runtime_paths.active_data_dir()
 DEFAULT_REPLAY = DATA_DIR / "replay_trades.jsonl"
 DEFAULT_BASELINE = DATA_DIR / "observed_tick_replay_audit.jsonl"
 DEFAULT_CATALOG = DATA_DIR / "provider_signal_catalog.json"

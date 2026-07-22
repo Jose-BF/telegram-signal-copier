@@ -6,13 +6,13 @@ Uso:
 
 Funcionamiento:
   1. Normaliza Git antes de arrancar y verifica que el codigo sea seguro.
-  2. Exige main limpio y sin rebase; permite diferencias data: pendientes.
-  3. Cada 60 s consulta origin/main; publica commits data: locales o activa
-     la nueva version remota mediante una ruta determinista y comprobada.
+  2. Migra la evidencia viva a un almacen ignorado y deja main solo para codigo.
+  3. Cada 60 s consulta origin/main y activa codigo remoto mediante una ruta
+     determinista y comprobada.
   4. Antes de reiniciar o cerrar, guarda solo la evidencia cruda de la sesion.
      El pipeline pesado se ejecuta unicamente con --final-backup.
-  5. Una caida de GitHub no detiene la captura. Solo un estado de codigo
-     inseguro bloquea el arranque con codigo 76.
+  5. Publica telemetria desde un checkout aislado. Una caida de GitHub no
+     detiene la captura; solo codigo inseguro bloquea el arranque.
 
 Detener el wrapper: Ctrl+C (cierra el bot tambien).
 """
@@ -41,32 +41,50 @@ REPO_DIR = Path(__file__).resolve().parent.parent
 if str(REPO_DIR) not in sys.path:
     sys.path.insert(0, str(REPO_DIR))
 
+import runtime_paths
+
+RUNTIME_DATA_DIR = Path(os.getenv(
+    "BOT_RUNTIME_DATA_DIR",
+    str(runtime_paths.default_runtime_data_dir(REPO_DIR)),
+)).resolve()
+
 import log_learning_publication as learning_publication
 import pipeline_progress
 import runtime_control
 from tools import git_sync
 from tools import runtime_recovery
+from tools import runtime_telemetry
 from tools import set_channel_id
+
+runtime_control.DATA_DIR = RUNTIME_DATA_DIR
+runtime_control.PAUSE_FILE = Path(os.getenv(
+    "BOT_RUNTIME_PAUSE_FILE",
+    str(RUNTIME_DATA_DIR / "runtime_pause.json"),
+))
+runtime_control.ACTIVITY_FILE = Path(os.getenv(
+    "BOT_RUNTIME_ACTIVITY_FILE",
+    str(RUNTIME_DATA_DIR / "runtime_handler_activity.json"),
+))
 
 MAIN_PY  = REPO_DIR / "main.py"
 ACTIVE_CHANNEL_MANIFEST_FILE = REPO_DIR / "active_telegram_channels.json"
 ENV_FILE = REPO_DIR / ".env"
-RECONCILE_STATUS_FILE = REPO_DIR / "data" / "reconcile_status.json"
-REPLAY_STATUS_FILE = REPO_DIR / "data" / "replay_status.json"
-ACCOUNTING_REPLAY_AUDIT_STATUS_FILE = REPO_DIR / "data" / "accounting_replay_audit_status.json"
-REPLAY_TICK_CACHE_STATUS_FILE = REPO_DIR / "data" / "replay_tick_cache_status.json"
-BROKER_MONEY_CONTRACT_FILE = REPO_DIR / "data" / "broker_money_contract.json"
-MONEY_TICK_CACHE_STATUS_FILE = REPO_DIR / "data" / "money_tick_cache_status.json"
-MONEY_TICK_CACHE_DIR = REPO_DIR / "data" / "money_ticks_cache"
-REPLAY_READINESS_REPORT_FILE = REPO_DIR / "data" / "replay_readiness_report.json"
-OBSERVED_TICK_REPLAY_AUDIT_FILE = REPO_DIR / "data" / "observed_tick_replay_audit.jsonl"
-OBSERVED_TICK_REPLAY_STATUS_FILE = REPO_DIR / "data" / "observed_tick_replay_status.json"
-PROVIDER_SIGNAL_CATALOG_FILE = REPO_DIR / "data" / "provider_signal_catalog.json"
-STRATEGY_FARM_FILE = REPO_DIR / "data" / "strategy_farm.json"
-LOG_LEARNING_REPORT_FILE = REPO_DIR / "data" / "log_learning_report.json"
-LOG_PATTERN_REGISTRY_FILE = REPO_DIR / "data" / "log_pattern_registry.json"
-LOG_LEARNING_STATUS_FILE = REPO_DIR / "data" / "log_learning_status.json"
-LOG_PATTERN_REVIEWS_FILE = REPO_DIR / "data" / "log_pattern_reviews.json"
+RECONCILE_STATUS_FILE = RUNTIME_DATA_DIR / "reconcile_status.json"
+REPLAY_STATUS_FILE = RUNTIME_DATA_DIR / "replay_status.json"
+ACCOUNTING_REPLAY_AUDIT_STATUS_FILE = RUNTIME_DATA_DIR / "accounting_replay_audit_status.json"
+REPLAY_TICK_CACHE_STATUS_FILE = RUNTIME_DATA_DIR / "replay_tick_cache_status.json"
+BROKER_MONEY_CONTRACT_FILE = RUNTIME_DATA_DIR / "broker_money_contract.json"
+MONEY_TICK_CACHE_STATUS_FILE = RUNTIME_DATA_DIR / "money_tick_cache_status.json"
+MONEY_TICK_CACHE_DIR = RUNTIME_DATA_DIR / "money_ticks_cache"
+REPLAY_READINESS_REPORT_FILE = RUNTIME_DATA_DIR / "replay_readiness_report.json"
+OBSERVED_TICK_REPLAY_AUDIT_FILE = RUNTIME_DATA_DIR / "observed_tick_replay_audit.jsonl"
+OBSERVED_TICK_REPLAY_STATUS_FILE = RUNTIME_DATA_DIR / "observed_tick_replay_status.json"
+PROVIDER_SIGNAL_CATALOG_FILE = RUNTIME_DATA_DIR / "provider_signal_catalog.json"
+STRATEGY_FARM_FILE = RUNTIME_DATA_DIR / "strategy_farm.json"
+LOG_LEARNING_REPORT_FILE = RUNTIME_DATA_DIR / "log_learning_report.json"
+LOG_PATTERN_REGISTRY_FILE = RUNTIME_DATA_DIR / "log_pattern_registry.json"
+LOG_LEARNING_STATUS_FILE = RUNTIME_DATA_DIR / "log_learning_status.json"
+LOG_PATTERN_REVIEWS_FILE = RUNTIME_DATA_DIR / "log_pattern_reviews.json"
 STRATEGY_FARM_FROM_DATE = os.getenv("STRATEGY_FARM_FROM_DATE", "2026-07-06")
 SIMULATION_FROM_DATE = os.getenv("SIMULATION_FROM_DATE")
 STRATEGY_FARM_LATENCY_MS = os.getenv("STRATEGY_FARM_LATENCY_MS", "0")
@@ -74,7 +92,7 @@ STRATEGY_FARM_VOLUME_PER_LEG = os.getenv(
     "STRATEGY_FARM_VOLUME_PER_LEG", "0.01")
 RUNTIME_HEARTBEAT_FILE = Path(os.getenv(
     "BOT_RUNTIME_HEARTBEAT_FILE",
-    str(REPO_DIR / "data" / "runtime_heartbeat.json"),
+    str(RUNTIME_DATA_DIR / "runtime_heartbeat.json"),
 ))
 POLL_SEC = 60   # cada cuánto comprobar commits nuevos
 RESTART_GRACE_SEC = 10  # tiempo para SIGTERM antes de SIGKILL
@@ -90,9 +108,11 @@ RETRYABLE_GIT_ACTIONS = {
     "push_failed",
 }
 WATCHER_SELF_UPDATE_PATHS = {
+    "runtime_paths.py",
     "tools/git_sync.py",
     "tools/run_bot_watch.py",
     "tools/runtime_recovery.py",
+    "tools/runtime_telemetry.py",
     "runtime_control.py",
     "run_bot.bat",
 }
@@ -103,6 +123,22 @@ WATCHDOG_SUPERVISOR_GAP_SEC = float(os.getenv(
 GIT_TIMEOUT_SEC = float(os.getenv("BOT_GIT_TIMEOUT_SEC", "15"))
 WATCHER_QUIESCE_TIMEOUT_SEC = float(os.getenv(
     "BOT_HANDLER_QUIESCE_TIMEOUT_SEC", "30"))
+TELEMETRY_PUBLISH_SEC = float(os.getenv(
+    "BOT_TELEMETRY_PUBLISH_SEC", "300"))
+_telemetry_publish_process = None
+
+
+@contextmanager
+def _runtime_environment():
+    previous = os.environ.get("BOT_RUNTIME_DATA_DIR")
+    os.environ["BOT_RUNTIME_DATA_DIR"] = str(RUNTIME_DATA_DIR)
+    try:
+        yield
+    finally:
+        if previous is None:
+            os.environ.pop("BOT_RUNTIME_DATA_DIR", None)
+        else:
+            os.environ["BOT_RUNTIME_DATA_DIR"] = previous
 
 
 class WatcherInstanceGuard:
@@ -183,7 +219,21 @@ def _print_git_progress(stage: str) -> None:
 
 
 def _recover_runtime_worktree(repo_dir: Path):
-    recovery = runtime_recovery.prepare_runtime_worktree(repo_dir)
+    migration = runtime_paths.initialize_runtime_store(
+        repo_dir,
+        runtime_dir=RUNTIME_DATA_DIR,
+        code_commit=_local_head() or None,
+    )
+    if migration.copied or migration.archived_tails:
+        print(
+            f"[Watch] Runtime: migrados={len(migration.copied)} "
+            f"colas_rescatadas={len(migration.archived_tails)}",
+            flush=True,
+        )
+    recovery = runtime_recovery.prepare_runtime_worktree(
+        repo_dir,
+        runtime_dir=RUNTIME_DATA_DIR,
+    )
     if recovery.action != "clean":
         print(
             f"[Watch] Recuperacion local action={recovery.action} "
@@ -198,50 +248,82 @@ def _recover_runtime_worktree(repo_dir: Path):
 def _prepare_repository_for_runtime() -> git_sync.SyncResult:
     return git_sync.synchronize_repository(
         REPO_DIR,
-        publish_local=True,
+        publish_local=False,
         progress_callback=_print_git_progress,
         worktree_recovery=_recover_runtime_worktree,
     )
 
 
 def _checkpoint_runtime_data() -> git_sync.SyncResult:
-    """Commit raw evidence locally; network publication is never critical."""
-    recovery = _recover_runtime_worktree(REPO_DIR)
+    """Create immutable local chunks without touching Git or the network."""
+    checkpoint = runtime_telemetry.checkpoint_runtime(
+        RUNTIME_DATA_DIR,
+        code_commit=_local_head() or None,
+    )
     local_head = _local_head()
     remote_head = _remote_head()
-    if not recovery.ok:
-        error = recovery.error or "runtime recovery failed"
-        if recovery.unsafe_paths:
-            error = f"{error}; paths: {', '.join(recovery.unsafe_paths)}"
-        result = git_sync.SyncResult(
-            ok=False,
-            action=recovery.action,
-            branch=_current_branch(),
-            local_head=local_head or None,
-            remote_head=remote_head or None,
-            error=error,
-        )
-    else:
+    if checkpoint.ok:
         action = (
-            "local_checkpointed"
-            if recovery.commit is not None
-            else "local_checkpoint_clean"
+            "telemetry_checkpointed"
+            if checkpoint.chunks
+            else "telemetry_checkpoint_clean"
         )
-        result = git_sync.SyncResult(
-            ok=True,
-            action=action,
-            branch=_current_branch(),
-            local_head=local_head or None,
-            remote_head=remote_head or None,
-        )
-    _print_sync_result(result)
-    if result.ok:
         print(
-            "[Watch] Checkpoint local confirmado; Git remoto queda fuera "
-            "del reinicio critico.",
+            f"[Watch] Telemetria local confirmada: "
+            f"{len(checkpoint.chunks)} fragmentos nuevos.",
             flush=True,
         )
-    return result
+        error = None
+    else:
+        action = "telemetry_checkpoint_degraded"
+        error = "; ".join(checkpoint.errors)
+        print(
+            f"[Watch] Telemetria pendiente de revision: {error}. "
+            "El bot puede reiniciar porque los archivos originales siguen intactos.",
+            flush=True,
+        )
+    return git_sync.SyncResult(
+        ok=True,
+        action=action,
+        branch=_current_branch(),
+        local_head=local_head or None,
+        remote_head=remote_head or None,
+        error=error,
+    )
+
+
+def _trigger_telemetry_publication() -> bool:
+    """Launch one isolated publication attempt and return immediately."""
+    global _telemetry_publish_process
+    if (
+        _telemetry_publish_process is not None
+        and _telemetry_publish_process.poll() is None
+    ):
+        return True
+    command = [
+        sys.executable,
+        str(REPO_DIR / "tools" / "runtime_telemetry.py"),
+        "--publish-once",
+        "--runtime-dir",
+        str(RUNTIME_DATA_DIR),
+        "--timeout",
+        str(GIT_TIMEOUT_SEC),
+    ]
+    environment = os.environ.copy()
+    environment["BOT_RUNTIME_DATA_DIR"] = str(RUNTIME_DATA_DIR)
+    try:
+        _telemetry_publish_process = subprocess.Popen(
+            command,
+            cwd=REPO_DIR,
+            env=environment,
+        )
+    except OSError as exc:
+        print(
+            f"[Watch] Telemetria remota pendiente: {exc}. El bot sigue activo.",
+            flush=True,
+        )
+        return False
+    return True
 
 
 def _offline_runtime_fallback(
@@ -263,6 +345,32 @@ def _offline_runtime_fallback(
         branch=_current_branch(),
         local_head=_local_head() or None,
         remote_head=_remote_head() or None,
+    )
+
+
+def _previous_verified_runtime_fallback(
+    failed: git_sync.SyncResult,
+    previous_head: str,
+) -> git_sync.SyncResult:
+    """Keep the exact previously running build after a failed hot-update."""
+
+    if failed.ok or not git_sync.verified_runtime_head_is_available(
+        REPO_DIR,
+        previous_head,
+    ):
+        return failed
+    print(
+        "[Watch] La actualizacion no pudo activarse; relanzo la version "
+        "anterior ya verificada y reintentare el cambio.",
+        flush=True,
+    )
+    return git_sync.SyncResult(
+        ok=True,
+        action="previous_verified_code",
+        branch=_current_branch(),
+        local_head=_local_head() or None,
+        remote_head=_remote_head() or None,
+        error=failed.error,
     )
 
 
@@ -304,10 +412,12 @@ def _apply_active_channel_manifest() -> bool:
     return True
 
 
-def _spawn_bot_with_active_channels():
+def _spawn_bot_with_active_channels(verified_head: str | None = None):
     if not _apply_active_channel_manifest():
         return None
-    return _spawn_bot()
+    if verified_head is None:
+        return _spawn_bot()
+    return _spawn_bot(verified_head=verified_head)
 
 
 def _print_sync_result(result: git_sync.SyncResult) -> None:
@@ -383,13 +493,6 @@ def _paths_changed_between(old_rev: str, new_rev: str,
     return bool(changed.intersection(watched_paths))
 
 
-def _refresh_heads_after_session_data_push() -> git_sync.SyncResult:
-    """Return one verified repository state after a session-data attempt."""
-    result = _prepare_repository_for_runtime()
-    _print_sync_result(result)
-    return result
-
-
 def _clear_runtime_heartbeat(path: Path = RUNTIME_HEARTBEAT_FILE) -> None:
     try:
         path.unlink()
@@ -429,10 +532,22 @@ def _supervisor_loop_gap_is_stale(
     return current_tick - previous_tick > timeout_s
 
 
-def _spawn_bot() -> subprocess.Popen | None:
+def _spawn_bot(*, verified_head: str | None = None) -> subprocess.Popen | None:
     local_head = _local_head()
     remote_head = _remote_head()
-    if not local_head or not git_sync.runtime_head_is_safe(REPO_DIR):
+    runtime_safe = (
+        git_sync.runtime_head_is_safe(REPO_DIR)
+        if verified_head is None
+        else git_sync.verified_runtime_head_is_available(
+            REPO_DIR,
+            verified_head,
+        )
+    )
+    if (
+        not local_head
+        or (verified_head is not None and local_head != verified_head)
+        or not runtime_safe
+    ):
         print(
             f"[Watch] Spawn bloqueado: codigo local no verificable "
             f"HEAD={(local_head or 'unknown')[:8]} "
@@ -447,6 +562,7 @@ def _spawn_bot() -> subprocess.Popen | None:
     # Usamos el mismo intérprete que ejecuta este script.
     # creationflags en Windows para poder mandar Ctrl-Break al subproceso.
     child_env = os.environ.copy()
+    child_env["BOT_RUNTIME_DATA_DIR"] = str(RUNTIME_DATA_DIR)
     child_env["BOT_WATCHER_VERIFIED_HEAD"] = local_head
     child_env["BOT_WATCHER_RUNTIME_SAFE"] = "1"
     child_env["BOT_WATCHER_PID"] = str(os.getpid())
@@ -526,7 +642,7 @@ def _regenerate_ledger() -> bool:
     parar/reiniciar) → MT5 esta libre. Best-effort: si falla, log y sigue.
     """
     started = time.time()
-    ledger_file = REPO_DIR / "data" / "ledger.jsonl"
+    ledger_file = RUNTIME_DATA_DIR / "ledger.jsonl"
     status = {
         "ok": False,
         "started_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -606,7 +722,7 @@ def _regenerate_replay_trades() -> bool:
     deja status explicito para que sepamos si la sesion quedo simulable.
     """
     started = time.time()
-    replay_file = REPO_DIR / "data" / "replay_trades.jsonl"
+    replay_file = RUNTIME_DATA_DIR / "replay_trades.jsonl"
     status = {
         "ok": False,
         "started_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -658,7 +774,7 @@ def _regenerate_replay_trades() -> bool:
 def _regenerate_accounting_replay_audit() -> bool:
     """Regenera data/accounting_replay_audit.jsonl desde replay_trades.jsonl."""
     started = time.time()
-    audit_file = REPO_DIR / "data" / "accounting_replay_audit.jsonl"
+    audit_file = RUNTIME_DATA_DIR / "accounting_replay_audit.jsonl"
     status = {
         "ok": False,
         "started_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -972,9 +1088,9 @@ def _strategy_farm_command() -> list[str]:
     ])
     command.extend([
         "--money-contract",
-        str(REPO_DIR / "data" / "broker_money_contract.json"),
+        str(RUNTIME_DATA_DIR / "broker_money_contract.json"),
         "--money-tick-cache-dir",
-        str(REPO_DIR / "data" / "money_ticks_cache"),
+        str(RUNTIME_DATA_DIR / "money_ticks_cache"),
     ])
     return command
 
@@ -1122,7 +1238,7 @@ def _regenerate_money_tick_cache_status() -> bool:
             "--cache-dir",
             str(MONEY_TICK_CACHE_DIR),
             "--reference-cache-dir",
-            str(REPO_DIR / "data" / "ticks_cache"),
+            str(RUNTIME_DATA_DIR / "ticks_cache"),
         ]
         from_date = _simulation_from_date()
         if from_date:
@@ -1303,107 +1419,51 @@ def _regenerate_session_outputs(
     return builder_results
 
 
-def _format_byte_size(size_bytes: int) -> str:
-    value = float(max(0, size_bytes))
-    units = ("B", "KB", "MB", "GB")
-    for unit in units:
-        if value < 1024.0 or unit == units[-1]:
-            if unit == "B":
-                return f"{int(value)} B"
-            return f"{value:.1f} {unit}"
-        value /= 1024.0
-    return f"{int(size_bytes)} B"
-
-
-def _staged_payload_summary() -> tuple[int, int]:
-    result = _git("diff", "--cached", "--name-only", "-z")
-    if result.returncode != 0:
-        return 0, 0
-    paths = [path for path in (result.stdout or "").split("\0") if path]
-    total_bytes = 0
-    root = REPO_DIR.resolve()
-    for raw_path in paths:
-        path = (REPO_DIR / raw_path).resolve()
-        try:
-            path.relative_to(root)
-        except ValueError:
-            continue
-        if path.is_file():
-            total_bytes += path.stat().st_size
-    return len(paths), total_bytes
-
-
-def _push_session_data() -> git_sync.SyncResult | None:
-    """Regenera y publica el snapshot offline completo bajo peticion explicita.
-
-    Los reinicios normales usan el checkpoint rapido de evidencia cruda. Este
-    pipeline pesado queda reservado para ``--final-backup`` y nunca participa
-    en la recuperacion critica del bot.
-    """
+def _push_session_data() -> git_sync.SyncResult:
+    """Build offline reports and publish through isolated telemetry only."""
     with _offline_output_transaction():
         _regenerate_session_outputs()
-    files = [
-        "data/trade_events.jsonl",
-        "data/ledger.jsonl",
-        "data/reconcile_status.json",
-        "data/replay_trades.jsonl",
-        "data/replay_status.json",
-        "data/accounting_replay_audit.jsonl",
-        "data/accounting_replay_audit_status.json",
-        "data/replay_tick_cache_status.json",
-        "data/broker_money_contract.json",
-        "data/money_tick_cache_status.json",
-        "data/replay_readiness_report.json",
-        "data/observed_tick_replay_audit.jsonl",
-        "data/observed_tick_replay_status.json",
-        "data/provider_signal_catalog.json",
-        "data/strategy_farm.json",
-        "data/log_learning_report.json",
-        "data/log_pattern_registry.json",
-        "data/log_learning_status.json",
-        "data/log_pattern_reviews.json",
-        "data/simulation_runs",
-        "data/trade_events_TEST.jsonl",
-        "data/trade_journal.csv",
-        "data/trade_journal_TEST.csv",
-    ]
-    try:
-        for f in files:
-            _git("add", "-f", f)  # -f por si data/ esta en .gitignore
-        # Nada que commitear?
-        diff = _git("diff", "--cached", "--quiet")
-        if diff.returncode == 0:
-            return  # sin cambios
-
-        staged_files, staged_bytes = _staged_payload_summary()
+    checkpoint = runtime_telemetry.checkpoint_runtime(
+        RUNTIME_DATA_DIR,
+        code_commit=_local_head() or None,
+    )
+    if not checkpoint.ok:
+        return git_sync.SyncResult(
+            ok=False,
+            action="telemetry_checkpoint_failed",
+            branch=_current_branch(),
+            local_head=_local_head() or None,
+            remote_head=_remote_head() or None,
+            error="; ".join(checkpoint.errors),
+        )
+    published = runtime_telemetry.publish_outbox(REPO_DIR, RUNTIME_DATA_DIR)
+    if published.ok:
         print(
-            "[Watch] Publicacion preparada: "
-            f"{staged_files} archivos, {_format_byte_size(staged_bytes)}.",
+            f"[Watch] Telemetria publicada desde checkout aislado: "
+            f"{published.published_files} archivos.",
             flush=True,
         )
-
-        from datetime import datetime
-        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        msg = _git("commit", "-m", f"data: sesion {ts}")
-        if msg.returncode != 0:
-            print(f"[Watch] git commit falló: {msg.stderr}", flush=True)
-            return
-        sync = _prepare_repository_for_runtime()
-        _print_sync_result(sync)
-        if sync.ok:
-            print("[Watch] datos de sesión subidos a GitHub.", flush=True)
-        else:
-            print(
-                f"[Watch] datos preservados pero no publicados: "
-                f"{sync.action}: {sync.error or 'estado Git inseguro'}",
-                flush=True,
-            )
-        return sync
-    except Exception as e:
-        print(f"[Watch] _push_session_data error: {e}", flush=True)
+    else:
+        print(
+            f"[Watch] Telemetria preservada localmente; subida pendiente: "
+            f"{published.error}",
+            flush=True,
+        )
+    return git_sync.SyncResult(
+        ok=bool(published.ok),
+        action=(
+            "telemetry_published"
+            if published.ok
+            else "telemetry_publish_failed"
+        ),
+        branch=_current_branch(),
+        local_head=_local_head() or None,
+        remote_head=_remote_head() or None,
+        error=published.error,
+    )
 
 
-def main() -> int:
+def _run_main() -> int:
     if not MAIN_PY.exists():
         print(f"[Watch] No encuentro {MAIN_PY}", flush=True)
         return 1
@@ -1422,6 +1482,7 @@ def main() -> int:
         return WATCHER_GIT_BLOCKED_EXIT_CODE
     bot_started_at = time.time()
     last_check = time.time()
+    last_telemetry_publish = time.time()
     last_supervisor_tick = time.time()
 
     try:
@@ -1441,10 +1502,7 @@ def main() -> int:
                     flush=True,
                 )
                 _stop_bot(proc)
-                session_sync = (
-                    _checkpoint_runtime_data()
-                    or _refresh_heads_after_session_data_push()
-                )
+                session_sync = _checkpoint_runtime_data()
                 if not session_sync.ok:
                     return _sync_failure_exit_code(session_sync)
                 last_local = str(session_sync.local_head)
@@ -1462,10 +1520,7 @@ def main() -> int:
             if proc.poll() is not None:
                 print(f"[Watch] Bot terminó con código {proc.returncode}. "
                       f"Relanzo en {RELAUNCH_DELAY_SEC}s.", flush=True)
-                session_sync = (
-                    _checkpoint_runtime_data()
-                    or _refresh_heads_after_session_data_push()
-                )
+                session_sync = _checkpoint_runtime_data()
                 if not session_sync.ok:
                     return _sync_failure_exit_code(session_sync)
                 last_local = str(session_sync.local_head)
@@ -1478,6 +1533,13 @@ def main() -> int:
                 continue
 
             now = time.time()
+            if (
+                TELEMETRY_PUBLISH_SEC > 0
+                and now - last_telemetry_publish >= TELEMETRY_PUBLISH_SEC
+            ):
+                last_telemetry_publish = now
+                _trigger_telemetry_publication()
+
             heartbeat_age_s = _runtime_heartbeat_age_s(now=now)
             uptime_s = now - bot_started_at
             if _runtime_heartbeat_is_stale(
@@ -1488,10 +1550,7 @@ def main() -> int:
                     detail = f"heartbeat viejo ({heartbeat_age_s:.1f}s)"
                 print(f"[Watch] Bot congelado: {detail}. Reinicio.", flush=True)
                 _stop_bot(proc)
-                session_sync = (
-                    _checkpoint_runtime_data()
-                    or _refresh_heads_after_session_data_push()
-                )
+                session_sync = _checkpoint_runtime_data()
                 if not session_sync.ok:
                     return _sync_failure_exit_code(session_sync)
                 last_local = str(session_sync.local_head)
@@ -1517,28 +1576,6 @@ def main() -> int:
                     )
                     continue
                 remote = _remote_head()
-                if (
-                    remote == last_remote
-                    and git_sync.local_data_commits_are_publishable(REPO_DIR)
-                ):
-                    published = _git("push", "origin", "HEAD:main")
-                    if published.returncode == 0:
-                        _git("fetch", "origin", "main")
-                        last_local = _local_head()
-                        last_remote = _remote_head()
-                        print(
-                            "[Watch] Checkpoint local publicado sin detener "
-                            "el bot.",
-                            flush=True,
-                        )
-                    else:
-                        print(
-                            "[Watch] Checkpoint local pendiente de subir; "
-                            "el bot sigue activo: "
-                            f"{(published.stderr or published.stdout or '').strip()[:300]}",
-                            flush=True,
-                        )
-                    continue
                 if remote != last_remote:
                     if _remote_update_is_data_only(last_remote, remote):
                         print(f"[Watch] Solo commits de datos: "
@@ -1551,16 +1588,27 @@ def main() -> int:
                     print(f"[Watch] Commit nuevo detectado: {last_remote[:8]} -> "
                           f"{remote[:8]}. Reinicio.", flush=True)
                     _stop_bot(proc)
-                    session_sync = (
-                        _checkpoint_runtime_data()
-                        or _refresh_heads_after_session_data_push()
-                    )
+                    session_sync = _checkpoint_runtime_data()
                     if not session_sync.ok:
                         return _sync_failure_exit_code(session_sync)
                     session_sync = _prepare_repository_for_runtime()
                     _print_sync_result(session_sync)
                     if not session_sync.ok:
-                        return _sync_failure_exit_code(session_sync)
+                        fallback = _previous_verified_runtime_fallback(
+                            session_sync,
+                            last_local,
+                        )
+                        if not fallback.ok:
+                            return _sync_failure_exit_code(session_sync)
+                        _print_sync_result(fallback)
+                        proc = _spawn_bot_with_active_channels(
+                            verified_head=last_local,
+                        )
+                        if proc is None:
+                            return WATCHER_GIT_BLOCKED_EXIT_CODE
+                        bot_started_at = time.time()
+                        last_check = bot_started_at
+                        continue
                     last_local = str(session_sync.local_head)
                     last_remote = str(session_sync.remote_head)
                     if watcher_self_update:
@@ -1576,10 +1624,7 @@ def main() -> int:
     except KeyboardInterrupt:
         print("\n[Watch] Ctrl+C — cerrando bot.", flush=True)
         _stop_bot(proc)
-        session_sync = (
-            _checkpoint_runtime_data()
-            or _refresh_heads_after_session_data_push()
-        )
+        session_sync = _checkpoint_runtime_data()
         if not session_sync.ok:
             return _sync_failure_exit_code(session_sync)
         return 0
@@ -1603,7 +1648,12 @@ def main() -> int:
                 )
 
 
-def cli(argv: list[str] | None = None) -> int:
+def main() -> int:
+    with _runtime_environment():
+        return _run_main()
+
+
+def _run_cli(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Signal Copier VM watcher")
     parser.add_argument("--final-backup", action="store_true")
     parser.add_argument("--recovery-checkpoint", action="store_true")
@@ -1623,14 +1673,17 @@ def cli(argv: list[str] | None = None) -> int:
             return 0
         if args.final_backup:
             result = _push_session_data()
-            if result is None:
-                result = _refresh_heads_after_session_data_push()
             if not result.ok:
                 return _sync_failure_exit_code(result)
             return 0
         return main()
     finally:
         guard.release()
+
+
+def cli(argv: list[str] | None = None) -> int:
+    with _runtime_environment():
+        return _run_cli(argv)
 
 
 if __name__ == "__main__":

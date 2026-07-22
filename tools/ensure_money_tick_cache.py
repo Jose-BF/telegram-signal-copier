@@ -13,11 +13,13 @@ if str(REPO_DIR) not in sys.path:
     sys.path.insert(0, str(REPO_DIR))
 
 from tools import ensure_replay_tick_cache as base
+import runtime_paths
 
-DEFAULT_INPUT = REPO_DIR / "data" / "replay_trades.jsonl"
-DEFAULT_CACHE_DIR = REPO_DIR / "data" / "money_ticks_cache"
-DEFAULT_REFERENCE_CACHE = REPO_DIR / "data" / "ticks_cache"
-DEFAULT_STATUS = REPO_DIR / "data" / "money_tick_cache_status.json"
+DATA_DIR = runtime_paths.active_data_dir(REPO_DIR)
+DEFAULT_INPUT = DATA_DIR / "replay_trades.jsonl"
+DEFAULT_CACHE_DIR = DATA_DIR / "money_ticks_cache"
+DEFAULT_REFERENCE_CACHE = DATA_DIR / "ticks_cache"
+DEFAULT_STATUS = DATA_DIR / "money_tick_cache_status.json"
 DEFAULT_SYMBOL = "EURUSD"
 
 

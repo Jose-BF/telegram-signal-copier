@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+import runtime_paths
 
 load_dotenv()
 
@@ -69,7 +70,9 @@ LOT_SIZE = _float("LOT_SIZE", 0.01)
 # congelado, tools/run_bot_watch.py reinicia el bot al ver este fichero viejo.
 BOT_RUNTIME_HEARTBEAT_SEC = _float("BOT_RUNTIME_HEARTBEAT_SEC", 15.0)
 BOT_RUNTIME_HEARTBEAT_FILE = os.getenv(
-    "BOT_RUNTIME_HEARTBEAT_FILE", "data/runtime_heartbeat.json")
+    "BOT_RUNTIME_HEARTBEAT_FILE",
+    str(runtime_paths.data_path("runtime_heartbeat.json")),
+)
 BOT_FREEZE_TRACEBACK_SEC = _float("BOT_FREEZE_TRACEBACK_SEC", 120.0)
 BOT_FREEZE_TRACEBACK_FILE = os.getenv(
     "BOT_FREEZE_TRACEBACK_FILE", "logs/freeze_traceback.log")

@@ -21,6 +21,7 @@ import MetaTrader5 as mt5
 import config
 import executor
 import mt5_errors
+import runtime_paths
 from provider_names import provider_display_name
 from state import Signal
 
@@ -43,7 +44,7 @@ NULL_TICK_STREAK_THRESHOLD = 500   # ~5s a 10ms por ciclo
 BROKER_RETRY_COOLDOWN_S = 1.0
 PENDING_SPOOL_FILE = Path(os.getenv(
     "BOT_PENDING_ACTIONS_FILE",
-    str(Path(__file__).parent / "data" / "runtime_pending_actions.json"),
+    str(runtime_paths.data_path("runtime_pending_actions.json")),
 ))
 
 

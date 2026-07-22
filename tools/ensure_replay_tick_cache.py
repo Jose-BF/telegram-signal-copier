@@ -16,11 +16,13 @@ if str(REPO_DIR) not in sys.path:
     sys.path.insert(0, str(REPO_DIR))
 
 from broker_market_sessions import broker_session_close_utc
+import runtime_paths
 
 
-DEFAULT_INPUT = REPO_DIR / "data" / "replay_trades.jsonl"
-DEFAULT_CACHE_DIR = REPO_DIR / "data" / "ticks_cache"
-DEFAULT_STATUS = REPO_DIR / "data" / "replay_tick_cache_status.json"
+DATA_DIR = runtime_paths.active_data_dir(REPO_DIR)
+DEFAULT_INPUT = DATA_DIR / "replay_trades.jsonl"
+DEFAULT_CACHE_DIR = DATA_DIR / "ticks_cache"
+DEFAULT_STATUS = DATA_DIR / "replay_tick_cache_status.json"
 TICK_TIME_CONTRACT = "mt5_server_epoch_utc_v3"
 SOURCE_TIME_BASIS = "mt5_server_epoch"
 ANCHOR_SEARCH_WINDOW_S = 3

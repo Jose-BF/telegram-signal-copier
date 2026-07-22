@@ -33,7 +33,13 @@ if sys.platform == "win32":
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 ROOT = Path(__file__).parent.parent
-EVENTS_FILE = ROOT / "data" / "trade_events.jsonl"
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+import runtime_paths
+
+
+EVENTS_FILE = runtime_paths.active_data_dir(ROOT) / "trade_events.jsonl"
 
 
 # ─── CLI ──────────────────────────────────────────────────────────────────────

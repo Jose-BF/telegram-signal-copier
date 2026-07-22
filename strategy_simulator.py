@@ -24,10 +24,11 @@ import numpy as np
 import pandas as pd
 
 import observed_tick_replay_validator
+import runtime_paths
 import strategy_policies
 
 
-DATA_DIR = Path(__file__).parent / "data"
+DATA_DIR = runtime_paths.active_data_dir()
 DEFAULT_REPLAY_FILE = DATA_DIR / "replay_trades.jsonl"
 DEFAULT_BASELINE_AUDIT_FILE = DATA_DIR / "observed_tick_replay_audit.jsonl"
 DEFAULT_TICK_CACHE_DIR = DATA_DIR / "ticks_cache"

@@ -208,6 +208,29 @@ def runtime_head_is_safe(
     )
 
 
+def verified_runtime_head_is_available(
+    repo_dir: Path,
+    expected_head: str,
+    *,
+    branch: str = "main",
+) -> bool:
+    """Confirm that the exact code which was already running is untouched.
+
+    This intentionally does not compare against the current remote ref. It is
+    used only after a failed hot-update, when the previous published build is
+    safer than leaving the bot stopped.
+    """
+
+    repo_dir = Path(repo_dir)
+    return bool(
+        expected_head
+        and not _rebase_in_progress(repo_dir)
+        and _branch(repo_dir) == branch
+        and _head(repo_dir) == expected_head
+        and _output(repo_dir, "status", "--porcelain") == ""
+    )
+
+
 def local_data_commits_are_publishable(
     repo_dir: Path,
     *,

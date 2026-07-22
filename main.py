@@ -1045,7 +1045,7 @@ def _finalize_journal_orphans():
     from datetime import datetime, timezone, timedelta
     from pathlib import Path
 
-    events_file = Path(__file__).parent / "data" / "trade_events.jsonl"
+    events_file = journal.EVENTS_FILE
     if not events_file.exists():
         return
 

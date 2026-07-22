@@ -4,13 +4,22 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from datetime import datetime, timezone
 from math import isfinite
 from pathlib import Path
 
 
 REPO_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_OUTPUT = REPO_DIR / "data" / "broker_money_contract.json"
+if str(REPO_DIR) not in sys.path:
+    sys.path.insert(0, str(REPO_DIR))
+
+import runtime_paths
+
+
+DEFAULT_OUTPUT = (
+    runtime_paths.active_data_dir(REPO_DIR) / "broker_money_contract.json"
+)
 SCHEMA_VERSION = 1
 LIVE_VALUE_TOLERANCE = 1e-8
 

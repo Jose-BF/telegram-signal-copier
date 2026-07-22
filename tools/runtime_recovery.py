@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+import runtime_paths
 
 GIT_TIMEOUT_SEC = float(os.getenv("BOT_GIT_TIMEOUT_SEC", "15"))
 
@@ -213,27 +214,35 @@ def _validate_runtime_source(
     except OSError as exc:
         return False, str(exc), tuple(archived)
 
-    if relative_path.endswith(".jsonl"):
+    if relative_path.endswith((".jsonl", ".csv")):
         baseline = _git_blob_bytes(repo_dir, relative_path)
         if baseline is None:
             return False, "could not read the committed raw baseline", tuple(archived)
         normalized_current = current.replace(b"\r\n", b"\n")
         normalized_baseline = baseline.replace(b"\r\n", b"\n")
         if not normalized_current.startswith(normalized_baseline):
-            return False, "JSONL runtime evidence is not append-only", tuple(archived)
+            kind = "JSONL" if relative_path.endswith(".jsonl") else "CSV"
+            return (
+                False,
+                f"{kind} runtime evidence is not append-only",
+                tuple(archived),
+            )
         appended = normalized_current[len(normalized_baseline):]
-        for line_number, raw_line in enumerate(appended.splitlines(), start=1):
-            if not raw_line.strip():
-                continue
-            try:
-                json.loads(raw_line.decode("utf-8"))
-            except (UnicodeDecodeError, ValueError) as exc:
-                return (
-                    False,
-                    f"invalid appended JSONL line {line_number}: {exc}",
-                    tuple(archived),
-                )
-    elif relative_path.endswith(".csv"):
+        if relative_path.endswith(".jsonl"):
+            for line_number, raw_line in enumerate(
+                appended.splitlines(), start=1
+            ):
+                if not raw_line.strip():
+                    continue
+                try:
+                    json.loads(raw_line.decode("utf-8"))
+                except (UnicodeDecodeError, ValueError) as exc:
+                    return (
+                        False,
+                        f"invalid appended JSONL line {line_number}: {exc}",
+                        tuple(archived),
+                    )
+    if relative_path.endswith(".csv"):
         try:
             rows = list(csv.reader(
                 io.StringIO(current.decode("utf-8-sig")),
@@ -248,13 +257,61 @@ def _validate_runtime_source(
     return True, None, tuple(archived)
 
 
+def _append_durable(path: Path, payload: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("ab") as handle:
+        handle.write(payload)
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def _merge_source_into_runtime(
+    repo_dir: Path,
+    relative_path: str,
+    runtime_dir: Path,
+) -> tuple[bool, str | None]:
+    """Preserve a legacy tracked stream without ever rewriting live data."""
+
+    source = repo_dir / relative_path
+    target = runtime_dir / Path(relative_path).name
+    try:
+        source_payload = source.read_bytes()
+        if not target.exists():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(source_payload)
+            return True, None
+        runtime_payload = target.read_bytes()
+        if runtime_payload == source_payload:
+            return True, None
+        if source_payload.startswith(runtime_payload):
+            _append_durable(target, source_payload[len(runtime_payload):])
+            return True, None
+        if runtime_payload.startswith(source_payload):
+            return True, None
+        return False, (
+            f"legacy/runtime evidence diverged for {relative_path}; "
+            "both copies were preserved"
+        )
+    except OSError as exc:
+        return False, str(exc)
+
+
 def prepare_runtime_worktree(
     repo_dir: Path,
     *,
     timestamp: str | None = None,
+    runtime_dir: Path | None = None,
 ) -> RecoveryResult:
-    """Preserve raw evidence and remove only reproducible interrupted output."""
+    """Move legacy evidence out of Git and repair reproducible output.
+
+    This function intentionally never stages or commits. The production
+    checkout is returned to ``HEAD`` only after every complete raw record is
+    present in the ignored runtime store.
+    """
     repo_dir = Path(repo_dir).resolve()
+    runtime_dir = Path(
+        runtime_dir or runtime_paths.default_runtime_data_dir(repo_dir)
+    ).resolve()
     timestamp = timestamp or datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
 
     tracked = _paths(repo_dir, "diff", "--name-only", "-z", "HEAD", "--")
@@ -331,6 +388,36 @@ def prepare_runtime_worktree(
                     archived_paths=tuple(archived),
                 )
 
+        migration = runtime_paths.initialize_runtime_store(
+            repo_dir,
+            runtime_dir=runtime_dir,
+            initialized_at=datetime.now(timezone.utc).isoformat(
+                timespec="seconds"
+            ),
+        )
+        if not migration.ok:
+            return _failure(
+                "runtime_migration_failed",
+                "could not initialize runtime evidence store",
+                source_paths=source_paths,
+                archived_paths=tuple(archived),
+            )
+        for path in source_paths:
+            merged, merge_error = _merge_source_into_runtime(
+                repo_dir,
+                path,
+                runtime_dir,
+            )
+            if not merged:
+                _archive_copy(repo_dir, path, archive_root)
+                archived.append(path)
+                return _failure(
+                    "runtime_evidence_diverged",
+                    merge_error or "runtime evidence diverged",
+                    source_paths=source_paths,
+                    archived_paths=tuple(archived),
+                )
+
         if untracked_generated:
             for path in untracked_generated:
                 _archive_untracked_output(repo_dir, path, archive_root)
@@ -362,43 +449,25 @@ def prepare_runtime_worktree(
                 )
             restored.extend(tracked_generated)
 
-        commit = None
         if source_paths:
-            added = _run_git(repo_dir, "add", "-f", "--", *source_paths)
-            if added.returncode != 0:
+            restored_sources = _run_git(
+                repo_dir,
+                "restore",
+                "--source=HEAD",
+                "--staged",
+                "--worktree",
+                "--",
+                *source_paths,
+            )
+            if restored_sources.returncode != 0:
                 return _failure(
-                    "raw_stage_failed",
-                    added.stderr or added.stdout,
+                    "legacy_source_restore_failed",
+                    restored_sources.stderr or restored_sources.stdout,
                     source_paths=source_paths,
                     restored_paths=tuple(restored),
                     archived_paths=tuple(archived),
                 )
-            staged = _run_git(repo_dir, "diff", "--cached", "--quiet")
-            if staged.returncode == 1:
-                committed = _run_git(
-                    repo_dir,
-                    "commit",
-                    "-m",
-                    f"data: automatic recovery checkpoint {timestamp}",
-                )
-                if committed.returncode != 0:
-                    return _failure(
-                        "raw_commit_failed",
-                        committed.stderr or committed.stdout,
-                        source_paths=source_paths,
-                        restored_paths=tuple(restored),
-                        archived_paths=tuple(archived),
-                    )
-                head = _run_git(repo_dir, "rev-parse", "HEAD")
-                commit = (head.stdout or "").strip() or None
-            elif staged.returncode != 0:
-                return _failure(
-                    "staged_inspection_failed",
-                    staged.stderr or staged.stdout,
-                    source_paths=source_paths,
-                    restored_paths=tuple(restored),
-                    archived_paths=tuple(archived),
-                )
+            restored.extend(source_paths)
 
         status = _run_git(repo_dir, "status", "--porcelain")
         if status.returncode != 0 or (status.stdout or "").strip():
@@ -418,12 +487,12 @@ def prepare_runtime_worktree(
             archived_paths=tuple(archived),
         )
 
-    repaired = bool(restored or archived)
-    checkpointed = commit is not None
-    if checkpointed and repaired:
-        action = "checkpointed_and_repaired"
-    elif checkpointed:
-        action = "checkpointed"
+    repaired = bool(set(restored) - set(source_paths) or archived)
+    migrated = bool(source_paths)
+    if migrated and repaired:
+        action = "migrated_and_repaired"
+    elif migrated:
+        action = "migrated"
     elif repaired:
         action = "repaired"
     else:
@@ -434,5 +503,5 @@ def prepare_runtime_worktree(
         source_paths=source_paths,
         restored_paths=tuple(restored),
         archived_paths=tuple(archived),
-        commit=commit,
+        commit=None,
     )

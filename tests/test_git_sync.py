@@ -136,6 +136,26 @@ def test_runtime_head_rejects_unpublished_code_commit(tmp_path):
     assert git_sync.runtime_head_is_safe(vm) is False
 
 
+def test_previous_verified_head_remains_available_when_remote_code_advances(
+    tmp_path,
+):
+    _remote, seed, vm = _repos(tmp_path)
+    verified_head = _must_git(vm, "rev-parse", "HEAD")
+    _write_commit(seed, "app.txt", "remote update\n", "fix: remote update")
+    _must_git(seed, "push", "origin", "main")
+    _must_git(vm, "fetch", "origin", "main")
+
+    assert git_sync.runtime_head_is_safe(vm) is False
+    assert git_sync.verified_runtime_head_is_available(
+        vm, verified_head
+    ) is True
+
+    (vm / "local.tmp").write_text("unsafe\n", encoding="utf-8")
+    assert git_sync.verified_runtime_head_is_available(
+        vm, verified_head
+    ) is False
+
+
 def test_remote_ahead_fast_forwards_and_attaches_main(tmp_path):
     _remote, seed, vm = _repos(tmp_path)
     old_head = _must_git(vm, "rev-parse", "HEAD")
@@ -263,11 +283,12 @@ def test_stale_rebase_is_quit_before_crash_evidence_checkpoint(tmp_path):
         return runtime_recovery.prepare_runtime_worktree(
             repo,
             timestamp="20260722-160500",
+            runtime_dir=tmp_path / "runtime-data",
         )
 
     result = git_sync.synchronize_repository(
         vm,
-        publish_local=True,
+        publish_local=False,
         worktree_recovery=recover,
     )
 
@@ -275,7 +296,10 @@ def test_stale_rebase_is_quit_before_crash_evidence_checkpoint(tmp_path):
     assert callback_saw_rebase == [False]
     assert not rebase_dir.exists()
     assert _must_git(vm, "status", "--porcelain") == ""
-    assert "after-crash" in _must_git(
+    assert "after-crash" in (
+        tmp_path / "runtime-data" / "trade_events.jsonl"
+    ).read_text(encoding="utf-8")
+    assert "after-crash" not in _must_git(
         vm, "show", "origin/main:data/trade_events.jsonl"
     )
 

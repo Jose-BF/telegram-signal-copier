@@ -14,15 +14,23 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
 
 ROOT = Path(__file__).parent.parent
-DEFAULT_LEDGER = ROOT / "data" / "ledger.jsonl"
-DEFAULT_ACCOUNTING = ROOT / "data" / "accounting_replay_audit.jsonl"
-DEFAULT_EVENTS = ROOT / "data" / "trade_events.jsonl"
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+import runtime_paths
+
+
+DATA_DIR = runtime_paths.active_data_dir(ROOT)
+DEFAULT_LEDGER = DATA_DIR / "ledger.jsonl"
+DEFAULT_ACCOUNTING = DATA_DIR / "accounting_replay_audit.jsonl"
+DEFAULT_EVENTS = DATA_DIR / "trade_events.jsonl"
 
 
 def load_jsonl(path: Path) -> list[dict]:

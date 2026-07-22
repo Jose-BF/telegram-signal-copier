@@ -26,7 +26,10 @@ def _repo(tmp_path: Path) -> Path:
     _must_git(repo, "init")
     _must_git(repo, "config", "user.name", "VM Bot")
     _must_git(repo, "config", "user.email", "vm@example.com")
-    (repo / ".gitignore").write_text("data_backup/\n", encoding="utf-8")
+    (repo / ".gitignore").write_text(
+        "data_backup/\nruntime_data/\n",
+        encoding="utf-8",
+    )
     (repo / "main.py").write_text("print('safe')\n", encoding="utf-8")
     data = repo / "data"
     data.mkdir()
@@ -47,9 +50,10 @@ def _repo(tmp_path: Path) -> Path:
     return repo
 
 
-def test_crash_recovery_checkpoints_raw_evidence_and_restores_reports(tmp_path):
+def test_crash_recovery_migrates_raw_evidence_and_restores_reports(tmp_path):
     repo = _repo(tmp_path)
     data = repo / "data"
+    original_head = _must_git(repo, "rev-parse", "HEAD")
     with (data / "trade_events.jsonl").open("a", encoding="utf-8") as f:
         f.write('{"ev":"after-crash"}\n')
     (data / "trade_journal.csv").write_text(
@@ -63,10 +67,11 @@ def test_crash_recovery_checkpoints_raw_evidence_and_restores_reports(tmp_path):
     result = runtime_recovery.prepare_runtime_worktree(
         repo,
         timestamp="20260722-160500",
+        runtime_dir=repo / "runtime_data",
     )
 
     assert result.ok is True
-    assert result.action == "checkpointed_and_repaired"
+    assert result.action == "migrated_and_repaired"
     assert result.source_paths == (
         "data/trade_events.jsonl",
         "data/trade_journal.csv",
@@ -74,29 +79,21 @@ def test_crash_recovery_checkpoints_raw_evidence_and_restores_reports(tmp_path):
     assert set(result.restored_paths) == {
         "data/provider_signal_catalog.json",
         "data/reconcile_status.json",
+        "data/trade_events.jsonl",
+        "data/trade_journal.csv",
     }
     assert _must_git(repo, "status", "--porcelain") == ""
-    assert "after-crash" in _must_git(
+    assert "after-crash" in (
+        repo / "runtime_data" / "trade_events.jsonl"
+    ).read_text(encoding="utf-8")
+    assert _must_git(repo, "rev-parse", "HEAD") == original_head
+    assert "after-crash" not in _must_git(
         repo, "show", "HEAD:data/trade_events.jsonl"
     )
     assert _must_git(repo, "show", "HEAD:data/reconcile_status.json") == (
         '{"ok":true}'
     )
-    assert _must_git(repo, "show", "--format=%s", "-s", "HEAD").startswith(
-        "data: automatic recovery checkpoint"
-    )
-    changed = _must_git(
-        repo,
-        "diff-tree",
-        "--no-commit-id",
-        "--name-only",
-        "-r",
-        "HEAD",
-    )
-    assert set(changed.splitlines()) == {
-        "data/trade_events.jsonl",
-        "data/trade_journal.csv",
-    }
+    assert _must_git(repo, "show", "--format=%s", "-s", "HEAD") == "feat: base"
 
 
 def test_crash_recovery_blocks_and_preserves_source_changes(tmp_path):
@@ -106,7 +103,9 @@ def test_crash_recovery_blocks_and_preserves_source_changes(tmp_path):
     with events.open("a", encoding="utf-8") as f:
         f.write('{"ev":"valuable"}\n')
 
-    result = runtime_recovery.prepare_runtime_worktree(repo)
+    result = runtime_recovery.prepare_runtime_worktree(
+        repo, runtime_dir=repo / "runtime_data"
+    )
 
     assert result.ok is False
     assert result.action == "unsafe_worktree"
@@ -127,6 +126,7 @@ def test_crash_recovery_preserves_untracked_partial_analysis_outside_git(
     result = runtime_recovery.prepare_runtime_worktree(
         repo,
         timestamp="20260722-160500",
+        runtime_dir=repo / "runtime_data",
     )
 
     assert result.ok is True
@@ -153,7 +153,9 @@ def test_crash_recovery_never_commits_deleted_raw_evidence(tmp_path):
     events = repo / "data" / "trade_events.jsonl"
     events.unlink()
 
-    result = runtime_recovery.prepare_runtime_worktree(repo)
+    result = runtime_recovery.prepare_runtime_worktree(
+        repo, runtime_dir=repo / "runtime_data"
+    )
 
     assert result.ok is False
     assert result.action == "raw_evidence_deleted"
@@ -171,15 +173,16 @@ def test_crash_recovery_archives_and_truncates_partial_jsonl_tail(tmp_path):
     result = runtime_recovery.prepare_runtime_worktree(
         repo,
         timestamp="20260722-160500",
+        runtime_dir=repo / "runtime_data",
     )
 
     assert result.ok is True
-    assert result.action == "checkpointed_and_repaired"
+    assert result.action == "migrated_and_repaired"
     assert "data/trade_events.jsonl.partial-tail" in result.archived_paths
-    assert events.read_bytes().endswith(b'{"ev":"complete"}\n')
-    assert b'partial' not in _must_git(
-        repo, "show", "HEAD:data/trade_events.jsonl"
-    ).encode()
+    assert events.read_text(encoding="utf-8").splitlines() == ['{"ev":"base"}']
+    assert (
+        repo / "runtime_data" / "trade_events.jsonl"
+    ).read_bytes().endswith(b'{"ev":"complete"}\n')
     tail = (
         repo
         / "data_backup"
@@ -195,11 +198,36 @@ def test_crash_recovery_rejects_non_append_jsonl_mutation(tmp_path):
     events = repo / "data" / "trade_events.jsonl"
     events.write_text('{"ev":"rewritten"}\n', encoding="utf-8")
 
-    result = runtime_recovery.prepare_runtime_worktree(repo)
+    result = runtime_recovery.prepare_runtime_worktree(
+        repo, runtime_dir=repo / "runtime_data"
+    )
 
     assert result.ok is False
     assert result.action == "raw_not_append_only"
     assert "rewritten" in events.read_text(encoding="utf-8")
+
+
+def test_crash_recovery_rejects_non_append_csv_mutation(tmp_path):
+    repo = _repo(tmp_path)
+    journal = repo / "data" / "trade_journal.csv"
+    journal.write_text(
+        "sig_id,status\noriginal,closed\n",
+        encoding="utf-8",
+    )
+    _must_git(repo, "add", "data/trade_journal.csv")
+    _must_git(repo, "commit", "-m", "data: baseline journal row")
+    journal.write_text(
+        "sig_id,status\nrewritten,closed\n",
+        encoding="utf-8",
+    )
+
+    result = runtime_recovery.prepare_runtime_worktree(
+        repo, runtime_dir=repo / "runtime_data"
+    )
+
+    assert result.ok is False
+    assert result.action == "raw_not_append_only"
+    assert "rewritten" in journal.read_text(encoding="utf-8")
 
 
 def test_canonical_catalog_is_archived_before_head_is_restored(tmp_path):
@@ -210,6 +238,7 @@ def test_canonical_catalog_is_archived_before_head_is_restored(tmp_path):
     result = runtime_recovery.prepare_runtime_worktree(
         repo,
         timestamp="20260722-160500",
+        runtime_dir=repo / "runtime_data",
     )
 
     assert result.ok is True

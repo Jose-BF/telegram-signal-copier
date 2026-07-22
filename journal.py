@@ -39,10 +39,11 @@ from threading import Event as ThreadEvent, Lock, Thread
 from typing import Optional
 
 from provider_names import provider_display_name
+import runtime_paths
 
 # ─── Paths ──────────────────────────────────────────────────────────────────
-DATA_DIR = Path(__file__).parent / "data"
-DATA_DIR.mkdir(exist_ok=True)
+DATA_DIR = runtime_paths.active_data_dir()
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 EVENTS_FILE = DATA_DIR / "trade_events.jsonl"
 JOURNAL_FILE = DATA_DIR / "trade_journal.csv"

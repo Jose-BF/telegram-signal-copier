@@ -39,6 +39,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 from journal import health_verdict
+import runtime_paths
 
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8")
@@ -49,7 +50,7 @@ except ImportError:
     print("ERROR: pip install MetaTrader5")
     sys.exit(1)
 
-DATA_DIR = Path(__file__).parent / "data"
+DATA_DIR = runtime_paths.active_data_dir()
 JOURNAL_FILE = DATA_DIR / "trade_events.jsonl"
 LEDGER_FILE = DATA_DIR / "ledger.jsonl"
 

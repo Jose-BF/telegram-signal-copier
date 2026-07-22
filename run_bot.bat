@@ -7,14 +7,18 @@ REM
 REM   Para PARAR el bot: cierra la ventana del cmd directamente
 REM   (la X de la esquina). Ctrl+C reinicia el loop.
 REM
-REM   Logs: logs\bot_runtime.log
+REM   Diagnostico: runtime_data\bot_runtime.log
 REM ============================================================
 
 chcp 65001 > nul
 title Signal Copier Bot - %date% %time%
 cd /d "%~dp0"
 
-if not exist logs mkdir logs
+REM Los datos vivos no forman parte del checkout Git. Esta frontera se fija
+REM antes de importar Python para que todos los modulos usen la misma ruta.
+set "BOT_RUNTIME_DATA_DIR=%~dp0runtime_data"
+
+if not exist "%BOT_RUNTIME_DATA_DIR%" mkdir "%BOT_RUNTIME_DATA_DIR%"
 
 :restart
 echo.
@@ -23,10 +27,10 @@ echo   Arrancando bot: %date% %time%
 echo ====================================================
 echo.
 
-echo. >> logs\bot_runtime.log
-echo [%date% %time%] === ARRANQUE === >> logs\bot_runtime.log
+echo. >> "%BOT_RUNTIME_DATA_DIR%\bot_runtime.log"
+echo [%date% %time%] === ARRANQUE === >> "%BOT_RUNTIME_DATA_DIR%\bot_runtime.log"
 
-REM Tee: muestra en pantalla EN VIVO Y guarda en logs\bot_runtime.log al mismo
+REM Tee: muestra en pantalla EN VIVO Y guarda el diagnostico en runtime_data al
 REM tiempo. Detalles de cada flag:
 REM   • python -u                : sin buffer (cada print aparece al instante,
 REM                                no en bloques cuando se llena el buffer)
@@ -44,12 +48,12 @@ REM Lanzamos tools\run_bot_watch.py en vez de main.py directo. El watcher
 REM arranca codigo local verificado aunque GitHub no responda. Los datos raw
 REM se guardan primero en un checkpoint local y se publican despues, sin
 REM ejecutar informes o simulaciones pesadas en el camino de reinicio.
-powershell -NoProfile -Command "[Console]::OutputEncoding = [Text.Encoding]::UTF8; python -u tools\run_bot_watch.py 2>&1 | Tee-Object -FilePath logs\bot_runtime.log -Append; exit $LASTEXITCODE"
+powershell -NoProfile -Command "[Console]::OutputEncoding = [Text.Encoding]::UTF8; python -u tools\run_bot_watch.py 2>&1 | Tee-Object -FilePath '%BOT_RUNTIME_DATA_DIR%\bot_runtime.log' -Append; exit $LASTEXITCODE"
 set EXITCODE=%errorlevel%
 
 echo.
 echo [%date% %time%] Watcher terminado. Exit code: %EXITCODE%
-echo [%date% %time%] === SALIDA codigo=%EXITCODE% === >> logs\bot_runtime.log
+echo [%date% %time%] === SALIDA codigo=%EXITCODE% === >> "%BOT_RUNTIME_DATA_DIR%\bot_runtime.log"
 
 REM El watcher guarda solo la evidencia raw en el camino de reinicio. Los
 REM informes y simulaciones pesadas se regeneran fuera del camino critico.

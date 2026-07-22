@@ -15,8 +15,9 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
 from typing import Iterable
 
+import runtime_paths
 
-DATA_DIR = Path(__file__).parent / "data"
+DATA_DIR = runtime_paths.active_data_dir()
 DEFAULT_REPLAY_FILE = DATA_DIR / "replay_trades.jsonl"
 DEFAULT_AUDIT_FILE = DATA_DIR / "accounting_replay_audit.jsonl"
 SCHEMA_VERSION = 1

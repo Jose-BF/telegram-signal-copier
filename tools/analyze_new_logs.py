@@ -14,6 +14,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import log_analysis
+import runtime_paths
+
+
+DEFAULT_EVENTS = runtime_paths.active_data_dir(ROOT) / "trade_events.jsonl"
 
 
 def _git_private_path(name: str) -> Path:
@@ -54,7 +58,7 @@ def main(argv=None) -> int:
         description="Resume solo los eventos nuevos de trade_events.jsonl"
     )
     parser.add_argument("--events", type=Path,
-                        default=ROOT / "data" / "trade_events.jsonl")
+                        default=DEFAULT_EVENTS)
     parser.add_argument("--state", type=Path,
                         default=_git_private_path("log_analysis_cursor.json"))
     parser.add_argument("--report", type=Path,

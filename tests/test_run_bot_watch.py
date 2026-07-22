@@ -2,6 +2,7 @@ import json
 import socket
 import subprocess
 from hashlib import sha256
+from types import SimpleNamespace
 
 import pytest
 
@@ -42,6 +43,28 @@ def _recovery_result(**overrides):
     return runtime_recovery.RecoveryResult(**values)
 
 
+def _stub_successful_telemetry(monkeypatch):
+    monkeypatch.setattr(
+        watch.runtime_telemetry,
+        "checkpoint_runtime",
+        lambda *args, **kwargs: SimpleNamespace(
+            ok=True,
+            chunks=(),
+            errors=(),
+        ),
+    )
+    monkeypatch.setattr(
+        watch.runtime_telemetry,
+        "publish_outbox",
+        lambda *args, **kwargs: SimpleNamespace(
+            ok=True,
+            published_files=0,
+            commit=None,
+            error=None,
+        ),
+    )
+
+
 def test_prepare_repository_for_runtime_delegates_to_state_machine(monkeypatch):
     calls = []
     expected = _sync_result(action="attached")
@@ -49,8 +72,20 @@ def test_prepare_repository_for_runtime_delegates_to_state_machine(monkeypatch):
     monkeypatch.setattr(
         watch.runtime_recovery,
         "prepare_runtime_worktree",
-        lambda repo_dir: calls.append(("recover", repo_dir))
+        lambda repo_dir, *, runtime_dir: calls.append(
+            ("recover", repo_dir, runtime_dir)
+        )
         or _recovery_result(),
+    )
+    monkeypatch.setattr(
+        watch.runtime_paths,
+        "initialize_runtime_store",
+        lambda repo_dir, **kwargs: SimpleNamespace(
+            ok=True,
+            copied=(),
+            preserved=(),
+            archived_tails=(),
+        ),
     )
 
     def fake_sync(
@@ -68,8 +103,8 @@ def test_prepare_repository_for_runtime_delegates_to_state_machine(monkeypatch):
 
     assert watch._prepare_repository_for_runtime() == expected
     assert calls == [
-        ("sync", watch.REPO_DIR, True, watch._print_git_progress),
-        ("recover", watch.REPO_DIR),
+        ("sync", watch.REPO_DIR, False, watch._print_git_progress),
+        ("recover", watch.REPO_DIR, watch.RUNTIME_DATA_DIR),
     ]
 
 
@@ -77,9 +112,19 @@ def test_prepare_repository_passes_unsafe_local_code_to_sync_state_machine(
     monkeypatch,
 ):
     monkeypatch.setattr(
+        watch.runtime_paths,
+        "initialize_runtime_store",
+        lambda repo_dir, **kwargs: SimpleNamespace(
+            ok=True,
+            copied=(),
+            preserved=(),
+            archived_tails=(),
+        ),
+    )
+    monkeypatch.setattr(
         watch.runtime_recovery,
         "prepare_runtime_worktree",
-        lambda repo_dir: _recovery_result(
+        lambda repo_dir, **kwargs: _recovery_result(
             ok=False,
             action="unsafe_worktree",
             unsafe_paths=("main.py",),
@@ -106,12 +151,13 @@ def test_prepare_repository_passes_unsafe_local_code_to_sync_state_machine(
 
 def test_fast_checkpoint_is_local_and_never_calls_remote_sync(monkeypatch):
     monkeypatch.setattr(
-        watch.runtime_recovery,
-        "prepare_runtime_worktree",
-        lambda repo_dir: _recovery_result(
-            action="checkpointed",
-            source_paths=("data/trade_events.jsonl",),
-            commit="abc123",
+        watch.runtime_telemetry,
+        "checkpoint_runtime",
+        lambda *args, **kwargs: SimpleNamespace(
+            ok=True,
+            chunks=("chunk",),
+            pending_tail_bytes={},
+            errors=(),
         ),
     )
     monkeypatch.setattr(
@@ -128,7 +174,7 @@ def test_fast_checkpoint_is_local_and_never_calls_remote_sync(monkeypatch):
     result = watch._checkpoint_runtime_data()
 
     assert result.ok is True
-    assert result.action == "local_checkpointed"
+    assert result.action == "telemetry_checkpointed"
     assert result.local_head == "abc123"
     assert result.remote_head == "def456"
 
@@ -152,6 +198,109 @@ def test_transport_failure_can_fall_back_to_verified_local_runtime(monkeypatch):
 
     assert fallback.ok is True
     assert fallback.action == "offline_local_verified"
+
+
+def test_failed_code_activation_can_relaunch_previous_verified_head(
+    monkeypatch,
+):
+    failed = _sync_result(
+        ok=False,
+        action="fetch_failed",
+        local_head="a" * 40,
+        remote_head="b" * 40,
+        error="temporary second fetch failure",
+    )
+    monkeypatch.setattr(
+        watch.git_sync,
+        "verified_runtime_head_is_available",
+        lambda repo_dir, expected_head: expected_head == "a" * 40,
+    )
+    monkeypatch.setattr(watch, "_local_head", lambda: "a" * 40)
+    monkeypatch.setattr(watch, "_remote_head", lambda: "b" * 40)
+    monkeypatch.setattr(watch, "_current_branch", lambda: "main")
+
+    fallback = watch._previous_verified_runtime_fallback(
+        failed,
+        "a" * 40,
+    )
+
+    assert fallback.ok is True
+    assert fallback.action == "previous_verified_code"
+    assert fallback.local_head == "a" * 40
+    assert fallback.remote_head == "b" * 40
+
+
+def test_remote_update_sync_failure_relaunches_previous_bot(monkeypatch):
+    class RunningProcess:
+        returncode = None
+
+        def poll(self):
+            return None
+
+    class InterruptingProcess:
+        returncode = None
+
+        def poll(self):
+            raise KeyboardInterrupt
+
+    old_process = RunningProcess()
+    relaunched_process = InterruptingProcess()
+    spawns = [old_process, relaunched_process]
+    spawn_heads = []
+    verified = _sync_result(local_head="a" * 40, remote_head="a" * 40)
+    failed = _sync_result(
+        ok=False,
+        action="fetch_failed",
+        local_head="a" * 40,
+        remote_head="b" * 40,
+        error="temporary fetch failure",
+    )
+    preparations = iter((verified, failed))
+    fallback_calls = []
+
+    monkeypatch.setattr(
+        watch, "_prepare_repository_for_runtime", lambda: next(preparations)
+    )
+    def spawn(verified_head=None):
+        spawn_heads.append(verified_head)
+        return spawns.pop(0)
+
+    monkeypatch.setattr(watch, "_spawn_bot_with_active_channels", spawn)
+    monkeypatch.setattr(
+        watch,
+        "_git",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=args, returncode=0, stdout="", stderr=""
+        ),
+    )
+    monkeypatch.setattr(watch, "_remote_head", lambda: "b" * 40)
+    monkeypatch.setattr(watch, "_remote_update_is_data_only", lambda *args: False)
+    monkeypatch.setattr(watch, "_paths_changed_between", lambda *args: False)
+    monkeypatch.setattr(watch, "_runtime_heartbeat_age_s", lambda **kwargs: 0)
+    monkeypatch.setattr(watch, "POLL_SEC", 0)
+    monkeypatch.setattr(watch, "TELEMETRY_PUBLISH_SEC", 0)
+    monkeypatch.setattr(watch.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(
+        watch,
+        "_checkpoint_runtime_data",
+        lambda: _sync_result(local_head="a" * 40, remote_head="b" * 40),
+    )
+    monkeypatch.setattr(watch, "_stop_bot", lambda _process: None)
+
+    def fallback(result, previous_head):
+        fallback_calls.append((result, previous_head))
+        return _sync_result(
+            action="previous_verified_code",
+            local_head="a" * 40,
+            remote_head="b" * 40,
+        )
+
+    monkeypatch.setattr(watch, "_previous_verified_runtime_fallback", fallback)
+
+    assert watch.main() == 0
+    assert fallback_calls == [(failed, "a" * 40)]
+    assert spawn_heads == [None, "a" * 40]
+    assert spawns == []
 
 
 def test_main_blocks_bot_spawn_when_git_preflight_is_unsafe(monkeypatch):
@@ -197,31 +346,37 @@ def test_main_retries_transient_git_transport_failure(monkeypatch):
     assert watch.main() == watch.WATCHER_GIT_RETRY_EXIT_CODE
 
 
-def test_ctrl_c_without_new_commit_still_verifies_git(monkeypatch):
+def test_ctrl_c_checkpoints_locally_without_resynchronizing_git(monkeypatch):
     class InterruptedProcess:
         def poll(self):
             raise KeyboardInterrupt
 
     verified = _sync_result()
-    blocked = _sync_result(
-        ok=False,
-        action="dirty_worktree",
-        error="uncommitted source file",
-    )
-    refreshes = []
     monkeypatch.setattr(watch, "_prepare_repository_for_runtime", lambda: verified)
     monkeypatch.setattr(watch, "_apply_active_channel_manifest", lambda: True)
     monkeypatch.setattr(watch, "_spawn_bot", lambda: InterruptedProcess())
     monkeypatch.setattr(watch, "_stop_bot", lambda _proc: None)
-    monkeypatch.setattr(watch, "_checkpoint_runtime_data", lambda: None)
+    checkpoints = []
     monkeypatch.setattr(
         watch,
-        "_refresh_heads_after_session_data_push",
-        lambda: refreshes.append("sync") or blocked,
+        "_checkpoint_runtime_data",
+        lambda: checkpoints.append("local") or _sync_result(
+            action="telemetry_checkpointed"
+        ),
     )
 
-    assert watch.main() == watch.WATCHER_GIT_BLOCKED_EXIT_CODE
-    assert refreshes == ["sync"]
+    assert watch.main() == 0
+    assert checkpoints == ["local"]
+
+
+def test_telemetry_publication_failure_is_nonblocking(monkeypatch):
+    monkeypatch.setattr(
+        watch.subprocess,
+        "Popen",
+        lambda *args, **kwargs: (_ for _ in ()).throw(OSError("offline")),
+    )
+
+    assert watch._trigger_telemetry_publication() is False
 
 
 def test_unexpected_watcher_failure_stops_child_before_batch_recovery(
@@ -313,6 +468,9 @@ def test_spawn_bot_attests_the_exact_verified_head(monkeypatch):
     assert watch._spawn_bot() == "process"
     assert captured["kwargs"]["env"]["BOT_WATCHER_VERIFIED_HEAD"] == full_head
     assert captured["kwargs"]["env"]["BOT_WATCHER_PID"] == str(watch.os.getpid())
+    assert captured["kwargs"]["env"]["BOT_RUNTIME_DATA_DIR"] == str(
+        watch.RUNTIME_DATA_DIR
+    )
 
 
 def test_spawn_bot_refuses_head_that_is_not_runtime_safe(monkeypatch):
@@ -332,6 +490,36 @@ def test_spawn_bot_refuses_head_that_is_not_runtime_safe(monkeypatch):
     assert watch._spawn_bot() is None
 
 
+def test_spawn_bot_accepts_only_the_explicit_previous_verified_head(
+    monkeypatch,
+):
+    captured = {}
+    previous_head = "a" * 40
+    monkeypatch.setattr(watch, "_local_head", lambda: previous_head)
+    monkeypatch.setattr(watch, "_remote_head", lambda: "b" * 40)
+    monkeypatch.setattr(
+        watch.git_sync,
+        "runtime_head_is_safe",
+        lambda *_args, **_kwargs: False,
+    )
+    monkeypatch.setattr(
+        watch.git_sync,
+        "verified_runtime_head_is_available",
+        lambda repo_dir, expected: expected == previous_head,
+    )
+    monkeypatch.setattr(watch, "_clear_runtime_heartbeat", lambda: None)
+    monkeypatch.setattr(watch.runtime_control, "clear_for_spawn", lambda: None)
+
+    def fake_popen(args, **kwargs):
+        captured["env"] = kwargs["env"]
+        return "process"
+
+    monkeypatch.setattr(watch.subprocess, "Popen", fake_popen)
+
+    assert watch._spawn_bot(verified_head=previous_head) == "process"
+    assert captured["env"]["BOT_WATCHER_VERIFIED_HEAD"] == previous_head
+
+
 def test_watcher_instance_guard_allows_only_one_owner():
     probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     probe.bind(("127.0.0.1", 0))
@@ -349,6 +537,17 @@ def test_watcher_instance_guard_allows_only_one_owner():
 
     assert second.acquire() is True
     second.release()
+
+
+def test_runtime_environment_is_scoped_to_watcher_lifetime(monkeypatch):
+    monkeypatch.delenv("BOT_RUNTIME_DATA_DIR", raising=False)
+
+    with watch._runtime_environment():
+        assert watch.os.environ["BOT_RUNTIME_DATA_DIR"] == str(
+            watch.RUNTIME_DATA_DIR
+        )
+
+    assert "BOT_RUNTIME_DATA_DIR" not in watch.os.environ
 
 
 def test_cli_rejects_a_duplicate_watcher_before_any_work(monkeypatch):
@@ -424,6 +623,7 @@ def _write_learning_artifacts(report_path, registry_path):
 
 def test_regenerate_ledger_writes_failure_status(tmp_path, monkeypatch):
     monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
+    monkeypatch.setattr(watch, "RUNTIME_DATA_DIR", tmp_path / "data")
     monkeypatch.setattr(watch, "RECONCILE_STATUS_FILE",
                         tmp_path / "data" / "reconcile_status.json")
 
@@ -452,6 +652,7 @@ def test_regenerate_ledger_writes_success_status(tmp_path, monkeypatch):
     ledger.write_text("{}\n", encoding="utf-8")
 
     monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
+    monkeypatch.setattr(watch, "RUNTIME_DATA_DIR", data_dir)
     monkeypatch.setattr(watch, "RECONCILE_STATUS_FILE",
                         data_dir / "reconcile_status.json")
 
@@ -477,6 +678,7 @@ def test_regenerate_replay_trades_writes_success_status(tmp_path, monkeypatch):
     replay = data_dir / "replay_trades.jsonl"
 
     monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
+    monkeypatch.setattr(watch, "RUNTIME_DATA_DIR", data_dir)
     monkeypatch.setattr(watch, "REPLAY_STATUS_FILE",
                         data_dir / "replay_status.json")
 
@@ -504,6 +706,7 @@ def test_regenerate_accounting_replay_audit_writes_success_status(tmp_path, monk
     audit = data_dir / "accounting_replay_audit.jsonl"
 
     monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
+    monkeypatch.setattr(watch, "RUNTIME_DATA_DIR", data_dir)
     monkeypatch.setattr(watch, "ACCOUNTING_REPLAY_AUDIT_STATUS_FILE",
                         data_dir / "accounting_replay_audit_status.json")
 
@@ -741,6 +944,7 @@ def test_regenerate_strategy_farm_accepts_complete_diagnostic_publication(
     data_dir.mkdir()
     report = data_dir / "strategy_farm.json"
     monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
+    monkeypatch.setattr(watch, "RUNTIME_DATA_DIR", data_dir)
     monkeypatch.setattr(watch, "STRATEGY_FARM_FILE", report)
     monkeypatch.setattr(watch, "STRATEGY_FARM_FROM_DATE", "2026-07-06")
 
@@ -962,6 +1166,45 @@ def test_cli_final_backup_returns_verified_status(monkeypatch):
     assert watch.cli(["--final-backup"]) == 0
 
 
+def test_final_backup_publishes_telemetry_without_mutating_main(monkeypatch):
+    monkeypatch.setattr(watch, "_regenerate_session_outputs", lambda: {})
+    monkeypatch.setattr(
+        watch.runtime_telemetry,
+        "checkpoint_runtime",
+        lambda *args, **kwargs: SimpleNamespace(
+            ok=True,
+            chunks=("chunk",),
+            errors=(),
+        ),
+    )
+    monkeypatch.setattr(
+        watch.runtime_telemetry,
+        "publish_outbox",
+        lambda *args, **kwargs: SimpleNamespace(
+            ok=True,
+            published_files=2,
+            commit="telemetry-head",
+            error=None,
+        ),
+    )
+    monkeypatch.setattr(watch, "_local_head", lambda: "code-head")
+    monkeypatch.setattr(watch, "_remote_head", lambda: "code-head")
+    monkeypatch.setattr(watch, "_current_branch", lambda: "main")
+    monkeypatch.setattr(
+        watch,
+        "_git",
+        lambda *args, **kwargs: pytest.fail(
+            f"final backup must not run Git in main: {args}"
+        ),
+    )
+
+    result = watch._push_session_data()
+
+    assert result.ok is True
+    assert result.action == "telemetry_published"
+    assert result.local_head == "code-head"
+
+
 def test_cli_recovery_checkpoint_skips_offline_analysis(monkeypatch):
     monkeypatch.setattr(
         watch,
@@ -989,25 +1232,6 @@ def test_cli_final_backup_returns_retry_status_for_transport_failure(monkeypatch
     )
 
     assert watch.cli(["--final-backup"]) == watch.WATCHER_GIT_RETRY_EXIT_CODE
-
-
-def test_cli_final_backup_verifies_repository_when_nothing_was_committed(
-        monkeypatch):
-    calls = []
-    blocked = _sync_result(
-        ok=False,
-        action="dirty_worktree",
-        error="uncommitted source file",
-    )
-    monkeypatch.setattr(watch, "_push_session_data", lambda: None)
-    monkeypatch.setattr(
-        watch,
-        "_prepare_repository_for_runtime",
-        lambda: calls.append("sync") or blocked,
-    )
-
-    assert watch.cli(["--final-backup"]) == watch.WATCHER_GIT_BLOCKED_EXIT_CODE
-    assert calls == ["sync"]
 
 
 def test_interrupted_pipeline_restores_previous_mutable_reports(
@@ -1042,96 +1266,8 @@ def test_interrupted_pipeline_restores_previous_mutable_reports(
         f"old-{index}\n" for index in range(len(paths))
     ]
 
-def test_push_session_data_uses_verified_sync_instead_of_legacy_pull(monkeypatch):
-    calls = []
-    expected = _sync_result(action="pushed")
-    monkeypatch.setattr(watch, "_clear_mutable_offline_outputs", lambda: None)
-    monkeypatch.setattr(watch, "_regenerate_ledger", lambda: False)
-    monkeypatch.setattr(
-        watch,
-        "_regenerate_recursive_learning_outputs",
-        lambda dependencies: False,
-    )
-    monkeypatch.setattr(
-        watch,
-        "_prepare_repository_for_runtime",
-        lambda: calls.append(("sync",)) or expected,
-    )
-
-    def fake_git(*args, capture=True):
-        calls.append(args)
-        returncode = 1 if args == ("diff", "--cached", "--quiet") else 0
-        return subprocess.CompletedProcess(
-            args=args,
-            returncode=returncode,
-            stdout="",
-            stderr="",
-        )
-
-    monkeypatch.setattr(watch, "_git", fake_git)
-
-    result = watch._push_session_data()
-
-    assert result == expected
-    assert calls.count(("sync",)) == 1
-    assert not any(call[:1] == ("pull",) for call in calls)
-    assert ("push", "origin", "main") not in calls
-
-def test_push_session_data_adds_reconcile_status(monkeypatch):
-    added = []
-
-    monkeypatch.setattr(
-        watch,
-        "_clear_mutable_offline_outputs",
-        lambda: None,
-    )
-    monkeypatch.setattr(watch, "_regenerate_ledger", lambda: False)
-    monkeypatch.setattr(watch, "_regenerate_replay_trades", lambda: False)
-    monkeypatch.setattr(watch, "_regenerate_accounting_replay_audit", lambda: False)
-    monkeypatch.setattr(watch, "_regenerate_replay_tick_cache_status", lambda: False)
-    monkeypatch.setattr(watch, "_regenerate_replay_readiness_report", lambda: False)
-    monkeypatch.setattr(watch, "_regenerate_observed_tick_replay_audit", lambda: False)
-    monkeypatch.setattr(watch, "_regenerate_provider_signal_catalog", lambda: False)
-    monkeypatch.setattr(watch, "_regenerate_strategy_farm", lambda: False)
-    monkeypatch.setattr(
-        watch, "_regenerate_recursive_learning_outputs",
-        lambda dependencies: False,
-    )
-
-    def fake_git(*args, capture=True):
-        if args[:2] == ("add", "-f"):
-            added.append(args[2])
-            return subprocess.CompletedProcess(args=args, returncode=0,
-                                               stdout="", stderr="")
-        if args == ("diff", "--cached", "--quiet"):
-            return subprocess.CompletedProcess(args=args, returncode=0,
-                                               stdout="", stderr="")
-        return subprocess.CompletedProcess(args=args, returncode=0,
-                                           stdout="", stderr="")
-
-    monkeypatch.setattr(watch, "_git", fake_git)
-
-    watch._push_session_data()
-
-    assert "data/reconcile_status.json" in added
-    assert "data/replay_status.json" in added
-    assert "data/replay_trades.jsonl" in added
-    assert "data/accounting_replay_audit_status.json" in added
-    assert "data/accounting_replay_audit.jsonl" in added
-    assert "data/replay_tick_cache_status.json" in added
-    assert "data/replay_readiness_report.json" in added
-    assert "data/observed_tick_replay_audit.jsonl" in added
-    assert "data/observed_tick_replay_status.json" in added
-    assert "data/provider_signal_catalog.json" in added
-    assert "data/strategy_farm.json" in added
-    assert "data/log_learning_report.json" in added
-    assert "data/log_pattern_registry.json" in added
-    assert "data/log_learning_status.json" in added
-    assert "data/log_pattern_reviews.json" in added
-    assert "data/simulation_runs" in added
-
-
 def test_push_pipeline_runs_learning_after_all_causal_builders(monkeypatch):
+    _stub_successful_telemetry(monkeypatch)
     calls = []
     monkeypatch.setattr(watch, "_clear_mutable_offline_outputs", lambda: None)
 
@@ -1234,48 +1370,8 @@ def test_session_pipeline_reports_every_stage_in_causal_order(monkeypatch):
     ]
 
 
-def test_push_session_data_reports_exact_staged_worktree_bytes(
-    tmp_path,
-    monkeypatch,
-    capsys,
-):
-    data_dir = tmp_path / "data"
-    data_dir.mkdir()
-    (data_dir / "one.json").write_bytes(b"abc")
-    (data_dir / "two.jsonl").write_bytes(b"12345")
-    monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
-    monkeypatch.setattr(watch, "_regenerate_session_outputs", lambda: {})
-
-    def fake_git(*args, capture=True):
-        if args == ("diff", "--cached", "--quiet"):
-            return subprocess.CompletedProcess(
-                args=args, returncode=1, stdout="", stderr=""
-            )
-        if args == ("diff", "--cached", "--name-only", "-z"):
-            return subprocess.CompletedProcess(
-                args=args,
-                returncode=0,
-                stdout="data/one.json\0data/two.jsonl\0",
-                stderr="",
-            )
-        if args[:2] == ("commit", "-m"):
-            return subprocess.CompletedProcess(
-                args=args, returncode=1, stdout="", stderr="stop after size"
-            )
-        return subprocess.CompletedProcess(
-            args=args, returncode=0, stdout="", stderr=""
-        )
-
-    monkeypatch.setattr(watch, "_git", fake_git)
-
-    watch._push_session_data()
-
-    output = capsys.readouterr().out
-    assert "2 archivos" in output
-    assert "8 B" in output
-
-
 def test_push_pipeline_runs_learning_after_upstream_failure(monkeypatch):
+    _stub_successful_telemetry(monkeypatch)
     captured = []
     monkeypatch.setattr(watch, "_clear_mutable_offline_outputs", lambda: None)
     monkeypatch.setattr(watch, "_regenerate_ledger", lambda: False)
@@ -1311,6 +1407,7 @@ def test_push_pipeline_runs_learning_after_upstream_failure(monkeypatch):
 
 def test_push_session_data_clears_stale_farm_when_pipeline_stops_early(
         tmp_path, monkeypatch):
+    _stub_successful_telemetry(monkeypatch)
     data_dir = tmp_path / "data"
     data_dir.mkdir()
     catalog = data_dir / "provider_signal_catalog.json"
@@ -1353,20 +1450,6 @@ def test_push_session_data_clears_stale_farm_when_pipeline_stops_early(
     assert not pattern_registry.exists()
     assert not learning_status.exists()
 
-
-def test_refresh_after_session_data_push_uses_verified_state(monkeypatch):
-    expected = _sync_result(action="fast_forwarded")
-    calls = []
-    monkeypatch.setattr(
-        watch,
-        "_prepare_repository_for_runtime",
-        lambda: calls.append("sync") or expected,
-    )
-
-    result = watch._refresh_heads_after_session_data_push()
-
-    assert result == expected
-    assert calls == ["sync"]
 
 def test_remote_update_data_only_does_not_require_restart(monkeypatch):
     def fake_git(*args, capture=True):

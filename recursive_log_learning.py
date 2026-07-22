@@ -18,9 +18,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
+import runtime_paths
 
 ROOT = Path(__file__).parent
-DATA_DIR = ROOT / "data"
+DATA_DIR = runtime_paths.active_data_dir(ROOT)
 DEFAULT_EVENTS = DATA_DIR / "trade_events.jsonl"
 DEFAULT_REPLAY = DATA_DIR / "replay_trades.jsonl"
 DEFAULT_ACCOUNTING = DATA_DIR / "accounting_replay_audit.jsonl"
@@ -1156,7 +1157,7 @@ def build_repository_learning_outputs(
     *,
     review_metadata: dict | None = None,
 ) -> LearningOutputs:
-    data_dir = root / "data"
+    data_dir = runtime_paths.active_data_dir(root)
     reviews = (
         load_json(data_dir / DEFAULT_REVIEWS.name, {
             "schema_version": REVIEW_SCHEMA_VERSION,

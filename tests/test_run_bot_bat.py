@@ -47,3 +47,19 @@ def test_duplicate_watcher_exits_without_running_a_concurrent_backup():
     assert 'if "%EXITCODE%"=="78" goto duplicate_exit' in text
     assert ':duplicate_exit' in text
     assert 'exit /b 78' in text
+
+
+def test_batch_establishes_runtime_data_boundary_before_python_starts():
+    text = Path("run_bot.bat").read_text(encoding="utf-8")
+
+    boundary = 'set "BOT_RUNTIME_DATA_DIR=%~dp0runtime_data"'
+    watcher = "python -u tools\\run_bot_watch.py"
+    assert boundary in text
+    assert text.index(boundary) < text.index(watcher)
+
+
+def test_console_diagnostics_are_written_inside_runtime_store():
+    text = Path("run_bot.bat").read_text(encoding="utf-8")
+
+    assert "%BOT_RUNTIME_DATA_DIR%\\bot_runtime.log" in text
+    assert "logs\\bot_runtime.log" not in text

@@ -10,10 +10,11 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 from broker_market_sessions import MARKET_SESSION_CONTRACT
+import runtime_paths
 from tools import ensure_replay_tick_cache
 
 
-DATA_DIR = Path(__file__).parent / "data"
+DATA_DIR = runtime_paths.active_data_dir()
 DEFAULT_REPLAY_FILE = DATA_DIR / "replay_trades.jsonl"
 DEFAULT_AUDIT_FILE = DATA_DIR / "accounting_replay_audit.jsonl"
 DEFAULT_OBSERVED_AUDIT_FILE = DATA_DIR / "observed_tick_replay_audit.jsonl"

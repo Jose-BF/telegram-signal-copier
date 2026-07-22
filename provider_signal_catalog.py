@@ -13,9 +13,10 @@ from typing import Iterable
 from parser import is_canal1_signal_text, is_canal2_entry, parse_canal2
 from interpretation_firewall import extract_provider_stated_be_price
 from interpretation_firewall import normalize_xauusd_management_price
+import runtime_paths
 
 
-DATA_DIR = Path(__file__).parent / "data"
+DATA_DIR = runtime_paths.active_data_dir()
 DEFAULT_EVENTS = DATA_DIR / "trade_events.jsonl"
 DEFAULT_REPLAY = DATA_DIR / "replay_trades.jsonl"
 DEFAULT_OUTPUT = DATA_DIR / "provider_signal_catalog.json"
