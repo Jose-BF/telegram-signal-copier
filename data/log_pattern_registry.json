@@ -6530,7 +6530,7 @@
   "schema_version": 1,
   "source_fingerprints": {
     "accounting": "c90f976f89e564dd02aa84a8ae4eb2a6cad60ba08463235c00e31886e4e2c11f",
-    "events": "1111b210da9d4b7802bca05e66c073af1496d88ea5e26c82e3e7a9926e167866",
+    "events": "c5a3253869290a665b2f5a424623e39442c16b777dd1f415685455d4d3287577",
     "observed_ticks": "c07c858c3718953bf3d0e6dd52306d33f6cdafe9d927b200cb7766af5fb3445d",
     "provider_catalog": "ee9f93bdbf2645a5e88bec85e2842b77d5ea1d91fd4cc9c70edb960f896ec4ee",
     "replay": "7438adf37e8a8994cfae0fbb576738ddc212bd94dad3624f5dd10d94b9bc716c",
