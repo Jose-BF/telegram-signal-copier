@@ -46,6 +46,14 @@ def pause_requested() -> bool:
     return PAUSE_FILE.is_file()
 
 
+def clear_pause() -> None:
+    """Resume Telegram dispatch without altering live handler accounting."""
+    try:
+        PAUSE_FILE.unlink()
+    except FileNotFoundError:
+        pass
+
+
 def _write_activity() -> None:
     if _active_handlers <= 0:
         try:

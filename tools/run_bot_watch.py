@@ -94,6 +94,10 @@ RUNTIME_HEARTBEAT_FILE = Path(os.getenv(
     "BOT_RUNTIME_HEARTBEAT_FILE",
     str(RUNTIME_DATA_DIR / "runtime_heartbeat.json"),
 ))
+RUNTIME_UPDATE_PENDING_FILE = Path(os.getenv(
+    "BOT_RUNTIME_UPDATE_PENDING_FILE",
+    str(RUNTIME_DATA_DIR / "runtime_update_pending.json"),
+))
 POLL_SEC = 60   # cada cuánto comprobar commits nuevos
 RESTART_GRACE_SEC = 10  # tiempo para SIGTERM antes de SIGKILL
 RELAUNCH_DELAY_SEC = 5  # espera entre fin del bot y relanzamiento
@@ -118,6 +122,10 @@ WATCHER_SELF_UPDATE_PATHS = {
 }
 WATCHDOG_HEARTBEAT_TIMEOUT_SEC = float(os.getenv(
     "WATCHDOG_HEARTBEAT_TIMEOUT_SEC", "180"))
+UPDATE_EXPOSURE_HEARTBEAT_MAX_AGE_SEC = float(os.getenv(
+    "BOT_UPDATE_EXPOSURE_HEARTBEAT_MAX_AGE_SEC", "45"))
+UPDATE_QUIESCE_CONFIRM_TIMEOUT_SEC = float(os.getenv(
+    "BOT_UPDATE_QUIESCE_CONFIRM_TIMEOUT_SEC", "30"))
 WATCHDOG_SUPERVISOR_GAP_SEC = float(os.getenv(
     "WATCHDOG_SUPERVISOR_GAP_SEC", "90"))
 GIT_TIMEOUT_SEC = float(os.getenv("BOT_GIT_TIMEOUT_SEC", "15"))
@@ -510,6 +518,261 @@ def _runtime_heartbeat_age_s(path: Path = RUNTIME_HEARTBEAT_FILE,
         return None
     now = time.time() if now is None else now
     return max(0.0, now - stat.st_mtime)
+
+
+def _read_runtime_exposure(
+    path: Path = RUNTIME_HEARTBEAT_FILE,
+    *,
+    now: float | None = None,
+    max_age_s: float = UPDATE_EXPOSURE_HEARTBEAT_MAX_AGE_SEC,
+) -> dict:
+    """Read the bot's exposure contract; uncertainty never means flat."""
+    unknown = {
+        "exposure_state": "unknown",
+        "bot_position_count": None,
+        "open_signal_count": None,
+    }
+    try:
+        stat = path.stat()
+    except FileNotFoundError:
+        return {**unknown, "reason": "heartbeat_missing"}
+    except OSError as exc:
+        return {
+            **unknown,
+            "reason": "heartbeat_unreadable",
+            "error": str(exc)[:200],
+        }
+
+    now = time.time() if now is None else now
+    age_s = max(0.0, now - stat.st_mtime)
+    if max_age_s > 0 and age_s > max_age_s:
+        return {
+            **unknown,
+            "reason": "heartbeat_stale",
+            "heartbeat_age_s": round(age_s, 3),
+        }
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return {
+            **unknown,
+            "reason": "heartbeat_invalid",
+            "heartbeat_age_s": round(age_s, 3),
+            "error": str(exc)[:200],
+        }
+
+    if int(payload.get("schema_version") or 0) < 2:
+        return {
+            **unknown,
+            "reason": "heartbeat_schema_unsupported",
+            "heartbeat_age_s": round(age_s, 3),
+        }
+
+    exposure_state = str(
+        payload.get("exposure_state") or "unknown").lower()
+    if exposure_state not in {"open", "flat", "unknown"}:
+        return {
+            **unknown,
+            "reason": "heartbeat_exposure_invalid",
+            "heartbeat_age_s": round(age_s, 3),
+        }
+
+    bot_position_count = payload.get("bot_position_count")
+    open_signal_count = payload.get("open_signal_count")
+    if (exposure_state == "flat"
+            and (bot_position_count != 0 or open_signal_count != 0)):
+        return {
+            **unknown,
+            "reason": "heartbeat_exposure_inconsistent",
+            "heartbeat_age_s": round(age_s, 3),
+        }
+
+    return {
+        "exposure_state": exposure_state,
+        "bot_position_count": bot_position_count,
+        "open_signal_count": open_signal_count,
+        "reason": f"heartbeat_reported_{exposure_state}",
+        "heartbeat_age_s": round(age_s, 3),
+        "heartbeat_utc": payload.get("utc"),
+        "pid": payload.get("pid"),
+    }
+
+
+def _write_runtime_update_pending(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    tmp.replace(path)
+
+
+def _record_runtime_update_pending(
+    local_revision: str,
+    remote_revision: str,
+    exposure: dict,
+    *,
+    pending_path: Path = RUNTIME_UPDATE_PENDING_FILE,
+) -> None:
+    reason = (
+        "open_exposure"
+        if exposure.get("exposure_state") == "open"
+        else "exposure_unknown"
+    )
+    exposure_payload = dict(exposure)
+    exposure_reason = exposure_payload.pop("reason", None)
+    _write_runtime_update_pending(
+        pending_path,
+        {
+            "schema_version": 1,
+            "detected_utc": datetime.now(timezone.utc).isoformat(
+                timespec="seconds"),
+            "local_revision": local_revision,
+            "remote_revision": remote_revision,
+            **exposure_payload,
+            "reason": reason,
+            "exposure_reason": exposure_reason,
+        },
+    )
+
+
+def _clear_runtime_update_pending(
+    path: Path = RUNTIME_UPDATE_PENDING_FILE,
+) -> None:
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        print(
+            f"[Watch] No pude limpiar actualizacion pendiente: {exc}",
+            flush=True,
+        )
+
+
+def _defer_code_update_if_exposed(
+    local_revision: str,
+    remote_revision: str,
+    *,
+    heartbeat_path: Path = RUNTIME_HEARTBEAT_FILE,
+    pending_path: Path = RUNTIME_UPDATE_PENDING_FILE,
+    now: float | None = None,
+    max_age_s: float = UPDATE_EXPOSURE_HEARTBEAT_MAX_AGE_SEC,
+) -> tuple[bool, dict]:
+    """Defer activation unless a fresh heartbeat proves the bot is flat."""
+    exposure = _read_runtime_exposure(
+        heartbeat_path, now=now, max_age_s=max_age_s)
+    if exposure["exposure_state"] == "flat":
+        _clear_runtime_update_pending(pending_path)
+        return False, exposure
+
+    _record_runtime_update_pending(
+        local_revision,
+        remote_revision,
+        exposure,
+        pending_path=pending_path,
+    )
+    return True, exposure
+
+
+def _wait_for_post_quiesce_exposure(
+    *,
+    child_pid: int,
+    heartbeat_path: Path = RUNTIME_HEARTBEAT_FILE,
+    not_before: float,
+    timeout_s: float = UPDATE_QUIESCE_CONFIRM_TIMEOUT_SEC,
+    now_fn=time.time,
+    sleep_fn=time.sleep,
+) -> dict:
+    """Wait for exposure evidence produced after Telegram dispatch paused."""
+    deadline = now_fn() + max(0.0, timeout_s)
+    last_reason = "post_quiesce_heartbeat_missing"
+    while True:
+        now = now_fn()
+        try:
+            heartbeat_mtime = heartbeat_path.stat().st_mtime
+        except OSError:
+            heartbeat_mtime = None
+
+        if heartbeat_mtime is not None and heartbeat_mtime >= not_before:
+            exposure = _read_runtime_exposure(
+                heartbeat_path,
+                now=now,
+                max_age_s=UPDATE_EXPOSURE_HEARTBEAT_MAX_AGE_SEC,
+            )
+            if exposure.get("pid") != child_pid:
+                last_reason = "post_quiesce_heartbeat_pid_mismatch"
+            elif exposure.get("exposure_state") in {"flat", "open"}:
+                return exposure
+            else:
+                last_reason = str(
+                    exposure.get("reason")
+                    or "post_quiesce_exposure_unknown"
+                )
+
+        if now >= deadline:
+            break
+        sleep_fn(min(0.1, max(0.0, deadline - now)))
+
+    return {
+        "exposure_state": "unknown",
+        "bot_position_count": None,
+        "open_signal_count": None,
+        "reason": last_reason,
+    }
+
+
+def _quiesce_code_update(
+    proc: subprocess.Popen,
+    *,
+    heartbeat_path: Path = RUNTIME_HEARTBEAT_FILE,
+) -> tuple[bool, dict]:
+    """Close the flat-heartbeat race before interrupting live code."""
+    child_pid = getattr(proc, "pid", None)
+    if child_pid is None or proc.poll() is not None:
+        return False, {
+            "exposure_state": "unknown",
+            "bot_position_count": None,
+            "open_signal_count": None,
+            "reason": "bot_process_not_running",
+        }
+
+    runtime_control.request_pause("watcher_code_update")
+    deadline = time.time() + WATCHER_QUIESCE_TIMEOUT_SEC
+    active = runtime_control.active_handler_count(child_pid)
+    while (
+        active > 0
+        and proc.poll() is None
+        and time.time() < deadline
+    ):
+        time.sleep(0.1)
+        active = runtime_control.active_handler_count(child_pid)
+
+    if active > 0 or proc.poll() is not None:
+        runtime_control.clear_pause()
+        return False, {
+            "exposure_state": "unknown",
+            "bot_position_count": None,
+            "open_signal_count": None,
+            "reason": (
+                "handler_quiesce_timeout"
+                if active > 0 else "bot_process_stopped_during_quiesce"
+            ),
+        }
+
+    quiesced_at = time.time()
+    exposure = _wait_for_post_quiesce_exposure(
+        child_pid=child_pid,
+        heartbeat_path=heartbeat_path,
+        not_before=quiesced_at,
+    )
+    if exposure["exposure_state"] == "flat":
+        return True, exposure
+
+    runtime_control.clear_pause()
+    return False, exposure
 
 
 def _runtime_heartbeat_is_stale(heartbeat_age_s: float | None,
@@ -1486,6 +1749,7 @@ def _run_main() -> int:
     # el intervalo. Siempre ocurre en otro proceso y nunca bloquea Telegram/MT5.
     last_telemetry_publish = 0.0
     last_supervisor_tick = time.time()
+    pending_code_remote = None
 
     try:
         while True:
@@ -1584,9 +1848,50 @@ def _run_main() -> int:
                               f"{last_remote[:8]} -> {remote[:8]}. "
                               f"Sin reinicio.", flush=True)
                         last_remote = remote
+                        pending_code_remote = None
+                        _clear_runtime_update_pending()
+                        continue
+                    deferred, exposure = _defer_code_update_if_exposed(
+                        last_local,
+                        remote,
+                        now=now,
+                    )
+                    if deferred:
+                        if pending_code_remote != remote:
+                            state_label = exposure["exposure_state"]
+                            detail = exposure.get("reason") or "sin detalle"
+                            print(
+                                "[Watch] Codigo nuevo pendiente: el bot sigue "
+                                f"activo (exposicion={state_label}, "
+                                f"detalle={detail}). Se activara cuando MT5 "
+                                "y el estado interno confirmen cero "
+                                "posiciones.",
+                                flush=True,
+                            )
+                        pending_code_remote = remote
                         continue
                     watcher_self_update = _paths_changed_between(
                         last_remote, remote, WATCHER_SELF_UPDATE_PATHS)
+                    authorized, final_exposure = _quiesce_code_update(proc)
+                    if not authorized:
+                        _record_runtime_update_pending(
+                            last_local,
+                            remote,
+                            final_exposure,
+                        )
+                        if pending_code_remote != remote:
+                            print(
+                                "[Watch] Codigo nuevo aplazado tras pausar "
+                                "entradas: no se pudo confirmar una cuenta "
+                                "plana sin carreras "
+                                f"(exposicion="
+                                f"{final_exposure['exposure_state']}, "
+                                f"detalle={final_exposure.get('reason')}).",
+                                flush=True,
+                            )
+                        pending_code_remote = remote
+                        continue
+                    pending_code_remote = None
                     print(f"[Watch] Commit nuevo detectado: {last_remote[:8]} -> "
                           f"{remote[:8]}. Reinicio.", flush=True)
                     _stop_bot(proc)
@@ -1613,6 +1918,7 @@ def _run_main() -> int:
                         continue
                     last_local = str(session_sync.local_head)
                     last_remote = str(session_sync.remote_head)
+                    _clear_runtime_update_pending()
                     if watcher_self_update:
                         print("[Watch] Watcher actualizado. Saliendo para "
                               "que run_bot.bat lo relance.", flush=True)

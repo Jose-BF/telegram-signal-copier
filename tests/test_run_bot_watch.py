@@ -275,6 +275,25 @@ def test_remote_update_sync_failure_relaunches_previous_bot(monkeypatch):
     )
     monkeypatch.setattr(watch, "_remote_head", lambda: "b" * 40)
     monkeypatch.setattr(watch, "_remote_update_is_data_only", lambda *args: False)
+    monkeypatch.setattr(
+        watch,
+        "_defer_code_update_if_exposed",
+        lambda *args, **kwargs: (
+            False,
+            {"exposure_state": "flat",
+             "reason": "heartbeat_reported_flat"},
+        ),
+    )
+    monkeypatch.setattr(
+        watch,
+        "_quiesce_code_update",
+        lambda _process: (
+            True,
+            {"exposure_state": "flat",
+             "reason": "heartbeat_reported_flat"},
+        ),
+    )
+    monkeypatch.setattr(watch, "_clear_runtime_update_pending", lambda: None)
     monkeypatch.setattr(watch, "_paths_changed_between", lambda *args: False)
     monkeypatch.setattr(watch, "_runtime_heartbeat_age_s", lambda **kwargs: 0)
     monkeypatch.setattr(watch, "POLL_SEC", 0)
@@ -301,6 +320,85 @@ def test_remote_update_sync_failure_relaunches_previous_bot(monkeypatch):
     assert fallback_calls == [(failed, "a" * 40)]
     assert spawn_heads == [None, "a" * 40]
     assert spawns == []
+
+
+def test_remote_code_update_does_not_stop_bot_while_exposed(monkeypatch):
+    class RunningThenInterrupted:
+        returncode = None
+
+        def __init__(self):
+            self.poll_calls = 0
+            self.stopped = False
+
+        def poll(self):
+            self.poll_calls += 1
+            if self.poll_calls == 2:
+                raise KeyboardInterrupt
+            return 0 if self.stopped else None
+
+    process = RunningThenInterrupted()
+    stopped = []
+    preparations = []
+    deferred = []
+    verified = _sync_result(
+        local_head="a" * 40,
+        remote_head="a" * 40,
+    )
+
+    def prepare():
+        preparations.append(True)
+        return verified
+
+    monkeypatch.setattr(watch, "_prepare_repository_for_runtime", prepare)
+    monkeypatch.setattr(
+        watch, "_spawn_bot_with_active_channels", lambda **kwargs: process)
+    monkeypatch.setattr(
+        watch,
+        "_git",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=args, returncode=0, stdout="", stderr=""),
+    )
+    monkeypatch.setattr(watch, "_remote_head", lambda: "b" * 40)
+    monkeypatch.setattr(watch, "_remote_update_is_data_only",
+                        lambda *args: False)
+
+    def defer(*args, **kwargs):
+        deferred.append((args, kwargs))
+        return True, {
+            "exposure_state": "open",
+            "reason": "heartbeat_reported_open",
+            "bot_position_count": 5,
+        }
+
+    monkeypatch.setattr(watch, "_defer_code_update_if_exposed", defer)
+    monkeypatch.setattr(
+        watch,
+        "_paths_changed_between",
+        lambda *args: pytest.fail(
+            "code paths must not be inspected after update is deferred"),
+    )
+    monkeypatch.setattr(watch, "_runtime_heartbeat_age_s",
+                        lambda **kwargs: 0)
+    monkeypatch.setattr(watch, "POLL_SEC", 0)
+    monkeypatch.setattr(watch, "TELEMETRY_PUBLISH_SEC", 0)
+    monkeypatch.setattr(watch.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(
+        watch,
+        "_checkpoint_runtime_data",
+        lambda: _sync_result(
+            local_head="a" * 40, remote_head="b" * 40),
+    )
+
+    def stop(proc):
+        stopped.append(proc)
+        proc.stopped = True
+
+    monkeypatch.setattr(watch, "_stop_bot", stop)
+
+    assert watch.main() == 0
+    assert len(deferred) == 1
+    assert preparations == [True]
+    assert stopped == [process]
 
 
 def test_main_blocks_bot_spawn_when_git_preflight_is_unsafe(monkeypatch):

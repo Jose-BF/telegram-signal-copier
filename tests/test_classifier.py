@@ -133,6 +133,55 @@ class TestBareSlPrice:
 
 # ─── 2. SL a BE / breakeven / risk-free ─────────────────────────────────────
 
+class TestExplicitAdditionalEntry:
+    def test_provider_confirmed_sell_addition_is_review_intent(self):
+        actions = _actions("I put more sell on 4055.00")
+
+        assert actions == [{
+            "action": "REENTRY_SIGNAL",
+            "price": 4055.0,
+            "entry_direction": "SELL",
+            "confidence": 0.98,
+            "_reason": "provider_confirmed_additional_entry",
+        }]
+
+    def test_provider_confirmed_buy_addition_is_review_intent(self):
+        actions = _actions("We added some more buys at 4051.50")
+
+        assert actions[0]["action"] == "REENTRY_SIGNAL"
+        assert actions[0]["entry_direction"] == "BUY"
+        assert actions[0]["price"] == 4051.5
+
+    def test_conditional_reentry_is_not_confirmed_addition(self):
+        actions = _actions(
+            "You can put more sell at 4055 if price rejects the zone"
+        )
+
+        assert not any(
+            action["action"] == "REENTRY_SIGNAL"
+            and action.get("_reason") == "provider_confirmed_additional_entry"
+            for action in actions
+        )
+
+    @pytest.mark.asyncio
+    async def test_canal1_direct_addition_does_not_depend_on_gemini(
+            self, monkeypatch):
+        def gemini_should_not_run(*args, **kwargs):
+            raise AssertionError("Direct confirmed addition is deterministic")
+
+        monkeypatch.setattr("classifier._gemini_classify",
+                            gemini_should_not_run)
+        signal = Signal(channel="canal1", message_id=20700,
+                        direction="SELL")
+
+        actions = await classify_async(
+            "I opened more SELL at 4055.00", signal=signal)
+
+        assert actions[0]["action"] == "REENTRY_SIGNAL"
+        assert actions[0]["entry_direction"] == "SELL"
+        assert actions[0]["price"] == 4055.0
+
+
 class TestMoveSlToBe:
     def test_move_sl_to_be(self):
         actions = _actions("Move SL to BE")

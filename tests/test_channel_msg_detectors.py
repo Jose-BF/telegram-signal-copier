@@ -18,6 +18,8 @@ Batch B cubre tres fallos silenciosos relacionados con mensajes del canal:
       entre el filtro LOOSE (anterior) y el STRICT (actual) — si un día
       la versión strict rechaza una señal real, lo veremos en logs.
 """
+import asyncio
+
 import pytest
 from datetime import datetime, timedelta
 from types import SimpleNamespace
@@ -40,6 +42,15 @@ from listener import (
     _strict_vs_loose_canal1_filter,
 )
 from state import Signal, StateManager
+
+
+@pytest.fixture(autouse=True)
+def _reset_entry_execution_gate():
+    listener._entry_execution_gate.reset()
+    listener._canal2_opening_msg_ids.clear()
+    yield
+    listener._entry_execution_gate.reset()
+    listener._canal2_opening_msg_ids.clear()
 
 
 # ────────────────────────── B1 — MessageDeleted ──────────────────────────
@@ -510,6 +521,82 @@ class TestCanal2DuplicateAlias:
 
 class TestCanal2OrphanEditRecovery:
     @pytest.mark.asyncio
+    async def test_recovered_edit_then_new_delivery_opens_only_once(
+            self, monkeypatch):
+        """One Telegram message must create at most one exposure block.
+
+        Telethon can deliver an edited entry before the new-message poller.
+        The recovered edit opens the trade; the later new delivery must not
+        create a second five-position block for the same message.
+        """
+        st = StateManager()
+        orders = []
+        events = []
+
+        async def fake_run(fn, *args):
+            return fn(*args)
+
+        async def fake_open_extra_legs(sig, msg_id):
+            return None
+
+        async def fake_update(sig, parsed, tg_ts=None):
+            return None
+
+        def fake_open_market_with_fill(*args, **kwargs):
+            orders.append((args, kwargs))
+            return (1600000000 + len(orders), 4122.0)
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(listener, "_run", fake_run)
+        monkeypatch.setattr(listener, "compute_market_context",
+                            lambda symbol: None)
+        monkeypatch.setattr(listener.executor, "open_market_with_fill",
+                            fake_open_market_with_fill)
+        monkeypatch.setattr(listener.executor, "current_tick_safe",
+                            lambda: {"bid": 4121.9, "ask": 4122.1,
+                                     "spread": 0.2})
+        monkeypatch.setattr(listener, "_open_extra_legs",
+                            fake_open_extra_legs)
+        monkeypatch.setattr(listener, "_update_signal_from_parsed",
+                            fake_update)
+        monkeypatch.setattr(listener, "_emit_same_direction_overlap_anomaly",
+                            lambda sig: None)
+        monkeypatch.setattr(listener, "_log_strategy_snapshot",
+                            lambda *args, **kwargs: None)
+        monkeypatch.setattr(listener.logger, "log_signal",
+                            lambda sig, parsed: None)
+        monkeypatch.setattr(
+            listener.journal, "event",
+            lambda sig, ev, **kw: events.append((sig, ev, kw)))
+        monkeypatch.setattr(listener.journal, "begin_trade",
+                            lambda *args, **kwargs: None)
+        listener._seen_new_msg_ids.clear()
+        listener._seen_new_msgs_order.clear()
+        listener._seen_edits.clear()
+        listener._seen_edits_order.clear()
+        listener._canal2_opening_msg_ids.clear()
+        listener._deferred_canal2_entry_edits.clear()
+
+        now = datetime.utcnow()
+        msg = SimpleNamespace(
+            id=266,
+            text=("XAU USD SELL NOW\n\n4122 - 4126\n\n"
+                  "TP1 4119\nTP2 4117\nTP3 4115\n"
+                  "TP4 4113\nTP5 4111\nSL 4130"),
+            date=now - timedelta(seconds=2),
+            edit_date=now,
+            reply_to=None,
+        )
+
+        await _process_canal2_edit(msg, label="Canal2_poll")
+        await _process_canal2_new(msg, label="Canal2_poll")
+
+        assert len(orders) == 1
+        assert st.get("canal2", 266) is not None
+        assert any(ev == "canal2_entry_open_already_claimed"
+                   for _, ev, _ in events)
+
+    @pytest.mark.asyncio
     async def test_fresh_entry_edit_without_state_recovers_as_new_signal(
             self, monkeypatch):
         st = StateManager()
@@ -928,6 +1015,88 @@ class TestCanal2OrphanEditRecovery:
         assert not _canal2_open_in_progress(12914)
 
     @pytest.mark.asyncio
+    async def test_pre_fill_failure_releases_entry_claim(
+            self, monkeypatch):
+        st = StateManager()
+
+        async def fake_run(fn, *args):
+            return fn(*args)
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(listener, "_run", fake_run)
+        monkeypatch.setattr(listener, "compute_market_context",
+                            lambda _symbol: None)
+        monkeypatch.setattr(
+            listener.executor,
+            "current_tick_safe",
+            lambda: (_ for _ in ()).throw(RuntimeError("tick unavailable")),
+        )
+        monkeypatch.setattr(listener.journal, "event", lambda *a, **kw: None)
+
+        msg = SimpleNamespace(
+            id=12915,
+            text=("XAU USD SELL NOW\n\n4490 - 4495\n\n"
+                  "TP1 4487\nTP2 4485\nTP3 4483\nSL 4499"),
+            date=datetime.utcnow(),
+            reply_to=None,
+        )
+
+        with pytest.raises(RuntimeError, match="tick unavailable"):
+            await _process_canal2_new(msg, dedup=False)
+
+        assert not _canal2_open_in_progress(12915)
+
+    @pytest.mark.asyncio
+    async def test_resynced_signal_identity_cannot_reopen_after_restart(
+            self, monkeypatch):
+        st = StateManager()
+        existing = Signal(
+            channel="canal2",
+            message_id=12914,
+            direction="BUY",
+            timestamp=datetime.utcnow() - timedelta(minutes=10),
+            market_ticket=2200001,
+            market_fill_price=4056.5,
+            status="open",
+        )
+        st.add(existing)
+        events = []
+
+        async def fail_run(*args, **kwargs):
+            raise AssertionError(
+                "a resynced Telegram identity must not reach MT5")
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(listener, "_run", fail_run)
+        monkeypatch.setattr(
+            listener.journal,
+            "event",
+            lambda sig, ev, **kw: events.append((sig, ev, kw)),
+        )
+        listener._seen_new_msg_ids.clear()
+        listener._seen_new_msgs_order.clear()
+
+        msg = SimpleNamespace(
+            id=12914,
+            text=(
+                "XAU USD BUY NOW\n\n4051.5 - 4056.5\n\n"
+                "TP1 4059.5\nTP2 4061.5\nSL 4047.5"
+            ),
+            date=datetime.utcnow(),
+            reply_to=None,
+        )
+
+        await _process_canal2_new(msg)
+
+        assert st.get("canal2", 12914) is existing
+        assert listener._canal2_open_already_committed(12914)
+        assert any(
+            ev == "canal2_entry_open_already_claimed"
+            and payload.get("reason") == "state_already_contains_signal"
+            for _, ev, payload in events
+        )
+
+    @pytest.mark.asyncio
     async def test_stale_entry_edit_without_state_is_not_recovered(
             self, monkeypatch):
         st = StateManager()
@@ -961,6 +1130,52 @@ class TestCanal2OrphanEditRecovery:
 
 
 class TestGlobalEntryLevelInterpretation:
+    @pytest.mark.asyncio
+    async def test_resynced_canal1_sticker_cannot_reopen_after_restart(
+            self, monkeypatch):
+        st = StateManager()
+        existing = Signal(
+            channel="canal1",
+            message_id=2100,
+            direction="BUY",
+            timestamp=datetime.utcnow() - timedelta(minutes=10),
+            market_ticket=2100001,
+            market_fill_price=4018.7,
+            status="open",
+        )
+        st.add(existing)
+        events = []
+
+        async def fail_run(*args, **kwargs):
+            raise AssertionError(
+                "a resynced sticker identity must not reach MT5")
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(config, "CANAL1_BUY_STICKER_ID", 999)
+        monkeypatch.setattr(listener, "_run", fail_run)
+        monkeypatch.setattr(
+            listener.journal,
+            "event",
+            lambda sig, ev, **kw: events.append((sig, ev, kw)),
+        )
+
+        msg = SimpleNamespace(
+            id=2100,
+            sticker=SimpleNamespace(id=999),
+            date=datetime.utcnow(),
+            reply_to=None,
+        )
+
+        await _handle_canal1_sticker(msg)
+
+        assert st.get("canal1", 2100) is existing
+        assert listener._entry_execution_gate.committed("canal1", 2100)
+        assert any(
+            ev == "canal1_entry_open_already_claimed"
+            and payload.get("reason") == "state_already_contains_signal"
+            for _, ev, payload in events
+        )
+
     @pytest.mark.asyncio
     async def test_canal1_sticker_applies_inferred_levels_after_fill(
             self, monkeypatch):
@@ -1114,8 +1329,104 @@ class TestStaleEntryGuard:
         assert any(category == "channel_msg" and severity == "critical"
                    for _, category, severity, _, _ in anomalies)
 
+    @pytest.mark.asyncio
+    async def test_resynced_canal1_text_identity_cannot_reopen_after_restart(
+            self, monkeypatch):
+        st = StateManager()
+        existing = Signal(
+            channel="canal1",
+            message_id=19998,
+            direction="BUY",
+            timestamp=datetime.utcnow() - timedelta(minutes=10),
+            market_ticket=2199981,
+            market_fill_price=4518.0,
+            status="closed",
+        )
+        st.add(existing)
+        events = []
+
+        async def fail_run(*args, **kwargs):
+            raise AssertionError(
+                "a resynced text identity must not reach MT5")
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(listener, "_run", fail_run)
+        monkeypatch.setattr(
+            listener.journal,
+            "event",
+            lambda sig, ev, **kw: events.append((sig, ev, kw)),
+        )
+        msg = SimpleNamespace(
+            id=19998,
+            text="BUY GOLD NOW 4518-24\nTP1 4529\nSL 4505",
+            date=datetime.utcnow(),
+            reply_to=None,
+        )
+
+        result = await _open_canal1_from_text(msg, {
+            "direction": "BUY",
+            "range": (4518.0, 4524.0),
+            "tps": [4529.0],
+            "sl": 4505.0,
+        })
+
+        assert result is None
+        assert listener._entry_execution_gate.committed("canal1", 19998)
+        assert any(
+            ev == "canal1_entry_open_already_claimed"
+            and payload.get("reason") == "state_already_contains_signal"
+            for _, ev, payload in events
+        )
+
 
 class TestCanal1DuplicateSticker:
+    @pytest.mark.asyncio
+    async def test_sticker_and_text_entry_paths_are_serialized(
+            self, monkeypatch):
+        sticker_started = asyncio.Event()
+        release_sticker = asyncio.Event()
+        text_started = asyncio.Event()
+
+        async def slow_sticker(_msg):
+            sticker_started.set()
+            await release_sticker.wait()
+
+        async def observe_text(_msg, _text):
+            text_started.set()
+
+        monkeypatch.setattr(listener, "_handle_canal1_sticker", slow_sticker)
+        monkeypatch.setattr(listener, "_handle_canal1_text", observe_text)
+        listener._seen_new_msg_ids.clear()
+        listener._seen_new_msgs_order.clear()
+
+        sticker = SimpleNamespace(
+            id=3001,
+            sticker=SimpleNamespace(id=999),
+            text=None,
+            date=datetime.utcnow(),
+            reply_to=None,
+        )
+        text = SimpleNamespace(
+            id=3002,
+            sticker=None,
+            text="BUY GOLD NOW 4518-24\nTP1 4529\nSL 4505",
+            date=datetime.utcnow(),
+            reply_to=None,
+        )
+
+        sticker_task = asyncio.create_task(
+            listener._process_canal1_new(sticker))
+        await sticker_started.wait()
+        text_task = asyncio.create_task(listener._process_canal1_new(text))
+        await asyncio.sleep(0)
+        overlapped = text_started.is_set()
+
+        release_sticker.set()
+        await asyncio.gather(sticker_task, text_task)
+
+        assert overlapped is False
+        assert text_started.is_set() is True
+
     @pytest.mark.asyncio
     async def test_duplicate_sticker_aliases_existing_signal_without_new_order(
             self, monkeypatch):

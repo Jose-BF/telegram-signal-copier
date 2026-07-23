@@ -20,7 +20,14 @@ DATA_DIR = runtime_paths.active_data_dir()
 DEFAULT_EVENTS = DATA_DIR / "trade_events.jsonl"
 DEFAULT_REPLAY = DATA_DIR / "replay_trades.jsonl"
 DEFAULT_OUTPUT = DATA_DIR / "provider_signal_catalog.json"
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
+EXECUTION_BOUNDARY_EVENT = "signal_received"
+EXECUTION_PRIMARY_FILL_EVENT = "market_filled"
+EXECUTION_FILL_EVENTS = {
+    EXECUTION_PRIMARY_FILL_EVENT,
+    "market_b_filled",
+    "scale_out_leg_filled",
+}
 RECORD_TYPES = {
     "formal_signal",
     "zone_plan",
@@ -121,6 +128,137 @@ def _message_id_from_sig(sig_id: str | None) -> tuple[str, int] | None:
         return channel, int(raw_id)
     except ValueError:
         return None
+
+
+def _execution_ticket_id(row: dict) -> int | None:
+    value = row.get("ticket")
+    if value is None:
+        value = row.get("position_ticket")
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _execution_batches(
+    events: list[dict],
+    replay_trades: list[dict],
+) -> dict[str, list[dict]]:
+    """Build immutable observed execution blocks per runtime signal ID."""
+    relevant_by_sig: dict[str, list[dict]] = {}
+    relevant_events = EXECUTION_FILL_EVENTS | {EXECUTION_BOUNDARY_EVENT}
+    for row in events:
+        sig_id = str(row.get("sig") or "")
+        if not _message_id_from_sig(sig_id):
+            continue
+        if row.get("ev") not in relevant_events:
+            continue
+        relevant_by_sig.setdefault(sig_id, []).append(row)
+
+    batches_by_sig: dict[str, list[dict]] = {}
+    for sig_id, rows in relevant_by_sig.items():
+        batches: list[dict] = []
+        current: dict | None = None
+
+        def start(boundary: dict | None = None) -> dict:
+            return {
+                "sig_id": sig_id,
+                "source": "journal",
+                "signal_received_utc": (
+                    boundary.get("ts") if boundary is not None else None
+                ),
+                "first_fill_utc": None,
+                "last_fill_utc": None,
+                "ticket_ids": [],
+                "fills": [],
+                "_has_primary": False,
+            }
+
+        def finish(batch: dict | None) -> None:
+            if batch is None or not batch["fills"]:
+                return
+            completed = dict(batch)
+            completed.pop("_has_primary", None)
+            batches.append(completed)
+
+        for row in rows:
+            event = str(row.get("ev") or "")
+            if event == EXECUTION_BOUNDARY_EVENT:
+                finish(current)
+                current = start(row)
+                continue
+
+            if current is None:
+                current = start()
+            elif (event == EXECUTION_PRIMARY_FILL_EVENT
+                  and current["_has_primary"]):
+                finish(current)
+                current = start()
+
+            ticket = _execution_ticket_id(row)
+            if ticket is None:
+                continue
+            observed_utc = row.get("ts")
+            fill = {
+                "ticket": ticket,
+                "event": event,
+                "price": row.get("price"),
+                "observed_utc": observed_utc,
+            }
+            if row.get("leg") is not None:
+                fill["leg"] = row.get("leg")
+            if ticket not in current["ticket_ids"]:
+                current["ticket_ids"].append(ticket)
+                current["fills"].append(fill)
+            if current["first_fill_utc"] is None:
+                current["first_fill_utc"] = observed_utc
+            current["last_fill_utc"] = observed_utc
+            if event == EXECUTION_PRIMARY_FILL_EVENT:
+                current["_has_primary"] = True
+
+        finish(current)
+        if batches:
+            batches_by_sig[sig_id] = batches
+
+    # Older evidence can lack signal_received/fill journal events. A replay
+    # trade still proves one observed execution block.
+    for trade in replay_trades:
+        sig_id = str(trade.get("sig_id") or "")
+        if not _message_id_from_sig(sig_id):
+            continue
+        if batches_by_sig.get(sig_id):
+            continue
+        ticket_ids = []
+        fills = []
+        for ticket_row in trade.get("tickets") or []:
+            ticket = _execution_ticket_id(ticket_row)
+            if ticket is None or ticket in ticket_ids:
+                continue
+            ticket_ids.append(ticket)
+            fills.append({
+                "ticket": ticket,
+                "event": "replay_ticket",
+                "price": ticket_row.get("open_price"),
+                "observed_utc": ticket_row.get("open_time_utc"),
+            })
+        batches_by_sig.setdefault(sig_id, []).append({
+            "sig_id": sig_id,
+            "source": "replay_trade_inferred",
+            "signal_received_utc": None,
+            "first_fill_utc": (
+                fills[0]["observed_utc"] if fills else None
+            ),
+            "last_fill_utc": (
+                fills[-1]["observed_utc"] if fills else None
+            ),
+            "ticket_ids": ticket_ids,
+            "fills": fills,
+        })
+
+    for sig_id, batches in batches_by_sig.items():
+        for index, batch in enumerate(batches, start=1):
+            batch["execution_batch_id"] = f"{sig_id}#exec{index}"
+    return batches_by_sig
 
 
 def _is_edit_update_kind(value: str | None) -> bool:
@@ -456,8 +594,12 @@ def _empty_signal(
             "extraction_status": "not_applicable",
         },
         "execution_sig_ids": [],
+        "execution_batches": [],
         "execution_range_assessments": [],
         "execution_count": 0,
+        "canonical_execution_batch_ids": [],
+        "canonical_execution_count": 0,
+        "canonical_corrections": [],
         "duplicate_execution": False,
         "semantic_status": "incomplete",
         "semantic_gaps": [],
@@ -1267,8 +1409,38 @@ def _finalize(signal: dict) -> dict:
     signal["management_events"].sort(key=_causal_row_sort_key)
     signal["source_message_ids"].sort()
     signal["execution_sig_ids"].sort()
-    signal["execution_count"] = len(signal["execution_sig_ids"])
-    signal["duplicate_execution"] = signal["execution_count"] > 1
+    signal["execution_batches"].sort(key=lambda row: (
+        *_timestamp_sort_key(
+            row.get("signal_received_utc") or row.get("first_fill_utc")),
+        row["execution_batch_id"],
+    ))
+    signal["execution_count"] = len(signal["execution_batches"])
+    canonical_batches = signal["execution_batches"][:1]
+    signal["canonical_execution_batch_ids"] = [
+        batch["execution_batch_id"] for batch in canonical_batches
+    ]
+    signal["canonical_execution_count"] = len(canonical_batches)
+    canonical_sig_id = (
+        canonical_batches[0]["sig_id"] if canonical_batches else None
+    )
+    signal["canonical_corrections"] = [
+        {
+            "type": "exclude_execution_batch",
+            "reason": (
+                "duplicate_delivery_execution"
+                if batch["sig_id"] == canonical_sig_id
+                else "duplicate_provider_identity_execution"
+            ),
+            "execution_batch_id": batch["execution_batch_id"],
+            "sig_id": batch["sig_id"],
+            "ticket_ids": list(batch["ticket_ids"]),
+            "preserved_in_observed_replay": True,
+        }
+        for batch in signal["execution_batches"][1:]
+    ]
+    signal["duplicate_execution"] = (
+        signal["execution_count"] > signal["canonical_execution_count"]
+    )
 
     if signal["execution_count"]:
         _promote_record_type(
@@ -1542,6 +1714,7 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
         row["_source_order"],
     ))
     replay_trades = list(replay_trades)
+    execution_batches_by_sig = _execution_batches(events, replay_trades)
     signals: dict[tuple[str, int], dict] = {}
 
     def ensure(
@@ -1738,6 +1911,14 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
         if channel not in ("canal1", "canal2"):
             continue
         root_keys.add((channel, canal1_text_roots.get(message_id, message_id)))
+    for sig_id in execution_batches_by_sig:
+        parsed_sig = _message_id_from_sig(sig_id)
+        if not parsed_sig:
+            continue
+        channel, message_id = parsed_sig
+        if channel not in ("canal1", "canal2"):
+            continue
+        root_keys.add((channel, canal1_text_roots.get(message_id, message_id)))
 
     for channel, message_id in root_keys:
         ensure(
@@ -1829,6 +2010,26 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
         sig_id = str(trade.get("sig_id"))
         if sig_id not in signal["execution_sig_ids"]:
             signal["execution_sig_ids"].append(sig_id)
+
+    for sig_id, batches in execution_batches_by_sig.items():
+        parsed_sig = _message_id_from_sig(sig_id)
+        if not parsed_sig:
+            continue
+        channel, message_id = parsed_sig
+        if channel not in ("canal1", "canal2"):
+            continue
+        root_id = canal1_text_roots.get(message_id, message_id)
+        signal = ensure(
+            channel,
+            root_id,
+            "formal_signal",
+            "linked_execution_evidence",
+        )
+        if sig_id not in signal["execution_sig_ids"]:
+            signal["execution_sig_ids"].append(sig_id)
+        signal["execution_batches"].extend(
+            dict(batch) for batch in batches
+        )
 
     for root_id, links in canal1_identity_links.items():
         key = ("canal1", root_id)

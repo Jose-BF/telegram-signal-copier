@@ -154,6 +154,123 @@ def test_canal1_sticker_and_text_are_grouped_with_duplicate_executions():
     assert not any(key.startswith("_") for key in signal)
 
 
+def test_same_message_duplicate_delivery_keeps_observed_batches_but_one_canonical():
+    events = [
+        _raw(
+            "canal2",
+            266,
+            "Sell Gold Now",
+            ts="2026-07-22T09:13:30+00:00",
+            date_utc="2026-07-22T09:13:28+00:00",
+        ),
+    ]
+    for batch_index, second in enumerate((31, 35), start=1):
+        base_ticket = 1000 * batch_index
+        events.extend([
+            {
+                "ts": f"2026-07-22T09:13:{second}.000+00:00",
+                "sig": "canal2_266",
+                "ev": "signal_received",
+                "channel": "canal2",
+                "direction": "SELL",
+            },
+            {
+                "ts": f"2026-07-22T09:13:{second}.100+00:00",
+                "sig": "canal2_266",
+                "ev": "market_filled",
+                "ticket": base_ticket,
+                "price": 4122.0,
+            },
+            *[
+                {
+                    "ts": (
+                        f"2026-07-22T09:13:{second}."
+                        f"{200 + leg:03d}+00:00"
+                    ),
+                    "sig": "canal2_266",
+                    "ev": "scale_out_leg_filled",
+                    "ticket": base_ticket + leg,
+                    "price": 4122.0 - (leg * 0.01),
+                    "leg": leg,
+                }
+                for leg in range(1, 5)
+            ],
+        ])
+
+    report = provider_signal_catalog.build_catalog_report(
+        events,
+        [{
+            "sig_id": "canal2_266",
+            "channel": "canal2",
+            "tickets": [
+                {"ticket": ticket}
+                for ticket in [
+                    1000, 1001, 1002, 1003, 1004,
+                    2000, 2001, 2002, 2003, 2004,
+                ]
+            ],
+        }],
+    )
+
+    signal = report["signals"][0]
+    assert signal["execution_sig_ids"] == ["canal2_266"]
+    assert signal["execution_count"] == 2
+    assert signal["duplicate_execution"] is True
+    assert [batch["ticket_ids"] for batch in signal["execution_batches"]] == [
+        [1000, 1001, 1002, 1003, 1004],
+        [2000, 2001, 2002, 2003, 2004],
+    ]
+    assert signal["canonical_execution_count"] == 1
+    assert signal["canonical_execution_batch_ids"] == [
+        "canal2_266#exec1"
+    ]
+    assert signal["canonical_corrections"] == [{
+        "type": "exclude_execution_batch",
+        "reason": "duplicate_delivery_execution",
+        "execution_batch_id": "canal2_266#exec2",
+        "sig_id": "canal2_266",
+        "ticket_ids": [2000, 2001, 2002, 2003, 2004],
+        "preserved_in_observed_replay": True,
+    }]
+
+
+def test_single_execution_batch_is_canonical_without_correction():
+    events = [
+        _raw(
+            "canal2", 380, "Buy Gold Now",
+            ts="2026-07-23T15:30:26+00:00",
+            date_utc="2026-07-23T15:30:25+00:00",
+        ),
+        {
+            "ts": "2026-07-23T15:30:26.100+00:00",
+            "sig": "canal2_380",
+            "ev": "signal_received",
+            "channel": "canal2",
+            "direction": "BUY",
+        },
+        {
+            "ts": "2026-07-23T15:30:26.200+00:00",
+            "sig": "canal2_380",
+            "ev": "market_filled",
+            "ticket": 3000,
+            "price": 4056.53,
+        },
+    ]
+
+    signal = provider_signal_catalog.build_catalog_report(
+        events,
+        [{"sig_id": "canal2_380", "tickets": [{"ticket": 3000}]}],
+    )["signals"][0]
+
+    assert signal["execution_count"] == 1
+    assert signal["canonical_execution_count"] == 1
+    assert signal["canonical_execution_batch_ids"] == [
+        "canal2_380#exec1"
+    ]
+    assert signal["canonical_corrections"] == []
+    assert signal["duplicate_execution"] is False
+
+
 def test_reply_to_missing_root_is_preserved_as_management_only_record():
     events = [
         _raw(
@@ -1933,7 +2050,7 @@ def test_versioned_catalog_uses_current_schema_and_public_entry_contract():
                 found.extend(private_paths(child, f"{path}[{index}]"))
         return found
 
-    assert provider_signal_catalog.SCHEMA_VERSION == 6
+    assert provider_signal_catalog.SCHEMA_VERSION == 7
     assert catalog["schema_version"] == provider_signal_catalog.SCHEMA_VERSION
     assert catalog["signals"]
     for record in catalog["signals"]:

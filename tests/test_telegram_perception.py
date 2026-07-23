@@ -350,6 +350,43 @@ def test_review_notification_format_is_human_first_and_compact():
     assert len(text.splitlines()) <= 10
 
 
+def test_confirmed_extra_entry_alert_uses_price_context_not_generic_advice():
+    ctx = TradeContext(
+        channel="canal2",
+        signal_id="canal2_380",
+        direction="SELL",
+        entry_price=4060.0,
+        tps=[4052.0],
+        sl=4068.0,
+        n_initial=5,
+        n_open=5,
+        open_tickets_pnl=[],
+        floating_pnl_total=7.5,
+        elapsed_min=11.0,
+        current_price=4057.2,
+        be_armed=False,
+    )
+    classification = {
+        "action": "REENTRY_SIGNAL",
+        "confidence": 0.98,
+        "entry_direction": "SELL",
+        "price": 4055.0,
+        "_reason": "provider_confirmed_additional_entry",
+    }
+
+    text = listener.format_review_notification(
+        ctx, classification, "I put more sell on 4055.00")
+
+    assert "Gold Signals" in text
+    assert "SELL" in text
+    assert "4055.00" in text
+    assert "4057.20" in text
+    assert "2.20" in text
+    assert "no abri" in text.lower()
+    assert "SL propuesto" not in text
+    assert "abrir una entrada adicional o ignorar" not in text
+
+
 @pytest.mark.asyncio
 async def test_notify_ambiguous_decision_sends_compact_review(monkeypatch):
     sent = []
@@ -395,6 +432,45 @@ async def test_notify_ambiguous_decision_sends_compact_review(monkeypatch):
     assert "Opciones" not in sent[0]
     assert "interpretar el mensaje" in sent[0].lower()
     assert events[0][1] == "ambiguous_decision_notified"
+
+
+@pytest.mark.asyncio
+async def test_confirmed_extra_entry_review_is_structured_for_learning(
+        monkeypatch):
+    events = []
+    ctx = TradeContext(
+        channel="canal2", signal_id="canal2_380", direction="SELL",
+        entry_price=4060.0, tps=[4052.0], sl=4068.0,
+        n_initial=5, n_open=5, open_tickets_pnl=[],
+        floating_pnl_total=7.5, elapsed_min=11.0,
+        current_price=4057.2, be_armed=False,
+    )
+    sig = Signal(channel="canal2", message_id=380, direction="SELL")
+    monkeypatch.setattr(sig, "build_context", lambda: ctx)
+    monkeypatch.setattr(listener, "notify_review_graph",
+                        lambda *a, **kw: _async_result(True))
+    monkeypatch.setattr(
+        listener.journal, "event",
+        lambda sig_id, ev, **kw: events.append((sig_id, ev, kw)))
+
+    await listener.notify_ambiguous_decision(
+        sig,
+        {
+            "action": "REENTRY_SIGNAL",
+            "confidence": 0.98,
+            "entry_direction": "SELL",
+            "price": 4055.0,
+            "_reason": "provider_confirmed_additional_entry",
+        },
+        "I put more sell on 4055.00",
+    )
+
+    event = next(row for row in events
+                 if row[1] == "explicit_additional_entry_review")
+    assert event[2]["provider_price"] == 4055.0
+    assert event[2]["current_price"] == 4057.2
+    assert event[2]["market_delta"] == 2.2
+    assert event[2]["behavior"] == "notify_only"
 
 
 @pytest.mark.asyncio

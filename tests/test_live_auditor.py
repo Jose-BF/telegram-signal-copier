@@ -395,6 +395,48 @@ def test_pending_bot_level_change_is_not_reported_as_unattributed():
     ]
 
 
+def test_recently_confirmed_action_is_evidence_not_a_stuck_pending_action():
+    journal = FakeJournal()
+    auditor = LiveAuditor(
+        settings=AuditSettings(
+            pending_stuck_after_s=30,
+            snapshot_every_s=0,
+        ),
+        journal=journal,
+    )
+    sig = _signal()
+
+    auditor.audit_cycle(
+        signals=[sig],
+        positions=[
+            _pos(1365772408, sl=4575.36, tp=4572.0),
+            _pos(1365772471, sl=4583.0, tp=4570.0),
+        ],
+        pending_actions=[{
+            "sig_id": "canal2_13111",
+            "kind": "MODIFY_SLTP",
+            "ticket": 1365772408,
+            "new_sl": 4575.36,
+            "new_tp": 4572.0,
+            "state": "confirmed_recent",
+            "age_s": 45.0,
+            "attempts": 1,
+            "last_retcode": 10009,
+        }],
+        now=datetime(2026, 5, 29, 15, 5, 5),
+    )
+
+    assert not [
+        anomaly for anomaly in journal.anomalies
+        if anomaly.get("code") == "pending_action_stuck"
+    ]
+    audit_snapshot = next(
+        event for event in journal.events
+        if event["ev"] == "audit_snapshot"
+    )
+    assert audit_snapshot["pending_actions_count"] == 0
+
+
 def test_pending_action_stuck_is_detected_for_audit():
     journal = FakeJournal()
     auditor = LiveAuditor(

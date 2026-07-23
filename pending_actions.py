@@ -42,6 +42,7 @@ STOPS_STUCK_THRESHOLD_S = 30
 # es indicacion fuerte de broker/MT5 down. Emitimos anomaly criticla.
 NULL_TICK_STREAK_THRESHOLD = 500   # ~5s a 10ms por ciclo
 BROKER_RETRY_COOLDOWN_S = 1.0
+CONFIRMED_ACTION_EVIDENCE_TTL_S = 120.0
 PENDING_SPOOL_FILE = Path(os.getenv(
     "BOT_PENDING_ACTIONS_FILE",
     str(runtime_paths.data_path("runtime_pending_actions.json")),
@@ -141,6 +142,7 @@ def _record_confirmed_levels(action: PendingAction) -> bool:
 class PendingQueue:
     def __init__(self, spool_path: Path | None = None):
         self._actions: list[PendingAction] = []
+        self._recent_confirmed_actions: list[dict] = []
         self._task: Optional[asyncio.Task] = None
         self._structural_incidents: dict[tuple, list[PendingAction]] = {}
         self._structural_flush_tasks: dict[tuple, asyncio.Task] = {}
@@ -663,11 +665,54 @@ class PendingQueue:
             })
             return base
 
+    def _remember_confirmed_modify(self, sig_id: str, act: PendingAction,
+                                   position_snapshot: dict) -> None:
+        if (act.kind != "MODIFY_SLTP"
+                or mt5_errors.classify(act.last_retcode) != "OK"
+                or position_snapshot.get("position_exists") is not True):
+            return
+
+        actual_sl = position_snapshot.get("sl")
+        actual_tp = position_snapshot.get("tp")
+        if actual_sl is not None:
+            act.signal.sl_by_ticket[act.ticket] = actual_sl
+        if actual_tp is not None:
+            act.signal.tp_by_ticket[act.ticket] = actual_tp
+
+        self._recent_confirmed_actions = [
+            item for item in self._recent_confirmed_actions
+            if not (
+                item["sig_id"] == sig_id
+                and item["kind"] == act.kind
+                and item["ticket"] == act.ticket
+            )
+        ]
+        self._recent_confirmed_actions.append({
+            "sig_id": sig_id,
+            "kind": act.kind,
+            "ticket": act.ticket,
+            "new_sl": actual_sl,
+            "new_tp": actual_tp,
+            "confirmed_at": time.time(),
+            "attempts": act.attempts,
+            "last_retcode": act.last_retcode,
+            "state": "confirmed_recent",
+            "waiting_reason": None,
+            "applied_tp": actual_tp,
+            "label": act.label,
+        })
+        if len(self._recent_confirmed_actions) > 500:
+            self._recent_confirmed_actions = (
+                self._recent_confirmed_actions[-500:])
+
     def _log_position_snapshot(self, sig_id: str, act: PendingAction, journal):
         if act.kind not in ("MODIFY_SLTP", "CLOSE_POSITION"):
-            return
-        journal.event(sig_id, "mt5_position_snapshot",
-                      **self._position_snapshot(act))
+            return None
+        position_snapshot = self._position_snapshot(act)
+        self._remember_confirmed_modify(sig_id, act, position_snapshot)
+        journal.event(
+            sig_id, "mt5_position_snapshot", **position_snapshot)
+        return position_snapshot
 
     def _log_done(self, act: PendingAction):
         """Journal forense: accion MT5 confirmada o ya innecesaria."""
@@ -933,7 +978,7 @@ queue = PendingQueue(spool_path=PENDING_SPOOL_FILE)
 
 def snapshot(queue_obj: PendingQueue | None = None,
              now: float | None = None) -> list[dict]:
-    """Snapshot read-only de la cola para auditoria externa."""
+    """Snapshot of active actions plus short-lived confirmed evidence."""
     q = queue_obj or queue
     ts = time.time() if now is None else now
     out = []
@@ -953,6 +998,28 @@ def snapshot(queue_obj: PendingQueue | None = None,
             "applied_tp": act.applied_tp,
             "label": act.label,
         })
+
+    recent_confirmed = []
+    for item in list(q._recent_confirmed_actions):
+        age_s = max(0.0, ts - float(item["confirmed_at"]))
+        if age_s > CONFIRMED_ACTION_EVIDENCE_TTL_S:
+            continue
+        recent_confirmed.append(item)
+        out.append({
+            "sig_id": item["sig_id"],
+            "kind": item["kind"],
+            "ticket": item["ticket"],
+            "new_sl": item["new_sl"],
+            "new_tp": item["new_tp"],
+            "age_s": round(age_s, 1),
+            "attempts": item["attempts"],
+            "last_retcode": item["last_retcode"],
+            "state": "confirmed_recent",
+            "waiting_reason": None,
+            "applied_tp": item["applied_tp"],
+            "label": item["label"],
+        })
+    q._recent_confirmed_actions = recent_confirmed
     return out
 
 

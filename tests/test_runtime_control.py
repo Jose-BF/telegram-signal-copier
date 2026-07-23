@@ -46,3 +46,21 @@ def test_handler_registers_activity_before_accepting_work(tmp_path, monkeypatch)
 
     assert runtime_control.begin_handler() is False
     assert runtime_control.active_handler_count(None) == 0
+
+
+def test_clear_pause_resumes_handlers_without_resetting_activity(
+        tmp_path, monkeypatch):
+    pause = tmp_path / "pause.json"
+    activity = tmp_path / "activity.json"
+    monkeypatch.setattr(runtime_control, "PAUSE_FILE", pause)
+    monkeypatch.setattr(runtime_control, "ACTIVITY_FILE", activity)
+    monkeypatch.setattr(runtime_control, "_active_handlers", 0)
+
+    runtime_control.request_pause("watcher_code_update")
+    assert runtime_control.pause_requested() is True
+
+    runtime_control.clear_pause()
+
+    assert runtime_control.pause_requested() is False
+    assert runtime_control.begin_handler() is True
+    runtime_control.end_handler()

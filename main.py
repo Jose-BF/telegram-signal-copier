@@ -229,13 +229,62 @@ def _write_runtime_heartbeat(path: Path | None = None) -> None:
     path = path or Path(config.BOT_RUNTIME_HEARTBEAT_FILE)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
+        "schema_version": 2,
         "pid": os.getpid(),
         "utc": datetime.utcnow().isoformat(timespec="milliseconds"),
+        **_runtime_exposure_snapshot(),
     }
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps(payload, ensure_ascii=False) + "\n",
                    encoding="utf-8")
     tmp.replace(path)
+
+
+def _runtime_exposure_snapshot(state_manager=None, positions_get=None) -> dict:
+    """Return the fail-closed exposure contract consumed by the watcher."""
+    state_manager = state if state_manager is None else state_manager
+    try:
+        open_signal_count = _count_open_signals_unique(state_manager)
+    except Exception:
+        open_signal_count = None
+
+    if positions_get is None:
+        try:
+            import MetaTrader5 as mt5
+            positions_get = mt5.positions_get
+        except Exception:
+            positions_get = None
+
+    bot_position_count = None
+    if positions_get is not None:
+        try:
+            positions = positions_get()
+            if positions is not None:
+                bot_magics = {
+                    int(config.magic_for("canal1")),
+                    int(config.magic_for("canal2")),
+                }
+                bot_position_count = sum(
+                    1 for position in positions
+                    if int(getattr(position, "magic", -1)) in bot_magics
+                )
+        except Exception:
+            bot_position_count = None
+
+    if ((open_signal_count is not None and open_signal_count > 0)
+            or (bot_position_count is not None
+                and bot_position_count > 0)):
+        exposure_state = "open"
+    elif open_signal_count is None or bot_position_count is None:
+        exposure_state = "unknown"
+    else:
+        exposure_state = "flat"
+
+    return {
+        "exposure_state": exposure_state,
+        "bot_position_count": bot_position_count,
+        "open_signal_count": open_signal_count,
+    }
 
 
 def _freeze_traceback_enabled(timeout_sec: float) -> bool:
@@ -292,7 +341,7 @@ async def _runtime_heartbeat(interval_sec: float | None = None):
     interval = max(1.0, interval)
     while True:
         try:
-            _write_runtime_heartbeat()
+            await asyncio.to_thread(_write_runtime_heartbeat)
             _arm_freeze_traceback_dump()
         except Exception as e:
             print(f"[Heartbeat] runtime heartbeat write failed: {e}")

@@ -304,7 +304,7 @@ class LiveAuditor:
 
 
         for act in pending_actions:
-            if act.get("state") == "waiting_market":
+            if act.get("state") in {"waiting_market", "confirmed_recent"}:
                 continue
             age_s = float(act.get("age_s") or 0.0)
             if age_s < self.settings.pending_stuck_after_s:
@@ -405,6 +405,10 @@ class LiveAuditor:
             a for a in pending_actions_snapshot
             if a.get("sig_id") == sig_id
         ]
+        active_pending_for_signal = [
+            action for action in pending_for_signal
+            if action.get("state") != "confirmed_recent"
+        ]
         mt5_levels = [
             {
                 "ticket": int(getattr(position, "ticket")),
@@ -449,7 +453,7 @@ class LiveAuditor:
             tickets_without_tp=tickets_without_tp,
             has_state_tps=bool(sig.tps),
             has_state_sl=sig.sl is not None,
-            pending_actions_count=len(pending_for_signal),
+            pending_actions_count=len(active_pending_for_signal),
             pending_actions=[
                 {
                     "kind": a.get("kind"),
@@ -459,7 +463,7 @@ class LiveAuditor:
                     "last_retcode": a.get("last_retcode"),
                     "label": a.get("label"),
                 }
-                for a in pending_for_signal[:10]
+                for a in active_pending_for_signal[:10]
             ],
         )
 

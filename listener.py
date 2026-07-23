@@ -34,6 +34,7 @@ import runtime_control
 import strategies
 import telegram_notifications
 from classifier import classify, classify_async
+from entry_execution_gate import EntryExecutionGate
 from interpretation_firewall import (
     firewall_decision,
     normalize_xauusd_management_price,
@@ -984,7 +985,20 @@ def _human_channel(channel: str) -> str:
     return provider_display_name(channel)
 
 
-def _human_review_action(action: str) -> str:
+def _human_review_action(action: str,
+                         classification: dict | None = None) -> str:
+    classification = classification or {}
+    if (str(action or "").upper() == "REENTRY_SIGNAL"
+            and classification.get("_reason")
+            == "provider_confirmed_additional_entry"):
+        direction = str(
+            classification.get("entry_direction") or "?").upper()
+        price = classification.get("price")
+        if price is not None:
+            return (f"el trader afirma que añadió otra entrada {direction} "
+                    f"en {_fmt_level(price)}")
+        return f"el trader afirma que añadió otra entrada {direction}"
+
     mapping = {
         "REENTRY_SIGNAL": "detectó una posible reentrada",
         "ENTRY_UPDATE": "detectó un cambio de entrada o niveles",
@@ -1013,6 +1027,26 @@ def _review_decision(ctx, classification: dict) -> str:
     if classification.get("_gemini_failed"):
         action = "UNKNOWN"
     if action == "REENTRY_SIGNAL":
+        if (classification.get("_reason")
+                == "provider_confirmed_additional_entry"):
+            provider_price = classification.get("price")
+            current_price = getattr(ctx, "current_price", None)
+            if provider_price is not None and current_price is not None:
+                delta = float(current_price) - float(provider_price)
+                if abs(delta) < 0.005:
+                    distance = "prácticamente en el precio indicado"
+                else:
+                    relation = "por encima" if delta > 0 else "por debajo"
+                    distance = (f"{abs(delta):.2f} {relation} del precio "
+                                "indicado")
+                return (
+                    f"Mercado ahora {_fmt_level(current_price)}: {distance}. "
+                    "El bot no abrió otra posición; revísala en MT5."
+                )
+            return (
+                "El bot no abrió otra posición; revisa la entrada adicional "
+                "en MT5."
+            )
         return "Decide ahora: abrir una entrada adicional o ignorar el mensaje."
     if action in {"ENTRY_UPDATE", "LEVEL_UPDATE", "LEVEL_CORRECTION",
                   "SIGNAL_UPDATED"}:
@@ -1082,7 +1116,8 @@ def format_review_notification(ctx, classification: dict, raw_text: str) -> str:
     lines.extend([
         "",
         f"Proveedor: “{_compact_trader_message(raw_text)}”",
-        f"Bot: {_human_review_action(action)}; no ejecutó cambios.",
+        f"Bot: {_human_review_action(action, classification)}; "
+        "no ejecutó cambios.",
         _review_decision(ctx, classification),
     ])
     return "\n".join(lines)
@@ -1097,7 +1132,8 @@ def format_review_graph_caption(ctx, classification: dict,
         f"{_human_channel(ctx.channel)} · {ctx.direction}",
         "",
         f"💬 Trader: “{_compact_trader_message(raw_text)}”",
-        f"🤖 Bot: {_human_review_action(action)}; operación sin cambios.",
+        f"🤖 Bot: {_human_review_action(action, classification)}; "
+        "operación sin cambios.",
         "",
         f"👉 {_review_decision(ctx, classification)}",
     ])
@@ -1171,6 +1207,26 @@ async def notify_ambiguous_decision(signal: "Signal", classification: dict,
                           action=action, confidence=conf, reasoning=reasoning,
                           n_open=ctx.n_open, floating_pnl=ctx.floating_pnl_total,
                           current_price=ctx.current_price)
+            if (str(action).upper() == "REENTRY_SIGNAL"
+                    and classification.get("_reason")
+                    == "provider_confirmed_additional_entry"):
+                provider_price = classification.get("price")
+                current_price = ctx.current_price
+                market_delta = None
+                if provider_price is not None and current_price is not None:
+                    market_delta = round(
+                        float(current_price) - float(provider_price), 5)
+                journal.event(
+                    ctx.signal_id,
+                    "explicit_additional_entry_review",
+                    entry_direction=classification.get("entry_direction"),
+                    provider_price=provider_price,
+                    current_price=current_price,
+                    market_delta=market_delta,
+                    n_open=ctx.n_open,
+                    behavior="notify_only",
+                    raw_text=_compact_trader_message(raw_text, limit=300),
+                )
         except Exception:
             pass
         graph_sent = await notify_review_graph(
@@ -1218,8 +1274,10 @@ _MGMT_DUP_WINDOW_S = 45.0
 _MGMT_DUP_MAX = 1000
 
 # Canal2 puede editar el mensaje mientras la apertura market original sigue
-# bloqueada en MT5. Esos edits no son huerfanos reales: se cachean y se aplican
-# cuando la apertura termina, evitando duplicar la entrada.
+# bloqueada en MT5. El gate conserva tambien las aperturas ya confirmadas:
+# una entrega posterior del mismo mensaje nunca puede crear otra exposicion.
+_entry_execution_gate = EntryExecutionGate(max_committed=1000)
+_entry_serial_locks: dict[str, tuple[object, asyncio.Lock]] = {}
 _canal2_opening_msg_ids: set[int] = set()
 _deferred_canal2_entry_edits: dict[int, dict] = {}
 
@@ -1237,23 +1295,67 @@ def _new_msg_already_seen(channel: str, msg_id: int) -> bool:
     return False
 
 
+def _entry_open_claim(channel: str, msg_id: int) -> bool:
+    return _entry_execution_gate.claim(channel, msg_id)
+
+
+def _entry_open_finished(channel: str, msg_id: int) -> None:
+    _entry_execution_gate.release(channel, msg_id)
+
+
+def _entry_open_committed(channel: str, msg_id: int) -> None:
+    _entry_execution_gate.commit(channel, msg_id)
+
+
+def _entry_open_in_progress(channel: str, msg_id: int) -> bool:
+    return _entry_execution_gate.in_progress(channel, msg_id)
+
+
+def _entry_open_already_committed(channel: str, msg_id: int) -> bool:
+    return _entry_execution_gate.committed(channel, msg_id)
+
+
+def _entry_serial_lock(channel: str) -> asyncio.Lock:
+    """Return one entry-only lock bound to the current asyncio event loop."""
+    loop = asyncio.get_running_loop()
+    current = _entry_serial_locks.get(channel)
+    if current is None or current[0] is not loop:
+        lock = asyncio.Lock()
+        _entry_serial_locks[channel] = (loop, lock)
+        return lock
+    return current[1]
+
+
 def _canal2_open_started(msg_id: int) -> None:
-    _canal2_opening_msg_ids.add(msg_id)
+    if _entry_open_claim("canal2", msg_id):
+        _canal2_opening_msg_ids.add(msg_id)
 
 
 def _canal2_open_claim(msg_id: int) -> bool:
-    if msg_id in _canal2_opening_msg_ids:
-        return False
-    _canal2_opening_msg_ids.add(msg_id)
-    return True
+    claimed = _entry_open_claim("canal2", msg_id)
+    if claimed:
+        _canal2_opening_msg_ids.add(msg_id)
+    return claimed
 
 
 def _canal2_open_finished(msg_id: int) -> None:
+    """Release a claim only when MT5 did not create exposure."""
+    _entry_open_finished("canal2", msg_id)
+    _canal2_opening_msg_ids.discard(msg_id)
+
+
+def _canal2_open_committed(msg_id: int) -> None:
+    """Make a successful MT5 exposure claim irreversible in this process."""
+    _entry_open_committed("canal2", msg_id)
     _canal2_opening_msg_ids.discard(msg_id)
 
 
 def _canal2_open_in_progress(msg_id: int) -> bool:
-    return msg_id in _canal2_opening_msg_ids
+    return _entry_open_in_progress("canal2", msg_id)
+
+
+def _canal2_open_already_committed(msg_id: int) -> bool:
+    return _entry_open_already_committed("canal2", msg_id)
 
 
 def _defer_canal2_entry_edit(msg, text: str) -> None:
@@ -3254,6 +3356,13 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
     # _new_msg_already_seen marca como visto atómicamente — el que llega primero
     # procesa; el segundo retorna aquí sin hacer nada.
     if dedup and _new_msg_already_seen("canal2", msg.id):
+        if _canal2_open_already_committed(msg.id):
+            journal.event(
+                f"canal2_{msg.id}",
+                "canal2_entry_open_already_claimed",
+                reason="duplicate_telegram_delivery",
+                delivery_dedup=True,
+            )
         return
 
     text = msg.text or ""
@@ -3312,6 +3421,23 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
         return
 
     direction = parsed["direction"]
+    existing_signal = state.get("canal2", msg.id)
+    if existing_signal is not None:
+        # The process-local gate is intentionally disposable. After a bot
+        # restart, MT5 resync rebuilds Signal objects from the position
+        # comments; that reconstructed identity is the durable authority that
+        # this Telegram message already created exposure.
+        _canal2_open_committed(msg.id)
+        journal.event(
+            f"canal2_{msg.id}",
+            "canal2_entry_open_already_claimed",
+            reason="state_already_contains_signal",
+            existing_status=existing_signal.status,
+            existing_tickets=list(existing_signal.all_filled_tickets),
+            raw_text=text[:500],
+        )
+        return
+
     duplicate_ts = datetime.utcnow()
     duplicate = _canal2_duplicate_alias_candidate(
         msg.id, direction, duplicate_ts, parsed,
@@ -3401,31 +3527,32 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
     # Contexto de mercado (ATR M5x14 + range reciente + precio): permite al
     # análisis posterior separar fallos de ejecución vs régimen adverso.
     if not _canal2_open_claim(msg.id):
-        journal.event(sig_id_pre, "canal2_entry_open_already_in_progress",
-                      reason="duplicate_new_or_recovered_edit",
-                      raw_text=text[:500])
+        journal.event(
+            sig_id_pre,
+            "canal2_entry_open_already_claimed",
+            reason=("exposure_already_committed"
+                    if _canal2_open_already_committed(msg.id)
+                    else "market_open_in_progress"),
+            raw_text=text[:500],
+        )
         return
 
     try:
         ctx = await _run(compute_market_context, config.MT5_SYMBOL)
-    except Exception:
-        _canal2_open_finished(msg.id)
-        raise
-    if ctx:
-        journal.event(sig_id_pre, "market_context", **ctx)
+        if ctx:
+            journal.event(sig_id_pre, "market_context", **ctx)
 
-    pre_open_tick = await _run(executor.current_tick_safe)
-    reference_price = _entry_reference_from_tick(direction, pre_open_tick)
-    interpreted = interpret_entry_levels(
-        "canal2", direction, parsed, reference_price=reference_price)
-    _log_entry_level_interpretation(
-        sig_id_pre, "canal2", parsed, interpreted, reference_price)
-    parsed = interpreted["parsed"]
+        pre_open_tick = await _run(executor.current_tick_safe)
+        reference_price = _entry_reference_from_tick(direction, pre_open_tick)
+        interpreted = interpret_entry_levels(
+            "canal2", direction, parsed, reference_price=reference_price)
+        _log_entry_level_interpretation(
+            sig_id_pre, "canal2", parsed, interpreted, reference_price)
+        parsed = interpreted["parsed"]
 
-    magic = config.magic_for("canal2")
-    # open_market_with_fill devuelve (ticket, fill_price) en una sola llamada MT5
-    # — evita el round-trip extra de entry_price() (~5ms ahorrados en hot path).
-    try:
+        magic = config.magic_for("canal2")
+        # A single MT5 call returns ticket plus fill price and keeps every
+        # pre-fill failure inside the same claim-release boundary.
         result = await _run(
             executor.open_market_with_fill, direction, effective_lot,
             parsed.get("sl"), parsed["tps"][0] if parsed.get("tps") else None,
@@ -3443,6 +3570,10 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
                         channel="canal2", direction=direction)
         return
     ticket, fill_price = result
+    # The first confirmed ticket is the irreversible boundary. From here on,
+    # another delivery of this Telegram message must never create exposure,
+    # even if later bookkeeping or level management raises.
+    _canal2_open_committed(msg.id)
 
     # Timestamp justo tras el retorno de MT5 (más preciso que tras llamada extra)
     market_filled_utc = datetime.utcnow()
@@ -3517,7 +3648,6 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
             sig, deferred_parsed, "canal2",
             reference_price=sig.market_fill_price,
             tg_ts=deferred.get("tg_ts"))
-    _canal2_open_finished(msg.id)
     logger.log_signal(sig, parsed)
 
 
@@ -3537,12 +3667,15 @@ async def _process_canal2_edit(msg, label: str = "Canal2"):
                   f"edit_date={getattr(msg, 'edit_date', None)} — ignorado")
             return
 
-        if _canal2_open_in_progress(msg.id):
+        if (_canal2_open_in_progress(msg.id)
+                or _canal2_open_already_committed(msg.id)):
             _defer_canal2_entry_edit(msg, text)
             journal.event(
                 f"canal2_{msg.id}",
                 "canal2_orphan_entry_edit_deferred",
-                reason="market_open_in_progress",
+                reason=("market_open_in_progress"
+                        if _canal2_open_in_progress(msg.id)
+                        else "exposure_committed_state_pending"),
                 raw_text=text[:500],
                 tg_ts=_msg_ts_iso(msg),
             )
@@ -3557,6 +3690,9 @@ async def _process_canal2_edit(msg, label: str = "Canal2"):
                           age_s=round(age_s, 1) if age_s is not None else None,
                           max_age_s=max_age_s,
                           raw_text=text[:500])
+            # The edit is now the authoritative first delivery. Mark the
+            # new-message route as seen so a later poll/event is only logged.
+            _new_msg_already_seen("canal2", msg.id)
             await _process_canal2_new(msg, label=f"{label}_recover",
                                       dedup=False)
         else:
@@ -4012,7 +4148,8 @@ async def _process_canal1_new(msg):
 
     # Sticker → entrada inmediata
     if msg.sticker:
-        await _handle_canal1_sticker(msg)
+        async with _entry_serial_lock("canal1"):
+            await _handle_canal1_sticker(msg)
         return
 
     text = msg.text or ""
@@ -4031,7 +4168,8 @@ async def _process_canal1_new(msg):
 
     # Texto con TP/SL que sigue al sticker
     if is_canal1_signal_text(text):
-        await _handle_canal1_text(msg, text)
+        async with _entry_serial_lock("canal1"):
+            await _handle_canal1_text(msg, text)
     else:
         # B3 (Batch B): detectar si STRICT rechaza un texto que LOOSE
         # habría aceptado. Sin esto, el tightening del filtro
@@ -4314,6 +4452,19 @@ async def _handle_canal1_sticker(msg):
         tg_ts=_msg_ts_iso(msg),
     )
 
+    existing_signal = state.get("canal1", msg.id)
+    if existing_signal is not None:
+        _entry_open_committed("canal1", msg.id)
+        journal.event(
+            sig_id,
+            "canal1_entry_open_already_claimed",
+            reason="state_already_contains_signal",
+            existing_status=existing_signal.status,
+            existing_tickets=list(existing_signal.all_filled_tickets),
+            trigger="sticker",
+        )
+        return
+
     skip, reason = strategies.should_skip_signal("", direction, "canal1")
     if skip:
         print(f"\n[Canal1] ❌ SEÑAL IGNORADA ({direction}, msg={msg.id}): {reason}")
@@ -4367,16 +4518,41 @@ async def _handle_canal1_sticker(msg):
                   tg_ts=msg.date.isoformat(timespec="seconds") if msg.date else None,
                   tg_to_bot_ms=tg_to_bot_ms)
 
-    # Contexto de mercado al entrar — ver comentario en canal2_new.
-    ctx = await _run(compute_market_context, config.MT5_SYMBOL)
-    if ctx:
-        journal.event(sig_id_pre, "market_context", **ctx)
+    if not _entry_open_claim("canal1", msg.id):
+        journal.event(
+            sig_id_pre,
+            "canal1_entry_open_already_claimed",
+            reason=(
+                "exposure_already_committed"
+                if _entry_open_already_committed("canal1", msg.id)
+                else "market_open_in_progress"
+            ),
+            trigger="sticker",
+        )
+        return
 
-    magic = config.magic_for("canal1")
-    # 1 sola llamada MT5 que devuelve (ticket, fill_price) — ahorra round-trip extra
-    result = await _run(executor.open_market_with_fill, direction, config.LOT_SIZE,
-                        None, None, f"c1_{msg.id}", magic)
+    # Contexto de mercado al entrar — ver comentario en canal2_new.
+    try:
+        ctx = await _run(compute_market_context, config.MT5_SYMBOL)
+        if ctx:
+            journal.event(sig_id_pre, "market_context", **ctx)
+
+        magic = config.magic_for("canal1")
+        # 1 sola llamada MT5 que devuelve (ticket, fill_price) — ahorra round-trip extra
+        result = await _run(
+            executor.open_market_with_fill,
+            direction,
+            config.LOT_SIZE,
+            None,
+            None,
+            f"c1_{msg.id}",
+            magic,
+        )
+    except Exception:
+        _entry_open_finished("canal1", msg.id)
+        raise
     if not result:
+        _entry_open_finished("canal1", msg.id)
         journal.event(sig_id_pre, "market_fill_failed",
                       reason="executor.open_market returned None")
         journal.anomaly(sig_id_pre, "fill", "critical",
@@ -4385,6 +4561,7 @@ async def _handle_canal1_sticker(msg):
                         channel="canal1", direction=direction)
         return
     ticket, fill_price = result
+    _entry_open_committed("canal1", msg.id)
 
     market_filled_utc = datetime.utcnow()
     fill_latency_ms = int((market_filled_utc - signal_received_utc).total_seconds() * 1000)
@@ -4481,6 +4658,19 @@ async def _open_canal1_from_text(msg, parsed: dict):
 
     sig_id_pre = f"canal1_{msg.id}"
 
+    existing_signal = state.get("canal1", msg.id)
+    if existing_signal is not None:
+        _entry_open_committed("canal1", msg.id)
+        journal.event(
+            sig_id_pre,
+            "canal1_entry_open_already_claimed",
+            reason="state_already_contains_signal",
+            existing_status=existing_signal.status,
+            existing_tickets=list(existing_signal.all_filled_tickets),
+            trigger="text_only",
+        )
+        return None
+
     # ── GUARDA: el texto debe traer NIVELES, no solo una dirección ──────────
     # Una entrada real trae TPs (o un rango del que derivarlos). Sin niveles
     # es comentario, no señal — abrir un market aquí deja la posición naked.
@@ -4534,15 +4724,40 @@ async def _open_canal1_from_text(msg, parsed: dict):
                   tg_ts=msg.date.isoformat(timespec="seconds") if msg.date else None,
                   tg_to_bot_ms=tg_to_bot_ms)
 
-    # Contexto de mercado al entrar — ver comentario en canal2_new.
-    ctx = await _run(compute_market_context, config.MT5_SYMBOL)
-    if ctx:
-        journal.event(sig_id_pre, "market_context", **ctx)
+    if not _entry_open_claim("canal1", msg.id):
+        journal.event(
+            sig_id_pre,
+            "canal1_entry_open_already_claimed",
+            reason=(
+                "exposure_already_committed"
+                if _entry_open_already_committed("canal1", msg.id)
+                else "market_open_in_progress"
+            ),
+            trigger="text_only",
+        )
+        return state.get("canal1", msg.id)
 
-    magic = config.magic_for("canal1")
-    result = await _run(executor.open_market_with_fill, direction, config.LOT_SIZE,
-                        None, None, f"c1_{msg.id}", magic)
+    # Contexto de mercado al entrar — ver comentario en canal2_new.
+    try:
+        ctx = await _run(compute_market_context, config.MT5_SYMBOL)
+        if ctx:
+            journal.event(sig_id_pre, "market_context", **ctx)
+
+        magic = config.magic_for("canal1")
+        result = await _run(
+            executor.open_market_with_fill,
+            direction,
+            config.LOT_SIZE,
+            None,
+            None,
+            f"c1_{msg.id}",
+            magic,
+        )
+    except Exception:
+        _entry_open_finished("canal1", msg.id)
+        raise
     if not result:
+        _entry_open_finished("canal1", msg.id)
         journal.event(sig_id_pre, "market_fill_failed",
                       reason="executor.open_market returned None (text-only path)")
         journal.anomaly(sig_id_pre, "fill", "critical",
@@ -4551,6 +4766,7 @@ async def _open_canal1_from_text(msg, parsed: dict):
                         channel="canal1", direction=direction)
         return None
     ticket, fill_price = result
+    _entry_open_committed("canal1", msg.id)
 
     market_filled_utc = datetime.utcnow()
     fill_latency_ms = int((market_filled_utc - signal_received_utc).total_seconds() * 1000)

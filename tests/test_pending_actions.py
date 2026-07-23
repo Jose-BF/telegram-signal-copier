@@ -25,6 +25,7 @@ from pending_actions import (
     DEFAULT_TIMEOUT_S,
     _record_confirmed_levels,
     _should_alert_stuck_stops,
+    snapshot,
 )
 from state import Signal
 
@@ -565,6 +566,57 @@ class TestForensicLifecycleLogging:
         assert snapshot[2]["sl"] == 4700.0
         assert snapshot[2]["tp"] == 4708.5
         assert snapshot[2]["price_current"] == 4701.25
+
+    def test_confirmed_modify_retains_actual_ticket_levels_for_auditor(
+            self, monkeypatch):
+        import journal
+        import pending_actions
+
+        monkeypatch.setattr(journal, "event", lambda *a, **kw: None)
+        monkeypatch.setattr(pending_actions.time, "time", lambda: 1000.0)
+        monkeypatch.setattr(
+            pending_actions.mt5,
+            "positions_get",
+            lambda ticket: [SimpleNamespace(
+                ticket=ticket,
+                symbol="XAUUSD",
+                magic=20260422,
+                type=1,
+                volume=0.01,
+                price_open=4701.0,
+                price_current=4699.5,
+                sl=4700.25,
+                tp=4688.75,
+                profit=1.5,
+                comment="c2_1",
+            )],
+        )
+
+        q = PendingQueue()
+        act = _make_action(
+            label="BE #12345", new_sl=4700.0, new_tp=None)
+        act.last_retcode = 10009
+
+        q._log_done(act)
+
+        assert act.signal.sl_by_ticket == {12345: 4700.25}
+        assert act.signal.tp_by_ticket == {12345: 4688.75}
+        assert snapshot(q, now=1005.0) == [{
+            "sig_id": "canal2_1",
+            "kind": "MODIFY_SLTP",
+            "ticket": 12345,
+            "new_sl": 4700.25,
+            "new_tp": 4688.75,
+            "age_s": 5.0,
+            "attempts": 0,
+            "last_retcode": 10009,
+            "state": "confirmed_recent",
+            "waiting_reason": None,
+            "applied_tp": 4688.75,
+            "label": "BE #12345",
+        }]
+
+        assert snapshot(q, now=1121.0) == []
 
     def test_log_done_records_modify_position_gone(self, monkeypatch):
         events = []

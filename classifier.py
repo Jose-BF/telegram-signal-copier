@@ -273,6 +273,31 @@ def _build_context_block(signal) -> dict:
 # ─── Regex local ────────────────────────────────────────────────────────────
 
 _NEG_SL_HIT = ("sl hit", "stop loss hit", "sl was", "sl reached")
+_EXPLICIT_ADDITIONAL_ENTRY_RE = re.compile(
+    r"\b(?:i|we)(?:['\u2019]ve|\s+have)?\s+(?:just\s+)?"
+    r"(?:put|added|opened|took)\s+(?:some\s+)?more\s+"
+    r"(?P<direction>buys?|sells?)"
+    r"(?:\s+(?:entries|positions|trades?))?\s+"
+    r"(?:on|at|around)\s+"
+    r"(?P<price>\d{3,5}(?:\.\d{1,3})?)\b",
+    re.IGNORECASE,
+)
+
+
+def _explicit_additional_entry_action(text: str) -> dict | None:
+    """Detect a provider-confirmed extra entry without inferring execution."""
+    match = _EXPLICIT_ADDITIONAL_ENTRY_RE.search(text or "")
+    if not match:
+        return None
+    raw_direction = match.group("direction").upper()
+    direction = "BUY" if raw_direction.startswith("BUY") else "SELL"
+    return {
+        "action": "REENTRY_SIGNAL",
+        "price": float(match.group("price")),
+        "entry_direction": direction,
+        "confidence": 0.98,
+        "_reason": "provider_confirmed_additional_entry",
+    }
 
 
 def _canal1_safe_regex_classify(text: str) -> list[dict]:
@@ -290,6 +315,9 @@ def _canal1_safe_regex_classify(text: str) -> list[dict]:
         return []
 
     actions: list[dict] = []
+    explicit_addition = _explicit_additional_entry_action(text)
+    if explicit_addition:
+        actions.append(explicit_addition)
 
     if re.search(
         r"\b(?:TAKE|CLOSE|CLOSING|BOOK|SECURE)\s+(?:SOME\s+)?"
@@ -358,6 +386,10 @@ def _regex_classify_all(text: str) -> list[dict]:
                     t.strip()):
         return [{"action": "INFORMATIONAL", "price": None, "confidence": 1.0,
                  "_reason": "pure_levels_announcement"}]
+
+    explicit_addition = _explicit_additional_entry_action(text)
+    if explicit_addition:
+        actions.append(explicit_addition)
 
     # 1. SL a precio explícito — verbos extendidos (move/change/adjust/set/put)
     m = re.search(
