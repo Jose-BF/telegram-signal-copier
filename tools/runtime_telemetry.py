@@ -18,6 +18,7 @@ import subprocess
 import sys
 import time
 import uuid
+import zlib
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -35,6 +36,9 @@ DEFAULT_STREAM_NAMES = (*runtime_paths.AUTHORITATIVE_STREAMS, "bot_runtime.log")
 DEFAULT_MAX_CHUNK_BYTES = 4 * 1024 * 1024
 DEFAULT_GIT_TIMEOUT_SEC = 30.0
 DEFAULT_PUBLISH_LOCK_STALE_SEC = 15 * 60.0
+# The raw byte range is the chunk identity. Compressed size/hash are transport
+# details: Python 3.11 and 3.14 can emit different gzip headers for the same
+# payload, so those fields must not turn equivalent evidence into a conflict.
 IMMUTABLE_MANIFEST_FIELDS = (
     "schema_version",
     "stream",
@@ -43,8 +47,6 @@ IMMUTABLE_MANIFEST_FIELDS = (
     "uncompressed_bytes",
     "sha256",
     "compression",
-    "compressed_bytes",
-    "compressed_sha256",
     "payload_file",
 )
 
@@ -88,6 +90,32 @@ def _now_iso() -> str:
 
 def _sha256(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
+
+
+def _gzip_payloads_match(first: bytes, second: bytes) -> bool:
+    if first == second:
+        return True
+    try:
+        return gzip.decompress(first) == gzip.decompress(second)
+    except (EOFError, OSError, zlib.error):
+        return False
+
+
+def _canonical_gzip(payload: bytes) -> bytes:
+    compressed = bytearray(gzip.compress(payload, compresslevel=6, mtime=0))
+    if len(compressed) < 10 or compressed[:3] != b"\x1f\x8b\x08":
+        raise ValueError("gzip encoder returned an invalid header")
+    # RFC 1952 OS=255 means unknown. Normalizing this byte removes the
+    # platform-dependent header emitted by some Python/zlib combinations.
+    compressed[9] = 255
+    return bytes(compressed)
+
+
+def _manifest_identity_matches(first: dict, second: dict) -> bool:
+    return all(
+        first.get(field) == second.get(field)
+        for field in IMMUTABLE_MANIFEST_FIELDS
+    )
 
 
 def _validate_stream_name(stream: str) -> str:
@@ -286,7 +314,7 @@ def _write_chunk(
     stream_dir = _outbox_stream_dir(runtime_dir, stream)
     payload_path = stream_dir / f"{stem}{_payload_suffix(stream)}"
     manifest_path = stream_dir / f"{stem}.manifest.json"
-    compressed = gzip.compress(payload, compresslevel=6, mtime=0)
+    compressed = _canonical_gzip(payload)
     compressed_hash = _sha256(compressed)
     manifest = {
         "schema_version": 1,
@@ -307,16 +335,13 @@ def _write_chunk(
     ).encode("utf-8")
 
     if payload_path.exists():
-        if payload_path.read_bytes() != compressed:
+        if not _gzip_payloads_match(payload_path.read_bytes(), compressed):
             raise ValueError(f"conflicting immutable chunk: {payload_path}")
     else:
         _atomic_write(payload_path, compressed)
     if manifest_path.exists():
         existing = _read_json(manifest_path)
-        if not all(
-            existing.get(field) == manifest.get(field)
-            for field in IMMUTABLE_MANIFEST_FIELDS
-        ):
+        if not _manifest_identity_matches(existing, manifest):
             raise ValueError(f"conflicting chunk manifest: {manifest_path}")
     else:
         _atomic_write(manifest_path, manifest_bytes)
@@ -948,6 +973,8 @@ def _published_file_matches(destination: Path, payload: bytes) -> bool:
     existing = destination.read_bytes()
     if existing == payload:
         return True
+    if destination.name.endswith(".gz"):
+        return _gzip_payloads_match(existing, payload)
     if not destination.name.endswith(".manifest.json"):
         return False
     try:
@@ -957,10 +984,7 @@ def _published_file_matches(destination: Path, payload: bytes) -> bool:
         return False
     if not isinstance(previous, dict) or not isinstance(candidate, dict):
         return False
-    return all(
-        previous.get(field) == candidate.get(field)
-        for field in IMMUTABLE_MANIFEST_FIELDS
-    )
+    return _manifest_identity_matches(previous, candidate)
 
 
 def _materialized_runtime_manifest_payload(

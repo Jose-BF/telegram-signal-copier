@@ -1,4 +1,5 @@
 import gzip
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -78,6 +79,44 @@ def test_checkpoint_exports_only_complete_records_and_advances_cursor(
         ).read_text(encoding="utf-8")
     )
     assert cursor["offset"] == chunk.end
+
+
+def test_checkpoint_normalizes_platform_specific_gzip_header(
+    tmp_path,
+    monkeypatch,
+):
+    runtime = _runtime(tmp_path)
+    real_compress = gzip.compress
+
+    def platform_specific_compress(*args, **kwargs):
+        compressed = bytearray(real_compress(*args, **kwargs))
+        compressed[9] = 3
+        return bytes(compressed)
+
+    monkeypatch.setattr(
+        runtime_telemetry.gzip,
+        "compress",
+        platform_specific_compress,
+    )
+
+    result = runtime_telemetry.checkpoint_runtime(
+        runtime,
+        stream_names=("trade_events.jsonl",),
+    )
+
+    assert result.ok is True
+    compressed = result.chunks[0].payload_path.read_bytes()
+    assert compressed[9] == 255
+    assert gzip.decompress(compressed) == (
+        b'{"ev":"one"}\n{"ev":"two"}\n'
+    )
+
+
+def test_gzip_equivalence_rejects_corrupt_transport_without_raising():
+    valid = gzip.compress(b'{"ev":"one"}\n', mtime=0)
+    corrupt = b"\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff" + (b"\xff" * 32)
+
+    assert runtime_telemetry._gzip_payloads_match(valid, corrupt) is False
 
 
 def test_checkpoint_retry_is_idempotent_and_append_creates_next_range(tmp_path):
@@ -590,6 +629,69 @@ def test_second_writer_accepts_same_chunks_with_new_export_metadata(tmp_path):
         code_commit="new-code",
         created_at="2026-07-22T20:00:00+00:00",
     )
+    repeated = runtime_telemetry.publish_outbox(
+        source,
+        second,
+        remote_url=str(remote),
+        checkout_dir=tmp_path / "second-checkout",
+    )
+
+    assert repeated.ok is True
+    assert repeated.published_files == 2
+    assert not list(
+        (second / runtime_telemetry.TELEMETRY_DIR_NAME / "outbox").rglob("*")
+    )
+
+
+def test_second_writer_accepts_equivalent_cross_python_gzip(tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    _must_git(source, "init")
+    _must_git(source, "config", "user.name", "Code Owner")
+    _must_git(source, "config", "user.email", "code@example.com")
+    (source / "main.py").write_text("print('safe')\n", encoding="utf-8")
+    _must_git(source, "add", ".")
+    _must_git(source, "commit", "-m", "feat: code")
+    remote = tmp_path / "remote.git"
+    remote.mkdir()
+    _must_git(remote, "init", "--bare")
+
+    first = tmp_path / "first-runtime"
+    first.mkdir()
+    (first / "trade_events.jsonl").write_bytes(b'{"ev":"same"}\n')
+    runtime_telemetry.checkpoint_runtime(
+        first,
+        stream_names=("trade_events.jsonl",),
+    )
+    initial = runtime_telemetry.publish_outbox(
+        source,
+        first,
+        remote_url=str(remote),
+        checkout_dir=tmp_path / "first-checkout",
+    )
+    assert initial.ok is True
+
+    second = tmp_path / "second-runtime"
+    second.mkdir()
+    (second / "trade_events.jsonl").write_bytes(b'{"ev":"same"}\n')
+    checkpoint = runtime_telemetry.checkpoint_runtime(
+        second,
+        stream_names=("trade_events.jsonl",),
+    )
+    assert checkpoint.ok is True
+    chunk = checkpoint.chunks[0]
+    compressed = bytearray(chunk.payload_path.read_bytes())
+    assert compressed[:3] == b"\x1f\x8b\x08"
+    compressed[9] = 3 if compressed[9] != 3 else 255
+    chunk.payload_path.write_bytes(compressed)
+    manifest = json.loads(chunk.manifest_path.read_text(encoding="utf-8"))
+    manifest["compressed_bytes"] = len(compressed)
+    manifest["compressed_sha256"] = hashlib.sha256(compressed).hexdigest()
+    chunk.manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
     repeated = runtime_telemetry.publish_outbox(
         source,
         second,
