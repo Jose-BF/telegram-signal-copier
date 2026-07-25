@@ -32,6 +32,7 @@ def _conversion_route(mt5, account_currency: str, profit_currency: str) -> dict:
             "positive_profit_side": "identity",
             "negative_profit_side": "identity",
             "max_quote_age_ms": 5000,
+            "max_quote_interval_ms": 60000,
         }
 
     direct = f"{account_currency}{profit_currency}"
@@ -44,6 +45,7 @@ def _conversion_route(mt5, account_currency: str, profit_currency: str) -> dict:
             "positive_profit_side": "ask",
             "negative_profit_side": "bid",
             "max_quote_age_ms": 5000,
+            "max_quote_interval_ms": 60000,
         }
 
     inverse = f"{profit_currency}{account_currency}"
@@ -56,6 +58,7 @@ def _conversion_route(mt5, account_currency: str, profit_currency: str) -> dict:
             "positive_profit_side": "bid",
             "negative_profit_side": "ask",
             "max_quote_age_ms": 5000,
+            "max_quote_interval_ms": 60000,
         }
     raise RuntimeError(
         f"no conversion symbol for {profit_currency}->{account_currency}"

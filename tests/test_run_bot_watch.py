@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import replay_source_contract
 import tools.run_bot_watch as watch
 from tools import git_sync, runtime_recovery
 
@@ -773,7 +774,11 @@ def test_regenerate_ledger_writes_success_status(tmp_path, monkeypatch):
 def test_regenerate_replay_trades_writes_success_status(tmp_path, monkeypatch):
     data_dir = tmp_path / "data"
     data_dir.mkdir()
+    ledger = data_dir / "ledger.jsonl"
+    events = data_dir / "trade_events.jsonl"
     replay = data_dir / "replay_trades.jsonl"
+    ledger.write_text("{}\n", encoding="utf-8")
+    events.write_text("{}\n", encoding="utf-8")
 
     monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
     monkeypatch.setattr(watch, "RUNTIME_DATA_DIR", data_dir)
@@ -783,6 +788,12 @@ def test_regenerate_replay_trades_writes_success_status(tmp_path, monkeypatch):
     def fake_run(*args, **kwargs):
         assert args[0] == [watch.sys.executable, "build_replay_trades.py", "--quiet"]
         replay.write_text("{}\n", encoding="utf-8")
+        replay_source_contract.write_manifest(
+            replay_path=replay,
+            ledger_path=ledger,
+            events_path=events,
+            row_count=1,
+        )
         return subprocess.CompletedProcess(
             args=args[0], returncode=0, stdout="replay ok", stderr="")
 
@@ -796,6 +807,48 @@ def test_regenerate_replay_trades_writes_success_status(tmp_path, monkeypatch):
     assert status["returncode"] == 0
     assert status["replay_exists"] is True
     assert status["replay_size_bytes"] == replay.stat().st_size
+    assert status["source_contract_verified"] is True
+    assert status["source_contract_errors"] == []
+
+
+def test_regenerate_replay_trades_rejects_missing_source_manifest(
+    tmp_path,
+    monkeypatch,
+):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "ledger.jsonl").write_text("{}\n", encoding="utf-8")
+    (data_dir / "trade_events.jsonl").write_text("{}\n", encoding="utf-8")
+    replay = data_dir / "replay_trades.jsonl"
+
+    monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
+    monkeypatch.setattr(watch, "RUNTIME_DATA_DIR", data_dir)
+    monkeypatch.setattr(
+        watch,
+        "REPLAY_STATUS_FILE",
+        data_dir / "replay_status.json",
+    )
+
+    def fake_run(*args, **kwargs):
+        replay.write_text("{}\n", encoding="utf-8")
+        return subprocess.CompletedProcess(
+            args=args[0],
+            returncode=0,
+            stdout="replay without manifest",
+            stderr="",
+        )
+
+    monkeypatch.setattr(watch.subprocess, "run", fake_run)
+
+    ok = watch._regenerate_replay_trades()
+
+    status = json.loads((data_dir / "replay_status.json").read_text())
+    assert ok is False
+    assert status["ok"] is False
+    assert status["source_contract_verified"] is False
+    assert status["source_contract_errors"] == [
+        "missing_replay_source_manifest"
+    ]
 
 
 def test_regenerate_accounting_replay_audit_writes_success_status(tmp_path, monkeypatch):
@@ -1008,7 +1061,25 @@ def _valid_strategy_farm_publication(root):
         "result_fingerprint": "b" * 64,
     }), encoding="utf-8")
     return {
+        "primary_universe": "executed_mt5",
         "policy_count": 1,
+        "executed_scope": {
+            "executed_trades": 1,
+            "policy_count": 1,
+            "rows_expected": 1,
+            "rows_emitted": 1,
+            "blocked_rows": 1,
+            "entry_invariant_failures": 0,
+        },
+        "executed_replay_contract": {
+            "universe": "executed_mt5",
+            "complete": False,
+            "rows_expected": 1,
+            "rows_emitted": 1,
+            "blocked_rows": 1,
+            "entry_invariant_failures": 0,
+            "blockers": ["blocked_row:canal1_1:no_be"],
+        },
         "provider_scope": {
             "formal_signals": 1,
             "policy_count": 1,
@@ -1021,7 +1092,9 @@ def _valid_strategy_farm_publication(root):
         },
         "selection": {"selected_policy": None},
         "validation": {
-            "price_path_mode": "provider_first",
+            "primary_universe": "executed_mt5",
+            "price_path_mode": "executed_mt5_entries",
+            "executed_contract_complete": False,
             "money_mode": "diagnostic_only",
             "mode": "diagnostic_only",
         },
@@ -1076,7 +1149,10 @@ def test_regenerate_strategy_farm_accepts_complete_diagnostic_publication(
     assert watch._regenerate_strategy_farm() is True
 
 
-@pytest.mark.parametrize("failure", ["row_count", "incomplete_provenance"])
+@pytest.mark.parametrize(
+    "failure",
+    ["row_count", "executed_row_count", "incomplete_provenance"],
+)
 def test_regenerate_strategy_farm_rejects_unpublishable_output(
         tmp_path, monkeypatch, failure):
     data_dir = tmp_path / "data"
@@ -1090,6 +1166,8 @@ def test_regenerate_strategy_farm_rejects_unpublishable_output(
         report = _valid_strategy_farm_publication(tmp_path)
         if failure == "row_count":
             report["provider_scope"]["rows_emitted"] = 0
+        elif failure == "executed_row_count":
+            report["executed_scope"]["rows_emitted"] = 0
         else:
             report["provenance"] = {
                 "status": "incomplete",

@@ -21,7 +21,7 @@ DEFAULT_OBSERVED_AUDIT_FILE = DATA_DIR / "observed_tick_replay_audit.jsonl"
 DEFAULT_TICK_CACHE_DIR = DATA_DIR / "ticks_cache"
 DEFAULT_OUTPUT = DATA_DIR / "replay_readiness_report.json"
 SCHEMA_VERSION = 2
-CAUSAL_PATH_CONTRACT = "causal_path_v2"
+CAUSAL_PATH_CONTRACT = "causal_path_v3"
 FILL_PRICE_AUTHORITY = "mt5_deals"
 
 
@@ -218,6 +218,7 @@ def _tick_blockers(trade: dict, *, cache_dir: Path, pad_minutes: int) -> list[st
         contract = ensure_replay_tick_cache.load_valid_day_contract(
             cache_dir,
             date.fromisoformat(day),
+            expected_symbol="XAUUSD",
         )
         if contract is None:
             blockers.append(f"invalid_tick_cache_contract:{day}")

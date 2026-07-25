@@ -3,6 +3,22 @@ from datetime import date, datetime, timezone
 from tools import ensure_money_tick_cache
 
 
+def test_money_windows_include_full_unexecuted_provider_day():
+    day = date(2026, 7, 23)
+
+    windows = ensure_money_tick_cache.required_money_day_windows(
+        [],
+        additional_required_days=[day],
+    )
+
+    assert windows == {
+        day: (
+            datetime(2026, 7, 23, tzinfo=timezone.utc),
+            datetime(2026, 7, 24, tzinfo=timezone.utc),
+        )
+    }
+
+
 def test_valid_but_short_money_cache_day_is_incomplete(tmp_path, monkeypatch):
     day = date(2026, 7, 21)
     (tmp_path / "2026-07-21.parquet").touch()

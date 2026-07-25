@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 REPO_DIR = Path(__file__).resolve().parent.parent
@@ -21,6 +21,33 @@ DEFAULT_CACHE_DIR = DATA_DIR / "money_ticks_cache"
 DEFAULT_REFERENCE_CACHE = DATA_DIR / "ticks_cache"
 DEFAULT_STATUS = DATA_DIR / "money_tick_cache_status.json"
 DEFAULT_SYMBOL = "EURUSD"
+
+
+def required_money_day_windows(
+    trades: list[dict],
+    *,
+    since=None,
+    until=None,
+    additional_required_days=(),
+) -> dict[date, tuple[datetime, datetime]]:
+    day_windows = base.required_day_windows(
+        trades,
+        since=since,
+        until=until,
+        pad_minutes=5,
+    )
+    for day in sorted(set(additional_required_days)):
+        day_start = datetime(day.year, day.month, day.day, tzinfo=timezone.utc)
+        day_end = day_start + timedelta(days=1)
+        current = day_windows.get(day)
+        if current is None:
+            day_windows[day] = (day_start, day_end)
+        else:
+            day_windows[day] = (
+                min(current[0], day_start),
+                max(current[1], day_end),
+            )
+    return dict(sorted(day_windows.items()))
 
 
 def _classify_cache_days(
@@ -73,7 +100,11 @@ def _classify_cache_days(
 def _reference_evidence(reference_dir: Path, days: list[date]) -> dict[date, dict]:
     evidence: dict[date, dict] = {}
     for day in days:
-        contract = base.load_valid_day_contract(reference_dir, day)
+        contract = base.load_valid_day_contract(
+            reference_dir,
+            day,
+            expected_symbol="XAUUSD",
+        )
         if contract is None:
             continue
         evidence[day] = {
@@ -83,7 +114,8 @@ def _reference_evidence(reference_dir: Path, days: list[date]) -> dict[date, dic
             "offset_reference": {
                 "reference_cache": base._portable_path(reference_dir),
                 "reference_day": day.isoformat(),
-                "reference_contract_sha256": contract["parquet_sha256"],
+                "reference_contract_sha256": contract["contract_sha256"],
+                "reference_parquet_sha256": contract["parquet_sha256"],
             },
         }
     return evidence
@@ -98,12 +130,13 @@ def ensure_money_cache(
     since=None,
     until=None,
     verbose: bool = True,
+    additional_required_days=(),
 ) -> dict:
-    day_windows = base.required_day_windows(
+    day_windows = required_money_day_windows(
         trades,
         since=since,
         until=until,
-        pad_minutes=5,
+        additional_required_days=additional_required_days,
     )
     days = list(day_windows)
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -162,6 +195,11 @@ def ensure_money_cache(
                     day,
                     utc_offset_seconds=evidence["utc_offset_seconds"],
                 ),
+                source_verification=base.verify_day_source_acquisition(
+                    source,
+                    day,
+                    frame,
+                ),
                 symbol=symbol,
             )
     finally:
@@ -202,6 +240,11 @@ def ensure_money_cache(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT)
+    parser.add_argument(
+        "--catalog",
+        type=Path,
+        help="Optional provider catalog for unexecuted-signal conversion days",
+    )
     parser.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE_DIR)
     parser.add_argument(
         "--reference-cache-dir",
@@ -210,19 +253,50 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--status", type=Path, default=DEFAULT_STATUS)
     parser.add_argument("--symbol", default=DEFAULT_SYMBOL)
+    parser.add_argument(
+        "--provider-latency-ms",
+        action="append",
+        type=int,
+        dest="provider_latency_scenarios_ms",
+    )
     parser.add_argument("--since")
     parser.add_argument("--until")
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args(argv)
     trades = base.load_jsonl(args.input)
+    since = base._parse_dt(args.since)
+    until = base._parse_dt(args.until)
+    catalog = {}
+    if args.catalog is not None:
+        if not args.catalog.is_file():
+            parser.error(f"provider catalog does not exist: {args.catalog}")
+        catalog = json.loads(args.catalog.read_text(encoding="utf-8"))
+        if not isinstance(catalog, dict):
+            parser.error("provider catalog root must be an object")
+    offsets = base.verified_cache_offset_candidates(
+        args.reference_cache_dir,
+        expected_symbol="XAUUSD",
+    )
+    additional_required_days = base.required_provider_dates(
+        catalog,
+        since=since,
+        until=until,
+        latency_scenarios_ms=tuple(
+            args.provider_latency_scenarios_ms or [0]
+        ),
+        offset_candidates_seconds=(
+            offsets or base.DEFAULT_OFFSET_CANDIDATES_SECONDS
+        ),
+    )
     result = ensure_money_cache(
         trades,
         cache_dir=args.cache_dir,
         reference_cache_dir=args.reference_cache_dir,
         symbol=args.symbol,
-        since=base._parse_dt(args.since),
-        until=base._parse_dt(args.until),
+        since=since,
+        until=until,
         verbose=not args.quiet,
+        additional_required_days=additional_required_days,
     )
     args.status.parent.mkdir(parents=True, exist_ok=True)
     args.status.write_text(

@@ -153,7 +153,11 @@ class TickCache:
         else:
             all_df = pd.concat(dfs, ignore_index=True)
         mask = (all_df["time_utc"] >= t_from_utc) & (all_df["time_utc"] <= t_to_utc)
-        return all_df[mask].sort_values("time_msc").reset_index(drop=True)
+        return (
+            all_df[mask]
+            .sort_values("time_msc", kind="stable")
+            .reset_index(drop=True)
+        )
 
     def disk_usage_mb(self) -> float:
         total = sum(f.stat().st_size for f in self.cache_dir.glob("*.parquet"))

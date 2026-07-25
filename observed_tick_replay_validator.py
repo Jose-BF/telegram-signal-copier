@@ -32,7 +32,7 @@ PRICE_EPSILON = 0.01
 ALIGNMENT_NEAR_SECONDS = 5
 CLOSE_TOUCH_TIME_TOLERANCE_SECONDS = 5
 CAUSAL_ORDERING_RACE_TOLERANCE_MS = 100
-CAUSAL_PATH_CONTRACT = "causal_path_v2"
+CAUSAL_PATH_CONTRACT = "causal_path_v3"
 FILL_PRICE_AUTHORITY = "mt5_deals"
 MARKET_CLOSE_REASONS = {"bot_close", "other", "manual_close"}
 SUPPORTED_CLOSE_REASONS = {"tp", "sl", "be", *MARKET_CLOSE_REASONS}
@@ -384,6 +384,94 @@ def _near_close_requested_transition(
     return min(candidates, key=lambda item: abs(item[1]))
 
 
+def _late_acknowledged_same_tick_touch(
+    trade: dict,
+    ticket: dict,
+    ticks: pd.DataFrame,
+    *,
+    first_touch: dict,
+    expected_reason: str,
+    sl_history: Iterable[dict],
+    tp_history: Iterable[dict],
+) -> dict | None:
+    """Recover a delayed MT5 level acknowledgement without changing causality."""
+    if expected_reason in {"sl", "be"}:
+        key = "sl"
+    elif expected_reason == "tp":
+        key = "tp"
+    else:
+        return None
+
+    try:
+        actual_level = float(ticket.get("close_price"))
+    except (TypeError, ValueError):
+        return None
+    touch_dt = _parse_dt(first_touch.get("time_utc"))
+    if touch_dt is None:
+        return None
+
+    requested_at: list[datetime] = []
+    acknowledged_at: list[datetime] = []
+    history = sl_history if key == "sl" else tp_history
+    for item in history or []:
+        try:
+            level = float(item.get(key))
+        except (TypeError, ValueError):
+            continue
+        if abs(level - actual_level) > PRICE_EPSILON:
+            continue
+        ts = _parse_dt(item.get("ts"))
+        if ts is None:
+            continue
+        if item.get("status") == "requested" and ts <= touch_dt:
+            requested_at.append(ts)
+        elif item.get("status") == "confirmed" and ts > touch_dt:
+            acknowledged_at.append(ts)
+    if not requested_at or not acknowledged_at:
+        return None
+
+    sl_events = _level_events(sl_history, "sl")
+    tp_events = _level_events(tp_history, "tp")
+    for request_dt in sorted(requested_at):
+        if not any(ack_dt >= request_dt for ack_dt in acknowledged_at):
+            continue
+        candidate = (request_dt, actual_level)
+        if key == "sl":
+            candidate_sl_events = sorted([*sl_events, candidate], key=lambda item: item[0])
+            candidate_tp_events = tp_events
+        else:
+            candidate_sl_events = sl_events
+            candidate_tp_events = sorted([*tp_events, candidate], key=lambda item: item[0])
+        candidate_touch = _first_touch_for_ticks(
+            _direction(trade),
+            ticket,
+            ticks,
+            candidate_sl_events,
+            candidate_tp_events,
+        )
+        if candidate_touch is None:
+            continue
+        if not _reason_matches(expected_reason, candidate_touch.get("reason")):
+            continue
+        if _parse_dt(candidate_touch.get("time_utc")) != touch_dt:
+            continue
+        try:
+            candidate_level = float(candidate_touch.get("level"))
+        except (TypeError, ValueError):
+            continue
+        if abs(candidate_level - actual_level) > PRICE_EPSILON:
+            continue
+        return {
+            **candidate_touch,
+            "evidence": "requested_level_late_ack_same_tick",
+            "requested_utc": request_dt.isoformat(timespec="milliseconds"),
+            "acknowledged_utc": min(acknowledged_at).isoformat(
+                timespec="milliseconds"
+            ),
+        }
+    return None
+
+
 def _broker_confirmed_race_touch(
     trade: dict,
     ticket: dict,
@@ -709,6 +797,7 @@ def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
             f"first_touch_reason_mismatch:{first_touch['reason']}!=mt5_{expected_reason}"
         )
 
+    time_mismatch_blocker = None
     touch_dt = _parse_dt(first_touch.get("time_utc"))
     close_dt = _parse_dt(ticket.get("close_dt_utc"))
     if touch_dt is None or close_dt is None:
@@ -716,9 +805,10 @@ def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
     else:
         delta_s = (touch_dt - close_dt).total_seconds()
         if abs(delta_s) > CLOSE_TOUCH_TIME_TOLERANCE_SECONDS:
-            result_blockers.append(
+            time_mismatch_blocker = (
                 f"first_touch_time_mismatch:{label}:{delta_s:+.3f}s"
             )
+            result_blockers.append(time_mismatch_blocker)
 
     close_alignment = alignment["close"]
     if close_alignment.get("status") != "verified":
@@ -729,8 +819,11 @@ def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
             f"{float(close_alignment['price_delta']):+.2f}"
         )
 
+    price_delta = None
+    level_delta = None
     try:
         actual_close_price = float(ticket.get("close_price"))
+        level_delta = float(first_touch["level"]) - actual_close_price
         modeled_close_price = float(
             first_touch["level"]
             if first_touch["reason"] == "tp"
@@ -744,6 +837,54 @@ def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
             warnings.append(
                 f"observed_level_fill_delta:{label}:{price_delta:+.2f}"
             )
+
+    close_event = ticket.get("close_event") or {}
+    late_ack_touch = None
+    if (
+        time_mismatch_blocker is not None
+        and result_blockers == [time_mismatch_blocker]
+        and not ticket.get("close_deal")
+        and close_event.get("ev") == "positions_closed_by_mt5"
+    ):
+        late_ack_touch = _late_acknowledged_same_tick_touch(
+            trade,
+            ticket,
+            window_ticks,
+            first_touch=first_touch,
+            expected_reason=expected_reason,
+            sl_history=sl_history,
+            tp_history=tp_history,
+        )
+    delayed_batch_close = (
+        time_mismatch_blocker is not None
+        and result_blockers == [time_mismatch_blocker]
+        and not ticket.get("close_deal")
+        and close_event.get("ev") == "positions_closed_by_mt5"
+        and str(close_event.get("ticket")) == str(ticket.get("ticket"))
+        and (
+            (
+                level_delta is not None
+                and abs(level_delta) <= PRICE_EPSILON
+            )
+            or late_ack_touch is not None
+        )
+    )
+    if delayed_batch_close:
+        limitations = [
+            f"per_ticket_close_time_unavailable:{label}",
+        ]
+        if late_ack_touch is not None:
+            first_touch = late_ack_touch
+            limitations.append(f"level_acknowledgement_delayed:{label}")
+        return {
+            **base,
+            "status": "delayed_close_observation",
+            "first_touch": first_touch,
+            "observed_close_utc": ticket.get("close_dt_utc"),
+            "blockers": [],
+            "warnings": warnings,
+            "limitations": limitations,
+        }
 
     status = "exact" if not result_blockers else "mismatch"
     return {
@@ -766,8 +907,14 @@ def _required_tick_days(trade: dict, pad_minutes: int) -> list[str]:
 
 
 class ReplayTickFrameCache:
-    def __init__(self, tick_cache_dir: Path):
+    def __init__(
+        self,
+        tick_cache_dir: Path,
+        *,
+        expected_symbol: str = "XAUUSD",
+    ):
         self.tick_cache_dir = Path(tick_cache_dir)
+        self.expected_symbol = str(expected_symbol)
         self._frames: dict[str, pd.DataFrame] = {}
         self._required_days: set[str] = set()
         self._verified_contracts: dict[str, dict] = {}
@@ -802,6 +949,7 @@ class ReplayTickFrameCache:
         contract = ensure_replay_tick_cache.load_valid_day_contract(
             self.tick_cache_dir,
             day_value,
+            expected_symbol=self.expected_symbol,
         )
         if contract is None:
             return None, f"invalid_tick_cache_contract:{day_text}"
@@ -831,7 +979,10 @@ class ReplayTickFrameCache:
                 )
             except ValueError:
                 return None, f"missing_broker_session_offset:{day}"
-            frame = frame.sort_values("time_utc").reset_index(drop=True)
+            frame = frame.sort_values(
+                "time_utc",
+                kind="stable",
+            ).reset_index(drop=True)
         else:
             frame = frame.copy()
             removed = 0
@@ -879,7 +1030,10 @@ class ReplayTickFrameCache:
             empty.attrs["market_session_contract"] = MARKET_SESSION_CONTRACT
             empty.attrs["quote_only_ticks_removed"] = 0
             return empty, missing
-        ticks = pd.concat(frames, ignore_index=True).sort_values("time_utc")
+        ticks = pd.concat(frames, ignore_index=True).sort_values(
+            "time_utc",
+            kind="stable",
+        )
         ticks = ticks.reset_index(drop=True)
         ticks.attrs["market_session_contract"] = MARKET_SESSION_CONTRACT
         ticks.attrs["quote_only_ticks_removed"] = sum(
@@ -909,16 +1063,22 @@ def validate_trade(
     tick_loader: ReplayTickFrameCache | None = None,
 ) -> dict:
     if tick_loader is None:
-        ticks, missing = load_ticks_for_trade(
-            trade,
-            tick_cache_dir=tick_cache_dir,
-            pad_minutes=pad_minutes,
-        )
-    else:
-        ticks, missing = tick_loader.load_ticks_for_trade(
-            trade,
-            pad_minutes=pad_minutes,
-        )
+        tick_loader = ReplayTickFrameCache(tick_cache_dir)
+    ticks, missing = tick_loader.load_ticks_for_trade(
+        trade,
+        pad_minutes=pad_minutes,
+    )
+    tick_days = _required_tick_days(trade, pad_minutes)
+    verified_contracts = tick_loader.verified_contracts
+    tick_contract_evidence = {
+        day: {
+            "symbol": contract.get("symbol"),
+            "parquet_sha256": contract.get("parquet_sha256"),
+            "contract_sha256": contract.get("contract_sha256"),
+        }
+        for day in tick_days
+        if (contract := verified_contracts.get(day)) is not None
+    }
     tickets = trade.get("tickets") or []
     ticket_results = []
     if missing:
@@ -952,12 +1112,17 @@ def validate_trade(
     elif (
         statuses.get("exact", 0)
         + statuses.get("external_intervention", 0)
+        + statuses.get("delayed_close_observation", 0)
         == len(ticket_results)
     ):
         status = (
             "external_intervention"
             if statuses.get("external_intervention", 0)
-            else "exact"
+            else (
+                "delayed_close_observation"
+                if statuses.get("delayed_close_observation", 0)
+                else "exact"
+            )
         )
     else:
         status = "mismatch"
@@ -975,9 +1140,14 @@ def validate_trade(
         "ticket_count": len(tickets),
         "exact_tickets": statuses.get("exact", 0),
         "external_intervention_tickets": statuses.get("external_intervention", 0),
+        "delayed_close_observation_tickets": statuses.get(
+            "delayed_close_observation",
+            0,
+        ),
         "mismatch_tickets": statuses.get("mismatch", 0),
         "blocked_tickets": statuses.get("blocked", 0),
-        "tick_days": _required_tick_days(trade, pad_minutes),
+        "tick_days": tick_days,
+        "tick_contract_evidence": tick_contract_evidence,
         "blockers": blockers,
         "tickets": ticket_results,
     }
@@ -1007,6 +1177,10 @@ def summarize(rows: Iterable[dict]) -> dict:
         "total": len(rows),
         "exact": counts.get("exact", 0),
         "external_intervention": counts.get("external_intervention", 0),
+        "delayed_close_observation": counts.get(
+            "delayed_close_observation",
+            0,
+        ),
         "mismatch": counts.get("mismatch", 0),
         "blocked": counts.get("blocked", 0),
     }

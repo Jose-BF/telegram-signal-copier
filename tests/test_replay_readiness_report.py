@@ -60,7 +60,7 @@ def _observed(**overrides):
     base = {
         "sig_id": "canal1_1",
         "status": "exact",
-        "validation_contract": "causal_path_v2",
+        "validation_contract": "causal_path_v3",
         "fill_price_authority": "mt5_deals",
         "market_session_contract": "vantage_xauusd_standard_v1",
         "blockers": [],
@@ -80,6 +80,7 @@ def _write_valid_tick_day(cache_dir, day="2026-07-06"):
         "ask": 4200.0,
     }])
     frame.to_parquet(cache_dir / f"{day}.parquet", index=False)
+    content_digest = ensure_replay_tick_cache.tick_content_sha256(frame)
     ensure_replay_tick_cache.write_day_contract(
         cache_dir,
         date.fromisoformat(day),
@@ -97,6 +98,18 @@ def _write_valid_tick_day(cache_dir, day="2026-07-06"):
             "max_price_delta": 0.0,
             "errors": [],
         },
+        source_verification={
+            "verified": True,
+            "method": "full_day_vs_two_half_days_v1",
+            "content_digest": "time_bid_ask_sequence_sha256_v1",
+            "symbol": "XAUUSD",
+            "primary_row_count": len(frame),
+            "verification_row_count": len(frame),
+            "primary_content_sha256": content_digest,
+            "verification_content_sha256": content_digest,
+            "errors": [],
+        },
+        symbol="XAUUSD",
     )
 
 

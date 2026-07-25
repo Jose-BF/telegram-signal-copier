@@ -42,6 +42,7 @@ if str(REPO_DIR) not in sys.path:
     sys.path.insert(0, str(REPO_DIR))
 
 import runtime_paths
+import replay_source_contract
 
 RUNTIME_DATA_DIR = Path(os.getenv(
     "BOT_RUNTIME_DATA_DIR",
@@ -986,6 +987,9 @@ def _regenerate_replay_trades() -> bool:
     """
     started = time.time()
     replay_file = RUNTIME_DATA_DIR / "replay_trades.jsonl"
+    manifest_file = replay_source_contract.default_manifest_path(replay_file)
+    replay_file.unlink(missing_ok=True)
+    manifest_file.unlink(missing_ok=True)
     status = {
         "ok": False,
         "started_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -996,6 +1000,12 @@ def _regenerate_replay_trades() -> bool:
         "stderr": "",
         "replay_exists": replay_file.exists(),
         "replay_size_bytes": replay_file.stat().st_size if replay_file.exists() else 0,
+        "manifest_exists": manifest_file.exists(),
+        "manifest_size_bytes": (
+            manifest_file.stat().st_size if manifest_file.exists() else 0
+        ),
+        "source_contract_verified": False,
+        "source_contract_errors": [],
         "command": [sys.executable, "build_replay_trades.py", "--quiet"],
     }
     try:
@@ -1003,14 +1013,33 @@ def _regenerate_replay_trades() -> bool:
             [sys.executable, "build_replay_trades.py", "--quiet"],
             cwd=REPO_DIR, capture_output=True, text=True, timeout=60,
         )
+        source_errors = (
+            replay_source_contract.validate_manifest(
+                replay_path=replay_file,
+                ledger_path=RUNTIME_DATA_DIR / "ledger.jsonl",
+                events_path=RUNTIME_DATA_DIR / "trade_events.jsonl",
+                manifest_path=manifest_file,
+            )
+            if rec.returncode == 0
+            else ["replay_build_failed"]
+        )
+        source_contract_verified = not source_errors
         status.update({
-            "ok": rec.returncode == 0,
+            "ok": rec.returncode == 0 and source_contract_verified,
             "returncode": rec.returncode,
             "stdout": rec.stdout or "",
             "stderr": rec.stderr or "",
+            "source_contract_verified": source_contract_verified,
+            "source_contract_errors": source_errors,
         })
-        if rec.returncode == 0:
+        if status["ok"]:
             print("[Watch] replay_trades regenerado.", flush=True)
+        elif rec.returncode == 0:
+            print(
+                "[Watch] replay_trades rechazado: contrato de origen "
+                f"invalido ({', '.join(source_errors)}).",
+                flush=True,
+            )
         else:
             print(f"[Watch] build_replay_trades.py fallo (rc={rec.returncode}): "
                   f"{(rec.stderr or rec.stdout or '')[:1000]}", flush=True)
@@ -1029,6 +1058,10 @@ def _regenerate_replay_trades() -> bool:
         status["replay_exists"] = replay_file.exists()
         status["replay_size_bytes"] = (
             replay_file.stat().st_size if replay_file.exists() else 0
+        )
+        status["manifest_exists"] = manifest_file.exists()
+        status["manifest_size_bytes"] = (
+            manifest_file.stat().st_size if manifest_file.exists() else 0
         )
         _write_replay_status(status)
     return bool(status["ok"])
@@ -1228,15 +1261,23 @@ def _strategy_farm_publication_valid(path: Path) -> bool:
         return False
 
     scope = report.get("provider_scope")
+    executed_scope = report.get("executed_scope")
+    executed_contract = report.get("executed_replay_contract")
     validation = report.get("validation")
     provenance = report.get("provenance")
     if not all(isinstance(item, dict) for item in (
         scope,
+        executed_scope,
+        executed_contract,
         validation,
         provenance,
     )):
         return False
-    if validation.get("price_path_mode") != "provider_first":
+    if (
+        report.get("primary_universe") != "executed_mt5"
+        or validation.get("primary_universe") != "executed_mt5"
+        or validation.get("price_path_mode") != "executed_mt5_entries"
+    ):
         return False
     validation_mode = validation.get("mode")
     if validation_mode not in {"diagnostic_only", "verified_simulation"}:
@@ -1280,6 +1321,39 @@ def _strategy_farm_publication_valid(path: Path) -> bool:
         and counts["rows_emitted"] == expected
         and counts["simulated_rows"] + counts["blocked_rows"] == expected
         and report.get("policy_count") == counts["policy_count"]
+    ):
+        return False
+
+    executed_count_keys = (
+        "executed_trades",
+        "policy_count",
+        "rows_expected",
+        "rows_emitted",
+        "blocked_rows",
+        "entry_invariant_failures",
+    )
+    executed_counts = {
+        key: executed_scope.get(key)
+        for key in executed_count_keys
+    }
+    if any(
+        isinstance(value, bool) or not isinstance(value, int) or value < 0
+        for value in executed_counts.values()
+    ):
+        return False
+    executed_expected = (
+        executed_counts["executed_trades"]
+        * executed_counts["policy_count"]
+    )
+    if not (
+        executed_counts["rows_expected"] == executed_expected
+        and executed_counts["rows_emitted"] == executed_expected
+        and report.get("policy_count") == executed_counts["policy_count"]
+        and executed_contract.get("universe") == "executed_mt5"
+        and executed_contract.get("rows_expected") == executed_expected
+        and executed_contract.get("rows_emitted") == executed_expected
+        and executed_contract.get("complete")
+        is validation.get("executed_contract_complete")
     ):
         return False
 

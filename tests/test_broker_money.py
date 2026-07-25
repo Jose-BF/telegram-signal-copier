@@ -1,4 +1,10 @@
 
+from datetime import datetime, timezone
+
+import pandas as pd
+
+import broker_money
+
 
 def test_capture_contract_derives_vantage_eurusd_sides_without_private_account_data():
     from types import SimpleNamespace
@@ -58,15 +64,9 @@ def test_capture_contract_derives_vantage_eurusd_sides_without_private_account_d
         "positive_profit_side": "ask",
         "negative_profit_side": "bid",
         "max_quote_age_ms": 5000,
+        "max_quote_interval_ms": 60000,
     }
     assert contract["live_validation"]["valid"] is True
-
-from datetime import datetime, timezone
-
-import pandas as pd
-
-import broker_money
-
 
 def _contract():
     return {
@@ -88,6 +88,7 @@ def _contract():
             "symbol": "EURUSD",
             "orientation": "account_base_profit_quote",
             "max_quote_age_ms": 5000,
+            "max_quote_interval_ms": 60000,
         },
         "costs": {
             "commission_model": "observed_zero_intraday",
@@ -152,6 +153,14 @@ def test_profit_and_loss_use_the_correct_historical_conversion_side():
     assert winner["strategy_pnl"] == 0.06
     assert winner["conversion"]["side"] == "ask"
     assert winner["conversion"]["price"] == 1.14335
+    assert winner["formula"] == {
+        "directional_delta": 0.07,
+        "contract_size": 100.0,
+        "volume": 0.01,
+        "orientation": "account_base_profit_quote",
+        "rounding": "ROUND_HALF_UP",
+        "currency_digits": 2,
+    }
 
     assert loser["status"] == "verified"
     assert loser["profit_currency_pnl"] == -0.43
@@ -176,6 +185,130 @@ def test_stale_conversion_quote_blocks_money_without_hiding_price_path():
     assert result["status"] == "blocked"
     assert result["strategy_pnl"] is None
     assert result["blockers"] == ["stale_conversion_quote:EURUSD"]
+
+
+def test_bracketed_quote_interval_uses_only_the_last_causal_price():
+    frame = pd.DataFrame([
+        {
+            "time_utc": "2026-07-09T14:54:50.000+00:00",
+            "bid": 1.14320,
+            "ask": 1.14335,
+        },
+        {
+            "time_utc": "2026-07-09T14:55:00.250+00:00",
+            "bid": 1.15000,
+            "ask": 1.15020,
+        },
+    ])
+    frame["time_utc"] = pd.to_datetime(frame["time_utc"], utc=True)
+    converter = _converter(frame)
+
+    result = converter.convert_leg(
+        direction="BUY",
+        open_price=4120.0,
+        close_price=4121.0,
+        volume=0.01,
+        open_time_utc="2026-07-09T14:20:00+00:00",
+        close_time_utc="2026-07-09T14:55:00.000+00:00",
+    )
+
+    assert result["status"] == "verified"
+    assert result["conversion"]["price"] == 1.14335
+    assert result["conversion"]["time_utc"] == (
+        "2026-07-09T14:54:50+00:00"
+    )
+    assert result["conversion"]["freshness"] == "bracketed_tick_interval"
+    assert result["conversion"]["quote_interval_ms"] == 10250
+    assert result["conversion"]["next_quote_utc"] == (
+        "2026-07-09T14:55:00.250000+00:00"
+    )
+
+
+def test_bracketed_quote_interval_normalizes_unsorted_non_numeric_index():
+    frame = pd.DataFrame(
+        [
+            {
+                "time_utc": "2026-07-09T14:55:00.250+00:00",
+                "bid": 1.15000,
+                "ask": 1.15020,
+            },
+            {
+                "time_utc": "2026-07-09T14:54:50.000+00:00",
+                "bid": 1.14320,
+                "ask": 1.14335,
+            },
+        ],
+        index=["future", "causal"],
+    )
+    frame["time_utc"] = pd.to_datetime(frame["time_utc"], utc=True)
+    converter = _converter(frame)
+
+    result = converter.convert_leg(
+        direction="BUY",
+        open_price=4120.0,
+        close_price=4121.0,
+        volume=0.01,
+        open_time_utc="2026-07-09T14:20:00+00:00",
+        close_time_utc="2026-07-09T14:55:00.000+00:00",
+    )
+
+    assert result["status"] == "verified"
+    assert result["conversion"]["price"] == 1.14335
+    assert result["conversion"]["freshness"] == "bracketed_tick_interval"
+
+
+def test_bracketed_quote_interval_rejects_a_feed_gap_beyond_contract():
+    frame = pd.DataFrame([
+        {
+            "time_utc": "2026-07-09T14:53:00.000+00:00",
+            "bid": 1.14320,
+            "ask": 1.14335,
+        },
+        {
+            "time_utc": "2026-07-09T14:55:00.250+00:00",
+            "bid": 1.15000,
+            "ask": 1.15020,
+        },
+    ])
+    frame["time_utc"] = pd.to_datetime(frame["time_utc"], utc=True)
+    converter = _converter(frame)
+
+    result = converter.convert_leg(
+        direction="BUY",
+        open_price=4120.0,
+        close_price=4121.0,
+        volume=0.01,
+        open_time_utc="2026-07-09T14:20:00+00:00",
+        close_time_utc="2026-07-09T14:55:00.000+00:00",
+    )
+
+    assert result["status"] == "blocked"
+    assert result["blockers"] == ["stale_conversion_quote:EURUSD"]
+
+
+def test_exact_zero_profit_does_not_require_a_conversion_quote():
+    converter = _converter(_quotes().iloc[:0].copy())
+
+    result = converter.convert_leg(
+        direction="BUY",
+        open_price=4120.0,
+        close_price=4120.0,
+        volume=0.01,
+        open_time_utc="2026-07-09T14:20:00+00:00",
+        close_time_utc="2026-07-09T14:55:00+00:00",
+    )
+
+    assert result["status"] == "verified"
+    assert result["strategy_pnl"] == 0.0
+    assert result["profit_currency_pnl"] == 0.0
+    assert result["conversion"]["side"] == "not_required_zero"
+    assert result["conversion"]["freshness"] == "not_required_zero"
+    assert result["formula"] == {
+        "directional_delta": 0.0,
+        "contract_size": 100.0,
+        "volume": 0.01,
+    }
+    assert result["blockers"] == []
 
 
 def test_apply_money_contract_sums_position_cents_and_preserves_price_value():

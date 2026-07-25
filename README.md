@@ -18,7 +18,12 @@ Production runtime:
 Replay and simulation foundation:
 
 - `reconcile_mt5_ledger.py` rebuilds `runtime_data/ledger.jsonl` from bot logs plus MT5 history.
-- `build_replay_trades.py` builds `runtime_data/replay_trades.jsonl` from ledger and event history.
+- `build_replay_trades.py` builds `runtime_data/replay_trades.jsonl` from
+  ledger and event history and writes
+  `runtime_data/replay_trades.jsonl.manifest.json`.
+- `replay_source_contract.py` binds that replay to the exact SHA-256 and size
+  of its MT5 ledger and raw event stream. The farm rejects missing, changed or
+  stale source evidence before calculating policies.
 - `accounting_replay_validator.py` validates reconstructed trade accounting into `runtime_data/accounting_replay_audit.jsonl`.
 - `tools/ensure_replay_tick_cache.py` ensures MT5 tick parquet files exist and verifies the `mt5_server_epoch_utc_v3` time/anchor contract and SHA-256 for every cached day.
 - `replay_readiness_report.py` reports whether each trade has enough data for full replay.
@@ -28,8 +33,15 @@ Replay and simulation foundation:
 - `provider_trade_spec.py` turns every formal provider signal into an immutable virtual-trade contract without requiring an MT5 ticket.
 - `provider_strategy_simulator.py` enters BUY at Ask or SELL at Bid after the configured causal latency, then replays policy price paths over verified ticks.
 - `strategy_policies.py` defines the shared close/BE/runner policy matrix for both channels.
-- `strategy_simulator.py` retains observed-ticket replay as an independent execution control.
-- `strategy_farm.py` evaluates every formal Telegram signal, including unexecuted signals, once per policy and ordered latency scenario. It also keeps observed-ticket validation in a separate section.
+- `strategy_simulator.py` replays alternative management over the entries,
+  volumes and confirmed level history actually executed by MT5. Canonical
+  Telegram events supply management-trigger times, not replacement entries.
+- `executed_simulation_contract.py` fails closed if any policy omits a trade,
+  duplicates a row or changes an observed MT5 ticket, fill time, fill price or
+  volume.
+- `strategy_farm.py` ranks only the executed-MT5 universe. It also evaluates
+  formal Telegram signals, including unexecuted signals, as a separate
+  provider-coverage diagnostic which is never ranking-eligible.
 - `simulation_run_provenance.py` fingerprints the exact selected farm inputs, policy order, source files, runtime versions and tick contracts already verified by the replay loader.
 - `runtime_data/simulation_runs/<fingerprint>/run_card.json` is immutable run evidence. Repeating identical computational inputs reuses the same directory; a contradictory result fails closed.
 
@@ -40,6 +52,8 @@ is not a disposable intermediate report.
 Run the current clean-window diagnostics manually:
 
 ```powershell
+python reconcile_mt5_ledger.py --quiet
+python build_replay_trades.py --quiet
 python provider_signal_catalog.py
 python strategy_farm.py --from 2026-07-06
 python strategy_farm.py --from 2026-07-06 --provider-latency-ms 0 --provider-latency-ms 150 --provider-latency-ms 250
@@ -65,19 +79,30 @@ report is not copied into the archive.
 python tools/ensure_replay_tick_cache.py --ensure --refresh-day 2026-07-08 --refresh-day 2026-07-09 --refresh-day 2026-07-10
 ```
 
-`provider_scope.rows_expected` must equal `rows_emitted`, and
-`signals_omitted` must be empty. Missing ticks or causal levels create visible
-blocked rows for the affected signal/policy pair; they never remove the signal.
+`executed_scope.rows_expected` must equal executed trades multiplied by
+policies, and `rows_emitted` must match it. Every usable row must preserve the
+observed MT5 ticket set and entry facts. `provider_scope.rows_expected` must
+also equal `rows_emitted`, and `signals_omitted` must be empty. Missing ticks
+or causal levels create visible blocked rows; they never remove a trade or
+signal from its denominator.
 
-Provider-first `strategy_value` is directional XAUUSD price movement summed
-across virtual legs. It is not account-currency P&L and must not be interpreted
-as profitability. `selection.selected_policy` remains `null`, monetary ranking
-remains empty and `broker_money_contract_unverified` remains visible until MT5
-gross/net P&L can be reproduced to the cent with conversion, commission and
-swap evidence. Baseline replay requires verifiable bid/ask
-ticks at both the MT5 entry and exit, matching first-touch time, reason and
-fill price. Blocked tick replay, small samples and an unvalidated untouched OOS
-period also prevent strategy selection.
+Primary `policies` and `selection` use only positions actually executed in MT5.
+Provider-first `strategy_value` remains available under the secondary
+diagnostic section; it is directional XAUUSD movement, not account-currency
+P&L, and must not be interpreted as profitability.
+MT5 gross/net P&L must reproduce to the cent with conversion, commission and
+swap evidence before a run may be treated as verified. Baseline replay
+requires verifiable bid/ask ticks at both the MT5 entry and exit, matching
+first-touch time, reason and fill price. A fully observed external
+intervention may remain strategy-eligible only in the executed-MT5 universe;
+it is never labelled an exact causal replay. Blocked tick replay, stale replay
+sources, small samples and an unvalidated untouched OOS period prevent
+strategy selection.
+
+`validation.money_contract_verified` describes the broker formula and
+conversion contract. `validation.account_currency_money_verified` separately
+requires every observed and counterfactual row in the selected run to be
+priced successfully. Both must be true before conclusions are allowed.
 
 Tick run-card digests prove which local Parquet bytes were used at execution
 time. The Parquet cache itself is currently local-only: a run card cannot

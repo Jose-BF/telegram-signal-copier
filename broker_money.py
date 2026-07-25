@@ -88,6 +88,13 @@ def validate_contract_metadata(contract: dict) -> list[str]:
     max_age = conversion.get("max_quote_age_ms")
     if not isinstance(max_age, int) or max_age <= 0:
         blockers.append("invalid_conversion_quote_age")
+    max_interval = conversion.get("max_quote_interval_ms", max_age)
+    if (
+        not isinstance(max_interval, int)
+        or max_interval <= 0
+        or (isinstance(max_age, int) and max_interval < max_age)
+    ):
+        blockers.append("invalid_conversion_quote_interval")
     if costs.get("commission_model") != "observed_zero_intraday":
         blockers.append("unsupported_commission_model")
     if costs.get("fee_model") != "observed_zero_intraday":
@@ -112,6 +119,7 @@ class VerifiedConversionTickCache:
         contract = ensure_replay_tick_cache.load_valid_day_contract(
             self.cache_dir,
             day,
+            expected_symbol=self.symbol,
         )
         if contract is None:
             return pd.DataFrame(), f"invalid_conversion_tick_contract:{day_text}"
@@ -139,7 +147,10 @@ class VerifiedConversionTickCache:
         frame["ask"] = pd.to_numeric(frame["ask"], errors="coerce")
         frame = frame.dropna(subset=["time_utc", "bid", "ask"])
         frame = frame.loc[(frame["bid"] > 0) & (frame["ask"] > 0)]
-        frame = frame.sort_values("time_utc").reset_index(drop=True)
+        frame = frame.sort_values(
+            "time_utc",
+            kind="stable",
+        ).reset_index(drop=True)
         if frame.empty:
             return pd.DataFrame(), f"invalid_conversion_quotes:{day_text}"
         self._frames[day_text] = frame
@@ -206,6 +217,10 @@ class BrokerMoneyConverter:
                 utc=True,
                 errors="coerce",
             )
+        prepared = prepared.sort_values(
+            "time_utc",
+            kind="stable",
+        ).reset_index(drop=True)
         eligible = prepared.loc[
             prepared["time_utc"] <= pd.Timestamp(close_dt)
         ]
@@ -216,8 +231,35 @@ class BrokerMoneyConverter:
         age_ms = int(round((close_dt - quote_dt).total_seconds() * 1000))
         if age_ms < 0:
             return None, [f"future_conversion_quote:{symbol}"]
+        freshness = "within_max_age"
+        quote_interval_ms = None
+        next_quote_utc = None
         if age_ms > int(self.conversion["max_quote_age_ms"]):
-            return None, [f"stale_conversion_quote:{symbol}"]
+            quote_index = int(eligible.index[-1])
+            quote_position = quote_index
+            if quote_position + 1 >= len(prepared):
+                return None, [f"stale_conversion_quote:{symbol}"]
+            next_quote = prepared.iloc[quote_position + 1]
+            next_quote_dt = pd.Timestamp(
+                next_quote["time_utc"]
+            ).to_pydatetime()
+            quote_interval_ms = int(round(
+                (next_quote_dt - quote_dt).total_seconds() * 1000
+            ))
+            max_interval_ms = int(
+                self.conversion.get(
+                    "max_quote_interval_ms",
+                    self.conversion["max_quote_age_ms"],
+                )
+            )
+            if (
+                quote_interval_ms <= 0
+                or quote_interval_ms > max_interval_ms
+                or close_dt >= next_quote_dt
+            ):
+                return None, [f"stale_conversion_quote:{symbol}"]
+            freshness = "bracketed_tick_interval"
+            next_quote_utc = next_quote_dt.astimezone(timezone.utc).isoformat()
 
         positive = profit_currency_pnl >= 0
         if orientation == "account_base_profit_quote":
@@ -233,6 +275,9 @@ class BrokerMoneyConverter:
             "price": float(price),
             "time_utc": quote_dt.astimezone(timezone.utc).isoformat(),
             "age_ms": age_ms,
+            "freshness": freshness,
+            "quote_interval_ms": quote_interval_ms,
+            "next_quote_utc": next_quote_utc,
         }, []
 
     def convert_leg(
@@ -290,6 +335,27 @@ class BrokerMoneyConverter:
             else open_value - close_value
         )
         profit_currency_pnl = price_delta * contract_size * volume_value
+        if profit_currency_pnl == 0:
+            return {
+                "status": "verified",
+                "strategy_pnl": 0.0,
+                "pnl_currency": self.currency,
+                "profit_currency_pnl": 0.0,
+                "conversion": {
+                    "symbol": self.conversion.get("symbol"),
+                    "side": "not_required_zero",
+                    "price": None,
+                    "time_utc": closed.isoformat(),
+                    "age_ms": 0,
+                    "freshness": "not_required_zero",
+                },
+                "formula": {
+                    "directional_delta": float(price_delta),
+                    "contract_size": float(contract_size),
+                    "volume": float(volume_value),
+                },
+                "blockers": [],
+            }
         conversion, quote_blockers = self._quote_at(
             closed,
             profit_currency_pnl,
@@ -324,6 +390,14 @@ class BrokerMoneyConverter:
                 )
             ),
             "conversion": conversion,
+            "formula": {
+                "directional_delta": float(price_delta),
+                "contract_size": float(contract_size),
+                "volume": float(volume_value),
+                "orientation": orientation,
+                "rounding": "ROUND_HALF_UP",
+                "currency_digits": self.currency_digits,
+            },
             "blockers": [],
         }
 

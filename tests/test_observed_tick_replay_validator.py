@@ -16,6 +16,15 @@ def _ticks(rows):
 
 def _write_tick_contract(cache_dir, day):
     day_end = day + timedelta(days=1)
+    try:
+        frame = pd.read_parquet(
+            cache_dir / f"{day.isoformat()}.parquet"
+        )
+        row_count = len(frame)
+        content_digest = ensure_replay_tick_cache.tick_content_sha256(frame)
+    except Exception:
+        row_count = 1
+        content_digest = "a" * 64
     ensure_replay_tick_cache.write_day_contract(
         cache_dir,
         day,
@@ -41,8 +50,20 @@ def _write_tick_contract(cache_dir, day):
             "last_tick_utc": f"{day_end.isoformat()}T00:00:00+00:00",
             "complete_from_utc": f"{day.isoformat()}T00:00:00+00:00",
             "complete_through_utc": f"{day_end.isoformat()}T00:00:00+00:00",
-            "row_count": 1,
+            "row_count": row_count,
         },
+        source_verification={
+            "verified": True,
+            "method": "full_day_vs_two_half_days_v1",
+            "content_digest": "time_bid_ask_sequence_sha256_v1",
+            "symbol": "XAUUSD",
+            "primary_row_count": row_count,
+            "verification_row_count": row_count,
+            "primary_content_sha256": content_digest,
+            "verification_content_sha256": content_digest,
+            "errors": [],
+        },
+        symbol="XAUUSD",
     )
 
 
@@ -135,6 +156,206 @@ def test_matching_reason_with_early_touch_is_not_exact():
 
     result = observed_tick_replay_validator.validate_ticket(
         _trade(close_dt_utc=ticket["close_dt_utc"]),
+        ticket,
+        ticks,
+    )
+
+    assert result["status"] == "mismatch"
+    assert any(
+        blocker.startswith("first_touch_time_mismatch:101:")
+        for blocker in result["blockers"]
+    )
+
+
+def test_delayed_mt5_batch_close_is_eligible_without_claiming_exact_time():
+    ticket = _ticket(
+        close_dt_utc="2026-07-06T10:20:00+00:00",
+        close_price=4202.0,
+        close_deal=None,
+        close_event={
+            "ev": "positions_closed_by_mt5",
+            "ts": "2026-07-06T10:20:00+00:00",
+            "ticket": 101,
+            "exit_price": 4202.0,
+            "closed_by_tag": "TP1",
+        },
+    )
+    ticks = _ticks([
+        {"time_utc": "2026-07-06T10:00:00+00:00", "bid": 4199.8, "ask": 4200.0},
+        {"time_utc": "2026-07-06T10:01:00+00:00", "bid": 4202.0, "ask": 4202.2},
+        {"time_utc": "2026-07-06T10:20:00+00:00", "bid": 4201.0, "ask": 4201.2},
+    ])
+
+    result = observed_tick_replay_validator.validate_ticket(
+        _trade(close_dt_utc=ticket["close_dt_utc"]),
+        ticket,
+        ticks,
+    )
+
+    assert result["status"] == "delayed_close_observation"
+    assert result["blockers"] == []
+    assert result["first_touch"]["time_utc"] == (
+        "2026-07-06T10:01:00+00:00"
+    )
+    assert result["observed_close_utc"] == (
+        "2026-07-06T10:20:00+00:00"
+    )
+    assert result["limitations"] == [
+        "per_ticket_close_time_unavailable:101",
+    ]
+
+
+def test_delayed_batch_stop_accepts_mt5_level_fill_with_tick_gap():
+    ticket = _ticket(
+        close_dt_utc="2026-07-06T10:20:00+00:00",
+        close_price=4195.0,
+        close_reason="sl",
+        close_deal=None,
+        close_event={
+            "ev": "positions_closed_by_mt5",
+            "ts": "2026-07-06T10:20:00+00:00",
+            "ticket": 101,
+            "exit_price": 4195.0,
+            "closed_by_tag": "SL",
+        },
+    )
+    ticks = _ticks([
+        {"time_utc": "2026-07-06T10:00:00+00:00", "bid": 4199.8, "ask": 4200.0},
+        {"time_utc": "2026-07-06T10:01:00+00:00", "bid": 4194.7, "ask": 4194.9},
+        {"time_utc": "2026-07-06T10:20:00+00:00", "bid": 4201.0, "ask": 4201.2},
+    ])
+
+    result = observed_tick_replay_validator.validate_ticket(
+        _trade(close_dt_utc=ticket["close_dt_utc"]),
+        ticket,
+        ticks,
+    )
+
+    assert result["status"] == "delayed_close_observation"
+    assert result["blockers"] == []
+    assert any(
+        warning.startswith("observed_level_fill_delta:101:")
+        for warning in result["warnings"]
+    )
+
+
+def test_delayed_batch_stop_accepts_late_level_ack_only_when_touch_is_unchanged():
+    ticket = _ticket(
+        open_price=4122.66,
+        close_dt_utc="2026-07-06T10:20:00+00:00",
+        close_price=4131.5,
+        close_reason="sl",
+        close_deal=None,
+        close_event={
+            "ev": "positions_closed_by_mt5",
+            "ts": "2026-07-06T10:20:00+00:00",
+            "ticket": 101,
+            "exit_price": 4131.5,
+            "closed_by_tag": "SL",
+        },
+        sl_history=[
+            {
+                "ts": "2026-07-06T10:00:05+00:00",
+                "status": "confirmed",
+                "sl": 4131.67,
+            },
+            {
+                "ts": "2026-07-06T10:00:10+00:00",
+                "status": "requested",
+                "sl": 4131.5,
+            },
+            {
+                "ts": "2026-07-06T10:19:00+00:00",
+                "status": "confirmed",
+                "sl": 4131.5,
+            },
+        ],
+        tp_history=[
+            {
+                "ts": "2026-07-06T10:00:05+00:00",
+                "status": "confirmed",
+                "tp": 4100.0,
+            },
+        ],
+    )
+    trade = _trade(
+        direction="SELL",
+        close_dt_utc=ticket["close_dt_utc"],
+    )
+    ticks = _ticks([
+        {"time_utc": "2026-07-06T10:00:00+00:00", "bid": 4122.5, "ask": 4122.7},
+        {"time_utc": "2026-07-06T10:01:00+00:00", "bid": 4131.6, "ask": 4131.79},
+        {"time_utc": "2026-07-06T10:20:00+00:00", "bid": 4156.1, "ask": 4156.3},
+    ])
+
+    result = observed_tick_replay_validator.validate_ticket(
+        trade,
+        ticket,
+        ticks,
+    )
+
+    assert result["status"] == "delayed_close_observation"
+    assert result["blockers"] == []
+    assert result["first_touch"]["level"] == 4131.5
+    assert result["first_touch"]["time_utc"] == "2026-07-06T10:01:00+00:00"
+    assert result["limitations"] == [
+        "per_ticket_close_time_unavailable:101",
+        "level_acknowledgement_delayed:101",
+    ]
+
+
+def test_delayed_batch_stop_rejects_late_level_ack_when_touch_time_changes():
+    ticket = _ticket(
+        open_price=4122.66,
+        close_dt_utc="2026-07-06T10:20:00+00:00",
+        close_price=4131.5,
+        close_reason="sl",
+        close_deal=None,
+        close_event={
+            "ev": "positions_closed_by_mt5",
+            "ts": "2026-07-06T10:20:00+00:00",
+            "ticket": 101,
+            "exit_price": 4131.5,
+            "closed_by_tag": "SL",
+        },
+        sl_history=[
+            {
+                "ts": "2026-07-06T10:00:05+00:00",
+                "status": "confirmed",
+                "sl": 4131.67,
+            },
+            {
+                "ts": "2026-07-06T10:00:10+00:00",
+                "status": "requested",
+                "sl": 4131.5,
+            },
+            {
+                "ts": "2026-07-06T10:19:00+00:00",
+                "status": "confirmed",
+                "sl": 4131.5,
+            },
+        ],
+        tp_history=[
+            {
+                "ts": "2026-07-06T10:00:05+00:00",
+                "status": "confirmed",
+                "tp": 4100.0,
+            },
+        ],
+    )
+    trade = _trade(
+        direction="SELL",
+        close_dt_utc=ticket["close_dt_utc"],
+    )
+    ticks = _ticks([
+        {"time_utc": "2026-07-06T10:00:00+00:00", "bid": 4122.5, "ask": 4122.7},
+        {"time_utc": "2026-07-06T10:00:30+00:00", "bid": 4131.4, "ask": 4131.55},
+        {"time_utc": "2026-07-06T10:01:00+00:00", "bid": 4131.6, "ask": 4131.79},
+        {"time_utc": "2026-07-06T10:20:00+00:00", "bid": 4156.1, "ask": 4156.3},
+    ])
+
+    result = observed_tick_replay_validator.validate_ticket(
+        trade,
         ticket,
         ticks,
     )
@@ -586,6 +807,43 @@ def test_trade_blocks_when_tick_cache_is_missing(tmp_path):
     assert "missing_tick_cache:2026-07-06" in result["blockers"]
 
 
+def test_trade_preserves_delayed_close_observation_status(tmp_path):
+    cache_dir = tmp_path / "ticks_cache"
+    cache_dir.mkdir()
+    _ticks([
+        {"time_utc": "2026-07-06T10:00:00+00:00", "bid": 4199.8, "ask": 4200.0},
+        {"time_utc": "2026-07-06T10:01:00+00:00", "bid": 4202.0, "ask": 4202.2},
+        {"time_utc": "2026-07-06T10:20:00+00:00", "bid": 4201.0, "ask": 4201.2},
+    ]).to_parquet(cache_dir / "2026-07-06.parquet", index=False)
+    _write_tick_contract(cache_dir, date(2026, 7, 6))
+    ticket = _ticket(
+        close_dt_utc="2026-07-06T10:20:00+00:00",
+        close_price=4202.0,
+        close_deal=None,
+        close_event={
+            "ev": "positions_closed_by_mt5",
+            "ts": "2026-07-06T10:20:00+00:00",
+            "ticket": 101,
+            "exit_price": 4202.0,
+            "closed_by_tag": "TP1",
+        },
+    )
+    trade = _trade(
+        close_dt_utc=ticket["close_dt_utc"],
+        tickets=[ticket],
+    )
+
+    result = observed_tick_replay_validator.validate_trade(
+        trade,
+        tick_cache_dir=cache_dir,
+        pad_minutes=0,
+    )
+
+    assert result["status"] == "delayed_close_observation"
+    assert result["delayed_close_observation_tickets"] == 1
+    assert result["blockers"] == []
+
+
 def test_trade_blocks_when_tick_cache_has_no_verified_utc_contract(tmp_path):
     cache_dir = tmp_path / "ticks_cache"
     cache_dir.mkdir()
@@ -650,7 +908,11 @@ def test_tick_loader_exposes_verified_contracts_and_required_days(tmp_path):
     assert contract["source_time_basis"] == "mt5_server_epoch"
     assert contract["utc_offset_seconds"] == 10_800
     assert contract["semantic_time_valid"] is True
+    assert contract["symbol"] == "XAUUSD"
     assert contract["parquet_sha256"] == ensure_replay_tick_cache._file_sha256(parquet)
+    assert contract["contract_sha256"] == ensure_replay_tick_cache._file_sha256(
+        cache_dir / "2026-07-06.parquet.meta.json"
+    )
     assert contract["size_bytes"] == parquet.stat().st_size
 
 
@@ -719,12 +981,22 @@ def test_cli_writes_observed_tick_replay_audit_and_status(tmp_path):
     assert exit_code == 0
     assert rows[0]["status"] == "exact"
     assert rows[0]["schema_version"] == 2
+    assert rows[0]["validation_contract"] == "causal_path_v3"
+    assert rows[0]["tick_contract_evidence"]["2026-07-06"] == {
+        "symbol": "XAUUSD",
+        "parquet_sha256": ensure_replay_tick_cache._file_sha256(
+            cache_dir / "2026-07-06.parquet"
+        ),
+        "contract_sha256": ensure_replay_tick_cache._file_sha256(
+            cache_dir / "2026-07-06.parquet.meta.json"
+        ),
+    }
     assert rows[0]["market_session_contract"] == (
         "vantage_xauusd_standard_v1"
     )
     assert status["summary"]["exact"] == 1
     assert status["schema_version"] == 2
-    assert status["validation_contract"] == "causal_path_v2"
+    assert status["validation_contract"] == "causal_path_v3"
     assert status["market_session_contract"] == (
         "vantage_xauusd_standard_v1"
     )

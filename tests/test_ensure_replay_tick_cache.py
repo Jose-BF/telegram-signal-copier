@@ -58,6 +58,21 @@ def _tick_coverage(day, *, captured_at, complete_through, row_count=100):
     }
 
 
+def _source_verification(*, symbol="XAUUSD", row_count=100):
+    digest = "a" * 64
+    return {
+        "verified": True,
+        "method": "full_day_vs_two_half_days_v1",
+        "content_digest": "time_bid_ask_sequence_sha256_v1",
+        "symbol": symbol,
+        "primary_row_count": row_count,
+        "verification_row_count": row_count,
+        "primary_content_sha256": digest,
+        "verification_content_sha256": digest,
+        "errors": [],
+    }
+
+
 def _write_valid_contract(cache_dir, day):
     day_end = datetime(
         day.year, day.month, day.day, tzinfo=timezone.utc
@@ -72,6 +87,8 @@ def _write_valid_contract(cache_dir, day):
             captured_at=(day_end + timedelta(minutes=1)).isoformat(),
             complete_through=day_end.isoformat(),
         ),
+        source_verification=_source_verification(),
+        symbol="XAUUSD",
     )
 
 
@@ -103,6 +120,124 @@ def test_required_dates_include_padded_trade_windows():
         date(2026, 7, 7),
         date(2026, 7, 8),
     ]
+
+
+def test_required_provider_days_include_unexecuted_and_sunday_signals():
+    catalog = {
+        "signals": [
+            {
+                "record_type": "formal_signal",
+                "provider_signal_id": "canal2_msg_380",
+                "channel": "canal2",
+                "first_observed_utc": "2026-07-23T15:30:25+00:00",
+                "entry_contract": {
+                    "status": "ready",
+                    "direction": "BUY",
+                    "trigger_observed_utc": "2026-07-23T15:30:25+00:00",
+                    "blockers": [],
+                },
+            },
+            {
+                "record_type": "formal_signal",
+                "provider_signal_id": "canal1_sunday",
+                "channel": "canal1",
+                "first_observed_utc": "2026-07-12T21:05:00+00:00",
+                "entry_contract": {
+                    "status": "ready",
+                    "direction": "SELL",
+                    "trigger_observed_utc": "2026-07-12T21:05:00+00:00",
+                    "blockers": [],
+                },
+            },
+            {
+                "record_type": "context",
+                "provider_signal_id": "context_only",
+                "first_observed_utc": "2026-07-16T10:00:00+00:00",
+            },
+        ]
+    }
+
+    days = ensure_replay_tick_cache.required_provider_dates(
+        catalog,
+        since=datetime(2026, 7, 6, tzinfo=timezone.utc),
+        until=datetime(2026, 7, 24, tzinfo=timezone.utc),
+        latency_scenarios_ms=[0],
+        offset_candidates_seconds=[10_800],
+    )
+
+    assert days == [
+        date(2026, 7, 12),
+        date(2026, 7, 13),
+        date(2026, 7, 23),
+    ]
+
+
+def test_status_additional_days_require_complete_day_coverage(tmp_path):
+    cache_dir = tmp_path / "ticks_cache"
+    cache_dir.mkdir()
+    day = date(2026, 7, 23)
+    (cache_dir / "2026-07-23.parquet").write_bytes(b"partial-provider-day")
+    _write_valid_contract(cache_dir, day)
+    _set_contract_coverage(
+        cache_dir,
+        day,
+        _tick_coverage(
+            day,
+            captured_at="2026-07-23T17:00:00+00:00",
+            complete_through="2026-07-23T16:59:59+00:00",
+        ),
+    )
+
+    status = ensure_replay_tick_cache.build_status(
+        [],
+        cache_dir=cache_dir,
+        pad_minutes=0,
+        additional_required_days=[day],
+    )
+
+    assert status["ok"] is False
+    assert status["required_days"] == ["2026-07-23"]
+    assert status["incomplete_days"] == ["2026-07-23"]
+    assert status["scope"]["additional_required_days"] == ["2026-07-23"]
+
+
+def test_adjacent_verified_contract_seeds_missing_day_offset(tmp_path):
+    cache_dir = tmp_path / "ticks_cache"
+    cache_dir.mkdir()
+    previous = date(2026, 7, 22)
+    (cache_dir / "2026-07-22.parquet").write_bytes(b"verified-neighbour")
+    _write_valid_contract(cache_dir, previous)
+
+    evidence = ensure_replay_tick_cache.load_adjacent_time_evidence(
+        cache_dir,
+        [date(2026, 7, 23), date(2026, 7, 24)],
+        expected_symbol="XAUUSD",
+    )
+
+    assert list(evidence) == [previous]
+    assert evidence[previous]["utc_offset_seconds"] == 10_800
+    assert evidence[previous]["source_time_basis"] == "mt5_server_epoch"
+
+
+def test_verified_cache_offsets_ignore_unverified_day_contracts(tmp_path):
+    cache_dir = tmp_path / "ticks_cache"
+    cache_dir.mkdir()
+    valid_day = date(2026, 7, 22)
+    invalid_day = date(2026, 7, 23)
+    (cache_dir / "2026-07-22.parquet").write_bytes(b"verified")
+    _write_valid_contract(cache_dir, valid_day)
+    (cache_dir / "2026-07-23.parquet").write_bytes(b"unverified")
+    (cache_dir / "2026-07-23.parquet.meta.json").write_text(
+        json.dumps({"utc_offset_seconds": -18_000}),
+        encoding="utf-8",
+    )
+
+    offsets = ensure_replay_tick_cache.verified_cache_offset_candidates(
+        cache_dir,
+        expected_symbol="XAUUSD",
+    )
+
+    assert offsets == [10_800]
 
 
 def test_cache_status_marks_missing_and_cached_days(tmp_path):
@@ -317,9 +452,39 @@ def test_load_valid_day_contract_returns_normalized_evidence(tmp_path):
     assert record["utc_offset_seconds"] == 10_800
     assert record["offset_detection_method"] == "fill_anchor"
     assert record["semantic_time_valid"] is True
+    assert record["symbol"] == "XAUUSD"
     assert record["anchor_validation"] == _semantic_validation()
     assert record["parquet_sha256"] == ensure_replay_tick_cache._file_sha256(parquet)
+    assert record["contract_sha256"] == ensure_replay_tick_cache._file_sha256(
+        cache_dir / "2026-07-06.parquet.meta.json"
+    )
     assert record["size_bytes"] == parquet.stat().st_size
+
+
+def test_cache_status_rejects_contract_without_expected_symbol(tmp_path):
+    cache_dir = tmp_path / "ticks_cache"
+    cache_dir.mkdir()
+    day = date(2026, 7, 6)
+    parquet = cache_dir / "2026-07-06.parquet"
+    parquet.write_bytes(b"legacy identity-free ticks")
+    contract_path = _write_valid_contract(cache_dir, day)
+    contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    contract.pop("symbol")
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+
+    status = ensure_replay_tick_cache.build_status(
+        [_trade(
+            "canal1_1",
+            "2026-07-06T10:00:00+00:00",
+            "2026-07-06T10:05:00+00:00",
+        )],
+        cache_dir=cache_dir,
+        pad_minutes=0,
+        expected_symbol="XAUUSD",
+    )
+
+    assert status["ok"] is False
+    assert status["invalid_days"] == ["2026-07-06"]
 
 
 def test_v2_contract_is_rejected_even_when_hash_matches(tmp_path):
@@ -410,6 +575,7 @@ def test_refresh_day_cli_redownloads_invalidated_required_day(
                             day.year, day.month, day.day, tzinfo=timezone.utc
                         ) + timedelta(days=1)).isoformat(),
                     ),
+                    "source_verification": _source_verification(),
                 }
                 for day in days
             },
@@ -482,6 +648,7 @@ def test_ensure_cli_automatically_replaces_unversioned_required_day(
                             day.year, day.month, day.day, tzinfo=timezone.utc
                         ) + timedelta(days=1)).isoformat(),
                     ),
+                    "source_verification": _source_verification(),
                 }
                 for day in days
             },
@@ -560,6 +727,7 @@ def test_ensure_cli_replaces_coverage_incomplete_required_day(
                         captured_at="2026-07-16T00:05:00+00:00",
                         complete_through="2026-07-16T00:00:00+00:00",
                     ),
+                    "source_verification": _source_verification(),
                 }
                 for requested_day in days
             },
@@ -837,3 +1005,230 @@ def test_legacy_intraday_contract_uses_verified_session_close_boundary():
         required_from,
         session_close + timedelta(milliseconds=1),
     )
+
+
+def test_mt5_tick_source_uses_half_open_end_and_preserves_equal_time_order(
+    monkeypatch,
+):
+    day = date(2026, 7, 13)
+    day_start = datetime(2026, 7, 13, tzinfo=timezone.utc)
+    same_time = day_start + timedelta(seconds=1)
+    day_end = day_start + timedelta(days=1)
+
+    class FakeMT5:
+        COPY_TICKS_ALL = 7
+
+        @staticmethod
+        def initialize():
+            return True
+
+        @staticmethod
+        def symbol_select(_symbol, _enabled):
+            return True
+
+        @staticmethod
+        def copy_ticks_range(_symbol, _date_from, _date_to, _flags):
+            return [
+                {
+                    "time_msc": int(same_time.timestamp() * 1000),
+                    "bid": 100.0,
+                    "ask": 100.2,
+                    "last": 0.0,
+                    "volume": 0,
+                    "flags": 1,
+                },
+                {
+                    "time_msc": int(same_time.timestamp() * 1000),
+                    "bid": 99.9,
+                    "ask": 100.1,
+                    "last": 0.0,
+                    "volume": 0,
+                    "flags": 2,
+                },
+                {
+                    "time_msc": int(day_end.timestamp() * 1000),
+                    "bid": 101.0,
+                    "ask": 101.2,
+                    "last": 0.0,
+                    "volume": 0,
+                    "flags": 3,
+                },
+            ]
+
+        @staticmethod
+        def last_error():
+            return (0, "ok")
+
+        @staticmethod
+        def shutdown():
+            return None
+
+    monkeypatch.setitem(sys.modules, "MetaTrader5", FakeMT5)
+    source = ensure_replay_tick_cache.MT5TickSource(
+        "XAUUSD",
+        preloaded_time_evidence_by_day={day: _time_evidence(0)},
+    )
+
+    ticks = source.fetch_ticks(day_start, day_end)
+
+    assert ticks["bid"].tolist() == [100.0, 99.9]
+    assert ticks["flags"].tolist() == [1, 2]
+    assert (ticks["time_utc"] < pd.Timestamp(day_end)).all()
+
+
+def test_source_acquisition_verification_rejects_missing_chunk_tick():
+    day = date(2026, 7, 13)
+    day_start = datetime(2026, 7, 13, tzinfo=timezone.utc)
+    noon = day_start + timedelta(hours=12)
+    primary = pd.DataFrame([
+        {
+            "time_utc": pd.Timestamp(day_start + timedelta(seconds=1)),
+            "bid": 100.0,
+            "ask": 100.2,
+        },
+        {
+            "time_utc": pd.Timestamp(noon + timedelta(seconds=1)),
+            "bid": 101.0,
+            "ask": 101.2,
+        },
+    ])
+
+    class MissingTickSource:
+        symbol = "XAUUSD"
+
+        @staticmethod
+        def fetch_ticks(t_from_utc, _t_to_utc):
+            if t_from_utc == day_start:
+                return primary.iloc[[0]].copy()
+            return primary.iloc[0:0].copy()
+
+    result = ensure_replay_tick_cache.verify_day_source_acquisition(
+        MissingTickSource(),
+        day,
+        primary,
+    )
+
+    assert result["verified"] is False
+    assert result["method"] == "full_day_vs_two_half_days_v1"
+    assert result["primary_row_count"] == 2
+    assert result["verification_row_count"] == 1
+    assert result["errors"] == ["source_row_count_mismatch"]
+
+
+def test_source_acquisition_verification_rejects_reordered_equal_count():
+    day = date(2026, 7, 13)
+    day_start = datetime(2026, 7, 13, tzinfo=timezone.utc)
+    noon = day_start + timedelta(hours=12)
+    primary = pd.DataFrame([
+        {
+            "time_utc": pd.Timestamp(day_start + timedelta(seconds=1)),
+            "bid": 100.0,
+            "ask": 100.2,
+        },
+        {
+            "time_utc": pd.Timestamp(day_start + timedelta(seconds=2)),
+            "bid": 100.1,
+            "ask": 100.3,
+        },
+    ])
+
+    class ReorderedTickSource:
+        symbol = "XAUUSD"
+
+        @staticmethod
+        def fetch_ticks(t_from_utc, _t_to_utc):
+            if t_from_utc == day_start:
+                return primary.iloc[::-1].reset_index(drop=True)
+            if t_from_utc == noon:
+                return primary.iloc[0:0].copy()
+            raise AssertionError(t_from_utc)
+
+    result = ensure_replay_tick_cache.verify_day_source_acquisition(
+        ReorderedTickSource(),
+        day,
+        primary,
+    )
+
+    assert result["verified"] is False
+    assert result["primary_row_count"] == result["verification_row_count"] == 2
+    assert result["errors"] == ["source_content_mismatch"]
+
+
+def test_source_acquisition_verification_accepts_exact_independent_halves():
+    day = date(2026, 7, 13)
+    day_start = datetime(2026, 7, 13, tzinfo=timezone.utc)
+    noon = day_start + timedelta(hours=12)
+    primary = pd.DataFrame([
+        {
+            "time_utc": pd.Timestamp(day_start + timedelta(seconds=1)),
+            "bid": 100.0,
+            "ask": 100.2,
+        },
+        {
+            "time_utc": pd.Timestamp(noon + timedelta(seconds=1)),
+            "bid": 101.0,
+            "ask": 101.2,
+        },
+    ])
+
+    class ExactTickSource:
+        symbol = "XAUUSD"
+
+        @staticmethod
+        def fetch_ticks(t_from_utc, _t_to_utc):
+            if t_from_utc == day_start:
+                return primary.iloc[[0]].copy()
+            if t_from_utc == noon:
+                return primary.iloc[[1]].copy()
+            raise AssertionError(t_from_utc)
+
+    result = ensure_replay_tick_cache.verify_day_source_acquisition(
+        ExactTickSource(),
+        day,
+        primary,
+    )
+
+    assert result["verified"] is True
+    assert result["primary_row_count"] == result["verification_row_count"] == 2
+    assert (
+        result["primary_content_sha256"]
+        == result["verification_content_sha256"]
+    )
+    assert result["errors"] == []
+
+
+def test_contract_without_verified_source_acquisition_is_rejected(tmp_path):
+    cache_dir = tmp_path / "ticks_cache"
+    cache_dir.mkdir()
+    day = date(2026, 7, 13)
+    (cache_dir / f"{day.isoformat()}.parquet").write_bytes(b"ticks")
+
+    contract_path = ensure_replay_tick_cache.write_day_contract(
+        cache_dir,
+        day,
+        time_evidence=_time_evidence(),
+        semantic_validation=_semantic_validation(),
+        coverage=_tick_coverage(
+            day,
+            captured_at="2026-07-14T00:01:00+00:00",
+            complete_through="2026-07-14T00:00:00+00:00",
+        ),
+        source_verification={
+            "verified": False,
+            "method": "full_day_vs_two_half_days_v1",
+            "symbol": "XAUUSD",
+            "primary_row_count": 1,
+            "verification_row_count": 0,
+            "primary_content_sha256": "a" * 64,
+            "verification_content_sha256": "b" * 64,
+            "errors": ["source_content_mismatch"],
+        },
+        symbol="XAUUSD",
+    )
+
+    assert contract_path.is_file()
+    assert ensure_replay_tick_cache.load_valid_day_contract(
+        cache_dir,
+        day,
+        expected_symbol="XAUUSD",
+    ) is None

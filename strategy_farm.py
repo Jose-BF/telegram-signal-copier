@@ -16,7 +16,10 @@ from typing import Callable, Iterable
 
 import pandas as pd
 
+import broker_market_sessions
 import broker_money
+import executed_simulation_contract
+import mt5_tick_cache
 import pipeline_progress
 from broker_market_sessions import (
     MARKET_SESSION_CONTRACT,
@@ -25,10 +28,14 @@ from broker_market_sessions import (
 import observed_tick_replay_validator
 import provider_strategy_simulator
 import provider_trade_spec
+import replay_source_contract
 import runtime_paths
+import simulation_certifier
+import simulation_oracle
 import simulation_run_provenance
 import strategy_policies
 import strategy_simulator
+from tools import ensure_money_tick_cache, ensure_replay_tick_cache
 
 
 DATA_DIR = runtime_paths.active_data_dir()
@@ -64,6 +71,105 @@ class FarmExecution:
     required_tick_days: list[str]
     verified_tick_contracts: dict[str, dict]
     market_replay_summary: dict[str, int]
+
+
+def _simulation_source_files() -> dict[str, Path]:
+    repo_dir = Path(__file__).parent
+    return {
+        "broker_market_sessions": Path(broker_market_sessions.__file__),
+        "strategy_farm": Path(__file__),
+        "strategy_policies": Path(strategy_policies.__file__),
+        "strategy_simulator": Path(strategy_simulator.__file__),
+        "provider_trade_spec": Path(provider_trade_spec.__file__),
+        "provider_strategy_simulator": Path(
+            provider_strategy_simulator.__file__
+        ),
+        "broker_money": Path(broker_money.__file__),
+        "executed_simulation_contract": Path(
+            executed_simulation_contract.__file__
+        ),
+        "mt5_tick_cache": Path(mt5_tick_cache.__file__),
+        "runtime_paths": Path(runtime_paths.__file__),
+        "capture_broker_money_contract": (
+            repo_dir / "tools" / "capture_broker_money_contract.py"
+        ),
+        "ensure_money_tick_cache": (
+            repo_dir / "tools" / "ensure_money_tick_cache.py"
+        ),
+        "observed_tick_replay_validator": Path(
+            observed_tick_replay_validator.__file__
+        ),
+        "ensure_replay_tick_cache": Path(
+            observed_tick_replay_validator.ensure_replay_tick_cache.__file__
+        ),
+        "simulation_run_provenance": Path(
+            simulation_run_provenance.__file__
+        ),
+        "simulation_certifier": Path(simulation_certifier.__file__),
+        "simulation_oracle": Path(simulation_oracle.__file__),
+        "replay_source_contract": Path(replay_source_contract.__file__),
+    }
+
+
+def _semantic_artifact_paths(
+    *,
+    input_files: dict[str, Path],
+    source_files: dict[str, Path],
+    market_tick_cache_dir: Path,
+    conversion_tick_cache_dir: Path,
+) -> dict[str, Path]:
+    paths = {
+        **{
+            f"input:{role}": Path(path)
+            for role, path in input_files.items()
+        },
+        **{
+            f"code:{role}": Path(path)
+            for role, path in source_files.items()
+        },
+    }
+    for prefix, cache_dir in (
+        ("market_tick", Path(market_tick_cache_dir)),
+        ("conversion_tick", Path(conversion_tick_cache_dir)),
+    ):
+        if not cache_dir.is_dir():
+            continue
+        for path in sorted(cache_dir.glob("*.parquet")):
+            paths[f"{prefix}:{path.name}"] = path
+        for path in sorted(cache_dir.glob("*.parquet.meta.json")):
+            paths[f"{prefix}:{path.name}"] = path
+    return paths
+
+
+def _snapshot_semantic_artifacts(
+    paths: dict[str, Path],
+) -> dict[str, dict]:
+    snapshot = {}
+    for role, path in sorted(paths.items()):
+        if not path.is_file():
+            continue
+        snapshot[role] = {
+            "path": str(path.resolve()),
+            "size_bytes": path.stat().st_size,
+            "sha256": simulation_run_provenance.sha256_file(path),
+        }
+    return snapshot
+
+
+def _changed_semantic_artifacts(
+    snapshot: dict[str, dict],
+) -> list[str]:
+    changed = []
+    for role, record in sorted(snapshot.items()):
+        path = Path(record["path"])
+        if (
+            not path.is_file()
+            or path.stat().st_size != record["size_bytes"]
+            or simulation_run_provenance.sha256_file(path)
+            != record["sha256"]
+        ):
+            changed.append(role)
+    return changed
 
 
 def _money(value: float | None) -> float | None:
@@ -106,8 +212,50 @@ def _max_drawdown(values: list[float]) -> float:
     return drawdown
 
 
+def _metric_row_time(row: dict) -> datetime | None:
+    values = [row.get("open_dt_utc"), row.get("signal_dt_utc")]
+    values.extend(
+        ticket.get("open_time_utc") or ticket.get("open_dt_utc")
+        for ticket in row.get("tickets") or []
+    )
+    parsed = []
+    for value in values:
+        if value in (None, ""):
+            continue
+        try:
+            timestamp = datetime.fromisoformat(
+                str(value).replace("Z", "+00:00")
+            )
+        except (TypeError, ValueError):
+            continue
+        if timestamp.tzinfo is None or timestamp.utcoffset() is None:
+            continue
+        parsed.append(timestamp.astimezone(timezone.utc))
+    return min(parsed) if parsed else None
+
+
 def calculate_policy_metrics(rows: Iterable[dict]) -> dict:
     rows = list(rows)
+    sequence_rows = [
+        (
+            _metric_row_time(row),
+            str(row.get("sig_id") or ""),
+            row,
+        )
+        for row in rows
+    ]
+    sequence_order_verified = all(
+        timestamp is not None and bool(sig_id)
+        for timestamp, sig_id, _row in sequence_rows
+    )
+    if sequence_order_verified:
+        rows = [
+            row
+            for _timestamp, _sig_id, row in sorted(
+                sequence_rows,
+                key=lambda item: (item[0], item[1]),
+            )
+        ]
     usable = [
         row
         for row in rows
@@ -154,6 +302,7 @@ def calculate_policy_metrics(rows: Iterable[dict]) -> dict:
     }
     return {
         "total_trades": len(rows),
+        "sequence_order_verified": sequence_order_verified,
         "usable_trades": len(usable),
         "blocked_trades": blocked,
         "coverage": round(len(usable) / len(rows), 4) if rows else 0.0,
@@ -190,6 +339,8 @@ def calculate_policy_metrics(rows: Iterable[dict]) -> dict:
 
 def _policy_blockers(metrics: dict, minimum_trades: int) -> list[str]:
     blockers: list[str] = []
+    if metrics.get("sequence_order_verified") is False:
+        blockers.append("trade_sequence_order_unverified")
     if int(metrics.get("total_trades") or 0) < minimum_trades:
         blockers.append(
             f"sample_below_minimum:{metrics.get('total_trades', 0)}<{minimum_trades}"
@@ -218,6 +369,331 @@ def _robust_score(metrics: dict) -> float:
     )
     drawdown = max(float(metrics.get("max_drawdown") or 0.0), 1.0)
     return net / drawdown
+
+
+def _blocked_independent_certification(
+    *,
+    expected_pairs: set[tuple[str, str]],
+    blockers: Iterable[str],
+) -> dict:
+    return {
+        "schema_version": simulation_certifier.SCHEMA_VERSION,
+        "rows_expected": len(expected_pairs),
+        "rows_checked": 0,
+        "certified_rows": 0,
+        "mismatched_rows": 0,
+        "blocked_rows": len(expected_pairs),
+        "tickets_expected": 0,
+        "certified_tickets": 0,
+        "mismatched_tickets": 0,
+        "blocked_tickets": 0,
+        "proof_sha256": simulation_certifier.sha256_json([]),
+        "deterministic": True,
+        "complete": False,
+        "conclusions_allowed": False,
+        "blockers": list(dict.fromkeys(str(item) for item in blockers)),
+    }
+
+
+def _certification_trade_days(trade: dict) -> tuple[list, list[str]]:
+    days = set()
+    blockers: list[str] = []
+    tickets = list(trade.get("tickets") or [])
+    for index, ticket in enumerate(tickets):
+        label = ticket.get("ticket") or ticket.get("position_id") or index
+        for field in ("open_dt_utc", "close_dt_utc"):
+            value = ticket.get(field)
+            if value in (None, "") and field == "close_dt_utc":
+                continue
+            try:
+                parsed = datetime.fromisoformat(
+                    str(value).replace("Z", "+00:00")
+                )
+            except (TypeError, ValueError):
+                blockers.append(
+                    f"invalid_certification_{field}:{label}"
+                )
+                continue
+            if parsed.tzinfo is None or parsed.utcoffset() is None:
+                blockers.append(
+                    f"naive_certification_{field}:{label}"
+                )
+                continue
+            days.add(parsed.astimezone(timezone.utc).date())
+    if not days:
+        blockers.append("missing_certification_trade_days")
+    return sorted(days), list(dict.fromkeys(blockers))
+
+
+def _build_independent_certification(
+    *,
+    trades: list[dict],
+    policies: list[strategy_policies.StrategyPolicy],
+    rows_by_policy: dict[str, list[dict]],
+    providers: dict[str, dict],
+    tick_cache_dir: Path | None,
+    money_contract_path: Path | None,
+    money_tick_cache_dir: Path | None,
+    expected_proof_sha256: str | None = None,
+) -> tuple[dict, list[dict]]:
+    policy_payloads = {
+        policy.policy_id: policy.to_dict()
+        for policy in policies
+    }
+    expected_pairs = {
+        (str(trade.get("sig_id") or ""), policy.policy_id)
+        for trade in trades
+        for policy in policies
+    }
+    expected_count = len(trades) * len(policies)
+    if len(expected_pairs) != expected_count or any(
+        not sig_id or not policy_id
+        for sig_id, policy_id in expected_pairs
+    ):
+        return (
+            _blocked_independent_certification(
+                expected_pairs=expected_pairs,
+                blockers=["invalid_or_duplicate_certification_identity"],
+            ),
+            [],
+        )
+    if money_contract_path is None or not Path(
+        money_contract_path
+    ).is_file():
+        return (
+            _blocked_independent_certification(
+                expected_pairs=expected_pairs,
+                blockers=["independent_money_contract_missing"],
+            ),
+            [],
+        )
+    if tick_cache_dir is None or not Path(tick_cache_dir).is_dir():
+        return (
+            _blocked_independent_certification(
+                expected_pairs=expected_pairs,
+                blockers=["independent_market_tick_cache_missing"],
+            ),
+            [],
+        )
+
+    try:
+        money_contract = json.loads(
+            Path(money_contract_path).read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return (
+            _blocked_independent_certification(
+                expected_pairs=expected_pairs,
+                blockers=["independent_money_contract_invalid_json"],
+            ),
+            [],
+        )
+    if not isinstance(money_contract, dict):
+        return (
+            _blocked_independent_certification(
+                expected_pairs=expected_pairs,
+                blockers=["independent_money_contract_invalid_json"],
+            ),
+            [],
+        )
+
+    instrument = money_contract.get("instrument") or {}
+    account = money_contract.get("account") or {}
+    conversion = money_contract.get("conversion") or {}
+    orientation = conversion.get("orientation")
+    if (
+        orientation != "identity"
+        and (
+            money_tick_cache_dir is None
+            or not Path(money_tick_cache_dir).is_dir()
+        )
+    ):
+        return (
+            _blocked_independent_certification(
+                expected_pairs=expected_pairs,
+                blockers=["independent_conversion_tick_cache_missing"],
+            ),
+            [],
+        )
+
+    market_cache = simulation_oracle.IndependentTickCache(
+        Path(tick_cache_dir),
+        expected_symbol=str(instrument.get("symbol") or ""),
+        require_market_session=True,
+    )
+    conversion_cache = None
+    if orientation != "identity":
+        conversion_cache = simulation_oracle.IndependentTickCache(
+            Path(money_tick_cache_dir),
+            expected_symbol=str(conversion.get("symbol") or ""),
+            require_market_session=False,
+        )
+
+    def identity_quote_loader(_day):
+        return pd.DataFrame(), None
+
+    quote_loader = (
+        conversion_cache.quote_loader
+        if conversion_cache is not None
+        else identity_quote_loader
+    )
+    try:
+        money_oracle = simulation_oracle.IndependentMoneyOracle(
+            money_contract,
+            quote_loader=quote_loader,
+        )
+    except (TypeError, ValueError) as exc:
+        return (
+            _blocked_independent_certification(
+                expected_pairs=expected_pairs,
+                blockers=[
+                    "independent_money_contract_invalid:"
+                    f"{type(exc).__name__}"
+                ],
+            ),
+            [],
+        )
+
+    candidate_rows: dict[tuple[str, str], list[dict]] = {}
+    for policy_id, rows in rows_by_policy.items():
+        for row in rows:
+            key = (str(row.get("sig_id") or ""), str(policy_id))
+            candidate_rows.setdefault(key, []).append(row)
+
+    certificates: list[dict] = []
+    money_contract_sha256 = simulation_run_provenance.sha256_file(
+        Path(money_contract_path)
+    )
+    tick_size = float(instrument.get("tick_size"))
+    currency_digits = int(account.get("currency_digits"))
+    for trade in trades:
+        sig_id = str(trade.get("sig_id") or "")
+        trade_days, day_blockers = _certification_trade_days(trade)
+        market_frames: list[pd.DataFrame] = []
+        market_evidence: list[dict] = []
+        conversion_evidence: list[dict] = []
+        artifact_blockers = list(day_blockers)
+        for day in trade_days:
+            frame, evidence, blockers = market_cache.load_day(day)
+            artifact_blockers.extend(blockers)
+            if evidence is not None:
+                market_evidence.append(evidence)
+            if not frame.empty:
+                market_frames.append(frame)
+            if conversion_cache is not None:
+                _frame, evidence, blockers = conversion_cache.load_day(day)
+                artifact_blockers.extend(blockers)
+                if evidence is not None:
+                    conversion_evidence.append(evidence)
+        ticks = (
+            pd.concat(market_frames, ignore_index=True)
+            if market_frames
+            else pd.DataFrame(columns=["time_utc", "bid", "ask"])
+        )
+        prepared_ticks, preparation_blockers = (
+            simulation_oracle.prepare_tick_window(ticks)
+        )
+        artifact_blockers.extend(preparation_blockers)
+
+        provider_signal = providers.get(sig_id)
+        for policy in policies:
+            policy_payload = policy_payloads[policy.policy_id]
+            policy_artifact_blockers = list(artifact_blockers)
+            if policy.mode != "follow_actual":
+                policy_artifact_blockers.extend(
+                    simulation_oracle.counterfactual_horizon_blockers(
+                        trade=trade,
+                        market_tick_evidence=market_evidence,
+                        conversion_tick_evidence=conversion_evidence,
+                        require_conversion=conversion_cache is not None,
+                    )
+                )
+            candidates = candidate_rows.get(
+                (sig_id, policy.policy_id),
+                [],
+            )
+            if len(candidates) == 1:
+                candidate = candidates[0]
+            else:
+                candidate = {
+                    "sig_id": sig_id,
+                    "strategy": policy.policy_id,
+                    "status": "blocked",
+                    "blockers": [
+                        (
+                            "missing_candidate_row"
+                            if not candidates
+                            else "duplicate_candidate_row"
+                        )
+                    ],
+                    "tickets": [],
+                }
+            if policy_artifact_blockers:
+                oracle = {
+                    "sig_id": sig_id,
+                    "strategy": policy.policy_id,
+                    "status": "blocked",
+                    "blockers": list(dict.fromkeys(
+                        policy_artifact_blockers
+                    )),
+                    "tickets": [],
+                }
+            else:
+                oracle = simulation_oracle.replay_policy_trade(
+                    trade=trade,
+                    ticks=prepared_ticks,
+                    policy=policy_payload,
+                    provider_signal=provider_signal,
+                    money_oracle=money_oracle,
+                    tick_size=tick_size,
+                )
+            source_evidence = simulation_certifier.build_source_evidence(
+                trade=trade,
+                provider_signal=provider_signal,
+                policy=policy_payload,
+                market_tick_evidence=market_evidence,
+                conversion_tick_evidence=conversion_evidence,
+                money_contract_sha256=money_contract_sha256,
+            )
+            certificates.append(simulation_certifier.certify_trade(
+                candidate=candidate,
+                oracle=oracle,
+                tick_size=tick_size,
+                currency_digits=currency_digits,
+                source_evidence=source_evidence,
+            ))
+
+    summary = simulation_certifier.summarize_run(
+        certificates=certificates,
+        expected_pairs=expected_pairs,
+        expected_proof_sha256=expected_proof_sha256,
+    )
+    return summary, certificates
+
+
+def _apply_independent_certification_gate(
+    report: dict,
+    certification: dict,
+) -> None:
+    report["independent_certification"] = certification
+    complete = bool(
+        certification.get("complete")
+        and certification.get("conclusions_allowed")
+        and not certification.get("blockers")
+    )
+    report.setdefault("validation", {})[
+        "independent_certification_complete"
+    ] = complete
+    if complete:
+        return
+    report["validation"]["mode"] = "diagnostic_only"
+    selection = report.setdefault("selection", {})
+    selection["selected_policy"] = None
+    selection["exploratory_ranking"] = []
+    blockers = selection.setdefault("global_blockers", [])
+    blocker = "independent_simulation_certification_incomplete"
+    if blocker not in blockers:
+        blockers.append(blocker)
 
 
 def select_strategy(
@@ -338,29 +814,70 @@ def _market_replay_summary(effective_baselines: list[dict]) -> dict[str, int]:
     external = sum(
         status == "external_intervention" for status in statuses
     )
+    delayed = sum(
+        status == "delayed_close_observation" for status in statuses
+    )
     mismatched = sum(status == "mismatch" for status in statuses)
     return {
         "selected_trades": len(statuses),
         "exact": exact,
         "external_interventions": external,
-        "blocked": len(statuses) - exact - external - mismatched,
+        "delayed_close_observations": delayed,
+        "blocked": len(statuses) - exact - external - delayed - mismatched,
         "mismatched": mismatched,
     }
 
 
-def _require_current_causal_contract(baseline: dict | None) -> dict | None:
+def _require_current_causal_contract(
+    baseline: dict | None,
+    *,
+    current_tick_contracts: dict[str, dict] | None = None,
+    required_days: Iterable[str] = (),
+) -> dict | None:
     if not isinstance(baseline, dict):
         return baseline
-    if baseline.get("status") not in {"exact", "external_intervention"}:
+    if baseline.get("status") not in {
+        "exact",
+        "external_intervention",
+        "delayed_close_observation",
+    }:
         return baseline
     original_status = baseline.get("status")
     blockers = []
-    if baseline.get("validation_contract") != "causal_path_v2":
+    if baseline.get("validation_contract") != "causal_path_v3":
         blockers.append("causal_path_contract_unverified")
     if baseline.get("fill_price_authority") != "mt5_deals":
         blockers.append("fill_price_authority_unverified")
     if baseline.get("market_session_contract") != MARKET_SESSION_CONTRACT:
         blockers.append("market_session_contract_unverified")
+    baseline_evidence = baseline.get("tick_contract_evidence")
+    current_tick_contracts = current_tick_contracts or {}
+    for day in sorted(set(str(day) for day in required_days)):
+        expected = (
+            baseline_evidence.get(day)
+            if isinstance(baseline_evidence, dict)
+            else None
+        )
+        current = current_tick_contracts.get(day)
+        if not isinstance(expected, dict):
+            blockers.append(
+                f"baseline_tick_contract_evidence_missing:{day}"
+            )
+            continue
+        if not isinstance(current, dict):
+            blockers.append(f"current_tick_contract_missing:{day}")
+            continue
+        comparable_fields = (
+            "symbol",
+            "parquet_sha256",
+            "contract_sha256",
+        )
+        if any(
+            not expected.get(field)
+            or expected.get(field) != current.get(field)
+            for field in comparable_fields
+        ):
+            blockers.append(f"baseline_tick_contract_mismatch:{day}")
     if not blockers:
         return baseline
     return {
@@ -370,6 +887,62 @@ def _require_current_causal_contract(baseline: dict | None) -> dict | None:
             [*(baseline.get("blockers") or []), *blockers]
         )),
     }
+
+
+def _counterfactual_horizon_blockers(
+    trade: dict,
+    current_tick_contracts: dict[str, dict],
+) -> list[str]:
+    blockers: list[str] = []
+    opened_values = {
+        opened
+        for ticket in trade.get("tickets") or []
+        if (
+            opened := strategy_simulator._parse_dt(
+                ticket.get("open_dt_utc")
+            )
+        ) is not None
+    }
+    trade_opened = strategy_simulator._parse_dt(trade.get("open_dt_utc"))
+    if trade_opened is not None:
+        opened_values.add(trade_opened)
+    for opened in sorted(opened_values):
+        day = opened.date().isoformat()
+        contract = current_tick_contracts.get(day)
+        if not isinstance(contract, dict):
+            blockers.append(f"missing_policy_horizon_contract:{day}")
+            continue
+        coverage = contract.get("coverage")
+        if (
+            not isinstance(coverage, dict)
+            or coverage.get("coverage_source") == "legacy_parquet_bounds"
+        ):
+            blockers.append(f"unverified_policy_horizon_coverage:{day}")
+            continue
+        try:
+            session_close = broker_session_close_utc(
+                opened,
+                utc_offset_seconds=contract.get("utc_offset_seconds"),
+            )
+        except ValueError:
+            session_close = None
+        utc_day_end = opened.replace(
+            hour=23,
+            minute=59,
+            second=59,
+            microsecond=0,
+        )
+        if session_close is None or session_close <= opened:
+            blockers.append(f"invalid_policy_horizon:{day}")
+            continue
+        horizon = min(utc_day_end, session_close)
+        if not ensure_replay_tick_cache.coverage_satisfies_window(
+            contract,
+            opened,
+            horizon,
+        ):
+            blockers.append(f"incomplete_policy_horizon:{day}")
+    return list(dict.fromkeys(blockers))
 
 
 def _market_replay_verified(summary: dict[str, int]) -> bool:
@@ -387,6 +960,7 @@ def _market_replay_strategy_eligible(summary: dict[str, int]) -> bool:
     accounted = (
         int(summary.get("exact") or 0)
         + int(summary.get("external_interventions") or 0)
+        + int(summary.get("delayed_close_observations") or 0)
     )
     return (
         selected > 0
@@ -427,6 +1001,95 @@ def _provider_farm_configuration(
     ):
         raise ValueError("provider volume per leg must be positive and finite")
     return latencies, float(volume_per_leg)
+
+
+def strategy_data_preflight(
+    trades: list[dict],
+    catalog: dict,
+    *,
+    tick_cache_dir: Path,
+    money_tick_cache_dir: Path,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    provider_latency_scenarios_ms: Iterable[int] | None = None,
+) -> dict:
+    """Prove every market and conversion day before running the farm."""
+    latencies, _volume = _provider_farm_configuration(
+        provider_latency_scenarios_ms,
+        0.01,
+    )
+    since = ensure_replay_tick_cache._parse_dt(from_date)
+    until = ensure_replay_tick_cache._parse_dt(to_date)
+    offsets = ensure_replay_tick_cache.verified_cache_offset_candidates(
+        Path(tick_cache_dir),
+        expected_symbol="XAUUSD",
+    )
+    provider_days = ensure_replay_tick_cache.required_provider_dates(
+        catalog,
+        since=since,
+        until=until,
+        latency_scenarios_ms=latencies,
+        offset_candidates_seconds=(
+            offsets
+            or ensure_replay_tick_cache.DEFAULT_OFFSET_CANDIDATES_SECONDS
+        ),
+    )
+    market = ensure_replay_tick_cache.build_status(
+        trades,
+        cache_dir=Path(tick_cache_dir),
+        since=since,
+        until=until,
+        pad_minutes=5,
+        expected_symbol="XAUUSD",
+        additional_required_days=provider_days,
+    )
+    money_windows = ensure_money_tick_cache.required_money_day_windows(
+        trades,
+        since=since,
+        until=until,
+        additional_required_days=provider_days,
+    )
+    money = ensure_money_tick_cache._classify_cache_days(
+        money_windows,
+        cache_dir=Path(money_tick_cache_dir),
+        symbol="EURUSD",
+    )
+    errors = [
+        f"market_tick_{status}:{day}"
+        for status, key in (
+            ("missing", "missing_days"),
+            ("invalid", "invalid_days"),
+            ("incomplete", "incomplete_days"),
+        )
+        for day in market.get(key) or []
+    ]
+    errors.extend(
+        f"money_tick_{status}:{day.isoformat()}"
+        for status, key in (
+            ("missing", "missing"),
+            ("invalid", "invalid"),
+            ("incomplete", "incomplete"),
+        )
+        for day in money[key]
+    )
+    required_days = sorted({
+        *(market.get("required_days") or []),
+        *(day.isoformat() for day in money_windows),
+    })
+    return {
+        "ok": not errors,
+        "required_tick_days": required_days,
+        "provider_required_days": [
+            day.isoformat() for day in provider_days
+        ],
+        "verified_offset_candidates_seconds": offsets,
+        "errors": errors,
+        "market_status": market,
+        "money_status": {
+            key: [day.isoformat() for day in money[key]]
+            for key in ("cached", "missing", "invalid", "incomplete")
+        },
+    }
 
 
 def _formal_signal_for_spec(signal: dict) -> dict:
@@ -629,6 +1292,44 @@ def _apply_provider_money_contract(
         "rows": verified_rows + blocked_rows,
         "verified_rows": verified_rows,
         "blocked_rows": blocked_rows,
+    }
+
+
+def _executed_money_summary(
+    rows_by_policy: dict[str, list[dict]],
+) -> dict:
+    rows = [
+        row
+        for policy_rows in rows_by_policy.values()
+        for row in policy_rows
+    ]
+    verified_rows = 0
+    blockers: list[str] = []
+    for row in rows:
+        unsafe = _unsafe_calibration(row)
+        if (
+            row.get("status") != "blocked"
+            and row.get("strategy_pnl") is not None
+            and not unsafe
+        ):
+            verified_rows += 1
+            continue
+        blockers.extend(str(item) for item in row.get("blockers") or [])
+        blockers.extend(
+            str(item)
+            for ticket in row.get("tickets") or []
+            for item in ticket.get("money_blockers") or []
+        )
+        if unsafe:
+            blockers.append(
+                f"unsafe_counterfactual_money:{row.get('sig_id')}:"
+                f"{row.get('strategy')}"
+            )
+    return {
+        "rows": len(rows),
+        "verified_rows": verified_rows,
+        "blocked_rows": len(rows) - verified_rows,
+        "blockers": list(dict.fromkeys(blockers)),
     }
 
 
@@ -854,6 +1555,10 @@ def build_farm_execution(
         selected_trades, None)
     tick_loader = observed_tick_replay_validator.ReplayTickFrameCache(
         tick_cache_dir)
+    money_converter, money_contract = _load_money_converter(
+        money_contract_path,
+        money_tick_cache_dir,
+    )
     rows_by_policy = {policy.policy_id: [] for policy in policies}
     effective_baselines: list[dict] = []
 
@@ -869,14 +1574,42 @@ def build_farm_execution(
                 "blockers": list(dict.fromkeys(missing)),
             }
         else:
-            baseline = _require_current_causal_contract(baseline)
+            baseline = _require_current_causal_contract(
+                baseline,
+                current_tick_contracts=tick_loader.verified_contracts,
+                required_days=(
+                    observed_tick_replay_validator._required_tick_days(
+                        trade,
+                        5,
+                    )
+                ),
+            )
         effective_baselines.append({
             "sig_id": str(trade.get("sig_id")),
             "baseline": baseline,
         })
+        counterfactual_horizon_blockers = (
+            _counterfactual_horizon_blockers(
+                trade,
+                tick_loader.verified_contracts,
+            )
+        )
         result_cache: dict = {}
         portfolio_cache: dict = {}
         for policy in policies:
+            policy_baseline = baseline
+            if (
+                policy.mode != "follow_actual"
+                and counterfactual_horizon_blockers
+            ):
+                policy_baseline = {
+                    **(baseline or {}),
+                    "status": "blocked",
+                    "blockers": list(dict.fromkeys([
+                        *((baseline or {}).get("blockers") or []),
+                        *counterfactual_horizon_blockers,
+                    ])),
+                }
             rows_by_policy[policy.policy_id].append(
                 strategy_simulator.simulate_trade(
                     trade,
@@ -885,9 +1618,11 @@ def build_farm_execution(
                     policy=policy,
                     result_cache=result_cache,
                     portfolio_cache=portfolio_cache,
-                    baseline_audit=baseline,
+                    baseline_audit=policy_baseline,
                     provider_signal=provider_signal,
                     require_provider_timeline=True,
+                    level_timeline_authority="mt5_execution",
+                    money_converter=money_converter,
                     default_unit_value=unit_value,
                     default_unit_source=unit_source,
                     horizon_policy=policy.horizon_policy,
@@ -905,6 +1640,33 @@ def build_farm_execution(
             rows,
             include_trades=include_trades,
         ))
+    (
+        independent_certification,
+        independent_certificates,
+    ) = _build_independent_certification(
+        trades=selected_trades,
+        policies=policies,
+        rows_by_policy=rows_by_policy,
+        providers=providers,
+        tick_cache_dir=tick_cache_dir,
+        money_contract_path=money_contract_path,
+        money_tick_cache_dir=money_tick_cache_dir,
+    )
+    executed_contract = executed_simulation_contract.validate_contract(
+        selected_trades,
+        policies,
+        rows_by_policy,
+    )
+    executed_scope = {
+        "executed_trades": len(selected_trades),
+        "policy_count": len(policies),
+        "rows_expected": executed_contract["rows_expected"],
+        "rows_emitted": executed_contract["rows_emitted"],
+        "blocked_rows": executed_contract["blocked_rows"],
+        "entry_invariant_failures": executed_contract[
+            "entry_invariant_failures"
+        ],
+    }
 
     executed_selection = select_strategy(
         scores,
@@ -936,10 +1698,6 @@ def build_farm_execution(
         latency_scenarios_ms=latency_scenarios_ms,
         volume_per_leg=provider_volume_per_leg,
         progress_step=progress_step,
-    )
-    money_converter, money_contract = _load_money_converter(
-        money_contract_path,
-        money_tick_cache_dir,
     )
     actual_money_validation = {
         "verified": False,
@@ -977,10 +1735,17 @@ def build_farm_execution(
         }
         for group in provider_policy_results
     ]
-    money_blockers = list(dict.fromkeys(
+    executed_money_summary = _executed_money_summary(rows_by_policy)
+    primary_money_blockers = list(dict.fromkeys(
         [
             *(money_contract.get("blockers") or []),
             *(actual_money_validation.get("blockers") or []),
+            *(executed_money_summary.get("blockers") or []),
+        ]
+    ))
+    provider_money_blockers = list(dict.fromkeys(
+        [
+            *(money_contract.get("blockers") or []),
             *[
                 str(blocker)
                 for group in provider_policy_results
@@ -992,6 +1757,14 @@ def build_farm_execution(
     money_verified = bool(
         money_contract.get("contract_verified")
         and actual_money_validation.get("verified")
+        and executed_money_summary["rows"] > 0
+        and executed_money_summary["rows"] == executed_money_summary[
+            "verified_rows"
+        ]
+    )
+    provider_money_verified = bool(
+        money_contract.get("contract_verified")
+        and provider_money_summary["rows"] > 0
         and provider_money_summary["rows"] == provider_money_summary[
             "verified_rows"
         ]
@@ -1002,25 +1775,29 @@ def build_farm_execution(
         money_mode = "account_currency_diagnostic"
     else:
         money_mode = "diagnostic_only"
-    diagnostic_blockers = [] if money_verified else [
-        "broker_money_contract_unverified"
-    ]
-    diagnostic_blockers.extend(
-        blocker for blocker in money_blockers
-        if blocker not in diagnostic_blockers
+    primary_blockers = []
+    if not money_contract.get("contract_verified"):
+        primary_blockers.append("broker_money_contract_unverified")
+    primary_blockers.extend(
+        blocker for blocker in primary_money_blockers
+        if blocker not in primary_blockers
     )
     if not market_replay_strategy_eligible:
-        diagnostic_blockers.append("market_replay_not_exact")
-    selection = {
-        "minimum_trades": minimum_trades,
-        "oos_validated": False,
-        "selected_policy": None,
-        "global_blockers": diagnostic_blockers,
-        "policy_blockers": {},
-        "exploratory_ranking": [],
-        "ranking_excluded": {},
-        "ranking_rule": None,
-    }
+        primary_blockers.append("market_replay_not_exact")
+    if not executed_contract["complete"]:
+        primary_blockers.append("executed_replay_contract_incomplete")
+    selection = copy.deepcopy(executed_selection)
+    for blocker in primary_blockers:
+        if blocker not in selection["global_blockers"]:
+            selection["global_blockers"].append(blocker)
+    non_statistical_blockers = [
+        blocker
+        for blocker in selection["global_blockers"]
+        if blocker != "oos_not_validated"
+    ]
+    if non_statistical_blockers:
+        selection["selected_policy"] = None
+        selection["exploratory_ranking"] = []
 
     calibration = {
         "unit_value": round(unit_value, 8),
@@ -1030,33 +1807,60 @@ def build_farm_execution(
     report = {
         "schema_version": SCHEMA_VERSION,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "primary_universe": "executed_mt5",
         "from_date": from_date,
         "to_date": to_date,
         "executed_trade_count": len(selected_trades),
         "policy_count": len(policies),
         "includes_trade_details": include_trades,
         "calibration": calibration,
+        "executed_scope": executed_scope,
+        "executed_replay_contract": executed_contract,
         "canonical_scope": canonical_scope,
         "provider_scope": provider_scope,
+        "provider_diagnostics": {
+            "ranking_eligible": False,
+            "formal_signals": provider_scope["formal_signals"],
+            "money_verified": provider_money_verified,
+            "money_blockers": provider_money_blockers,
+            "purpose": (
+                "coverage_and_missed_opportunity_diagnostics_only"
+            ),
+        },
         "provider_configuration": {
             "latency_scenarios_ms": list(latency_scenarios_ms),
             "volume_per_leg": provider_volume_per_leg,
         },
         "market_replay": market_replay_summary,
         "validation": {
-            "price_path_mode": "provider_first",
+            "primary_universe": "executed_mt5",
+            "price_path_mode": "executed_mt5_entries",
+            "entry_authority": "mt5_deals",
+            "level_timeline_authority": "confirmed_mt5_history",
+            "management_trigger_authority": (
+                "canonical_telegram_observed"
+            ),
             "money_mode": money_mode,
-            "money_contract_verified": money_verified,
+            "money_contract_verified": bool(
+                money_contract.get("contract_verified")
+            ),
+            "account_currency_money_verified": money_verified,
             "market_replay_verified": market_replay_verified,
             "market_replay_strategy_eligible": market_replay_strategy_eligible,
+            "executed_contract_complete": executed_contract["complete"],
             "mode": (
-                "verified_account_currency"
-                if money_verified and market_replay_strategy_eligible
+                "verified_executed_counterfactuals"
+                if (
+                    money_verified
+                    and market_replay_strategy_eligible
+                    and executed_contract["complete"]
+                )
                 else "diagnostic_only"
             ),
         },
         "money_contract": money_contract,
         "money_validation": actual_money_validation,
+        "executed_money": executed_money_summary,
         "provider_money": provider_money_summary,
         "selection": selection,
         "policies": scores,
@@ -1070,6 +1874,10 @@ def build_farm_execution(
             "policies": scores,
         },
     }
+    _apply_independent_certification_gate(
+        report,
+        independent_certification,
+    )
     effective_providers = [
         {
             "sig_id": str(trade.get("sig_id")),
@@ -1090,6 +1898,7 @@ def build_farm_execution(
             "provider_policy_results": provider_policy_results,
             "provider_policy_scores": provider_policy_scores,
             "money_validation": actual_money_validation,
+            "independent_certificates": independent_certificates,
         },
         policies=[policy.to_dict() for policy in policies],
         required_tick_days=tick_loader.required_days,
@@ -1203,6 +2012,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Run the auditable management strategy farm")
     parser.add_argument("--replay", type=Path, default=DEFAULT_REPLAY)
+    parser.add_argument("--replay-manifest", type=Path)
+    parser.add_argument("--ledger-source", type=Path)
+    parser.add_argument("--events-source", type=Path)
     parser.add_argument("--baseline", type=Path, default=DEFAULT_BASELINE)
     parser.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)
     parser.add_argument("--tick-cache-dir", type=Path, default=DEFAULT_TICK_CACHE)
@@ -1242,12 +2054,30 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--progress", action="store_true")
     args = parser.parse_args(argv)
 
+    default_replay_selected = (
+        args.replay.resolve() == DEFAULT_REPLAY.resolve()
+    )
+    replay_source_dir = (
+        DATA_DIR if default_replay_selected else args.replay.parent
+    )
+    replay_manifest = (
+        args.replay_manifest
+        or replay_source_contract.default_manifest_path(args.replay)
+    )
+    ledger_source = (
+        args.ledger_source or replay_source_dir / "ledger.jsonl"
+    )
+    events_source = (
+        args.events_source or replay_source_dir / "trade_events.jsonl"
+    )
     required_inputs = {
         "replay_trades": args.replay,
+        "replay_source_manifest": replay_manifest,
+        "replay_source_ledger": ledger_source,
+        "replay_source_events": events_source,
         "observed_baseline": args.baseline,
         "provider_catalog": args.catalog,
         "broker_money_contract": args.money_contract,
-        "money_tick_cache_status": DEFAULT_MONEY_TICK_STATUS,
     }
     args.output.unlink(missing_ok=True)
     missing = [
@@ -1260,9 +2090,76 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
+    def replay_source_errors() -> list[str]:
+        return replay_source_contract.validate_manifest(
+            replay_path=args.replay,
+            ledger_path=ledger_source,
+            events_path=events_source,
+            manifest_path=replay_manifest,
+        )
+
+    def reject_changed_replay_sources(stage: str) -> bool:
+        errors = replay_source_errors()
+        if not errors:
+            return False
+        print(
+            f"Invalid replay source contract ({stage}): "
+            + ", ".join(errors),
+            file=sys.stderr,
+        )
+        return True
+
+    if reject_changed_replay_sources("before_farm"):
+        return 1
+
+    source_files = _simulation_source_files()
+    semantic_paths = _semantic_artifact_paths(
+        input_files=required_inputs,
+        source_files=source_files,
+        market_tick_cache_dir=args.tick_cache_dir,
+        conversion_tick_cache_dir=args.money_tick_cache_dir,
+    )
+    semantic_snapshot = _snapshot_semantic_artifacts(semantic_paths)
+
+    def reject_changed_semantic_artifacts(stage: str) -> bool:
+        changed = _changed_semantic_artifacts(semantic_snapshot)
+        if not changed:
+            return False
+        labels = [
+            role.split(":", 1)[1]
+            if role.startswith(("input:", "code:"))
+            else role
+            for role in changed
+        ]
+        print(
+            f"Semantic artifacts changed ({stage}): "
+            + ", ".join(
+                f"semantic_artifact_changed:{label}"
+                for label in labels
+            ),
+            file=sys.stderr,
+        )
+        return True
+
     trades = strategy_simulator.load_jsonl(args.replay)
     baseline_rows = strategy_simulator.load_jsonl(args.baseline)
     catalog = _load_json(args.catalog)
+    preflight = strategy_data_preflight(
+        trades,
+        catalog,
+        tick_cache_dir=args.tick_cache_dir,
+        money_tick_cache_dir=args.money_tick_cache_dir,
+        from_date=args.from_date,
+        to_date=args.to_date,
+        provider_latency_scenarios_ms=args.provider_latency_scenarios_ms,
+    )
+    if not preflight["ok"]:
+        print(
+            "Strategy farm data preflight failed: "
+            + ", ".join(preflight["errors"]),
+            file=sys.stderr,
+        )
+        return 1
     progress_reporter = (
         pipeline_progress.ProgressReporter() if args.progress else None
     )
@@ -1290,6 +2187,24 @@ def main(argv: list[str] | None = None) -> int:
         money_tick_cache_dir=args.money_tick_cache_dir,
         progress_callback=report_progress if args.progress else None,
     )
+    unexpected_tick_days = sorted(
+        set(execution.required_tick_days)
+        - set(preflight["required_tick_days"])
+    )
+    if unexpected_tick_days:
+        print(
+            "Strategy farm required-day contract drift: "
+            + ", ".join(
+                f"unexpected_tick_day:{day}"
+                for day in unexpected_tick_days
+            ),
+            file=sys.stderr,
+        )
+        return 1
+    if reject_changed_replay_sources("after_farm"):
+        return 1
+    if reject_changed_semantic_artifacts("after_farm"):
+        return 1
     provider_configuration = execution.report["provider_configuration"]
     evidence = simulation_run_provenance.build_run_evidence(
         repo_dir=Path(__file__).parent,
@@ -1310,37 +2225,15 @@ def main(argv: list[str] | None = None) -> int:
         selected_payloads=execution.selected_payloads,
         policies=execution.policies,
         input_files=required_inputs,
-        source_files={
-            "strategy_farm": Path(__file__),
-            "strategy_policies": Path(strategy_policies.__file__),
-            "strategy_simulator": Path(strategy_simulator.__file__),
-            "provider_trade_spec": Path(provider_trade_spec.__file__),
-            "provider_strategy_simulator": Path(
-                provider_strategy_simulator.__file__
-            ),
-            "broker_money": Path(broker_money.__file__),
-            "capture_broker_money_contract": Path(
-                Path(__file__).parent / "tools" /
-                "capture_broker_money_contract.py"
-            ),
-            "ensure_money_tick_cache": Path(
-                Path(__file__).parent / "tools" /
-                "ensure_money_tick_cache.py"
-            ),
-            "observed_tick_replay_validator": Path(
-                observed_tick_replay_validator.__file__
-            ),
-            "ensure_replay_tick_cache": Path(
-                observed_tick_replay_validator.ensure_replay_tick_cache.__file__
-            ),
-            "simulation_run_provenance": Path(
-                simulation_run_provenance.__file__
-            ),
-        },
+        source_files=source_files,
         required_tick_days=execution.required_tick_days,
         tick_contracts=execution.verified_tick_contracts,
         market_replay=execution.market_replay_summary,
     )
+    if reject_changed_replay_sources("after_provenance"):
+        return 1
+    if reject_changed_semantic_artifacts("after_provenance"):
+        return 1
     try:
         publication = simulation_run_provenance.publish_run_archive(
             report=execution.report,

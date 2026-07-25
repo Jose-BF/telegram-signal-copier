@@ -25,6 +25,12 @@ _PROVIDER_FIRST_PAYLOAD_ROLES = {
     "provider_volume_per_leg",
     "provider_policy_results",
 }
+_EXECUTED_MT5_PAYLOAD_ROLES = {
+    "replay_trades",
+    "effective_baselines",
+    "effective_provider_links",
+    "independent_certificates",
+}
 _TICK_CONTRACT_FIELDS = (
     "tick_time_contract",
     "time_basis",
@@ -34,7 +40,11 @@ _TICK_CONTRACT_FIELDS = (
     "offset_reference",
     "semantic_time_valid",
     "anchor_validation",
+    "symbol",
+    "coverage",
+    "source_verification",
     "parquet_sha256",
+    "contract_sha256",
     "size_bytes",
 )
 
@@ -222,9 +232,39 @@ def _identity_payload(
 
 def _verified_tick_contract(contract: Mapping[str, Any]) -> bool:
     anchor_validation = contract.get("anchor_validation")
+    coverage = contract.get("coverage")
+    source_verification = contract.get("source_verification")
     offset = contract.get("utc_offset_seconds")
     digest = str(contract.get("parquet_sha256") or "")
+    contract_digest = str(contract.get("contract_sha256") or "")
     size = contract.get("size_bytes")
+    try:
+        coverage_rows = int((coverage or {})["row_count"])
+        primary_rows = int(
+            (source_verification or {})["primary_row_count"]
+        )
+        verification_rows = int(
+            (source_verification or {})["verification_row_count"]
+        )
+    except (KeyError, TypeError, ValueError):
+        coverage_rows = -1
+        primary_rows = -2
+        verification_rows = -3
+    primary_content_digest = str(
+        (source_verification or {}).get("primary_content_sha256") or ""
+    )
+    verification_content_digest = str(
+        (source_verification or {}).get(
+            "verification_content_sha256"
+        ) or ""
+    )
+    valid_sha256 = lambda value: (
+        len(value) == 64
+        and all(
+            character in "0123456789abcdef"
+            for character in value
+        )
+    )
     return (
         contract.get("tick_time_contract") == "mt5_server_epoch_utc_v3"
         and contract.get("time_basis") == "UTC"
@@ -237,8 +277,26 @@ def _verified_tick_contract(contract: Mapping[str, Any]) -> bool:
         and contract.get("semantic_time_valid") is True
         and isinstance(anchor_validation, Mapping)
         and anchor_validation.get("valid") is True
-        and len(digest) == 64
-        and all(character in "0123456789abcdef" for character in digest)
+        and contract.get("symbol") == "XAUUSD"
+        and isinstance(coverage, Mapping)
+        and bool(coverage.get("complete_from_utc"))
+        and bool(coverage.get("complete_through_utc"))
+        and coverage.get("coverage_source") != "legacy_parquet_bounds"
+        and coverage_rows >= 0
+        and isinstance(source_verification, Mapping)
+        and source_verification.get("verified") is True
+        and source_verification.get("method")
+        == "full_day_vs_two_half_days_v1"
+        and source_verification.get("content_digest")
+        == "time_bid_ask_sequence_sha256_v1"
+        and source_verification.get("symbol") == contract.get("symbol")
+        and primary_rows == coverage_rows
+        and verification_rows == coverage_rows
+        and valid_sha256(primary_content_digest)
+        and primary_content_digest == verification_content_digest
+        and not (source_verification.get("errors") or [])
+        and valid_sha256(digest)
+        and valid_sha256(contract_digest)
         and not isinstance(size, bool)
         and isinstance(size, int)
         and size > 0
@@ -250,6 +308,15 @@ def _provider_first_mode(report: Mapping[str, Any]) -> bool:
     return (
         isinstance(validation, Mapping)
         and validation.get("price_path_mode") == "provider_first"
+    )
+
+
+def _executed_mt5_mode(report: Mapping[str, Any]) -> bool:
+    validation = report.get("validation")
+    return (
+        isinstance(validation, Mapping)
+        and validation.get("price_path_mode") == "executed_mt5_entries"
+        and report.get("primary_universe") == "executed_mt5"
     )
 
 
@@ -302,15 +369,163 @@ def _provider_row_accounting_verified(report: Mapping[str, Any]) -> bool:
     )
 
 
+def _executed_row_accounting_verified(report: Mapping[str, Any]) -> bool:
+    if not _executed_mt5_mode(report):
+        return True
+    scope = report.get("executed_scope")
+    contract = report.get("executed_replay_contract")
+    if not isinstance(scope, Mapping) or not isinstance(contract, Mapping):
+        return False
+    values = {
+        key: scope.get(key)
+        for key in (
+            "executed_trades",
+            "policy_count",
+            "rows_expected",
+            "rows_emitted",
+            "blocked_rows",
+            "entry_invariant_failures",
+        )
+    }
+    if any(
+        isinstance(value, bool) or not isinstance(value, int) or value < 0
+        for value in values.values()
+    ):
+        return False
+    expected = values["executed_trades"] * values["policy_count"]
+    matrix_verified = (
+        values["policy_count"] > 0
+        and values["rows_expected"] == expected
+        and values["rows_emitted"] == expected
+        and contract.get("universe") == "executed_mt5"
+        and contract.get("rows_expected") == expected
+        and contract.get("rows_emitted") == expected
+    )
+    return matrix_verified
+
+
+def _valid_sha256(value: Any) -> bool:
+    digest = str(value or "")
+    return len(digest) == 64 and all(
+        character in "0123456789abcdef" for character in digest
+    )
+
+
+def _independent_certification_verified(
+    report: Mapping[str, Any],
+    selected_payloads: Mapping[str, Sequence[Any]],
+) -> bool:
+    if not _executed_mt5_mode(report):
+        return True
+    validation = report.get("validation")
+    summary = report.get("independent_certification")
+    certificates = selected_payloads.get("independent_certificates")
+    scope = report.get("executed_scope")
+    if (
+        not isinstance(validation, Mapping)
+        or validation.get("independent_certification_complete") is not True
+        or not isinstance(summary, Mapping)
+        or not isinstance(certificates, (list, tuple))
+        or not isinstance(scope, Mapping)
+    ):
+        return False
+
+    integer_fields = (
+        "rows_expected",
+        "rows_checked",
+        "certified_rows",
+        "mismatched_rows",
+        "blocked_rows",
+        "tickets_expected",
+        "certified_tickets",
+        "mismatched_tickets",
+        "blocked_tickets",
+    )
+    if any(
+        isinstance(summary.get(field), bool)
+        or not isinstance(summary.get(field), int)
+        or int(summary[field]) < 0
+        for field in integer_fields
+    ):
+        return False
+    expected_rows = int(scope.get("rows_expected") or -1)
+    if (
+        expected_rows <= 0
+        or summary["rows_expected"] != expected_rows
+        or summary["rows_checked"] != expected_rows
+        or summary["certified_rows"] != expected_rows
+        or summary["mismatched_rows"] != 0
+        or summary["blocked_rows"] != 0
+        or len(certificates) != expected_rows
+        or summary.get("deterministic") is not True
+        or summary.get("complete") is not True
+        or summary.get("conclusions_allowed") is not True
+        or list(summary.get("blockers") or [])
+    ):
+        return False
+
+    identities: set[tuple[str, str]] = set()
+    ticket_expected = 0
+    ticket_certified = 0
+    proof_records: list[dict[str, Any]] = []
+    for certificate in certificates:
+        if not isinstance(certificate, Mapping):
+            return False
+        sig_id = str(certificate.get("sig_id") or "")
+        strategy = str(certificate.get("strategy") or "")
+        identity = (sig_id, strategy)
+        if (
+            not sig_id
+            or not strategy
+            or identity in identities
+            or certificate.get("status") != "certified"
+            or list(certificate.get("blockers") or [])
+            or not _valid_sha256(certificate.get("proof_sha256"))
+        ):
+            return False
+        identities.add(identity)
+        try:
+            certified = int(certificate.get("certified_tickets") or 0)
+            mismatched = int(certificate.get("mismatched_tickets") or 0)
+            blocked = int(certificate.get("blocked_tickets") or 0)
+        except (TypeError, ValueError):
+            return False
+        if min(certified, mismatched, blocked) < 0:
+            return False
+        ticket_expected += certified + mismatched + blocked
+        ticket_certified += certified
+        proof_records.append({
+            "sig_id": sig_id,
+            "strategy": strategy,
+            "status": "certified",
+            "proof_sha256": certificate["proof_sha256"],
+        })
+
+    proof_records.sort(
+        key=lambda row: (row["sig_id"], row["strategy"])
+    )
+    return bool(
+        summary["tickets_expected"] == ticket_expected
+        and summary["certified_tickets"] == ticket_certified
+        and summary["mismatched_tickets"] == 0
+        and summary["blocked_tickets"] == 0
+        and ticket_certified == ticket_expected
+        and _valid_sha256(summary.get("proof_sha256"))
+        and summary["proof_sha256"] == sha256_json(proof_records)
+    )
+
+
 def _normalize_market_replay(value: Mapping[str, Any]) -> dict[str, int]:
     normalized = {
         key: int(value.get(key) or 0)
         for key in ("selected_trades", "exact", "blocked", "mismatched")
     }
-    if "external_interventions" in value:
-        normalized["external_interventions"] = int(
-            value.get("external_interventions") or 0
-        )
+    for key in (
+        "external_interventions",
+        "delayed_close_observations",
+    ):
+        if key in value:
+            normalized[key] = int(value.get(key) or 0)
     if any(count < 0 for count in normalized.values()):
         raise ValueError("market replay counts cannot be negative")
     return normalized
@@ -331,12 +546,67 @@ def _market_replay_strategy_eligible(summary: Mapping[str, int]) -> bool:
     accounted = (
         int(summary.get("exact") or 0)
         + int(summary.get("external_interventions") or 0)
+        + int(summary.get("delayed_close_observations") or 0)
     )
     return (
         selected > 0
         and accounted == selected
         and int(summary.get("blocked") or 0) == 0
         and int(summary.get("mismatched") or 0) == 0
+    )
+
+
+def _validation_allows_conclusions(validation: Mapping[str, Any]) -> bool:
+    provider_first = validation.get("price_path_mode") == "provider_first"
+    executed_mt5 = (
+        validation.get("primary_universe") == "executed_mt5"
+        or validation.get("price_path_mode") == "executed_mt5_entries"
+    )
+    strategy_mode = provider_first or executed_mt5
+    replay_verified = (
+        validation.get("market_replay_strategy_eligible") is True
+        if strategy_mode
+        else validation.get("market_replay_verified") is True
+    )
+    provider_rows_verified = (
+        validation.get("provider_row_accounting_verified") is True
+        if provider_first
+        else True
+    )
+    executed_rows_verified = (
+        validation.get("executed_row_accounting_verified") is True
+        if executed_mt5
+        else True
+    )
+    executed_contract_complete = (
+        validation.get("executed_contract_complete") is True
+        if executed_mt5
+        else True
+    )
+    money_contract_verified = (
+        validation.get("money_contract_verified") is True
+        if strategy_mode
+        else True
+    )
+    account_currency_money_verified = (
+        validation.get("account_currency_money_verified") is True
+        if strategy_mode
+        else True
+    )
+    independent_certification_complete = (
+        validation.get("independent_certification_complete") is True
+        if executed_mt5
+        else True
+    )
+    return bool(
+        validation.get("artifact_integrity_verified") is True
+        and replay_verified
+        and provider_rows_verified
+        and executed_rows_verified
+        and executed_contract_complete
+        and money_contract_verified
+        and account_currency_money_verified
+        and independent_certification_complete
     )
 
 
@@ -404,29 +674,78 @@ def build_run_evidence(
     parameter_record = _json_safe(parameters)
     selected_input_records = _payload_records(selected_payloads)
     provider_first = _provider_first_mode(report)
+    executed_mt5 = _executed_mt5_mode(report)
     if provider_first:
         for role in sorted(_PROVIDER_FIRST_PAYLOAD_ROLES - set(selected_payloads)):
             errors.append(f"missing_provider_selected_payload:{role}")
+    if executed_mt5:
+        for role in sorted(_EXECUTED_MT5_PAYLOAD_ROLES - set(selected_payloads)):
+            errors.append(f"missing_executed_selected_payload:{role}")
     provider_row_accounting_verified = _provider_row_accounting_verified(report)
     if provider_first and not provider_row_accounting_verified:
         errors.append("provider_row_accounting_incomplete")
+    executed_row_accounting_verified = _executed_row_accounting_verified(
+        report
+    )
+    report_validation = report.get("validation") or {}
+    executed_contract_complete = bool(
+        not executed_mt5
+        or (
+            isinstance(report.get("executed_replay_contract"), Mapping)
+            and report["executed_replay_contract"].get("complete") is True
+            and report_validation.get("executed_contract_complete") is True
+        )
+    )
+    if executed_mt5 and not executed_row_accounting_verified:
+        errors.append("executed_row_accounting_incomplete")
+    independent_certification_complete = (
+        _independent_certification_verified(report, selected_payloads)
+    )
+    certification_summary = report.get("independent_certification")
+    certification_claimed_complete = bool(
+        report_validation.get("independent_certification_complete") is True
+        or (
+            isinstance(certification_summary, Mapping)
+            and (
+                certification_summary.get("complete") is True
+                or certification_summary.get("conclusions_allowed") is True
+            )
+        )
+    )
+    if (
+        executed_mt5
+        and certification_claimed_complete
+        and not independent_certification_complete
+    ):
+        errors.append("independent_certification_incomplete")
     policy_record = _policy_record(policies)
     market_replay_record = _normalize_market_replay(market_replay)
 
     limitations = ["tick_artifacts_local_cache_only"] if tick_days else []
-    report_validation = report.get("validation") or {}
     money_mode = (
         str(report_validation.get("money_mode") or "diagnostic_only")
-        if provider_first
+        if provider_first or executed_mt5
         else "legacy_verified"
     )
     money_contract_verified = (
-        not provider_first
+        not (provider_first or executed_mt5)
         or report_validation.get("money_contract_verified") is True
-        or money_mode == "verified_account_currency"
     )
-    if provider_first and not money_contract_verified:
+    account_currency_money_verified = (
+        not (provider_first or executed_mt5)
+        or report_validation.get(
+            "account_currency_money_verified"
+        ) is True
+    )
+    if (provider_first or executed_mt5) and not money_contract_verified:
         limitations.append("broker_money_contract_unverified")
+    if (
+        (provider_first or executed_mt5)
+        and not account_currency_money_verified
+    ):
+        limitations.append("account_currency_money_unverified")
+    if executed_mt5 and not independent_certification_complete:
+        limitations.append("independent_certification_incomplete")
     if (
         provider_first
         and not _market_replay_verified(market_replay_record)
@@ -453,24 +772,9 @@ def build_run_evidence(
     market_replay_strategy_eligible = _market_replay_strategy_eligible(
         market_replay_record
     )
-    conclusions_allowed = (
-        artifact_integrity_verified
-        and (
-            market_replay_strategy_eligible
-            if provider_first
-            else market_replay_verified
-        )
-        and provider_row_accounting_verified
-        and money_contract_verified
-    )
     validation = {
         "artifact_integrity_verified": artifact_integrity_verified,
         "market_replay_verified": market_replay_verified,
-        "conclusions_allowed": conclusions_allowed,
-        "mode": (
-            "verified_simulation" if conclusions_allowed
-            else "diagnostic_only"
-        ),
         "market_replay": market_replay_record,
     }
     if provider_first:
@@ -481,10 +785,41 @@ def build_run_evidence(
                 provider_row_accounting_verified
             ),
             "money_contract_verified": money_contract_verified,
+            "account_currency_money_verified": (
+                account_currency_money_verified
+            ),
             "market_replay_strategy_eligible": (
                 market_replay_strategy_eligible
             ),
         })
+    if executed_mt5:
+        validation.update({
+            "primary_universe": "executed_mt5",
+            "price_path_mode": "executed_mt5_entries",
+            "money_mode": money_mode,
+            "executed_row_accounting_verified": (
+                executed_row_accounting_verified
+            ),
+            "executed_contract_complete": executed_contract_complete,
+            "money_contract_verified": money_contract_verified,
+            "account_currency_money_verified": (
+                account_currency_money_verified
+            ),
+            "market_replay_strategy_eligible": (
+                market_replay_strategy_eligible
+            ),
+            "independent_certification_complete": (
+                independent_certification_complete
+            ),
+        })
+    conclusions_allowed = _validation_allows_conclusions(validation)
+    validation.update({
+        "conclusions_allowed": conclusions_allowed,
+        "mode": (
+            "verified_simulation" if conclusions_allowed
+            else "diagnostic_only"
+        ),
+    })
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -761,12 +1096,7 @@ def publish_run_archive(
         reproducibility.get("verified_now")
     ):
         raise ProvenanceConflictError("validation_integrity_mismatch")
-    expected_conclusions = bool(
-        validation.get("artifact_integrity_verified")
-        and validation.get("market_replay_verified")
-        and validation.get("provider_row_accounting_verified", True)
-        and validation.get("money_contract_verified", True)
-    )
+    expected_conclusions = _validation_allows_conclusions(validation)
     if bool(validation.get("conclusions_allowed")) != expected_conclusions:
         raise ProvenanceConflictError("validation_conclusions_mismatch")
     expected_mode = (

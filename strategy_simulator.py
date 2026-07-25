@@ -53,7 +53,9 @@ def _parse_dt(value: str | None) -> datetime | None:
 def _iso(dt: datetime | None) -> str | None:
     if dt is None:
         return None
-    return dt.astimezone(timezone.utc).isoformat(timespec="seconds")
+    utc = dt.astimezone(timezone.utc)
+    timespec = "milliseconds" if utc.microsecond else "seconds"
+    return utc.isoformat(timespec=timespec)
 
 
 def _round_money(value: float | None) -> float | None:
@@ -235,9 +237,15 @@ def _provider_level_events(
     return sorted(events, key=lambda event: event["ts"])
 
 
-def _is_be_sl_event(ticket: dict, event: dict) -> bool:
+def _is_be_source(event: dict) -> bool:
     source = str(event.get("source") or "").upper()
     if "BE" in source or "BREAKEVEN" in source or "BREAK_EVEN" in source:
+        return True
+    return False
+
+
+def _is_be_sl_event(ticket: dict, event: dict) -> bool:
+    if _is_be_source(event):
         return True
     try:
         open_price = float(ticket.get("open_price"))
@@ -417,6 +425,9 @@ def _unchanged_ticket_result(ticket: dict) -> dict:
         "close_time_utc": _iso(_parse_dt(ticket.get("close_dt_utc"))),
         "close_price": ticket.get("close_price"),
         "pnl_source": "mt5_actual",
+        "open_time_utc": _iso(_parse_dt(ticket.get("open_dt_utc"))),
+        "open_price": ticket.get("open_price"),
+        "volume": float(ticket.get("volume") or 1.0),
         "blockers": [],
         "assumptions": [],
     }
@@ -604,6 +615,7 @@ def _management_trigger(
     *,
     provider_signal: dict | None = None,
     require_provider_timeline: bool = False,
+    allow_confirmed_mt5_fallback: bool = False,
 ) -> tuple[datetime | None, str | None]:
     candidates: list[tuple[datetime, str]] = []
     if provider_signal is not None:
@@ -639,6 +651,18 @@ def _management_trigger(
             candidates.append((event_dt, source))
     if candidates:
         return min(candidates, key=lambda item: item[0])
+    if (
+        allow_confirmed_mt5_fallback
+        and policy.trigger_action == "MOVE_SL_TO_BE"
+    ):
+        confirmed = [
+            event["ts"]
+            for ticket in trade.get("tickets") or []
+            for event in _level_events(ticket.get("sl_history") or [], "sl")
+            if _is_be_sl_event(ticket, event)
+        ]
+        if confirmed:
+            return min(confirmed), "confirmed_mt5_level_history"
     return None, None
 
 
@@ -652,7 +676,11 @@ def _ticket_tp_distance(
     events = (
         tp_events
         if tp_events is not None
-        else _level_events(ticket.get("tp_history") or [], "tp")
+        else [
+            event
+            for event in _level_events(ticket.get("tp_history") or [], "tp")
+            if not _is_be_source(event)
+        ]
     )
     active = [event for event in events if event["ts"] <= trigger]
     event = active[-1] if active else None
@@ -750,6 +778,22 @@ def _policy_sl_events(
     return sorted(events, key=lambda event: event["ts"])
 
 
+def _policy_tp_events(
+    ticket: dict,
+    *,
+    base_events: list[dict] | None = None,
+) -> list[dict]:
+    return [
+        event
+        for event in (
+            base_events
+            if base_events is not None
+            else _level_events(ticket.get("tp_history") or [], "tp")
+        )
+        if not _is_be_source(event)
+    ]
+
+
 def _simulate_ticket_policy(
     trade: dict,
     ticket: dict,
@@ -761,6 +805,7 @@ def _simulate_ticket_policy(
     default_unit_value: float,
     default_unit_source: str,
     horizon_policy: str,
+    money_converter=None,
     provider_sl_events: list[dict] | None = None,
     provider_tp_events: list[dict] | None = None,
 ) -> dict:
@@ -770,10 +815,9 @@ def _simulate_ticket_policy(
         trigger=trigger,
         base_events=provider_sl_events,
     )
-    tp_events = (
-        provider_tp_events
-        if provider_tp_events is not None
-        else _level_events(ticket.get("tp_history") or [], "tp")
+    tp_events = _policy_tp_events(
+        ticket,
+        base_events=provider_tp_events,
     )
     close, blockers, assumptions = _first_strategy_close(
         trade,
@@ -806,21 +850,92 @@ def _simulate_ticket_policy(
             "assumptions": list(dict.fromkeys(assumptions)),
         }
 
-    unit_value, pnl_source, pnl_assumptions = _unit_value_for_ticket(
-        trade,
-        ticket,
-        default_unit_value=default_unit_value,
-        default_unit_source=default_unit_source,
-    )
-    strategy_pnl = _pnl_from_prices(
-        trade,
-        ticket,
-        close_price=float(close["close_price"]),
-        unit_value=unit_value,
-    )
     actual_pnl = _actual_ticket_pnl(ticket)
     volume = float(ticket.get("volume") or 1.0)
-    assumptions.extend(pnl_assumptions)
+    money_status = None
+    money_blockers: list[str] = []
+    pnl_currency = None
+    money_conversion = None
+    money_formula = None
+    profit_currency_pnl = None
+    if money_converter is not None:
+        money = money_converter.convert_leg(
+            direction=_direction(trade),
+            open_price=ticket.get("open_price"),
+            close_price=close["close_price"],
+            volume=volume,
+            open_time_utc=ticket.get("open_dt_utc"),
+            close_time_utc=close["time_utc"],
+        )
+        money_status = money.get("status")
+        money_blockers = list(money.get("blockers") or [])
+        pnl_currency = money.get("pnl_currency")
+        money_conversion = money.get("conversion")
+        money_formula = money.get("formula")
+        profit_currency_pnl = money.get("profit_currency_pnl")
+        if money_status != "verified" or money.get("strategy_pnl") is None:
+            return {
+                "ticket": ticket.get("ticket"),
+                "status": "blocked",
+                "leg_action": leg_action,
+                "changed_rules": [changed_rule],
+                "actual_pnl": _round_money(actual_pnl),
+                "strategy_pnl": None,
+                "delta_pnl": None,
+                "close_reason": close["reason"],
+                "close_time_utc": close["time_utc"],
+                "close_price": close["close_price"],
+                "pnl_source": "broker_money_contract_blocked",
+                "pnl_currency": pnl_currency,
+                "money_status": money_status or "blocked",
+                "money_conversion": money_conversion,
+                "money_formula": money_formula,
+                "profit_currency_pnl": profit_currency_pnl,
+                "money_blockers": money_blockers,
+                "open_time_utc": _iso(
+                    _parse_dt(ticket.get("open_dt_utc"))
+                ),
+                "open_price": ticket.get("open_price"),
+                "volume": volume,
+                "blockers": money_blockers or [
+                    f"broker_money_conversion_failed:"
+                    f"{_ticket_label(ticket)}"
+                ],
+                "assumptions": list(dict.fromkeys(assumptions)),
+            }
+        strategy_pnl = float(money["strategy_pnl"])
+        pnl_source = "verified_broker_money_contract"
+        unit_value = None
+        try:
+            price_delta = abs(
+                _directional_price_delta(
+                    _direction(trade),
+                    float(ticket.get("open_price")),
+                    float(close["close_price"]),
+                )
+            )
+            pnl_per_price_unit = (
+                abs(strategy_pnl) / price_delta
+                if price_delta > PRICE_EPSILON
+                else 0.0
+            )
+        except (TypeError, ValueError):
+            pnl_per_price_unit = 0.0
+    else:
+        unit_value, pnl_source, pnl_assumptions = _unit_value_for_ticket(
+            trade,
+            ticket,
+            default_unit_value=default_unit_value,
+            default_unit_source=default_unit_source,
+        )
+        strategy_pnl = _pnl_from_prices(
+            trade,
+            ticket,
+            close_price=float(close["close_price"]),
+            unit_value=unit_value,
+        )
+        pnl_per_price_unit = abs(volume * float(unit_value))
+        assumptions.extend(pnl_assumptions)
     return {
         "ticket": ticket.get("ticket"),
         "status": "simulated",
@@ -835,21 +950,41 @@ def _simulate_ticket_policy(
         "touch_side": close["side"],
         "touch_side_price": close["side_price"],
         "pnl_source": pnl_source,
+        "pnl_currency": pnl_currency,
+        "money_status": money_status,
+        "money_conversion": money_conversion,
+        "money_formula": money_formula,
+        "profit_currency_pnl": profit_currency_pnl,
+        "money_blockers": money_blockers,
         "open_time_utc": _iso(_parse_dt(ticket.get("open_dt_utc"))),
         "open_price": ticket.get("open_price"),
         "volume": volume,
-        "unit_value": round(float(unit_value), 8),
-        "pnl_per_price_unit": round(abs(volume * float(unit_value)), 8),
+        "unit_value": (
+            round(float(unit_value), 8)
+            if unit_value is not None
+            else None
+        ),
+        "pnl_per_price_unit": round(float(pnl_per_price_unit), 8),
         "blockers": [],
         "assumptions": list(dict.fromkeys(assumptions)),
     }
 
 
-def _baseline_blockers(baseline_audit: dict | None) -> list[str]:
+def _baseline_blockers(
+    baseline_audit: dict | None,
+    *,
+    allow_executed_evidence: bool = False,
+) -> list[str]:
     if baseline_audit is None:
         return ["missing_baseline_tick_replay"]
     status = baseline_audit.get("status")
-    if status == "exact":
+    if status == "exact" or (
+        allow_executed_evidence
+        and status in {
+            "external_intervention",
+            "delayed_close_observation",
+        }
+    ):
         return []
     blockers = [f"baseline_not_exact:{status or 'unknown'}"]
     blockers.extend(baseline_audit.get("blockers") or [])
@@ -870,6 +1005,8 @@ def simulate_trade(
     horizon_policy: str = "eod_close",
     provider_signal: dict | None = None,
     require_provider_timeline: bool = False,
+    level_timeline_authority: str = "canonical_provider",
+    money_converter=None,
 ) -> dict:
     """Simulate one management strategy for one replay trade."""
     if policy is None:
@@ -891,7 +1028,10 @@ def simulate_trade(
             "tickets": [],
         }
 
-    baseline_errors = _baseline_blockers(baseline_audit)
+    baseline_errors = _baseline_blockers(
+        baseline_audit,
+        allow_executed_evidence=level_timeline_authority == "mt5_execution",
+    )
     if baseline_errors:
         return {
             "schema_version": SCHEMA_VERSION,
@@ -934,12 +1074,35 @@ def simulate_trade(
             "tickets": [],
         }
 
+    if level_timeline_authority not in {
+        "canonical_provider",
+        "mt5_execution",
+    }:
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "sig_id": trade.get("sig_id"),
+            "status": "blocked",
+            "strategy": strategy_name,
+            "actual_pnl": _round_money(_actual_trade_pnl(trade)),
+            "strategy_pnl": None,
+            "delta_pnl": None,
+            "blockers": [
+                f"unsupported_level_timeline_authority:"
+                f"{level_timeline_authority}"
+            ],
+            "assumptions": [],
+            "tickets": [],
+        }
+
     tickets = trade.get("tickets") or []
     trigger, trigger_source = _management_trigger(
         trade,
         policy,
         provider_signal=provider_signal,
         require_provider_timeline=require_provider_timeline,
+        allow_confirmed_mt5_fallback=(
+            level_timeline_authority == "mt5_execution"
+        ),
     )
     if policy.mode == "follow_actual":
         ticket_results = []
@@ -1025,7 +1188,11 @@ def simulate_trade(
                 trade,
                 policy,
                 trigger,
-                provider_signal=provider_signal,
+                provider_signal=(
+                    provider_signal
+                    if level_timeline_authority == "canonical_provider"
+                    else None
+                ),
             )
             if action_blockers:
                 return {
@@ -1070,16 +1237,25 @@ def simulate_trade(
                     default_unit_value=default_unit_value,
                     default_unit_source=default_unit_source,
                     horizon_policy=horizon_policy,
+                    money_converter=money_converter,
                     provider_sl_events=(
                         _provider_level_events(
                             provider_signal, ticket_index, "sl")
-                        if provider_signal is not None
+                        if (
+                            provider_signal is not None
+                            and level_timeline_authority
+                            == "canonical_provider"
+                        )
                         else None
                     ),
                     provider_tp_events=(
                         _provider_level_events(
                             provider_signal, ticket_index, "tp")
-                        if provider_signal is not None
+                        if (
+                            provider_signal is not None
+                            and level_timeline_authority
+                            == "canonical_provider"
+                        )
                         else None
                     ),
                 )
@@ -1149,9 +1325,13 @@ def simulate_trade(
         "status": status,
         "strategy": strategy_name,
         "policy": policy.to_dict(),
+        "entry_authority": "mt5_deals",
         "level_timeline_source": (
             "canonical_provider"
-            if provider_signal is not None
+            if (
+                provider_signal is not None
+                and level_timeline_authority == "canonical_provider"
+            )
             else "execution_ticket_history"
         ),
         "management_trigger_utc": _iso(trigger),

@@ -18,16 +18,20 @@ Use these current file names when navigating the repo. Some historical docs may 
 Run order:
 
 1. `reconcile_mt5_ledger.py` -> `data/ledger.jsonl`
-2. `build_replay_trades.py` -> `data/replay_trades.jsonl`
+2. `build_replay_trades.py` -> `data/replay_trades.jsonl` plus its deterministic
+   `replay_trades.jsonl.manifest.json` source contract
 3. `accounting_replay_validator.py` -> `data/accounting_replay_audit.jsonl`
 4. `tools/ensure_replay_tick_cache.py` -> `data/replay_tick_cache_status.json`
 5. `replay_readiness_report.py` -> `data/replay_readiness_report.json`
 6. `observed_tick_replay_validator.py` -> `data/observed_tick_replay_audit.jsonl`
 7. `provider_signal_catalog.py` -> `data/provider_signal_catalog.json`
-8. `provider_trade_spec.py` + `provider_strategy_simulator.py` -> virtual provider-first replay inputs and price paths
-9. `strategy_farm.py` -> `data/strategy_farm.json`
-10. `recursive_log_learning.py` -> `data/log_learning_report.json` and `data/log_pattern_registry.json`
-11. `simulation_run_provenance.py` -> `data/simulation_runs/<fingerprint>/run_card.json`
+8. `strategy_simulator.py` + `executed_simulation_contract.py` -> primary
+   executed-MT5 counterfactuals and immutable-entry validation
+9. `provider_trade_spec.py` + `provider_strategy_simulator.py` -> secondary
+   provider-coverage diagnostics
+10. `strategy_farm.py` -> `data/strategy_farm.json`
+11. `recursive_log_learning.py` -> `data/log_learning_report.json` and `data/log_pattern_registry.json`
+12. `simulation_run_provenance.py` -> `data/simulation_runs/<fingerprint>/run_card.json`
 
 `data/provider_signal_catalog.json` is a canonical versioned input, not a
 disposable intermediate. The watcher must stage it together with the farm
@@ -46,8 +50,16 @@ report and run archive.
 - `provider_trade_spec.py`: immutable causal virtual-trade contract built from one formal provider signal. It never requires an MT5 ticket.
 - `provider_strategy_simulator.py`: provider-first Ask/Bid entry and policy price-path replay. It emits one honest simulated or blocked row per signal/policy/latency combination.
 - `strategy_policies.py`: declarative close/BE/runner policy catalog shared by both channels.
-- `strategy_simulator.py`: observed-ticket replay used as a separate execution control. Provider-first experiments must not use MT5 ticket history as their signal source.
-- `strategy_farm.py`: provider-first policy matrix plus separate executed-baseline validation. It fails if `formal signals x policies x latency scenarios` does not equal emitted rows.
+- `strategy_simulator.py`: primary management counterfactual over observed MT5
+  ticket entries and confirmed MT5 level history. Canonical provider events may
+  trigger a policy but may not replace entry facts.
+- `executed_simulation_contract.py`: fail-closed matrix and immutable-entry
+  validator for the primary executed-MT5 universe.
+- `replay_source_contract.py`: binds every replay to the exact ledger and raw
+  event hashes that produced it. A missing or stale contract stops the farm.
+- `strategy_farm.py`: executed-MT5 policy matrix plus secondary provider-first
+  diagnostics. It verifies both `executed trades x policies` and
+  `formal signals x policies x latency scenarios` row accounting.
 - `simulation_run_provenance.py`: deterministic farm-run identity from selected payloads, policy order, source hashes, runtime versions and already-verified tick contracts. Repeated identical runs reuse their immutable archive; conflicting results fail closed.
 - `recursive_log_learning.py`: offline, deterministic whole-corpus learner. It normalizes recurring reliability patterns, prioritizes candidates and detects covered-pattern regressions. It must never be imported by a live order module.
 
@@ -62,10 +74,21 @@ report and run archive.
 ## Simulation Evidence
 
 - `data/simulation_runs/<fingerprint>/run_card.json` is immutable evidence for one computational identity.
+- Primary rankings use only `replay_trades.jsonl` MT5 executions. Every policy
+  row preserves ticket identity, fill time, fill price and volume.
 - Every formal provider signal must appear once per policy and ordered latency scenario. Missing evidence creates a named blocked row; it never removes a signal from the denominator.
-- `provider_policy_results[*].strategy_value` is a sum of directional XAUUSD price movement across virtual legs. It is not volume-weighted money and must never be labelled USD, EUR, profit or P&L.
-- `money_mode=diagnostic_only` and `broker_money_contract_unverified` remain mandatory until symbol/account currency, conversion ticks, commission, swap and MT5 deal reconciliation are exact to account-currency precision.
-- `selection.selected_policy` and monetary rankings must remain `null`/empty while that money gate is open, even when every price path and observed ticket replay is exact.
+- `provider_policy_results[*].strategy_value` is a secondary diagnostic sum of directional XAUUSD price movement across virtual legs. It is not volume-weighted money, must never be labelled USD, EUR, profit or P&L, and cannot select a strategy.
+- The farm may use `money_mode=verified_account_currency` only when symbol,
+  account currency, causal conversion ticks, commission, swap and every
+  observed MT5 deal reconcile to account-currency precision.
+- Keep `money_contract_verified` (broker metadata/formula) separate from
+  `account_currency_money_verified` (every selected observed and
+  counterfactual row priced). Conclusions require both.
+- `selection.selected_policy` must remain `null` while the money gate, complete
+  executed-trade matrix, or untouched OOS validation is open.
+- A recorded external intervention may be strategy-eligible only for the
+  executed-MT5 replay because the goal there is to preserve what MT5 actually
+  executed. It remains non-exact and cannot make provider-first replay exact.
 - Ordered entry-delay assumptions are configured with repeated `--provider-latency-ms` arguments or watcher `STRATEGY_FARM_LATENCY_MS`; volume is configured with `--provider-volume-per-leg` or `STRATEGY_FARM_VOLUME_PER_LEG`. Both are part of the run fingerprint.
 - Compact runs retain `strategy_farm.json` in that directory. Detailed `--include-trades` outputs record the first-published path, exact size and SHA-256 rather than being copied.
 - Tick digests verify the bytes used, but tick Parquet retention is currently local-only. A card cannot recreate a deleted cache file and must state that limitation.

@@ -25,6 +25,8 @@ DEFAULT_CACHE_DIR = DATA_DIR / "ticks_cache"
 DEFAULT_STATUS = DATA_DIR / "replay_tick_cache_status.json"
 TICK_TIME_CONTRACT = "mt5_server_epoch_utc_v3"
 SOURCE_TIME_BASIS = "mt5_server_epoch"
+TICK_SOURCE_VERIFICATION = "full_day_vs_two_half_days_v1"
+TICK_CONTENT_DIGEST = "time_bid_ask_sequence_sha256_v1"
 ANCHOR_SEARCH_WINDOW_S = 3
 ANCHOR_TIME_TOLERANCE_MS = 2_500
 ANCHOR_PRICE_TOLERANCE = 0.10
@@ -218,6 +220,93 @@ def required_dates(
     return sorted(days)
 
 
+def required_provider_dates(
+    catalog: dict,
+    *,
+    since: datetime | None = None,
+    until: datetime | None = None,
+    latency_scenarios_ms: Iterable[int] = (0,),
+    offset_candidates_seconds: Iterable[int] | None = None,
+) -> list[date]:
+    """Return every UTC day a provider-first replay can request.
+
+    The strategy farm asks for the trigger-day contract before it can derive
+    the broker-session horizon. Consider every supported broker UTC offset so
+    Sunday-to-Monday sessions and large latency scenarios cannot appear as
+    late cache surprises.
+    """
+    import provider_trade_spec
+
+    latencies = tuple(latency_scenarios_ms)
+    if not latencies:
+        raise ValueError("provider latency scenarios cannot be empty")
+    if any(
+        isinstance(value, bool) or not isinstance(value, int) or value < 0
+        for value in latencies
+    ):
+        raise ValueError(
+            "provider latency scenarios must be non-negative integers"
+        )
+    offsets = tuple(
+        DEFAULT_OFFSET_CANDIDATES_SECONDS
+        if offset_candidates_seconds is None
+        else offset_candidates_seconds
+    )
+    if not offsets or any(
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or abs(value) > 14 * 3600
+        for value in offsets
+    ):
+        raise ValueError("provider UTC offset candidates are invalid")
+
+    days: set[date] = set()
+    for raw_signal in catalog.get("signals") or []:
+        if not isinstance(raw_signal, dict):
+            raise ValueError("provider catalog signals must be mappings")
+        if raw_signal.get("record_type", "formal_signal") != "formal_signal":
+            continue
+        cohort = _parse_dt(
+            raw_signal.get("first_observed_utc")
+            or raw_signal.get("signal_ts_utc")
+        )
+        if cohort is None:
+            continue
+        if since is not None and cohort.date() < since.date():
+            continue
+        if until is not None and cohort.date() > until.date():
+            continue
+
+        signal = (
+            raw_signal
+            if raw_signal.get("record_type") == "formal_signal"
+            else {**raw_signal, "record_type": "formal_signal"}
+        )
+        for latency_ms in latencies:
+            spec = provider_trade_spec.build_trade_spec(
+                signal,
+                latency_ms=latency_ms,
+                volume_per_leg=0.01,
+            )
+            trigger = spec.trigger_observed_utc
+            if not spec.entry_ready or trigger is None:
+                continue
+            days.add(trigger.date())
+            try:
+                threshold = trigger + timedelta(milliseconds=latency_ms)
+            except OverflowError:
+                raise ValueError("provider latency threshold is out of range")
+            for offset_seconds in offsets:
+                horizon = broker_session_close_utc(
+                    threshold,
+                    utc_offset_seconds=offset_seconds,
+                )
+                if horizon is None or threshold >= horizon:
+                    continue
+                days.update(_iter_days(threshold.date(), horizon.date()))
+    return sorted(days)
+
+
 def selected_trades(
     trades: list[dict],
     *,
@@ -293,6 +382,184 @@ def _file_sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def tick_content_sha256(ticks) -> str:
+    """Fingerprint the exact ordered quote stream used by the replay."""
+    import numpy as np
+    import pandas as pd
+
+    required = ("time_utc", "bid", "ask")
+    missing = [column for column in required if column not in ticks.columns]
+    if missing:
+        raise ValueError(
+            "tick content missing columns: " + ",".join(missing)
+        )
+    frame = ticks.loc[:, required].copy()
+    frame["time_utc"] = pd.to_datetime(
+        frame["time_utc"],
+        utc=True,
+        errors="coerce",
+    )
+    frame["bid"] = pd.to_numeric(frame["bid"], errors="coerce")
+    frame["ask"] = pd.to_numeric(frame["ask"], errors="coerce")
+    if (
+        frame["time_utc"].isna().any()
+        or frame["bid"].isna().any()
+        or frame["ask"].isna().any()
+    ):
+        raise ValueError("tick content contains invalid values")
+
+    digest = hashlib.sha256()
+    digest.update(TICK_CONTENT_DIGEST.encode("ascii") + b"\0")
+    digest.update(str(len(frame)).encode("ascii") + b"\0")
+    arrays = (
+        frame["time_utc"].astype("int64").to_numpy(dtype="<i8", copy=False),
+        frame["bid"].to_numpy(dtype="<f8", copy=False),
+        frame["ask"].to_numpy(dtype="<f8", copy=False),
+    )
+    for values in arrays:
+        digest.update(np.ascontiguousarray(values).tobytes())
+    return digest.hexdigest()
+
+
+def verify_day_source_acquisition(
+    source,
+    day: date,
+    primary_frame,
+) -> dict:
+    """Refetch a day in independent halves and compare its ordered quotes."""
+    import pandas as pd
+
+    day_start = datetime(day.year, day.month, day.day, tzinfo=timezone.utc)
+    midpoint = day_start + timedelta(hours=12)
+    day_end = day_start + timedelta(days=1)
+    windows = ((day_start, midpoint), (midpoint, day_end))
+    verification_frames = []
+    for window_start, window_end in windows:
+        frame = source.fetch_ticks(window_start, window_end)
+        if frame is not None and not frame.empty:
+            verification_frames.append(frame)
+    if verification_frames:
+        verification_frame = pd.concat(
+            verification_frames,
+            ignore_index=True,
+        )
+    else:
+        verification_frame = pd.DataFrame(
+            columns=["time_utc", "bid", "ask"],
+        )
+
+    errors: list[str] = []
+    try:
+        primary_digest = tick_content_sha256(primary_frame)
+    except (TypeError, ValueError) as exc:
+        primary_digest = None
+        errors.append(f"invalid_primary_tick_content:{type(exc).__name__}")
+    try:
+        verification_digest = tick_content_sha256(verification_frame)
+    except (TypeError, ValueError) as exc:
+        verification_digest = None
+        errors.append(
+            f"invalid_verification_tick_content:{type(exc).__name__}"
+        )
+    primary_rows = int(len(primary_frame))
+    verification_rows = int(len(verification_frame))
+    if primary_rows != verification_rows:
+        errors.append("source_row_count_mismatch")
+    elif (
+        primary_digest is not None
+        and verification_digest is not None
+        and primary_digest != verification_digest
+    ):
+        errors.append("source_content_mismatch")
+
+    errors = list(dict.fromkeys(errors))
+    return {
+        "verified": not errors,
+        "method": TICK_SOURCE_VERIFICATION,
+        "content_digest": TICK_CONTENT_DIGEST,
+        "symbol": str(source.symbol),
+        "verified_at_utc": datetime.now(timezone.utc).isoformat(
+            timespec="seconds"
+        ),
+        "primary_query": {
+            "from_utc": _utc_iso(day_start),
+            "to_utc_exclusive": _utc_iso(day_end),
+        },
+        "verification_queries": [
+            {
+                "from_utc": _utc_iso(window_start),
+                "to_utc_exclusive": _utc_iso(window_end),
+            }
+            for window_start, window_end in windows
+        ],
+        "primary_row_count": primary_rows,
+        "verification_row_count": verification_rows,
+        "primary_content_sha256": primary_digest,
+        "verification_content_sha256": verification_digest,
+        "errors": errors,
+    }
+
+
+def _is_sha256(value: object) -> bool:
+    text = str(value or "")
+    return bool(
+        len(text) == 64
+        and all(character in "0123456789abcdef" for character in text)
+    )
+
+
+def _normalized_source_verification(
+    source_verification: dict | None,
+) -> dict | None:
+    if not isinstance(source_verification, dict):
+        return None
+    try:
+        primary_rows = int(source_verification["primary_row_count"])
+        verification_rows = int(
+            source_verification["verification_row_count"]
+        )
+    except (KeyError, TypeError, ValueError):
+        return None
+    primary_digest = source_verification.get("primary_content_sha256")
+    verification_digest = source_verification.get(
+        "verification_content_sha256"
+    )
+    if (
+        source_verification.get("method") != TICK_SOURCE_VERIFICATION
+        or source_verification.get("content_digest") not in (
+            None,
+            TICK_CONTENT_DIGEST,
+        )
+        or not str(source_verification.get("symbol") or "")
+        or primary_rows < 0
+        or verification_rows < 0
+        or not _is_sha256(primary_digest)
+        or not _is_sha256(verification_digest)
+    ):
+        return None
+    errors = [str(item) for item in source_verification.get("errors") or []]
+    verified = source_verification.get("verified") is True
+    if verified and (
+        errors
+        or primary_rows != verification_rows
+        or primary_digest != verification_digest
+    ):
+        return None
+    normalized = dict(source_verification)
+    normalized.update({
+        "verified": verified,
+        "method": TICK_SOURCE_VERIFICATION,
+        "content_digest": TICK_CONTENT_DIGEST,
+        "symbol": str(source_verification["symbol"]),
+        "primary_row_count": primary_rows,
+        "verification_row_count": verification_rows,
+        "primary_content_sha256": str(primary_digest),
+        "verification_content_sha256": str(verification_digest),
+        "errors": errors,
+    })
+    return normalized
 
 
 def _utc_iso(value: datetime | None) -> str | None:
@@ -480,6 +747,7 @@ def write_day_contract(
     time_evidence: dict,
     semantic_validation: dict,
     coverage: dict | None = None,
+    source_verification: dict | None = None,
     symbol: str | None = None,
 ) -> Path:
     parquet_path = _day_file(cache_dir, day)
@@ -529,6 +797,11 @@ def write_day_contract(
             "coverage": normalized_coverage,
             "parquet_sha256": _file_sha256(parquet_path),
         }
+    normalized_source_verification = _normalized_source_verification(
+        source_verification
+    )
+    if normalized_source_verification is not None:
+        payload["source_verification"] = normalized_source_verification
     if symbol:
         payload["symbol"] = str(symbol)
     contract_path.write_text(
@@ -556,6 +829,9 @@ def load_valid_day_contract(
         return None
     digest = _file_sha256(parquet_path)
     anchor_validation = contract.get("anchor_validation")
+    source_verification = _normalized_source_verification(
+        contract.get("source_verification")
+    )
     if not (
         contract.get("tick_time_contract") == TICK_TIME_CONTRACT
         and contract.get("time_basis") == "UTC"
@@ -567,6 +843,9 @@ def load_valid_day_contract(
         and contract.get("semantic_time_valid") is True
         and isinstance(anchor_validation, dict)
         and anchor_validation.get("valid") is True
+        and source_verification is not None
+        and source_verification.get("verified") is True
+        and source_verification.get("symbol") == contract.get("symbol")
         and contract.get("parquet_sha256") == digest
     ):
         return None
@@ -580,13 +859,53 @@ def load_valid_day_contract(
         **contract,
         "day": day.isoformat(),
         "coverage": coverage,
+        "source_verification": source_verification,
         "parquet_sha256": digest,
+        "contract_sha256": _file_sha256(contract_path),
         "size_bytes": parquet_path.stat().st_size,
     }
 
 
-def day_contract_valid(cache_dir: Path, day: date) -> bool:
-    return load_valid_day_contract(cache_dir, day) is not None
+def day_contract_valid(
+    cache_dir: Path,
+    day: date,
+    *,
+    expected_symbol: str | None = None,
+) -> bool:
+    return load_valid_day_contract(
+        cache_dir,
+        day,
+        expected_symbol=expected_symbol,
+    ) is not None
+
+
+def verified_cache_offset_candidates(
+    cache_dir: Path,
+    *,
+    expected_symbol: str,
+) -> list[int]:
+    """Return only offsets backed by complete immutable day contracts."""
+    offsets: set[int] = set()
+    for parquet_path in sorted(cache_dir.glob("????-??-??.parquet")):
+        try:
+            day = date.fromisoformat(parquet_path.stem)
+        except ValueError:
+            continue
+        contract = load_valid_day_contract(
+            cache_dir,
+            day,
+            expected_symbol=expected_symbol,
+        )
+        if not isinstance(contract, dict):
+            continue
+        offset = contract.get("utc_offset_seconds")
+        if (
+            isinstance(offset, int)
+            and not isinstance(offset, bool)
+            and abs(offset) <= 14 * 3600
+        ):
+            offsets.add(offset)
+    return sorted(offsets)
 
 
 def refresh_cache_days(days: list[date], *, cache_dir: Path) -> list[date]:
@@ -625,6 +944,8 @@ def build_status(
     refresh_requested_days: list[date] | None = None,
     refresh_removed_days: list[date] | None = None,
     error: str | None = None,
+    expected_symbol: str | None = None,
+    additional_required_days: Iterable[date] = (),
 ) -> dict:
     scoped_trades = selected_trades(
         trades,
@@ -638,10 +959,27 @@ def build_status(
         until=until,
         pad_minutes=pad_minutes,
     )
+    additional_days = sorted(set(additional_required_days))
+    for day in additional_days:
+        day_start = datetime(day.year, day.month, day.day, tzinfo=timezone.utc)
+        day_end = day_start + timedelta(days=1)
+        current = day_windows.get(day)
+        if current is None:
+            day_windows[day] = (day_start, day_end)
+        else:
+            day_windows[day] = (
+                min(current[0], day_start),
+                max(current[1], day_end),
+            )
+    day_windows = dict(sorted(day_windows.items()))
     days = list(day_windows)
     present = [day for day in days if _day_file(cache_dir, day).is_file()]
     contracts = {
-        day: load_valid_day_contract(cache_dir, day)
+        day: load_valid_day_contract(
+            cache_dir,
+            day,
+            expected_symbol=expected_symbol,
+        )
         for day in present
     }
     invalid = [day for day in present if contracts[day] is None]
@@ -690,6 +1028,7 @@ def build_status(
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "tick_time_contract": TICK_TIME_CONTRACT,
         "time_basis": "UTC",
+        "expected_symbol": expected_symbol,
         "dry_run": dry_run,
         "ensure_attempted": ensure_attempted,
         "pad_minutes": pad_minutes,
@@ -700,6 +1039,15 @@ def build_status(
             "until": until.isoformat() if until else None,
             "input_trades": len(trades),
             "selected_trades": len(scoped_trades),
+            **(
+                {
+                    "additional_required_days": [
+                        day.isoformat() for day in additional_days
+                    ]
+                }
+                if additional_days
+                else {}
+            ),
         },
         "required_days": [day.isoformat() for day in days],
         "cached_days": [day.isoformat() for day in cached],
@@ -939,12 +1287,54 @@ class MT5TickSource:
         ).astype("int64")
         mask = (
             (df["time_utc"] >= self.pd.Timestamp(t_from_utc))
-            & (df["time_utc"] <= self.pd.Timestamp(t_to_utc))
+            & (df["time_utc"] < self.pd.Timestamp(t_to_utc))
         )
-        return df.loc[mask].sort_values("time_utc").reset_index(drop=True)
+        return (
+            df.loc[mask]
+            .sort_values("time_utc", kind="stable")
+            .reset_index(drop=True)
+        )
 
     def shutdown(self) -> None:
         self.mt5.shutdown()
+
+
+def load_adjacent_time_evidence(
+    cache_dir: Path,
+    days: Iterable[date],
+    *,
+    expected_symbol: str,
+) -> dict[date, dict]:
+    """Seed offset resolution from immutable neighbouring day contracts."""
+    target_days = sorted(set(days))
+    candidates = {
+        adjacent
+        for day in target_days
+        for adjacent in (day - timedelta(days=1), day + timedelta(days=1))
+        if adjacent not in target_days
+    }
+    evidence: dict[date, dict] = {}
+    fields = (
+        "source_time_basis",
+        "utc_offset_seconds",
+        "offset_detection_method",
+        "offset_reference",
+    )
+    for candidate in sorted(candidates):
+        contract = load_valid_day_contract(
+            cache_dir,
+            candidate,
+            expected_symbol=expected_symbol,
+        )
+        if not isinstance(contract, dict):
+            continue
+        if any(field not in contract for field in fields):
+            continue
+        evidence[candidate] = {
+            field: contract[field]
+            for field in fields
+        }
+    return evidence
 
 
 def ensure_missing_days(
@@ -960,7 +1350,15 @@ def ensure_missing_days(
     import pandas as pd
 
     anchors_by_day = extract_fill_anchors(trades)
-    source = MT5TickSource(symbol, anchors_by_day=anchors_by_day)
+    source = MT5TickSource(
+        symbol,
+        anchors_by_day=anchors_by_day,
+        preloaded_time_evidence_by_day=load_adjacent_time_evidence(
+            cache_dir,
+            days,
+            expected_symbol=symbol,
+        ),
+    )
     try:
         source.prime_offsets(days)
         cache = TickCache(source, cache_dir=cache_dir)
@@ -986,6 +1384,11 @@ def ensure_missing_days(
                     day,
                     utc_offset_seconds=time_evidence["utc_offset_seconds"],
                 ),
+                "source_verification": verify_day_source_acquisition(
+                    source,
+                    day,
+                    frame,
+                ),
             }
         return {**stats, "day_contracts": day_contracts}
     finally:
@@ -1004,12 +1407,27 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Check or download tick-cache days needed by replay trades")
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT)
+    parser.add_argument(
+        "--catalog",
+        type=Path,
+        help=(
+            "Optional provider catalog; includes unexecuted formal signals "
+            "in the required-day preflight"
+        ),
+    )
     parser.add_argument("--status", type=Path, default=DEFAULT_STATUS)
     parser.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE_DIR)
     parser.add_argument("--since")
     parser.add_argument("--until")
     parser.add_argument("--pad-minutes", type=int, default=5)
     parser.add_argument("--symbol", default="XAUUSD")
+    parser.add_argument(
+        "--provider-latency-ms",
+        action="append",
+        type=int,
+        dest="provider_latency_scenarios_ms",
+        help="Repeat to cover every provider-entry latency scenario",
+    )
     parser.add_argument("--ensure", action="store_true")
     parser.add_argument(
         "--refresh-day",
@@ -1025,7 +1443,28 @@ def main(argv: list[str] | None = None) -> int:
     trades = load_jsonl(args.input)
     since = _parse_dt(args.since)
     until = _parse_dt(args.until)
+    latency_scenarios_ms = tuple(args.provider_latency_scenarios_ms or [0])
     args.cache_dir.mkdir(parents=True, exist_ok=True)
+    catalog = {}
+    if args.catalog is not None:
+        if not args.catalog.is_file():
+            parser.error(f"provider catalog does not exist: {args.catalog}")
+        catalog = json.loads(args.catalog.read_text(encoding="utf-8"))
+        if not isinstance(catalog, dict):
+            parser.error("provider catalog root must be an object")
+    verified_offsets = verified_cache_offset_candidates(
+        args.cache_dir,
+        expected_symbol=args.symbol,
+    )
+    additional_required_days = required_provider_dates(
+        catalog,
+        since=since,
+        until=until,
+        latency_scenarios_ms=latency_scenarios_ms,
+        offset_candidates_seconds=(
+            verified_offsets or DEFAULT_OFFSET_CANDIDATES_SECONDS
+        ),
+    )
     refresh_requested_days = sorted(set(args.refresh_day))
     refresh_removed_days = []
     if refresh_requested_days and not args.dry_run:
@@ -1044,6 +1483,8 @@ def main(argv: list[str] | None = None) -> int:
         ensure_attempted=False,
         refresh_requested_days=refresh_requested_days,
         refresh_removed_days=refresh_removed_days,
+        expected_symbol=args.symbol,
+        additional_required_days=additional_required_days,
     )
 
     if args.ensure and not args.dry_run and (
@@ -1085,6 +1526,10 @@ def main(argv: list[str] | None = None) -> int:
                     time_evidence=day_contract["time_evidence"],
                     semantic_validation=day_contract["semantic_validation"],
                     coverage=day_contract["coverage"],
+                    source_verification=day_contract[
+                        "source_verification"
+                    ],
+                    symbol=args.symbol,
                 )
             status = build_status(
                 trades,
@@ -1097,6 +1542,8 @@ def main(argv: list[str] | None = None) -> int:
                 ensure_stats=stats,
                 refresh_requested_days=refresh_requested_days,
                 refresh_removed_days=refresh_removed_days,
+                expected_symbol=args.symbol,
+                additional_required_days=additional_required_days,
             )
         except Exception as exc:
             status = build_status(
@@ -1110,6 +1557,8 @@ def main(argv: list[str] | None = None) -> int:
                 refresh_requested_days=refresh_requested_days,
                 refresh_removed_days=refresh_removed_days,
                 error=f"{type(exc).__name__}: {str(exc)[:300]}",
+                expected_symbol=args.symbol,
+                additional_required_days=additional_required_days,
             )
 
     write_status(status, args.status)

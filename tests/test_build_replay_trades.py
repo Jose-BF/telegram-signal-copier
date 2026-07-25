@@ -1,6 +1,9 @@
 import json
 
+import pytest
+
 import build_replay_trades
+import replay_source_contract
 
 
 def _closed_position(ticket=111, role="market_a", pnl=3.25):
@@ -202,6 +205,21 @@ def test_ticket_preserves_mt5_deal_detail():
     assert ticket["open_deal"]["time_msc"] == 1783076049123
     assert ticket["close_deal"]["time_msc"] == 1783077119876
     assert [deal["entry"] for deal in ticket["deals"]] == [0, 1]
+
+
+def test_replay_preserves_verified_mt5_time_offset_for_trade_and_ticket():
+    position = _closed_position(ticket=999)
+    position["position_id"] = 111
+    position["mt5_time_offset_s"] = 10_800
+    row = _ledger_row(
+        positions=[position],
+        mt5_time_offset_s=10_800,
+    )
+
+    replay = build_replay_trades.build_replay_trade(row, [])
+
+    assert replay["mt5_time_offset_s"] == 10_800
+    assert replay["tickets"][0]["mt5_time_offset_s"] == 10_800
 
 
 def test_level_history_is_recovered_from_order_lifecycle_by_position_id():
@@ -427,6 +445,309 @@ def test_no_position_ledger_uses_journal_events_when_mt5_history_is_missing():
     assert replay["tickets"][1]["fill_event"]["ev"] == "scale_out_leg_filled"
 
 
+def test_journal_fallback_recovers_volume_from_consistent_mt5_snapshots():
+    row = _ledger_row(
+        sig_id="canal2_volume_recovery",
+        status="no_position",
+        open_dt_utc=None,
+        close_dt_utc=None,
+        n_positions=0,
+        n_closed=0,
+        n_open=0,
+        positions=[],
+        pnl_real_mt5=0,
+        pnl_journal=-1.02,
+        pnl_mt5_complete=False,
+        journal_has_signal_closed=True,
+    )
+    events = [
+        {
+            "ts": "2026-07-22T08:21:21.672+00:00",
+            "sig": "canal2_volume_recovery",
+            "ev": "market_filled",
+            "ticket": 1634455411,
+            "price": 4116.21,
+        },
+        {
+            "ts": "2026-07-22T08:21:22.183+00:00",
+            "sig": "canal2_volume_recovery",
+            "ev": "mt5_position_snapshot",
+            "ticket": 1634455411,
+            "position_exists": True,
+            "volume": 0.01,
+            "price_open": 4116.21,
+        },
+        {
+            "ts": "2026-07-22T08:21:34.705+00:00",
+            "sig": "canal2_volume_recovery",
+            "ev": "mt5_position_snapshot",
+            "ticket": 1634455411,
+            "position_exists": True,
+            "volume": 0.01,
+            "price_open": 4116.21,
+        },
+        {
+            "ts": "2026-07-22T08:41:14.261+00:00",
+            "sig": "canal2_volume_recovery",
+            "ev": "positions_closed_by_mt5",
+            "closures": [{
+                "ticket": 1634455411,
+                "exit_price": 4117.37,
+                "pnl": -1.02,
+                "closed_by_tag": "CLOSE_FIRST",
+            }],
+        },
+    ]
+
+    replay = build_replay_trades.build_replay_trade(row, events)
+
+    assert replay["tickets"][0]["volume"] == 0.01
+    assert replay["tickets"][0]["volume_source"] == (
+        "mt5_position_snapshot_consensus"
+    )
+
+
+def test_journal_fallback_does_not_guess_volume_from_conflicting_snapshots():
+    row = _ledger_row(
+        sig_id="canal2_volume_conflict",
+        status="no_position",
+        open_dt_utc=None,
+        close_dt_utc=None,
+        positions=[],
+        n_positions=0,
+        n_closed=0,
+        n_open=0,
+        pnl_real_mt5=0,
+        pnl_journal=0,
+        pnl_mt5_complete=False,
+        journal_has_signal_closed=False,
+    )
+    events = [
+        {
+            "ts": "2026-07-22T08:21:21.672+00:00",
+            "sig": "canal2_volume_conflict",
+            "ev": "market_filled",
+            "ticket": 1634455411,
+            "price": 4116.21,
+        },
+        {
+            "ts": "2026-07-22T08:21:22.183+00:00",
+            "sig": "canal2_volume_conflict",
+            "ev": "mt5_position_snapshot",
+            "ticket": 1634455411,
+            "position_exists": True,
+            "volume": 0.01,
+        },
+        {
+            "ts": "2026-07-22T08:21:34.705+00:00",
+            "sig": "canal2_volume_conflict",
+            "ev": "mt5_position_snapshot",
+            "ticket": 1634455411,
+            "position_exists": True,
+            "volume": 0.02,
+        },
+        {
+            "ts": "2026-07-22T08:41:14.261+00:00",
+            "sig": "canal2_volume_conflict",
+            "ev": "positions_closed_by_mt5",
+            "closures": [{
+                "ticket": 1634455411,
+                "exit_price": 4117.37,
+                "pnl": -1.02,
+                "closed_by_tag": "CLOSE_FIRST",
+            }],
+        },
+    ]
+
+    replay = build_replay_trades.build_replay_trade(row, events)
+
+    assert replay["tickets"][0]["volume"] is None
+    assert replay["tickets"][0]["volume_source"] is None
+
+
+def test_close_first_maps_to_bot_close_only_with_confirmed_close_chain():
+    row = _ledger_row(
+        sig_id="canal2_close_first",
+        status="no_position",
+        open_dt_utc=None,
+        close_dt_utc=None,
+        positions=[],
+        n_positions=0,
+        n_closed=0,
+        n_open=0,
+    )
+    events = [
+        {
+            "ts": "2026-07-22T08:21:21.672+00:00",
+            "sig": "canal2_close_first",
+            "ev": "market_filled",
+            "ticket": 101,
+            "price": 4116.21,
+            "volume": 0.01,
+        },
+        {
+            "ts": "2026-07-22T08:41:11.564+00:00",
+            "sig": "canal2_close_first",
+            "ev": "mt5_close_requested",
+            "ticket": 101,
+            "label": "CLOSE_FIRST BE-timeout #101",
+        },
+        {
+            "ts": "2026-07-22T08:41:11.878+00:00",
+            "sig": "canal2_close_first",
+            "ev": "mt5_close_result",
+            "ticket": 101,
+            "retcode": 10009,
+            "label": "CLOSE_FIRST BE-timeout #101",
+        },
+        {
+            "ts": "2026-07-22T08:41:11.878+00:00",
+            "sig": "canal2_close_first",
+            "ev": "mt5_position_snapshot",
+            "ticket": 101,
+            "after_action": "CLOSE_POSITION",
+            "position_exists": False,
+        },
+        {
+            "ts": "2026-07-22T08:41:14.261+00:00",
+            "sig": "canal2_close_first",
+            "ev": "positions_closed_by_mt5",
+            "closures": [{
+                "ticket": 101,
+                "exit_price": 4117.37,
+                "pnl": -1.02,
+                "closed_by_tag": "CLOSE_FIRST",
+            }],
+        },
+    ]
+
+    replay = build_replay_trades.build_replay_trade(row, events)
+
+    assert replay["tickets"][0]["close_reason"] == "bot_close"
+    assert replay["tickets"][0]["close_reason_evidence"] == (
+        "confirmed_bot_close_chain"
+    )
+
+
+def test_close_first_without_confirmed_close_chain_remains_unsupported():
+    row = _ledger_row(
+        sig_id="canal2_close_first_unverified",
+        status="no_position",
+        positions=[],
+        n_positions=0,
+    )
+    events = [
+        {
+            "ts": "2026-07-22T08:21:21.672+00:00",
+            "sig": "canal2_close_first_unverified",
+            "ev": "market_filled",
+            "ticket": 101,
+            "price": 4116.21,
+            "volume": 0.01,
+        },
+        {
+            "ts": "2026-07-22T08:41:14.261+00:00",
+            "sig": "canal2_close_first_unverified",
+            "ev": "positions_closed_by_mt5",
+            "closures": [{
+                "ticket": 101,
+                "exit_price": 4117.37,
+                "pnl": -1.02,
+                "closed_by_tag": "CLOSE_FIRST",
+            }],
+        },
+    ]
+
+    replay = build_replay_trades.build_replay_trade(row, events)
+
+    assert replay["tickets"][0]["close_reason"] == "close_first"
+    assert replay["tickets"][0].get("close_reason_evidence") is None
+
+
+def test_loss_be_maps_to_be_only_with_confirmed_entry_level_stop():
+    row = _ledger_row(
+        sig_id="canal2_loss_be",
+        status="no_position",
+        open_dt_utc=None,
+        close_dt_utc=None,
+        positions=[],
+        n_positions=0,
+        n_closed=0,
+        n_open=0,
+        order_lifecycle=[{
+            "ts": "2026-07-22T09:21:52.671+00:00",
+            "ev": "mt5_modify_confirmed",
+            "ticket": 101,
+            "new_sl": 4121.94,
+            "label": "BE #101 -> 4121.94",
+            "retcode": 10009,
+        }],
+    )
+    events = [
+        {
+            "ts": "2026-07-22T09:13:31.639+00:00",
+            "sig": "canal2_loss_be",
+            "ev": "market_filled",
+            "ticket": 101,
+            "price": 4121.94,
+            "volume": 0.01,
+        },
+        {
+            "ts": "2026-07-22T09:25:00.000+00:00",
+            "sig": "canal2_loss_be",
+            "ev": "positions_closed_by_mt5",
+            "closures": [{
+                "ticket": 101,
+                "exit_price": 4121.94,
+                "pnl": 0.0,
+                "closed_by_tag": "LOSS_BE",
+            }],
+        },
+    ]
+
+    replay = build_replay_trades.build_replay_trade(row, events)
+
+    assert replay["tickets"][0]["close_reason"] == "be"
+    assert replay["tickets"][0]["close_reason_evidence"] == (
+        "confirmed_entry_level_stop"
+    )
+
+
+def test_loss_be_without_confirmed_entry_level_stop_remains_unsupported():
+    row = _ledger_row(
+        sig_id="canal2_loss_be_unverified",
+        status="no_position",
+        positions=[],
+        n_positions=0,
+    )
+    events = [
+        {
+            "ts": "2026-07-22T09:13:31.639+00:00",
+            "sig": "canal2_loss_be_unverified",
+            "ev": "market_filled",
+            "ticket": 101,
+            "price": 4121.94,
+            "volume": 0.01,
+        },
+        {
+            "ts": "2026-07-22T09:25:00.000+00:00",
+            "sig": "canal2_loss_be_unverified",
+            "ev": "positions_closed_by_mt5",
+            "closures": [{
+                "ticket": 101,
+                "exit_price": 4121.94,
+                "pnl": 0.0,
+                "closed_by_tag": "LOSS_BE",
+            }],
+        },
+    ]
+
+    replay = build_replay_trades.build_replay_trade(row, events)
+
+    assert replay["tickets"][0]["close_reason"] == "loss_be"
+    assert replay["tickets"][0].get("close_reason_evidence") is None
+
+
 def test_closed_mt5_trade_without_signal_closed_is_simulable_but_not_audit_ready():
     row = _ledger_row(
         sig_id="canal2_13293",
@@ -452,3 +773,80 @@ def test_write_replay_trades_outputs_jsonl(tmp_path):
     assert len(rows) == 1
     assert rows[0]["sig_id"] == "canal2_13265"
     assert rows[0]["replay_ready"] is True
+
+
+def test_cli_writes_source_manifest_for_replay(tmp_path):
+    ledger = tmp_path / "ledger.jsonl"
+    events = tmp_path / "trade_events.jsonl"
+    output = tmp_path / "replay.jsonl"
+    ledger.write_text(
+        json.dumps(_ledger_row()) + "\n",
+        encoding="utf-8",
+    )
+    events.write_text("", encoding="utf-8")
+
+    exit_code = build_replay_trades.main([
+        "--ledger",
+        str(ledger),
+        "--events",
+        str(events),
+        "--output",
+        str(output),
+        "--quiet",
+    ])
+
+    manifest = replay_source_contract.default_manifest_path(output)
+    assert exit_code == 0
+    assert manifest.is_file()
+    assert replay_source_contract.validate_manifest(
+        replay_path=output,
+        ledger_path=ledger,
+        events_path=events,
+        manifest_path=manifest,
+    ) == []
+
+
+def test_cli_removes_replay_when_sources_change_during_build(
+    tmp_path,
+    monkeypatch,
+):
+    ledger = tmp_path / "ledger.jsonl"
+    events = tmp_path / "trade_events.jsonl"
+    output = tmp_path / "replay.jsonl"
+    ledger.write_text(
+        json.dumps(_ledger_row()) + "\n",
+        encoding="utf-8",
+    )
+    events.write_text("", encoding="utf-8")
+    original_write = build_replay_trades.write_replay_trades
+
+    def write_then_change_source(*args, **kwargs):
+        trades = original_write(*args, **kwargs)
+        ledger.write_text(
+            ledger.read_text(encoding="utf-8") + "{}\n",
+            encoding="utf-8",
+        )
+        return trades
+
+    monkeypatch.setattr(
+        build_replay_trades,
+        "write_replay_trades",
+        write_then_change_source,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="replay sources changed during build",
+    ):
+        build_replay_trades.main([
+            "--ledger",
+            str(ledger),
+            "--events",
+            str(events),
+            "--output",
+            str(output),
+            "--quiet",
+        ])
+
+    assert not output.exists()
+    assert not replay_source_contract.default_manifest_path(output).exists()

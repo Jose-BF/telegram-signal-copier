@@ -10,11 +10,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
+import replay_source_contract
 import runtime_paths
 
 DATA_DIR = runtime_paths.active_data_dir()
@@ -181,12 +183,48 @@ def _role_from_fill_event(event: dict) -> str | None:
     return None
 
 
+def _positive_volume(value) -> float | None:
+    try:
+        volume = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(volume) or volume <= 0:
+        return None
+    return round(volume, 8)
+
+
+def _snapshot_volume_consensus(events: Iterable[dict]) -> dict[str, float]:
+    observed: dict[str, set[float]] = defaultdict(set)
+    invalid: set[str] = set()
+    for event in events:
+        if (
+            event.get("ev") != "mt5_position_snapshot"
+            or event.get("position_exists") is not True
+        ):
+            continue
+        key = _ticket_key(event.get("ticket"))
+        if key is None:
+            continue
+        volume = _positive_volume(event.get("volume"))
+        if volume is None:
+            invalid.add(key)
+        else:
+            observed[key].add(volume)
+    return {
+        key: next(iter(volumes))
+        for key, volumes in observed.items()
+        if key not in invalid and len(volumes) == 1
+    }
+
+
 def _positions_from_journal_events(events: Iterable[dict]) -> list[dict]:
     """Rebuild minimal positions from journal events when MT5 history is absent.
 
     This is a replay fallback, not broker truth. It is only used when the
     ledger has no MT5 positions but the black-box journal contains fills.
     """
+    events = list(events)
+    snapshot_volumes = _snapshot_volume_consensus(events)
     positions: list[dict] = []
     seen: set[str] = set()
     for event in events:
@@ -196,11 +234,17 @@ def _positions_from_journal_events(events: Iterable[dict]) -> list[dict]:
         if key is None or key in seen:
             continue
         seen.add(key)
+        volume = _positive_volume(event.get("volume"))
+        volume_source = "fill_event" if volume is not None else None
+        if volume is None and key in snapshot_volumes:
+            volume = snapshot_volumes[key]
+            volume_source = "mt5_position_snapshot_consensus"
         positions.append({
             "ticket": event.get("ticket"),
             "position_id": event.get("ticket"),
             "role": _role_from_fill_event(event),
-            "volume": event.get("volume"),
+            "volume": volume,
+            "volume_source": volume_source,
             "open_dt_utc": _iso_seconds(event.get("ts")),
             "open_price": event.get("price"),
             "close_dt_utc": None,
@@ -234,6 +278,35 @@ def _close_reason_from_tag(tag: str | None) -> str | None:
 
 
 def _closure_events_by_ticket(events: Iterable[dict]) -> dict[str, dict]:
+    events = list(events)
+    requested = {
+        key
+        for event in events
+        if event.get("ev") == "mt5_close_requested"
+        for key in [_ticket_key(event.get("ticket"))]
+        if key is not None
+    }
+    succeeded = {
+        key
+        for event in events
+        if (
+            event.get("ev") == "mt5_close_result"
+            and event.get("retcode") in {10009, 10010}
+        )
+        for key in [_ticket_key(event.get("ticket"))]
+        if key is not None
+    }
+    disappeared = {
+        key
+        for event in events
+        if (
+            event.get("ev") == "mt5_position_snapshot"
+            and event.get("after_action") == "CLOSE_POSITION"
+            and event.get("position_exists") is False
+        )
+        for key in [_ticket_key(event.get("ticket"))]
+        if key is not None
+    }
     closures: dict[str, dict] = {}
     for event in events:
         if event.get("ev") != "positions_closed_by_mt5":
@@ -251,8 +324,58 @@ def _closure_events_by_ticket(events: Iterable[dict]) -> dict[str, dict]:
                 "pnl": closure.get("pnl"),
                 "closed_by_tag": closure.get("closed_by_tag"),
                 "distance_to_tag": closure.get("distance_to_tag"),
+                "confirmed_bot_close": (
+                    key in requested
+                    and key in succeeded
+                    and key in disappeared
+                ),
             }
     return closures
+
+
+def _same_price(left, right) -> bool:
+    try:
+        return abs(float(left) - float(right)) <= 1e-6
+    except (TypeError, ValueError):
+        return False
+
+
+def _has_confirmed_entry_level_stop(ticket: dict) -> bool:
+    if not _same_price(ticket.get("open_price"), ticket.get("close_price")):
+        return False
+    try:
+        if abs(float(ticket.get("pnl_net"))) > 0.01:
+            return False
+    except (TypeError, ValueError):
+        return False
+    close_at = _parse_dt(ticket.get("close_dt_utc"))
+    for level in ticket.get("sl_history") or []:
+        if (
+            level.get("status") != "confirmed"
+            or not _same_price(level.get("sl"), ticket.get("open_price"))
+        ):
+            continue
+        level_at = _parse_dt(level.get("ts"))
+        if close_at is None or level_at is None or level_at <= close_at:
+            return True
+    return False
+
+
+def _normalise_observed_close_reason(
+    ticket: dict,
+    closure: dict | None,
+) -> None:
+    reason = ticket.get("close_reason")
+    if (
+        reason == "close_first"
+        and closure is not None
+        and closure.get("confirmed_bot_close")
+    ):
+        ticket["close_reason"] = "bot_close"
+        ticket["close_reason_evidence"] = "confirmed_bot_close_chain"
+    elif reason == "loss_be" and _has_confirmed_entry_level_stop(ticket):
+        ticket["close_reason"] = "be"
+        ticket["close_reason_evidence"] = "confirmed_entry_level_stop"
 
 
 def _append_level(history: dict, event: dict, status: str) -> None:
@@ -350,6 +473,8 @@ def _normalise_ticket(
         "position_id": position.get("position_id"),
         "role": position.get("role"),
         "volume": position.get("volume"),
+        "volume_source": position.get("volume_source"),
+        "mt5_time_offset_s": position.get("mt5_time_offset_s"),
         "open_dt_utc": position.get("open_dt_utc"),
         "open_price": position.get("open_price"),
         "close_dt_utc": position.get("close_dt_utc"),
@@ -381,6 +506,7 @@ def _normalise_ticket(
             "net": closure.get("pnl"),
         }
         ticket["close_event"] = closure
+    _normalise_observed_close_reason(ticket, closure)
     return ticket
 
 
@@ -590,6 +716,7 @@ def build_replay_trade(
         "close_dt_utc": replay_row.get("close_dt_utc"),
         "status": replay_row.get("status"),
         "duration_min": replay_row.get("duration_min"),
+        "mt5_time_offset_s": replay_row.get("mt5_time_offset_s"),
         "pnl_real_mt5": replay_row.get("pnl_real_mt5"),
         "pnl_real_mt5_source": pnl_source,
         "pnl_journal": replay_row.get("pnl_journal"),
@@ -666,18 +793,47 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--ledger", type=Path, default=DEFAULT_LEDGER_FILE)
     parser.add_argument("--events", type=Path, default=DEFAULT_EVENTS_FILE)
     parser.add_argument("--output", type=Path, default=DEFAULT_REPLAY_FILE)
+    parser.add_argument("--manifest", type=Path)
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args(argv)
 
-    ledger_rows = load_jsonl(args.ledger)
-    all_events = load_jsonl(args.events)
-    grouped_events = events_by_signal(all_events)
-    trades = write_replay_trades(
-        ledger_rows,
-        grouped_events,
-        args.output,
-        operational_events=all_events,
+    manifest_path = (
+        args.manifest
+        or replay_source_contract.default_manifest_path(args.output)
     )
+    args.output.unlink(missing_ok=True)
+    manifest_path.unlink(missing_ok=True)
+    try:
+        source_hashes = {
+            "ledger": replay_source_contract.sha256_file(args.ledger),
+            "trade_events": replay_source_contract.sha256_file(args.events),
+        }
+        ledger_rows = load_jsonl(args.ledger)
+        all_events = load_jsonl(args.events)
+        grouped_events = events_by_signal(all_events)
+        trades = write_replay_trades(
+            ledger_rows,
+            grouped_events,
+            args.output,
+            operational_events=all_events,
+        )
+        manifest_path = replay_source_contract.write_manifest(
+            replay_path=args.output,
+            ledger_path=args.ledger,
+            events_path=args.events,
+            row_count=len(trades),
+            manifest_path=manifest_path,
+        )
+        final_source_hashes = {
+            "ledger": replay_source_contract.sha256_file(args.ledger),
+            "trade_events": replay_source_contract.sha256_file(args.events),
+        }
+        if final_source_hashes != source_hashes:
+            raise RuntimeError("replay sources changed during build")
+    except BaseException:
+        args.output.unlink(missing_ok=True)
+        manifest_path.unlink(missing_ok=True)
+        raise
 
     if not args.quiet:
         replay_ready = sum(1 for t in trades if t["replay_ready"])
@@ -686,6 +842,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Simulation ready: {simulation_ready}")
         print(f"Replay ready: {replay_ready}")
         print(f"Output: {args.output}")
+        print(f"Source manifest: {manifest_path}")
     return 0
 
 

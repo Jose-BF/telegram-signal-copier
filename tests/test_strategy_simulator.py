@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 
 import pandas as pd
 
@@ -8,6 +9,10 @@ from tools import ensure_replay_tick_cache
 
 
 def _write_tick_contract(cache_dir, day):
+    frame = pd.read_parquet(
+        cache_dir / f"{day.isoformat()}.parquet"
+    )
+    content_digest = ensure_replay_tick_cache.tick_content_sha256(frame)
     ensure_replay_tick_cache.write_day_contract(
         cache_dir,
         day,
@@ -25,12 +30,28 @@ def _write_tick_contract(cache_dir, day):
             "max_price_delta": 0.0,
             "errors": [],
         },
+        source_verification={
+            "verified": True,
+            "method": "full_day_vs_two_half_days_v1",
+            "content_digest": "time_bid_ask_sequence_sha256_v1",
+            "symbol": "XAUUSD",
+            "primary_row_count": len(frame),
+            "verification_row_count": len(frame),
+            "primary_content_sha256": content_digest,
+            "verification_content_sha256": content_digest,
+            "errors": [],
+        },
+        symbol="XAUUSD",
     )
 
 
 def _ticks(rows):
     frame = pd.DataFrame(rows, columns=["time_utc", "bid", "ask"])
-    frame["time_utc"] = pd.to_datetime(frame["time_utc"], utc=True)
+    frame["time_utc"] = pd.to_datetime(
+        frame["time_utc"],
+        utc=True,
+        format="mixed",
+    )
     return frame
 
 
@@ -176,6 +197,63 @@ def test_strategy_blocks_when_baseline_tick_replay_is_not_exact():
     assert result["status"] == "blocked"
     assert result["blockers"] == ["baseline_not_exact:mismatch", "no_level_touch"]
     assert result["strategy_pnl"] is None
+
+
+def test_executed_mt5_mode_accepts_confirmed_external_intervention_baseline():
+    result = strategy_simulator.simulate_trade(
+        _trade(),
+        _ticks([]),
+        strategy_name="follow_actual",
+        baseline_audit={
+            "status": "external_intervention",
+            "blockers": ["manual_close_confirmed"],
+        },
+        level_timeline_authority="mt5_execution",
+        default_unit_value=1.0,
+    )
+
+    assert result["status"] == "unchanged"
+    assert result["strategy_pnl"] == -10.0
+    assert result["blockers"] == []
+    assert result["tickets"][0]["pnl_source"] == "mt5_actual"
+
+
+def test_provider_mode_keeps_external_intervention_baseline_blocked():
+    result = strategy_simulator.simulate_trade(
+        _trade(),
+        _ticks([]),
+        strategy_name="follow_actual",
+        baseline_audit={
+            "status": "external_intervention",
+            "blockers": ["manual_close_confirmed"],
+        },
+        level_timeline_authority="canonical_provider",
+        default_unit_value=1.0,
+    )
+
+    assert result["status"] == "blocked"
+    assert result["blockers"] == [
+        "baseline_not_exact:external_intervention",
+        "manual_close_confirmed",
+    ]
+
+
+def test_executed_mt5_mode_accepts_delayed_close_observation_baseline():
+    result = strategy_simulator.simulate_trade(
+        _trade(),
+        _ticks([]),
+        strategy_name="follow_actual",
+        baseline_audit={
+            "status": "delayed_close_observation",
+            "limitations": ["per_ticket_close_time_unavailable:101"],
+        },
+        level_timeline_authority="mt5_execution",
+        default_unit_value=1.0,
+    )
+
+    assert result["status"] == "unchanged"
+    assert result["strategy_pnl"] == -10.0
+    assert result["blockers"] == []
 
 
 def test_no_be_uses_explicit_horizon_close_when_tp_or_sl_never_touch():
@@ -500,6 +578,234 @@ def test_policy_uses_provider_level_timeline_instead_of_ticket_history():
     assert result["tickets"][0]["close_price"] == 110.0
 
 
+def test_executed_mt5_mode_uses_provider_trigger_but_confirmed_mt5_levels():
+    policy = StrategyPolicy(
+        policy_id="runner",
+        close_legs=0,
+        be_legs=0,
+        runner_legs=1,
+        base_leg_count=1,
+    )
+    ticket = _managed_ticket(101, 108.0)
+    trade = _trade(tickets=[ticket])
+    provider_signal = {
+        "provider_signal_id": "canal1_1",
+        "management_events": [{
+            "observed_ts_utc": "2026-07-06T10:05:00+00:00",
+            "classified_action": "MOVE_SL_TO_BE",
+        }],
+        "level_timeline": [{
+            "observed_ts_utc": "2026-07-06T10:00:00+00:00",
+            "tps": [110.0],
+            "sl": 90.0,
+        }],
+    }
+    ticks = _ticks([
+        {
+            "time_utc": "2026-07-06T10:06:00.000+00:00",
+            "bid": 105.0,
+            "ask": 105.2,
+        },
+        {"time_utc": "2026-07-06T10:10:00+00:00", "bid": 108.0, "ask": 108.2},
+        {"time_utc": "2026-07-06T10:15:00+00:00", "bid": 110.0, "ask": 110.2},
+    ])
+
+    result = strategy_simulator.simulate_trade(
+        trade,
+        ticks,
+        strategy_name=policy.policy_id,
+        policy=policy,
+        provider_signal=provider_signal,
+        require_provider_timeline=True,
+        level_timeline_authority="mt5_execution",
+        baseline_audit={"status": "exact"},
+        default_unit_value=1.0,
+    )
+
+    assert result["status"] == "simulated"
+    assert result["entry_authority"] == "mt5_deals"
+    assert result["level_timeline_source"] == "execution_ticket_history"
+    assert result["management_trigger_source"] == (
+        "canonical_provider_management"
+    )
+    assert result["tickets"][0]["close_reason"] == "tp"
+    assert result["tickets"][0]["close_price"] == 108.0
+
+
+def test_executed_policy_ignores_tp_reassignment_tagged_as_be():
+    policy = StrategyPolicy(
+        policy_id="no_be",
+        close_legs=0,
+        be_legs=0,
+        runner_legs=1,
+        base_leg_count=1,
+    )
+    ticket = _managed_ticket(101, 110.0)
+    ticket["tp_history"].append({
+        "ts": "2026-07-06T10:05:00+00:00",
+        "status": "confirmed",
+        "source": "SL/TP[0] (BE)",
+        "tp": 105.0,
+    })
+    trade = _trade(tickets=[ticket])
+    provider_signal = {
+        "provider_signal_id": "canal1_1",
+        "management_events": [{
+            "observed_ts_utc": "2026-07-06T10:05:00+00:00",
+            "classified_action": "MOVE_SL_TO_BE",
+        }],
+    }
+    ticks = _ticks([
+        {
+            "time_utc": "2026-07-06T10:06:00+00:00",
+            "bid": 105.0,
+            "ask": 105.2,
+        },
+        {
+            "time_utc": "2026-07-06T10:10:00+00:00",
+            "bid": 110.0,
+            "ask": 110.2,
+        },
+    ])
+
+    result = strategy_simulator.simulate_trade(
+        trade,
+        ticks,
+        strategy_name=policy.policy_id,
+        policy=policy,
+        provider_signal=provider_signal,
+        require_provider_timeline=True,
+        level_timeline_authority="mt5_execution",
+        baseline_audit={"status": "exact"},
+        default_unit_value=1.0,
+    )
+
+    assert result["status"] == "simulated"
+    assert result["tickets"][0]["close_reason"] == "tp"
+    assert result["tickets"][0]["close_price"] == 110.0
+
+
+def test_executed_counterfactual_uses_verified_broker_money_converter():
+    class VerifiedMoney:
+        currency = "EUR"
+        quantum = Decimal("0.01")
+
+        def convert_leg(self, **kwargs):
+            assert kwargs["open_price"] == 100.0
+            assert kwargs["close_price"] == 108.0
+            assert kwargs["volume"] == 1.0
+            assert kwargs["close_time_utc"] == (
+                "2026-07-06T10:10:00.850+00:00"
+            )
+            return {
+                "status": "verified",
+                "strategy_pnl": 42.17,
+                "pnl_currency": "EUR",
+                "profit_currency_pnl": 8.0,
+                "conversion": {
+                    "symbol": "EURUSD",
+                    "price": 1.08,
+                },
+                "blockers": [],
+            }
+
+    policy = StrategyPolicy(
+        policy_id="runner",
+        close_legs=0,
+        be_legs=0,
+        runner_legs=1,
+        base_leg_count=1,
+    )
+    trade = _trade(tickets=[_managed_ticket(101, 108.0)])
+    provider_signal = {
+        "management_events": [{
+            "observed_ts_utc": "2026-07-06T10:05:00+00:00",
+            "classified_action": "MOVE_SL_TO_BE",
+        }],
+    }
+    ticks = _ticks([
+        {
+            "time_utc": "2026-07-06T10:06:00.000+00:00",
+            "bid": 105.0,
+            "ask": 105.2,
+        },
+        {
+            "time_utc": "2026-07-06T10:10:00.850+00:00",
+            "bid": 108.0,
+            "ask": 108.2,
+        },
+    ])
+
+    result = strategy_simulator.simulate_trade(
+        trade,
+        ticks,
+        strategy_name=policy.policy_id,
+        policy=policy,
+        provider_signal=provider_signal,
+        require_provider_timeline=True,
+        level_timeline_authority="mt5_execution",
+        money_converter=VerifiedMoney(),
+        baseline_audit={"status": "exact"},
+    )
+
+    ticket = result["tickets"][0]
+    assert result["strategy_pnl"] == 42.17
+    assert ticket["strategy_pnl"] == 42.17
+    assert ticket["pnl_source"] == "verified_broker_money_contract"
+    assert ticket["pnl_currency"] == "EUR"
+    assert ticket["money_status"] == "verified"
+    assert ticket["money_blockers"] == []
+
+
+def test_money_conversion_failure_blocks_counterfactual_row():
+    class BlockedMoney:
+        currency = "EUR"
+
+        def convert_leg(self, **kwargs):
+            return {
+                "status": "blocked",
+                "strategy_pnl": None,
+                "pnl_currency": "EUR",
+                "profit_currency_pnl": 8.0,
+                "conversion": None,
+                "blockers": ["stale_conversion_quote:EURUSD"],
+            }
+
+    policy = StrategyPolicy(
+        policy_id="runner",
+        close_legs=0,
+        be_legs=0,
+        runner_legs=1,
+        base_leg_count=1,
+    )
+    result = strategy_simulator.simulate_trade(
+        _trade(tickets=[_managed_ticket(101, 108.0)]),
+        _ticks([
+            {
+                "time_utc": "2026-07-06T10:10:00+00:00",
+                "bid": 108.0,
+                "ask": 108.2,
+            },
+        ]),
+        strategy_name=policy.policy_id,
+        policy=policy,
+        provider_signal={
+            "management_events": [{
+                "observed_ts_utc": "2026-07-06T10:05:00+00:00",
+                "classified_action": "MOVE_SL_TO_BE",
+            }],
+        },
+        require_provider_timeline=True,
+        level_timeline_authority="mt5_execution",
+        money_converter=BlockedMoney(),
+        baseline_audit={"status": "exact"},
+    )
+
+    assert result["status"] == "blocked"
+    assert result["strategy_pnl"] is None
+    assert "stale_conversion_quote:EURUSD" in result["blockers"]
+
+
 def test_management_choice_exposes_each_provider_option_as_a_trigger():
     policy = StrategyPolicy(
         policy_id="runner",
@@ -565,6 +871,56 @@ def test_required_provider_timeline_rejects_execution_only_management_event():
 
     assert result["status"] == "blocked"
     assert "missing_provider_management_trigger:MOVE_SL_TO_BE" in result["blockers"]
+
+
+def test_executed_mt5_mode_falls_back_to_confirmed_be_transition():
+    policy = StrategyPolicy(
+        policy_id="runner",
+        close_legs=0,
+        be_legs=0,
+        runner_legs=1,
+        base_leg_count=1,
+    )
+    trade = _trade(
+        management=[],
+        tickets=[_managed_ticket(101, 108.0)],
+    )
+
+    result = strategy_simulator.simulate_trade(
+        trade,
+        _ticks([
+            {
+                "time_utc": "2026-07-06T10:06:00+00:00",
+                "bid": 100.0,
+                "ask": 100.2,
+            },
+            {
+                "time_utc": "2026-07-06T10:10:00+00:00",
+                "bid": 108.0,
+                "ask": 108.2,
+            },
+        ]),
+        strategy_name=policy.policy_id,
+        policy=policy,
+        provider_signal={
+            "provider_signal_id": "canal1_1",
+            "management_events": [],
+        },
+        require_provider_timeline=True,
+        level_timeline_authority="mt5_execution",
+        baseline_audit={"status": "exact"},
+        default_unit_value=1.0,
+    )
+
+    assert result["status"] == "simulated"
+    assert result["management_trigger_utc"] == (
+        "2026-07-06T10:05:00+00:00"
+    )
+    assert result["management_trigger_source"] == (
+        "confirmed_mt5_level_history"
+    )
+    assert result["tickets"][0]["close_reason"] == "tp"
+    assert result["tickets"][0]["close_price"] == 108.0
 
 
 def test_provider_management_before_trade_open_is_not_applied():

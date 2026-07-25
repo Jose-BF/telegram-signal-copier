@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 
 import broker_money
+import replay_source_contract
 import strategy_farm
 import strategy_policies
 
@@ -15,9 +16,16 @@ def _exact_baseline(sig_id):
     return {
         "sig_id": sig_id,
         "status": "exact",
-        "validation_contract": "causal_path_v2",
+        "validation_contract": "causal_path_v3",
         "fill_price_authority": "mt5_deals",
         "market_session_contract": "vantage_xauusd_standard_v1",
+        "tick_contract_evidence": {
+            "2026-07-06": {
+                "symbol": "XAUUSD",
+                "parquet_sha256": "a" * 64,
+                "contract_sha256": "b" * 64,
+            }
+        },
     }
 
 
@@ -29,8 +37,10 @@ def _row(
     assumptions=None,
     mfe_pnl=None,
     tickets=None,
+    sig_id=None,
+    open_dt_utc=None,
 ):
-    return {
+    row = {
         "status": status,
         "strategy_pnl": pnl,
         "channel": channel,
@@ -38,6 +48,11 @@ def _row(
         "mfe_pnl": mfe_pnl,
         "tickets": tickets or [],
     }
+    if sig_id is not None:
+        row["sig_id"] = sig_id
+    if open_dt_utc is not None:
+        row["open_dt_utc"] = open_dt_utc
+    return row
 
 
 def test_policy_metrics_include_return_quality_and_drawdown():
@@ -60,6 +75,32 @@ def test_policy_metrics_include_return_quality_and_drawdown():
     assert metrics["max_drawdown"] == 15.0
     assert metrics["worst_trade"] == -15.0
     assert metrics["max_consecutive_losses"] == 1
+
+
+def test_policy_metrics_use_trade_time_not_json_row_order():
+    rows = [
+        _row(
+            -5.0,
+            sig_id="signal_1",
+            open_dt_utc="2026-07-06T10:00:00+00:00",
+        ),
+        _row(
+            20.0,
+            sig_id="signal_3",
+            open_dt_utc="2026-07-06T12:00:00+00:00",
+        ),
+        _row(
+            -6.0,
+            sig_id="signal_2",
+            open_dt_utc="2026-07-06T11:00:00+00:00",
+        ),
+    ]
+
+    metrics = strategy_farm.calculate_policy_metrics(rows)
+
+    assert metrics["sequence_order_verified"] is True
+    assert metrics["max_consecutive_losses"] == 2
+    assert metrics["max_drawdown"] == 11.0
 
 
 def test_blocked_rows_are_visible_and_prevent_decision_pnl():
@@ -157,8 +198,17 @@ def test_exploratory_ranking_excludes_incomplete_or_estimated_policies():
 
 def test_unsafe_global_calibration_blocks_strict_selection():
     metrics = strategy_farm.calculate_policy_metrics([
-        _row(10.0, assumptions=["global_mt5_calibrated:101"]),
-        _row(5.0),
+        _row(
+            10.0,
+            assumptions=["global_mt5_calibrated:101"],
+            sig_id="signal_1",
+            open_dt_utc="2026-07-06T10:00:00+00:00",
+        ),
+        _row(
+            5.0,
+            sig_id="signal_2",
+            open_dt_utc="2026-07-06T11:00:00+00:00",
+        ),
     ])
     selection = strategy_farm.select_strategy(
         [{"policy_id": "estimated", "metrics": metrics}],
@@ -225,6 +275,68 @@ def test_policy_score_is_compact_unless_trade_details_are_requested():
 
     assert "trades" not in compact
     assert detailed["trades"] == rows
+
+
+def test_incomplete_independent_certificate_removes_all_rankings():
+    report = {
+        "validation": {
+            "mode": "verified_executed_counterfactuals",
+        },
+        "selection": {
+            "selected_policy": "no_be",
+            "exploratory_ranking": ["no_be", "follow_actual"],
+            "global_blockers": [],
+        },
+    }
+    certification = {
+        "complete": False,
+        "conclusions_allowed": False,
+        "blockers": ["ticket_mismatch:signal:no_be:101:close_price"],
+    }
+
+    strategy_farm._apply_independent_certification_gate(
+        report,
+        certification,
+    )
+
+    assert report["validation"]["independent_certification_complete"] is False
+    assert report["validation"]["mode"] == "diagnostic_only"
+    assert report["selection"]["selected_policy"] is None
+    assert report["selection"]["exploratory_ranking"] == []
+    assert report["selection"]["global_blockers"] == [
+        "independent_simulation_certification_incomplete"
+    ]
+    assert report["independent_certification"] == certification
+
+
+def test_complete_independent_certificate_preserves_existing_selection_state():
+    report = {
+        "validation": {
+            "mode": "verified_executed_counterfactuals",
+        },
+        "selection": {
+            "selected_policy": None,
+            "exploratory_ranking": ["no_be"],
+            "global_blockers": ["oos_not_validated"],
+        },
+    }
+    certification = {
+        "complete": True,
+        "conclusions_allowed": True,
+        "blockers": [],
+    }
+
+    strategy_farm._apply_independent_certification_gate(
+        report,
+        certification,
+    )
+
+    assert report["validation"]["independent_certification_complete"] is True
+    assert report["validation"]["mode"] == (
+        "verified_executed_counterfactuals"
+    )
+    assert report["selection"]["exploratory_ranking"] == ["no_be"]
+    assert report["selection"]["global_blockers"] == ["oos_not_validated"]
 
 
 def test_provider_rows_receive_verified_account_currency_pnl():
@@ -396,6 +508,7 @@ def test_farm_passes_canonical_provider_signal_to_every_counterfactual(
         "level_timeline": [],
     }
     captured = []
+    money_converter = object()
 
     def fake_simulate(*args, **kwargs):
         captured.append(kwargs)
@@ -405,6 +518,39 @@ def test_farm_passes_canonical_provider_signal_to_every_counterfactual(
         strategy_farm.strategy_simulator,
         "simulate_trade",
         fake_simulate,
+    )
+    monkeypatch.setattr(
+        strategy_farm,
+        "_load_money_converter",
+        lambda *args, **kwargs: (
+            money_converter,
+            {
+                "contract_verified": True,
+                "account_currency": "EUR",
+                "blockers": [],
+            },
+        ),
+    )
+    monkeypatch.setattr(
+        strategy_farm.broker_money,
+        "validate_executed_money_contract",
+        lambda *args, **kwargs: {
+            "verified": True,
+            "account_currency": "EUR",
+            "tickets_checked": 0,
+            "exact_tickets": 0,
+            "mismatched_tickets": 0,
+            "blocked_tickets": 0,
+            "blockers": [],
+        },
+    )
+    monkeypatch.setattr(
+        strategy_farm,
+        "_apply_provider_money_contract",
+        lambda groups, specs, converter: (
+            groups,
+            {"rows": 0, "verified_rows": 0, "blocked_rows": 0},
+        ),
     )
 
     strategy_farm.build_farm_report(
@@ -425,6 +571,8 @@ def test_farm_passes_canonical_provider_signal_to_every_counterfactual(
 
     assert captured[0]["provider_signal"] is provider_signal
     assert captured[0]["require_provider_timeline"] is True
+    assert captured[0]["level_timeline_authority"] == "mt5_execution"
+    assert captured[0]["money_converter"] is money_converter
 
 
 def _farm_trade(sig_id):
@@ -464,6 +612,7 @@ class _FakeTickLoader:
                 "offset_detection_method": "fill_anchor",
                 "offset_reference": {"signal_id": "canal1_1"},
                 "semantic_time_valid": True,
+                "symbol": "XAUUSD",
                 "anchor_validation": {
                     "valid": True,
                     "anchors_checked": 1,
@@ -473,7 +622,15 @@ class _FakeTickLoader:
                     "errors": [],
                 },
                 "parquet_sha256": "a" * 64,
+                "contract_sha256": "b" * 64,
                 "size_bytes": 123,
+                "coverage": {
+                    "complete_from_utc": "2026-07-06T00:00:00+00:00",
+                    "complete_through_utc": "2026-07-07T00:00:00+00:00",
+                    "captured_at_utc": "2026-07-07T00:01:00+00:00",
+                    "last_tick_utc": "2026-07-06T20:57:59+00:00",
+                    "row_count": 1,
+                },
             }
         }
 
@@ -541,6 +698,7 @@ def test_farm_execution_exposes_exact_provenance_payloads(
         "selected_trades": 2,
         "exact": 2,
         "external_interventions": 0,
+        "delayed_close_observations": 0,
         "blocked": 0,
         "mismatched": 0,
     }
@@ -580,6 +738,7 @@ def test_legacy_exact_baseline_without_causal_contract_is_blocked(
     assert execution.market_replay_summary == {
         "selected_trades": 1,
         "external_interventions": 0,
+        "delayed_close_observations": 0,
         "exact": 0,
         "blocked": 1,
         "mismatched": 0,
@@ -592,7 +751,74 @@ def test_legacy_exact_baseline_without_causal_contract_is_blocked(
         "causal_path_contract_unverified",
         "fill_price_authority_unverified",
         "market_session_contract_unverified",
+        "baseline_tick_contract_evidence_missing:2026-07-06",
     ]
+
+
+def test_exact_baseline_built_from_different_ticks_is_blocked(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        strategy_farm.observed_tick_replay_validator,
+        "ReplayTickFrameCache",
+        _FakeTickLoader,
+    )
+    monkeypatch.setattr(
+        strategy_farm.strategy_simulator,
+        "simulate_trade",
+        lambda *args, **kwargs: _row(None, status="blocked"),
+    )
+    baseline = _exact_baseline("canal1_1")
+    baseline["tick_contract_evidence"]["2026-07-06"][
+        "parquet_sha256"
+    ] = "c" * 64
+
+    execution = strategy_farm.build_farm_execution(
+        [_farm_trade("canal1_1")],
+        [baseline],
+        tick_cache_dir=tmp_path / "ticks",
+        policies=[strategy_policies.StrategyPolicy(
+            policy_id="runner",
+            close_legs=0,
+            be_legs=0,
+            runner_legs=1,
+            base_leg_count=1,
+        )],
+        catalog={"signals": [_provider_signal("canal1_1")]},
+        from_date="2026-07-06",
+        minimum_trades=1,
+    )
+
+    effective = execution.selected_payloads["effective_baselines"][0][
+        "baseline"
+    ]
+    assert effective["status"] == "blocked"
+    assert effective["blockers"] == [
+        "baseline_tick_contract_mismatch:2026-07-06"
+    ]
+
+
+def test_counterfactual_horizon_rejects_partial_tick_day():
+    trade = _farm_trade("canal1_1")
+    contracts = {
+        "2026-07-06": {
+            "symbol": "XAUUSD",
+            "utc_offset_seconds": 10_800,
+            "coverage": {
+                "complete_from_utc": "2026-07-06T00:00:00+00:00",
+                "complete_through_utc": "2026-07-06T10:05:00+00:00",
+                "captured_at_utc": "2026-07-06T10:05:00+00:00",
+                "last_tick_utc": "2026-07-06T10:05:00+00:00",
+                "row_count": 10,
+            },
+        }
+    }
+
+    assert strategy_farm._counterfactual_horizon_blockers(
+        trade,
+        contracts,
+    ) == ["incomplete_policy_horizon:2026-07-06"]
 
 
 class _BlockedTickLoader:
@@ -648,6 +874,25 @@ def test_external_intervention_is_not_a_provider_strategy_blocker():
         "selected_trades": 2,
         "exact": 1,
         "external_interventions": 1,
+        "delayed_close_observations": 0,
+        "blocked": 0,
+        "mismatched": 0,
+    }
+    assert strategy_farm._market_replay_verified(summary) is False
+    assert strategy_farm._market_replay_strategy_eligible(summary) is True
+
+
+def test_delayed_close_observation_is_strategy_eligible_but_not_exact():
+    summary = strategy_farm._market_replay_summary([
+        {"baseline": {"status": "exact"}},
+        {"baseline": {"status": "delayed_close_observation"}},
+    ])
+
+    assert summary == {
+        "selected_trades": 2,
+        "exact": 1,
+        "external_interventions": 0,
+        "delayed_close_observations": 1,
         "blocked": 0,
         "mismatched": 0,
     }
@@ -656,16 +901,41 @@ def test_external_intervention_is_not_a_provider_strategy_blocker():
 
 
 def _write_empty_farm_inputs(root):
+    ledger = root / "ledger.jsonl"
+    events = root / "trade_events.jsonl"
     replay = root / "replay.jsonl"
     baseline = root / "baseline.jsonl"
     catalog = root / "catalog.json"
+    ledger.write_text("", encoding="utf-8")
+    events.write_text("", encoding="utf-8")
     replay.write_text("", encoding="utf-8")
     baseline.write_text("", encoding="utf-8")
     catalog.write_text(
         '{"schema_version":1,"signals":[]}\n',
         encoding="utf-8",
     )
-    return {"replay": replay, "baseline": baseline, "catalog": catalog}
+    paths = {
+        "ledger": ledger,
+        "events": events,
+        "replay": replay,
+        "baseline": baseline,
+        "catalog": catalog,
+    }
+    _refresh_replay_manifest(paths)
+    return paths
+
+
+def _refresh_replay_manifest(paths):
+    replay_source_contract.write_manifest(
+        replay_path=paths["replay"],
+        ledger_path=paths["ledger"],
+        events_path=paths["events"],
+        row_count=sum(
+            1
+            for line in paths["replay"].read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ),
+    )
 
 
 def test_cli_writes_latest_report_with_run_card_reference(tmp_path):
@@ -688,6 +958,21 @@ def test_cli_writes_latest_report_with_run_card_reference(tmp_path):
     assert latest["validation"]["mode"] == "diagnostic_only"
     run_dir = tmp_path / "runs" / fingerprint
     assert (run_dir / "run_card.json").is_file()
+    run_card = json.loads(
+        (run_dir / "run_card.json").read_text(encoding="utf-8")
+    )
+    source_roles = {
+        row["role"]
+        for row in run_card["reproducibility"]["source_files"]
+    }
+    assert {
+        "broker_market_sessions",
+        "executed_simulation_contract",
+        "mt5_tick_cache",
+        "runtime_paths",
+        "simulation_certifier",
+        "simulation_oracle",
+    }.issubset(source_roles)
     assert "provider_policy_results" not in latest
     assert latest["details_archive"]["compression"] == "gzip"
     assert latest["details_archive"]["run_fingerprint"] == fingerprint
@@ -772,6 +1057,109 @@ def test_cli_rejects_missing_catalog_without_reusing_output(tmp_path):
     assert not output.exists()
 
 
+def test_cli_rejects_replay_built_from_an_older_ledger(tmp_path, capsys):
+    paths = _write_empty_farm_inputs(tmp_path)
+    output = tmp_path / "strategy_farm.json"
+    output.write_text('{"generated_at":"stale"}\n', encoding="utf-8")
+    paths["ledger"].write_text(
+        '{"sig_id":"new_mt5_trade"}\n',
+        encoding="utf-8",
+    )
+
+    exit_code = strategy_farm.main([
+        "--replay", str(paths["replay"]),
+        "--baseline", str(paths["baseline"]),
+        "--catalog", str(paths["catalog"]),
+        "--tick-cache-dir", str(tmp_path / "ticks"),
+        "--output", str(output),
+        "--run-archive-dir", str(tmp_path / "runs"),
+        "--quiet",
+    ])
+
+    assert exit_code != 0
+    assert not output.exists()
+    assert "source_changed:ledger" in capsys.readouterr().err
+
+
+def test_cli_rejects_sources_that_change_during_strategy_farm(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    paths = _write_empty_farm_inputs(tmp_path)
+    output = tmp_path / "strategy_farm.json"
+    original_build = strategy_farm.build_farm_execution
+
+    def build_then_change_source(*args, **kwargs):
+        execution = original_build(*args, **kwargs)
+        paths["ledger"].write_text(
+            '{"sig_id":"arrived_during_farm"}\n',
+            encoding="utf-8",
+        )
+        return execution
+
+    monkeypatch.setattr(
+        strategy_farm,
+        "build_farm_execution",
+        build_then_change_source,
+    )
+
+    exit_code = strategy_farm.main([
+        "--replay", str(paths["replay"]),
+        "--baseline", str(paths["baseline"]),
+        "--catalog", str(paths["catalog"]),
+        "--tick-cache-dir", str(tmp_path / "ticks"),
+        "--output", str(output),
+        "--run-archive-dir", str(tmp_path / "runs"),
+        "--quiet",
+    ])
+
+    assert exit_code != 0
+    assert not output.exists()
+    assert "source_changed:ledger" in capsys.readouterr().err
+
+
+def test_cli_rejects_baseline_changed_during_strategy_farm(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    paths = _write_empty_farm_inputs(tmp_path)
+    output = tmp_path / "strategy_farm.json"
+    original_build = strategy_farm.build_farm_execution
+
+    def build_then_change_baseline(*args, **kwargs):
+        execution = original_build(*args, **kwargs)
+        paths["baseline"].write_text(
+            '{"sig_id":"changed_during_farm","status":"exact"}\n',
+            encoding="utf-8",
+        )
+        return execution
+
+    monkeypatch.setattr(
+        strategy_farm,
+        "build_farm_execution",
+        build_then_change_baseline,
+    )
+
+    exit_code = strategy_farm.main([
+        "--replay", str(paths["replay"]),
+        "--baseline", str(paths["baseline"]),
+        "--catalog", str(paths["catalog"]),
+        "--tick-cache-dir", str(tmp_path / "ticks"),
+        "--output", str(output),
+        "--run-archive-dir", str(tmp_path / "runs"),
+        "--quiet",
+    ])
+
+    assert exit_code != 0
+    assert not output.exists()
+    assert (
+        "semantic_artifact_changed:observed_baseline"
+        in capsys.readouterr().err
+    )
+
+
 class _MissingContractTickLoader:
     def __init__(self, tick_cache_dir):
         self.required_days = ["2026-07-06"]
@@ -781,7 +1169,11 @@ class _MissingContractTickLoader:
         return pd.DataFrame(), ["missing_tick_cache:2026-07-06"]
 
 
-def test_cli_does_not_archive_unverified_tick_run(tmp_path, monkeypatch):
+def test_cli_does_not_archive_unverified_tick_run(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
     paths = _write_empty_farm_inputs(tmp_path)
     paths["replay"].write_text(
         json.dumps(_farm_trade("canal1_1")) + "\n",
@@ -795,6 +1187,7 @@ def test_cli_does_not_archive_unverified_tick_run(tmp_path, monkeypatch):
         json.dumps({"signals": [_provider_signal("canal1_1")]}) + "\n",
         encoding="utf-8",
     )
+    _refresh_replay_manifest(paths)
     monkeypatch.setattr(
         strategy_farm.observed_tick_replay_validator,
         "ReplayTickFrameCache",
@@ -817,12 +1210,11 @@ def test_cli_does_not_archive_unverified_tick_run(tmp_path, monkeypatch):
         "--quiet",
     ])
 
-    latest = json.loads(output.read_text())
-    assert exit_code == 0
-    assert latest["provenance"]["status"] == "incomplete"
-    assert latest["provenance"]["errors"] == [
-        "unverified_tick_contract:2026-07-06",
-    ]
+    assert exit_code == 1
+    assert not output.exists()
+    stderr = capsys.readouterr().err
+    assert "market_tick_missing:2026-07-06" in stderr
+    assert "money_tick_missing:2026-07-06" in stderr
     assert not (tmp_path / "runs").exists()
 
 
@@ -860,6 +1252,30 @@ def _provider_first_signal(
     }
 
 
+def test_data_preflight_catches_unexecuted_provider_day_before_farm(tmp_path):
+    signal = _provider_first_signal("unexecuted", executed=False)
+    signal["first_observed_utc"] = "2026-07-23T10:00:00+00:00"
+    signal["signal_ts_utc"] = "2026-07-23T09:59:59+00:00"
+    signal["entry_contract"]["trigger_observed_utc"] = (
+        "2026-07-23T10:00:00+00:00"
+    )
+
+    result = strategy_farm.strategy_data_preflight(
+        [],
+        {"signals": [signal]},
+        tick_cache_dir=tmp_path / "ticks",
+        money_tick_cache_dir=tmp_path / "money_ticks",
+        from_date="2026-07-06",
+        to_date="2026-07-24",
+        provider_latency_scenarios_ms=(0,),
+    )
+
+    assert result["ok"] is False
+    assert "2026-07-23" in result["required_tick_days"]
+    assert "market_tick_missing:2026-07-23" in result["errors"]
+    assert "money_tick_missing:2026-07-23" in result["errors"]
+
+
 class _ProviderFirstTickLoader:
     def __init__(self, tick_cache_dir):
         self.required_days = []
@@ -867,7 +1283,25 @@ class _ProviderFirstTickLoader:
 
     def load_contract_for_day(self, day):
         day_text = day.isoformat()
-        contract = {"utc_offset_seconds": 10_800}
+        contract = {
+            "utc_offset_seconds": 10_800,
+            "symbol": "XAUUSD",
+            "parquet_sha256": "a" * 64,
+            "contract_sha256": "b" * 64,
+            "coverage": {
+                "complete_from_utc": f"{day_text}T00:00:00+00:00",
+                "complete_through_utc": (
+                    pd.Timestamp(day_text, tz="UTC")
+                    + pd.Timedelta(days=1)
+                ).isoformat(),
+                "captured_at_utc": (
+                    pd.Timestamp(day_text, tz="UTC")
+                    + pd.Timedelta(days=1, minutes=1)
+                ).isoformat(),
+                "last_tick_utc": f"{day_text}T20:57:59+00:00",
+                "row_count": 2,
+            },
+        }
         self.verified_contracts[day_text] = contract
         return contract, None
 
@@ -875,6 +1309,25 @@ class _ProviderFirstTickLoader:
         day = str(trade["open_dt_utc"])[:10]
         if day not in self.required_days:
             self.required_days.append(day)
+        self.verified_contracts[day] = {
+            "utc_offset_seconds": 10_800,
+            "symbol": "XAUUSD",
+            "parquet_sha256": "a" * 64,
+            "contract_sha256": "b" * 64,
+            "coverage": {
+                "complete_from_utc": f"{day}T00:00:00+00:00",
+                "complete_through_utc": (
+                    pd.Timestamp(day, tz="UTC")
+                    + pd.Timedelta(days=1)
+                ).isoformat(),
+                "captured_at_utc": (
+                    pd.Timestamp(day, tz="UTC")
+                    + pd.Timedelta(days=1, minutes=1)
+                ).isoformat(),
+                "last_tick_utc": f"{day}T20:57:59+00:00",
+                "row_count": 2,
+            },
+        }
         opened = datetime.fromisoformat(trade["open_dt_utc"])
         return pd.DataFrame({
             "time_utc": [opened, opened + timedelta(seconds=1)],
@@ -969,11 +1422,18 @@ def test_provider_first_farm_emits_every_signal_policy_pair(
     assert all(row["status"] == "blocked" for row in blocked)
     assert all("missing_entry_evidence" in row["blockers"] for row in blocked)
     assert report["validation"] == {
-        "price_path_mode": "provider_first",
+        "primary_universe": "executed_mt5",
+        "price_path_mode": "executed_mt5_entries",
+        "entry_authority": "mt5_deals",
+        "level_timeline_authority": "confirmed_mt5_history",
+        "management_trigger_authority": "canonical_telegram_observed",
         "money_mode": "diagnostic_only",
         "money_contract_verified": False,
+        "account_currency_money_verified": False,
         "market_replay_verified": False,
         "market_replay_strategy_eligible": False,
+        "executed_contract_complete": False,
+        "independent_certification_complete": False,
         "mode": "diagnostic_only",
     }
     assert report["selection"]["selected_policy"] is None
@@ -982,6 +1442,196 @@ def test_provider_first_farm_emits_every_signal_policy_pair(
         "global_blockers"
     ]
     assert "executed_baseline_validation" in report
+
+
+def test_executed_mt5_is_the_primary_strategy_universe(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        strategy_farm.observed_tick_replay_validator,
+        "ReplayTickFrameCache",
+        _ProviderFirstTickLoader,
+    )
+    money_converter = object()
+    monkeypatch.setattr(
+        strategy_farm,
+        "_load_money_converter",
+        lambda *args, **kwargs: (
+            money_converter,
+            {
+                "contract_verified": True,
+                "account_currency": "EUR",
+                "blockers": [],
+            },
+        ),
+    )
+    monkeypatch.setattr(
+        strategy_farm.broker_money,
+        "validate_executed_money_contract",
+        lambda *args, **kwargs: {
+            "verified": True,
+            "account_currency": "EUR",
+            "tickets_checked": 1,
+            "exact_tickets": 1,
+            "mismatched_tickets": 0,
+            "blocked_tickets": 0,
+            "blockers": [],
+        },
+    )
+    monkeypatch.setattr(
+        strategy_farm,
+        "_apply_provider_money_contract",
+        lambda groups, specs, converter: (
+            groups,
+            {"rows": 1, "verified_rows": 0, "blocked_rows": 1},
+        ),
+    )
+    policy = strategy_policies.StrategyPolicy(
+        policy_id="follow_actual",
+        mode="follow_actual",
+        close_legs=0,
+        be_legs=0,
+        runner_legs=1,
+        base_leg_count=1,
+    )
+    trade = {
+        "sig_id": "executed",
+        "channel": "canal1",
+        "direction": "BUY",
+        "open_dt_utc": "2026-07-06T10:00:00+00:00",
+        "close_dt_utc": "2026-07-06T10:05:00+00:00",
+        "pnl_real_mt5": 1.0,
+        "tickets": [{
+            "ticket": 101,
+            "open_dt_utc": "2026-07-06T10:00:00+00:00",
+            "open_price": 100.0,
+            "close_dt_utc": "2026-07-06T10:05:00+00:00",
+            "close_price": 101.0,
+            "close_reason": "tp",
+            "volume": 1.0,
+            "pnl_net": 1.0,
+        }],
+    }
+    provider = _provider_first_signal("executed", executed=True)
+    provider["execution_sig_ids"] = ["executed"]
+
+    report = strategy_farm.build_farm_report(
+        [trade],
+        [_exact_baseline("executed")],
+        tick_cache_dir=tmp_path / "ticks",
+        policies=[policy],
+        catalog={"signals": [provider]},
+        from_date="2026-07-06",
+        to_date="2026-07-06",
+        minimum_trades=1,
+    )
+
+    assert report["primary_universe"] == "executed_mt5"
+    assert report["validation"]["price_path_mode"] == (
+        "executed_mt5_entries"
+    )
+    assert report["validation"]["level_timeline_authority"] == (
+        "confirmed_mt5_history"
+    )
+    assert report["executed_scope"] == {
+        "executed_trades": 1,
+        "policy_count": 1,
+        "rows_expected": 1,
+        "rows_emitted": 1,
+        "blocked_rows": 0,
+        "entry_invariant_failures": 0,
+    }
+    assert report["executed_replay_contract"]["complete"] is True
+    assert report["provider_diagnostics"]["ranking_eligible"] is False
+    assert report["provider_diagnostics"]["formal_signals"] == 1
+    assert report["provider_diagnostics"]["money_verified"] is False
+    assert report["validation"]["money_contract_verified"] is True
+    assert report["validation"]["account_currency_money_verified"] is True
+    assert report["policies"][0]["metrics"]["exploratory_net_pnl"] == 1.0
+    assert report["selection"]["selected_policy"] is None
+
+
+def test_actual_money_blocker_does_not_mislabel_verified_contract(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        strategy_farm.observed_tick_replay_validator,
+        "ReplayTickFrameCache",
+        _ProviderFirstTickLoader,
+    )
+    monkeypatch.setattr(
+        strategy_farm,
+        "_load_money_converter",
+        lambda *args, **kwargs: (
+            object(),
+            {
+                "contract_verified": True,
+                "account_currency": "EUR",
+                "blockers": [],
+            },
+        ),
+    )
+    monkeypatch.setattr(
+        strategy_farm.broker_money,
+        "validate_executed_money_contract",
+        lambda *args, **kwargs: {
+            "verified": False,
+            "account_currency": "EUR",
+            "tickets_checked": 1,
+            "exact_tickets": 0,
+            "mismatched_tickets": 0,
+            "blocked_tickets": 1,
+            "blockers": ["actual_money_reconciliation_blocked:1"],
+        },
+    )
+    policy = strategy_policies.StrategyPolicy(
+        policy_id="follow_actual",
+        mode="follow_actual",
+        close_legs=0,
+        be_legs=0,
+        runner_legs=1,
+        base_leg_count=1,
+    )
+    trade = {
+        "sig_id": "executed",
+        "channel": "canal1",
+        "direction": "BUY",
+        "open_dt_utc": "2026-07-06T10:00:00+00:00",
+        "close_dt_utc": "2026-07-06T10:05:00+00:00",
+        "pnl_real_mt5": 1.0,
+        "tickets": [{
+            "ticket": 101,
+            "open_dt_utc": "2026-07-06T10:00:00+00:00",
+            "open_price": 100.0,
+            "close_dt_utc": "2026-07-06T10:05:00+00:00",
+            "close_price": 101.0,
+            "close_reason": "tp",
+            "volume": 1.0,
+            "pnl_net": 1.0,
+        }],
+    }
+
+    report = strategy_farm.build_farm_report(
+        [trade],
+        [_exact_baseline("executed")],
+        tick_cache_dir=tmp_path / "ticks",
+        policies=[policy],
+        catalog={"signals": []},
+        from_date="2026-07-06",
+        to_date="2026-07-06",
+        minimum_trades=1,
+    )
+
+    assert report["validation"]["money_contract_verified"] is True
+    assert report["validation"]["account_currency_money_verified"] is False
+    assert "actual_money_reconciliation_blocked:1" in report["selection"][
+        "global_blockers"
+    ]
+    assert "broker_money_contract_unverified" not in report["selection"][
+        "global_blockers"
+    ]
 
 
 def test_provider_first_farm_accounts_for_every_latency_scenario(

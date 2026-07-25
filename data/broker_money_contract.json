@@ -7,6 +7,7 @@
   "captured_at_utc": "2026-07-22T17:31:47.627907+00:00",
   "conversion": {
     "max_quote_age_ms": 5000,
+    "max_quote_interval_ms": 60000,
     "negative_profit_side": "bid",
     "orientation": "account_base_profit_quote",
     "positive_profit_side": "ask",
