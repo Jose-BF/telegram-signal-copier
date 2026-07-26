@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import causal_trace
 import listener
 from state import Signal, TradeContext
 
@@ -40,6 +41,7 @@ def test_msg_diag_emits_telegram_raw_event(monkeypatch):
     assert raw[2]["is_reply"] is True
     assert raw[2]["reply_to_msg_id"] == 111
     assert raw[2]["text_sha1"]
+    assert raw[2]["message_revision_id"].startswith("msgrev_")
 
 
 @pytest.mark.parametrize("update_kind", ["poll_edit", "recovery_edit"])
@@ -60,6 +62,66 @@ def test_telegram_raw_payload_marks_semantic_edits(update_kind):
 
     assert payload["update_kind"] == update_kind
     assert payload["is_edit"] is True
+
+
+def test_telegram_revision_identity_is_stable_and_changes_on_edit():
+    base = SimpleNamespace(
+        id=12346,
+        chat_id=-1003908582492,
+        text="SELL NOW",
+        message="SELL NOW",
+        date=datetime(2026, 6, 4, 9, 0, 0),
+        edit_date=None,
+        sticker=None,
+        photo=None,
+        document=None,
+        reply_to=None,
+    )
+
+    first = listener._telegram_raw_payload(base, "canal2", "new")
+    duplicate = listener._telegram_raw_payload(base, "canal2", "poll_new")
+    edited = SimpleNamespace(
+        **{
+            **base.__dict__,
+            "text": "SELL NOW\nSL 4585",
+            "message": "SELL NOW\nSL 4585",
+            "edit_date": datetime(2026, 6, 4, 9, 0, 5),
+        }
+    )
+    edited_payload = listener._telegram_raw_payload(
+        edited, "canal2", "poll_edit")
+
+    assert first["message_revision_id"] == duplicate["message_revision_id"]
+    assert edited_payload["message_revision_id"] != (
+        first["message_revision_id"]
+    )
+
+
+def test_media_only_message_has_revision_identity():
+    msg = SimpleNamespace(
+        id=12347,
+        chat_id=-1001642806869,
+        text="",
+        message="",
+        date=datetime(2026, 6, 4, 9, 0, 0),
+        edit_date=None,
+        sticker=None,
+        photo=SimpleNamespace(id=77),
+        document=None,
+        reply_to=None,
+    )
+
+    payload = listener._telegram_raw_payload(msg, "canal1", "new")
+
+    assert payload["has_media"] is True
+    assert payload["message_revision_id"].startswith("msgrev_")
+    assert causal_trace.message_revision_id(
+        chat_id=msg.chat_id,
+        message_id=msg.id,
+        revision_token="new",
+        text_sha1=None,
+        media_sha256=None,
+    ) == payload["message_revision_id"]
 
 
 def test_log_telegram_understood_records_parsed_levels(monkeypatch):

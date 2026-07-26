@@ -23,6 +23,7 @@ from types import SimpleNamespace
 
 from telethon import TelegramClient, events
 
+import causal_trace
 import config
 import alert_graphics
 import executor
@@ -131,6 +132,17 @@ def _is_edit_update_kind(update_kind: str | None) -> bool:
     return normalized == "edit" or normalized.endswith("_edit")
 
 
+def _telegram_message_revision_id(msg, channel: str) -> str:
+    text = getattr(msg, "text", None) or getattr(msg, "message", None) or ""
+    return causal_trace.message_revision_id(
+        chat_id=_message_chat_id(msg, channel),
+        message_id=int(msg.id),
+        revision_token=_telegram_revision_token(msg),
+        text_sha1=_text_sha1(text) if text else None,
+        media_sha256=None,
+    )
+
+
 def _telegram_raw_payload(msg, channel: str, update_kind: str) -> dict:
     text = getattr(msg, "text", None) or getattr(msg, "message", None) or ""
     reply_to = getattr(msg, "reply_to", None)
@@ -164,6 +176,7 @@ def _telegram_raw_payload(msg, channel: str, update_kind: str) -> dict:
         "sticker_id": sticker_id,
         "has_photo": bool(getattr(msg, "photo", None)),
         "has_document": bool(getattr(msg, "document", None)),
+        "message_revision_id": _telegram_message_revision_id(msg, channel),
     }
 
 
@@ -5518,6 +5531,9 @@ async def _dispatch_telegram_message(
     label: str | None = None,
 ) -> bool:
     """Dispatch once and acknowledge only after durable handler completion."""
+    revision_token = _telegram_revision_token(msg)
+    message_revision_id = _telegram_message_revision_id(msg, channel_name)
+    decision_id = causal_trace.new_decision_id()
     if not runtime_control.begin_handler():
         journal.event(
             f"{channel_name}_{msg.id}",
@@ -5526,59 +5542,66 @@ async def _dispatch_telegram_message(
             chat_id=_message_chat_id(msg, channel_name),
             message_id=int(msg.id),
             update_kind=update_kind,
+            revision_token=revision_token,
+            message_revision_id=message_revision_id,
+            decision_id=decision_id,
         )
         return False
 
-    revision_token = _telegram_revision_token(msg)
-    try:
-        if not await asyncio.to_thread(journal.flush_events, 2.0):
-            print(
-                f"[Telegram] No se pudo confirmar el registro raw de "
-                f"{channel_name}_{msg.id}; se reintentara.",
-                flush=True,
-            )
-            return False
-        if update_kind == "new":
-            claimed_before = (channel_name, msg.id) in _seen_new_msg_ids
-            if channel_name == "canal2":
-                await _process_canal2_new(msg, label=label or "Canal2")
+    with causal_trace.bind_message_revision(
+        message_revision_id,
+        decision_id=decision_id,
+    ):
+        try:
+            if not await asyncio.to_thread(journal.flush_events, 2.0):
+                print(
+                    f"[Telegram] No se pudo confirmar el registro raw de "
+                    f"{channel_name}_{msg.id}; se reintentara.",
+                    flush=True,
+                )
+                return False
+            if update_kind == "new":
+                claimed_before = (channel_name, msg.id) in _seen_new_msg_ids
+                if channel_name == "canal2":
+                    await _process_canal2_new(msg, label=label or "Canal2")
+                else:
+                    await _process_canal1_new(msg)
             else:
-                await _process_canal1_new(msg)
-        else:
-            edit_date = getattr(msg, "edit_date", None)
-            edit_key = (
-                channel_name,
-                msg.id,
-                edit_date.isoformat()
-                if edit_date is not None else revision_token,
-            )
-            claimed_before = edit_key in _seen_edits
-            if channel_name == "canal2":
-                await _process_canal2_edit(msg, label=label or "Canal2")
-            else:
-                await _process_canal1_edit(msg)
+                edit_date = getattr(msg, "edit_date", None)
+                edit_key = (
+                    channel_name,
+                    msg.id,
+                    edit_date.isoformat()
+                    if edit_date is not None else revision_token,
+                )
+                claimed_before = edit_key in _seen_edits
+                if channel_name == "canal2":
+                    await _process_canal2_edit(
+                        msg, label=label or "Canal2")
+                else:
+                    await _process_canal1_edit(msg)
 
-        if claimed_before:
-            return True
-        journal.event(
-            f"{channel_name}_{msg.id}",
-            "telegram_processed",
-            channel=channel_name,
-            chat_id=_message_chat_id(msg, channel_name),
-            message_id=int(msg.id),
-            update_kind=update_kind,
-            revision_token=revision_token,
-        )
-        if not await asyncio.to_thread(journal.flush_events, 2.0):
-            print(
-                f"[Telegram] Procesado sin confirmacion durable para "
-                f"{channel_name}_{msg.id}; se reintentara.",
-                flush=True,
+            if claimed_before:
+                return True
+            journal.event(
+                f"{channel_name}_{msg.id}",
+                "telegram_processed",
+                channel=channel_name,
+                chat_id=_message_chat_id(msg, channel_name),
+                message_id=int(msg.id),
+                update_kind=update_kind,
+                revision_token=revision_token,
             )
-            return False
-        return True
-    finally:
-        runtime_control.end_handler()
+            if not await asyncio.to_thread(journal.flush_events, 2.0):
+                print(
+                    f"[Telegram] Procesado sin confirmacion durable para "
+                    f"{channel_name}_{msg.id}; se reintentara.",
+                    flush=True,
+                )
+                return False
+            return True
+        finally:
+            runtime_control.end_handler()
 
 
 async def _poller_fetch_startup_messages(

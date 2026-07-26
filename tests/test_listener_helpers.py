@@ -15,6 +15,7 @@ import pytest
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
+import causal_trace
 import listener
 from listener import (
     _be_close_negative_decision,
@@ -668,6 +669,66 @@ class TestPollerStartupCatchup:
 
         assert [ev for _, ev, _ in events] == ["telegram_processed"]
         assert flushes == [2.0, 2.0, 2.0]
+
+    @pytest.mark.asyncio
+    async def test_dispatch_binds_one_revision_and_decision_then_resets(
+        self,
+        monkeypatch,
+    ):
+        self._reset_poller_state()
+        message = SimpleNamespace(
+            id=281,
+            chat_id=-1003908582492,
+            text="BUY NOW",
+            message="BUY NOW",
+            date=datetime(2026, 7, 22, 12, 1, tzinfo=timezone.utc),
+            edit_date=None,
+            sticker=None,
+            photo=None,
+            document=None,
+            reply_to=None,
+        )
+        events = []
+
+        def capture(sig, ev, **fields):
+            inherited = causal_trace.current_fields()
+            inherited.update(fields)
+            events.append((sig, ev, inherited))
+
+        monkeypatch.setattr(listener.journal, "event", capture)
+        monkeypatch.setattr(
+            listener.journal,
+            "flush_events",
+            lambda timeout=10.0: True,
+        )
+
+        async def successful(msg, label="Canal2", dedup=True):
+            listener.journal.event(
+                f"canal2_{msg.id}",
+                "processing_probe",
+            )
+            listener._new_msg_already_seen("canal2", msg.id)
+
+        monkeypatch.setattr(listener, "_process_canal2_new", successful)
+
+        listener._msg_diag(message, "canal2", "new")
+        assert await listener._dispatch_telegram_message(
+            message,
+            "canal2",
+            "new",
+            label="Canal2_catchup",
+        ) is True
+
+        raw = next(row for row in events if row[1] == "telegram_raw")
+        probe = next(row for row in events if row[1] == "processing_probe")
+        processed = next(
+            row for row in events if row[1] == "telegram_processed")
+        revision_id = raw[2]["message_revision_id"]
+
+        assert probe[2]["message_revision_id"] == revision_id
+        assert processed[2]["message_revision_id"] == revision_id
+        assert probe[2]["decision_id"] == processed[2]["decision_id"]
+        assert causal_trace.current_fields() == {}
 
     @pytest.mark.asyncio
     async def test_canal1_edit_missed_during_downtime_is_dispatched(
