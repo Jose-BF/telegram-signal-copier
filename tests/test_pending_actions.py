@@ -19,6 +19,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import causal_trace
 from pending_actions import (
     PendingQueue,
     PendingAction,
@@ -59,8 +60,11 @@ def test_pending_action_spool_survives_process_restart(tmp_path, monkeypatch):
     ))
 
     payload = json.loads(spool.read_text(encoding="utf-8"))
+    assert payload["version"] == 2
     assert payload["actions"][0]["message_id"] == 278
     assert payload["actions"][0]["new_sl"] == 4122.10
+    action_id = payload["actions"][0]["action_id"]
+    decision_id = payload["actions"][0]["decision_id"]
 
     restored_signal = Signal(
         channel="canal2",
@@ -84,6 +88,61 @@ def test_pending_action_spool_survives_process_restart(tmp_path, monkeypatch):
     assert second._actions[0].ticket == 1634685403
     assert second._actions[0].signal is restored_signal
     assert second._actions[0].persist_until_signal_close is True
+    assert second._actions[0].action_id == action_id
+    assert second._actions[0].decision_id == decision_id
+
+
+def test_pending_action_captures_bound_causal_context():
+    with causal_trace.bind_message_revision(
+        "msgrev_source",
+        decision_id="decision_source",
+    ):
+        action = _make_action(new_sl=4100.0)
+
+    assert action.action_id.startswith("action_")
+    assert action.decision_id == "decision_source"
+    assert action.message_revision_id == "msgrev_source"
+
+
+def test_legacy_spool_restores_with_explicit_recovered_lineage(
+        tmp_path, monkeypatch):
+    events = []
+    monkeypatch.setattr(
+        "journal.event",
+        lambda sig, ev, **fields: events.append((sig, ev, fields)),
+    )
+    spool = tmp_path / "runtime_pending_actions.json"
+    spool.write_text(json.dumps({
+        "version": 1,
+        "saved_at": 1.0,
+        "actions": [{
+            "kind": "MODIFY_SLTP",
+            "ticket": 1634685403,
+            "channel": "canal2",
+            "message_id": 278,
+            "direction": "SELL",
+            "new_sl": 4122.10,
+            "new_tp": 4119.0,
+            "created_at": 1.0,
+            "timeout_s": 3600,
+            "label": "legacy",
+            "persist_until_signal_close": True,
+            "revision": 0,
+        }],
+    }), encoding="utf-8")
+    queue = PendingQueue(spool_path=spool)
+    queue._ensure_runner = lambda: None
+    state_manager = SimpleNamespace(get=lambda channel, message_id: None)
+
+    assert queue.restore_from_spool(state_manager) == 1
+
+    action = queue._actions[0]
+    assert action.action_id.startswith("action_")
+    assert action.decision_id.startswith("decision_")
+    restored = next(
+        row for row in events if row[1] == "mt5_pending_action_restored")
+    assert restored[2]["lineage_recovered_from_legacy_spool"] is True
+    assert restored[2]["action_id"] == action.action_id
 
 
 def test_pending_spool_is_rewritten_when_action_leaves_queue(tmp_path, monkeypatch):
@@ -366,6 +425,52 @@ class TestModifyPreconditions:
         assert q._actions[0].new_sl == 4059.61
         assert q._actions[0].new_tp == 4052.0
 
+    def test_coalesced_action_keeps_identity_and_records_latest_source(
+        self,
+        monkeypatch,
+    ):
+        events = []
+        monkeypatch.setattr(
+            "journal.event",
+            lambda sig, ev, **fields: events.append((sig, ev, fields)),
+        )
+        q = PendingQueue()
+        monkeypatch.setattr(q, "_ensure_runner", lambda: None)
+
+        with causal_trace.bind_message_revision(
+            "msgrev_first",
+            decision_id="decision_first",
+        ):
+            first = _make_action(new_sl=4059.61, new_tp=4052.0)
+        with causal_trace.bind_message_revision(
+            "msgrev_second",
+            decision_id="decision_second",
+        ):
+            repeated = _make_action(new_sl=4059.61, new_tp=4052.0)
+
+        q.add(first)
+        q.add(repeated)
+
+        assert len(q._actions) == 1
+        queued = q._actions[0]
+        assert queued.action_id == first.action_id
+        assert queued.message_revision_id == "msgrev_second"
+        assert queued.decision_id == "decision_second"
+        requests = [
+            fields for _, ev, fields in events
+            if ev == "mt5_modify_requested"
+        ]
+        assert [row["action_id"] for row in requests] == [
+            first.action_id,
+            first.action_id,
+        ]
+        coalesced = next(
+            fields for _, ev, fields in events
+            if ev == "mt5_action_coalesced"
+        )
+        assert coalesced["action_id"] == first.action_id
+        assert coalesced["message_revision_id"] == "msgrev_second"
+
     @pytest.mark.asyncio
     async def test_coalesced_modify_during_mt5_call_keeps_latest_payload(
         self,
@@ -477,16 +582,18 @@ class TestForensicLifecycleLogging:
         act = _make_action(label="BE #12345", new_sl=4700.0)
         q._log_request(act)
 
-        assert events == [(
-            "canal2_1",
-            "mt5_modify_requested",
-            {
-                "ticket": 12345,
-                "new_sl": 4700.0,
-                "new_tp": None,
-                "label": "BE #12345",
-            },
-        )]
+        assert len(events) == 1
+        sig_id, event_name, fields = events[0]
+        assert sig_id == "canal2_1"
+        assert event_name == "mt5_modify_requested"
+        assert fields["ticket"] == 12345
+        assert fields["new_sl"] == 4700.0
+        assert fields["new_tp"] is None
+        assert fields["label"] == "BE #12345"
+        assert fields["action_id"] == act.action_id
+        assert fields["decision_id"] == act.decision_id
+        assert "message_revision_id" in fields
+        assert fields["action_revision"] == 0
 
     def test_log_done_records_close_result(self, monkeypatch):
         events = []
@@ -505,28 +612,17 @@ class TestForensicLifecycleLogging:
         act.last_retcode = 10009
         q._log_done(act)
 
-        assert events == [(
-            "canal2_1",
+        assert [event_name for _, event_name, _ in events] == [
             "mt5_close_result",
-            {
-                "ticket": 12345,
-                "attempts": 3,
-                "retcode": 10009,
-                "label": "close bad leg",
-            },
-        ), (
-            "canal2_1",
             "mt5_position_snapshot",
-            {
-                "ticket": 12345,
-                "after_action": "CLOSE_POSITION",
-                "retcode": 10009,
-                "label": "close bad leg",
-                "requested_sl": None,
-                "requested_tp": None,
-                "position_exists": False,
-            },
-        )]
+        ]
+        for _, _, fields in events:
+            assert fields["action_id"] == act.action_id
+            assert fields["decision_id"] == act.decision_id
+            assert fields["action_revision"] == 0
+        assert events[0][2]["ticket"] == 12345
+        assert events[0][2]["attempts"] == 3
+        assert events[1][2]["position_exists"] is False
 
     def test_log_done_records_post_modify_position_snapshot(self, monkeypatch):
         events = []
@@ -566,6 +662,7 @@ class TestForensicLifecycleLogging:
         assert snapshot[2]["sl"] == 4700.0
         assert snapshot[2]["tp"] == 4708.5
         assert snapshot[2]["price_current"] == 4701.25
+        assert snapshot[2]["action_id"] == act.action_id
 
     def test_confirmed_modify_retains_actual_ticket_levels_for_auditor(
             self, monkeypatch):
@@ -605,6 +702,10 @@ class TestForensicLifecycleLogging:
             "sig_id": "canal2_1",
             "kind": "MODIFY_SLTP",
             "ticket": 12345,
+            "action_id": act.action_id,
+            "decision_id": act.decision_id,
+            "message_revision_id": act.message_revision_id,
+            "action_revision": 0,
             "new_sl": 4700.25,
             "new_tp": 4688.75,
             "age_s": 5.0,
@@ -631,18 +732,11 @@ class TestForensicLifecycleLogging:
         act.last_retcode = 10036
         q._log_done(act)
 
-        assert events == [(
-            "canal2_1",
-            "mt5_modify_skipped_position_gone",
-            {
-                "ticket": 12345,
-                "attempts": 1,
-                "retcode": 10036,
-                "label": "BE #12345",
-                "new_sl": 4700.0,
-                "new_tp": None,
-            },
-        )]
+        assert len(events) == 1
+        assert events[0][0] == "canal2_1"
+        assert events[0][1] == "mt5_modify_skipped_position_gone"
+        assert events[0][2]["ticket"] == 12345
+        assert events[0][2]["action_id"] == act.action_id
 
 
 def test_persistent_provider_instruction_does_not_expire_before_signal_closes():

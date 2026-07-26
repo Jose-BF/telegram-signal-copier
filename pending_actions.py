@@ -18,6 +18,7 @@ from typing import Optional
 
 import MetaTrader5 as mt5
 
+import causal_trace
 import config
 import executor
 import mt5_errors
@@ -112,11 +113,28 @@ class PendingAction:
     retry_not_before: float = 0.0
     stops_alerted: bool = False
     revision: int = 0
+    action_id: str = field(default_factory=causal_trace.new_action_id)
+    decision_id: str = field(
+        default_factory=causal_trace.current_or_new_decision_id
+    )
+    message_revision_id: Optional[str] = field(
+        default_factory=causal_trace.current_message_revision_id
+    )
+    lineage_recovered_from_legacy_spool: bool = False
 
     def expired(self) -> bool:
         if self.persist_until_signal_close and self.signal.status == "open":
             return False
         return (time.time() - self.created_at) > self.timeout_s
+
+
+def _lineage_fields(action: PendingAction) -> dict:
+    return {
+        "action_id": action.action_id,
+        "decision_id": action.decision_id,
+        "message_revision_id": action.message_revision_id,
+        "action_revision": action.revision,
+    }
 
 
 def _record_confirmed_levels(action: PendingAction) -> bool:
@@ -164,6 +182,12 @@ class PendingQueue:
             "label": action.label,
             "persist_until_signal_close": action.persist_until_signal_close,
             "revision": action.revision,
+            "action_id": action.action_id,
+            "decision_id": action.decision_id,
+            "message_revision_id": action.message_revision_id,
+            "lineage_recovered_from_legacy_spool": (
+                action.lineage_recovered_from_legacy_spool
+            ),
         }
 
     def _spool_fingerprint(self) -> tuple:
@@ -180,7 +204,7 @@ class PendingQueue:
         if self._spool_path is None:
             return
         payload = {
-            "version": 1,
+            "version": 2,
             "saved_at": time.time(),
             "actions": [
                 self._spool_payload(action) for action in self._actions
@@ -220,6 +244,9 @@ class PendingQueue:
                         message_id=message_id,
                         direction=str(row["direction"]),
                     )
+                legacy_lineage = not (
+                    row.get("action_id") and row.get("decision_id")
+                )
                 action = PendingAction(
                     kind=str(row["kind"]),
                     ticket=int(row["ticket"]),
@@ -234,6 +261,21 @@ class PendingQueue:
                         row.get("persist_until_signal_close", False)
                     ),
                     revision=int(row.get("revision") or 0),
+                    action_id=str(
+                        row.get("action_id")
+                        or causal_trace.new_action_id()
+                    ),
+                    decision_id=str(
+                        row.get("decision_id")
+                        or causal_trace.new_decision_id()
+                    ),
+                    message_revision_id=row.get("message_revision_id"),
+                    lineage_recovered_from_legacy_spool=bool(
+                        row.get(
+                            "lineage_recovered_from_legacy_spool",
+                            legacy_lineage,
+                        )
+                    ),
                 )
             except (KeyError, TypeError, ValueError):
                 skipped += 1
@@ -250,6 +292,10 @@ class PendingQueue:
                     new_sl=action.new_sl,
                     new_tp=action.new_tp,
                     label=action.label,
+                    lineage_recovered_from_legacy_spool=(
+                        action.lineage_recovered_from_legacy_spool
+                    ),
+                    **_lineage_fields(action),
                 )
             except Exception:
                 pass
@@ -298,6 +344,9 @@ class PendingQueue:
                     or action.persist_until_signal_close)
                 if changed or label_changed:
                     existing.revision += 1
+                action.action_id = existing.action_id
+                existing.decision_id = action.decision_id
+                existing.message_revision_id = action.message_revision_id
                 self._log_request(action)
                 self._log_coalesced(existing, changed=changed)
                 self._persist_spool()
@@ -322,6 +371,7 @@ class PendingQueue:
                 new_tp=action.new_tp,
                 payload_changed=changed,
                 queue_slots=1,
+                **_lineage_fields(action),
             )
         except Exception:
             pass
@@ -425,7 +475,8 @@ class PendingQueue:
                                       f"{str(e)[:200]}",
                                       kind=act.kind, ticket=act.ticket,
                                       attempts=act.attempts,
-                                      exc_type=type(e).__name__)
+                                      exc_type=type(e).__name__,
+                                      **_lineage_fields(act))
                     except Exception:
                         pass
                     # Marca RETRY para que la cola siga
@@ -453,7 +504,8 @@ class PendingQueue:
                                           kind=act.kind, ticket=act.ticket,
                                           retcode=act.last_retcode,
                                           age_s=int(age),
-                                          attempts=act.attempts)
+                                          attempts=act.attempts,
+                                          **_lineage_fields(act))
                         except Exception:
                             pass
                         act._stuck_warned = True
@@ -554,6 +606,8 @@ class PendingQueue:
                 new_tp=first.new_tp,
                 retcode=first.last_retcode,
                 mt5_attempts=sum(action.attempts for action in actions),
+                action_ids=[action.action_id for action in actions],
+                **_lineage_fields(first),
             )
         except Exception:
             pass
@@ -591,7 +645,8 @@ class PendingQueue:
                           label=act.label,
                           new_sl=act.new_sl,
                           new_tp=act.new_tp,
-                          age_seconds=round(time.time() - act.created_at, 1))
+                          age_seconds=round(time.time() - act.created_at, 1),
+                          **_lineage_fields(act))
             # POSITION_CLOSED es benigno. Timeouts y errores permanentes
             # quedan como warning; los stops atascados se notifican por
             # separado mientras la cola sigue reintentando.
@@ -600,7 +655,9 @@ class PendingQueue:
                             f"{act.kind} falló: {reason}",
                             ticket=act.ticket, retcode=act.last_retcode,
                             attempts=act.attempts, label=act.label,
-                            age_seconds=round(time.time() - act.created_at, 1))
+                            age_seconds=round(
+                                time.time() - act.created_at, 1),
+                            **_lineage_fields(act))
         except Exception as e:
             print(f"[Pending] _log_failure error: {e}")
 
@@ -612,13 +669,16 @@ class PendingQueue:
             if act.kind == "MODIFY_SLTP":
                 journal.event(sig_id, "mt5_modify_requested",
                               ticket=act.ticket, new_sl=act.new_sl,
-                              new_tp=act.new_tp, label=act.label)
+                              new_tp=act.new_tp, label=act.label,
+                              **_lineage_fields(act))
             elif act.kind == "CLOSE_POSITION":
                 journal.event(sig_id, "mt5_close_requested",
-                              ticket=act.ticket, label=act.label)
+                              ticket=act.ticket, label=act.label,
+                              **_lineage_fields(act))
             elif act.kind == "CANCEL_PENDING":
                 journal.event(sig_id, "mt5_cancel_requested",
-                              ticket=act.ticket, label=act.label)
+                              ticket=act.ticket, label=act.label,
+                              **_lineage_fields(act))
         except Exception:
             pass
 
@@ -630,6 +690,7 @@ class PendingQueue:
             "label": act.label,
             "requested_sl": act.new_sl,
             "requested_tp": act.new_tp,
+            **_lineage_fields(act),
         }
         try:
             positions = mt5.positions_get(ticket=act.ticket)
@@ -700,6 +761,7 @@ class PendingQueue:
             "waiting_reason": None,
             "applied_tp": actual_tp,
             "label": act.label,
+            **_lineage_fields(act),
         })
         if len(self._recent_confirmed_actions) > 500:
             self._recent_confirmed_actions = (
@@ -724,6 +786,7 @@ class PendingQueue:
                 "attempts": act.attempts,
                 "retcode": act.last_retcode,
                 "label": act.label,
+                **_lineage_fields(act),
             }
             if act.kind == "MODIFY_SLTP":
                 if mt5_errors.classify(act.last_retcode) == "POSITION_GONE":
@@ -760,6 +823,7 @@ class PendingQueue:
                 effective_tp=decision.effective_tp,
                 reason=decision.reason,
                 mt5_attempts=act.attempts,
+                **_lineage_fields(act),
             )
         except Exception:
             pass
@@ -780,6 +844,7 @@ class PendingQueue:
                 requested_sl=act.new_sl,
                 requested_tp=act.new_tp,
                 mt5_attempts=act.attempts,
+                **_lineage_fields(act),
             )
         except Exception:
             pass
@@ -820,6 +885,7 @@ class PendingQueue:
                     attempted_revision=completed.revision,
                     current_revision=current.revision,
                     retcode=completed.last_retcode,
+                    **_lineage_fields(completed),
                 )
             except Exception:
                 pass
@@ -988,6 +1054,7 @@ def snapshot(queue_obj: PendingQueue | None = None,
             "sig_id": sig_id,
             "kind": act.kind,
             "ticket": act.ticket,
+            **_lineage_fields(act),
             "new_sl": act.new_sl,
             "new_tp": act.new_tp,
             "age_s": round(ts - act.created_at, 1),
@@ -1009,6 +1076,10 @@ def snapshot(queue_obj: PendingQueue | None = None,
             "sig_id": item["sig_id"],
             "kind": item["kind"],
             "ticket": item["ticket"],
+            "action_id": item["action_id"],
+            "decision_id": item["decision_id"],
+            "message_revision_id": item["message_revision_id"],
+            "action_revision": item["action_revision"],
             "new_sl": item["new_sl"],
             "new_tp": item["new_tp"],
             "age_s": round(age_s, 1),

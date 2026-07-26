@@ -596,7 +596,7 @@ def test_scale_out_missing_expected_legs_is_detected_after_grace():
 def test_pending_actions_snapshot_is_read_only_and_serializable():
     sig = _signal()
     q = PendingQueue()
-    q._actions.append(PendingAction(
+    action = PendingAction(
         kind="MODIFY_SLTP",
         ticket=1365772408,
         signal=sig,
@@ -606,7 +606,8 @@ def test_pending_actions_snapshot_is_read_only_and_serializable():
         attempts=7,
         last_retcode=10016,
         label="SL->4585 #1365772408",
-    ))
+    )
+    q._actions.append(action)
 
     result = snapshot(queue_obj=q, now=145.25)
 
@@ -614,6 +615,10 @@ def test_pending_actions_snapshot_is_read_only_and_serializable():
         "sig_id": "canal2_13111",
         "kind": "MODIFY_SLTP",
         "ticket": 1365772408,
+        "action_id": action.action_id,
+        "decision_id": action.decision_id,
+        "message_revision_id": None,
+        "action_revision": 0,
         "new_sl": 4585.0,
         "new_tp": None,
         "age_s": 45.2,
