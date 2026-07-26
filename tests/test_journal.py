@@ -17,6 +17,7 @@ import time
 
 import pytest
 
+import causal_trace
 import journal
 
 
@@ -197,3 +198,60 @@ def test_event_enqueue_does_not_wait_for_disk_lock(isolated_journal):
     assert elapsed < 0.05
     assert journal.flush_events(timeout=1.0) is True
     assert _events(isolated_journal)[0]["message_id"] == 3331
+
+
+def test_event_adds_immutable_process_envelope(
+        isolated_journal, monkeypatch):
+    monkeypatch.setenv("BOT_WATCHER_VERIFIED_HEAD", "a" * 40)
+
+    journal.event("canal2_380", "telegram_raw", message_id=380)
+    journal.event("canal2_380", "telegram_raw", message_id=380)
+
+    first, second = _events(isolated_journal)
+    for row in (first, second):
+        assert row["schema_version"] == 2
+        assert row["event_id"].startswith("event_")
+        assert row["session_id"].startswith("session_")
+        assert isinstance(row["monotonic_ns"], int)
+        assert row["monotonic_ns"] > 0
+        assert row["code_commit"] == "a" * 40
+        assert len(row["payload_sha256"]) == 64
+        assert set(row["payload_sha256"]) <= set("0123456789abcdef")
+        assert row["sig"] == "canal2_380"
+        assert row["ev"] == "telegram_raw"
+        assert "ts" in row
+
+    assert first["event_id"] != second["event_id"]
+    assert first["session_id"] == second["session_id"]
+    assert first["monotonic_ns"] <= second["monotonic_ns"]
+    assert first["payload_sha256"] == second["payload_sha256"]
+
+
+def test_payload_hash_changes_when_semantic_payload_changes(
+        isolated_journal):
+    journal.event("canal2_380", "telegram_raw", message_id=380)
+    journal.event("canal2_380", "telegram_raw", message_id=381)
+
+    first, second = _events(isolated_journal)
+    assert first["payload_sha256"] != second["payload_sha256"]
+
+
+def test_event_inherits_bound_causal_context_without_overwriting_explicit(
+        isolated_journal):
+    with causal_trace.bind_message_revision(
+        "msgrev_bound",
+        decision_id="decision_bound",
+    ):
+        journal.event("canal2_380", "classification")
+        journal.event(
+            "canal2_380",
+            "manual_correction",
+            message_revision_id="msgrev_explicit",
+            decision_id="decision_explicit",
+        )
+
+    inherited, explicit = _events(isolated_journal)
+    assert inherited["message_revision_id"] == "msgrev_bound"
+    assert inherited["decision_id"] == "decision_bound"
+    assert explicit["message_revision_id"] == "msgrev_explicit"
+    assert explicit["decision_id"] == "decision_explicit"

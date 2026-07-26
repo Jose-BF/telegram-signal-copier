@@ -31,13 +31,17 @@ import atexit
 import asyncio
 import contextvars
 import csv
+import hashlib
 import json
+import os
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from queue import Queue
 from threading import Event as ThreadEvent, Lock, Thread
 from typing import Optional
 
+import causal_trace
 from provider_names import provider_display_name
 import runtime_paths
 
@@ -125,6 +129,7 @@ _notify_loop: Optional[asyncio.AbstractEventLoop] = None
 _event_queue: Queue = Queue()
 _event_writer_guard = Lock()
 _event_writer_thread: Optional[Thread] = None
+PROCESS_SESSION_ID = causal_trace.new_session_id()
 
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
@@ -140,6 +145,17 @@ def _serialize(value):
     if isinstance(value, (set, frozenset)):
         return list(value)
     return value
+
+
+def _payload_sha256(payload: dict) -> str:
+    canonical = json.dumps(
+        payload,
+        default=_serialize,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
 
 
 # ─── API: eventos atómicos (JSONL) ──────────────────────────────────────────
@@ -201,10 +217,22 @@ def event(signal_id: str, ev: str, **fields):
     """Queue one JSONL event without blocking Telegram on disk I/O."""
     is_test = _mark_and_get_test(signal_id)
     target_file = EVENTS_TEST_FILE if is_test else EVENTS_FILE
-    record = {"ts": _now_iso(), "sig": signal_id, "ev": ev}
+    semantic = {"sig": signal_id, "ev": ev}
     if is_test:
-        record["test"] = True
-    record.update(fields)
+        semantic["test"] = True
+    semantic.update(fields)
+    for key, value in causal_trace.current_fields().items():
+        semantic.setdefault(key, value)
+    record = {
+        **semantic,
+        "schema_version": 2,
+        "event_id": causal_trace.new_event_id(),
+        "session_id": PROCESS_SESSION_ID,
+        "ts": _now_iso(),
+        "monotonic_ns": time.monotonic_ns(),
+        "code_commit": os.getenv("BOT_WATCHER_VERIFIED_HEAD"),
+        "payload_sha256": _payload_sha256(semantic),
+    }
     try:
         line = json.dumps(record, default=_serialize) + "\n"
         _ensure_event_writer()
