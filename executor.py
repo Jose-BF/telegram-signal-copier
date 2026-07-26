@@ -23,6 +23,9 @@ class ModifySLTPDecision:
     effective_tp: Optional[float]
     deferred_sl: Optional[float] = None
     reason: Optional[str] = None
+    observed_ticket: Optional[int] = None
+    observed_magic: Optional[int] = None
+    observed_kind: Optional[str] = None
 
 
 def _finite_level(value: Optional[float]) -> Optional[float]:
@@ -245,6 +248,15 @@ def _symbol_contract_ctx(symbol_info) -> Optional[dict]:
     )
 
 
+def _lookup_state(value) -> str:
+    if value is None:
+        return "unavailable"
+    try:
+        return "found" if bool(value) else "empty"
+    except Exception:
+        return "found"
+
+
 def _new_action_trace(sig_id: Optional[str]) -> dict:
     current = causal_trace.current_fields()
     return {
@@ -293,11 +305,18 @@ class _MT5AttemptEvidence:
         )
         self.started_monotonic_ns = time.monotonic_ns()
         self.source_tick = None
+        self.validation_tick = None
         self.position_before = None
         self.order_before = None
         self.symbol_contract = None
+        self.source_tick_lookup_state = "not_queried"
+        self.validation_tick_lookup_state = "not_queried"
+        self.position_lookup_state = "not_queried"
+        self.order_lookup_state = "not_queried"
+        self.symbol_info_lookup_state = "not_queried"
         self.request = None
         self.broker_request_sent = False
+        self.last_error = None
         self._emitted = False
 
     def observe(
@@ -317,9 +336,39 @@ class _MT5AttemptEvidence:
         if symbol_info is not None:
             self.symbol_contract = _symbol_contract_ctx(symbol_info)
 
+    def observe_source_tick(self, tick) -> None:
+        self.source_tick_lookup_state = _lookup_state(tick)
+        if tick is not None:
+            self.source_tick = _tick_ctx(tick)
+
+    def observe_position_query(self, positions) -> None:
+        self.position_lookup_state = _lookup_state(positions)
+        if positions:
+            self.position_before = _position_ctx(positions[0])
+
+    def observe_order_query(self, orders) -> None:
+        self.order_lookup_state = _lookup_state(orders)
+        if orders:
+            self.order_before = _order_ctx(orders[0])
+
+    def observe_symbol_info(self, symbol_info) -> None:
+        self.symbol_info_lookup_state = _lookup_state(symbol_info)
+        if symbol_info is not None:
+            self.symbol_contract = _symbol_contract_ctx(symbol_info)
+
+    def observe_validation(self, tick, symbol_info) -> None:
+        self.validation_tick_lookup_state = _lookup_state(tick)
+        self.symbol_info_lookup_state = _lookup_state(symbol_info)
+        self.validation_tick = _tick_ctx(tick)
+        if symbol_info is not None:
+            self.symbol_contract = _symbol_contract_ctx(symbol_info)
+
     def mark_request(self, request: dict) -> None:
         self.request = dict(request)
         self.broker_request_sent = True
+
+    def observe_last_error(self, value) -> None:
+        self.last_error = str(value)
 
     def finish(
         self,
@@ -367,11 +416,31 @@ class _MT5AttemptEvidence:
             last_error=last_error,
             exception=exception_payload,
             source_tick=self.source_tick,
+            validation_tick=self.validation_tick,
             position_before=self.position_before,
             order_before=self.order_before,
             symbol_contract=self.symbol_contract,
+            source_tick_lookup_state=self.source_tick_lookup_state,
+            validation_tick_lookup_state=(
+                self.validation_tick_lookup_state
+            ),
+            position_lookup_state=self.position_lookup_state,
+            order_lookup_state=self.order_lookup_state,
+            symbol_info_lookup_state=self.symbol_info_lookup_state,
             terminal_state=None,
             account_state=None,
+            expected_magic=self.trace.get("expected_magic"),
+            preflight_status=self.trace.get("preflight_status"),
+            preflight_reason=self.trace.get("preflight_reason"),
+            preflight_effective_sl=self.trace.get(
+                "preflight_effective_sl"
+            ),
+            preflight_effective_tp=self.trace.get(
+                "preflight_effective_tp"
+            ),
+            preflight_deferred_sl=self.trace.get(
+                "preflight_deferred_sl"
+            ),
             **_trace_event_fields(self.trace),
         )
 
@@ -535,7 +604,12 @@ def current_tick_safe() -> Optional[dict]:
         return None
 
 
-def _send_safe(req: dict, label: str):
+def _send_safe(
+    req: dict,
+    label: str,
+    *,
+    evidence: Optional[_MT5AttemptEvidence] = None,
+):
     """mt5.order_send con guard de None.
 
     mt5.order_send puede devolver None en escenarios de desconexion / IPC
@@ -553,6 +627,8 @@ def _send_safe(req: dict, label: str):
     res = mt5.order_send(req)
     if res is None:
         last_err = mt5.last_error()
+        if evidence is not None:
+            evidence.observe_last_error(last_err)
         print(f"[MT5] {label}: order_send devolvio None — "
               f"last_error={last_err}")
         _emit_anomaly("bot", "mt5", "critical",
@@ -611,25 +687,80 @@ def open_market_with_fill(direction: str, lot: float,
     entry_price(ticket) por separado, gastando un round-trip extra a MT5
     (~5ms). Esta versión lo aprovecha.
     """
-    sig_id = _sig_id_from_order_comment(comment)
+    sig_id = _sig_id_from_order_comment(comment) or "bot"
     trace = _new_action_trace(sig_id)
     attempt = _MT5AttemptEvidence(trace, "OPEN_MARKET")
     order_type = mt5.ORDER_TYPE_BUY if direction == "BUY" else mt5.ORDER_TYPE_SELL
+    requested_sl = sl
     # _ask_bid puede lanzar RuntimeError si MT5 esta desconectado. Sin
     # try/except, la excepcion sube hasta el handler de Telethon y la senal
     # se pierde sin journal de fallo. Mejor: log + return None, el caller
     # en listener vera el None y registrara market_fill_failed.
     try:
         price, source_tick = _ask_bid_with_tick(direction)
-        attempt.observe(tick=source_tick)
+        attempt.observe_source_tick(source_tick)
     except RuntimeError as e:
+        attempt.observe_source_tick(None)
+        _emit_event(
+            sig_id,
+            "mt5_order_requested",
+            order_kind="market",
+            direction=direction,
+            lot=lot,
+            requested_price=None,
+            sl=requested_sl,
+            tp=tp,
+            magic=magic if magic is not None else config.MT5_MAGIC,
+            comment=comment[:31],
+            deviation=30,
+            preflight_status="source_tick_unavailable",
+            **_trace_event_fields(trace),
+        )
         attempt.finish(exception=e)
         print(f"[MT5] open_market: no pude leer tick ({e}) -> abort")
         return None
+    except Exception as exc:
+        attempt.observe_source_tick(None)
+        _emit_event(
+            sig_id,
+            "mt5_order_requested",
+            order_kind="market",
+            direction=direction,
+            lot=lot,
+            requested_price=None,
+            sl=requested_sl,
+            tp=tp,
+            magic=magic if magic is not None else config.MT5_MAGIC,
+            comment=comment[:31],
+            deviation=30,
+            preflight_status="source_tick_error",
+            **_trace_event_fields(trace),
+        )
+        attempt.finish(exception=exc)
+        raise
 
     # Si el SL queda dentro del stops_level del broker, lo ajustamos al mínimo legal
     # para que la orden no sea rechazada con "invalid stops".
-    sl = safe_sl(direction, sl)
+    try:
+        sl = safe_sl(direction, sl, evidence=attempt)
+    except Exception as exc:
+        _emit_event(
+            sig_id,
+            "mt5_order_requested",
+            order_kind="market",
+            direction=direction,
+            lot=lot,
+            requested_price=price,
+            sl=requested_sl,
+            tp=tp,
+            magic=magic if magic is not None else config.MT5_MAGIC,
+            comment=comment[:31],
+            deviation=30,
+            preflight_status="sl_validation_error",
+            **_trace_event_fields(trace),
+        )
+        attempt.finish(exception=exc)
+        raise
 
     req = {
         "action":      mt5.TRADE_ACTION_DEAL,
@@ -653,6 +784,7 @@ def open_market_with_fill(direction: str, lot: float,
                 direction=direction,
                 lot=lot,
                 requested_price=price,
+                requested_sl_original=requested_sl,
                 sl=req.get("sl"),
                 tp=req.get("tp"),
                 magic=req.get("magic"),
@@ -661,13 +793,17 @@ def open_market_with_fill(direction: str, lot: float,
                 **_trace_event_fields(trace))
     attempt.mark_request(req)
     try:
-        res = _send_safe(req, f"open_market {direction} lot={lot}")
+        res = _send_safe(
+            req,
+            f"open_market {direction} lot={lot}",
+            evidence=attempt,
+        )
     except Exception as exc:
         attempt.finish(exception=exc)
         raise
     attempt.finish(
         result=res,
-        last_error=str(mt5.last_error()) if res is None else None,
+        last_error=attempt.last_error,
     )
     _emit_event(sig_id, "mt5_order_result",
                 order_kind="market",
@@ -696,7 +832,8 @@ def open_market_with_fill(direction: str, lot: float,
                         comment=getattr(res, "comment", None),
                         ticket=recovered_ticket,
                         order=res.order,
-                        fill_price=round(float(fill_price), 2))
+                        fill_price=round(float(fill_price), 2),
+                        **_trace_event_fields(trace))
             _emit_anomaly(sig_id or "bot", "fill", "warning",
                           f"market order retcode={res.retcode} pero "
                           f"positions_get encontro posicion abierta; "
@@ -789,6 +926,9 @@ def place_limit(direction: str, price: float, lot: float,
                 tp: Optional[float] = None,
                 comment: str = "",
                 magic: Optional[int] = None) -> Optional[int]:
+    sig_id = _sig_id_from_order_comment(comment) or "bot"
+    trace = _new_action_trace(sig_id)
+    attempt = _MT5AttemptEvidence(trace, "PLACE_LIMIT")
     order_type = mt5.ORDER_TYPE_BUY_LIMIT if direction == "BUY" else mt5.ORDER_TYPE_SELL_LIMIT
 
     req = {
@@ -808,7 +948,6 @@ def place_limit(direction: str, price: float, lot: float,
     if tp:
         req["tp"] = tp
 
-    sig_id = _sig_id_from_order_comment(req.get("comment"))
     _emit_event(sig_id, "mt5_order_requested",
                 order_kind="pending_limit",
                 direction=direction,
@@ -818,12 +957,24 @@ def place_limit(direction: str, price: float, lot: float,
                 tp=req.get("tp"),
                 magic=req.get("magic"),
                 comment=req.get("comment"),
-                deviation=req.get("deviation"))
-    res = _send_safe(req, f"place_limit {direction} @ {price}")
+                deviation=req.get("deviation"),
+                **_trace_event_fields(trace))
+    attempt.mark_request(req)
+    try:
+        res = _send_safe(
+            req,
+            f"place_limit {direction} @ {price}",
+            evidence=attempt,
+        )
+    except Exception as exc:
+        attempt.finish(exception=exc)
+        raise
+    attempt.finish(result=res, last_error=attempt.last_error)
     _emit_event(sig_id, "mt5_order_result",
                 order_kind="pending_limit",
                 direction=direction,
                 requested_price=price,
+                **_trace_event_fields(trace),
                 **_result_ctx(res))
     if res is None:
         return None
@@ -875,7 +1026,14 @@ def preflight_modify_sltp(
         position = positions[0]
         if not _assert_magic(ticket, position.magic, expected_magic):
             return ModifySLTPDecision(
-                "invalid_magic", None, None, reason="magic_mismatch")
+                "invalid_magic",
+                None,
+                None,
+                reason="magic_mismatch",
+                observed_ticket=getattr(position, "ticket", ticket),
+                observed_magic=getattr(position, "magic", None),
+                observed_kind="position",
+            )
         tick = mt5.symbol_info_tick(config.MT5_SYMBOL)
         symbol_info = mt5.symbol_info(config.MT5_SYMBOL)
         if tick is None or symbol_info is None:
@@ -901,7 +1059,14 @@ def preflight_modify_sltp(
         order = orders[0]
         if not _assert_magic(ticket, order.magic, expected_magic):
             return ModifySLTPDecision(
-                "invalid_magic", None, None, reason="magic_mismatch")
+                "invalid_magic",
+                None,
+                None,
+                reason="magic_mismatch",
+                observed_ticket=getattr(order, "ticket", ticket),
+                observed_magic=getattr(order, "magic", None),
+                observed_kind="order",
+            )
         return ModifySLTPDecision(
             "ready",
             _finite_level(new_sl) if new_sl is not None else _finite_level(order.sl),
@@ -925,9 +1090,9 @@ def modify_sltp_rc(ticket: int, new_sl: Optional[float] = None,
     except Exception as exc:
         attempt.finish(exception=exc)
         raise
+    attempt.observe_position_query(pos)
     if pos:
         p = pos[0]
-        attempt.observe(position=p)
         if not _assert_magic(ticket, p.magic, expected_magic):
             attempt.finish(retcode=mt5.TRADE_RETCODE_INVALID)
             return mt5.TRADE_RETCODE_INVALID
@@ -937,21 +1102,36 @@ def modify_sltp_rc(ticket: int, new_sl: Optional[float] = None,
         except Exception as exc:
             attempt.finish(exception=exc)
             raise
-        attempt.observe(tick=tick, symbol_info=symbol_info)
+        attempt.observe_source_tick(tick)
+        attempt.observe_symbol_info(symbol_info)
         if tick is None or symbol_info is None:
             attempt.finish(retcode=mt5.TRADE_RETCODE_MARKET_CLOSED)
             return mt5.TRADE_RETCODE_MARKET_CLOSED
-        decision = evaluate_position_sltp(
-            p,
-            tick,
-            symbol_info,
-            new_sl=new_sl,
-            new_tp=new_tp,
-        )
+        try:
+            decision = evaluate_position_sltp(
+                p,
+                tick,
+                symbol_info,
+                new_sl=new_sl,
+                new_tp=new_tp,
+            )
+        except Exception as exc:
+            attempt.finish(exception=exc)
+            raise
         if decision.status == "invalid_request":
             attempt.finish(retcode=mt5.TRADE_RETCODE_INVALID)
             return mt5.TRADE_RETCODE_INVALID
         if decision.status == "wait_market":
+            attempt.finish(retcode=mt5.TRADE_RETCODE_INVALID_STOPS)
+            return mt5.TRADE_RETCODE_INVALID_STOPS
+        if (
+            decision.status == "apply_tp_defer_sl"
+            and new_sl is not None
+        ):
+            # The market moved after the queue preflight. Do not turn a
+            # partial TP-only update into a false SL+TP success. Returning a
+            # transient stops result makes the queue preflight again and use
+            # its explicit TP-only path while the SL remains pending.
             attempt.finish(retcode=mt5.TRADE_RETCODE_INVALID_STOPS)
             return mt5.TRADE_RETCODE_INVALID_STOPS
         sl_final = decision.effective_sl or 0.0
@@ -964,14 +1144,18 @@ def modify_sltp_rc(ticket: int, new_sl: Optional[float] = None,
         }
         attempt.mark_request(req)
         try:
-            res = _send_safe(req, f"modify_sltp position={ticket}")
+            res = _send_safe(
+                req,
+                f"modify_sltp position={ticket}",
+                evidence=attempt,
+            )
         except Exception as exc:
             attempt.finish(exception=exc)
             raise
         if res is None:
             attempt.finish(
                 retcode=mt5.TRADE_RETCODE_MARKET_CLOSED,
-                last_error=str(mt5.last_error()),
+                last_error=attempt.last_error,
             )
             return mt5.TRADE_RETCODE_MARKET_CLOSED  # TRANSIENT -> RETRY
         attempt.finish(result=res)
@@ -987,9 +1171,9 @@ def modify_sltp_rc(ticket: int, new_sl: Optional[float] = None,
     except Exception as exc:
         attempt.finish(exception=exc)
         raise
+    attempt.observe_order_query(orders)
     if orders:
         o = orders[0]
-        attempt.observe(order=o)
         if not _assert_magic(ticket, o.magic, expected_magic):
             attempt.finish(retcode=mt5.TRADE_RETCODE_INVALID)
             return mt5.TRADE_RETCODE_INVALID
@@ -1004,14 +1188,18 @@ def modify_sltp_rc(ticket: int, new_sl: Optional[float] = None,
         }
         attempt.mark_request(req)
         try:
-            res = _send_safe(req, f"modify_sltp pending order={ticket}")
+            res = _send_safe(
+                req,
+                f"modify_sltp pending order={ticket}",
+                evidence=attempt,
+            )
         except Exception as exc:
             attempt.finish(exception=exc)
             raise
         if res is None:
             attempt.finish(
                 retcode=mt5.TRADE_RETCODE_MARKET_CLOSED,
-                last_error=str(mt5.last_error()),
+                last_error=attempt.last_error,
             )
             return mt5.TRADE_RETCODE_MARKET_CLOSED  # TRANSIENT -> RETRY
         attempt.finish(result=res)
@@ -1059,13 +1247,13 @@ def close_position_rc(
     except Exception as exc:
         attempt.finish(exception=exc)
         raise
+    attempt.observe_position_query(pos)
     if not pos:
         print(f"[MT5] close_position: ticket {ticket} no encontrado")
         attempt.finish(retcode=mt5.TRADE_RETCODE_INVALID)
         return mt5.TRADE_RETCODE_INVALID
 
     p = pos[0]
-    attempt.observe(position=p)
     if not _assert_magic(ticket, p.magic, expected_magic):
         attempt.finish(retcode=mt5.TRADE_RETCODE_INVALID)
         return mt5.TRADE_RETCODE_INVALID
@@ -1078,8 +1266,9 @@ def close_position_rc(
     # MT5 vuelva a responder.
     try:
         price, source_tick = _ask_bid_with_tick(close_dir)
-        attempt.observe(tick=source_tick)
+        attempt.observe_source_tick(source_tick)
     except RuntimeError as e:
+        attempt.observe_source_tick(None)
         attempt.finish(
             retcode=mt5.TRADE_RETCODE_MARKET_CLOSED,
             exception=e,
@@ -1087,6 +1276,10 @@ def close_position_rc(
         print(f"[MT5] close_position ticket={ticket}: no pude leer tick "
               f"({e}) -> retorno TRANSIENT para reintento")
         return mt5.TRADE_RETCODE_MARKET_CLOSED
+    except Exception as exc:
+        attempt.observe_source_tick(None)
+        attempt.finish(exception=exc)
+        raise
 
     # Conservamos el magic original de la posición para que el deal de cierre
     # quede atribuido al mismo canal que la abrió.
@@ -1105,14 +1298,18 @@ def close_position_rc(
     }
     attempt.mark_request(req)
     try:
-        res = _send_safe(req, f"close_position ticket={ticket}")
+        res = _send_safe(
+            req,
+            f"close_position ticket={ticket}",
+            evidence=attempt,
+        )
     except Exception as exc:
         attempt.finish(exception=exc)
         raise
     if res is None:
         attempt.finish(
             retcode=mt5.TRADE_RETCODE_MARKET_CLOSED,
-            last_error=str(mt5.last_error()),
+            last_error=attempt.last_error,
         )
         return mt5.TRADE_RETCODE_MARKET_CLOSED  # TRANSIENT -> RETRY
     attempt.finish(result=res)
@@ -1140,12 +1337,12 @@ def cancel_pending_rc(
         except Exception as exc:
             attempt.finish(exception=exc)
             raise
+        attempt.observe_order_query(orders)
         if not orders:
             print(f"[MT5] cancel_pending: ticket {ticket} no encontrado")
             attempt.finish(retcode=mt5.TRADE_RETCODE_INVALID)
             return mt5.TRADE_RETCODE_INVALID
         order = orders[0]
-        attempt.observe(order=order)
         if not _assert_magic(ticket, order.magic, expected_magic):
             attempt.finish(retcode=mt5.TRADE_RETCODE_INVALID)
             return mt5.TRADE_RETCODE_INVALID
@@ -1156,6 +1353,7 @@ def cancel_pending_rc(
         res = _send_safe(
             req,
             f"cancel_pending ticket={ticket}",
+            evidence=attempt,
         )
     except Exception as exc:
         attempt.finish(exception=exc)
@@ -1163,7 +1361,7 @@ def cancel_pending_rc(
     if res is None:
         attempt.finish(
             retcode=mt5.TRADE_RETCODE_MARKET_CLOSED,
-            last_error=str(mt5.last_error()),
+            last_error=attempt.last_error,
         )
         return mt5.TRADE_RETCODE_MARKET_CLOSED  # TRANSIENT -> RETRY
     attempt.finish(result=res)
@@ -1180,7 +1378,12 @@ def cancel_pending(ticket: int, expected_magic: Optional[int] = None) -> bool:
 
 # ─── Apertura con ajuste de SL ilegal ─────────────────────────────────────────
 
-def safe_sl(direction: str, desired_sl: Optional[float]) -> Optional[float]:
+def safe_sl(
+    direction: str,
+    desired_sl: Optional[float],
+    *,
+    evidence: Optional[_MT5AttemptEvidence] = None,
+) -> Optional[float]:
     """Ajusta SL al mínimo legal del broker. None si no hay tick.
 
     Batch D: si desired_sl ESTABA seteado pero adjust_sl_to_legal devuelve
@@ -1191,7 +1394,13 @@ def safe_sl(direction: str, desired_sl: Optional[float]) -> Optional[float]:
     """
     if desired_sl is None:
         return None
-    adjusted = mt5_errors.adjust_sl_to_legal(direction, desired_sl)
+    adjusted = mt5_errors.adjust_sl_to_legal(
+        direction,
+        desired_sl,
+        observation_callback=(
+            evidence.observe_validation if evidence is not None else None
+        ),
+    )
     if adjusted is None:
         _emit_anomaly("bot", "naked", "critical",
                       f"safe_sl(adjusted=None) — broker no devolvio tick "

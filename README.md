@@ -109,6 +109,46 @@ time. The Parquet cache itself is currently local-only: a run card cannot
 recreate a cache file after that file has been deleted. Such cards therefore
 report current verification separately from durable artifact retention.
 
+### Causal execution evidence
+
+New runtime events carry a stable chain from the Telegram message revision to
+the bot decision, logical action, individual MT5 attempt and broker result.
+This tracing is passive: it does not change order payloads, retry timing or
+trading decisions.
+
+Audit a downloaded runtime corpus with:
+
+```powershell
+python tools/audit_causal_lineage.py --events runtime_data/trade_events.jsonl --output runtime_data/causal_lineage_audit.json
+```
+
+`complete` means that the causal evidence chain is present. It does not mean
+that the trade or strategy was profitable. Historical rows recorded before
+this contract remain visible as `legacy_before_contract`; they are never
+discarded. Any missing or contradictory link blocks exact counterfactual
+certification for the affected evidence. The audit also verifies each event
+envelope and payload hash, follows references outside an optional date filter,
+and reports coalesced or superseded actions instead of treating them as
+unexplained missing attempts. It independently recomputes Telegram text and
+revision identities, compares terminal result events with their captured MT5
+attempt, and rejects reused attempt IDs.
+
+Runtime recording is asynchronous and never makes Telegram handling wait for
+disk I/O. A decision-start event is queued before entering the handler and a
+final action manifest is queued after it finishes. If a process or power
+failure prevents either event from becoming durable, the auditor blocks that
+sample instead of delaying, suppressing or repeating a live action. If a
+handler fails after issuing an action, the failure event retains that
+decision's exact action manifest; a later delivery can retry without erasing
+the first attempt. Long-lived pending and position-monitor tasks start with a
+detached causal context, then create explicit internal decisions linked back
+to the signal that spawned them.
+
+Invalid UTF-8 or malformed JSONL lines are reported as blocked source evidence
+instead of being replaced or skipped. Media revisions remain intentionally
+blocked until the Phase 2 media archive supplies their SHA-256; the presence of
+text-only lineage does not make an unarchived image exact.
+
 Analysis:
 
 - `analysis/patterns.py`, `analysis/daily_report.py` and `analysis/bot_execution_quality.py` are still useful for session review.

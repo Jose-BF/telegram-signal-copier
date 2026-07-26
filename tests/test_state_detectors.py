@@ -27,6 +27,8 @@ import asyncio
 import pytest
 from datetime import datetime
 
+import causal_trace
+import position_lifecycle_monitor
 from listener import (
     _scale_out_fill_summary,
     _position_lifecycle_monitor_task_anomaly_severity,
@@ -100,6 +102,33 @@ class TestPositionLifecycleMonitorTaskAnomalySeverity:
 
 
 # ───────── C3 — state.add overwrite detector ─────────
+
+@pytest.mark.asyncio
+async def test_monitor_task_does_not_keep_finished_telegram_context(
+    monkeypatch,
+):
+    observed = []
+
+    async def capture_context(signal, levels):
+        observed.append(causal_trace.current_fields())
+
+    monkeypatch.setattr(
+        position_lifecycle_monitor,
+        "run",
+        capture_context,
+    )
+    signal = Signal(channel="canal2", message_id=380, direction="BUY")
+
+    with causal_trace.bind_message_revision(
+        "msgrev_source",
+        decision_id="decision_source",
+    ):
+        task = position_lifecycle_monitor.start(signal, [])
+
+    await task
+
+    assert observed == [{}]
+
 
 class TestDetectStateAddOverwrite:
     """state.add(s) con (s.channel, s.message_id) ya en _signals reemplaza

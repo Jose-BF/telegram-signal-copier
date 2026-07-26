@@ -31,6 +31,7 @@ from datetime import datetime
 
 import MetaTrader5 as mt5
 
+import causal_trace
 import config
 import executor
 import pending_actions
@@ -66,6 +67,67 @@ def _should_emit_periodic_snapshot(now_ts: float, last_ts: float,
 def _signal_still_alive(signal: Signal) -> bool:
     """True si la señal sigue abierta y tiene posiciones que vigilar."""
     return signal.status == "open"
+
+
+async def _open_market_internal(
+    signal: Signal,
+    *,
+    level: float,
+    lot: float,
+    sl,
+    tp,
+    comment: str,
+):
+    """Open a delayed DCA under a fresh, auditable bot decision."""
+    with causal_trace.bind_internal_decision(
+        message_revision_id=signal.source_message_revision_id,
+        parent_decision_id=signal.source_decision_id,
+        reason="position_lifecycle_dca",
+    ) as decision:
+        try:
+            import journal
+            journal.event(
+                f"{signal.channel}_{signal.message_id}",
+                "bot_internal_decision_started",
+                decision_id=decision.decision_id,
+                message_revision_id=decision.message_revision_id,
+                parent_decision_id=decision.parent_decision_id,
+                decision_reason=decision.decision_reason,
+                decision_level=level,
+            )
+        except Exception:
+            pass
+        try:
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(
+                None,
+                causal_trace.context_bound_call(
+                    executor.open_market,
+                    signal.direction,
+                    lot,
+                    sl=sl,
+                    tp=tp,
+                    comment=comment,
+                    magic=signal.magic,
+                ),
+            )
+        finally:
+            try:
+                import journal
+                action_ids = causal_trace.declared_action_ids(decision)
+                journal.event(
+                    f"{signal.channel}_{signal.message_id}",
+                    "bot_internal_decision",
+                    decision_id=decision.decision_id,
+                    message_revision_id=decision.message_revision_id,
+                    parent_decision_id=decision.parent_decision_id,
+                    decision_reason=decision.decision_reason,
+                    decision_level=level,
+                    declared_action_ids=action_ids,
+                    declared_action_count=len(action_ids),
+                )
+            except Exception:
+                pass
 
 
 def _close_all_positions(signal: Signal, reason: str):
@@ -890,7 +952,6 @@ async def run(signal: Signal, levels: list[float]):
 
                 print(f"[Position Monitor] Nivel alcanzado: {next_level} @ {current:.2f} "
                       f"({tick.time_msc}ms) | pos#{position_index} -> TP={tp} SL={sl_for_dca}")
-                loop = asyncio.get_event_loop()
                 lv = next_level  # captura para el lambda
                 # Usa el lotaje efectivo de la señal (HIGH RISK → x0.5)
                 lot = signal.effective_lot
@@ -899,16 +960,13 @@ async def run(signal: Signal, levels: list[float]):
                 # Backward compat: el resync detecta tanto format viejo
                 # ("DCA_4593.5") como nuevo.
                 dca_comment = f"DCA_c{signal.channel[-1]}_{signal.message_id}_{lv}"
-                ticket = await loop.run_in_executor(
-                    None,
-                    lambda: executor.open_market(
-                        direction,
-                        lot,
-                        sl=sl_for_dca,
-                        tp=tp,
-                        comment=dca_comment,
-                        magic=signal.magic,
-                    )
+                ticket = await _open_market_internal(
+                    signal,
+                    level=lv,
+                    lot=lot,
+                    sl=sl_for_dca,
+                    tp=tp,
+                    comment=dca_comment,
                 )
                 if ticket:
                     signal.dca_tickets.append(ticket)
@@ -1030,6 +1088,8 @@ def start(signal: Signal, levels: list[float]) -> asyncio.Task:
     Adjunta done_callback que detecta crash del monitor (silent failure
     pre-Batch-C: la task moria sin trazo).
     """
-    task = asyncio.create_task(run(signal, levels))
+    import journal
+    with causal_trace.detached_context(), journal.detached_test_mode():
+        task = asyncio.create_task(run(signal, levels))
     task.add_done_callback(_monitor_done_callback(signal))
     return task

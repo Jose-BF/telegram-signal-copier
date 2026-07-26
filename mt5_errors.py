@@ -66,15 +66,35 @@ def get_stops_level_pts() -> float:
     return info.trade_stops_level * info.point
 
 
-def adjust_sl_to_legal(direction: str, desired_sl: float) -> float | None:
+def adjust_sl_to_legal(
+    direction: str,
+    desired_sl: float,
+    *,
+    observation_callback=None,
+) -> float | None:
     """
     Si el SL deseado está dentro del stops_level, lo ajusta al mínimo legal.
     Devuelve None si no se puede obtener tick.
     """
     tick = mt5.symbol_info_tick(config.MT5_SYMBOL)
     if not tick:
+        if observation_callback is not None:
+            try:
+                observation_callback(tick, None)
+            except Exception:
+                pass
         return None
-    min_dist = get_stops_level_pts()
+    info = mt5.symbol_info(config.MT5_SYMBOL)
+    if observation_callback is not None:
+        try:
+            observation_callback(tick, info)
+        except Exception:
+            pass
+    min_dist = (
+        info.trade_stops_level * info.point
+        if info
+        else 0.0
+    )
     if direction == "BUY":
         # Para BUY, SL < bid. Máximo legal = bid - min_dist
         max_legal = tick.bid - min_dist

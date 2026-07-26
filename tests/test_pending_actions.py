@@ -208,6 +208,44 @@ class TestEnsureRunner:
         assert run_called == [True]
 
     @pytest.mark.asyncio
+    async def test_runner_does_not_retain_telegram_decision_context(self):
+        q = PendingQueue()
+        observed = []
+
+        async def trivial_run():
+            observed.append(causal_trace.current_fields())
+
+        q._run = trivial_run  # type: ignore
+        with causal_trace.bind_message_revision(
+            "msgrev_source",
+            decision_id="decision_source",
+        ):
+            q._ensure_runner()
+        await asyncio.wait_for(q._task, timeout=2.0)
+
+        assert observed == [{}]
+
+    @pytest.mark.asyncio
+    async def test_runner_does_not_retain_test_channel_context(self):
+        import journal
+
+        q = PendingQueue()
+        observed = []
+
+        async def trivial_run():
+            observed.append(journal.is_test_mode())
+
+        q._run = trivial_run  # type: ignore
+        token = journal._test_context.set(True)
+        try:
+            q._ensure_runner()
+        finally:
+            journal._test_context.reset(token)
+        await asyncio.wait_for(q._task, timeout=2.0)
+
+        assert observed == [False]
+
+    @pytest.mark.asyncio
     async def test_ensure_runner_does_not_create_second_if_alive(self):
         q = PendingQueue()
         # Encolamos una accion que el runner intentara procesar — pero como
@@ -323,6 +361,63 @@ class TestModifyPreconditions:
         assert submitted == []
 
     @pytest.mark.asyncio
+    async def test_position_gone_preserves_preflight_evidence(
+        self,
+        monkeypatch,
+    ):
+        q = PendingQueue()
+        act = _make_action(new_sl=4060.0)
+        monkeypatch.setattr(
+            "pending_actions.executor.preflight_modify_sltp",
+            lambda *args, **kwargs: SimpleNamespace(
+                status="position_gone",
+                effective_sl=None,
+                effective_tp=None,
+                deferred_sl=None,
+                reason="ticket_not_found",
+            ),
+        )
+
+        result = await q._try_once(act)
+
+        assert result == "DONE"
+        assert act.attempts == 0
+        assert act.last_attempt_id is None
+        assert act.last_preflight_status == "position_gone"
+        assert act.last_preflight_reason == "ticket_not_found"
+
+    @pytest.mark.asyncio
+    async def test_invalid_magic_preserves_the_observed_mt5_owner(
+        self,
+        monkeypatch,
+    ):
+        q = PendingQueue()
+        act = _make_action(new_sl=4060.0)
+        monkeypatch.setattr(
+            "pending_actions.executor.preflight_modify_sltp",
+            lambda *args, **kwargs: SimpleNamespace(
+                status="invalid_magic",
+                effective_sl=None,
+                effective_tp=None,
+                deferred_sl=None,
+                reason="magic_mismatch",
+                observed_ticket=12345,
+                observed_magic=20260421,
+                observed_kind="position",
+            ),
+        )
+
+        result = await q._try_once(act)
+
+        assert result == "DROP"
+        assert act.attempts == 0
+        assert act.last_retcode == 10013
+        assert act.last_preflight_status == "invalid_magic"
+        assert act.last_preflight_observed_ticket == 12345
+        assert act.last_preflight_observed_magic == 20260421
+        assert act.last_preflight_observed_kind == "position"
+
+    @pytest.mark.asyncio
     async def test_compatible_tp_applies_once_while_sl_stays_deferred(
         self,
         monkeypatch,
@@ -367,6 +462,7 @@ class TestModifyPreconditions:
         assert act.applied_tp == 4052.0
         assert act.new_tp is None
         assert act.new_sl == 4059.61
+        assert act.signal.sl_by_ticket == {}
         assert act.signal.tp_by_ticket == {12345: 4052.0}
 
     @pytest.mark.asyncio
@@ -441,6 +537,7 @@ class TestModifyPreconditions:
         assert len(traces) == 2
         assert {row["action_id"] for row in traces} == {act.action_id}
         assert traces[0]["attempt_id"] != traces[1]["attempt_id"]
+        assert act.last_attempt_id == traces[1]["attempt_id"]
 
     @pytest.mark.asyncio
     async def test_retry_cooldown_does_not_resubmit_same_modify(
@@ -476,7 +573,171 @@ class TestModifyPreconditions:
         assert q._actions[0].new_sl == 4059.61
         assert q._actions[0].new_tp == 4052.0
 
-    def test_coalesced_action_keeps_identity_and_records_latest_source(
+    def test_delayed_action_gets_internal_decision_linked_to_signal_origin(
+        self,
+    ):
+        signal = Signal(
+            channel="canal2",
+            message_id=380,
+            direction="BUY",
+        )
+        signal.source_message_revision_id = "msgrev_origin"
+        signal.source_decision_id = "decision_origin"
+
+        action = PendingAction(
+            kind="MODIFY_SLTP",
+            ticket=12345,
+            signal=signal,
+            new_sl=4056.53,
+        )
+
+        assert action.message_revision_id == "msgrev_origin"
+        assert action.decision_id != "decision_origin"
+        assert action.decision_id.startswith("decision_")
+        assert action.parent_decision_id == "decision_origin"
+        assert action.decision_origin == "internal"
+
+    def test_unbound_pending_action_emits_internal_decision_manifest(
+        self,
+        monkeypatch,
+    ):
+        events = []
+        monkeypatch.setattr(
+            "journal.event",
+            lambda sig, ev, **fields: events.append((sig, ev, fields)),
+        )
+        signal = Signal(
+            channel="canal2",
+            message_id=380,
+            direction="BUY",
+            source_message_revision_id="msgrev_origin",
+            source_decision_id="decision_origin",
+        )
+        action = PendingAction(
+            kind="MODIFY_SLTP",
+            ticket=12345,
+            signal=signal,
+            new_sl=4056.53,
+            internal_reason="position_lifecycle_be",
+        )
+        q = PendingQueue()
+        monkeypatch.setattr(q, "_ensure_runner", lambda: None)
+
+        q.add(action)
+
+        assert [ev for _, ev, _ in events] == [
+            "bot_internal_decision_started",
+            "mt5_modify_requested",
+            "bot_internal_decision",
+        ]
+        started = events[0][2]
+        decision = next(
+            fields for _, ev, fields in events
+            if ev == "bot_internal_decision"
+        )
+        assert started["decision_id"] == decision["decision_id"]
+        assert decision["decision_id"] == action.decision_id
+        assert decision["parent_decision_id"] == "decision_origin"
+        assert decision["message_revision_id"] == "msgrev_origin"
+        assert decision["decision_reason"] == "position_lifecycle_be"
+        assert decision["declared_action_ids"] == [action.action_id]
+        assert decision["declared_action_count"] == 1
+
+    def test_bound_telegram_action_does_not_emit_internal_decision(
+        self,
+        monkeypatch,
+    ):
+        events = []
+        monkeypatch.setattr(
+            "journal.event",
+            lambda sig, ev, **fields: events.append((sig, ev, fields)),
+        )
+        q = PendingQueue()
+        monkeypatch.setattr(q, "_ensure_runner", lambda: None)
+        with causal_trace.bind_message_revision(
+            "msgrev_edit",
+            decision_id="decision_edit",
+        ):
+            action = _make_action(new_sl=4057.0)
+            q.add(action)
+
+        assert action.decision_origin == "telegram"
+        assert not any(
+            ev in {
+                "bot_internal_decision_started",
+                "bot_internal_decision",
+            }
+            for _, ev, _ in events
+        )
+
+    def test_existing_internal_action_does_not_leak_into_unrelated_manifest(
+        self,
+        monkeypatch,
+    ):
+        monkeypatch.setattr("journal.event", lambda *args, **kwargs: None)
+        signal = Signal(
+            channel="canal2",
+            message_id=380,
+            direction="BUY",
+            source_message_revision_id="msgrev_origin",
+            source_decision_id="decision_origin",
+        )
+        action = PendingAction(
+            kind="MODIFY_SLTP",
+            ticket=12345,
+            signal=signal,
+            new_sl=4056.53,
+        )
+        q = PendingQueue()
+        monkeypatch.setattr(q, "_ensure_runner", lambda: None)
+
+        with causal_trace.bind_message_revision(
+            "msgrev_unrelated",
+            decision_id="decision_unrelated",
+        ):
+            q.add(action)
+            declared = causal_trace.declared_action_ids()
+
+        assert declared == []
+
+    def test_signal_captures_origin_when_created_in_message_context(self):
+        with causal_trace.bind_message_revision(
+            "msgrev_origin",
+            decision_id="decision_origin",
+        ):
+            signal = Signal(
+                channel="canal2",
+                message_id=380,
+                direction="BUY",
+            )
+
+        assert signal.source_message_revision_id == "msgrev_origin"
+        assert signal.source_decision_id == "decision_origin"
+
+    def test_current_management_revision_overrides_signal_origin(self):
+        signal = Signal(
+            channel="canal2",
+            message_id=380,
+            direction="BUY",
+        )
+        signal.source_message_revision_id = "msgrev_origin"
+        signal.source_decision_id = "decision_origin"
+
+        with causal_trace.bind_message_revision(
+            "msgrev_edit",
+            decision_id="decision_edit",
+        ):
+            action = PendingAction(
+                kind="MODIFY_SLTP",
+                ticket=12345,
+                signal=signal,
+                new_sl=4057.0,
+            )
+
+        assert action.message_revision_id == "msgrev_edit"
+        assert action.decision_id == "decision_edit"
+
+    def test_equivalent_coalesced_action_keeps_distinct_causal_sources(
         self,
         monkeypatch,
     ):
@@ -505,22 +766,97 @@ class TestModifyPreconditions:
         assert len(q._actions) == 1
         queued = q._actions[0]
         assert queued.action_id == first.action_id
-        assert queued.message_revision_id == "msgrev_second"
-        assert queued.decision_id == "decision_second"
+        assert queued.message_revision_id == "msgrev_first"
+        assert queued.decision_id == "decision_first"
         requests = [
             fields for _, ev, fields in events
             if ev == "mt5_modify_requested"
         ]
         assert [row["action_id"] for row in requests] == [
             first.action_id,
-            first.action_id,
+            repeated.action_id,
         ]
         coalesced = next(
             fields for _, ev, fields in events
             if ev == "mt5_action_coalesced"
         )
-        assert coalesced["action_id"] == first.action_id
+        assert coalesced["action_id"] == repeated.action_id
         assert coalesced["message_revision_id"] == "msgrev_second"
+        assert coalesced["coalesced_into_action_id"] == first.action_id
+
+    def test_changed_coalesced_action_supersedes_queue_identity(
+        self,
+        monkeypatch,
+    ):
+        events = []
+        monkeypatch.setattr(
+            "journal.event",
+            lambda sig, ev, **fields: events.append((sig, ev, fields)),
+        )
+        q = PendingQueue()
+        monkeypatch.setattr(q, "_ensure_runner", lambda: None)
+        first = _make_action(new_sl=4059.61, new_tp=4052.0)
+        first.last_attempt_id = "attempt_old"
+        first.attempts = 2
+        first.parent_decision_id = "decision_parent_old"
+        first.decision_origin = "internal"
+        first.internal_reason = "old_reason"
+        changed = _make_action(new_sl=4060.25, new_tp=4050.0)
+        changed.parent_decision_id = "decision_parent_new"
+        changed.decision_origin = "telegram"
+        changed.internal_reason = "new_reason"
+        first_action_id = first.action_id
+
+        q.add(first)
+        q.add(changed)
+
+        queued = q._actions[0]
+        assert queued.action_id == changed.action_id
+        assert queued.last_attempt_id is None
+        assert queued.attempts == 0
+        assert queued.parent_decision_id == "decision_parent_new"
+        assert queued.decision_origin == "telegram"
+        assert queued.internal_reason == "new_reason"
+        coalesced = next(
+            fields for _, ev, fields in events
+            if ev == "mt5_action_coalesced"
+        )
+        assert coalesced["action_id"] == changed.action_id
+        assert coalesced["supersedes_action_id"] == first_action_id
+
+    def test_last_attempt_does_not_change_spool_fingerprint(self):
+        q = PendingQueue()
+        action = _make_action(new_sl=4059.61)
+        q._actions.append(action)
+        before = q._spool_fingerprint()
+
+        action.last_attempt_id = "attempt_runtime_only"
+
+        assert q._spool_fingerprint() == before
+        assert "last_attempt_id" not in q._spool_payload(action)
+
+    def test_superseded_attempt_event_keeps_completed_attempt_id(
+        self,
+        monkeypatch,
+    ):
+        events = []
+        monkeypatch.setattr(
+            "journal.event",
+            lambda sig, ev, **fields: events.append((sig, ev, fields)),
+        )
+        q = PendingQueue()
+        current = _make_action(new_sl=4058.0)
+        completed = _make_action(new_sl=4059.0)
+        completed.last_retcode = 10016
+        completed.last_attempt_id = "attempt_completed"
+
+        assert q._finish_superseded_attempt(current, completed) == "RETRY"
+
+        row = next(
+            fields for _, ev, fields in events
+            if ev == "mt5_modify_attempt_superseded"
+        )
+        assert row["attempt_id"] == "attempt_completed"
 
     @pytest.mark.asyncio
     async def test_coalesced_modify_during_mt5_call_keeps_latest_payload(
@@ -668,6 +1004,7 @@ class TestForensicLifecycleLogging:
         act = _make_action(label="close bad leg", kind="CLOSE_POSITION")
         act.attempts = 3
         act.last_retcode = 10009
+        act.last_attempt_id = "attempt_close"
         q._log_done(act)
 
         assert [event_name for _, event_name, _ in events] == [
@@ -680,6 +1017,7 @@ class TestForensicLifecycleLogging:
             assert fields["action_revision"] == 0
         assert events[0][2]["ticket"] == 12345
         assert events[0][2]["attempts"] == 3
+        assert events[0][2]["attempt_id"] == "attempt_close"
         assert events[1][2]["position_exists"] is False
 
     def test_log_done_records_post_modify_position_snapshot(self, monkeypatch):
@@ -721,6 +1059,46 @@ class TestForensicLifecycleLogging:
         assert snapshot[2]["tp"] == 4708.5
         assert snapshot[2]["price_current"] == 4701.25
         assert snapshot[2]["action_id"] == act.action_id
+
+    def test_final_sl_confirmation_retains_the_tp_applied_earlier(
+            self, monkeypatch):
+        events = []
+        import journal
+        import pending_actions
+        monkeypatch.setattr(
+            journal, "event",
+            lambda sig, ev, **fields: events.append((sig, ev, fields)))
+        monkeypatch.setattr(
+            pending_actions.mt5, "positions_get",
+            lambda ticket: [SimpleNamespace(
+                ticket=ticket,
+                symbol="XAUUSD",
+                magic=20260422,
+                type=1,
+                volume=0.01,
+                price_open=4059.61,
+                price_current=4058.0,
+                sl=4059.61,
+                tp=4052.0,
+                profit=1.61,
+                comment="c2_1",
+            )])
+
+        q = PendingQueue()
+        act = _make_action(
+            label="BE #12345",
+            new_sl=4059.61,
+            new_tp=None,
+        )
+        act.applied_tp = 4052.0
+        act.attempts = 2
+        act.last_retcode = 10009
+        q._log_done(act)
+
+        confirmed = events[0]
+        assert confirmed[1] == "mt5_modify_confirmed"
+        assert confirmed[2]["new_sl"] == 4059.61
+        assert confirmed[2]["new_tp"] == 4052.0
 
     def test_confirmed_modify_retains_actual_ticket_levels_for_auditor(
             self, monkeypatch):
@@ -786,8 +1164,10 @@ class TestForensicLifecycleLogging:
 
         q = PendingQueue()
         act = _make_action(label="BE #12345", new_sl=4700.0)
-        act.attempts = 1
+        act.attempts = 0
         act.last_retcode = 10036
+        act.last_preflight_status = "position_gone"
+        act.last_preflight_reason = "ticket_not_found"
         q._log_done(act)
 
         assert len(events) == 1
@@ -795,6 +1175,9 @@ class TestForensicLifecycleLogging:
         assert events[0][1] == "mt5_modify_skipped_position_gone"
         assert events[0][2]["ticket"] == 12345
         assert events[0][2]["action_id"] == act.action_id
+        assert events[0][2]["preflight_status"] == "position_gone"
+        assert events[0][2]["preflight_reason"] == "ticket_not_found"
+        assert events[0][2]["expected_magic"] == act.signal.magic
 
 
 def test_persistent_provider_instruction_does_not_expire_before_signal_closes():

@@ -114,13 +114,64 @@ class PendingAction:
     stops_alerted: bool = False
     revision: int = 0
     action_id: str = field(default_factory=causal_trace.new_action_id)
-    decision_id: str = field(
-        default_factory=causal_trace.current_or_new_decision_id
-    )
-    message_revision_id: Optional[str] = field(
-        default_factory=causal_trace.current_message_revision_id
-    )
+    decision_id: Optional[str] = None
+    message_revision_id: Optional[str] = None
+    last_attempt_id: Optional[str] = None
     lineage_recovered_from_legacy_spool: bool = False
+    parent_decision_id: Optional[str] = None
+    decision_origin: Optional[str] = None
+    internal_reason: str = ""
+    last_preflight_status: Optional[str] = None
+    last_preflight_reason: Optional[str] = None
+    last_preflight_effective_sl: Optional[float] = None
+    last_preflight_effective_tp: Optional[float] = None
+    last_preflight_deferred_sl: Optional[float] = None
+    last_preflight_observed_ticket: Optional[int] = None
+    last_preflight_observed_magic: Optional[int] = None
+    last_preflight_observed_kind: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        active = causal_trace.current_context()
+        decision_was_supplied = self.decision_id is not None
+        if self.message_revision_id is None:
+            self.message_revision_id = (
+                active.message_revision_id
+                or getattr(
+                    self.signal,
+                    "source_message_revision_id",
+                    None,
+                )
+            )
+        if self.decision_id is None:
+            if active.decision_id is not None:
+                self.decision_id = active.decision_id
+            else:
+                self.decision_id = causal_trace.new_decision_id()
+        if self.decision_origin is None:
+            if active.decision_id == self.decision_id:
+                self.decision_origin = (
+                    active.decision_kind or "telegram"
+                )
+            elif decision_was_supplied:
+                self.decision_origin = "explicit"
+            else:
+                self.decision_origin = "internal"
+        if self.decision_origin == "internal":
+            if self.parent_decision_id is None:
+                self.parent_decision_id = (
+                    active.parent_decision_id
+                    or getattr(
+                        self.signal,
+                        "source_decision_id",
+                        None,
+                    )
+                )
+            if not self.internal_reason:
+                self.internal_reason = (
+                    active.decision_reason
+                    or self.label
+                    or self.kind
+                )
 
     def expired(self) -> bool:
         if self.persist_until_signal_close and self.signal.status == "open":
@@ -137,11 +188,65 @@ def _lineage_fields(action: PendingAction) -> dict:
     }
 
 
+def _preflight_fields(action: PendingAction) -> dict:
+    return {
+        "preflight_status": action.last_preflight_status,
+        "preflight_reason": action.last_preflight_reason,
+        "preflight_effective_sl": action.last_preflight_effective_sl,
+        "preflight_effective_tp": action.last_preflight_effective_tp,
+        "preflight_deferred_sl": action.last_preflight_deferred_sl,
+        "preflight_observed_ticket": (
+            action.last_preflight_observed_ticket
+        ),
+        "preflight_observed_magic": action.last_preflight_observed_magic,
+        "preflight_observed_kind": action.last_preflight_observed_kind,
+    }
+
+
+def _remember_preflight(action: PendingAction, decision) -> None:
+    action.last_preflight_status = getattr(decision, "status", None)
+    action.last_preflight_reason = getattr(decision, "reason", None)
+    action.last_preflight_effective_sl = getattr(
+        decision,
+        "effective_sl",
+        None,
+    )
+    action.last_preflight_effective_tp = getattr(
+        decision,
+        "effective_tp",
+        None,
+    )
+    action.last_preflight_deferred_sl = getattr(
+        decision,
+        "deferred_sl",
+        None,
+    )
+    action.last_preflight_observed_ticket = getattr(
+        decision,
+        "observed_ticket",
+        None,
+    )
+    action.last_preflight_observed_magic = getattr(
+        decision,
+        "observed_magic",
+        None,
+    )
+    action.last_preflight_observed_kind = getattr(
+        decision,
+        "observed_kind",
+        None,
+    )
+
+
 def _new_attempt_trace(action: PendingAction) -> dict:
+    attempt_id = causal_trace.new_attempt_id()
+    action.last_attempt_id = attempt_id
     return {
         "sig_id": f"{action.signal.channel}_{action.signal.message_id}",
         **_lineage_fields(action),
-        "attempt_id": causal_trace.new_attempt_id(),
+        "attempt_id": attempt_id,
+        "expected_magic": action.signal.magic,
+        **_preflight_fields(action),
     }
 
 
@@ -163,6 +268,11 @@ def _record_confirmed_levels(action: PendingAction) -> bool:
         action.signal.tp_by_ticket[action.ticket] = effective_tp
         recorded = True
     return recorded
+
+
+def _effective_action_tp(action: PendingAction) -> Optional[float]:
+    """Return the requested TP, including a TP completed in an earlier stage."""
+    return action.new_tp if action.new_tp is not None else action.applied_tp
 
 
 class PendingQueue:
@@ -193,6 +303,9 @@ class PendingQueue:
             "action_id": action.action_id,
             "decision_id": action.decision_id,
             "message_revision_id": action.message_revision_id,
+            "parent_decision_id": action.parent_decision_id,
+            "decision_origin": action.decision_origin,
+            "internal_reason": action.internal_reason,
             "lineage_recovered_from_legacy_spool": (
                 action.lineage_recovered_from_legacy_spool
             ),
@@ -278,6 +391,12 @@ class PendingQueue:
                         or causal_trace.new_decision_id()
                     ),
                     message_revision_id=row.get("message_revision_id"),
+                    last_attempt_id=row.get("last_attempt_id"),
+                    parent_decision_id=row.get("parent_decision_id"),
+                    decision_origin=row.get("decision_origin"),
+                    internal_reason=str(
+                        row.get("internal_reason") or ""
+                    ),
                     lineage_recovered_from_legacy_spool=bool(
                         row.get(
                             "lineage_recovered_from_legacy_spool",
@@ -300,6 +419,7 @@ class PendingQueue:
                     new_sl=action.new_sl,
                     new_tp=action.new_tp,
                     label=action.label,
+                    expected_magic=action.signal.magic,
                     lineage_recovered_from_legacy_spool=(
                         action.lineage_recovered_from_legacy_spool
                     ),
@@ -318,6 +438,14 @@ class PendingQueue:
         return restored
 
     def add(self, action: PendingAction):
+        if causal_trace.current_decision_id() == action.decision_id:
+            causal_trace.register_action_id(action.action_id)
+        owns_internal_decision = (
+            action.decision_origin == "internal"
+            and causal_trace.current_decision_id() != action.decision_id
+        )
+        if owns_internal_decision:
+            self._log_internal_decision_started(action)
         for existing in self._actions:
             same_signal = (
                 existing.signal.channel == action.signal.channel
@@ -330,6 +458,7 @@ class PendingQueue:
             ):
                 continue
             if action.kind == "MODIFY_SLTP":
+                previous_action_id = existing.action_id
                 changed = False
                 if action.new_sl is not None and action.new_sl != existing.new_sl:
                     existing.new_sl = action.new_sl
@@ -344,29 +473,122 @@ class PendingQueue:
                     existing.waiting_reason = None
                     existing.retry_not_before = 0.0
                     existing.stops_alerted = False
+                    existing.last_preflight_status = None
+                    existing.last_preflight_reason = None
+                    existing.last_preflight_effective_sl = None
+                    existing.last_preflight_effective_tp = None
+                    existing.last_preflight_deferred_sl = None
+                    existing.last_preflight_observed_ticket = None
+                    existing.last_preflight_observed_magic = None
+                    existing.last_preflight_observed_kind = None
                 next_label = action.label or existing.label
                 label_changed = next_label != existing.label
                 existing.label = next_label
+                persistence_changed = (
+                    action.persist_until_signal_close
+                    and not existing.persist_until_signal_close
+                )
                 existing.persist_until_signal_close = (
                     existing.persist_until_signal_close
                     or action.persist_until_signal_close)
-                if changed or label_changed:
+                if changed or label_changed or persistence_changed:
                     existing.revision += 1
-                action.action_id = existing.action_id
-                existing.decision_id = action.decision_id
-                existing.message_revision_id = action.message_revision_id
+                action.revision = existing.revision
                 self._log_request(action)
-                self._log_coalesced(existing, changed=changed)
+                if changed or label_changed or persistence_changed:
+                    existing.attempts = 0
+                    existing.last_retcode = None
+                    existing.waiting_reason = None
+                    existing.retry_not_before = 0.0
+                    existing.stops_alerted = False
+                    existing.last_preflight_status = None
+                    existing.last_preflight_reason = None
+                    existing.last_preflight_effective_sl = None
+                    existing.last_preflight_effective_tp = None
+                    existing.last_preflight_deferred_sl = None
+                    existing.last_preflight_observed_ticket = None
+                    existing.last_preflight_observed_magic = None
+                    existing.last_preflight_observed_kind = None
+                    existing.action_id = action.action_id
+                    existing.decision_id = action.decision_id
+                    existing.message_revision_id = action.message_revision_id
+                    existing.parent_decision_id = (
+                        action.parent_decision_id
+                    )
+                    existing.decision_origin = action.decision_origin
+                    existing.internal_reason = action.internal_reason
+                    existing.last_attempt_id = None
+                    self._log_coalesced(
+                        existing,
+                        changed=changed,
+                        label_changed=label_changed,
+                        persistence_changed=persistence_changed,
+                        supersedes_action_id=previous_action_id,
+                    )
+                else:
+                    self._log_coalesced(
+                        action,
+                        changed=False,
+                        coalesced_into_action_id=previous_action_id,
+                    )
                 self._persist_spool()
                 self._ensure_runner()
+                if owns_internal_decision:
+                    self._log_internal_decision(action)
                 return
         self._actions.append(action)
         print(f"[Pending] Encolado: {action.label} (ticket={action.ticket})")
         self._log_request(action)
+        if owns_internal_decision:
+            self._log_internal_decision(action)
         self._persist_spool()
         self._ensure_runner()
 
-    def _log_coalesced(self, action: PendingAction, *, changed: bool) -> None:
+    def _log_internal_decision_started(
+        self,
+        action: PendingAction,
+    ) -> None:
+        try:
+            import journal
+            sig_id = f"{action.signal.channel}_{action.signal.message_id}"
+            journal.event(
+                sig_id,
+                "bot_internal_decision_started",
+                decision_id=action.decision_id,
+                message_revision_id=action.message_revision_id,
+                parent_decision_id=action.parent_decision_id,
+                decision_reason=action.internal_reason,
+            )
+        except Exception:
+            pass
+
+    def _log_internal_decision(self, action: PendingAction) -> None:
+        try:
+            import journal
+            sig_id = f"{action.signal.channel}_{action.signal.message_id}"
+            journal.event(
+                sig_id,
+                "bot_internal_decision",
+                decision_id=action.decision_id,
+                message_revision_id=action.message_revision_id,
+                parent_decision_id=action.parent_decision_id,
+                decision_reason=action.internal_reason,
+                declared_action_ids=[action.action_id],
+                declared_action_count=1,
+            )
+        except Exception:
+            pass
+
+    def _log_coalesced(
+        self,
+        action: PendingAction,
+        *,
+        changed: bool,
+        label_changed: bool = False,
+        persistence_changed: bool = False,
+        coalesced_into_action_id: Optional[str] = None,
+        supersedes_action_id: Optional[str] = None,
+    ) -> None:
         try:
             import journal
             sig_id = f"{action.signal.channel}_{action.signal.message_id}"
@@ -378,7 +600,12 @@ class PendingQueue:
                 new_sl=action.new_sl,
                 new_tp=action.new_tp,
                 payload_changed=changed,
+                label_changed=label_changed,
+                persistence_changed=persistence_changed,
                 queue_slots=1,
+                expected_magic=action.signal.magic,
+                coalesced_into_action_id=coalesced_into_action_id,
+                supersedes_action_id=supersedes_action_id,
                 **_lineage_fields(action),
             )
         except Exception:
@@ -386,7 +613,12 @@ class PendingQueue:
 
     def _ensure_runner(self):
         if self._task is None or self._task.done():
-            self._task = asyncio.create_task(self._run())
+            import journal
+            with (
+                causal_trace.detached_context(),
+                journal.detached_test_mode(),
+            ):
+                self._task = asyncio.create_task(self._run())
             # Batch E: detector de crash del runner. Si _run() lanza
             # excepcion no manejada, la task muere y la cola queda
             # bloqueada hasta el proximo add(). Mas grave que un crash de
@@ -652,7 +884,10 @@ class PendingQueue:
                           reason=reason,
                           label=act.label,
                           new_sl=act.new_sl,
-                          new_tp=act.new_tp,
+                          new_tp=_effective_action_tp(act),
+                          expected_magic=act.signal.magic,
+                          **_preflight_fields(act),
+                          attempt_id=act.last_attempt_id,
                           age_seconds=round(time.time() - act.created_at, 1),
                           **_lineage_fields(act))
             # POSITION_CLOSED es benigno. Timeouts y errores permanentes
@@ -678,14 +913,17 @@ class PendingQueue:
                 journal.event(sig_id, "mt5_modify_requested",
                               ticket=act.ticket, new_sl=act.new_sl,
                               new_tp=act.new_tp, label=act.label,
+                              expected_magic=act.signal.magic,
                               **_lineage_fields(act))
             elif act.kind == "CLOSE_POSITION":
                 journal.event(sig_id, "mt5_close_requested",
                               ticket=act.ticket, label=act.label,
+                              expected_magic=act.signal.magic,
                               **_lineage_fields(act))
             elif act.kind == "CANCEL_PENDING":
                 journal.event(sig_id, "mt5_cancel_requested",
                               ticket=act.ticket, label=act.label,
+                              expected_magic=act.signal.magic,
                               **_lineage_fields(act))
         except Exception:
             pass
@@ -698,6 +936,7 @@ class PendingQueue:
             "label": act.label,
             "requested_sl": act.new_sl,
             "requested_tp": act.new_tp,
+            "attempt_id": act.last_attempt_id,
             **_lineage_fields(act),
         }
         try:
@@ -769,6 +1008,7 @@ class PendingQueue:
             "waiting_reason": None,
             "applied_tp": actual_tp,
             "label": act.label,
+            "attempt_id": act.last_attempt_id,
             **_lineage_fields(act),
         })
         if len(self._recent_confirmed_actions) > 500:
@@ -794,16 +1034,20 @@ class PendingQueue:
                 "attempts": act.attempts,
                 "retcode": act.last_retcode,
                 "label": act.label,
+                "attempt_id": act.last_attempt_id,
+                "expected_magic": act.signal.magic,
+                **_preflight_fields(act),
                 **_lineage_fields(act),
             }
             if act.kind == "MODIFY_SLTP":
+                effective_tp = _effective_action_tp(act)
                 if mt5_errors.classify(act.last_retcode) == "POSITION_GONE":
                     journal.event(sig_id, "mt5_modify_skipped_position_gone",
-                                  new_sl=act.new_sl, new_tp=act.new_tp,
+                                  new_sl=act.new_sl, new_tp=effective_tp,
                                   **payload)
                     return
                 journal.event(sig_id, "mt5_modify_confirmed",
-                              new_sl=act.new_sl, new_tp=act.new_tp,
+                              new_sl=act.new_sl, new_tp=effective_tp,
                               **payload)
                 self._log_position_snapshot(sig_id, act, journal)
             elif act.kind == "CLOSE_POSITION":
@@ -893,6 +1137,7 @@ class PendingQueue:
                     attempted_revision=completed.revision,
                     current_revision=current.revision,
                     retcode=completed.last_retcode,
+                    attempt_id=completed.last_attempt_id,
                     **_lineage_fields(completed),
                 )
             except Exception:
@@ -926,6 +1171,8 @@ class PendingQueue:
                     expected_magic=expected_magic,
                 ),
             )
+            _remember_preflight(act, decision)
+            _remember_preflight(attempt, decision)
             if act.revision != attempt_revision:
                 act.last_retcode = None
                 return "RETRY"
@@ -948,6 +1195,7 @@ class PendingQueue:
                     return "WAIT_PRECONDITION"
                 act.attempts += 1
                 attempt_trace = _new_attempt_trace(attempt)
+                act.last_attempt_id = attempt.last_attempt_id
                 retcode = await loop.run_in_executor(
                     None,
                     lambda: executor.modify_sltp_rc(
@@ -971,13 +1219,14 @@ class PendingQueue:
                 if mt5_errors.classify(retcode) == "OK":
                     act.applied_tp = tp_to_apply
                     act.new_tp = None
-                    _record_confirmed_levels(act)
+                    _record_confirmed_levels(completed)
                     self._log_partial_modify(act, tp_to_apply)
                     return "WAIT_PRECONDITION"
             else:
                 self._log_precondition_satisfied(act)
                 act.attempts += 1
                 attempt_trace = _new_attempt_trace(attempt)
+                act.last_attempt_id = attempt.last_attempt_id
                 retcode = await loop.run_in_executor(
                     None, lambda: executor.modify_sltp_rc(
                         attempt.ticket, attempt.new_sl, attempt.new_tp,
@@ -995,6 +1244,7 @@ class PendingQueue:
         elif act.kind == "CLOSE_POSITION":
             act.attempts += 1
             attempt_trace = _new_attempt_trace(attempt)
+            act.last_attempt_id = attempt.last_attempt_id
             retcode = await loop.run_in_executor(
                 None, lambda: executor.close_position_rc(
                     attempt.ticket,
@@ -1005,6 +1255,7 @@ class PendingQueue:
         elif act.kind == "CANCEL_PENDING":
             act.attempts += 1
             attempt_trace = _new_attempt_trace(attempt)
+            act.last_attempt_id = attempt.last_attempt_id
             retcode = await loop.run_in_executor(
                 None, lambda: executor.cancel_pending_rc(
                     attempt.ticket,

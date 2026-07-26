@@ -451,3 +451,24 @@ class TestStateManagerOpenSignals:
         assert len(result) == 2
         assert result[0] is s2               # más reciente primero
         assert result[1] is s1
+def test_causal_source_fields_do_not_shift_legacy_positional_arguments():
+    timestamp = datetime(2026, 7, 26, 10, 0, 0)
+
+    signal = Signal(
+        "canal1",
+        20700,
+        "BUY",
+        timestamp,
+        4300.0,
+        4302.0,
+        [4305.0, 4308.0],
+        4290.0,
+    )
+
+    assert signal.timestamp == timestamp
+    assert signal.range_low == 4300.0
+    assert signal.range_high == 4302.0
+    assert signal.tps == [4305.0, 4308.0]
+    assert signal.sl == 4290.0
+    assert signal.source_message_revision_id is None
+    assert signal.source_decision_id is None

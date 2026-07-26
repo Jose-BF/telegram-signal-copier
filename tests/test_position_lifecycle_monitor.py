@@ -15,10 +15,14 @@ usan los numeros REALES de esas dos operaciones.
 
 import pytest
 
+import causal_trace
+import journal
+import position_lifecycle_monitor
 from position_lifecycle_monitor import (
     _decide_close_tag,
     _should_emit_periodic_snapshot,
 )
+from state import Signal
 
 
 def test_periodic_snapshot_sampling_respects_interval():
@@ -33,6 +37,61 @@ def test_periodic_snapshot_sampling_respects_interval():
 def test_periodic_snapshot_sampling_can_be_disabled_for_tests():
     assert _should_emit_periodic_snapshot(
         now_ts=100.0, last_ts=99.9, interval_s=0.0) is True
+
+
+@pytest.mark.asyncio
+async def test_delayed_market_open_emits_internal_decision_manifest(
+    monkeypatch,
+):
+    events = []
+    signal = Signal(
+        channel="canal2",
+        message_id=380,
+        direction="BUY",
+        source_message_revision_id="msgrev_origin",
+        source_decision_id="decision_origin",
+    )
+
+    def open_market(*args, **kwargs):
+        causal_trace.new_action_id()
+        return 12345
+
+    monkeypatch.setattr(
+        position_lifecycle_monitor.executor,
+        "open_market",
+        open_market,
+    )
+    monkeypatch.setattr(
+        journal,
+        "event",
+        lambda sig, ev, **fields: events.append((sig, ev, fields)),
+    )
+
+    ticket = await position_lifecycle_monitor._open_market_internal(
+        signal,
+        level=4051.0,
+        lot=0.01,
+        sl=4047.0,
+        tp=4059.0,
+        comment="DCA_c2_380_4051.0",
+    )
+
+    assert ticket == 12345
+    assert [ev for _, ev, _ in events] == [
+        "bot_internal_decision_started",
+        "bot_internal_decision",
+    ]
+    started = events[0][2]
+    decision = next(
+        fields for _, ev, fields in events
+        if ev == "bot_internal_decision"
+    )
+    assert started["decision_id"] == decision["decision_id"]
+    assert decision["message_revision_id"] == "msgrev_origin"
+    assert decision["parent_decision_id"] == "decision_origin"
+    assert decision["decision_reason"] == "position_lifecycle_dca"
+    assert decision["declared_action_count"] == 1
+    assert len(decision["declared_action_ids"]) == 1
 
 
 class TestDecideCloseTag:

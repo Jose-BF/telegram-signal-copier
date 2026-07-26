@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
+import causal_trace
 import config
 
 
@@ -193,6 +194,12 @@ class Signal:
     # notify URGENT a los 60s sin correccion. Cuando llega correccion
     # coherente, se limpia este dict.
     pending_correction: dict = field(default_factory=dict)
+    source_message_revision_id: Optional[str] = field(
+        default_factory=causal_trace.current_message_revision_id
+    )
+    source_decision_id: Optional[str] = field(
+        default_factory=causal_trace.current_decision_id
+    )
 
     @property
     def all_filled_tickets(self) -> list:

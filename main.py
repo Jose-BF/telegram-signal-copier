@@ -44,6 +44,7 @@ def _timestamped_print(*args, **kwargs):
 
 builtins.print = _timestamped_print
 
+import causal_trace
 import config
 import executor
 import journal
@@ -896,6 +897,24 @@ def _resync_orphan_positions():
         print("[Resync] sin posiciones huérfanas en MT5. OK.")
         return
 
+    try:
+        causal_origins, causal_conflicts, invalid_causal_lines = (
+            causal_trace.load_signal_origin_index(journal.EVENTS_FILE)
+        )
+    except OSError as exc:
+        causal_origins = {}
+        causal_conflicts = {}
+        invalid_causal_lines = []
+        print(f"[Resync] no pude cargar origen causal: {exc}")
+    if causal_conflicts or invalid_causal_lines:
+        journal.event(
+            "bot",
+            "causal_origin_index_degraded",
+            conflicting_signals=sorted(causal_conflicts),
+            invalid_jsonl_lines=invalid_causal_lines[:100],
+            invalid_jsonl_line_count=len(invalid_causal_lines),
+        )
+
     from datetime import datetime, timezone, timedelta
     import config
 
@@ -917,6 +936,7 @@ def _resync_orphan_positions():
 
     print(f"[Resync] encontradas {len(groups)} señales huérfanas en MT5:")
     for sig_id, g in groups.items():
+        causal_origin = causal_origins.get(sig_id, {})
         # Reconstruir timestamp real de apertura desde MT5 (no datetime.utcnow,
         # que reseteaba el reloj y rompía el time-stop). Sin esto, una posición
         # abierta hace 2h se quedaba con timestamp=ahora y nunca disparaba el
@@ -961,6 +981,10 @@ def _resync_orphan_positions():
             extra_market_tickets=extra_markets,
             time_stop_at=time_stop_at,
             be_at_tp_index=be_at_tp_index,
+            source_message_revision_id=causal_origin.get(
+                "message_revision_id"
+            ),
+            source_decision_id=causal_origin.get("decision_id"),
         )
         # Reconstruir tp_overrides del Market B (doble market): el Market B
         # cierra en TP3 (STRATEGY_DOUBLE_MARKET_TP_INDEX). Sin esto, tras el
@@ -998,7 +1022,18 @@ def _resync_orphan_positions():
                           elapsed_min=round(elapsed_min, 1),
                           time_stop_at=time_stop_at.isoformat(timespec="seconds")
                           if time_stop_at else None,
-                          be_at_tp_index=be_at_tp_index)
+                          be_at_tp_index=be_at_tp_index,
+                          causal_origin_status=(
+                              "conflict"
+                              if sig_id in causal_conflicts
+                              else "restored"
+                              if causal_origin
+                              else "missing"
+                          ),
+                          message_revision_id=(
+                              sig.source_message_revision_id
+                          ),
+                          decision_id=sig.source_decision_id)
         except Exception:
             pass
 

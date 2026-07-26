@@ -18,8 +18,11 @@ Tests cubren:
   1) _close_first_decision (decisor puro)
   2) _safe_tp_be (TP=BE respetando stops_level del broker)
 """
+import json
+
 import pytest
 
+import causal_trace
 import journal
 import listener
 from listener import (_close_first_decision, _safe_tp_be,
@@ -238,6 +241,63 @@ class TestCloseFirstBeTimeout:
         # No debe lanzar
         await _close_first_be_timeout(sig, 0)
 
+    async def test_timeout_keeps_management_message_as_causal_parent(
+            self, isolated_journal, monkeypatch):
+        sig = self._signal()
+        sig.source_message_revision_id = "msgrev_entry"
+        sig.source_decision_id = "decision_entry"
+        monkeypatch.setattr(
+            listener.executor,
+            "position_pnls",
+            lambda tickets: [(502, -5.0)],
+        )
+        captured = []
+
+        def _capture_enqueue(signal, ticket, label=""):
+            captured.append({
+                **causal_trace.current_fields(),
+                "action_id": causal_trace.new_action_id(),
+                "ticket": ticket,
+            })
+
+        monkeypatch.setattr(
+            listener.pending_actions,
+            "enqueue_close_position",
+            _capture_enqueue,
+        )
+
+        await _close_first_be_timeout(
+            sig,
+            0,
+            source_message_revision_id="msgrev_management",
+            parent_decision_id="decision_management",
+        )
+        assert journal.flush_events(timeout=2.0)
+
+        assert captured[0]["message_revision_id"] == "msgrev_management"
+        assert captured[0]["decision_id"].startswith("decision_")
+        rows = [
+            json.loads(line)
+            for line in isolated_journal.read_text(
+                encoding="utf-8"
+            ).splitlines()
+        ]
+        decision = next(
+            row for row in rows
+            if row["ev"] == "bot_internal_decision"
+        )
+        started = next(
+            row for row in rows
+            if row["ev"] == "bot_internal_decision_started"
+        )
+        assert started["decision_id"] == decision["decision_id"]
+        assert rows.index(started) < rows.index(decision)
+        assert decision["message_revision_id"] == "msgrev_management"
+        assert decision["parent_decision_id"] == "decision_management"
+        assert decision["declared_action_ids"] == [
+            captured[0]["action_id"]
+        ]
+
 
 class TestCloseFirstBeRescue:
     """La función que ARMA el rescate: pone TP=BE en todas las posiciones,
@@ -317,6 +377,41 @@ class TestCloseFirstBeRescue:
                                      cur_price=4488.38, entry_avg=4488.91)
         assert sig.close_first_be_armed is True
         assert sig.close_first_be_deadline is not None
+
+    async def test_rescue_passes_management_parent_to_timeout(
+            self, isolated_journal, captured_modifies, no_side_effects,
+            monkeypatch):
+        sig = self._signal()
+        captured = {}
+
+        def _capture_timeout(signal, timeout_s, **kwargs):
+            captured.update(kwargs)
+
+            async def _noop():
+                return None
+
+            return _noop()
+
+        monkeypatch.setattr(
+            listener,
+            "_close_first_be_timeout",
+            _capture_timeout,
+        )
+        with causal_trace.bind_message_revision(
+            "msgrev_management",
+            decision_id="decision_management",
+        ):
+            await _close_first_be_rescue(
+                sig,
+                self._pos_info(),
+                cur_price=4488.38,
+                entry_avg=4488.91,
+            )
+
+        assert captured == {
+            "source_message_revision_id": "msgrev_management",
+            "parent_decision_id": "decision_management",
+        }
 
     async def test_rescue_idempotente(
             self, isolated_journal, captured_modifies, no_side_effects):

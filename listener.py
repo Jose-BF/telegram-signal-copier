@@ -156,9 +156,10 @@ def _telegram_raw_payload(msg, channel: str, update_kind: str) -> dict:
 
     return {
         "channel": channel,
-        "chat_id": getattr(msg, "chat_id", None),
+        "chat_id": _message_chat_id(msg, channel),
         "message_id": getattr(msg, "id", None),
         "update_kind": update_kind,
+        "revision_token": _telegram_revision_token(msg),
         "date_utc": _iso_or_none(getattr(msg, "date", None)),
         "edit_date_utc": _iso_or_none(getattr(msg, "edit_date", None)),
         "is_edit": _is_edit_update_kind(update_kind),
@@ -176,6 +177,7 @@ def _telegram_raw_payload(msg, channel: str, update_kind: str) -> dict:
         "sticker_id": sticker_id,
         "has_photo": bool(getattr(msg, "photo", None)),
         "has_document": bool(getattr(msg, "document", None)),
+        "media_sha256": None,
         "message_revision_id": _telegram_message_revision_id(msg, channel),
     }
 
@@ -861,7 +863,16 @@ client = TelegramClient("signal_session", config.TELEGRAM_API_ID, config.TELEGRA
 async def _run(fn, *args, **kwargs):
     """Ejecuta una función MT5 síncrona en un thread pool."""
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, lambda: fn(*args, **kwargs))
+    return await loop.run_in_executor(
+        None,
+        causal_trace.context_bound_call(fn, *args, **kwargs),
+    )
+
+
+def _schedule_detached(awaitable):
+    """Schedule delayed bot work without retaining a Telegram decision."""
+    with causal_trace.detached_context(), journal.detached_test_mode():
+        return asyncio.ensure_future(awaitable)
 
 
 # ─── Notificaciones al usuario por Telegram ───────────────────────────────────
@@ -1278,6 +1289,15 @@ _seen_new_msg_ids: set[tuple] = set()
 _seen_new_msgs_order: list[tuple] = []
 _SEEN_NEW_MAX = 500
 
+# Dispatch completion is separate from the early in-handler dedup claim.
+# This prevents a duplicate delivery from being acknowledged while the first
+# handler is still running, and lets a failed processed-event write be retried
+# without executing the MT5 actions a second time.
+_dispatch_inflight_revisions: set[str] = set()
+_dispatch_completed_revisions: set[str] = set()
+_dispatch_completed_order: list[str] = []
+_DISPATCH_COMPLETED_MAX = 2000
+
 # Dedup de acciones de gestion ya clasificadas. Telegram puede entregar el
 # mismo reply/edit por poller y handler, o repetirlo en segundos. Las acciones
 # idempotentes generan retcode=10025 y ensucian el expediente; las de cierre
@@ -1306,6 +1326,40 @@ def _new_msg_already_seen(channel: str, msg_id: int) -> bool:
         old = _seen_new_msgs_order.pop(0)
         _seen_new_msg_ids.discard(old)
     return False
+
+
+def _release_dispatch_dedup_claim(
+    channel: str,
+    msg,
+    update_kind: str,
+) -> None:
+    if update_kind == "new":
+        key = (channel, msg.id)
+        _seen_new_msg_ids.discard(key)
+        try:
+            _seen_new_msgs_order.remove(key)
+        except ValueError:
+            pass
+        return
+    edit_date = getattr(msg, "edit_date", None)
+    if edit_date is None:
+        return
+    key = (channel, msg.id, edit_date.isoformat())
+    _seen_edits.discard(key)
+    try:
+        _seen_edits_order.remove(key)
+    except ValueError:
+        pass
+
+
+def _remember_dispatch_completed(message_revision_id: str) -> None:
+    if message_revision_id in _dispatch_completed_revisions:
+        return
+    _dispatch_completed_revisions.add(message_revision_id)
+    _dispatch_completed_order.append(message_revision_id)
+    if len(_dispatch_completed_order) > _DISPATCH_COMPLETED_MAX:
+        old = _dispatch_completed_order.pop(0)
+        _dispatch_completed_revisions.discard(old)
 
 
 def _entry_open_claim(channel: str, msg_id: int) -> bool:
@@ -2433,6 +2487,57 @@ _SL_HIT_RE = __import__("re").compile(
 )
 
 
+def _delayed_action_parent(signal: Signal) -> tuple[str | None, str | None]:
+    active = causal_trace.current_context()
+    return (
+        active.message_revision_id or signal.source_message_revision_id,
+        active.decision_id or signal.source_decision_id,
+    )
+
+
+def _enqueue_internal_closes(
+    signal: Signal,
+    tickets: list[int],
+    *,
+    source_message_revision_id: str | None,
+    parent_decision_id: str | None,
+    decision_reason: str,
+    label_for_ticket,
+) -> None:
+    with causal_trace.bind_internal_decision(
+        message_revision_id=source_message_revision_id,
+        parent_decision_id=parent_decision_id,
+        reason=decision_reason,
+    ) as decision:
+        journal.event(
+            _sig_id(signal),
+            "bot_internal_decision_started",
+            decision_id=decision.decision_id,
+            message_revision_id=decision.message_revision_id,
+            parent_decision_id=decision.parent_decision_id,
+            decision_reason=decision.decision_reason,
+        )
+        try:
+            for ticket in tickets:
+                pending_actions.enqueue_close_position(
+                    signal,
+                    ticket,
+                    label=label_for_ticket(ticket),
+                )
+        finally:
+            action_ids = causal_trace.declared_action_ids(decision)
+            journal.event(
+                _sig_id(signal),
+                "bot_internal_decision",
+                decision_id=decision.decision_id,
+                message_revision_id=decision.message_revision_id,
+                parent_decision_id=decision.parent_decision_id,
+                decision_reason=decision.decision_reason,
+                declared_action_ids=action_ids,
+                declared_action_count=len(action_ids),
+            )
+
+
 async def _close_first_be_rescue(signal: Signal, pos_info: list,
                                  cur_price: float, entry_avg: float):
     """Estrategia C — rama RESCATE BE de CLOSE_FIRST (canal2 sin profit).
@@ -2479,7 +2584,13 @@ async def _close_first_be_rescue(signal: Signal, pos_info: list,
     timeout_s = config.STRATEGY_C2_CLOSE_FIRST_BE_TIMEOUT_S
     signal.close_first_be_armed = True
     signal.close_first_be_deadline = datetime.utcnow() + timedelta(seconds=timeout_s)
-    asyncio.ensure_future(_close_first_be_timeout(signal, timeout_s))
+    source_revision_id, parent_decision_id = _delayed_action_parent(signal)
+    _schedule_detached(_close_first_be_timeout(
+        signal,
+        timeout_s,
+        source_message_revision_id=source_revision_id,
+        parent_decision_id=parent_decision_id,
+    ))
 
     journal.event(sig_id, "close_first_be_armed",
                   n_positions=len(tickets), tickets=tickets,
@@ -2514,7 +2625,13 @@ async def _close_first_be_rescue(signal: Signal, pos_info: list,
         pass
 
 
-async def _close_first_be_timeout(signal: Signal, timeout_s: int):
+async def _close_first_be_timeout(
+    signal: Signal,
+    timeout_s: int,
+    *,
+    source_message_revision_id: str | None = None,
+    parent_decision_id: str | None = None,
+):
     """Time-stop de la rama RESCATE BE. Tras `timeout_s` segundos, cierra a
     mercado las posiciones que sigan abiertas (el precio no rebotó al BE).
 
@@ -2548,10 +2665,22 @@ async def _close_first_be_timeout(signal: Signal, timeout_s: int):
             return
 
         # Quedan posiciones abiertas → cerrar a mercado (el precio no rebotó)
-        for t in still_open:
-            pending_actions.enqueue_close_position(
-                signal, t,
-                label=f"CLOSE_FIRST BE-timeout #{t} ({timeout_s}s)")
+        if source_message_revision_id is None:
+            source_message_revision_id = (
+                signal.source_message_revision_id
+            )
+        if parent_decision_id is None:
+            parent_decision_id = signal.source_decision_id
+        _enqueue_internal_closes(
+            signal,
+            still_open,
+            source_message_revision_id=source_message_revision_id,
+            parent_decision_id=parent_decision_id,
+            decision_reason="close_first_be_timeout_expired",
+            label_for_ticket=lambda ticket: (
+                f"CLOSE_FIRST BE-timeout #{ticket} ({timeout_s}s)"
+            ),
+        )
         signal.close_first_tickets.extend(still_open)
         journal.event(sig_id, "close_first_be_timeout_executed",
                       n_closed_at_market=len(still_open),
@@ -2574,7 +2703,13 @@ async def _close_first_be_timeout(signal: Signal, timeout_s: int):
             pass
 
 
-async def _be_rescue_timeout(signal: Signal, timeout_s: int):
+async def _be_rescue_timeout(
+    signal: Signal,
+    timeout_s: int,
+    *,
+    source_message_revision_id: str | None = None,
+    parent_decision_id: str | None = None,
+):
     """Time-stop del rescate BE generico para CLOSE_ALL semantico."""
     sig_id = _sig_id(signal)
     try:
@@ -2593,9 +2728,22 @@ async def _be_rescue_timeout(signal: Signal, timeout_s: int):
             signal.be_rescue_deadline = None
             return
 
-        for t in still_open:
-            pending_actions.enqueue_close_position(
-                signal, t, label=f"BE_RESCUE timeout #{t} ({timeout_s}s)")
+        if source_message_revision_id is None:
+            source_message_revision_id = (
+                signal.source_message_revision_id
+            )
+        if parent_decision_id is None:
+            parent_decision_id = signal.source_decision_id
+        _enqueue_internal_closes(
+            signal,
+            still_open,
+            source_message_revision_id=source_message_revision_id,
+            parent_decision_id=parent_decision_id,
+            decision_reason="be_rescue_timeout_expired",
+            label_for_ticket=lambda ticket: (
+                f"BE_RESCUE timeout #{ticket} ({timeout_s}s)"
+            ),
+        )
         signal.be_rescue_tickets.extend(still_open)
         journal.event(sig_id, "be_rescue_timeout_executed",
                       n_closed_at_market=len(still_open),
@@ -2651,7 +2799,13 @@ async def _close_all_be_rescue(signal: Signal, pos_info: list,
     timeout_s = config.STRATEGY_BE_CLOSE_RESCUE_TIMEOUT_S
     signal.be_rescue_armed = True
     signal.be_rescue_deadline = datetime.utcnow() + timedelta(seconds=timeout_s)
-    asyncio.ensure_future(_be_rescue_timeout(signal, timeout_s))
+    source_revision_id, parent_decision_id = _delayed_action_parent(signal)
+    _schedule_detached(_be_rescue_timeout(
+        signal,
+        timeout_s,
+        source_message_revision_id=source_revision_id,
+        parent_decision_id=parent_decision_id,
+    ))
 
     journal.event(sig_id, "close_all_be_rescue_armed",
                   tp_be=tp_be,
@@ -3770,7 +3924,12 @@ def _msg_diag(msg, channel: str, kind: str):
     import journal as _j
     try:
         handler_entry = datetime.utcnow()
-        tg_ts = msg.date or msg.edit_date
+        raw_payload = _telegram_raw_payload(msg, channel, kind)
+        tg_ts = (
+            msg.edit_date
+            if raw_payload["is_edit"] and msg.edit_date is not None
+            else msg.date or msg.edit_date
+        )
         if tg_ts:
             tg_naive = tg_ts.replace(tzinfo=None)
             delay_ms = int((handler_entry - tg_naive).total_seconds() * 1000)
@@ -3804,11 +3963,15 @@ def _msg_diag(msg, channel: str, kind: str):
             has_reply = True
             reply_to = msg.reply_to.reply_to_msg_id
 
-        _j.event(f"{channel}_{msg.id}", "telegram_raw",
-                 **_telegram_raw_payload(msg, channel, kind))
+        raw_receipt = _j.event(
+            f"{channel}_{msg.id}",
+            "telegram_raw",
+            **raw_payload,
+        )
         _j.event(f"{channel}_{msg.id}", "handler_entry",
                  kind=kind,
                  channel=channel,
+                 message_revision_id=raw_payload["message_revision_id"],
                  msg_type=msg_type,
                  sticker_id=sticker_id,
                  text_preview=text_preview,
@@ -3817,20 +3980,32 @@ def _msg_diag(msg, channel: str, kind: str):
                  tg_ts=tg_ts.isoformat(timespec="seconds") if tg_ts else None,
                  handler_entry_ts=handler_entry.isoformat(timespec="milliseconds"),
                  telegram_to_handler_ms=delay_ms)
+        return raw_receipt
     except Exception as e:
         print(f"[DIAG] error _msg_diag: {e}")
+        return None
 
 
 @client.on(events.NewMessage(chats=[config.CANAL_2_ID]))
 async def canal2_new(event):
-    _msg_diag(event.message, "canal2", "new")
-    await _dispatch_telegram_message(event.message, "canal2", "new")
+    raw_receipt = _msg_diag(event.message, "canal2", "new")
+    await _dispatch_telegram_message(
+        event.message,
+        "canal2",
+        "new",
+        raw_receipt=raw_receipt,
+    )
 
 
 @client.on(events.MessageEdited(chats=[config.CANAL_2_ID]))
 async def canal2_edit(event):
-    _msg_diag(event.message, "canal2", "edit")
-    await _dispatch_telegram_message(event.message, "canal2", "edit")
+    raw_receipt = _msg_diag(event.message, "canal2", "edit")
+    await _dispatch_telegram_message(
+        event.message,
+        "canal2",
+        "edit",
+        raw_receipt=raw_receipt,
+    )
 
 
 # ─── Helpers PUROS de la estrategia C — CLOSE_FIRST canal2 (rescate BE) ───
@@ -4212,8 +4387,13 @@ async def _process_canal1_new(msg):
 
 @client.on(events.NewMessage(chats=[config.CANAL_1_ID]))
 async def canal1_new(event):
-    _msg_diag(event.message, "canal1", "new")
-    await _dispatch_telegram_message(event.message, "canal1", "new")
+    raw_receipt = _msg_diag(event.message, "canal1", "new")
+    await _dispatch_telegram_message(
+        event.message,
+        "canal1",
+        "new",
+        raw_receipt=raw_receipt,
+    )
 
 
 async def _process_canal1_edit(msg):
@@ -4340,8 +4520,13 @@ async def _process_canal1_edit(msg):
 
 @client.on(events.MessageEdited(chats=[config.CANAL_1_ID]))
 async def canal1_edit(event):
-    _msg_diag(event.message, "canal1", "edit")
-    await _dispatch_telegram_message(event.message, "canal1", "edit")
+    raw_receipt = _msg_diag(event.message, "canal1", "edit")
+    await _dispatch_telegram_message(
+        event.message,
+        "canal1",
+        "edit",
+        raw_receipt=raw_receipt,
+    )
 
 
 @client.on(events.MessageDeleted(chats=[config.CANAL_1_ID, config.CANAL_2_ID]))
@@ -5529,8 +5714,10 @@ async def _dispatch_telegram_message(
     update_kind: str,
     *,
     label: str | None = None,
+    raw_receipt=None,
 ) -> bool:
-    """Dispatch once and acknowledge only after durable handler completion."""
+    """Dispatch once without making live handling wait for journal I/O."""
+    del raw_receipt
     revision_token = _telegram_revision_token(msg)
     message_revision_id = _telegram_message_revision_id(msg, channel_name)
     decision_id = causal_trace.new_decision_id()
@@ -5548,24 +5735,36 @@ async def _dispatch_telegram_message(
         )
         return False
 
+    owns_dispatch = False
     with causal_trace.bind_message_revision(
         message_revision_id,
         decision_id=decision_id,
     ):
         try:
-            if not await asyncio.to_thread(journal.flush_events, 2.0):
-                print(
-                    f"[Telegram] No se pudo confirmar el registro raw de "
-                    f"{channel_name}_{msg.id}; se reintentara.",
-                    flush=True,
-                )
+            if message_revision_id in _dispatch_completed_revisions:
+                return True
+            if message_revision_id in _dispatch_inflight_revisions:
                 return False
+            _dispatch_inflight_revisions.add(message_revision_id)
+            owns_dispatch = True
+
+            decision_identity = {
+                "channel": channel_name,
+                "chat_id": _message_chat_id(msg, channel_name),
+                "message_id": int(msg.id),
+                "update_kind": update_kind,
+                "revision_token": revision_token,
+                "message_revision_id": message_revision_id,
+                "decision_id": decision_id,
+            }
+            journal.event(
+                f"{channel_name}_{msg.id}",
+                "telegram_decision_started",
+                **decision_identity,
+            )
+
             if update_kind == "new":
                 claimed_before = (channel_name, msg.id) in _seen_new_msg_ids
-                if channel_name == "canal2":
-                    await _process_canal2_new(msg, label=label or "Canal2")
-                else:
-                    await _process_canal1_new(msg)
             else:
                 edit_date = getattr(msg, "edit_date", None)
                 edit_key = (
@@ -5575,32 +5774,72 @@ async def _dispatch_telegram_message(
                     if edit_date is not None else revision_token,
                 )
                 claimed_before = edit_key in _seen_edits
-                if channel_name == "canal2":
+
+            try:
+                if update_kind == "new":
+                    if channel_name == "canal2":
+                        await _process_canal2_new(
+                            msg,
+                            label=label or "Canal2",
+                        )
+                    else:
+                        await _process_canal1_new(msg)
+                elif channel_name == "canal2":
                     await _process_canal2_edit(
-                        msg, label=label or "Canal2")
+                        msg,
+                        label=label or "Canal2",
+                    )
                 else:
                     await _process_canal1_edit(msg)
+            except BaseException as exc:
+                declared_action_ids = causal_trace.declared_action_ids()
+                failure_fields = {
+                    **decision_identity,
+                    "declared_action_ids": declared_action_ids,
+                    "declared_action_count": len(declared_action_ids),
+                    "exception_type": type(exc).__name__,
+                    "exception_message": str(exc)[:1000],
+                }
+                try:
+                    journal.event(
+                        f"{channel_name}_{msg.id}",
+                        "telegram_processing_failed",
+                        **failure_fields,
+                    )
+                except BaseException as log_exc:
+                    print(
+                        "[Telegram] Error registrando el fallo de "
+                        f"{channel_name}_{msg.id}: "
+                        f"{type(log_exc).__name__}: {log_exc}",
+                        flush=True,
+                    )
+                if not claimed_before:
+                    _release_dispatch_dedup_claim(
+                        channel_name,
+                        msg,
+                        update_kind,
+                    )
+                raise
 
-            if claimed_before:
-                return True
+            declared_action_ids = causal_trace.declared_action_ids()
+            processed_fields = {
+                **decision_identity,
+                "declared_action_ids": declared_action_ids,
+                "declared_action_count": len(declared_action_ids),
+                "handler_deduplicated": claimed_before,
+            }
             journal.event(
                 f"{channel_name}_{msg.id}",
                 "telegram_processed",
-                channel=channel_name,
-                chat_id=_message_chat_id(msg, channel_name),
-                message_id=int(msg.id),
-                update_kind=update_kind,
-                revision_token=revision_token,
+                **processed_fields,
             )
-            if not await asyncio.to_thread(journal.flush_events, 2.0):
-                print(
-                    f"[Telegram] Procesado sin confirmacion durable para "
-                    f"{channel_name}_{msg.id}; se reintentara.",
-                    flush=True,
-                )
-                return False
+            _remember_dispatch_completed(message_revision_id)
             return True
         finally:
+            if owns_dispatch:
+                _dispatch_inflight_revisions.discard(
+                    message_revision_id
+                )
             runtime_control.end_handler()
 
 
@@ -5720,20 +5959,30 @@ async def _poller_initial_scan_channel(
             continue
 
         if action == "new":
-            _msg_diag(msg, channel_name, "startup_catchup_new")
+            raw_receipt = _msg_diag(
+                msg,
+                channel_name,
+                "startup_catchup_new",
+            )
             dispatched = await _dispatch_telegram_message(
                 msg,
                 channel_name,
                 "new",
                 label="Canal2_catchup" if channel_name == "canal2" else None,
+                raw_receipt=raw_receipt,
             )
         else:
-            _msg_diag(msg, channel_name, "startup_catchup_edit")
+            raw_receipt = _msg_diag(
+                msg,
+                channel_name,
+                "startup_catchup_edit",
+            )
             dispatched = await _dispatch_telegram_message(
                 msg,
                 channel_name,
                 "edit",
                 label="Canal2_catchup" if channel_name == "canal2" else None,
+                raw_receipt=raw_receipt,
             )
         if dispatched is False:
             print(
@@ -5870,12 +6119,13 @@ async def _poll_channel(channel_id: int, channel_name: str):
             # handler de Telethon ocurre DENTRO de _process_canalN_new
             # (que es el unico que llama _new_msg_already_seen). Eso
             # garantiza single-processing sin race con el poller.
-            _msg_diag(msg, channel_name, "poll_new")
+            raw_receipt = _msg_diag(msg, channel_name, "poll_new")
             dispatched = await _dispatch_telegram_message(
                 msg,
                 channel_name,
                 "new",
                 label="Canal2_poll" if channel_name == "canal2" else None,
+                raw_receipt=raw_receipt,
             )
             if dispatched is False:
                 all_dispatched = False
@@ -5884,12 +6134,13 @@ async def _poll_channel(channel_id: int, channel_name: str):
 
         elif edit_date != prev:
             # Mensaje editado desde el último poll
-            _msg_diag(msg, channel_name, "poll_edit")
+            raw_receipt = _msg_diag(msg, channel_name, "poll_edit")
             dispatched = await _dispatch_telegram_message(
                 msg,
                 channel_name,
                 "edit",
                 label="Canal2_poll" if channel_name == "canal2" else None,
+                raw_receipt=raw_receipt,
             )
             if dispatched is False:
                 all_dispatched = False
@@ -5998,8 +6249,8 @@ if config.TEST_CHANNEL_ID:
         # ContextVar: marca toda esta cadena async como TEST. Cualquier
         # journal.event/begin_trade/finalize_trade que dispare por debajo
         # ruteará a trade_events_TEST.jsonl / trade_journal_TEST.csv en
-        # vez de los ficheros de producción. asyncio.create_task copia el
-        # contexto, así que position_lifecycle_monitor heredará el flag automáticamente.
+        # vez de los ficheros de producción. Las tareas globales se separan
+        # del flag; la señal sigue aislada después por su signal_id.
         token = journal._test_context.set(True)
         try:
             msg  = event.message

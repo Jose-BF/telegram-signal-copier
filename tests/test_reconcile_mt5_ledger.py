@@ -758,6 +758,66 @@ class TestReconcileForensicLifecycle:
 
 
 class TestLoadJournalForensicEvents:
+    def test_additive_causal_envelope_preserves_reconcile_semantics(
+            self, tmp_path):
+        path = tmp_path / "events.jsonl"
+        rows = [
+            {
+                "ts": "2026-07-26T10:00:00+00:00",
+                "sig": "canal2_380",
+                "ev": "signal_received",
+                "direction": "BUY",
+            },
+            {
+                "ts": "2026-07-26T10:00:01+00:00",
+                "sig": "canal2_380",
+                "ev": "mt5_modify_requested",
+                "ticket": 111,
+                "new_sl": 4056.53,
+                "new_tp": 4061.53,
+                "label": "BE #111",
+            },
+        ]
+        path.write_text(
+            "\n".join(json.dumps(row) for row in rows),
+            encoding="utf-8",
+        )
+        legacy = reconcile_mt5_ledger.load_journal_index(path)[
+            "canal2_380"
+        ]
+
+        enriched_rows = []
+        for index, row in enumerate(rows):
+            enriched_rows.append({
+                **row,
+                "schema_version": 2,
+                "event_id": f"event_{index}",
+                "session_id": "session_1",
+                "monotonic_ns": 100 + index,
+                "code_commit": "a" * 40,
+                "payload_sha256": "b" * 64,
+                "message_revision_id": "msgrev_380",
+                "decision_id": "decision_380",
+                "action_id": "action_380",
+                "attempt_id": "attempt_380",
+            })
+        path.write_text(
+            "\n".join(json.dumps(row) for row in enriched_rows),
+            encoding="utf-8",
+        )
+
+        enriched = reconcile_mt5_ledger.load_journal_index(path)[
+            "canal2_380"
+        ]
+
+        assert enriched["direction"] == legacy["direction"]
+        assert enriched["signal_dt_utc"] == legacy["signal_dt_utc"]
+        assert enriched["timeline"] == legacy["timeline"]
+        assert enriched["ticket_level_history"] == (
+            legacy["ticket_level_history"]
+        )
+        assert enriched["n_market_filled"] == legacy["n_market_filled"]
+
     def test_unattributed_level_change_reaches_ticket_history(self, tmp_path):
         path = tmp_path / "events.jsonl"
         rows = [

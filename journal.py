@@ -35,6 +35,7 @@ import hashlib
 import json
 import os
 import time
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from queue import Queue
@@ -60,8 +61,9 @@ JOURNAL_TEST_FILE = DATA_DIR / "trade_journal_TEST.csv"
 # ─── Test mode aislamiento ──────────────────────────────────────────────────
 # ContextVar: el listener envuelve los handlers del canal de pruebas con
 # `_test_context.set(True)`. Cualquier llamada a journal/logger/strategies
-# dentro de esa pila async ve is_test=True. asyncio.create_task() copia el
-# contexto, así que los background tasks (position_lifecycle_monitor) heredan el flag.
+# dentro de esa pila async ve is_test=True. Las tareas globales se separan de
+# esa contextvar; los eventos posteriores de la misma señal siguen aislados
+# mediante el registro persistente por signal_id definido abajo.
 _test_context: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "journal_is_test", default=False
 )
@@ -76,6 +78,16 @@ _test_signals_lock = Lock()
 def is_test_mode() -> bool:
     """True si el código actual está corriendo bajo contextvar de test."""
     return _test_context.get()
+
+
+@contextmanager
+def detached_test_mode():
+    """Create background work without inheriting a test-handler flag."""
+    token = _test_context.set(False)
+    try:
+        yield
+    finally:
+        _test_context.reset(token)
 
 
 def is_test_signal(signal_id: str) -> bool:
@@ -129,6 +141,9 @@ _notify_loop: Optional[asyncio.AbstractEventLoop] = None
 _event_queue: Queue = Queue()
 _event_writer_guard = Lock()
 _event_writer_thread: Optional[Thread] = None
+_event_failure_guard = Lock()
+_event_write_failures = 0
+_event_acknowledged_failures = 0
 PROCESS_SESSION_ID = causal_trace.new_session_id()
 
 
@@ -143,7 +158,16 @@ def _serialize(value):
     if isinstance(value, datetime):
         return value.isoformat(timespec="milliseconds")
     if isinstance(value, (set, frozenset)):
-        return list(value)
+        return sorted(
+            value,
+            key=lambda item: json.dumps(
+                item,
+                default=_serialize,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ),
+        )
     return value
 
 
@@ -160,22 +184,61 @@ def _payload_sha256(payload: dict) -> str:
 
 # ─── API: eventos atómicos (JSONL) ──────────────────────────────────────────
 
+class _FlushBarrier:
+    def __init__(self) -> None:
+        self.ready = ThreadEvent()
+        self.failure_count: Optional[int] = None
+
+
+class _EventReceipt:
+    def __init__(self) -> None:
+        self.ready = ThreadEvent()
+        self.succeeded = False
+        self.error: Optional[str] = None
+
+
+def _record_event_write_failure() -> None:
+    global _event_write_failures
+    with _event_failure_guard:
+        _event_write_failures += 1
+
+
+def _event_failure_count() -> int:
+    with _event_failure_guard:
+        return _event_write_failures
+
+
 def _event_writer_loop() -> None:
     while True:
-        target_file, line, ev, signal_id, barrier = _event_queue.get()
+        (
+            target_file,
+            line,
+            ev,
+            signal_id,
+            barrier,
+            receipt,
+        ) = _event_queue.get()
         try:
             if target_file is not None:
                 with _file_lock:
                     with open(target_file, "a", encoding="utf-8") as handle:
                         handle.write(line)
+                if receipt is not None:
+                    receipt.succeeded = True
         except Exception as exc:
+            _record_event_write_failure()
+            if receipt is not None:
+                receipt.error = f"{type(exc).__name__}: {exc}"
             print(
                 f"[journal] ERROR escribiendo evento {ev} "
                 f"para {signal_id}: {exc}"
             )
         finally:
+            if receipt is not None:
+                receipt.ready.set()
             if barrier is not None:
-                barrier.set()
+                barrier.failure_count = _event_failure_count()
+                barrier.ready.set()
             _event_queue.task_done()
 
 
@@ -197,12 +260,39 @@ def _ensure_event_writer() -> None:
 
 def flush_events(timeout: float = 10.0) -> bool:
     """Wait until every event queued before this call is durable on disk."""
-    if _event_writer_thread is None and _event_queue.empty():
+    global _event_acknowledged_failures
+    with _event_failure_guard:
+        acknowledged_before = _event_acknowledged_failures
+        failures_before = _event_write_failures
+    if (
+        _event_writer_thread is None
+        and _event_queue.empty()
+        and failures_before == acknowledged_before
+    ):
         return True
     _ensure_event_writer()
-    barrier = ThreadEvent()
-    _event_queue.put((None, None, None, None, barrier))
-    return barrier.wait(timeout=max(0.0, float(timeout)))
+    barrier = _FlushBarrier()
+    _event_queue.put((None, None, None, None, barrier, None))
+    if not barrier.ready.wait(timeout=max(0.0, float(timeout))):
+        return False
+    observed_failures = int(barrier.failure_count or 0)
+    with _event_failure_guard:
+        _event_acknowledged_failures = max(
+            _event_acknowledged_failures,
+            observed_failures,
+        )
+    return observed_failures == acknowledged_before
+
+
+def confirm_event(receipt, timeout: float = 10.0) -> bool:
+    """Confirm one exact queued event instead of a process-global flush."""
+    if receipt is None:
+        return flush_events(timeout=timeout)
+    if not isinstance(receipt, _EventReceipt):
+        return False
+    if not receipt.ready.wait(timeout=max(0.0, float(timeout))):
+        return False
+    return receipt.succeeded
 
 
 def _flush_events_at_exit() -> None:
@@ -215,33 +305,45 @@ atexit.register(_flush_events_at_exit)
 
 def event(signal_id: str, ev: str, **fields):
     """Queue one JSONL event without blocking Telegram on disk I/O."""
+    receipt = _EventReceipt()
     is_test = _mark_and_get_test(signal_id)
     target_file = EVENTS_TEST_FILE if is_test else EVENTS_FILE
-    semantic = {"sig": signal_id, "ev": ev}
-    if is_test:
-        semantic["test"] = True
-    semantic.update(fields)
-    for key, value in causal_trace.current_fields().items():
-        semantic.setdefault(key, value)
-    record = {
-        **semantic,
-        "schema_version": 2,
-        "event_id": causal_trace.new_event_id(),
-        "session_id": PROCESS_SESSION_ID,
-        "ts": _now_iso(),
-        "monotonic_ns": time.monotonic_ns(),
-        "code_commit": os.getenv("BOT_WATCHER_VERIFIED_HEAD"),
-        "payload_sha256": _payload_sha256(semantic),
-    }
     try:
+        semantic = {"sig": signal_id, "ev": ev}
+        if is_test:
+            semantic["test"] = True
+        semantic.update(fields)
+        for key, value in causal_trace.current_fields().items():
+            semantic.setdefault(key, value)
+        record = {
+            **semantic,
+            "schema_version": 2,
+            "event_id": causal_trace.new_event_id(),
+            "session_id": PROCESS_SESSION_ID,
+            "ts": _now_iso(),
+            "monotonic_ns": time.monotonic_ns(),
+            "code_commit": os.getenv("BOT_WATCHER_VERIFIED_HEAD"),
+            "payload_sha256": _payload_sha256(semantic),
+        }
         line = json.dumps(record, default=_serialize) + "\n"
         _ensure_event_writer()
-        _event_queue.put((target_file, line, ev, signal_id, None))
+        _event_queue.put((
+            target_file,
+            line,
+            ev,
+            signal_id,
+            None,
+            receipt,
+        ))
     except Exception as exc:
+        _record_event_write_failure()
+        receipt.error = f"{type(exc).__name__}: {exc}"
+        receipt.ready.set()
         print(
             f"[journal] ERROR encolando evento {ev} "
             f"para {signal_id}: {exc}"
         )
+    return receipt
 
 
 # Structured anomalies layered on the atomic event stream.

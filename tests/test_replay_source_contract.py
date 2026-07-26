@@ -89,3 +89,36 @@ def test_missing_manifest_fails_closed(tmp_path):
         ledger_path=ledger,
         events_path=events,
     ) == ["missing_replay_source_manifest"]
+
+
+def test_manifest_accepts_additive_causal_event_envelope(tmp_path):
+    ledger, events, replay = _write_sources(tmp_path)
+    events.write_text(json.dumps({
+        "schema_version": 2,
+        "event_id": "event_1",
+        "session_id": "session_1",
+        "ts": "2026-07-26T10:00:00.000+00:00",
+        "monotonic_ns": 123,
+        "code_commit": "a" * 40,
+        "payload_sha256": "b" * 64,
+        "sig": "canal1_1",
+        "ev": "market_filled",
+        "message_revision_id": "msgrev_1",
+        "decision_id": "decision_1",
+        "action_id": "action_1",
+        "attempt_id": "attempt_1",
+    }) + "\n", encoding="utf-8")
+
+    manifest_path = replay_source_contract.write_manifest(
+        replay_path=replay,
+        ledger_path=ledger,
+        events_path=events,
+        row_count=1,
+    )
+
+    assert replay_source_contract.validate_manifest(
+        replay_path=replay,
+        ledger_path=ledger,
+        events_path=events,
+        manifest_path=manifest_path,
+    ) == []

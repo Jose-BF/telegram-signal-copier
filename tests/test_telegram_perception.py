@@ -36,12 +36,45 @@ def test_msg_diag_emits_telegram_raw_event(monkeypatch):
     assert raw[2]["message_id"] == 12345
     assert raw[2]["chat_id"] == -1003828356530
     assert raw[2]["update_kind"] == "new"
+    assert raw[2]["revision_token"] == "new"
     assert raw[2]["text"] == "BUY NOW\nTP1 4505\nSL 4490"
     assert raw[2]["has_text"] is True
     assert raw[2]["is_reply"] is True
     assert raw[2]["reply_to_msg_id"] == 111
     assert raw[2]["text_sha1"]
     assert raw[2]["message_revision_id"].startswith("msgrev_")
+
+
+def test_edit_handler_diagnostic_uses_edit_time_and_revision_identity(
+        monkeypatch):
+    events = []
+    monkeypatch.setattr(
+        listener.journal,
+        "event",
+        lambda sig_id, ev, **kw: events.append((sig_id, ev, kw)),
+    )
+    msg = SimpleNamespace(
+        id=12345,
+        chat_id=-1003908582492,
+        text="BUY NOW\nSL 4490",
+        message="BUY NOW\nSL 4490",
+        date=datetime(2026, 6, 4, 9, 0, 0),
+        edit_date=datetime(2026, 6, 4, 9, 5, 0),
+        sticker=None,
+        photo=None,
+        document=None,
+        reply_to=None,
+    )
+
+    listener._msg_diag(msg, "canal2", "poll_edit")
+
+    raw = next(row for row in events if row[1] == "telegram_raw")
+    handler = next(row for row in events if row[1] == "handler_entry")
+    assert handler[2]["tg_ts"] == "2026-06-04T09:05:00"
+    assert handler[2]["message_revision_id"] == (
+        raw[2]["message_revision_id"]
+    )
+    assert raw[2]["revision_token"] == "2026-06-04T09:05:00+00:00"
 
 
 @pytest.mark.parametrize("update_kind", ["poll_edit", "recovery_edit"])
@@ -114,6 +147,7 @@ def test_media_only_message_has_revision_identity():
     payload = listener._telegram_raw_payload(msg, "canal1", "new")
 
     assert payload["has_media"] is True
+    assert payload["media_sha256"] is None
     assert payload["message_revision_id"].startswith("msgrev_")
     assert causal_trace.message_revision_id(
         chat_id=msg.chat_id,

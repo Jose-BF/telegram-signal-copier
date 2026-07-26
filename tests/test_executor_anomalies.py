@@ -115,6 +115,32 @@ class TestSigIdFromOrderComment:
 
 
 class TestModifySLTPPreflight:
+    def test_magic_mismatch_exposes_the_observed_mt5_owner(
+        self,
+        monkeypatch,
+    ):
+        position = SimpleNamespace(
+            ticket=101,
+            magic=20260421,
+        )
+        monkeypatch.setattr(
+            executor.mt5,
+            "positions_get",
+            lambda ticket: [position],
+        )
+
+        decision = executor.preflight_modify_sltp(
+            101,
+            new_sl=4059.61,
+            expected_magic=20260422,
+        )
+
+        assert decision.status == "invalid_magic"
+        assert decision.reason == "magic_mismatch"
+        assert decision.observed_ticket == 101
+        assert decision.observed_magic == 20260421
+        assert decision.observed_kind == "position"
+
     def test_sell_tp_update_preserves_valid_sl_while_tighter_sl_waits(self):
         position = SimpleNamespace(
             type=executor.mt5.ORDER_TYPE_SELL,
@@ -190,7 +216,7 @@ class TestModifySLTPPreflight:
         assert decision.status == "invalid_request"
         assert decision.reason == "invalid_sl_value"
 
-    def test_modify_request_keeps_existing_sell_sl_for_compatible_tp(
+    def test_full_modify_defers_to_queue_when_only_tp_is_currently_legal(
         self,
         monkeypatch,
     ):
@@ -219,7 +245,7 @@ class TestModifySLTPPreflight:
             ),
         )
 
-        def fake_send(request, label):
+        def fake_send(request, label, *, evidence=None):
             sent.append(request)
             return SimpleNamespace(retcode=10009, comment="done")
 
@@ -232,13 +258,8 @@ class TestModifySLTPPreflight:
             expected_magic=20260422,
         )
 
-        assert retcode == 10009
-        assert sent == [{
-            "action": executor.mt5.TRADE_ACTION_SLTP,
-            "position": 101,
-            "sl": 4060.95,
-            "tp": 4052.0,
-        }]
+        assert retcode == executor.mt5.TRADE_RETCODE_INVALID_STOPS
+        assert sent == []
 
 
 class TestOpenMarketAmbiguousResult:

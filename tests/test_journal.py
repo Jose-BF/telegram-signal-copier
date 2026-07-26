@@ -255,3 +255,67 @@ def test_event_inherits_bound_causal_context_without_overwriting_explicit(
     assert inherited["decision_id"] == "decision_bound"
     assert explicit["message_revision_id"] == "msgrev_explicit"
     assert explicit["decision_id"] == "decision_explicit"
+
+
+def test_event_never_raises_when_a_field_cannot_be_serialized(
+        isolated_journal):
+    journal.event("canal2_380", "unserializable", value=object())
+
+    assert journal.flush_events(timeout=1.0) is False
+    assert journal.flush_events(timeout=1.0) is True
+    assert _events(isolated_journal) == []
+
+
+def test_flush_reports_a_queued_disk_write_failure(
+        isolated_journal, monkeypatch):
+    def fail_open(*args, **kwargs):
+        raise OSError("disk unavailable")
+
+    monkeypatch.setattr(journal, "open", fail_open, raising=False)
+    journal.event("canal2_380", "telegram_raw", message_id=380)
+
+    assert journal.flush_events(timeout=1.0) is False
+
+    monkeypatch.delattr(journal, "open", raising=False)
+    assert journal.flush_events(timeout=1.0) is True
+
+
+def test_event_receipts_confirm_each_write_independently(
+        isolated_journal, monkeypatch):
+    real_open = open
+    calls = 0
+
+    def fail_first_open(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise OSError("first write failed")
+        return real_open(*args, **kwargs)
+
+    monkeypatch.setattr(journal, "open", fail_first_open, raising=False)
+    failed = journal.event(
+        "canal2_380",
+        "telegram_raw",
+        message_id=380,
+    )
+    written = journal.event(
+        "canal2_381",
+        "telegram_raw",
+        message_id=381,
+    )
+
+    assert journal.confirm_event(written, timeout=1.0) is True
+    assert journal.confirm_event(failed, timeout=1.0) is False
+    rows = [
+        json.loads(line)
+        for line in isolated_journal.read_text(
+            encoding="utf-8"
+        ).splitlines()
+    ]
+    assert [row["sig"] for row in rows] == ["canal2_381"]
+    assert journal.flush_events(timeout=1.0) is False
+    assert journal.flush_events(timeout=1.0) is True
+
+
+def test_payload_hash_serializes_sets_in_stable_order():
+    assert journal._serialize({"b", "a"}) == ["a", "b"]

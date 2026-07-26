@@ -9,6 +9,7 @@ Cubre:
   - _should_accept_canal1_text (fix C6 — cutoff 5min tras restart)
 """
 
+import asyncio
 import json
 
 import pytest
@@ -335,6 +336,9 @@ class TestPollerStartupCatchup:
         listener._seen_new_msgs_order.clear()
         listener._seen_edits.clear()
         listener._seen_edits_order.clear()
+        listener._dispatch_inflight_revisions.clear()
+        listener._dispatch_completed_revisions.clear()
+        listener._dispatch_completed_order.clear()
 
     def test_unseen_message_during_downtime_is_dispatched_as_new(self):
         history = {
@@ -646,8 +650,11 @@ class TestPollerStartupCatchup:
             label="Canal2_catchup",
         )
 
-        assert [ev for _, ev, _ in events] == ["telegram_processed"]
-        assert flushes == [2.0, 2.0]
+        assert [ev for _, ev, _ in events] == [
+            "telegram_decision_started",
+            "telegram_processed",
+        ]
+        assert flushes == []
 
         async def failed(msg, label="Canal2", dedup=True):
             raise RuntimeError("interrupted")
@@ -667,8 +674,225 @@ class TestPollerStartupCatchup:
                 label="Canal2_catchup",
             )
 
-        assert [ev for _, ev, _ in events] == ["telegram_processed"]
-        assert flushes == [2.0, 2.0, 2.0]
+        assert [ev for _, ev, _ in events] == [
+            "telegram_decision_started",
+            "telegram_processed",
+            "telegram_decision_started",
+            "telegram_processing_failed",
+        ]
+        assert flushes == []
+
+    @pytest.mark.asyncio
+    async def test_dispatch_processes_even_when_raw_receipt_failed(
+        self,
+        monkeypatch,
+    ):
+        self._reset_poller_state()
+        message = SimpleNamespace(
+            id=280,
+            chat_id=-1003908582492,
+            date=datetime(2026, 7, 22, 12, 1, tzinfo=timezone.utc),
+            edit_date=None,
+        )
+        failed_receipt = object()
+        processed = []
+        monkeypatch.setattr(
+            listener.journal,
+            "confirm_event",
+            lambda receipt, timeout=10.0: receipt is not failed_receipt,
+        )
+
+        async def process(msg, label="Canal2", dedup=True):
+            processed.append(msg.id)
+
+        monkeypatch.setattr(listener, "_process_canal2_new", process)
+
+        dispatched = await listener._dispatch_telegram_message(
+            message,
+            "canal2",
+            "new",
+            raw_receipt=failed_receipt,
+        )
+
+        assert dispatched is True
+        assert processed == [280]
+
+    @pytest.mark.asyncio
+    async def test_failed_handler_releases_early_dedup_claim_for_retry(
+        self,
+        monkeypatch,
+    ):
+        self._reset_poller_state()
+        message = SimpleNamespace(
+            id=282,
+            chat_id=-1003908582492,
+            date=datetime(2026, 7, 22, 12, 1, tzinfo=timezone.utc),
+            edit_date=None,
+        )
+        monkeypatch.setattr(
+            listener.journal,
+            "flush_events",
+            lambda timeout=10.0: True,
+        )
+        events = []
+
+        def capture(sig, ev, **fields):
+            events.append((sig, ev, fields))
+
+        monkeypatch.setattr(listener.journal, "event", capture)
+
+        async def fail_after_claim(msg, label="Canal2", dedup=True):
+            listener._new_msg_already_seen("canal2", msg.id)
+            causal_trace.new_action_id()
+            raise RuntimeError("handler failed")
+
+        monkeypatch.setattr(
+            listener,
+            "_process_canal2_new",
+            fail_after_claim,
+        )
+        with pytest.raises(RuntimeError, match="handler failed"):
+            await listener._dispatch_telegram_message(
+                message,
+                "canal2",
+                "new",
+            )
+
+        assert ("canal2", 282) not in listener._seen_new_msg_ids
+        failed = next(
+            fields
+            for _, ev, fields in events
+            if ev == "telegram_processing_failed"
+        )
+        assert failed["message_revision_id"].startswith("msgrev_")
+        assert failed["decision_id"].startswith("decision_")
+        assert len(failed["declared_action_ids"]) == 1
+        assert failed["declared_action_count"] == 1
+        assert failed["exception_type"] == "RuntimeError"
+        assert failed["exception_message"] == "handler failed"
+
+        processed = []
+
+        async def succeed(msg, label="Canal2", dedup=True):
+            assert listener._new_msg_already_seen(
+                "canal2",
+                msg.id,
+            ) is False
+            processed.append(msg.id)
+
+        monkeypatch.setattr(listener, "_process_canal2_new", succeed)
+        assert await listener._dispatch_telegram_message(
+            message,
+            "canal2",
+            "new",
+        ) is True
+        assert processed == [282]
+
+    @pytest.mark.asyncio
+    async def test_cancelled_handler_records_failure_without_waiting_on_disk(
+        self,
+        monkeypatch,
+    ):
+        self._reset_poller_state()
+        message = SimpleNamespace(
+            id=284,
+            chat_id=-1003908582492,
+            date=datetime(2026, 7, 22, 12, 1, tzinfo=timezone.utc),
+            edit_date=None,
+        )
+        raw_receipt = object()
+        failed_receipt = object()
+        events = []
+        confirmed = []
+
+        def capture(sig, ev, **fields):
+            events.append((sig, ev, fields))
+            return failed_receipt
+
+        def confirm(receipt, timeout=10.0):
+            confirmed.append((receipt, timeout))
+            return True
+
+        monkeypatch.setattr(listener.journal, "event", capture)
+        monkeypatch.setattr(listener.journal, "confirm_event", confirm)
+
+        async def cancelled(msg, label="Canal2", dedup=True):
+            listener._new_msg_already_seen("canal2", msg.id)
+            raise asyncio.CancelledError
+
+        monkeypatch.setattr(listener, "_process_canal2_new", cancelled)
+
+        with pytest.raises(asyncio.CancelledError):
+            await listener._dispatch_telegram_message(
+                message,
+                "canal2",
+                "new",
+                raw_receipt=raw_receipt,
+            )
+
+        assert confirmed == []
+        assert [ev for _, ev, _ in events] == [
+            "telegram_decision_started",
+            "telegram_processing_failed",
+        ]
+        assert ("canal2", 284) not in listener._seen_new_msg_ids
+
+    @pytest.mark.asyncio
+    async def test_journal_enqueue_result_never_repeats_actions(
+        self,
+        monkeypatch,
+    ):
+        self._reset_poller_state()
+        message = SimpleNamespace(
+            id=283,
+            chat_id=-1003908582492,
+            date=datetime(2026, 7, 22, 12, 1, tzinfo=timezone.utc),
+            edit_date=None,
+        )
+        failed_receipt = object()
+        successful_receipt = object()
+        processed_events = []
+
+        def capture(sig, ev, **fields):
+            if ev != "telegram_processed":
+                return successful_receipt
+            processed_events.append(fields)
+            return (
+                failed_receipt
+                if len(processed_events) == 1
+                else successful_receipt
+            )
+
+        monkeypatch.setattr(listener.journal, "event", capture)
+        monkeypatch.setattr(
+            listener.journal,
+            "confirm_event",
+            lambda receipt, timeout=10.0: receipt is not failed_receipt,
+        )
+        actions = []
+
+        async def process(msg, label="Canal2", dedup=True):
+            listener._new_msg_already_seen("canal2", msg.id)
+            actions.append(msg.id)
+            causal_trace.new_action_id()
+
+        monkeypatch.setattr(listener, "_process_canal2_new", process)
+
+        assert await listener._dispatch_telegram_message(
+            message,
+            "canal2",
+            "new",
+            raw_receipt=successful_receipt,
+        ) is True
+        assert await listener._dispatch_telegram_message(
+            message,
+            "canal2",
+            "new",
+            raw_receipt=successful_receipt,
+        ) is True
+
+        assert actions == [283]
+        assert len(processed_events) == 1
 
     @pytest.mark.asyncio
     async def test_dispatch_binds_one_revision_and_decision_then_resets(
@@ -707,6 +931,12 @@ class TestPollerStartupCatchup:
                 f"canal2_{msg.id}",
                 "processing_probe",
             )
+            action_id = causal_trace.new_action_id()
+            listener.journal.event(
+                f"canal2_{msg.id}",
+                "action_probe",
+                action_id=action_id,
+            )
             listener._new_msg_already_seen("canal2", msg.id)
 
         monkeypatch.setattr(listener, "_process_canal2_new", successful)
@@ -723,12 +953,38 @@ class TestPollerStartupCatchup:
         probe = next(row for row in events if row[1] == "processing_probe")
         processed = next(
             row for row in events if row[1] == "telegram_processed")
+        started = next(
+            row for row in events
+            if row[1] == "telegram_decision_started"
+        )
         revision_id = raw[2]["message_revision_id"]
 
         assert probe[2]["message_revision_id"] == revision_id
         assert processed[2]["message_revision_id"] == revision_id
+        assert started[2]["message_revision_id"] == revision_id
+        assert started[2]["decision_id"] == processed[2]["decision_id"]
         assert probe[2]["decision_id"] == processed[2]["decision_id"]
+        action = next(row for row in events if row[1] == "action_probe")
+        assert processed[2]["declared_action_ids"] == [
+            action[2]["action_id"],
+        ]
+        assert processed[2]["declared_action_count"] == 1
         assert causal_trace.current_fields() == {}
+
+    @pytest.mark.asyncio
+    async def test_mt5_worker_keeps_bound_causal_context(self):
+        with causal_trace.bind_message_revision(
+            "msgrev_worker",
+            decision_id="decision_worker",
+        ):
+            worker_fields = await listener._run(
+                causal_trace.current_fields
+            )
+
+        assert worker_fields == {
+            "message_revision_id": "msgrev_worker",
+            "decision_id": "decision_worker",
+        }
 
     @pytest.mark.asyncio
     async def test_canal1_edit_missed_during_downtime_is_dispatched(
@@ -1139,3 +1395,21 @@ async def test_move_sl_to_be_skips_already_closed_tickets_without_alert(
     armed = next(fields for event, fields in events
                  if event == "be_armed_classifier")
     assert armed["closed_tickets_skipped"] == [102]
+
+
+@pytest.mark.asyncio
+async def test_delayed_bot_task_does_not_inherit_telegram_decision():
+    observed = []
+
+    async def probe():
+        observed.append(causal_trace.current_fields())
+
+    with causal_trace.bind_message_revision(
+        "msgrev_origin",
+        decision_id="decision_origin",
+    ):
+        task = listener._schedule_detached(probe())
+
+    await task
+
+    assert observed == [{}]
