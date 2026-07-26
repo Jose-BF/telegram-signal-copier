@@ -7,9 +7,11 @@ import math
 import re
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 import MetaTrader5 as mt5
 from typing import Optional
+import causal_trace
 import config
 import mt5_errors
 
@@ -167,7 +169,211 @@ def _result_ctx(res) -> dict:
         "bid": getattr(res, "bid", None),
         "ask": getattr(res, "ask", None),
         "request_id": getattr(res, "request_id", None),
+        "retcode_external": getattr(res, "retcode_external", None),
     }
+
+
+def _object_ctx(value, fields: tuple[str, ...]) -> Optional[dict]:
+    if value is None:
+        return None
+    return {field: getattr(value, field, None) for field in fields}
+
+
+def _tick_ctx(tick) -> Optional[dict]:
+    return _object_ctx(
+        tick,
+        (
+            "time",
+            "time_msc",
+            "bid",
+            "ask",
+            "last",
+            "volume",
+            "flags",
+            "volume_real",
+        ),
+    )
+
+
+def _position_ctx(position) -> Optional[dict]:
+    return _object_ctx(
+        position,
+        (
+            "ticket",
+            "symbol",
+            "magic",
+            "type",
+            "volume",
+            "price_open",
+            "price_current",
+            "sl",
+            "tp",
+            "profit",
+            "comment",
+        ),
+    )
+
+
+def _order_ctx(order) -> Optional[dict]:
+    return _object_ctx(
+        order,
+        (
+            "ticket",
+            "symbol",
+            "magic",
+            "type",
+            "volume_initial",
+            "volume_current",
+            "price_open",
+            "price_current",
+            "sl",
+            "tp",
+            "comment",
+        ),
+    )
+
+
+def _symbol_contract_ctx(symbol_info) -> Optional[dict]:
+    return _object_ctx(
+        symbol_info,
+        (
+            "point",
+            "digits",
+            "trade_stops_level",
+            "trade_freeze_level",
+        ),
+    )
+
+
+def _new_action_trace(sig_id: Optional[str]) -> dict:
+    current = causal_trace.current_fields()
+    return {
+        "sig_id": sig_id,
+        "action_id": causal_trace.new_action_id(),
+        "attempt_id": causal_trace.new_attempt_id(),
+        "decision_id": (
+            current.get("decision_id")
+            or causal_trace.new_decision_id()
+        ),
+        "message_revision_id": current.get("message_revision_id"),
+        "action_revision": 0,
+    }
+
+
+def _trace_event_fields(trace: Optional[dict]) -> dict:
+    if not trace:
+        return {}
+    return {
+        key: trace.get(key)
+        for key in (
+            "action_id",
+            "attempt_id",
+            "decision_id",
+            "message_revision_id",
+            "action_revision",
+        )
+    }
+
+
+class _MT5AttemptEvidence:
+    """Collect one executor attempt without issuing any MT5 reads."""
+
+    def __init__(
+        self,
+        trace: Optional[dict],
+        operation: str,
+        *,
+        ticket: Optional[int] = None,
+    ):
+        self.trace = dict(trace or {})
+        self.operation = operation
+        self.ticket = ticket
+        self.started_utc = datetime.now(timezone.utc).isoformat(
+            timespec="milliseconds"
+        )
+        self.started_monotonic_ns = time.monotonic_ns()
+        self.source_tick = None
+        self.position_before = None
+        self.order_before = None
+        self.symbol_contract = None
+        self.request = None
+        self.broker_request_sent = False
+        self._emitted = False
+
+    def observe(
+        self,
+        *,
+        tick=None,
+        position=None,
+        order=None,
+        symbol_info=None,
+    ) -> None:
+        if tick is not None:
+            self.source_tick = _tick_ctx(tick)
+        if position is not None:
+            self.position_before = _position_ctx(position)
+        if order is not None:
+            self.order_before = _order_ctx(order)
+        if symbol_info is not None:
+            self.symbol_contract = _symbol_contract_ctx(symbol_info)
+
+    def mark_request(self, request: dict) -> None:
+        self.request = dict(request)
+        self.broker_request_sent = True
+
+    def finish(
+        self,
+        *,
+        result=None,
+        retcode=None,
+        last_error=None,
+        exception: BaseException | None = None,
+    ) -> None:
+        if self._emitted:
+            return
+        self._emitted = True
+        sig_id = self.trace.get("sig_id")
+        if not sig_id:
+            return
+
+        result_payload = _result_ctx(result)
+        if result is None and retcode is not None:
+            result_payload["retcode"] = retcode
+        finished_monotonic_ns = time.monotonic_ns()
+        exception_payload = None
+        if exception is not None:
+            exception_payload = {
+                "type": type(exception).__name__,
+                "message": str(exception)[:500],
+            }
+        _emit_event(
+            sig_id,
+            "mt5_action_attempt",
+            operation=self.operation,
+            ticket=self.ticket,
+            attempt_started_utc=self.started_utc,
+            attempt_finished_utc=datetime.now(timezone.utc).isoformat(
+                timespec="milliseconds"
+            ),
+            attempt_started_monotonic_ns=self.started_monotonic_ns,
+            attempt_finished_monotonic_ns=finished_monotonic_ns,
+            duration_ns=max(
+                0,
+                finished_monotonic_ns - self.started_monotonic_ns,
+            ),
+            broker_request_sent=self.broker_request_sent,
+            request=self.request,
+            result=result_payload,
+            last_error=last_error,
+            exception=exception_payload,
+            source_tick=self.source_tick,
+            position_before=self.position_before,
+            order_before=self.order_before,
+            symbol_contract=self.symbol_contract,
+            terminal_state=None,
+            account_state=None,
+            **_trace_event_fields(self.trace),
+        )
 
 
 def _probe_position_from_non_done_result(res):
@@ -357,7 +563,7 @@ def _send_safe(req: dict, label: str):
     return res
 
 
-def _ask_bid(direction: str) -> float:
+def _ask_bid_with_tick(direction: str):
     tick = mt5.symbol_info_tick(config.MT5_SYMBOL)
     if tick is None:
         # Defensivo: si MT5 perdió la suscripción del símbolo (puede pasar tras
@@ -367,7 +573,13 @@ def _ask_bid(direction: str) -> float:
         tick = mt5.symbol_info_tick(config.MT5_SYMBOL)
         if tick is None:
             raise RuntimeError(f"No se puede obtener precio de {config.MT5_SYMBOL} (last_error={mt5.last_error()})")
-    return tick.ask if direction == "BUY" else tick.bid
+    price = tick.ask if direction == "BUY" else tick.bid
+    return price, tick
+
+
+def _ask_bid(direction: str) -> float:
+    price, _ = _ask_bid_with_tick(direction)
+    return price
 
 
 # ─── Abrir órdenes ────────────────────────────────────────────────────────────
@@ -399,14 +611,19 @@ def open_market_with_fill(direction: str, lot: float,
     entry_price(ticket) por separado, gastando un round-trip extra a MT5
     (~5ms). Esta versión lo aprovecha.
     """
+    sig_id = _sig_id_from_order_comment(comment)
+    trace = _new_action_trace(sig_id)
+    attempt = _MT5AttemptEvidence(trace, "OPEN_MARKET")
     order_type = mt5.ORDER_TYPE_BUY if direction == "BUY" else mt5.ORDER_TYPE_SELL
     # _ask_bid puede lanzar RuntimeError si MT5 esta desconectado. Sin
     # try/except, la excepcion sube hasta el handler de Telethon y la senal
     # se pierde sin journal de fallo. Mejor: log + return None, el caller
     # en listener vera el None y registrara market_fill_failed.
     try:
-        price = _ask_bid(direction)
+        price, source_tick = _ask_bid_with_tick(direction)
+        attempt.observe(tick=source_tick)
     except RuntimeError as e:
+        attempt.finish(exception=e)
         print(f"[MT5] open_market: no pude leer tick ({e}) -> abort")
         return None
 
@@ -431,7 +648,6 @@ def open_market_with_fill(direction: str, lot: float,
     if tp:
         req["tp"] = tp
 
-    sig_id = _sig_id_from_order_comment(req.get("comment"))
     _emit_event(sig_id, "mt5_order_requested",
                 order_kind="market",
                 direction=direction,
@@ -441,12 +657,23 @@ def open_market_with_fill(direction: str, lot: float,
                 tp=req.get("tp"),
                 magic=req.get("magic"),
                 comment=req.get("comment"),
-                deviation=req.get("deviation"))
-    res = _send_safe(req, f"open_market {direction} lot={lot}")
+                deviation=req.get("deviation"),
+                **_trace_event_fields(trace))
+    attempt.mark_request(req)
+    try:
+        res = _send_safe(req, f"open_market {direction} lot={lot}")
+    except Exception as exc:
+        attempt.finish(exception=exc)
+        raise
+    attempt.finish(
+        result=res,
+        last_error=str(mt5.last_error()) if res is None else None,
+    )
     _emit_event(sig_id, "mt5_order_result",
                 order_kind="market",
                 direction=direction,
                 requested_price=price,
+                **_trace_event_fields(trace),
                 **_result_ctx(res))
     if res is None:
         return None
@@ -685,19 +912,34 @@ def preflight_modify_sltp(
 
 
 def modify_sltp_rc(ticket: int, new_sl: Optional[float] = None,
-                    new_tp: Optional[float] = None,
-                    expected_magic: Optional[int] = None) -> int:
+                   new_tp: Optional[float] = None,
+                   expected_magic: Optional[int] = None,
+                   *,
+                   trace: Optional[dict] = None) -> int:
     """Modifica SL y/o TP. Si uno es None, conserva el valor actual.
     Si expected_magic no es None, verifica que la posición tiene ese magic.
     Devuelve el retcode MT5 para poder clasificarlo."""
-    pos = mt5.positions_get(ticket=ticket)
+    attempt = _MT5AttemptEvidence(trace, "MODIFY_SLTP", ticket=ticket)
+    try:
+        pos = mt5.positions_get(ticket=ticket)
+    except Exception as exc:
+        attempt.finish(exception=exc)
+        raise
     if pos:
         p = pos[0]
+        attempt.observe(position=p)
         if not _assert_magic(ticket, p.magic, expected_magic):
+            attempt.finish(retcode=mt5.TRADE_RETCODE_INVALID)
             return mt5.TRADE_RETCODE_INVALID
-        tick = mt5.symbol_info_tick(config.MT5_SYMBOL)
-        symbol_info = mt5.symbol_info(config.MT5_SYMBOL)
+        try:
+            tick = mt5.symbol_info_tick(config.MT5_SYMBOL)
+            symbol_info = mt5.symbol_info(config.MT5_SYMBOL)
+        except Exception as exc:
+            attempt.finish(exception=exc)
+            raise
+        attempt.observe(tick=tick, symbol_info=symbol_info)
         if tick is None or symbol_info is None:
+            attempt.finish(retcode=mt5.TRADE_RETCODE_MARKET_CLOSED)
             return mt5.TRADE_RETCODE_MARKET_CLOSED
         decision = evaluate_position_sltp(
             p,
@@ -707,8 +949,10 @@ def modify_sltp_rc(ticket: int, new_sl: Optional[float] = None,
             new_tp=new_tp,
         )
         if decision.status == "invalid_request":
+            attempt.finish(retcode=mt5.TRADE_RETCODE_INVALID)
             return mt5.TRADE_RETCODE_INVALID
         if decision.status == "wait_market":
+            attempt.finish(retcode=mt5.TRADE_RETCODE_INVALID_STOPS)
             return mt5.TRADE_RETCODE_INVALID_STOPS
         sl_final = decision.effective_sl or 0.0
         tp_final = decision.effective_tp or 0.0
@@ -718,9 +962,19 @@ def modify_sltp_rc(ticket: int, new_sl: Optional[float] = None,
             "sl":       sl_final,
             "tp":       tp_final,
         }
-        res = _send_safe(req, f"modify_sltp position={ticket}")
+        attempt.mark_request(req)
+        try:
+            res = _send_safe(req, f"modify_sltp position={ticket}")
+        except Exception as exc:
+            attempt.finish(exception=exc)
+            raise
         if res is None:
+            attempt.finish(
+                retcode=mt5.TRADE_RETCODE_MARKET_CLOSED,
+                last_error=str(mt5.last_error()),
+            )
             return mt5.TRADE_RETCODE_MARKET_CLOSED  # TRANSIENT -> RETRY
+        attempt.finish(result=res)
         tag = f"SL={sl_final} TP={tp_final}"
         if res.retcode == mt5.TRADE_RETCODE_DONE:
             print(f"[MT5] SLTP modificado ticket={ticket} → {tag}")
@@ -728,10 +982,16 @@ def modify_sltp_rc(ticket: int, new_sl: Optional[float] = None,
             print(f"[MT5] modify_sltp ticket={ticket} → {tag}: {res.retcode} — {res.comment}")
         return res.retcode
 
-    orders = mt5.orders_get(ticket=ticket)
+    try:
+        orders = mt5.orders_get(ticket=ticket)
+    except Exception as exc:
+        attempt.finish(exception=exc)
+        raise
     if orders:
         o = orders[0]
+        attempt.observe(order=o)
         if not _assert_magic(ticket, o.magic, expected_magic):
+            attempt.finish(retcode=mt5.TRADE_RETCODE_INVALID)
             return mt5.TRADE_RETCODE_INVALID
         sl_final = new_sl if new_sl is not None else o.sl
         tp_final = new_tp if new_tp is not None else o.tp
@@ -742,9 +1002,19 @@ def modify_sltp_rc(ticket: int, new_sl: Optional[float] = None,
             "sl":     sl_final,
             "tp":     tp_final,
         }
-        res = _send_safe(req, f"modify_sltp pending order={ticket}")
+        attempt.mark_request(req)
+        try:
+            res = _send_safe(req, f"modify_sltp pending order={ticket}")
+        except Exception as exc:
+            attempt.finish(exception=exc)
+            raise
         if res is None:
+            attempt.finish(
+                retcode=mt5.TRADE_RETCODE_MARKET_CLOSED,
+                last_error=str(mt5.last_error()),
+            )
             return mt5.TRADE_RETCODE_MARKET_CLOSED  # TRANSIENT -> RETRY
+        attempt.finish(result=res)
         tag = f"SL={sl_final} TP={tp_final}"
         if res.retcode == mt5.TRADE_RETCODE_DONE:
             print(f"[MT5] SLTP límite modificado ticket={ticket} → {tag}")
@@ -753,6 +1023,7 @@ def modify_sltp_rc(ticket: int, new_sl: Optional[float] = None,
         return res.retcode
 
     print(f"[MT5] modify_sltp: ticket {ticket} no encontrado")
+    attempt.finish(retcode=mt5.TRADE_RETCODE_INVALID)
     return mt5.TRADE_RETCODE_INVALID
 
 
@@ -776,14 +1047,27 @@ def modify_tp(ticket: int, new_tp: float, expected_magic: Optional[int] = None) 
 
 # ─── Cerrar / cancelar ────────────────────────────────────────────────────────
 
-def close_position_rc(ticket: int, expected_magic: Optional[int] = None) -> int:
-    pos = mt5.positions_get(ticket=ticket)
+def close_position_rc(
+    ticket: int,
+    expected_magic: Optional[int] = None,
+    *,
+    trace: Optional[dict] = None,
+) -> int:
+    attempt = _MT5AttemptEvidence(trace, "CLOSE_POSITION", ticket=ticket)
+    try:
+        pos = mt5.positions_get(ticket=ticket)
+    except Exception as exc:
+        attempt.finish(exception=exc)
+        raise
     if not pos:
         print(f"[MT5] close_position: ticket {ticket} no encontrado")
+        attempt.finish(retcode=mt5.TRADE_RETCODE_INVALID)
         return mt5.TRADE_RETCODE_INVALID
 
     p = pos[0]
+    attempt.observe(position=p)
     if not _assert_magic(ticket, p.magic, expected_magic):
+        attempt.finish(retcode=mt5.TRADE_RETCODE_INVALID)
         return mt5.TRADE_RETCODE_INVALID
     close_dir = "SELL" if p.type == mt5.POSITION_TYPE_BUY else "BUY"
     order_type = mt5.ORDER_TYPE_SELL if p.type == mt5.POSITION_TYPE_BUY else mt5.ORDER_TYPE_BUY
@@ -793,8 +1077,13 @@ def close_position_rc(ticket: int, expected_magic: Optional[int] = None) -> int:
     # Devolvemos un retcode TRANSIENT para que la cola reintente cuando
     # MT5 vuelva a responder.
     try:
-        price = _ask_bid(close_dir)
+        price, source_tick = _ask_bid_with_tick(close_dir)
+        attempt.observe(tick=source_tick)
     except RuntimeError as e:
+        attempt.finish(
+            retcode=mt5.TRADE_RETCODE_MARKET_CLOSED,
+            exception=e,
+        )
         print(f"[MT5] close_position ticket={ticket}: no pude leer tick "
               f"({e}) -> retorno TRANSIENT para reintento")
         return mt5.TRADE_RETCODE_MARKET_CLOSED
@@ -814,9 +1103,19 @@ def close_position_rc(ticket: int, expected_magic: Optional[int] = None) -> int:
         "type_time":   mt5.ORDER_TIME_GTC,
         "type_filling": mt5.ORDER_FILLING_IOC,
     }
-    res = _send_safe(req, f"close_position ticket={ticket}")
+    attempt.mark_request(req)
+    try:
+        res = _send_safe(req, f"close_position ticket={ticket}")
+    except Exception as exc:
+        attempt.finish(exception=exc)
+        raise
     if res is None:
+        attempt.finish(
+            retcode=mt5.TRADE_RETCODE_MARKET_CLOSED,
+            last_error=str(mt5.last_error()),
+        )
         return mt5.TRADE_RETCODE_MARKET_CLOSED  # TRANSIENT -> RETRY
+    attempt.finish(result=res)
     if res.retcode == mt5.TRADE_RETCODE_DONE:
         print(f"[MT5] Posición cerrada ticket={ticket}")
     else:
@@ -828,21 +1127,46 @@ def close_position(ticket: int, expected_magic: Optional[int] = None) -> bool:
     return close_position_rc(ticket, expected_magic) == mt5.TRADE_RETCODE_DONE
 
 
-def cancel_pending_rc(ticket: int, expected_magic: Optional[int] = None) -> int:
+def cancel_pending_rc(
+    ticket: int,
+    expected_magic: Optional[int] = None,
+    *,
+    trace: Optional[dict] = None,
+) -> int:
+    attempt = _MT5AttemptEvidence(trace, "CANCEL_PENDING", ticket=ticket)
     if expected_magic is not None:
-        orders = mt5.orders_get(ticket=ticket)
+        try:
+            orders = mt5.orders_get(ticket=ticket)
+        except Exception as exc:
+            attempt.finish(exception=exc)
+            raise
         if not orders:
             print(f"[MT5] cancel_pending: ticket {ticket} no encontrado")
+            attempt.finish(retcode=mt5.TRADE_RETCODE_INVALID)
             return mt5.TRADE_RETCODE_INVALID
-        if not _assert_magic(ticket, orders[0].magic, expected_magic):
+        order = orders[0]
+        attempt.observe(order=order)
+        if not _assert_magic(ticket, order.magic, expected_magic):
+            attempt.finish(retcode=mt5.TRADE_RETCODE_INVALID)
             return mt5.TRADE_RETCODE_INVALID
 
-    res = _send_safe(
-        {"action": mt5.TRADE_ACTION_REMOVE, "order": ticket},
-        f"cancel_pending ticket={ticket}",
-    )
+    req = {"action": mt5.TRADE_ACTION_REMOVE, "order": ticket}
+    attempt.mark_request(req)
+    try:
+        res = _send_safe(
+            req,
+            f"cancel_pending ticket={ticket}",
+        )
+    except Exception as exc:
+        attempt.finish(exception=exc)
+        raise
     if res is None:
+        attempt.finish(
+            retcode=mt5.TRADE_RETCODE_MARKET_CLOSED,
+            last_error=str(mt5.last_error()),
+        )
         return mt5.TRADE_RETCODE_MARKET_CLOSED  # TRANSIENT -> RETRY
+    attempt.finish(result=res)
     if res.retcode == mt5.TRADE_RETCODE_DONE:
         print(f"[MT5] Pendiente cancelado ticket={ticket}")
     else:

@@ -137,6 +137,14 @@ def _lineage_fields(action: PendingAction) -> dict:
     }
 
 
+def _new_attempt_trace(action: PendingAction) -> dict:
+    return {
+        "sig_id": f"{action.signal.channel}_{action.signal.message_id}",
+        **_lineage_fields(action),
+        "attempt_id": causal_trace.new_attempt_id(),
+    }
+
+
 def _record_confirmed_levels(action: PendingAction) -> bool:
     """Persist per-ticket levels only after MT5 confirms a modification."""
     if action.kind != "MODIFY_SLTP":
@@ -939,6 +947,7 @@ class PendingQueue:
                 if tp_to_apply is None:
                     return "WAIT_PRECONDITION"
                 act.attempts += 1
+                attempt_trace = _new_attempt_trace(attempt)
                 retcode = await loop.run_in_executor(
                     None,
                     lambda: executor.modify_sltp_rc(
@@ -946,6 +955,7 @@ class PendingQueue:
                         None,
                         tp_to_apply,
                         expected_magic=expected_magic,
+                        trace=attempt_trace,
                     ),
                 )
                 act.last_retcode = retcode
@@ -967,10 +977,12 @@ class PendingQueue:
             else:
                 self._log_precondition_satisfied(act)
                 act.attempts += 1
+                attempt_trace = _new_attempt_trace(attempt)
                 retcode = await loop.run_in_executor(
                     None, lambda: executor.modify_sltp_rc(
                         attempt.ticket, attempt.new_sl, attempt.new_tp,
                         expected_magic=expected_magic,
+                        trace=attempt_trace,
                     )
                 )
                 completed = replace(
@@ -982,13 +994,23 @@ class PendingQueue:
                     return self._finish_superseded_attempt(act, completed)
         elif act.kind == "CLOSE_POSITION":
             act.attempts += 1
+            attempt_trace = _new_attempt_trace(attempt)
             retcode = await loop.run_in_executor(
-                None, lambda: executor.close_position_rc(act.ticket, expected_magic=expected_magic)
+                None, lambda: executor.close_position_rc(
+                    attempt.ticket,
+                    expected_magic=expected_magic,
+                    trace=attempt_trace,
+                )
             )
         elif act.kind == "CANCEL_PENDING":
             act.attempts += 1
+            attempt_trace = _new_attempt_trace(attempt)
             retcode = await loop.run_in_executor(
-                None, lambda: executor.cancel_pending_rc(act.ticket, expected_magic=expected_magic)
+                None, lambda: executor.cancel_pending_rc(
+                    attempt.ticket,
+                    expected_magic=expected_magic,
+                    trace=attempt_trace,
+                )
             )
         else:
             return "DROP"

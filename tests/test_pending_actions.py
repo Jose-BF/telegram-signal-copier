@@ -342,7 +342,14 @@ class TestModifyPreconditions:
             ),
         )
 
-        def fake_modify(ticket, new_sl, new_tp, expected_magic=None):
+        def fake_modify(
+            ticket,
+            new_sl,
+            new_tp,
+            expected_magic=None,
+            *,
+            trace=None,
+        ):
             submitted.append((ticket, new_sl, new_tp, expected_magic))
             return 10009
 
@@ -390,6 +397,50 @@ class TestModifyPreconditions:
         assert act.attempts == 1
         assert act.last_retcode == 10016
         assert act.retry_not_before > time.time()
+
+    @pytest.mark.asyncio
+    async def test_retries_share_action_and_use_distinct_attempt_ids(
+        self,
+        monkeypatch,
+    ):
+        q = PendingQueue()
+        act = _make_action(new_sl=4059.61)
+        traces = []
+        retcodes = iter((10016, 10009))
+        monkeypatch.setattr(
+            "pending_actions.executor.preflight_modify_sltp",
+            lambda *args, **kwargs: SimpleNamespace(
+                status="ready",
+                effective_sl=4059.61,
+                effective_tp=4052.0,
+                deferred_sl=None,
+                reason=None,
+            ),
+        )
+
+        def modify(
+            ticket,
+            new_sl,
+            new_tp,
+            expected_magic=None,
+            *,
+            trace=None,
+        ):
+            traces.append(trace)
+            return next(retcodes)
+
+        monkeypatch.setattr(
+            "pending_actions.executor.modify_sltp_rc",
+            modify,
+        )
+
+        assert await q._try_once(act) == "RETRY"
+        act.retry_not_before = 0.0
+        assert await q._try_once(act) == "DONE"
+
+        assert len(traces) == 2
+        assert {row["action_id"] for row in traces} == {act.action_id}
+        assert traces[0]["attempt_id"] != traces[1]["attempt_id"]
 
     @pytest.mark.asyncio
     async def test_retry_cooldown_does_not_resubmit_same_modify(
@@ -506,7 +557,14 @@ class TestModifyPreconditions:
         release_mt5 = threading.Event()
         submitted = []
 
-        def slow_modify(ticket, new_sl, new_tp, expected_magic=None):
+        def slow_modify(
+            ticket,
+            new_sl,
+            new_tp,
+            expected_magic=None,
+            *,
+            trace=None,
+        ):
             submitted.append((ticket, new_sl, new_tp, expected_magic))
             entered_mt5.set()
             assert release_mt5.wait(timeout=2.0)
