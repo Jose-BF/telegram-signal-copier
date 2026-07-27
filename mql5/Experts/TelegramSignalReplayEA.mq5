@@ -410,10 +410,7 @@ void OnTick()
          ProcessTp2Policy(g_tickets[index],tick);
      }
    if(AllTicketsFinished())
-     {
       FinalizeResults();
-      TesterStop();
-     }
   }
 
 void OnDeinit(const int reason)

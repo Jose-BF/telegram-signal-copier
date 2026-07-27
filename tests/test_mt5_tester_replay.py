@@ -4,7 +4,7 @@ import csv
 import copy
 import hashlib
 import json
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -413,13 +413,12 @@ def test_prepare_cli_writes_isolated_real_tick_profiles(tmp_path: Path):
         "Period=M1",
         "Model=4",
         "Optimization=0",
-        "UseLocal=1",
-        "UseRemote=0",
-        "UseCloud=0",
-        "ShutdownTerminal=0",
+        "Dates=1",
         "Currency=EUR",
+        "Leverage=500",
+        "ProfitInPips=0",
         "FromDate=2026.07.27",
-        "ToDate=2026.07.27",
+        "ToDate=2026.07.28",
     ):
         assert required in observed_ini
 
@@ -450,3 +449,34 @@ def test_prepare_cli_writes_isolated_real_tick_profiles(tmp_path: Path):
     assert run_card["tickets"] == 1
     assert run_card["observed_pnl_eur"] == "2.03"
     assert set(run_card["policies"]) == replay.POLICY_IDS
+
+
+def test_select_replay_rows_uses_an_explicit_utc_cutoff():
+    closed = _trade()
+    later = _trade(ticket=1658469999)
+    later["sig_id"] = "canal2_501"
+    later["open_dt_utc"] = "2026-07-27T16:54:06+00:00"
+    later["status"] = "partial"
+    later["tickets"][0]["is_closed"] = False
+
+    selected, selection = replay.select_replay_rows(
+        [closed, later],
+        day=date(2026, 7, 27),
+        cutoff_utc=datetime(
+            2026,
+            7,
+            27,
+            16,
+            35,
+            57,
+            tzinfo=timezone.utc,
+        ),
+    )
+
+    assert [row["sig_id"] for row in selected] == ["canal2_500"]
+    assert selection == {
+        "cutoff_utc": "2026-07-27T16:35:57+00:00",
+        "day_rows_seen": 2,
+        "rows_selected": 1,
+        "rows_after_cutoff": 1,
+    }

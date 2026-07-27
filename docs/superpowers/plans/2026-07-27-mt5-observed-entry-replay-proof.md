@@ -237,7 +237,9 @@ Test `main(["prepare", "--date", "2026-07-27", ...])` with a temporary MT5
 data directory. Assert it writes fixture and manifest under
 `Common/Files/TelegramSignalReplay`, copies only the compiled research EA, and
 writes three INI/SET pairs under `MQL5/Profiles/Tester` with Model 4,
-optimization off, local agents only and `ShutdownTerminal=0`.
+optimization off and no cloud or remote-agent execution. Use the native tester
+profile keys only; startup-only keys such as `ShutdownTerminal` do not belong
+in an MCP tester profile.
 
 - [ ] **Step 2: Verify CLI/profile tests fail**
 

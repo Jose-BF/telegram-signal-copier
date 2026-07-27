@@ -77,6 +77,13 @@ outside the tester and never sends or modifies a real order. Alternative
 policies remain diagnostic until the observed baseline is certified and an
 untouched OOS sample is validated.
 
+MT5 treats `ToDate` as the exclusive end of the test. A day can be prepared
+while it is still open, using an explicit UTC cutoff, but its tester proof
+must wait until the next calendar day. With terminal build 6061, start each
+MCP tester policy from a fresh local terminal; reusing the same controller can
+stop the second run early. This restart concerns only the local research
+terminal, never the production VM or bot.
+
 The watcher accepts the same assumptions through
 `STRATEGY_FARM_LATENCY_MS=0,150,250` and
 `STRATEGY_FARM_VOLUME_PER_LEG=0.01`. Scenario order and values are part of the

@@ -9,7 +9,7 @@ import io
 import json
 import os
 import shutil
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
 from typing import Iterable, Sequence
@@ -125,6 +125,57 @@ def _trade_day(trade: dict) -> date | None:
         return date.fromisoformat(raw[:10])
     except ValueError:
         return None
+
+
+def _parse_datetime(value: object, field: str) -> datetime:
+    text = str(value or "").strip().replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        _block(f"invalid_{field}")
+    if parsed.tzinfo is None:
+        _block(f"naive_{field}")
+    return parsed.astimezone(timezone.utc)
+
+
+def select_replay_rows(
+    replay_rows: Iterable[dict],
+    *,
+    day: date,
+    cutoff_utc: datetime | None = None,
+) -> tuple[list[dict], dict]:
+    """Select a day or an explicit, auditable closed intraday prefix."""
+
+    if cutoff_utc is not None:
+        if cutoff_utc.tzinfo is None:
+            _block("naive_cutoff_utc")
+        cutoff_utc = cutoff_utc.astimezone(timezone.utc)
+        if cutoff_utc.date() != day:
+            _block("cutoff_day_mismatch")
+    day_rows = [
+        dict(row) for row in replay_rows if _trade_day(row) == day
+    ]
+    selected: list[dict] = []
+    rows_after_cutoff = 0
+    for row in day_rows:
+        if cutoff_utc is None:
+            selected.append(row)
+            continue
+        opened = _parse_datetime(row.get("open_dt_utc"), "open_dt_utc")
+        if opened <= cutoff_utc:
+            selected.append(row)
+        else:
+            rows_after_cutoff += 1
+    return selected, {
+        "cutoff_utc": (
+            None
+            if cutoff_utc is None
+            else cutoff_utc.isoformat(timespec="seconds")
+        ),
+        "day_rows_seen": len(day_rows),
+        "rows_selected": len(selected),
+        "rows_after_cutoff": rows_after_cutoff,
+    }
 
 
 def _history_by_ticket(observed_history: Iterable[dict]) -> dict[int, dict]:
@@ -776,28 +827,24 @@ def _set_text(
 
 
 def _ini_text(*, day: date, policy_id: str) -> str:
-    profile_name = _profile_name(day, policy_id)
     values = (
         "[Tester]",
         f"Expert={EA_TESTER_PATH.as_posix().replace('/', chr(92))}",
-        f"ExpertParameters={profile_name}.set",
         "Symbol=XAUUSD",
         "Period=M1",
-        "Model=4",
-        "ExecutionMode=0",
         "Optimization=0",
-        "OptimizationCriterion=0",
+        "Model=4",
+        "Dates=1",
         "FromDate=" + day.strftime("%Y.%m.%d"),
-        "ToDate=" + day.strftime("%Y.%m.%d"),
+        "ToDate=" + (day + timedelta(days=1)).strftime("%Y.%m.%d"),
         "ForwardMode=0",
         "Deposit=10000",
         "Currency=EUR",
-        "Leverage=1:500",
-        "UseLocal=1",
-        "UseRemote=0",
-        "UseCloud=0",
+        "ProfitInPips=0",
+        "Leverage=500",
+        "ExecutionMode=0",
+        "OptimizationCriterion=0",
         "Visual=0",
-        "ShutdownTerminal=0",
     )
     return "\r\n".join(values) + "\r\n"
 
@@ -839,6 +886,7 @@ def prepare_run(
     expected_signals: int | None = None,
     expected_tickets: int | None = None,
     expected_pnl_eur: Decimal | None = None,
+    selection: dict | None = None,
 ) -> dict:
     """Prepare one frozen tester run without invoking the terminal."""
 
@@ -922,6 +970,12 @@ def prepare_run(
         "signals": written_manifest["signals"],
         "tickets": written_manifest["tickets"],
         "observed_pnl_eur": written_manifest["observed_pnl_eur"],
+        "selection": selection or {
+            "cutoff_utc": None,
+            "day_rows_seen": written_manifest["signals"],
+            "rows_selected": written_manifest["signals"],
+            "rows_after_cutoff": 0,
+        },
         "fixture_sha256": written_manifest["fixture_sha256"],
         "fixture_csv_sha256": written_manifest["csv_sha256"],
         "fixture_path": str(run_fixture.resolve()),
@@ -1027,6 +1081,7 @@ def _build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("--expect-signals", type=int)
     prepare.add_argument("--expect-tickets", type=int)
     prepare.add_argument("--expect-pnl-eur")
+    prepare.add_argument("--cutoff-utc")
 
     certify = subparsers.add_parser("certify")
     certify.add_argument("--run-dir", required=True)
@@ -1041,7 +1096,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     selected_day = date.fromisoformat(args.date)
-    replay_rows = _load_jsonl(Path(args.replay_file))
+    all_replay_rows = _load_jsonl(Path(args.replay_file))
+    cutoff_utc = (
+        None
+        if args.cutoff_utc is None
+        else _parse_datetime(args.cutoff_utc, "cutoff_utc")
+    )
+    replay_rows, selection = select_replay_rows(
+        all_replay_rows,
+        day=selected_day,
+        cutoff_utc=cutoff_utc,
+    )
     history_rows = (
         _load_json_rows(Path(args.history_file))
         if args.history_file
@@ -1085,6 +1150,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             if args.expect_pnl_eur is None
             else Decimal(args.expect_pnl_eur)
         ),
+        selection=selection,
     )
     print(json.dumps(run_card, ensure_ascii=False, indent=2))
     return 0

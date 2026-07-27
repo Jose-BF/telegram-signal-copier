@@ -31,6 +31,7 @@ def test_replay_ea_has_no_live_order_or_network_path():
         "PositionClose",
         "PositionModify",
         "WebRequest(",
+        "TesterStop(",
         "#import",
     ):
         assert forbidden not in source
