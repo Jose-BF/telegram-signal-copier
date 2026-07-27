@@ -18,8 +18,11 @@ struct ReplayTicket
    string            direction;
    double            volume;
    long              entry_time_msc;
+   int               mt5_time_offset_s;
+   string            entry_time_utc;
    double            entry_price;
    long              observed_close_time_msc;
+   string            observed_close_time_utc;
    double            observed_close_price;
    string            observed_close_reason;
    double            observed_pnl_eur;
@@ -72,8 +75,11 @@ bool ReadHeader(const int handle)
       "direction",
       "volume",
       "entry_time_msc",
+      "mt5_time_offset_s",
+      "entry_time_utc",
       "entry_price",
       "observed_close_time_msc",
+      "observed_close_time_utc",
       "observed_close_price",
       "observed_close_reason",
       "observed_pnl_eur",
@@ -144,8 +150,11 @@ bool LoadFixture()
       item.direction=FileReadString(handle);
       item.volume=StringToDouble(FileReadString(handle));
       item.entry_time_msc=StringToInteger(FileReadString(handle));
+      item.mt5_time_offset_s=(int)StringToInteger(FileReadString(handle));
+      item.entry_time_utc=FileReadString(handle);
       item.entry_price=StringToDouble(FileReadString(handle));
       item.observed_close_time_msc=StringToInteger(FileReadString(handle));
+      item.observed_close_time_utc=FileReadString(handle);
       item.observed_close_price=StringToDouble(FileReadString(handle));
       item.observed_close_reason=FileReadString(handle);
       item.observed_pnl_eur=StringToDouble(FileReadString(handle));

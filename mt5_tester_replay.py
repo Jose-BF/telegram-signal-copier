@@ -13,7 +13,7 @@ import time
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Callable, Iterable, Sequence
 
 
 SCHEMA_VERSION = 1
@@ -25,8 +25,11 @@ FIXTURE_COLUMNS = (
     "direction",
     "volume",
     "entry_time_msc",
+    "mt5_time_offset_s",
+    "entry_time_utc",
     "entry_price",
     "observed_close_time_msc",
+    "observed_close_time_utc",
     "observed_close_price",
     "observed_close_reason",
     "observed_pnl_eur",
@@ -140,6 +143,37 @@ def _parse_datetime(value: object, field: str) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
+def _mt5_server_msc_to_utc(
+    time_msc: object,
+    *,
+    offset_seconds: object,
+    field: str,
+) -> datetime:
+    try:
+        return (
+            datetime.fromtimestamp(
+                _int(time_msc, field) / 1000,
+                tz=timezone.utc,
+            )
+            - timedelta(
+                seconds=_int(offset_seconds, "mt5_time_offset_s")
+            )
+        )
+    except (OSError, OverflowError, ValueError):
+        _block(f"invalid_{field}")
+
+
+def _require_server_time_matches(
+    *,
+    server_time_utc: datetime,
+    recorded_time: object,
+    field: str,
+) -> None:
+    recorded = _parse_datetime(recorded_time, field)
+    if abs((server_time_utc - recorded).total_seconds()) > 1.0:
+        _block(f"{field.removesuffix('_dt_utc')}_server_time_mismatch")
+
+
 def select_replay_rows(
     replay_rows: Iterable[dict],
     *,
@@ -248,8 +282,40 @@ def _fixture_row(trade: dict, ticket: dict, history: dict) -> dict:
     ticket_id = _int(ticket.get("ticket"), "ticket")
     volume = _decimal_text(ticket.get("volume"), "volume")
     entry_time_msc = _int(open_deal.get("time_msc"), "entry_time_msc")
+    trade_offset = trade.get("mt5_time_offset_s")
+    ticket_offset = ticket.get("mt5_time_offset_s")
+    if trade_offset is not None and ticket_offset is not None:
+        if _int(trade_offset, "trade_mt5_time_offset_s") != _int(
+            ticket_offset,
+            "ticket_mt5_time_offset_s",
+        ):
+            _block("ticket_mt5_time_offset_mismatch", ticket_id)
+    mt5_time_offset_s = _int(
+        ticket_offset if ticket_offset is not None else trade_offset,
+        "mt5_time_offset_s",
+    )
+    entry_time_utc = _mt5_server_msc_to_utc(
+        entry_time_msc,
+        offset_seconds=mt5_time_offset_s,
+        field="entry_time_msc",
+    )
+    _require_server_time_matches(
+        server_time_utc=entry_time_utc,
+        recorded_time=ticket.get("open_dt_utc"),
+        field="entry_dt_utc",
+    )
     entry_price = _decimal_text(ticket.get("open_price"), "entry_price")
     close_time_msc = _int(close_deal.get("time_msc"), "close_time_msc")
+    close_time_utc = _mt5_server_msc_to_utc(
+        close_time_msc,
+        offset_seconds=mt5_time_offset_s,
+        field="close_time_msc",
+    )
+    _require_server_time_matches(
+        server_time_utc=close_time_utc,
+        recorded_time=ticket.get("close_dt_utc"),
+        field="close_dt_utc",
+    )
     close_price = _decimal_text(ticket.get("close_price"), "close_price")
     close_reason = str(ticket.get("close_reason") or "").lower()
     if not close_reason:
@@ -316,8 +382,13 @@ def _fixture_row(trade: dict, ticket: dict, history: dict) -> dict:
         "direction": direction,
         "volume": volume,
         "entry_time_msc": entry_time_msc,
+        "mt5_time_offset_s": mt5_time_offset_s,
+        "entry_time_utc": entry_time_utc.isoformat(timespec="microseconds"),
         "entry_price": entry_price,
         "observed_close_time_msc": close_time_msc,
+        "observed_close_time_utc": close_time_utc.isoformat(
+            timespec="microseconds"
+        ),
         "observed_close_price": close_price,
         "observed_close_reason": close_reason,
         "observed_pnl_eur": observed_pnl,
@@ -426,6 +497,109 @@ def _atomic_json(path: Path, value: object) -> None:
 
 def _atomic_utf16(path: Path, text: str) -> None:
     _atomic_write(path, text.encode("utf-16"))
+
+
+def _freeze_tick_cache(
+    *,
+    source_dir: Path,
+    target_dir: Path,
+    start_day: date,
+    end_day: date,
+) -> dict[str, dict]:
+    target_dir.mkdir(parents=True, exist_ok=True)
+    for path in target_dir.glob("*"):
+        if path.is_file():
+            path.unlink()
+    days: dict[str, dict] = {}
+    for day_value in _calendar_days(start_day, end_day):
+        day_text = day_value.isoformat()
+        parquet_source = source_dir / f"{day_text}.parquet"
+        contract_source = source_dir / f"{day_text}.parquet.meta.json"
+        if not parquet_source.is_file() and not contract_source.is_file():
+            continue
+        if not parquet_source.is_file() or not contract_source.is_file():
+            days[day_text] = {"status": "incomplete_source_pair"}
+            continue
+        parquet_target = target_dir / parquet_source.name
+        contract_target = target_dir / contract_source.name
+        _atomic_copy(parquet_source, parquet_target)
+        _atomic_copy(contract_source, contract_target)
+        days[day_text] = {
+            "status": "frozen",
+            "parquet_path": str(parquet_target.resolve()),
+            "parquet_sha256": _file_sha256(parquet_target),
+            "contract_path": str(contract_target.resolve()),
+            "contract_sha256": _file_sha256(contract_target),
+        }
+    return days
+
+
+def _freeze_independent_evidence(
+    *,
+    run_dir: Path,
+    day: date,
+    tester_until: date,
+    market_tick_cache_dir: Path | None,
+    money_tick_cache_dir: Path | None,
+    money_contract_path: Path | None,
+) -> dict:
+    evidence_root = run_dir / "independent_evidence"
+    market_target = evidence_root / "market_ticks"
+    money_target = evidence_root / "money_ticks"
+    contract_target = evidence_root / "broker_money_contract.json"
+    for target in (market_target, money_target):
+        target.mkdir(parents=True, exist_ok=True)
+        for path in target.glob("*"):
+            if path.is_file():
+                path.unlink()
+    contract_target.unlink(missing_ok=True)
+
+    configured = all(
+        path is not None
+        for path in (
+            market_tick_cache_dir,
+            money_tick_cache_dir,
+            money_contract_path,
+        )
+    )
+    market_days: dict[str, dict] = {}
+    money_days: dict[str, dict] = {}
+    contract_sha256 = None
+    if configured:
+        market_days = _freeze_tick_cache(
+            source_dir=Path(market_tick_cache_dir),
+            target_dir=market_target,
+            start_day=day - timedelta(days=1),
+            end_day=tester_until,
+        )
+        money_days = _freeze_tick_cache(
+            source_dir=Path(money_tick_cache_dir),
+            target_dir=money_target,
+            start_day=day - timedelta(days=1),
+            end_day=tester_until,
+        )
+        source_contract = Path(money_contract_path)
+        if source_contract.is_file():
+            _atomic_copy(source_contract, contract_target)
+            contract_sha256 = _file_sha256(contract_target)
+
+    status = (
+        "prepared"
+        if configured and contract_sha256 is not None
+        else "missing"
+    )
+    payload = {
+        "schema_version": SCHEMA_VERSION,
+        "status": status,
+        "market_tick_cache_path": str(market_target.resolve()),
+        "market_days": market_days,
+        "money_tick_cache_path": str(money_target.resolve()),
+        "money_days": money_days,
+        "money_contract_path": str(contract_target.resolve()),
+        "money_contract_sha256": contract_sha256,
+    }
+    payload["evidence_sha256"] = _canonical_sha256(payload)
+    return payload
 
 
 def write_fixture(
@@ -642,6 +816,361 @@ def _compare_alternative_oracle(
         _append_once(blockers, "alternative_pnl_mismatch")
 
 
+def _calendar_days(start: date, stop: date) -> Iterable[date]:
+    current = start
+    while current <= stop:
+        yield current
+        current += timedelta(days=1)
+
+
+def build_alternative_oracle_rows(
+    *,
+    fixture_rows: Iterable[dict],
+    policy_id: str,
+    tester_until: date,
+    market_tick_loader: Callable[
+        [date],
+        tuple[object, dict | None, list[str]],
+    ],
+    money_converter: object,
+) -> tuple[dict[int, dict], list[str], list[dict]]:
+    """Independently replay MT5's TP2 policies over verified UTC ticks."""
+
+    if policy_id not in {"all_tp2_keep_be", "all_tp2_no_be"}:
+        return {}, ["alternative_oracle_policy_unsupported"], []
+
+    import numpy as np
+    import pandas as pd
+    import simulation_oracle
+
+    rows = list(fixture_rows)
+    blockers: list[str] = []
+    frames: dict[date, object | None] = {}
+    frame_blockers: dict[date, list[str]] = {}
+    evidence_by_day: dict[date, dict] = {}
+
+    def load_day(day_value: date) -> tuple[object | None, list[str]]:
+        if day_value in frames:
+            return frames[day_value], frame_blockers[day_value]
+        frame, evidence, day_blockers = market_tick_loader(day_value)
+        if day_blockers:
+            frames[day_value] = None
+            frame_blockers[day_value] = [
+                str(blocker) for blocker in day_blockers
+            ]
+            return None, frame_blockers[day_value]
+        if not isinstance(evidence, dict):
+            frames[day_value] = None
+            frame_blockers[day_value] = [
+                f"missing_market_tick_evidence:{day_value.isoformat()}",
+            ]
+            return None, frame_blockers[day_value]
+        frames[day_value] = frame
+        frame_blockers[day_value] = []
+        evidence_by_day[day_value] = dict(evidence)
+        return frame, []
+
+    expected: dict[int, dict] = {}
+    for fixture in rows:
+        ticket = _int(fixture.get("ticket"), "fixture_ticket")
+        try:
+            opened = _parse_datetime(
+                fixture.get("entry_time_utc"),
+                "entry_time_utc",
+            )
+            offset = _int(
+                fixture.get("mt5_time_offset_s"),
+                "mt5_time_offset_s",
+            )
+        except FixtureBlockedError as exc:
+            _append_once(blockers, f"{exc}:{ticket}")
+            continue
+        horizon = (
+            datetime.combine(
+                tester_until,
+                datetime.min.time(),
+                tzinfo=timezone.utc,
+            )
+            - timedelta(seconds=offset)
+        )
+        if horizon <= opened:
+            _append_once(blockers, f"invalid_alternative_horizon:{ticket}")
+            continue
+
+        direction = str(fixture.get("direction") or "")
+        entry_price = float(_decimal(
+            fixture.get("entry_price"),
+            "entry_price",
+        ))
+        tp1 = float(_decimal(fixture.get("provider_tp1"), "provider_tp1"))
+        tp2 = float(_decimal(fixture.get("provider_tp2"), "provider_tp2"))
+        provider_sl = float(_decimal(
+            fixture.get("provider_sl"),
+            "provider_sl",
+        ))
+        if (
+            direction == "BUY"
+            and not (provider_sl < entry_price < tp2)
+        ) or (
+            direction == "SELL"
+            and not (tp2 < entry_price < provider_sl)
+        ):
+            _append_once(blockers, f"invalid_policy_level_geometry:{ticket}")
+            continue
+
+        entry_ns = pd.Timestamp(opened).value
+        horizon_ns = pd.Timestamp(horizon).value
+        be_active = False
+        saw_tick = False
+        ticket_failed = False
+        close_prepared = None
+        close_absolute_position: int | None = None
+        close_reason: str | None = None
+        for day_value in _calendar_days(opened.date(), horizon.date()):
+            frame, day_errors = load_day(day_value)
+            if day_errors or frame is None:
+                for blocker in day_errors or [
+                    f"market_tick_evidence_missing:{day_value.isoformat()}"
+                ]:
+                    _append_once(blockers, f"{blocker}:{ticket}")
+                ticket_failed = True
+                break
+            evidence = evidence_by_day[day_value]
+            if day_value == opened.date():
+                try:
+                    evidence_offset = _int(
+                        evidence.get("utc_offset_seconds"),
+                        "entry_tick_offset",
+                    )
+                except FixtureBlockedError:
+                    _append_once(
+                        blockers,
+                        f"invalid_entry_tick_offset:{ticket}",
+                    )
+                    ticket_failed = True
+                    break
+                if evidence_offset != offset:
+                    _append_once(
+                        blockers,
+                        f"entry_tick_offset_mismatch:{ticket}",
+                    )
+                    ticket_failed = True
+                    break
+
+            prepared, tick_blockers = (
+                simulation_oracle.prepare_tick_window(frame)
+            )
+            if tick_blockers or prepared is None:
+                for blocker in tick_blockers or [
+                    "invalid_market_tick_window"
+                ]:
+                    _append_once(blockers, f"{blocker}:{ticket}")
+                ticket_failed = True
+                break
+            start = int(np.searchsorted(
+                prepared.times_ns,
+                entry_ns,
+                side="left",
+            ))
+            stop = int(np.searchsorted(
+                prepared.times_ns,
+                horizon_ns,
+                side="left",
+            ))
+            if start >= stop:
+                continue
+            saw_tick = True
+            side_values = (
+                prepared.bid[start:stop]
+                if direction == "BUY"
+                else prepared.ask[start:stop]
+            )
+            if direction == "BUY":
+                tp2_mask = side_values >= tp2
+                provider_sl_mask = side_values <= provider_sl
+                tp1_mask = side_values >= tp1
+                be_mask = side_values <= entry_price
+            else:
+                tp2_mask = side_values <= tp2
+                provider_sl_mask = side_values >= provider_sl
+                tp1_mask = side_values <= tp1
+                be_mask = side_values >= entry_price
+
+            close_position: int | None = None
+            if policy_id == "all_tp2_keep_be" and be_active:
+                exit_positions = np.flatnonzero(tp2_mask | be_mask)
+                if len(exit_positions):
+                    close_position = int(exit_positions[0])
+                    if (
+                        tp2_mask[close_position]
+                        and be_mask[close_position]
+                    ):
+                        _append_once(
+                            blockers,
+                            f"same_tick_tp_be_ambiguity:{ticket}",
+                        )
+                        ticket_failed = True
+                        break
+                    close_reason = (
+                        "tp2" if tp2_mask[close_position] else "be"
+                    )
+            else:
+                initial_positions = np.flatnonzero(
+                    tp2_mask | provider_sl_mask
+                )
+                initial_exit = (
+                    int(initial_positions[0])
+                    if len(initial_positions)
+                    else None
+                )
+                close_position = initial_exit
+                if initial_exit is not None:
+                    if (
+                        tp2_mask[initial_exit]
+                        and provider_sl_mask[initial_exit]
+                    ):
+                        _append_once(
+                            blockers,
+                            f"same_tick_tp_sl_ambiguity:{ticket}",
+                        )
+                        ticket_failed = True
+                        break
+                    close_reason = (
+                        "tp2" if tp2_mask[initial_exit] else "sl"
+                    )
+                if policy_id == "all_tp2_keep_be":
+                    tp1_positions = np.flatnonzero(tp1_mask)
+                    tp1_position = (
+                        int(tp1_positions[0])
+                        if len(tp1_positions)
+                        else None
+                    )
+                    if (
+                        tp1_position is not None
+                        and (
+                            initial_exit is None
+                            or tp1_position < initial_exit
+                        )
+                    ):
+                        post_be_positions = np.flatnonzero(
+                            tp2_mask[tp1_position + 1:]
+                            | be_mask[tp1_position + 1:]
+                        )
+                        if len(post_be_positions):
+                            close_position = (
+                                tp1_position
+                                + 1
+                                + int(post_be_positions[0])
+                            )
+                            if (
+                                tp2_mask[close_position]
+                                and be_mask[close_position]
+                            ):
+                                _append_once(
+                                    blockers,
+                                    f"same_tick_tp_be_ambiguity:{ticket}",
+                                )
+                                ticket_failed = True
+                                break
+                            close_reason = (
+                                "tp2"
+                                if tp2_mask[close_position]
+                                else "be"
+                            )
+                        else:
+                            be_active = True
+                            close_position = None
+                            close_reason = None
+            if close_position is not None and close_reason is not None:
+                close_prepared = prepared
+                close_absolute_position = start + close_position
+                break
+
+        if ticket_failed:
+            continue
+        if (
+            close_prepared is None
+            or close_absolute_position is None
+            or close_reason is None
+        ):
+            if not saw_tick:
+                _append_once(blockers, f"missing_ticks_after_entry:{ticket}")
+            else:
+                _append_once(blockers, f"alternative_horizon_open:{ticket}")
+            continue
+        prepared = close_prepared
+        absolute_position = close_absolute_position
+        close_ns = int(prepared.times_ns[absolute_position])
+        close_utc = pd.Timestamp(
+            close_ns,
+            unit="ns",
+            tz="UTC",
+        ).to_pydatetime()
+        close_day_evidence = evidence_by_day.get(close_utc.date())
+        if not isinstance(close_day_evidence, dict):
+            _append_once(
+                blockers,
+                f"missing_close_tick_evidence:{ticket}",
+            )
+            continue
+        try:
+            close_offset = _int(
+                close_day_evidence.get("utc_offset_seconds"),
+                "close_mt5_time_offset_s",
+            )
+        except FixtureBlockedError:
+            _append_once(
+                blockers,
+                f"invalid_close_tick_offset:{ticket}",
+            )
+            continue
+        close_time_msc = (
+            close_ns // 1_000_000 + close_offset * 1000
+        )
+        touch_bid = float(prepared.bid[absolute_position])
+        touch_ask = float(prepared.ask[absolute_position])
+        close_price = (
+            tp2
+            if close_reason == "tp2"
+            else (touch_bid if direction == "BUY" else touch_ask)
+        )
+        money = money_converter.convert_leg(
+            direction=direction,
+            open_price=entry_price,
+            close_price=close_price,
+            volume=fixture.get("volume"),
+            open_time_utc=opened,
+            close_time_utc=close_utc,
+        )
+        if money.get("status") != "verified":
+            for blocker in money.get("blockers") or [
+                "alternative_money_unverified"
+            ]:
+                _append_once(blockers, f"{blocker}:{ticket}")
+            continue
+        expected[ticket] = {
+            "close_time_msc": close_time_msc,
+            "close_price": _decimal_text(close_price, "close_price"),
+            "close_reason": close_reason,
+            "pnl_eur": str(_money(
+                money.get("strategy_pnl"),
+                "strategy_pnl",
+            )),
+            "touch_bid": _decimal_text(touch_bid, "touch_bid"),
+            "touch_ask": _decimal_text(touch_ask, "touch_ask"),
+            "close_time_utc": close_utc.isoformat(timespec="microseconds"),
+            "money_conversion": money.get("conversion"),
+        }
+
+    if len(expected) != len(rows) and not blockers:
+        _append_once(blockers, "alternative_oracle_ticket_set_mismatch")
+    evidence = [
+        evidence_by_day[day_value]
+        for day_value in sorted(evidence_by_day)
+    ]
+    return expected, blockers, evidence
+
+
 def certify_result(
     *,
     fixture_rows: Iterable[dict],
@@ -649,6 +1178,7 @@ def certify_result(
     policy_id: str,
     result_rows: Iterable[dict],
     expected_alternative_rows: dict[int, dict] | None = None,
+    alternative_oracle_evidence: dict | None = None,
 ) -> dict:
     """Certify a tester result or return explicit fail-closed blockers."""
 
@@ -776,11 +1306,17 @@ def certify_result(
                         "overnight_cost_model_unverified",
                     )
 
-        proofs.append({
+        proof = {
             "ticket": ticket,
             "fixture_source_sha256": fixture.get("source_sha256"),
             "result": row,
-        })
+        }
+        if (
+            policy_id != "observed_close"
+            and expected_alternative_rows is not None
+        ):
+            proof["oracle_expected"] = expected_alternative_rows.get(ticket)
+        proofs.append(proof)
 
     result_total: Decimal | None = None
     if not blockers:
@@ -817,7 +1353,13 @@ def certify_result(
         "policy_id": policy_id,
         "fixture_sha256": fixture_manifest.get("fixture_sha256"),
         "proofs": proofs,
+        "alternative_oracle_evidence": alternative_oracle_evidence,
     }
+    oracle_verified = (
+        policy_id != "observed_close"
+        and expected_alternative_rows is not None
+        and alternative_oracle_evidence is not None
+    )
     return {
         "schema_version": SCHEMA_VERSION,
         "status": status,
@@ -834,6 +1376,16 @@ def certify_result(
         "blockers": blockers,
         "overnight_tickets": overnight_tickets,
         "conclusions_allowed": False,
+        "oracle_status": (
+            "not_applicable"
+            if policy_id == "observed_close"
+            else ("verified" if oracle_verified else "unverified")
+        ),
+        "oracle_evidence_sha256": (
+            _canonical_sha256(alternative_oracle_evidence)
+            if oracle_verified
+            else None
+        ),
         "certificate_sha256": (
             _canonical_sha256(certificate_payload) if not blockers else None
         ),
@@ -854,6 +1406,7 @@ def read_fixture(path: Path) -> list[dict]:
                 "schema_version",
                 "ticket",
                 "entry_time_msc",
+                "mt5_time_offset_s",
                 "observed_close_time_msc",
             ):
                 row[field] = _int(row.get(field), f"fixture_{field}")
@@ -1365,6 +1918,9 @@ def prepare_run(
     selection: dict | None = None,
     tester_until: date | None = None,
     universe_proof: dict | None = None,
+    market_tick_cache_dir: Path | None = None,
+    money_tick_cache_dir: Path | None = None,
+    money_contract_path: Path | None = None,
 ) -> dict:
     """Prepare one frozen tester run without invoking the terminal."""
 
@@ -1396,6 +1952,14 @@ def prepare_run(
     )
 
     run_dir = Path(run_root) / day.isoformat()
+    independent_evidence = _freeze_independent_evidence(
+        run_dir=run_dir,
+        day=day,
+        tester_until=resolved_tester_until,
+        market_tick_cache_dir=market_tick_cache_dir,
+        money_tick_cache_dir=money_tick_cache_dir,
+        money_contract_path=money_contract_path,
+    )
     common_run_dir = (
         Path(common_files_dir) / COMMON_RUN_FOLDER / day.isoformat()
     )
@@ -1476,6 +2040,7 @@ def prepare_run(
             "rows_not_closed_by_cutoff": 0,
         },
         "ticket_universe": universe_proof,
+        "independent_evidence": independent_evidence,
         "fixture_sha256": written_manifest["fixture_sha256"],
         "fixture_csv_sha256": written_manifest["csv_sha256"],
         "fixture_path": str(run_fixture.resolve()),
@@ -1510,6 +2075,151 @@ def _hash_blockers(
     return []
 
 
+def _independent_evidence_blockers(evidence: object) -> list[str]:
+    if not isinstance(evidence, dict):
+        return ["independent_evidence_missing"]
+    blockers: list[str] = []
+    unsigned = dict(evidence)
+    evidence_sha256 = unsigned.pop("evidence_sha256", None)
+    if evidence_sha256 != _canonical_sha256(unsigned):
+        _append_once(blockers, "independent_evidence_hash_mismatch")
+    if evidence.get("schema_version") != SCHEMA_VERSION:
+        _append_once(blockers, "independent_evidence_schema_mismatch")
+    if evidence.get("status") != "prepared":
+        _append_once(blockers, "independent_evidence_missing")
+    for kind in ("market", "money"):
+        records = evidence.get(f"{kind}_days")
+        if not isinstance(records, dict):
+            _append_once(blockers, f"{kind}_tick_evidence_invalid")
+            continue
+        for day_text, record in records.items():
+            if not isinstance(record, dict) or record.get("status") != "frozen":
+                _append_once(
+                    blockers,
+                    f"{kind}_tick_evidence_incomplete:{day_text}",
+                )
+                continue
+            for field, expected_field, missing, mismatch in (
+                (
+                    "parquet_path",
+                    "parquet_sha256",
+                    f"{kind}_tick_parquet_missing:{day_text}",
+                    f"{kind}_tick_parquet_hash_mismatch:{day_text}",
+                ),
+                (
+                    "contract_path",
+                    "contract_sha256",
+                    f"{kind}_tick_contract_missing:{day_text}",
+                    f"{kind}_tick_contract_hash_mismatch:{day_text}",
+                ),
+            ):
+                for blocker in _hash_blockers(
+                    path_value=record.get(field),
+                    expected_sha256=record.get(expected_field),
+                    missing=missing,
+                    mismatch=mismatch,
+                ):
+                    _append_once(blockers, blocker)
+    for blocker in _hash_blockers(
+        path_value=evidence.get("money_contract_path"),
+        expected_sha256=evidence.get("money_contract_sha256"),
+        missing="broker_money_contract_missing",
+        mismatch="broker_money_contract_hash_mismatch",
+    ):
+        _append_once(blockers, blocker)
+    return blockers
+
+
+def _alternative_oracle_for_run(
+    *,
+    run_card: dict,
+    fixture_rows: list[dict],
+    policy_id: str,
+) -> tuple[dict[int, dict] | None, list[str], dict | None]:
+    evidence = run_card.get("independent_evidence")
+    blockers = _independent_evidence_blockers(evidence)
+    if blockers or not isinstance(evidence, dict):
+        return None, blockers, None
+
+    import pandas as pd
+    import broker_money
+    import simulation_oracle
+
+    market_records = evidence["market_days"]
+    money_records = evidence["money_days"]
+    market_cache = simulation_oracle.IndependentTickCache(
+        Path(evidence["market_tick_cache_path"]),
+        expected_symbol="XAUUSD",
+        require_market_session=False,
+    )
+    money_contract = broker_money.load_contract(
+        Path(evidence["money_contract_path"])
+    )
+    conversion_symbol = str(
+        (money_contract.get("conversion") or {}).get("symbol") or ""
+    )
+    money_cache = broker_money.VerifiedConversionTickCache(
+        Path(evidence["money_tick_cache_path"]),
+        symbol=conversion_symbol,
+    )
+
+    def market_loader(day_value: date):
+        day_text = day_value.isoformat()
+        if day_text not in market_records:
+            return (
+                pd.DataFrame(),
+                None,
+                [f"market_tick_day_not_frozen:{day_text}"],
+            )
+        return market_cache.load_day(day_value)
+
+    def money_loader(day_value: date):
+        day_text = day_value.isoformat()
+        if day_text not in money_records:
+            return (
+                pd.DataFrame(),
+                f"money_tick_day_not_frozen:{day_text}",
+            )
+        return money_cache.load_day(day_value)
+
+    try:
+        converter = broker_money.BrokerMoneyConverter(
+            money_contract,
+            quote_loader=money_loader,
+        )
+        tester_until = date.fromisoformat(
+            str(
+                (run_card.get("tester_window") or {}).get(
+                    "until_exclusive"
+                )
+            )
+        )
+    except (OSError, UnicodeError, ValueError) as exc:
+        return None, [
+            f"independent_money_initialization_failed:{type(exc).__name__}"
+        ], None
+
+    expected, oracle_blockers, market_evidence = (
+        build_alternative_oracle_rows(
+            fixture_rows=fixture_rows,
+            policy_id=policy_id,
+            tester_until=tester_until,
+            market_tick_loader=market_loader,
+            money_converter=converter,
+        )
+    )
+    if oracle_blockers:
+        return None, oracle_blockers, None
+    oracle_evidence = {
+        "policy_id": policy_id,
+        "frozen_evidence_sha256": evidence["evidence_sha256"],
+        "market_tick_evidence": market_evidence,
+        "money_contract_sha256": evidence["money_contract_sha256"],
+        "expected_rows_sha256": _canonical_sha256(expected),
+    }
+    return expected, [], oracle_evidence
+
+
 def _apply_certificate_blockers(
     certificate: dict,
     extra_blockers: Iterable[str],
@@ -1523,6 +2233,8 @@ def _apply_certificate_blockers(
         result["status"] = "blocked"
         result["result_pnl_eur"] = None
         result["certificate_sha256"] = None
+        if result.get("oracle_status") != "not_applicable":
+            result["oracle_status"] = "blocked"
     return result
 
 
@@ -1548,6 +2260,12 @@ def _missing_result_certificate(
         "blockers": [blocker],
         "overnight_tickets": [],
         "conclusions_allowed": False,
+        "oracle_status": (
+            "not_applicable"
+            if policy_id == "observed_close"
+            else "unavailable"
+        ),
+        "oracle_evidence_sha256": None,
         "certificate_sha256": None,
     }
 
@@ -1707,15 +2425,34 @@ def certify_run(run_dir: Path) -> dict:
                         policy_blockers,
                     )
                 else:
+                    expected_alternative_rows = None
+                    alternative_oracle_evidence = None
+                    oracle_blockers: list[str] = []
+                    if policy_id != "observed_close":
+                        (
+                            expected_alternative_rows,
+                            oracle_blockers,
+                            alternative_oracle_evidence,
+                        ) = _alternative_oracle_for_run(
+                            run_card=run_card,
+                            fixture_rows=fixture_rows,
+                            policy_id=policy_id,
+                        )
                     certificate = certify_result(
                         fixture_rows=fixture_rows,
                         fixture_manifest=manifest,
                         policy_id=policy_id,
                         result_rows=result_rows,
+                        expected_alternative_rows=(
+                            expected_alternative_rows
+                        ),
+                        alternative_oracle_evidence=(
+                            alternative_oracle_evidence
+                        ),
                     )
                     certificate = _apply_certificate_blockers(
                         certificate,
-                        policy_blockers,
+                        [*policy_blockers, *oracle_blockers],
                     )
         certificates[policy_id] = certificate
         _atomic_json(
@@ -1729,7 +2466,7 @@ def certify_run(run_dir: Path) -> dict:
             if policy_id == "observed_close":
                 continue
             certificate = certificates[policy_id]
-            if certificate.get("status") == "blocked":
+            if int(certificate.get("checked_tickets") or 0) <= 0:
                 continue
             certificate = _apply_certificate_blockers(
                 certificate,
@@ -1790,6 +2527,22 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     prepare.add_argument("--history-file")
     prepare.add_argument("--universe-proof-file")
+    prepare.add_argument(
+        "--market-tick-cache-dir",
+        default=str(Path(__file__).parent / "data" / "ticks_cache"),
+    )
+    prepare.add_argument(
+        "--money-tick-cache-dir",
+        default=str(
+            Path(__file__).parent / "data" / "money_ticks_cache"
+        ),
+    )
+    prepare.add_argument(
+        "--money-contract",
+        default=str(
+            Path(__file__).parent / "data" / "broker_money_contract.json"
+        ),
+    )
     prepare.add_argument("--mt5-data-dir")
     prepare.add_argument("--common-files-dir")
     prepare.add_argument("--compiled-ea")
@@ -1889,6 +2642,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         selection=selection,
         tester_until=tester_until,
         universe_proof=universe_proof,
+        market_tick_cache_dir=Path(args.market_tick_cache_dir),
+        money_tick_cache_dir=Path(args.money_tick_cache_dir),
+        money_contract_path=Path(args.money_contract),
     )
     print(json.dumps(run_card, ensure_ascii=False, indent=2))
     return 0
