@@ -1060,6 +1060,63 @@ def prepare_run(
     return run_card
 
 
+def _hash_blockers(
+    *,
+    path_value: object,
+    expected_sha256: object,
+    missing: str,
+    mismatch: str,
+) -> list[str]:
+    path = Path(str(path_value or ""))
+    if not path.is_file():
+        return [missing]
+    if _file_sha256(path) != str(expected_sha256 or ""):
+        return [mismatch]
+    return []
+
+
+def _apply_certificate_blockers(
+    certificate: dict,
+    extra_blockers: Iterable[str],
+) -> dict:
+    result = dict(certificate)
+    blockers = list(result.get("blockers") or [])
+    for blocker in extra_blockers:
+        _append_once(blockers, blocker)
+    result["blockers"] = blockers
+    if blockers:
+        result["status"] = "blocked"
+        result["result_pnl_eur"] = None
+        result["certificate_sha256"] = None
+    return result
+
+
+def _missing_result_certificate(
+    *,
+    policy_id: str,
+    run_card: dict,
+    blocker: str = "result_file_missing",
+) -> dict:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "status": "blocked",
+        "policy_id": policy_id,
+        "expected_tickets": int(run_card["tickets"]),
+        "checked_tickets": 0,
+        "observed_pnl_eur": str(
+            _money(
+                run_card["observed_pnl_eur"],
+                "run_card_observed_pnl_eur",
+            )
+        ),
+        "result_pnl_eur": None,
+        "blockers": [blocker],
+        "overnight_tickets": [],
+        "conclusions_allowed": False,
+        "certificate_sha256": None,
+    }
+
+
 def certify_run(run_dir: Path) -> dict:
     """Certify every result currently present for a prepared run."""
 
@@ -1071,17 +1128,107 @@ def certify_run(run_dir: Path) -> dict:
     manifest = json.loads(
         (run_dir / "fixture.manifest.json").read_text(encoding="utf-8")
     )
+    run_blockers: list[str] = []
+    if run_card.get("fixture_sha256") != manifest.get("fixture_sha256"):
+        _append_once(
+            run_blockers,
+            "run_card_fixture_sha256_mismatch",
+        )
+    for blocker in _hash_blockers(
+        path_value=run_card.get("fixture_path"),
+        expected_sha256=run_card.get("fixture_csv_sha256"),
+        missing="fixture_file_missing",
+        mismatch="fixture_csv_sha256_mismatch",
+    ):
+        _append_once(run_blockers, blocker)
+    for blocker in _hash_blockers(
+        path_value=run_card.get("common_fixture_path"),
+        expected_sha256=run_card.get("fixture_csv_sha256"),
+        missing="common_fixture_file_missing",
+        mismatch="common_fixture_csv_sha256_mismatch",
+    ):
+        _append_once(run_blockers, blocker)
+    for blocker in _hash_blockers(
+        path_value=run_card.get("compiled_ea_path"),
+        expected_sha256=run_card.get("compiled_ea_sha256"),
+        missing="compiled_ea_missing",
+        mismatch="compiled_ea_sha256_mismatch",
+    ):
+        _append_once(run_blockers, blocker)
+
+    policies = run_card.get("policies")
+    if not isinstance(policies, dict):
+        policies = {}
+    if set(policies) != POLICY_IDS:
+        _append_once(run_blockers, "run_card_policy_set_mismatch")
+
     certificates: dict[str, dict] = {}
-    for policy_id, policy in run_card["policies"].items():
+    for policy_id in POLICY_ORDER:
+        policy = policies.get(policy_id)
+        if not isinstance(policy, dict):
+            certificate = _apply_certificate_blockers(
+                _missing_result_certificate(
+                    policy_id=policy_id,
+                    run_card=run_card,
+                    blocker="policy_run_card_missing",
+                ),
+                run_blockers,
+            )
+            certificates[policy_id] = certificate
+            _atomic_json(
+                run_dir / f"{policy_id}.certificate.json",
+                certificate,
+            )
+            continue
+
+        policy_blockers = list(run_blockers)
+        for blocker in _hash_blockers(
+            path_value=policy.get("ini_path"),
+            expected_sha256=policy.get("ini_sha256"),
+            missing="ini_file_missing",
+            mismatch="ini_sha256_mismatch",
+        ):
+            _append_once(policy_blockers, blocker)
+        for blocker in _hash_blockers(
+            path_value=policy.get("set_path"),
+            expected_sha256=policy.get("set_sha256"),
+            missing="set_file_missing",
+            mismatch="set_sha256_mismatch",
+        ):
+            _append_once(policy_blockers, blocker)
+
         result_path = Path(policy["result_path"])
         if not result_path.is_file():
-            continue
-        certificate = certify_result(
-            fixture_rows=fixture_rows,
-            fixture_manifest=manifest,
-            policy_id=policy_id,
-            result_rows=read_result(result_path),
-        )
+            certificate = _apply_certificate_blockers(
+                _missing_result_certificate(
+                    policy_id=policy_id,
+                    run_card=run_card,
+                ),
+                policy_blockers,
+            )
+        else:
+            try:
+                result_rows = read_result(result_path)
+            except (OSError, UnicodeError, ValueError, csv.Error):
+                certificate = _apply_certificate_blockers(
+                    _missing_result_certificate(
+                        policy_id=policy_id,
+                        run_card=run_card,
+                        blocker="result_file_invalid",
+                    ),
+                    policy_blockers,
+                )
+            else:
+                certificate = certify_result(
+                    fixture_rows=fixture_rows,
+                    fixture_manifest=manifest,
+                    policy_id=policy_id,
+                    result_rows=result_rows,
+                )
+                certificate = _apply_certificate_blockers(
+                    certificate,
+                    policy_blockers,
+                )
         certificates[policy_id] = certificate
         _atomic_json(
             run_dir / f"{policy_id}.certificate.json",
@@ -1091,6 +1238,10 @@ def certify_run(run_dir: Path) -> dict:
         "schema_version": SCHEMA_VERSION,
         "day": run_card["day"],
         "fixture_sha256": run_card["fixture_sha256"],
+        "integrity": {
+            "status": "verified" if not run_blockers else "blocked",
+            "blockers": run_blockers,
+        },
         "certificates": certificates,
     }
     _atomic_json(run_dir / "certification_summary.json", summary)

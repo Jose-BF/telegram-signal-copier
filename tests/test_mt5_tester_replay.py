@@ -484,6 +484,136 @@ def test_prepare_cli_writes_isolated_real_tick_profiles(tmp_path: Path):
     assert set(run_card["policies"]) == replay.POLICY_IDS
 
 
+def _prepare_certification_run(
+    tmp_path: Path,
+    *,
+    write_observed_result: bool,
+) -> tuple[Path, dict]:
+    compiled_ea = tmp_path / "TelegramSignalReplayEA.ex5"
+    compiled_ea.write_bytes(b"compiled-test-ea")
+    run_root = tmp_path / "runs"
+    run_card = replay.prepare_run(
+        day=date(2026, 7, 27),
+        replay_rows=[_trade()],
+        observed_history=_history(),
+        run_root=run_root,
+        mt5_data_dir=tmp_path / "terminal",
+        common_files_dir=tmp_path / "common" / "Files",
+        compiled_ea=compiled_ea,
+    )
+    run_dir = run_root / "2026-07-27"
+    if write_observed_result:
+        fixture_row = replay.read_fixture(run_dir / "fixture.csv")[0]
+        result_path = Path(
+            run_card["policies"]["observed_close"]["result_path"]
+        )
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        with result_path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(
+                handle,
+                fieldnames=replay.RESULT_COLUMNS,
+                delimiter=";",
+            )
+            writer.writeheader()
+            writer.writerow(_result_row(fixture_row))
+    return run_dir, run_card
+
+
+def test_certify_run_reports_every_missing_policy_result(tmp_path: Path):
+    run_dir, _run_card = _prepare_certification_run(
+        tmp_path,
+        write_observed_result=False,
+    )
+
+    summary = replay.certify_run(run_dir)
+
+    assert set(summary["certificates"]) == replay.POLICY_IDS
+    for certificate in summary["certificates"].values():
+        assert certificate["status"] == "blocked"
+        assert certificate["blockers"] == ["result_file_missing"]
+        assert certificate["result_pnl_eur"] is None
+        path = run_dir / f"{certificate['policy_id']}.certificate.json"
+        assert json.loads(path.read_text(encoding="utf-8")) == certificate
+
+
+def test_certify_run_reports_an_invalid_result_file(tmp_path: Path):
+    run_dir, run_card = _prepare_certification_run(
+        tmp_path,
+        write_observed_result=True,
+    )
+    result_path = Path(
+        run_card["policies"]["observed_close"]["result_path"]
+    )
+    result_path.write_text("wrong;columns\n", encoding="utf-8")
+
+    summary = replay.certify_run(run_dir)
+    certificate = summary["certificates"]["observed_close"]
+
+    assert certificate["status"] == "blocked"
+    assert certificate["blockers"] == ["result_file_invalid"]
+    assert certificate["checked_tickets"] == 0
+    assert certificate["result_pnl_eur"] is None
+
+
+def test_certify_run_reports_a_missing_policy_definition(tmp_path: Path):
+    run_dir, _run_card = _prepare_certification_run(
+        tmp_path,
+        write_observed_result=False,
+    )
+    run_card_path = run_dir / "run_card.json"
+    run_card = json.loads(run_card_path.read_text(encoding="utf-8"))
+    del run_card["policies"]["all_tp2_no_be"]
+    run_card_path.write_text(
+        json.dumps(run_card, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    summary = replay.certify_run(run_dir)
+    certificate = summary["certificates"]["all_tp2_no_be"]
+
+    assert set(summary["certificates"]) == replay.POLICY_IDS
+    assert certificate["status"] == "blocked"
+    assert "run_card_policy_set_mismatch" in certificate["blockers"]
+    assert "policy_run_card_missing" in certificate["blockers"]
+
+
+@pytest.mark.parametrize(
+    ("target", "blocker"),
+    [
+        ("compiled_ea_path", "compiled_ea_sha256_mismatch"),
+        ("ini_path", "ini_sha256_mismatch"),
+        ("set_path", "set_sha256_mismatch"),
+        ("fixture_path", "fixture_csv_sha256_mismatch"),
+        (
+            "common_fixture_path",
+            "common_fixture_csv_sha256_mismatch",
+        ),
+    ],
+)
+def test_certify_run_blocks_tampered_inputs(
+    tmp_path: Path,
+    target: str,
+    blocker: str,
+):
+    run_dir, run_card = _prepare_certification_run(
+        tmp_path,
+        write_observed_result=True,
+    )
+    if target in {"ini_path", "set_path"}:
+        path = Path(run_card["policies"]["observed_close"][target])
+    else:
+        path = Path(run_card[target])
+    path.write_bytes(path.read_bytes() + b"\n")
+
+    summary = replay.certify_run(run_dir)
+    certificate = summary["certificates"]["observed_close"]
+
+    assert certificate["status"] == "blocked"
+    assert blocker in certificate["blockers"]
+    assert certificate["result_pnl_eur"] is None
+    assert certificate["certificate_sha256"] is None
+
+
 def test_default_tester_horizon_is_the_next_calendar_day():
     profile = replay._ini_text(
         day=date(2026, 7, 27),

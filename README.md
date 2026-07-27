@@ -88,6 +88,10 @@ blocked from money totals while the contract remains
 `intraday_only_zero`. Their price outcome stays available for diagnosis, but
 the simulator will not present P&L that omits swap.
 
+Certification rechecks the exact fixture copies, compiled EA, INI and SET
+profiles before accepting any result. All declared policies appear in the
+summary: missing or malformed outputs are explicit blockers.
+
 The generated profiles use XAUUSD M1, Model 4 real ticks, EUR account
 currency and local agents only. `TelegramSignalReplayEA` refuses to run
 outside the tester and never sends or modifies a real order. Alternative
