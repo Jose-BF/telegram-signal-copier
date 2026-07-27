@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import copy
 import hashlib
 import json
 from datetime import date
@@ -183,3 +184,162 @@ def test_write_fixture_is_deterministic_and_binds_csv(tmp_path: Path):
     assert written_manifest["csv_sha256"] == hashlib.sha256(payload).hexdigest()
     assert written_manifest["fixture_sha256"] == manifest["fixture_sha256"]
 
+
+def _result_row(fixture_row: dict, *, policy_id: str = "observed_close") -> dict:
+    return {
+        "schema_version": 1,
+        "policy_id": policy_id,
+        "signal_id": fixture_row["signal_id"],
+        "ticket": fixture_row["ticket"],
+        "status": "closed",
+        "direction": fixture_row["direction"],
+        "volume": fixture_row["volume"],
+        "entry_time_msc": fixture_row["entry_time_msc"],
+        "entry_price": fixture_row["entry_price"],
+        "close_time_msc": fixture_row["observed_close_time_msc"],
+        "close_price": fixture_row["observed_close_price"],
+        "close_reason": fixture_row["observed_close_reason"],
+        "pnl_eur": fixture_row["observed_pnl_eur"],
+        "touch_bid": "4072.5",
+        "touch_ask": "4072.73",
+        "source_sha256": fixture_row["source_sha256"],
+    }
+
+
+def test_certify_observed_result_requires_exact_ticket_and_cent():
+    rows, manifest = replay.build_fixture(
+        replay_rows=[_trade()],
+        day=date(2026, 7, 27),
+        observed_history=_history(),
+    )
+
+    certificate = replay.certify_result(
+        fixture_rows=rows,
+        fixture_manifest=manifest,
+        policy_id="observed_close",
+        result_rows=[_result_row(rows[0])],
+    )
+
+    assert certificate["status"] == "certified"
+    assert certificate["policy_id"] == "observed_close"
+    assert certificate["expected_tickets"] == 1
+    assert certificate["checked_tickets"] == 1
+    assert certificate["observed_pnl_eur"] == "2.03"
+    assert certificate["result_pnl_eur"] == "2.03"
+    assert certificate["blockers"] == []
+    assert len(certificate["certificate_sha256"]) == 64
+
+
+@pytest.mark.parametrize(
+    ("mutation", "blocker"),
+    [
+        ({"ticket": 99}, "ticket_set_mismatch"),
+        ({"entry_price": "4074.82"}, "entry_price_mismatch"),
+        ({"pnl_eur": "2.04"}, "baseline_pnl_mismatch"),
+        ({"source_sha256": "0" * 64}, "source_sha256_mismatch"),
+        ({"policy_id": "all_tp2_no_be"}, "policy_id_mismatch"),
+    ],
+)
+def test_certify_observed_result_blocks_mutations(
+    mutation: dict,
+    blocker: str,
+):
+    rows, manifest = replay.build_fixture(
+        replay_rows=[_trade()],
+        day=date(2026, 7, 27),
+        observed_history=_history(),
+    )
+    result = _result_row(rows[0])
+    result.update(mutation)
+
+    certificate = replay.certify_result(
+        fixture_rows=rows,
+        fixture_manifest=manifest,
+        policy_id="observed_close",
+        result_rows=[result],
+    )
+
+    assert certificate["status"] == "blocked"
+    assert blocker in certificate["blockers"]
+    assert certificate["result_pnl_eur"] is None
+
+
+def test_certify_result_blocks_duplicate_ticket():
+    rows, manifest = replay.build_fixture(
+        replay_rows=[_trade()],
+        day=date(2026, 7, 27),
+        observed_history=_history(),
+    )
+    result = _result_row(rows[0])
+
+    certificate = replay.certify_result(
+        fixture_rows=rows,
+        fixture_manifest=manifest,
+        policy_id="observed_close",
+        result_rows=[result, copy.deepcopy(result)],
+    )
+
+    assert certificate["status"] == "blocked"
+    assert "duplicate_result_ticket" in certificate["blockers"]
+
+
+def test_certify_alternative_is_diagnostic_and_keeps_complete_universe():
+    rows, manifest = replay.build_fixture(
+        replay_rows=[_trade()],
+        day=date(2026, 7, 27),
+        observed_history=_history(),
+    )
+    result = _result_row(rows[0], policy_id="all_tp2_no_be")
+    result.update({
+        "close_time_msc": 1785173291021,
+        "close_price": "4070.0",
+        "close_reason": "tp2",
+        "pnl_eur": "4.23",
+    })
+
+    certificate = replay.certify_result(
+        fixture_rows=rows,
+        fixture_manifest=manifest,
+        policy_id="all_tp2_no_be",
+        result_rows=[result],
+    )
+
+    assert certificate["status"] == "diagnostic"
+    assert certificate["checked_tickets"] == 1
+    assert certificate["result_pnl_eur"] == "4.23"
+    assert certificate["conclusions_allowed"] is False
+
+
+def test_read_result_parses_fixed_schema(tmp_path: Path):
+    path = tmp_path / "result.csv"
+    fieldnames = list(_result_row({
+        "signal_id": "canal2_500",
+        "ticket": 1658463204,
+        "direction": "SELL",
+        "volume": "0.01",
+        "entry_time_msc": 1785172944319,
+        "entry_price": "4074.81",
+        "observed_close_time_msc": 1785173149167,
+        "observed_close_price": "4072.5",
+        "observed_close_reason": "tp",
+        "observed_pnl_eur": "2.03",
+        "source_sha256": "a" * 64,
+    }).keys())
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, delimiter=";")
+        writer.writeheader()
+        writer.writerow(_result_row({
+            "signal_id": "canal2_500",
+            "ticket": 1658463204,
+            "direction": "SELL",
+            "volume": "0.01",
+            "entry_time_msc": 1785172944319,
+            "entry_price": "4074.81",
+            "observed_close_time_msc": 1785173149167,
+            "observed_close_price": "4072.5",
+            "observed_close_reason": "tp",
+            "observed_pnl_eur": "2.03",
+            "source_sha256": "a" * 64,
+        }))
+
+    assert replay.read_result(path)[0]["ticket"] == 1658463204

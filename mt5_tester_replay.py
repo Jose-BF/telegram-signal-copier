@@ -32,6 +32,29 @@ FIXTURE_COLUMNS = (
     "provider_tp2",
     "source_sha256",
 )
+RESULT_COLUMNS = (
+    "schema_version",
+    "policy_id",
+    "signal_id",
+    "ticket",
+    "status",
+    "direction",
+    "volume",
+    "entry_time_msc",
+    "entry_price",
+    "close_time_msc",
+    "close_price",
+    "close_reason",
+    "pnl_eur",
+    "touch_bid",
+    "touch_ask",
+    "source_sha256",
+)
+POLICY_IDS = {
+    "observed_close",
+    "all_tp2_keep_be",
+    "all_tp2_no_be",
+}
 PROVIDER_NAMES = {
     "canal1": "Dubai Investing",
     "canal2": "Gold Signals",
@@ -334,3 +357,219 @@ def write_fixture(
     _atomic_write(manifest_path, manifest_payload)
     return csv_path, manifest_path
 
+
+def read_result(path: Path) -> list[dict]:
+    """Read the fixed tester result schema without coercing money to float."""
+
+    with Path(path).open(newline="", encoding="utf-8-sig") as handle:
+        reader = csv.DictReader(handle, delimiter=";")
+        if tuple(reader.fieldnames or ()) != RESULT_COLUMNS:
+            raise ValueError("invalid_result_columns")
+        rows: list[dict] = []
+        for raw in reader:
+            row = dict(raw)
+            for field in (
+                "schema_version",
+                "ticket",
+                "entry_time_msc",
+                "close_time_msc",
+            ):
+                row[field] = _int(row.get(field), f"result_{field}")
+            rows.append(row)
+    return rows
+
+
+def _money(value: object, field: str) -> Decimal:
+    return _decimal(value, field).quantize(Decimal("0.01"))
+
+
+def _append_once(blockers: list[str], blocker: str) -> None:
+    if blocker not in blockers:
+        blockers.append(blocker)
+
+
+def _result_ticket_map(
+    rows: Iterable[dict],
+    blockers: list[str],
+) -> dict[int, dict]:
+    result: dict[int, dict] = {}
+    for row in rows:
+        try:
+            ticket = _int(row.get("ticket"), "result_ticket")
+        except FixtureBlockedError:
+            _append_once(blockers, "invalid_result_ticket")
+            continue
+        if ticket in result:
+            _append_once(blockers, "duplicate_result_ticket")
+            continue
+        result[ticket] = dict(row)
+    return result
+
+
+def _compare_decimal(
+    row: dict,
+    fixture: dict,
+    *,
+    result_field: str,
+    fixture_field: str,
+    blocker: str,
+    blockers: list[str],
+) -> None:
+    try:
+        equal = _decimal(row.get(result_field), result_field) == _decimal(
+            fixture.get(fixture_field),
+            fixture_field,
+        )
+    except FixtureBlockedError:
+        equal = False
+    if not equal:
+        _append_once(blockers, blocker)
+
+
+def certify_result(
+    *,
+    fixture_rows: Iterable[dict],
+    fixture_manifest: dict,
+    policy_id: str,
+    result_rows: Iterable[dict],
+) -> dict:
+    """Certify a tester result or return explicit fail-closed blockers."""
+
+    fixture_list = list(fixture_rows)
+    result_list = list(result_rows)
+    blockers: list[str] = []
+    if policy_id not in POLICY_IDS:
+        _append_once(blockers, "unsupported_policy")
+    if fixture_manifest.get("fixture_sha256") != fixture_sha256(fixture_list):
+        _append_once(blockers, "fixture_sha256_mismatch")
+
+    fixture_by_ticket: dict[int, dict] = {}
+    for fixture in fixture_list:
+        ticket = _int(fixture.get("ticket"), "fixture_ticket")
+        if ticket in fixture_by_ticket:
+            _append_once(blockers, "duplicate_fixture_ticket")
+        fixture_by_ticket[ticket] = fixture
+    result_by_ticket = _result_ticket_map(result_list, blockers)
+    if set(fixture_by_ticket) != set(result_by_ticket):
+        _append_once(blockers, "ticket_set_mismatch")
+
+    proofs: list[dict] = []
+    for ticket in sorted(set(fixture_by_ticket) & set(result_by_ticket)):
+        fixture = fixture_by_ticket[ticket]
+        row = result_by_ticket[ticket]
+        if row.get("policy_id") != policy_id:
+            _append_once(blockers, "policy_id_mismatch")
+        if row.get("status") != "closed":
+            _append_once(blockers, "result_ticket_not_closed")
+        for result_field, fixture_field, blocker in (
+            ("signal_id", "signal_id", "signal_id_mismatch"),
+            ("direction", "direction", "direction_mismatch"),
+            ("entry_time_msc", "entry_time_msc", "entry_time_mismatch"),
+            ("source_sha256", "source_sha256", "source_sha256_mismatch"),
+        ):
+            if row.get(result_field) != fixture.get(fixture_field):
+                _append_once(blockers, blocker)
+        _compare_decimal(
+            row,
+            fixture,
+            result_field="volume",
+            fixture_field="volume",
+            blocker="volume_mismatch",
+            blockers=blockers,
+        )
+        _compare_decimal(
+            row,
+            fixture,
+            result_field="entry_price",
+            fixture_field="entry_price",
+            blocker="entry_price_mismatch",
+            blockers=blockers,
+        )
+
+        if policy_id == "observed_close":
+            for result_field, fixture_field, blocker in (
+                (
+                    "close_time_msc",
+                    "observed_close_time_msc",
+                    "baseline_close_time_mismatch",
+                ),
+                (
+                    "close_reason",
+                    "observed_close_reason",
+                    "baseline_close_reason_mismatch",
+                ),
+            ):
+                if row.get(result_field) != fixture.get(fixture_field):
+                    _append_once(blockers, blocker)
+            _compare_decimal(
+                row,
+                fixture,
+                result_field="close_price",
+                fixture_field="observed_close_price",
+                blocker="baseline_close_price_mismatch",
+                blockers=blockers,
+            )
+            try:
+                if _money(row.get("pnl_eur"), "pnl_eur") != _money(
+                    fixture.get("observed_pnl_eur"),
+                    "observed_pnl_eur",
+                ):
+                    _append_once(blockers, "baseline_pnl_mismatch")
+            except FixtureBlockedError:
+                _append_once(blockers, "baseline_pnl_mismatch")
+
+        proofs.append({
+            "ticket": ticket,
+            "fixture_source_sha256": fixture.get("source_sha256"),
+            "result": row,
+        })
+
+    result_total: Decimal | None = None
+    if not blockers:
+        try:
+            result_total = sum(
+                (_money(row.get("pnl_eur"), "pnl_eur") for row in result_list),
+                Decimal("0.00"),
+            )
+        except FixtureBlockedError:
+            _append_once(blockers, "invalid_result_pnl")
+            result_total = None
+    if (
+        not blockers
+        and policy_id == "observed_close"
+        and result_total != _money(
+            fixture_manifest.get("observed_pnl_eur"),
+            "manifest_observed_pnl_eur",
+        )
+    ):
+        _append_once(blockers, "baseline_total_mismatch")
+        result_total = None
+
+    status = "blocked"
+    if not blockers:
+        status = "certified" if policy_id == "observed_close" else "diagnostic"
+    certificate_payload = {
+        "schema_version": SCHEMA_VERSION,
+        "policy_id": policy_id,
+        "fixture_sha256": fixture_manifest.get("fixture_sha256"),
+        "proofs": proofs,
+    }
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "status": status,
+        "policy_id": policy_id,
+        "expected_tickets": len(fixture_by_ticket),
+        "checked_tickets": len(result_by_ticket),
+        "observed_pnl_eur": str(
+            _money(
+                fixture_manifest.get("observed_pnl_eur"),
+                "manifest_observed_pnl_eur",
+            )
+        ),
+        "result_pnl_eur": None if result_total is None else str(result_total),
+        "blockers": blockers,
+        "conclusions_allowed": False,
+        "certificate_sha256": (
+            _canonical_sha256(certificate_payload) if not blockers else None
+        ),
+    }
