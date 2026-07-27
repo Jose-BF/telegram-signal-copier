@@ -482,6 +482,17 @@ def _append_once(blockers: list[str], blocker: str) -> None:
         blockers.append(blocker)
 
 
+def _mt5_server_calendar_date(time_msc: object, field: str) -> date:
+    # MT5 deal/tick epochs in this corpus preserve the broker wall clock.
+    try:
+        return datetime.fromtimestamp(
+            _int(time_msc, field) / 1000,
+            tz=timezone.utc,
+        ).date()
+    except (OSError, OverflowError, ValueError):
+        _block(f"invalid_{field}")
+
+
 def _result_ticket_map(
     rows: Iterable[dict],
     blockers: list[str],
@@ -548,6 +559,7 @@ def certify_result(
         _append_once(blockers, "ticket_set_mismatch")
 
     proofs: list[dict] = []
+    overnight_tickets: list[int] = []
     for ticket in sorted(set(fixture_by_ticket) & set(result_by_ticket)):
         fixture = fixture_by_ticket[ticket]
         row = result_by_ticket[ticket]
@@ -611,6 +623,25 @@ def certify_result(
                     _append_once(blockers, "baseline_pnl_mismatch")
             except FixtureBlockedError:
                 _append_once(blockers, "baseline_pnl_mismatch")
+        else:
+            try:
+                opened_day = _mt5_server_calendar_date(
+                    fixture.get("entry_time_msc"),
+                    "fixture_entry_time_msc",
+                )
+                closed_day = _mt5_server_calendar_date(
+                    row.get("close_time_msc"),
+                    "result_close_time_msc",
+                )
+            except FixtureBlockedError:
+                _append_once(blockers, "invalid_result_close_time")
+            else:
+                if opened_day != closed_day:
+                    overnight_tickets.append(ticket)
+                    _append_once(
+                        blockers,
+                        "overnight_cost_model_unverified",
+                    )
 
         proofs.append({
             "ticket": ticket,
@@ -662,6 +693,7 @@ def certify_result(
         ),
         "result_pnl_eur": None if result_total is None else str(result_total),
         "blockers": blockers,
+        "overnight_tickets": overnight_tickets,
         "conclusions_allowed": False,
         "certificate_sha256": (
             _canonical_sha256(certificate_payload) if not blockers else None

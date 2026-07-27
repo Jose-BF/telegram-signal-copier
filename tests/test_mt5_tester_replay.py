@@ -310,6 +310,33 @@ def test_certify_alternative_is_diagnostic_and_keeps_complete_universe():
     assert certificate["conclusions_allowed"] is False
 
 
+def test_certify_alternative_blocks_money_after_broker_rollover():
+    rows, manifest = replay.build_fixture(
+        replay_rows=[_trade()],
+        day=date(2026, 7, 27),
+        observed_history=_history(),
+    )
+    result = _result_row(rows[0], policy_id="all_tp2_no_be")
+    result.update({
+        "close_time_msc": rows[0]["entry_time_msc"] + 86_400_000,
+        "close_price": "4070.0",
+        "close_reason": "tp2",
+        "pnl_eur": "4.23",
+    })
+
+    certificate = replay.certify_result(
+        fixture_rows=rows,
+        fixture_manifest=manifest,
+        policy_id="all_tp2_no_be",
+        result_rows=[result],
+    )
+
+    assert certificate["status"] == "blocked"
+    assert certificate["result_pnl_eur"] is None
+    assert "overnight_cost_model_unverified" in certificate["blockers"]
+    assert certificate["overnight_tickets"] == [rows[0]["ticket"]]
+
+
 def test_read_result_parses_fixed_schema(tmp_path: Path):
     path = tmp_path / "result.csv"
     fieldnames = list(_result_row({

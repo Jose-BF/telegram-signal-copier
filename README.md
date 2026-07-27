@@ -83,6 +83,11 @@ SL, or the declared horizon. Anything still open at that horizon is blocked
 and excluded from totals. A fixed end-of-day close is a different policy; the
 tester boundary never invents it.
 
+Alternative positions that cross the broker calendar rollover are also
+blocked from money totals while the contract remains
+`intraday_only_zero`. Their price outcome stays available for diagnosis, but
+the simulator will not present P&L that omits swap.
+
 The generated profiles use XAUUSD M1, Model 4 real ticks, EUR account
 currency and local agents only. `TelegramSignalReplayEA` refuses to run
 outside the tester and never sends or modifies a real order. Alternative
