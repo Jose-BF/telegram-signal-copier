@@ -7,6 +7,8 @@ input string InpResultFile = "TelegramSignalReplay\\result.csv";
 input string InpPolicy = "observed_close";
 input string InpFixtureSha256 = "";
 
+const long PROFIT_CALC_ZERO_RETRY_WINDOW_MSC=60000;
+
 struct ReplayTicket
   {
    int               schema_version;
@@ -28,6 +30,14 @@ struct ReplayTicket
    bool              opened;
    bool              closed;
    bool              be_active;
+   bool              close_pending;
+   long              pending_close_time_msc;
+   double            pending_close_price;
+   string            pending_close_reason;
+   double            pending_touch_bid;
+   double            pending_touch_ask;
+   int               profit_calc_zero_attempts;
+   long              profit_calc_zero_first_tick_msc;
    string            status;
    long              close_time_msc;
    double            close_price;
@@ -203,6 +213,28 @@ void BlockTicket(ReplayTicket &item,const string reason,const MqlTick &tick)
    item.touch_ask=tick.ask;
   }
 
+void BlockPendingClose(
+   ReplayTicket &item,
+   const string reason,
+   const MqlTick &tick
+)
+  {
+   item.closed=true;
+   item.status="blocked";
+   item.close_reason=reason;
+   item.close_time_msc=item.pending_close_time_msc;
+   item.close_price=item.pending_close_price;
+   item.touch_bid=item.pending_touch_bid;
+   item.touch_ask=item.pending_touch_ask;
+   PrintFormat(
+      "Pending close blocked ticket=%I64u reason=%s attempts=%d retry_tick=%I64d",
+      item.ticket,
+      reason,
+      item.profit_calc_zero_attempts,
+      tick.time_msc
+   );
+  }
+
 bool CloseVirtual(
    ReplayTicket &item,
    const long close_time_msc,
@@ -211,6 +243,16 @@ bool CloseVirtual(
    const MqlTick &tick
 )
   {
+   if(!item.close_pending)
+     {
+      item.close_pending=true;
+      item.pending_close_time_msc=close_time_msc;
+      item.pending_close_price=close_price;
+      item.pending_close_reason=close_reason;
+      item.pending_touch_bid=tick.bid;
+      item.pending_touch_ask=tick.ask;
+     }
+
    const ENUM_ORDER_TYPE order_type=(
       item.direction=="BUY" ? ORDER_TYPE_BUY : ORDER_TYPE_SELL
    );
@@ -221,11 +263,11 @@ bool CloseVirtual(
       _Symbol,
       item.volume,
       item.entry_price,
-      close_price,
+      item.pending_close_price,
       pnl
    ))
      {
-      BlockTicket(item,"order_calc_profit_failed",tick);
+      BlockPendingClose(item,"order_calc_profit_failed",tick);
       PrintFormat(
          "OrderCalcProfit failed ticket=%I64u error=%d",
          item.ticket,
@@ -233,17 +275,61 @@ bool CloseVirtual(
       );
       return(false);
      }
+
+   const bool non_flat_exit=(
+      MathAbs(item.pending_close_price-item.entry_price)>(_Point*0.5)
+   );
+   if(non_flat_exit && MathAbs(pnl)<0.0000001)
+     {
+      if(item.profit_calc_zero_attempts==0)
+        {
+         item.profit_calc_zero_first_tick_msc=tick.time_msc;
+         PrintFormat(
+            "OrderCalcProfit returned impossible zero ticket=%I64u; retrying",
+            item.ticket
+         );
+        }
+      item.profit_calc_zero_attempts++;
+      if(
+         tick.time_msc-item.profit_calc_zero_first_tick_msc
+         >=PROFIT_CALC_ZERO_RETRY_WINDOW_MSC
+      )
+         BlockPendingClose(item,"order_calc_profit_zero",tick);
+      return(false);
+     }
+
+   if(item.profit_calc_zero_attempts>0)
+      PrintFormat(
+         "OrderCalcProfit recovered ticket=%I64u after %d retries",
+         item.ticket,
+         item.profit_calc_zero_attempts
+      );
    item.closed=true;
    item.status="closed";
-   item.close_time_msc=close_time_msc;
-   item.close_price=close_price;
-   item.close_reason=close_reason;
+   item.close_time_msc=item.pending_close_time_msc;
+   item.close_price=item.pending_close_price;
+   item.close_reason=item.pending_close_reason;
    item.pnl_eur=NormalizeDouble(
       pnl,
       (int)AccountInfoInteger(ACCOUNT_CURRENCY_DIGITS)
    );
-   item.touch_bid=tick.bid;
-   item.touch_ask=tick.ask;
+   item.touch_bid=item.pending_touch_bid;
+   item.touch_ask=item.pending_touch_ask;
+   item.close_pending=false;
+   return(true);
+  }
+
+bool RetryPendingClose(ReplayTicket &item,const MqlTick &tick)
+  {
+   if(!item.close_pending)
+      return(false);
+   CloseVirtual(
+      item,
+      item.pending_close_time_msc,
+      item.pending_close_price,
+      item.pending_close_reason,
+      tick
+   );
    return(true);
   }
 
@@ -271,6 +357,8 @@ bool StopLevelTouched(
 
 void ProcessObservedClose(ReplayTicket &item,const MqlTick &tick)
   {
+   if(RetryPendingClose(item,tick))
+      return;
    if(tick.time_msc<item.observed_close_time_msc)
       return;
    CloseVirtual(
@@ -284,6 +372,8 @@ void ProcessObservedClose(ReplayTicket &item,const MqlTick &tick)
 
 void ProcessTp2Policy(ReplayTicket &item,const MqlTick &tick)
   {
+   if(RetryPendingClose(item,tick))
+      return;
    const double side=(item.direction=="BUY" ? tick.bid : tick.ask);
    if(side<=0.0)
      {
@@ -342,7 +432,12 @@ void FinalizeResults()
      {
       ReplayTicket item=g_tickets[index];
       if(!item.closed)
-         BlockTicket(item,"horizon_open",g_last_tick);
+        {
+         if(item.close_pending && item.profit_calc_zero_attempts>0)
+            BlockPendingClose(item,"order_calc_profit_zero",g_last_tick);
+         else
+            BlockTicket(item,"horizon_open",g_last_tick);
+        }
       FileWrite(
          g_result_handle,
          item.schema_version,
