@@ -1124,16 +1124,25 @@ def certify_run(run_dir: Path) -> dict:
     run_card = json.loads(
         (run_dir / "run_card.json").read_text(encoding="utf-8")
     )
-    fixture_rows = read_fixture(run_dir / "fixture.csv")
-    manifest = json.loads(
-        (run_dir / "fixture.manifest.json").read_text(encoding="utf-8")
-    )
     run_blockers: list[str] = []
-    if run_card.get("fixture_sha256") != manifest.get("fixture_sha256"):
-        _append_once(
-            run_blockers,
-            "run_card_fixture_sha256_mismatch",
-        )
+
+    manifest: dict | None = None
+    manifest_path = run_dir / "fixture.manifest.json"
+    if not manifest_path.is_file():
+        _append_once(run_blockers, "fixture_manifest_missing")
+    else:
+        try:
+            loaded_manifest = json.loads(
+                manifest_path.read_text(encoding="utf-8")
+            )
+        except (OSError, UnicodeError, ValueError):
+            _append_once(run_blockers, "fixture_manifest_invalid")
+        else:
+            if isinstance(loaded_manifest, dict):
+                manifest = loaded_manifest
+            else:
+                _append_once(run_blockers, "fixture_manifest_invalid")
+
     for blocker in _hash_blockers(
         path_value=run_card.get("fixture_path"),
         expected_sha256=run_card.get("fixture_csv_sha256"),
@@ -1141,6 +1150,25 @@ def certify_run(run_dir: Path) -> dict:
         mismatch="fixture_csv_sha256_mismatch",
     ):
         _append_once(run_blockers, blocker)
+
+    fixture_rows: list[dict] | None = None
+    fixture_path = Path(str(run_card.get("fixture_path") or ""))
+    if fixture_path.is_file():
+        try:
+            fixture_rows = read_fixture(fixture_path)
+        except (OSError, UnicodeError, ValueError, csv.Error):
+            _append_once(run_blockers, "fixture_file_invalid")
+
+    if (
+        manifest is not None
+        and run_card.get("fixture_sha256")
+        != manifest.get("fixture_sha256")
+    ):
+        _append_once(
+            run_blockers,
+            "run_card_fixture_sha256_mismatch",
+        )
+
     for blocker in _hash_blockers(
         path_value=run_card.get("common_fixture_path"),
         expected_sha256=run_card.get("fixture_csv_sha256"),
@@ -1219,16 +1247,26 @@ def certify_run(run_dir: Path) -> dict:
                     policy_blockers,
                 )
             else:
-                certificate = certify_result(
-                    fixture_rows=fixture_rows,
-                    fixture_manifest=manifest,
-                    policy_id=policy_id,
-                    result_rows=result_rows,
-                )
-                certificate = _apply_certificate_blockers(
-                    certificate,
-                    policy_blockers,
-                )
+                if fixture_rows is None or manifest is None:
+                    certificate = _apply_certificate_blockers(
+                        _missing_result_certificate(
+                            policy_id=policy_id,
+                            run_card=run_card,
+                            blocker="fixture_evidence_unavailable",
+                        ),
+                        policy_blockers,
+                    )
+                else:
+                    certificate = certify_result(
+                        fixture_rows=fixture_rows,
+                        fixture_manifest=manifest,
+                        policy_id=policy_id,
+                        result_rows=result_rows,
+                    )
+                    certificate = _apply_certificate_blockers(
+                        certificate,
+                        policy_blockers,
+                    )
         certificates[policy_id] = certificate
         _atomic_json(
             run_dir / f"{policy_id}.certificate.json",

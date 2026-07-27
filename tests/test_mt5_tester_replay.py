@@ -578,6 +578,48 @@ def test_certify_run_reports_a_missing_policy_definition(tmp_path: Path):
 
 
 @pytest.mark.parametrize(
+    ("target", "action", "blocker"),
+    [
+        ("fixture.csv", "delete", "fixture_file_missing"),
+        ("fixture.csv", "corrupt", "fixture_file_invalid"),
+        (
+            "fixture.manifest.json",
+            "delete",
+            "fixture_manifest_missing",
+        ),
+        (
+            "fixture.manifest.json",
+            "corrupt",
+            "fixture_manifest_invalid",
+        ),
+    ],
+)
+def test_certify_run_reports_unavailable_fixture_evidence(
+    tmp_path: Path,
+    target: str,
+    action: str,
+    blocker: str,
+):
+    run_dir, _run_card = _prepare_certification_run(
+        tmp_path,
+        write_observed_result=True,
+    )
+    path = run_dir / target
+    if action == "delete":
+        path.unlink()
+    else:
+        path.write_text("corrupt", encoding="utf-8")
+
+    summary = replay.certify_run(run_dir)
+
+    assert set(summary["certificates"]) == replay.POLICY_IDS
+    for certificate in summary["certificates"].values():
+        assert certificate["status"] == "blocked"
+        assert blocker in certificate["blockers"]
+        assert certificate["result_pnl_eur"] is None
+
+
+@pytest.mark.parametrize(
     ("target", "blocker"),
     [
         ("compiled_ea_path", "compiled_ea_sha256_mismatch"),
