@@ -45,11 +45,13 @@ def _timestamped_print(*args, **kwargs):
 builtins.print = _timestamped_print
 
 import causal_trace
+import broker_money
 import config
 import executor
 import journal
 import live_auditor
 import pending_actions
+from tools import capture_broker_money_contract as broker_contract
 from listener import client, notify, poll_loop, _is_transient_telegram_history_error
 from parser import predict_sl_from_entry
 from state import state
@@ -58,6 +60,8 @@ _freeze_traceback_file_handle = None
 _freeze_traceback_file_path: Path | None = None
 _TELEGRAM_RUN_BACKOFF_BASE_S = 15.0
 _TELEGRAM_RUN_BACKOFF_MAX_S = 120.0
+_last_broker_contract_error: str | None = None
+_broker_contract_ready: bool | None = None
 
 
 def _should_alert_sustained_disconnect(connected: bool,
@@ -347,6 +351,173 @@ async def _runtime_heartbeat(interval_sec: float | None = None):
         except Exception as e:
             print(f"[Heartbeat] runtime heartbeat write failed: {e}")
         await asyncio.sleep(interval)
+
+
+def _capture_broker_money_contract_snapshot(
+    *,
+    path: Path | None = None,
+    events_path: Path | None = None,
+    force: bool = False,
+) -> str | None:
+    output = path or Path(config.BOT_BROKER_MONEY_CONTRACT_FILE)
+    contract = broker_contract.build_contract(
+        executor.mt5,
+        instrument_symbol=config.MT5_SYMBOL,
+    )
+    blockers = broker_money.validate_contract_metadata(contract)
+    if blockers:
+        raise RuntimeError(
+            "invalid broker money contract: " + ",".join(blockers)
+        )
+
+    account = contract["account"]
+    instrument = contract["instrument"]
+    previous_snapshots: list[dict] = []
+    existing: dict | None = None
+    output_exists = output.is_file()
+    if output_exists:
+        existing = json.loads(output.read_text(encoding="utf-8"))
+        if not isinstance(existing, dict):
+            raise ValueError("broker money contract must be an object")
+        existing_account = existing.get("account") or {}
+        existing_instrument = existing.get("instrument") or {}
+        if (
+            existing_account.get("server") == account.get("server")
+            and existing_account.get("fingerprint")
+            == account.get("fingerprint")
+            and existing_instrument.get("symbol")
+            == instrument.get("symbol")
+        ):
+            previous_snapshots = list(
+                existing.get("swap_snapshots") or []
+            )
+    if force or not output_exists:
+        previous_snapshots = broker_contract.merge_swap_snapshots(
+            previous_snapshots,
+            broker_contract.load_event_snapshots(
+                events_path or Path(journal.EVENTS_FILE),
+                account_server=account["server"],
+                account_fingerprint=account["fingerprint"],
+                instrument_symbol=instrument["symbol"],
+            ),
+        )
+
+    current = contract["swap_snapshots"][-1]
+    previous = previous_snapshots[-1] if previous_snapshots else None
+    reason = (
+        "startup"
+        if force
+        else broker_contract.snapshot_record_reason(current, previous)
+    )
+    if reason is None:
+        contract["swap_snapshots"] = previous_snapshots
+        blockers = broker_money.validate_contract_metadata(contract)
+        if blockers:
+            raise RuntimeError(
+                "invalid broker money snapshot history: "
+                + ",".join(blockers)
+            )
+        if (
+            existing is None
+            or broker_money.validate_contract_metadata(existing)
+        ):
+            broker_contract.write_contract(contract, output)
+        return None
+
+    contract["swap_snapshots"] = broker_contract.merge_swap_snapshots(
+        previous_snapshots,
+        [current],
+    )
+    blockers = broker_money.validate_contract_metadata(contract)
+    if blockers:
+        raise RuntimeError(
+            "invalid broker money snapshot history: " + ",".join(blockers)
+        )
+    receipt = journal.event(
+        "bot",
+        "broker_money_contract_snapshot",
+        record_reason=reason,
+        snapshot=current,
+    )
+    if not journal.confirm_event(receipt, timeout=10.0):
+        raise RuntimeError("broker money snapshot journal write failed")
+    broker_contract.write_contract(contract, output)
+    return reason
+
+
+def _try_capture_broker_money_contract_snapshot(
+    *,
+    path: Path | None = None,
+    force: bool = False,
+) -> bool:
+    global _last_broker_contract_error, _broker_contract_ready
+    try:
+        _capture_broker_money_contract_snapshot(path=path, force=force)
+        if _last_broker_contract_error is not None:
+            receipt = journal.event(
+                "bot",
+                "broker_money_contract_capture_recovered",
+                previous_error=_last_broker_contract_error,
+            )
+            if not journal.confirm_event(receipt, timeout=10.0):
+                raise RuntimeError(
+                    "broker money recovery journal write failed"
+                )
+    except Exception as exc:
+        error = f"{type(exc).__name__}: {exc}"
+        if error != _last_broker_contract_error:
+            journal.anomaly(
+                "bot",
+                "mt5",
+                "warning",
+                f"captura de contrato monetario fallo: {error}",
+            )
+        _last_broker_contract_error = error
+        _broker_contract_ready = False
+        return False
+    _last_broker_contract_error = None
+    _broker_contract_ready = True
+    return True
+
+
+async def _broker_money_contract_monitor(
+    interval_sec: float | None = None,
+) -> None:
+    interval = (
+        float(interval_sec)
+        if interval_sec is not None
+        else float(config.BOT_BROKER_CONTRACT_POLL_SEC)
+    )
+    interval = max(30.0, interval)
+    previous_ready = _broker_contract_ready
+    while True:
+        await asyncio.sleep(interval)
+        current_ready = await asyncio.to_thread(
+            _try_capture_broker_money_contract_snapshot
+        )
+        if previous_ready is True and current_ready is False:
+            await _notify_broker_contract_status(
+                "REGISTRO DE SIMULACION INTERRUMPIDO\n"
+                "El bot sigue operando. Las operaciones nocturnas podrian "
+                "quedar sin coste exacto hasta que se recupere."
+            )
+        elif previous_ready is False and current_ready is True:
+            await _notify_broker_contract_status(
+                "REGISTRO DE SIMULACION RECUPERADO\n"
+                "La captura monetaria de MT5 vuelve a estar activa."
+            )
+        previous_ready = current_ready
+
+
+async def _notify_broker_contract_status(text: str) -> None:
+    try:
+        await notify(text)
+    except Exception as exc:
+        journal.event(
+            "bot",
+            "broker_money_contract_status_notify_failed",
+            error=f"{type(exc).__name__}: {exc}",
+        )
 
 
 def _should_apply_naked_protective_sl(sig) -> bool:
@@ -1443,7 +1614,11 @@ def _terminate_legacy_watcher_parent(parent=None) -> bool:
         return False
 
 
-def _startup_status_message(git_info: dict) -> str:
+def _startup_status_message(
+    git_info: dict,
+    *,
+    money_capture_ready: bool | None = None,
+) -> str:
     """Build the concise production-version confirmation sent to the owner."""
     commit = git_info.get("git_commit") or "desconocida"
     branch = git_info.get("git_branch") or "desconocida"
@@ -1479,6 +1654,13 @@ def _startup_status_message(git_info: dict) -> str:
         f"Dubai Investing: {config.CANAL_1_ID}",
         f"Gold Signals: {config.CANAL_2_ID}",
     ])
+    if money_capture_ready is True:
+        lines.append("Registro simulacion: activo")
+    elif money_capture_ready is False:
+        lines.extend([
+            "Registro simulacion: INCOMPLETO",
+            "El bot sigue operando; revisa el registro antes de simular.",
+        ])
     return "\n".join(lines)
 
 
@@ -1548,6 +1730,14 @@ async def main():
     # descuadra la contabilidad (auditoria 2026-05-16).
     _finalize_journal_orphans()
 
+    # Captura local y barata: no descarga ticks, no usa Git y no toca ordenes.
+    # Se ejecuta fuera del loop y despues del resync para que una recuperacion
+    # historica grande nunca retrase la proteccion de posiciones abiertas.
+    money_capture_ready = await asyncio.to_thread(
+        _try_capture_broker_money_contract_snapshot,
+        force=True,
+    )
+
     # Iniciar Telethon
     await client.start(phone=config.TELEGRAM_PHONE)
     me = await client.get_me()
@@ -1567,11 +1757,16 @@ async def main():
             "canal1": config.CANAL_1_ID,
             "canal2": config.CANAL_2_ID,
         },
+        money_capture_ready=money_capture_ready,
     )
-    await notify(_startup_status_message(git_info))
+    await notify(_startup_status_message(
+        git_info,
+        money_capture_ready=money_capture_ready,
+    ))
 
     asyncio.ensure_future(_runtime_heartbeat())
     asyncio.ensure_future(_heartbeat())
+    asyncio.ensure_future(_broker_money_contract_monitor())
     asyncio.ensure_future(_telegram_connection_monitor())
     asyncio.ensure_future(_mt5_connection_monitor())
     # Watchdog: notify URGENT si una signal abierta lleva >2min sin TPs/SL

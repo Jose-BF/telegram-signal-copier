@@ -61,6 +61,14 @@ report and run archive.
   diagnostics. It verifies both `executed trades x policies` and
   `formal signals x policies x latency scenarios` row accounting.
 - `simulation_run_provenance.py`: deterministic farm-run identity from selected payloads, policy order, source hashes, runtime versions and already-verified tick contracts. Repeated identical runs reuse their immutable archive; conflicting results fail closed.
+- `broker_money.py`: account-currency conversion and rollover pricing. Exact
+  overnight alternatives require matching native broker snapshots and
+  historical conversion ticks.
+- `mql5/Services/BrokerMoneySnapshotService.mq5`: read-only MT5 service that
+  exposes terminal-local native swap, weekday and broker-clock evidence. It
+  has no trading path; recovered snapshots are account/server/symbol bound,
+  and the service is installed transactionally with
+  `tools/install_broker_money_snapshot_service.py`.
 - `recursive_log_learning.py`: offline, deterministic whole-corpus learner. It normalizes recurring reliability patterns, prioritizes candidates and detects covered-pattern regressions. It must never be imported by a live order module.
 
 ## Recursive Reliability Evidence

@@ -14,7 +14,7 @@ def test_startup_status_message_confirms_active_production_version():
         "git_branch": "main",
         "git_dirty": False,
         "git_synced": True,
-    })
+    }, money_capture_ready=True)
 
     assert "BOT ACTIVO" in text
     assert "Version: 0457a0e" in text
@@ -24,6 +24,19 @@ def test_startup_status_message_confirms_active_production_version():
     assert "Telegram: canales 1 y 2 activos" in text
     assert "Dubai Investing:" in text
     assert "Gold Signals:" in text
+    assert "Registro simulacion: activo" in text
+
+
+def test_startup_status_message_exposes_incomplete_simulation_capture():
+    text = main._startup_status_message({
+        "git_commit": "0457a0e",
+        "git_branch": "main",
+        "git_dirty": False,
+        "git_synced": True,
+    }, money_capture_ready=False)
+
+    assert "Registro simulacion: INCOMPLETO" in text
+    assert "El bot sigue operando" in text
 
 
 def test_startup_status_message_warns_about_unverified_git_state():

@@ -638,7 +638,6 @@ def test_prepare_cli_writes_isolated_real_tick_profiles(tmp_path: Path):
         "ToDate=2026.07.31",
     ):
         assert required in observed_ini
-
     observed_set = (
         profiles / "telegram-replay-2026-07-27-observed_close.set"
     ).read_text(encoding="utf-16")
@@ -670,6 +669,16 @@ def test_prepare_cli_writes_isolated_real_tick_profiles(tmp_path: Path):
         "until_exclusive": "2026-07-31",
     }
     assert set(run_card["policies"]) == replay.POLICY_IDS
+
+
+def test_default_money_contract_uses_runtime_capture_not_tracked_fixture():
+    expected = (
+        Path(replay.__file__).resolve().parent
+        / "runtime_data"
+        / "broker_money_contract.json"
+    )
+
+    assert replay.DEFAULT_MONEY_CONTRACT == expected
 
 
 def _prepare_certification_run(

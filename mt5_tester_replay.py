@@ -74,6 +74,11 @@ POLICY_ORDER = (
 EA_FILENAME = "TelegramSignalReplayEA.ex5"
 EA_TESTER_PATH = Path("Research") / EA_FILENAME
 COMMON_RUN_FOLDER = "TelegramSignalReplay"
+DEFAULT_MONEY_CONTRACT = (
+    Path(__file__).resolve().parent
+    / "runtime_data"
+    / "broker_money_contract.json"
+)
 
 
 class FixtureBlockedError(ValueError):
@@ -2529,19 +2534,21 @@ def _build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("--universe-proof-file")
     prepare.add_argument(
         "--market-tick-cache-dir",
-        default=str(Path(__file__).parent / "data" / "ticks_cache"),
+        default=str(
+            Path(__file__).parent / "runtime_data" / "ticks_cache"
+        ),
     )
     prepare.add_argument(
         "--money-tick-cache-dir",
         default=str(
-            Path(__file__).parent / "data" / "money_ticks_cache"
+            Path(__file__).parent
+            / "runtime_data"
+            / "money_ticks_cache"
         ),
     )
     prepare.add_argument(
         "--money-contract",
-        default=str(
-            Path(__file__).parent / "data" / "broker_money_contract.json"
-        ),
+        default=str(DEFAULT_MONEY_CONTRACT),
     )
     prepare.add_argument("--mt5-data-dir")
     prepare.add_argument("--common-files-dir")

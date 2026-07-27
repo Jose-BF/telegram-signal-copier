@@ -83,10 +83,41 @@ SL, or the declared horizon. Anything still open at that horizon is blocked
 and excluded from totals. A fixed end-of-day close is a different policy; the
 tester boundary never invents it.
 
-Alternative positions that cross the broker calendar rollover are also
-blocked from money totals while the contract remains
-`intraday_only_zero`. Their price outcome stays available for diagnosis, but
-the simulator will not present P&L that omits swap.
+Alternative positions that cross broker rollover are priced only when the
+versioned money contract contains matching native MT5 evidence around each
+non-zero rollover. Weekend zero-multiplier boundaries may use matching
+pre-close and post-open specifications; changed or missing evidence blocks the
+result. The simulator never presents P&L that silently omits swap.
+
+Install the read-only native evidence service once per MT5 terminal:
+
+```powershell
+python tools\install_broker_money_snapshot_service.py
+```
+
+Then add `BrokerMoneySnapshotService` visibly from
+`Navigator > Services > TelegramSignalCopier`, leaving algorithmic trading
+permission disabled, and verify it:
+
+```powershell
+python tools\install_broker_money_snapshot_service.py --verify-only
+```
+
+Verification requires a fresh terminal-local XAUUSD snapshot, a certifiable
+money contract and matching hashes for the reviewed source and compiled EX5.
+It reports `INACTIVE` instead of accepting a stale or replaced binary.
+
+The bot reports `Registro simulacion: activo` at startup. A later capture
+failure or recovery is notified without pausing live trading. The service
+writes one tiny atomic native snapshot per minute inside that terminal's own
+data directory; another MT5 installation cannot overwrite or impersonate it.
+Python retains only startup, contract-change and rollover evidence. Recovered
+snapshots must match the anonymous account fingerprint, server, symbol and
+journal payload hash before they can certify money.
+
+`mt5_tester_replay.py prepare` reads the live ignored contract from
+`runtime_data/broker_money_contract.json` by default. It never falls back to
+the obsolete tracked fixture under `data/`.
 
 Certification rechecks the exact fixture copies, compiled EA, INI and SET
 profiles before accepting any result. All declared policies appear in the
