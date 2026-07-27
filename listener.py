@@ -4778,6 +4778,7 @@ async def _handle_canal1_sticker(msg):
         market_fill_price=fill_price,
         max_tp_index=max_tp_idx,
         time_stop_at=strategies.time_stop_for_signal(datetime.utcnow()),
+        entry_mode=config.STRATEGY_C1_ENTRY_MODE,
         adverse_action=config.STRATEGY_C1_ADVERSE_ACTION,
     )
     state.add(sig)
@@ -4983,6 +4984,7 @@ async def _open_canal1_from_text(msg, parsed: dict):
         market_fill_price=fill_price,
         max_tp_index=max_tp_idx,
         time_stop_at=strategies.time_stop_for_signal(datetime.utcnow()),
+        entry_mode=config.STRATEGY_C1_ENTRY_MODE,
         adverse_action=config.STRATEGY_C1_ADVERSE_ACTION,
     )
     state.add(sig)
@@ -5112,7 +5114,9 @@ async def _handle_canal1_text(msg, text: str):
     # ── Routing Canal 1 ──────────────────────────────────────────────────
     sig.target_tp_index = (config.STRATEGY_C1_TARGET_TP_INDEX
                            if config.STRATEGY_C1_TARGET_TP_INDEX >= 0 else None)
-    sig.entry_mode = config.STRATEGY_C1_ENTRY_MODE if "range" in parsed else "market_only"
+    # El modo describe lo que abrimos en MT5, no el formato del mensaje.
+    # Una entrada a precio exacto tambien abre todas las legs scale-out.
+    sig.entry_mode = config.STRATEGY_C1_ENTRY_MODE
     sig.be_at_tp_index = (config.STRATEGY_C1_BE_TP_INDEX
                           if config.STRATEGY_C1_BE_TP_INDEX >= 0 else None)
     if config.STRATEGY_C1_TIME_STOP_MIN > 0:

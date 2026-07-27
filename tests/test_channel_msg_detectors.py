@@ -1194,6 +1194,7 @@ class TestGlobalEntryLevelInterpretation:
 
         monkeypatch.setattr(listener, "state", st)
         monkeypatch.setattr(config, "CANAL1_BUY_STICKER_ID", 999)
+        monkeypatch.setattr(config, "STRATEGY_C1_ENTRY_MODE", "scale_out")
         monkeypatch.setattr(listener, "_run", fake_run)
         monkeypatch.setattr(listener, "compute_market_context",
                             lambda symbol: None)
@@ -1221,12 +1222,69 @@ class TestGlobalEntryLevelInterpretation:
 
         await _handle_canal1_sticker(msg)
 
-        assert st.get("canal1", 2100) is not None
+        signal = st.get("canal1", 2100)
+        assert signal is not None
+        assert signal.entry_mode == "scale_out"
         assert any(parsed.get("range") == (4013.7, 4018.7)
                    and parsed.get("sl") == 4009.7
                    for parsed, _ in parsed_updates)
         assert any(ev == "entry_levels_interpreted"
                    for _, ev, _ in events)
+
+    @pytest.mark.asyncio
+    async def test_canal1_exact_price_text_preserves_executed_scale_out_mode(
+            self, monkeypatch):
+        st = StateManager()
+        signal = Signal(
+            channel="canal1",
+            message_id=2101,
+            direction="BUY",
+            market_ticket=2101001,
+            market_fill_price=4810.0,
+            extra_market_tickets=[2101002, 2101003, 2101004],
+            extra_market_fill_prices=[4810.1, 4810.2, 4810.3],
+            entry_mode="scale_out",
+        )
+        st.add(signal)
+        applied_events = []
+
+        async def fake_apply(sig, parsed, channel, **kwargs):
+            sig.tps = list(parsed["tps"])
+            sig.sl = parsed["sl"]
+            return parsed
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(config, "STRATEGY_C1_ENTRY_MODE", "scale_out")
+        monkeypatch.setattr(listener, "_log_telegram_understood",
+                            lambda *args, **kwargs: None)
+        monkeypatch.setattr(listener, "_log_strategy_snapshot",
+                            lambda *args, **kwargs: None)
+        monkeypatch.setattr(listener, "_apply_interpreted_entry_levels",
+                            fake_apply)
+        monkeypatch.setattr(listener.logger, "log_signal",
+                            lambda *args, **kwargs: None)
+        monkeypatch.setattr(
+            listener.journal,
+            "event",
+            lambda sig_id, event, **payload:
+                applied_events.append((sig_id, event, payload)),
+        )
+
+        msg = SimpleNamespace(id=2102, date=datetime.utcnow())
+        text = (
+            "BUY GOLD NOW @4810\n"
+            "TP1: 4815\nTP2: 4820\nTP3: 4825\nTP4: 4830\n"
+            "SL: 4800"
+        )
+
+        await listener._handle_canal1_text(msg, text)
+
+        assert signal.entry_mode == "scale_out"
+        assert any(
+            event == "canal1_text_applied"
+            and payload["entry_mode"] == "scale_out"
+            for _, event, payload in applied_events
+        )
 
 
 class TestStaleEntryGuard:
