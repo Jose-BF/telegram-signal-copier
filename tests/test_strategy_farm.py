@@ -906,6 +906,7 @@ def _write_empty_farm_inputs(root):
     replay = root / "replay.jsonl"
     baseline = root / "baseline.jsonl"
     catalog = root / "catalog.json"
+    money_contract = root / "broker_money_contract.json"
     ledger.write_text("", encoding="utf-8")
     events.write_text("", encoding="utf-8")
     replay.write_text("", encoding="utf-8")
@@ -914,12 +915,54 @@ def _write_empty_farm_inputs(root):
         '{"schema_version":1,"signals":[]}\n',
         encoding="utf-8",
     )
+    money_contract.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "captured_at_utc": "2026-07-17T10:00:00+00:00",
+                "account": {
+                    "server": "VantageMarkets-Demo",
+                    "currency": "EUR",
+                    "currency_digits": 2,
+                },
+                "instrument": {
+                    "symbol": "XAUUSD",
+                    "trade_calc_mode": 4,
+                    "contract_size": 100.0,
+                    "tick_size": 0.01,
+                    "currency_profit": "USD",
+                },
+                "conversion": {
+                    "symbol": "EURUSD",
+                    "orientation": "account_base_profit_quote",
+                    "positive_profit_side": "ask",
+                    "negative_profit_side": "bid",
+                    "max_quote_age_ms": 5000,
+                    "max_quote_interval_ms": 60000,
+                },
+                "costs": {
+                    "commission_model": "observed_zero_intraday",
+                    "fee_model": "observed_zero_intraday",
+                    "swap_model": "intraday_only_zero",
+                },
+                "live_validation": {
+                    "valid": True,
+                    "tick_value_profit_delta": 0.0,
+                    "tick_value_loss_delta": 0.0,
+                },
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     paths = {
         "ledger": ledger,
         "events": events,
         "replay": replay,
         "baseline": baseline,
         "catalog": catalog,
+        "money_contract": money_contract,
     }
     _refresh_replay_manifest(paths)
     return paths

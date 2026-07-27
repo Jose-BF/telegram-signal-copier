@@ -2021,7 +2021,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--money-contract",
         type=Path,
-        default=DEFAULT_MONEY_CONTRACT,
+        default=None,
     )
     parser.add_argument(
         "--money-tick-cache-dir",
@@ -2070,6 +2070,10 @@ def main(argv: list[str] | None = None) -> int:
     events_source = (
         args.events_source or replay_source_dir / "trade_events.jsonl"
     )
+    money_contract = (
+        args.money_contract
+        or replay_source_dir / "broker_money_contract.json"
+    )
     required_inputs = {
         "replay_trades": args.replay,
         "replay_source_manifest": replay_manifest,
@@ -2077,7 +2081,7 @@ def main(argv: list[str] | None = None) -> int:
         "replay_source_events": events_source,
         "observed_baseline": args.baseline,
         "provider_catalog": args.catalog,
-        "broker_money_contract": args.money_contract,
+        "broker_money_contract": money_contract,
     }
     args.output.unlink(missing_ok=True)
     missing = [
@@ -2183,7 +2187,7 @@ def main(argv: list[str] | None = None) -> int:
         include_trades=args.include_trades,
         provider_latency_scenarios_ms=args.provider_latency_scenarios_ms,
         provider_volume_per_leg=args.provider_volume_per_leg,
-        money_contract_path=args.money_contract,
+        money_contract_path=money_contract,
         money_tick_cache_dir=args.money_tick_cache_dir,
         progress_callback=report_progress if args.progress else None,
     )

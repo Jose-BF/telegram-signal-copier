@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 import provider_signal_catalog
+import runtime_paths
 
 
 def _raw(channel, message_id, text="", **overrides):
@@ -2097,12 +2098,19 @@ def test_default_corpus_uses_hybrid_canal1_identity_links():
 
 
 def test_versioned_catalog_exactly_matches_default_corpus_rebuild():
+    tracked_data = runtime_paths.legacy_data_dir()
     versioned = json.loads(
-        provider_signal_catalog.DEFAULT_OUTPUT.read_text(encoding="utf-8")
+        (tracked_data / "provider_signal_catalog.json").read_text(
+            encoding="utf-8"
+        )
     )
     rebuilt = provider_signal_catalog.build_catalog_report(
-        provider_signal_catalog.load_jsonl(provider_signal_catalog.DEFAULT_EVENTS),
-        provider_signal_catalog.load_jsonl(provider_signal_catalog.DEFAULT_REPLAY),
+        provider_signal_catalog.load_jsonl(
+            tracked_data / "trade_events.jsonl"
+        ),
+        provider_signal_catalog.load_jsonl(
+            tracked_data / "replay_trades.jsonl"
+        ),
     )
 
     assert versioned == rebuilt

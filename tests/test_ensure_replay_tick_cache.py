@@ -512,7 +512,11 @@ def test_cache_status_uses_repo_relative_cache_dir_for_default_cache():
         pad_minutes=0,
     )
 
-    assert status["cache_dir"] == "data/ticks_cache"
+    expected = ensure_replay_tick_cache.DEFAULT_CACHE_DIR.relative_to(
+        ensure_replay_tick_cache.REPO_DIR
+    ).as_posix()
+    assert status["cache_dir"] == expected
+    assert "\\" not in status["cache_dir"]
 
 
 def test_refresh_cache_days_removes_only_explicit_day_files(tmp_path):
