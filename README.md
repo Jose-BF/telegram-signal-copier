@@ -44,6 +44,9 @@ Replay and simulation foundation:
   provider-coverage diagnostic which is never ranking-eligible.
 - `simulation_run_provenance.py` fingerprints the exact selected farm inputs, policy order, source files, runtime versions and tick contracts already verified by the replay loader.
 - `runtime_data/simulation_runs/<fingerprint>/run_card.json` is immutable run evidence. Repeating identical computational inputs reuses the same directory; a contradictory result fails closed.
+- `mt5_tester_replay.py` exports a frozen executed-MT5 ticket universe to a
+  tester-only MQL5 EA. Its `observed_close` baseline must reproduce the
+  official account history to the cent before TP2 alternatives are reported.
 
 `runtime_data/provider_signal_catalog.json` is a canonical, versioned farm input. It
 must travel with `runtime_data/strategy_farm.json` and the corresponding run card; it
@@ -59,6 +62,20 @@ python strategy_farm.py --from 2026-07-06
 python strategy_farm.py --from 2026-07-06 --provider-latency-ms 0 --provider-latency-ms 150 --provider-latency-ms 250
 python strategy_farm.py --from 2026-07-06 --include-trades --output runtime_data/strategy_farm_detail.json
 ```
+
+Prepare an independent Strategy Tester proof after rebuilding
+`runtime_data/replay_trades.jsonl`:
+
+```powershell
+python mt5_tester_replay.py prepare --date 2026-07-27
+python mt5_tester_replay.py certify --run-dir runtime_data\mt5_tester_runs\2026-07-27
+```
+
+The generated profiles use XAUUSD M1, Model 4 real ticks, EUR account
+currency and local agents only. `TelegramSignalReplayEA` refuses to run
+outside the tester and never sends or modifies a real order. Alternative
+policies remain diagnostic until the observed baseline is certified and an
+untouched OOS sample is validated.
 
 The watcher accepts the same assumptions through
 `STRATEGY_FARM_LATENCY_MS=0,150,250` and

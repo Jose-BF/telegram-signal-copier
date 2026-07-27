@@ -343,3 +343,110 @@ def test_read_result_parses_fixed_schema(tmp_path: Path):
         }))
 
     assert replay.read_result(path)[0]["ticket"] == 1658463204
+
+
+def test_prepare_cli_writes_isolated_real_tick_profiles(tmp_path: Path):
+    replay_file = tmp_path / "replay_trades.jsonl"
+    replay_file.write_text(
+        json.dumps(_trade(), sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    history_file = tmp_path / "observed_history.json"
+    history_file.write_text(
+        json.dumps(_history(), sort_keys=True),
+        encoding="utf-8",
+    )
+    compiled_ea = tmp_path / "TelegramSignalReplayEA.ex5"
+    compiled_ea.write_bytes(b"compiled-test-ea")
+    mt5_data_dir = tmp_path / "terminal"
+    common_files_dir = tmp_path / "common" / "Files"
+    run_root = tmp_path / "runs"
+
+    exit_code = replay.main([
+        "prepare",
+        "--date",
+        "2026-07-27",
+        "--replay-file",
+        str(replay_file),
+        "--history-file",
+        str(history_file),
+        "--mt5-data-dir",
+        str(mt5_data_dir),
+        "--common-files-dir",
+        str(common_files_dir),
+        "--compiled-ea",
+        str(compiled_ea),
+        "--run-root",
+        str(run_root),
+    ])
+
+    assert exit_code == 0
+    common_run = common_files_dir / "TelegramSignalReplay" / "2026-07-27"
+    run_dir = run_root / "2026-07-27"
+    assert (common_run / "fixture.csv").is_file()
+    assert (common_run / "fixture.manifest.json").is_file()
+    assert (run_dir / "fixture.csv").read_bytes() == (
+        common_run / "fixture.csv"
+    ).read_bytes()
+    installed_ea = (
+        mt5_data_dir
+        / "MQL5"
+        / "Experts"
+        / "Research"
+        / "TelegramSignalReplayEA.ex5"
+    )
+    assert installed_ea.read_bytes() == b"compiled-test-ea"
+    assert not installed_ea.with_suffix(".mq5").exists()
+
+    profiles = mt5_data_dir / "MQL5" / "Profiles" / "Tester"
+    ini_files = sorted(profiles.glob("telegram-replay-*.ini"))
+    set_files = sorted(profiles.glob("telegram-replay-*.set"))
+    assert len(ini_files) == len(replay.POLICY_IDS) == 3
+    assert len(set_files) == len(replay.POLICY_IDS) == 3
+
+    observed_ini = (
+        profiles / "telegram-replay-2026-07-27-observed_close.ini"
+    ).read_text(encoding="utf-16")
+    for required in (
+        "Expert=Research\\TelegramSignalReplayEA.ex5",
+        "Symbol=XAUUSD",
+        "Period=M1",
+        "Model=4",
+        "Optimization=0",
+        "UseLocal=1",
+        "UseRemote=0",
+        "UseCloud=0",
+        "ShutdownTerminal=0",
+        "Currency=EUR",
+        "FromDate=2026.07.27",
+        "ToDate=2026.07.27",
+    ):
+        assert required in observed_ini
+
+    observed_set = (
+        profiles / "telegram-replay-2026-07-27-observed_close.set"
+    ).read_text(encoding="utf-16")
+    manifest = json.loads(
+        (run_dir / "fixture.manifest.json").read_text(encoding="utf-8")
+    )
+    assert (
+        "InpFixtureFile="
+        "TelegramSignalReplay\\2026-07-27\\fixture.csv"
+    ) in observed_set
+    assert (
+        "InpResultFile="
+        "TelegramSignalReplay\\2026-07-27\\observed_close.csv"
+    ) in observed_set
+    assert "InpPolicy=observed_close" in observed_set
+    assert (
+        f"InpFixtureSha256={manifest['fixture_sha256']}" in observed_set
+    )
+
+    run_card = json.loads(
+        (run_dir / "run_card.json").read_text(encoding="utf-8")
+    )
+    assert run_card["day"] == "2026-07-27"
+    assert run_card["signals"] == 1
+    assert run_card["tickets"] == 1
+    assert run_card["observed_pnl_eur"] == "2.03"
+    assert set(run_card["policies"]) == replay.POLICY_IDS
