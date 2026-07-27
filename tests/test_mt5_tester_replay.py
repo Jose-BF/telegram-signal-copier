@@ -6,6 +6,7 @@ import hashlib
 import json
 from datetime import date, datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -25,6 +26,7 @@ def _trade(
         "direction": "SELL",
         "open_dt_utc": "2026-07-27T14:22:24+00:00",
         "close_dt_utc": "2026-07-27T14:25:49+00:00",
+        "mt5_time_offset_s": 10800,
         "pnl_real_mt5": pnl,
         "status": "closed",
         "levels": {
@@ -35,6 +37,7 @@ def _trade(
             {
                 "ticket": ticket,
                 "volume": 0.01,
+                "mt5_time_offset_s": 10800,
                 "open_price": 4074.81,
                 "open_dt_utc": "2026-07-27T14:22:24+00:00",
                 "close_price": 4072.5,
@@ -74,6 +77,90 @@ def _history(*, ticket: int = 1658463204, pnl: float = 2.03) -> list[dict]:
             "pnl_net": pnl,
         }
     ]
+
+
+def _universe_proof(*tickets: int) -> dict:
+    return replay.build_ticket_universe_proof(
+        day=date(2026, 7, 27),
+        expected_tickets=tickets,
+        observed_tickets=tickets,
+        mt5_time_offset_s=10800,
+        source="test_full_history",
+        stable_snapshots=2,
+    )
+
+
+def _deal(
+    *,
+    ticket: int,
+    deal_ticket: int,
+    entry: int,
+    deal_type: int,
+    time_msc: int,
+    price: float,
+    profit: float = 0.0,
+    magic: int = 20260422,
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        ticket=deal_ticket,
+        position_id=ticket,
+        order=ticket,
+        entry=entry,
+        type=deal_type,
+        time_msc=time_msc,
+        price=price,
+        volume=0.01,
+        profit=profit,
+        swap=0.0,
+        commission=0.0,
+        fee=0.0,
+        magic=magic,
+        symbol="XAUUSD",
+        comment="c2_500" if entry == 0 else "[tp 4072.5]",
+    )
+
+
+def _mt5_deals(*, include_extra: bool = False) -> list[SimpleNamespace]:
+    rows = [
+        _deal(
+            ticket=1658463204,
+            deal_ticket=100,
+            entry=0,
+            deal_type=1,
+            time_msc=1785172944319,
+            price=4074.81,
+        ),
+        _deal(
+            ticket=1658463204,
+            deal_ticket=101,
+            entry=1,
+            deal_type=0,
+            time_msc=1785173149167,
+            price=4072.5,
+            profit=2.03,
+        ),
+    ]
+    if include_extra:
+        rows.extend([
+            _deal(
+                ticket=1658469999,
+                deal_ticket=102,
+                entry=0,
+                deal_type=0,
+                time_msc=1785173000000,
+                price=4073.0,
+            ),
+            _deal(
+                ticket=1658469999,
+                deal_ticket=103,
+                entry=1,
+                deal_type=1,
+                time_msc=1785173200000,
+                price=4074.0,
+                profit=-1.0,
+            ),
+        ])
+    return rows
 
 
 def test_build_fixture_preserves_observed_entry_and_provider_tp2():
@@ -295,6 +382,8 @@ def test_certify_alternative_is_diagnostic_and_keeps_complete_universe():
         "close_price": "4070.0",
         "close_reason": "tp2",
         "pnl_eur": "4.23",
+        "touch_bid": "4069.77",
+        "touch_ask": "4070.0",
     })
 
     certificate = replay.certify_result(
@@ -308,6 +397,69 @@ def test_certify_alternative_is_diagnostic_and_keeps_complete_universe():
     assert certificate["checked_tickets"] == 1
     assert certificate["result_pnl_eur"] == "4.23"
     assert certificate["conclusions_allowed"] is False
+
+
+@pytest.mark.parametrize(
+    ("mutation", "blocker"),
+    [
+        ({"schema_version": 999}, "unsupported_result_schema"),
+        ({"close_reason": "invented_close"}, "invalid_alternative_close_reason"),
+        ({"close_price": "1"}, "tp2_close_price_mismatch"),
+        (
+            {"touch_bid": "0", "touch_ask": "0"},
+            "invalid_touch_quote",
+        ),
+        (
+            {"touch_bid": "4070.1", "touch_ask": "4070.0"},
+            "crossed_touch_quote",
+        ),
+        (
+            {"close_time_msc": 1785172944318},
+            "result_close_before_entry",
+        ),
+        ({"pnl_eur": "999999.99"}, "alternative_pnl_mismatch"),
+    ],
+)
+def test_certify_alternative_blocks_invented_result_values(
+    mutation: dict,
+    blocker: str,
+):
+    rows, manifest = replay.build_fixture(
+        replay_rows=[_trade()],
+        day=date(2026, 7, 27),
+        observed_history=_history(),
+    )
+    result = _result_row(rows[0], policy_id="all_tp2_no_be")
+    result.update({
+        "close_time_msc": 1785173291021,
+        "close_price": "4070.0",
+        "close_reason": "tp2",
+        "pnl_eur": "4.23",
+        "touch_bid": "4069.77",
+        "touch_ask": "4070.0",
+    })
+    result.update(mutation)
+
+    certificate = replay.certify_result(
+        fixture_rows=rows,
+        fixture_manifest=manifest,
+        policy_id="all_tp2_no_be",
+        result_rows=[result],
+        expected_alternative_rows={
+            rows[0]["ticket"]: {
+                "close_time_msc": 1785173291021,
+                "close_price": "4070.0",
+                "close_reason": "tp2",
+                "pnl_eur": "4.23",
+                "touch_bid": "4069.77",
+                "touch_ask": "4070.0",
+            }
+        },
+    )
+
+    assert certificate["status"] == "blocked"
+    assert blocker in certificate["blockers"]
+    assert certificate["result_pnl_eur"] is None
 
 
 def test_certify_alternative_blocks_money_after_broker_rollover():
@@ -383,6 +535,11 @@ def test_prepare_cli_writes_isolated_real_tick_profiles(tmp_path: Path):
         json.dumps(_history(), sort_keys=True),
         encoding="utf-8",
     )
+    universe_file = tmp_path / "ticket_universe.json"
+    universe_file.write_text(
+        json.dumps(_universe_proof(1658463204), sort_keys=True),
+        encoding="utf-8",
+    )
     compiled_ea = tmp_path / "TelegramSignalReplayEA.ex5"
     compiled_ea.write_bytes(b"compiled-test-ea")
     mt5_data_dir = tmp_path / "terminal"
@@ -397,6 +554,8 @@ def test_prepare_cli_writes_isolated_real_tick_profiles(tmp_path: Path):
         str(replay_file),
         "--history-file",
         str(history_file),
+        "--universe-proof-file",
+        str(universe_file),
         "--mt5-data-dir",
         str(mt5_data_dir),
         "--common-files-dir",
@@ -500,6 +659,7 @@ def _prepare_certification_run(
         mt5_data_dir=tmp_path / "terminal",
         common_files_dir=tmp_path / "common" / "Files",
         compiled_ea=compiled_ea,
+        universe_proof=_universe_proof(1658463204),
     )
     run_dir = run_root / "2026-07-27"
     if write_observed_result:
@@ -710,4 +870,129 @@ def test_select_replay_rows_uses_an_explicit_utc_cutoff():
         "day_rows_seen": 2,
         "rows_selected": 1,
         "rows_after_cutoff": 1,
+        "rows_opened_after_cutoff": 1,
+        "rows_not_closed_by_cutoff": 0,
     }
+
+
+def test_select_replay_rows_excludes_a_trade_closed_after_the_cutoff():
+    future_close = _trade()
+    future_close["close_dt_utc"] = "2026-07-27T16:40:00+00:00"
+    future_close["tickets"][0]["close_dt_utc"] = (
+        "2026-07-27T16:40:00+00:00"
+    )
+
+    selected, selection = replay.select_replay_rows(
+        [future_close],
+        day=date(2026, 7, 27),
+        cutoff_utc=datetime(
+            2026,
+            7,
+            27,
+            16,
+            35,
+            57,
+            tzinfo=timezone.utc,
+        ),
+    )
+
+    assert selected == []
+    assert selection["rows_selected"] == 0
+    assert selection["rows_after_cutoff"] == 1
+    assert selection["rows_opened_after_cutoff"] == 0
+    assert selection["rows_not_closed_by_cutoff"] == 1
+
+
+def test_certify_run_blocks_alternatives_without_certified_baseline(
+    tmp_path: Path,
+):
+    run_dir, run_card = _prepare_certification_run(
+        tmp_path,
+        write_observed_result=False,
+    )
+    fixture_row = replay.read_fixture(run_dir / "fixture.csv")[0]
+    alternative = _result_row(
+        fixture_row,
+        policy_id="all_tp2_no_be",
+    )
+    alternative.update({
+        "close_time_msc": 1785173291021,
+        "close_price": "4070.0",
+        "close_reason": "tp2",
+        "pnl_eur": "4.23",
+        "touch_bid": "4069.77",
+        "touch_ask": "4070.0",
+    })
+    result_path = Path(
+        run_card["policies"]["all_tp2_no_be"]["result_path"]
+    )
+    result_path.parent.mkdir(parents=True, exist_ok=True)
+    with result_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=replay.RESULT_COLUMNS,
+            delimiter=";",
+        )
+        writer.writeheader()
+        writer.writerow(alternative)
+
+    summary = replay.certify_run(run_dir)
+    certificate = summary["certificates"]["all_tp2_no_be"]
+
+    assert certificate["status"] == "blocked"
+    assert "observed_baseline_not_certified" in certificate["blockers"]
+    assert certificate["result_pnl_eur"] is None
+    persisted = json.loads(
+        (run_dir / "all_tp2_no_be.certificate.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert persisted == certificate
+
+
+def test_mt5_full_day_history_proves_the_complete_ticket_universe():
+    history, proof = replay.build_mt5_history_bundle(
+        replay_rows=[_trade()],
+        day=date(2026, 7, 27),
+        deals=_mt5_deals(),
+        stable_snapshots=2,
+    )
+
+    assert history == _history()
+    assert proof["status"] == "verified"
+    assert proof["expected_tickets"] == [1658463204]
+    assert proof["observed_tickets"] == [1658463204]
+    assert proof["stable_snapshots"] == 2
+    assert len(proof["evidence_sha256"]) == 64
+
+
+def test_mt5_full_day_history_blocks_a_ticket_omitted_from_replay():
+    with pytest.raises(
+        replay.FixtureBlockedError,
+        match="mt5_ticket_universe_mismatch",
+    ):
+        replay.build_mt5_history_bundle(
+            replay_rows=[_trade()],
+            day=date(2026, 7, 27),
+            deals=_mt5_deals(include_extra=True),
+            stable_snapshots=2,
+        )
+
+
+def test_prepare_run_requires_a_verified_ticket_universe(tmp_path: Path):
+    compiled_ea = tmp_path / "TelegramSignalReplayEA.ex5"
+    compiled_ea.write_bytes(b"compiled-test-ea")
+
+    with pytest.raises(
+        replay.FixtureBlockedError,
+        match="ticket_universe_proof_missing",
+    ):
+        replay.prepare_run(
+            day=date(2026, 7, 27),
+            replay_rows=[_trade()],
+            observed_history=_history(),
+            run_root=tmp_path / "runs",
+            mt5_data_dir=tmp_path / "terminal",
+            common_files_dir=tmp_path / "common" / "Files",
+            compiled_ea=compiled_ea,
+        )

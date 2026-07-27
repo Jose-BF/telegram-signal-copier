@@ -9,6 +9,7 @@ import io
 import json
 import os
 import shutil
+import time
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
@@ -61,6 +62,7 @@ PROVIDER_NAMES = {
     "canal1": "Dubai Investing",
     "canal2": "Gold Signals",
 }
+BOT_MAGIC_NUMBERS = {20260421, 20260422}
 POLICY_ORDER = (
     "observed_close",
     "all_tp2_keep_be",
@@ -157,15 +159,28 @@ def select_replay_rows(
     ]
     selected: list[dict] = []
     rows_after_cutoff = 0
+    rows_opened_after_cutoff = 0
+    rows_not_closed_by_cutoff = 0
     for row in day_rows:
         if cutoff_utc is None:
             selected.append(row)
             continue
         opened = _parse_datetime(row.get("open_dt_utc"), "open_dt_utc")
-        if opened <= cutoff_utc:
-            selected.append(row)
-        else:
+        if opened > cutoff_utc:
             rows_after_cutoff += 1
+            rows_opened_after_cutoff += 1
+            continue
+        raw_closed = row.get("close_dt_utc")
+        if not raw_closed:
+            rows_after_cutoff += 1
+            rows_not_closed_by_cutoff += 1
+            continue
+        closed = _parse_datetime(raw_closed, "close_dt_utc")
+        if closed > cutoff_utc:
+            rows_after_cutoff += 1
+            rows_not_closed_by_cutoff += 1
+            continue
+        selected.append(row)
     return selected, {
         "cutoff_utc": (
             None
@@ -175,6 +190,8 @@ def select_replay_rows(
         "day_rows_seen": len(day_rows),
         "rows_selected": len(selected),
         "rows_after_cutoff": rows_after_cutoff,
+        "rows_opened_after_cutoff": rows_opened_after_cutoff,
+        "rows_not_closed_by_cutoff": rows_not_closed_by_cutoff,
     }
 
 
@@ -531,12 +548,107 @@ def _compare_decimal(
         _append_once(blockers, blocker)
 
 
+def _validate_alternative_result(
+    *,
+    fixture: dict,
+    row: dict,
+    policy_id: str,
+    blockers: list[str],
+) -> None:
+    allowed_reasons = {
+        "all_tp2_no_be": {"tp2", "sl"},
+        "all_tp2_keep_be": {"tp2", "sl", "be"},
+    }
+    reason = str(row.get("close_reason") or "")
+    if reason not in allowed_reasons.get(policy_id, set()):
+        _append_once(blockers, "invalid_alternative_close_reason")
+
+    try:
+        entry_time = _int(row.get("entry_time_msc"), "result_entry_time_msc")
+        close_time = _int(row.get("close_time_msc"), "result_close_time_msc")
+    except FixtureBlockedError:
+        _append_once(blockers, "invalid_result_close_time")
+    else:
+        if close_time < entry_time:
+            _append_once(blockers, "result_close_before_entry")
+
+    try:
+        bid = _decimal(row.get("touch_bid"), "touch_bid")
+        ask = _decimal(row.get("touch_ask"), "touch_ask")
+        close_price = _decimal(row.get("close_price"), "close_price")
+    except FixtureBlockedError:
+        _append_once(blockers, "invalid_touch_quote")
+        return
+    if bid <= 0 or ask <= 0 or close_price <= 0:
+        _append_once(blockers, "invalid_touch_quote")
+        return
+    if ask < bid:
+        _append_once(blockers, "crossed_touch_quote")
+        return
+
+    direction = str(fixture.get("direction") or "")
+    side = bid if direction == "BUY" else ask
+    if reason == "tp2":
+        tp2 = _decimal(fixture.get("provider_tp2"), "provider_tp2")
+        if close_price != tp2:
+            _append_once(blockers, "tp2_close_price_mismatch")
+        touched = side >= tp2 if direction == "BUY" else side <= tp2
+        if not touched:
+            _append_once(blockers, "tp2_not_touched")
+    elif reason in {"sl", "be"}:
+        if close_price != side:
+            _append_once(blockers, "stop_close_price_mismatch")
+        level_field = "entry_price" if reason == "be" else "provider_sl"
+        level = _decimal(fixture.get(level_field), level_field)
+        touched = side <= level if direction == "BUY" else side >= level
+        if not touched:
+            _append_once(blockers, f"{reason}_not_touched")
+
+
+def _compare_alternative_oracle(
+    *,
+    row: dict,
+    expected: dict,
+    blockers: list[str],
+) -> None:
+    for field, blocker in (
+        ("close_time_msc", "alternative_close_time_mismatch"),
+        ("close_reason", "alternative_close_reason_mismatch"),
+    ):
+        if row.get(field) != expected.get(field):
+            _append_once(blockers, blocker)
+    for field, blocker in (
+        ("close_price", "alternative_close_price_mismatch"),
+        ("touch_bid", "alternative_touch_bid_mismatch"),
+        ("touch_ask", "alternative_touch_ask_mismatch"),
+    ):
+        try:
+            equal = _decimal(row.get(field), field) == _decimal(
+                expected.get(field),
+                f"expected_{field}",
+            )
+        except FixtureBlockedError:
+            equal = False
+        if not equal:
+            _append_once(blockers, blocker)
+    try:
+        pnl_equal = _money(row.get("pnl_eur"), "pnl_eur") == _money(
+            expected.get("pnl_eur"),
+            "expected_pnl_eur",
+        )
+    except FixtureBlockedError:
+        pnl_equal = False
+    if not pnl_equal:
+        _append_once(blockers, "alternative_pnl_mismatch")
+
+
 def certify_result(
     *,
     fixture_rows: Iterable[dict],
     fixture_manifest: dict,
     policy_id: str,
     result_rows: Iterable[dict],
+    expected_alternative_rows: dict[int, dict] | None = None,
 ) -> dict:
     """Certify a tester result or return explicit fail-closed blockers."""
 
@@ -563,6 +675,8 @@ def certify_result(
     for ticket in sorted(set(fixture_by_ticket) & set(result_by_ticket)):
         fixture = fixture_by_ticket[ticket]
         row = result_by_ticket[ticket]
+        if row.get("schema_version") != SCHEMA_VERSION:
+            _append_once(blockers, "unsupported_result_schema")
         if row.get("policy_id") != policy_id:
             _append_once(blockers, "policy_id_mismatch")
         if row.get("status") != "closed":
@@ -624,6 +738,25 @@ def certify_result(
             except FixtureBlockedError:
                 _append_once(blockers, "baseline_pnl_mismatch")
         else:
+            _validate_alternative_result(
+                fixture=fixture,
+                row=row,
+                policy_id=policy_id,
+                blockers=blockers,
+            )
+            if expected_alternative_rows is not None:
+                expected = expected_alternative_rows.get(ticket)
+                if expected is None:
+                    _append_once(
+                        blockers,
+                        "alternative_oracle_ticket_missing",
+                    )
+                else:
+                    _compare_alternative_oracle(
+                        row=row,
+                        expected=expected,
+                        blockers=blockers,
+                    )
             try:
                 opened_day = _mt5_server_calendar_date(
                     fixture.get("entry_time_msc"),
@@ -652,8 +785,14 @@ def certify_result(
     result_total: Decimal | None = None
     if not blockers:
         try:
+            total_rows = (
+                result_list
+                if expected_alternative_rows is None
+                or policy_id == "observed_close"
+                else expected_alternative_rows.values()
+            )
             result_total = sum(
-                (_money(row.get("pnl_eur"), "pnl_eur") for row in result_list),
+                (_money(row.get("pnl_eur"), "pnl_eur") for row in total_rows),
                 Decimal("0.00"),
             )
         except FixtureBlockedError:
@@ -775,11 +914,287 @@ def _target_tickets(replay_rows: Iterable[dict], day: date) -> list[int]:
     return sorted(tickets)
 
 
+def _deal_value(deal: object, field: str, default: object = None) -> object:
+    if isinstance(deal, dict):
+        return deal.get(field, default)
+    return getattr(deal, field, default)
+
+
+def _replay_mt5_time_offset(
+    replay_rows: Iterable[dict],
+    day: date,
+) -> int:
+    offsets: set[int] = set()
+    for trade in replay_rows:
+        if _trade_day(trade) != day:
+            continue
+        values = [trade.get("mt5_time_offset_s")]
+        values.extend(
+            ticket.get("mt5_time_offset_s")
+            for ticket in (trade.get("tickets") or [])
+        )
+        for value in values:
+            if value is None:
+                continue
+            offsets.add(_int(value, "mt5_time_offset_s"))
+    if not offsets:
+        _block("missing_mt5_time_offset")
+    if len(offsets) != 1:
+        _block("inconsistent_mt5_time_offset")
+    return offsets.pop()
+
+
+def _ticket_set_sha256(tickets: Iterable[int]) -> str:
+    return _canonical_sha256(sorted(int(ticket) for ticket in tickets))
+
+
+def build_ticket_universe_proof(
+    *,
+    day: date,
+    expected_tickets: Iterable[int],
+    observed_tickets: Iterable[int],
+    mt5_time_offset_s: int,
+    source: str,
+    stable_snapshots: int,
+) -> dict:
+    expected = sorted({_int(ticket, "expected_ticket") for ticket in expected_tickets})
+    observed = sorted({_int(ticket, "observed_ticket") for ticket in observed_tickets})
+    payload = {
+        "schema_version": SCHEMA_VERSION,
+        "day": day.isoformat(),
+        "source": str(source),
+        "symbol": "XAUUSD",
+        "magic_numbers": sorted(BOT_MAGIC_NUMBERS),
+        "mt5_time_offset_s": _int(
+            mt5_time_offset_s,
+            "mt5_time_offset_s",
+        ),
+        "stable_snapshots": _int(stable_snapshots, "stable_snapshots"),
+        "expected_tickets": expected,
+        "observed_tickets": observed,
+        "expected_ticket_set_sha256": _ticket_set_sha256(expected),
+        "observed_ticket_set_sha256": _ticket_set_sha256(observed),
+    }
+    payload["status"] = (
+        "verified"
+        if expected == observed and payload["stable_snapshots"] >= 2
+        else "blocked"
+    )
+    payload["evidence_sha256"] = _canonical_sha256(payload)
+    return payload
+
+
+def _ticket_universe_blockers(
+    proof: object,
+    *,
+    day: date,
+    expected_tickets: Iterable[int],
+) -> list[str]:
+    if not isinstance(proof, dict):
+        return ["ticket_universe_proof_missing"]
+    blockers: list[str] = []
+    expected = sorted({_int(ticket, "expected_ticket") for ticket in expected_tickets})
+    evidence = dict(proof)
+    evidence_sha256 = evidence.pop("evidence_sha256", None)
+    if evidence_sha256 != _canonical_sha256(evidence):
+        _append_once(blockers, "ticket_universe_proof_hash_mismatch")
+    if proof.get("schema_version") != SCHEMA_VERSION:
+        _append_once(blockers, "ticket_universe_proof_schema_mismatch")
+    if proof.get("status") != "verified":
+        _append_once(blockers, "ticket_universe_not_verified")
+    if proof.get("day") != day.isoformat():
+        _append_once(blockers, "ticket_universe_day_mismatch")
+    if proof.get("symbol") != "XAUUSD":
+        _append_once(blockers, "ticket_universe_symbol_mismatch")
+    if proof.get("magic_numbers") != sorted(BOT_MAGIC_NUMBERS):
+        _append_once(blockers, "ticket_universe_magic_mismatch")
+    try:
+        stable_snapshots = _int(
+            proof.get("stable_snapshots"),
+            "stable_snapshots",
+        )
+        proof_expected = sorted(
+            _int(ticket, "proof_expected_ticket")
+            for ticket in (proof.get("expected_tickets") or [])
+        )
+        proof_observed = sorted(
+            _int(ticket, "proof_observed_ticket")
+            for ticket in (proof.get("observed_tickets") or [])
+        )
+    except FixtureBlockedError:
+        _append_once(blockers, "ticket_universe_proof_invalid")
+    else:
+        if stable_snapshots < 2:
+            _append_once(blockers, "ticket_universe_history_unstable")
+        if proof_expected != expected or proof_observed != expected:
+            _append_once(blockers, "mt5_ticket_universe_mismatch")
+        if (
+            proof.get("expected_ticket_set_sha256")
+            != _ticket_set_sha256(proof_expected)
+            or proof.get("observed_ticket_set_sha256")
+            != _ticket_set_sha256(proof_observed)
+        ):
+            _append_once(blockers, "ticket_universe_set_hash_mismatch")
+    return blockers
+
+
+def _deal_server_time_utc(
+    deal: object,
+    *,
+    mt5_time_offset_s: int,
+) -> datetime:
+    time_msc = _int(_deal_value(deal, "time_msc"), "deal_time_msc")
+    try:
+        return (
+            datetime.fromtimestamp(time_msc / 1000, tz=timezone.utc)
+            - timedelta(seconds=mt5_time_offset_s)
+        )
+    except (OSError, OverflowError, ValueError):
+        _block("invalid_deal_time_msc")
+
+
+def build_mt5_history_bundle(
+    *,
+    replay_rows: Iterable[dict],
+    day: date,
+    deals: Iterable[object],
+    stable_snapshots: int,
+) -> tuple[list[dict], dict]:
+    """Build history only after proving the full bot-ticket universe."""
+
+    replay_list = list(replay_rows)
+    target_tickets = _target_tickets(replay_list, day)
+    if not target_tickets:
+        _block("empty_ticket_universe", day.isoformat())
+    offset = _replay_mt5_time_offset(replay_list, day)
+    all_deals = sorted(
+        list(deals),
+        key=lambda deal: (
+            _int(_deal_value(deal, "time_msc"), "deal_time_msc"),
+            _int(_deal_value(deal, "ticket"), "deal_ticket"),
+        ),
+    )
+    observed_tickets = sorted({
+        _int(_deal_value(deal, "position_id"), "position_id")
+        for deal in all_deals
+        if _int(_deal_value(deal, "entry"), "deal_entry") == 0
+        and str(_deal_value(deal, "symbol") or "") == "XAUUSD"
+        and _int(_deal_value(deal, "magic", 0), "deal_magic")
+        in BOT_MAGIC_NUMBERS
+        and _deal_server_time_utc(
+            deal,
+            mt5_time_offset_s=offset,
+        ).date() == day
+    })
+    proof = build_ticket_universe_proof(
+        day=day,
+        expected_tickets=target_tickets,
+        observed_tickets=observed_tickets,
+        mt5_time_offset_s=offset,
+        source="mt5_full_history",
+        stable_snapshots=stable_snapshots,
+    )
+    if proof["status"] != "verified":
+        missing = sorted(set(target_tickets) - set(observed_tickets))
+        extra = sorted(set(observed_tickets) - set(target_tickets))
+        _block(
+            "mt5_ticket_universe_mismatch",
+            f"missing={missing},extra={extra}",
+        )
+
+    by_position: dict[int, list[object]] = {}
+    for deal in all_deals:
+        position_id = _int(
+            _deal_value(deal, "position_id"),
+            "position_id",
+        )
+        if position_id in target_tickets:
+            by_position.setdefault(position_id, []).append(deal)
+
+    rows: list[dict] = []
+    for ticket in target_tickets:
+        ticket_deals = by_position.get(ticket, [])
+        opens = [
+            deal for deal in ticket_deals
+            if _int(_deal_value(deal, "entry"), "deal_entry") == 0
+        ]
+        closes = [
+            deal for deal in ticket_deals
+            if _int(_deal_value(deal, "entry"), "deal_entry") in (1, 3)
+        ]
+        if len(opens) != 1:
+            _block("mt5_open_deal_count", f"{ticket}:{len(opens)}")
+        if len(closes) != 1:
+            _block("mt5_close_deal_count", f"{ticket}:{len(closes)}")
+        open_deal = opens[0]
+        close_deal = closes[0]
+        direction = {
+            0: "BUY",
+            1: "SELL",
+        }.get(_int(_deal_value(open_deal, "type"), "deal_type"))
+        if direction is None:
+            _block("mt5_open_direction", ticket)
+        pnl_net = sum(
+            (
+                Decimal(str(float(_deal_value(deal, field, 0.0) or 0.0)))
+                for deal in ticket_deals
+                for field in ("profit", "swap", "commission", "fee")
+            ),
+            Decimal("0"),
+        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        rows.append({
+            "ticket": ticket,
+            "direction": direction,
+            "volume": float(_deal_value(open_deal, "volume")),
+            "open_time_msc": _int(
+                _deal_value(open_deal, "time_msc"),
+                "open_time_msc",
+            ),
+            "open_price": float(_deal_value(open_deal, "price")),
+            "close_time_msc": _int(
+                _deal_value(close_deal, "time_msc"),
+                "close_time_msc",
+            ),
+            "close_price": float(_deal_value(close_deal, "price")),
+            "close_reason": _close_reason_from_comment(
+                _deal_value(close_deal, "comment")
+            ),
+            "pnl_net": float(pnl_net),
+        })
+    return rows, proof
+
+
+def _deal_snapshot_sha256(deals: Iterable[object]) -> str:
+    rows = [
+        {
+            field: _deal_value(deal, field)
+            for field in (
+                "ticket",
+                "position_id",
+                "entry",
+                "type",
+                "time_msc",
+                "price",
+                "volume",
+                "profit",
+                "swap",
+                "commission",
+                "fee",
+                "magic",
+                "symbol",
+                "comment",
+            )
+        }
+        for deal in deals
+    ]
+    return _canonical_sha256(rows)
+
+
 def read_observed_history_from_mt5(
     *,
     replay_rows: Iterable[dict],
     day: date,
-) -> list[dict]:
+) -> tuple[list[dict], dict]:
     """Read every selected position directly from the connected MT5 history."""
 
     try:
@@ -787,53 +1202,62 @@ def read_observed_history_from_mt5(
     except ImportError as exc:
         raise RuntimeError("MetaTrader5 package is not installed") from exc
 
-    tickets = _target_tickets(replay_rows, day)
+    replay_list = list(replay_rows)
+    tickets = _target_tickets(replay_list, day)
     if not tickets:
         _block("empty_ticket_universe", day.isoformat())
     if not mt5.initialize():
         raise RuntimeError(f"MT5 initialize failed: {mt5.last_error()}")
-    rows: list[dict] = []
     try:
-        for ticket in tickets:
-            deals = list(mt5.history_deals_get(position=ticket) or ())
-            deals.sort(key=lambda deal: int(deal.time_msc))
-            opens = [deal for deal in deals if int(deal.entry) == 0]
-            closes = [
-                deal for deal in deals if int(deal.entry) in (1, 3)
-            ]
-            if len(opens) != 1:
-                _block("mt5_open_deal_count", f"{ticket}:{len(opens)}")
-            if len(closes) != 1:
-                _block("mt5_close_deal_count", f"{ticket}:{len(closes)}")
-            open_deal = opens[0]
-            close_deal = closes[0]
-            direction = {0: "BUY", 1: "SELL"}.get(int(open_deal.type))
-            if direction is None:
-                _block("mt5_open_direction", ticket)
-            pnl_net = sum(
-                (
-                    Decimal(str(float(getattr(deal, field, 0.0) or 0.0)))
-                    for deal in deals
-                    for field in ("profit", "swap", "commission", "fee")
-                ),
-                Decimal("0"),
-            ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            rows.append({
-                "ticket": ticket,
-                "direction": direction,
-                "volume": str(open_deal.volume),
-                "open_time_msc": int(open_deal.time_msc),
-                "open_price": str(open_deal.price),
-                "close_time_msc": int(close_deal.time_msc),
-                "close_price": str(close_deal.price),
-                "close_reason": _close_reason_from_comment(
-                    close_deal.comment
-                ),
-                "pnl_net": str(pnl_net),
-            })
+        from_utc = datetime.combine(
+            day - timedelta(days=1),
+            datetime.min.time(),
+            tzinfo=timezone.utc,
+        )
+        close_dates = [
+            _parse_datetime(row.get("close_dt_utc"), "close_dt_utc")
+            for row in replay_list
+            if _trade_day(row) == day and row.get("close_dt_utc")
+        ]
+        through_day = max(
+            [day + timedelta(days=2)]
+            + [closed.date() + timedelta(days=1) for closed in close_dates]
+        )
+        until_utc = datetime.combine(
+            through_day,
+            datetime.min.time(),
+            tzinfo=timezone.utc,
+        )
+        previous_hash: str | None = None
+        stable_snapshots = 0
+        deals: list[object] = []
+        for attempt in range(5):
+            snapshot = mt5.history_deals_get(from_utc, until_utc)
+            if snapshot is None:
+                raise RuntimeError(
+                    f"MT5 history query failed: {mt5.last_error()}"
+                )
+            deals = list(snapshot)
+            current_hash = _deal_snapshot_sha256(deals)
+            if current_hash == previous_hash:
+                stable_snapshots += 1
+            else:
+                stable_snapshots = 1
+                previous_hash = current_hash
+            if stable_snapshots >= 2:
+                break
+            if attempt < 4:
+                time.sleep(0.25)
+        if stable_snapshots < 2:
+            _block("mt5_history_not_stable")
+        return build_mt5_history_bundle(
+            replay_rows=replay_list,
+            day=day,
+            deals=deals,
+            stable_snapshots=stable_snapshots,
+        )
     finally:
         mt5.shutdown()
-    return rows
 
 
 def _profile_name(day: date, policy_id: str) -> str:
@@ -940,6 +1364,7 @@ def prepare_run(
     expected_pnl_eur: Decimal | None = None,
     selection: dict | None = None,
     tester_until: date | None = None,
+    universe_proof: dict | None = None,
 ) -> dict:
     """Prepare one frozen tester run without invoking the terminal."""
 
@@ -956,6 +1381,13 @@ def prepare_run(
         day=day,
         observed_history=observed_history,
     )
+    universe_blockers = _ticket_universe_blockers(
+        universe_proof,
+        day=day,
+        expected_tickets=(row["ticket"] for row in rows),
+    )
+    if universe_blockers:
+        _block(universe_blockers[0])
     _validate_expectations(
         manifest,
         expected_signals=expected_signals,
@@ -1040,7 +1472,10 @@ def prepare_run(
             "day_rows_seen": written_manifest["signals"],
             "rows_selected": written_manifest["signals"],
             "rows_after_cutoff": 0,
+            "rows_opened_after_cutoff": 0,
+            "rows_not_closed_by_cutoff": 0,
         },
+        "ticket_universe": universe_proof,
         "fixture_sha256": written_manifest["fixture_sha256"],
         "fixture_csv_sha256": written_manifest["csv_sha256"],
         "fixture_path": str(run_fixture.resolve()),
@@ -1169,6 +1604,21 @@ def certify_run(run_dir: Path) -> dict:
             "run_card_fixture_sha256_mismatch",
         )
 
+    if fixture_rows is not None:
+        try:
+            proof_day = date.fromisoformat(str(run_card.get("day")))
+        except ValueError:
+            _append_once(run_blockers, "run_card_day_invalid")
+        else:
+            for blocker in _ticket_universe_blockers(
+                run_card.get("ticket_universe"),
+                day=proof_day,
+                expected_tickets=(
+                    row["ticket"] for row in fixture_rows
+                ),
+            ):
+                _append_once(run_blockers, blocker)
+
     for blocker in _hash_blockers(
         path_value=run_card.get("common_fixture_path"),
         expected_sha256=run_card.get("fixture_csv_sha256"),
@@ -1272,6 +1722,24 @@ def certify_run(run_dir: Path) -> dict:
             run_dir / f"{policy_id}.certificate.json",
             certificate,
         )
+
+    baseline = certificates["observed_close"]
+    if baseline.get("status") != "certified":
+        for policy_id in POLICY_ORDER:
+            if policy_id == "observed_close":
+                continue
+            certificate = certificates[policy_id]
+            if certificate.get("status") == "blocked":
+                continue
+            certificate = _apply_certificate_blockers(
+                certificate,
+                ["observed_baseline_not_certified"],
+            )
+            certificates[policy_id] = certificate
+            _atomic_json(
+                run_dir / f"{policy_id}.certificate.json",
+                certificate,
+            )
     summary = {
         "schema_version": SCHEMA_VERSION,
         "day": run_card["day"],
@@ -1321,6 +1789,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=str(Path(__file__).parent / "runtime_data" / "replay_trades.jsonl"),
     )
     prepare.add_argument("--history-file")
+    prepare.add_argument("--universe-proof-file")
     prepare.add_argument("--mt5-data-dir")
     prepare.add_argument("--common-files-dir")
     prepare.add_argument("--compiled-ea")
@@ -1370,14 +1839,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         day=selected_day,
         cutoff_utc=cutoff_utc,
     )
-    history_rows = (
-        _load_json_rows(Path(args.history_file))
-        if args.history_file
-        else read_observed_history_from_mt5(
+    if args.history_file:
+        if not args.universe_proof_file:
+            _block("ticket_universe_proof_file_required")
+        history_rows = _load_json_rows(Path(args.history_file))
+        universe_proof = json.loads(
+            Path(args.universe_proof_file).read_text(encoding="utf-8-sig")
+        )
+    else:
+        history_rows, universe_proof = read_observed_history_from_mt5(
             replay_rows=replay_rows,
             day=selected_day,
         )
-    )
     mt5_data_dir = (
         Path(args.mt5_data_dir)
         if args.mt5_data_dir
@@ -1415,6 +1888,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         ),
         selection=selection,
         tester_until=tester_until,
+        universe_proof=universe_proof,
     )
     print(json.dumps(run_card, ensure_ascii=False, indent=2))
     return 0
