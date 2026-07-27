@@ -378,6 +378,8 @@ def test_prepare_cli_writes_isolated_real_tick_profiles(tmp_path: Path):
         str(compiled_ea),
         "--run-root",
         str(run_root),
+        "--tester-until",
+        "2026-07-31",
     ])
 
     assert exit_code == 0
@@ -418,7 +420,7 @@ def test_prepare_cli_writes_isolated_real_tick_profiles(tmp_path: Path):
         "Leverage=500",
         "ProfitInPips=0",
         "FromDate=2026.07.27",
-        "ToDate=2026.07.28",
+        "ToDate=2026.07.31",
     ):
         assert required in observed_ini
 
@@ -448,7 +450,37 @@ def test_prepare_cli_writes_isolated_real_tick_profiles(tmp_path: Path):
     assert run_card["signals"] == 1
     assert run_card["tickets"] == 1
     assert run_card["observed_pnl_eur"] == "2.03"
+    assert run_card["tester_window"] == {
+        "from_date": "2026-07-27",
+        "until_exclusive": "2026-07-31",
+    }
     assert set(run_card["policies"]) == replay.POLICY_IDS
+
+
+def test_default_tester_horizon_is_the_next_calendar_day():
+    profile = replay._ini_text(
+        day=date(2026, 7, 27),
+        policy_id="observed_close",
+    )
+
+    assert "FromDate=2026.07.27" in profile
+    assert "ToDate=2026.07.28" in profile
+
+
+@pytest.mark.parametrize(
+    "tester_until",
+    [date(2026, 7, 27), date(2026, 7, 26)],
+)
+def test_tester_horizon_must_be_after_the_signal_day(tester_until):
+    with pytest.raises(
+        replay.FixtureBlockedError,
+        match="invalid_tester_until",
+    ):
+        replay._ini_text(
+            day=date(2026, 7, 27),
+            policy_id="observed_close",
+            tester_until=tester_until,
+        )
 
 
 def test_select_replay_rows_uses_an_explicit_utc_cutoff():

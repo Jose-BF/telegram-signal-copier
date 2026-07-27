@@ -71,6 +71,18 @@ python mt5_tester_replay.py prepare --date 2026-07-27
 python mt5_tester_replay.py certify --run-dir runtime_data\mt5_tester_runs\2026-07-27
 ```
 
+When a policy can remain open after midnight, declare the exclusive tester
+horizon instead of treating the calendar boundary as a close:
+
+```powershell
+python mt5_tester_replay.py prepare --date 2026-07-21 --tester-until 2026-07-24
+```
+
+TP2 policies then keep positions open across real ticks until TP2, provider
+SL, or the declared horizon. Anything still open at that horizon is blocked
+and excluded from totals. A fixed end-of-day close is a different policy; the
+tester boundary never invents it.
+
 The generated profiles use XAUUSD M1, Model 4 real ticks, EUR account
 currency and local agents only. `TelegramSignalReplayEA` refuses to run
 outside the tester and never sends or modifies a real order. Alternative

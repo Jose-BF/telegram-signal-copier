@@ -826,7 +826,27 @@ def _set_text(
     return "\r\n".join(values) + "\r\n"
 
 
-def _ini_text(*, day: date, policy_id: str) -> str:
+def _tester_until_date(
+    *,
+    day: date,
+    tester_until: date | None,
+) -> date:
+    resolved = tester_until or (day + timedelta(days=1))
+    if resolved <= day:
+        _block("invalid_tester_until", resolved.isoformat())
+    return resolved
+
+
+def _ini_text(
+    *,
+    day: date,
+    policy_id: str,
+    tester_until: date | None = None,
+) -> str:
+    resolved_until = _tester_until_date(
+        day=day,
+        tester_until=tester_until,
+    )
     values = (
         "[Tester]",
         f"Expert={EA_TESTER_PATH.as_posix().replace('/', chr(92))}",
@@ -836,7 +856,7 @@ def _ini_text(*, day: date, policy_id: str) -> str:
         "Model=4",
         "Dates=1",
         "FromDate=" + day.strftime("%Y.%m.%d"),
-        "ToDate=" + (day + timedelta(days=1)).strftime("%Y.%m.%d"),
+        "ToDate=" + resolved_until.strftime("%Y.%m.%d"),
         "ForwardMode=0",
         "Deposit=10000",
         "Currency=EUR",
@@ -887,12 +907,17 @@ def prepare_run(
     expected_tickets: int | None = None,
     expected_pnl_eur: Decimal | None = None,
     selection: dict | None = None,
+    tester_until: date | None = None,
 ) -> dict:
     """Prepare one frozen tester run without invoking the terminal."""
 
     compiled_ea = Path(compiled_ea)
     if not compiled_ea.is_file():
         raise FileNotFoundError(f"compiled EA not found: {compiled_ea}")
+    resolved_tester_until = _tester_until_date(
+        day=day,
+        tester_until=tester_until,
+    )
 
     rows, manifest = build_fixture(
         replay_rows=replay_rows,
@@ -946,7 +971,11 @@ def prepare_run(
         result_path.unlink(missing_ok=True)
         _atomic_utf16(
             ini_path,
-            _ini_text(day=day, policy_id=policy_id),
+            _ini_text(
+                day=day,
+                policy_id=policy_id,
+                tester_until=resolved_tester_until,
+            ),
         )
         _atomic_utf16(
             set_path,
@@ -970,6 +999,10 @@ def prepare_run(
         "signals": written_manifest["signals"],
         "tickets": written_manifest["tickets"],
         "observed_pnl_eur": written_manifest["observed_pnl_eur"],
+        "tester_window": {
+            "from_date": day.isoformat(),
+            "until_exclusive": resolved_tester_until.isoformat(),
+        },
         "selection": selection or {
             "cutoff_utc": None,
             "day_rows_seen": written_manifest["signals"],
@@ -1082,6 +1115,10 @@ def _build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("--expect-tickets", type=int)
     prepare.add_argument("--expect-pnl-eur")
     prepare.add_argument("--cutoff-utc")
+    prepare.add_argument(
+        "--tester-until",
+        help="Exclusive Strategy Tester end date (YYYY-MM-DD)",
+    )
 
     certify = subparsers.add_parser("certify")
     certify.add_argument("--run-dir", required=True)
@@ -1096,6 +1133,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     selected_day = date.fromisoformat(args.date)
+    tester_until = (
+        None
+        if args.tester_until is None
+        else date.fromisoformat(args.tester_until)
+    )
     all_replay_rows = _load_jsonl(Path(args.replay_file))
     cutoff_utc = (
         None
@@ -1151,6 +1193,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             else Decimal(args.expect_pnl_eur)
         ),
         selection=selection,
+        tester_until=tester_until,
     )
     print(json.dumps(run_card, ensure_ascii=False, indent=2))
     return 0
