@@ -200,6 +200,10 @@ class Signal:
     source_decision_id: Optional[str] = field(
         default_factory=causal_trace.current_decision_id
     )
+    telegram_entry_command_key: Optional[str] = None
+    telegram_entry_was_reply: bool = False
+    telegram_entry_reply_to_message_id: Optional[int] = None
+    telegram_entry_timestamp: Optional[datetime] = None
 
     @property
     def all_filled_tickets(self) -> list:

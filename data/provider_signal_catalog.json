@@ -9,14 +9,14 @@
     "executed_signals": 266,
     "unexecuted_signals": 28,
     "duplicate_execution_signals": 2,
-    "management_events": 1552,
+    "management_events": 1548,
     "record_types": {
-      "context_setup": 85,
+      "context_setup": 88,
       "daily_summary": 20,
       "formal_signal": 294,
-      "management_only": 63,
-      "unknown_candidate": 72,
-      "zone_plan": 2
+      "management_only": 59,
+      "unknown_candidate": 68,
+      "zone_plan": 7
     },
     "channels": {
       "canal1": {
@@ -43,12 +43,12 @@
         "unexecuted_signals": 25,
         "duplicate_execution_signals": 0,
         "record_types": {
-          "context_setup": 56,
+          "context_setup": 59,
           "daily_summary": 20,
           "formal_signal": 154,
-          "management_only": 29,
-          "unknown_candidate": 42,
-          "zone_plan": 2
+          "management_only": 25,
+          "unknown_candidate": 38,
+          "zone_plan": 7
         }
       }
     }
@@ -130,7 +130,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -138,7 +138,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13399",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13399,
       "source_message_ids": [
@@ -622,7 +622,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13402",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13402,
       "source_message_ids": [
@@ -1027,21 +1027,23 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-06-05T11:00:37.194+00:00",
-        "trigger_telegram_utc": "2026-06-05T11:00:36+00:00",
-        "trigger_message_id": 13405,
-        "trigger_kind": "text",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "BUY",
         "direction_source": "revision_parser:13405",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal2_13406",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13406,
       "source_message_ids": [
@@ -1571,7 +1573,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20093",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20093,
       "source_message_ids": [
@@ -1930,7 +1932,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -1938,7 +1940,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13408",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13408,
       "source_message_ids": [
@@ -2353,7 +2355,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13411",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13411,
       "source_message_ids": [
@@ -3068,7 +3070,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -3167,7 +3169,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -3266,7 +3268,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -3274,7 +3276,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20097",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20097,
       "source_message_ids": [
@@ -3592,7 +3594,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13418",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13418,
       "source_message_ids": [
@@ -4417,7 +4419,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -4425,7 +4427,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13424",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13424,
       "source_message_ids": [
@@ -4796,7 +4798,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13426",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13426,
       "source_message_ids": [
@@ -5189,7 +5191,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -5267,7 +5269,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -5344,7 +5346,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -5423,7 +5425,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -5431,7 +5433,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13432",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13432,
       "source_message_ids": [
@@ -5951,7 +5953,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13437",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13437,
       "source_message_ids": [
@@ -6624,7 +6626,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13445",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13445,
       "source_message_ids": [
@@ -7406,7 +7408,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -7414,7 +7416,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13457",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13457,
       "source_message_ids": [
@@ -7784,7 +7786,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13460",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13460,
       "source_message_ids": [
@@ -8195,7 +8197,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20102",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20102,
       "source_message_ids": [
@@ -8587,7 +8589,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20109",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20109,
       "source_message_ids": [
@@ -8975,7 +8977,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20113",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20113,
       "source_message_ids": [
@@ -9283,7 +9285,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13465",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13465,
       "source_message_ids": [
@@ -9824,7 +9826,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20118",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20118,
       "source_message_ids": [
@@ -10195,7 +10197,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13471",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13471,
       "source_message_ids": [
@@ -10724,7 +10726,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20123",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20123,
       "source_message_ids": [
@@ -11136,7 +11138,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20132",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20132,
       "source_message_ids": [
@@ -11440,7 +11442,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13478",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13478,
       "source_message_ids": [
@@ -12076,7 +12078,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20136",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20136,
       "source_message_ids": [
@@ -12385,7 +12387,7 @@
       ],
       "signal_ts_utc": "2026-06-08T15:57:15+00:00",
       "first_observed_utc": "2026-06-08T15:57:18.471+00:00",
-      "direction": "BUY",
+      "direction": "SELL",
       "risk_label": "standard",
       "effective_range": [
         4348.0,
@@ -12431,7 +12433,7 @@
           "media_path": null,
           "media_extraction_status": null,
           "parsed": {
-            "direction": "BUY",
+            "direction": "SELL",
             "range": [
               4348.0,
               4353.0
@@ -12500,14 +12502,16 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-06-08T15:58:51.561+00:00",
-        "trigger_telegram_utc": "2026-06-08T15:58:50+00:00",
-        "trigger_message_id": 13489,
-        "trigger_kind": "edit",
-        "direction": "BUY",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
+        "direction": "SELL",
         "direction_source": "revision_parser:13489",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
@@ -12583,7 +12587,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -12663,7 +12667,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -12671,7 +12675,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13493",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13493,
       "source_message_ids": [
@@ -13386,7 +13390,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13501",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13501,
       "source_message_ids": [
@@ -14026,7 +14030,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -14034,7 +14038,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20142",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20142,
       "source_message_ids": [
@@ -14346,7 +14350,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20147",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20147,
       "source_message_ids": [
@@ -14909,7 +14913,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -14917,7 +14921,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13508",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13508,
       "source_message_ids": [
@@ -16063,7 +16067,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20158",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20158,
       "source_message_ids": [
@@ -16409,14 +16413,16 @@
       ],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-06-09T14:09:14.168+00:00",
-        "trigger_telegram_utc": "2026-06-09T14:09:13+00:00",
-        "trigger_message_id": 20162,
-        "trigger_kind": "text",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "BUY",
         "direction_source": "revision_parser:20162",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
@@ -16505,21 +16511,23 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-06-09T14:10:08.407+00:00",
-        "trigger_telegram_utc": "2026-06-09T14:10:07+00:00",
-        "trigger_message_id": 20163,
-        "trigger_kind": "text",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "BUY",
         "direction_source": "revision_parser:20163",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal2_13514",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13514,
       "source_message_ids": [
@@ -17211,7 +17219,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20164",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20164,
       "source_message_ids": [
@@ -17530,7 +17538,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13525",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13525,
       "source_message_ids": [
@@ -18193,7 +18201,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20170",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20170,
       "source_message_ids": [
@@ -18722,7 +18730,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -18817,7 +18825,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -18893,7 +18901,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -18999,7 +19007,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -19096,7 +19104,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -19172,7 +19180,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -19180,7 +19188,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13537",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13537,
       "source_message_ids": [
@@ -19900,7 +19908,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20184",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20184,
       "source_message_ids": [
@@ -20356,7 +20364,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -20434,7 +20442,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -20743,7 +20751,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20193",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20193,
       "source_message_ids": [
@@ -21097,7 +21105,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20200",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20200,
       "source_message_ids": [
@@ -21560,7 +21568,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13564",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13564,
       "source_message_ids": [
@@ -22139,7 +22147,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20208",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20208,
       "source_message_ids": [
@@ -22425,7 +22433,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13572",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13572,
       "source_message_ids": [
@@ -23177,7 +23185,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -23185,7 +23193,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20212",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20212,
       "source_message_ids": [
@@ -23547,7 +23555,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -23555,7 +23563,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13584",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13584,
       "source_message_ids": [
@@ -24286,7 +24294,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20217",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20217,
       "source_message_ids": [
@@ -24555,7 +24563,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20220",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20220,
       "source_message_ids": [
@@ -24963,7 +24971,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13597",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13597,
       "source_message_ids": [
@@ -25740,7 +25748,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20230",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20230,
       "source_message_ids": [
@@ -26313,7 +26321,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -26447,7 +26455,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -26524,7 +26532,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -26601,7 +26609,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -26681,7 +26689,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -26689,7 +26697,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13606",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13606,
       "source_message_ids": [
@@ -27527,7 +27535,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13615",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13615,
       "source_message_ids": [
@@ -28320,7 +28328,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13619",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13619,
       "source_message_ids": [
@@ -28678,7 +28686,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13622",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13622,
       "source_message_ids": [
@@ -29218,7 +29226,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -29298,7 +29306,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -29377,7 +29385,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -29385,7 +29393,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20251",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20251,
       "source_message_ids": [
@@ -29617,14 +29625,16 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-06-11T12:33:17.680+00:00",
-        "trigger_telegram_utc": "2026-06-11T12:33:17+00:00",
-        "trigger_message_id": 20252,
-        "trigger_kind": "text",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "BUY",
         "direction_source": "revision_parser:20252",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
@@ -29700,7 +29710,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -29708,7 +29718,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13629",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13629,
       "source_message_ids": [
@@ -30340,7 +30350,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13636",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13636,
       "source_message_ids": [
@@ -30813,7 +30823,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20255",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20255,
       "source_message_ids": [
@@ -31145,7 +31155,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13642",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13642,
       "source_message_ids": [
@@ -31965,7 +31975,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -31973,7 +31983,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20261",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20261,
       "source_message_ids": [
@@ -32409,7 +32419,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13654",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13654,
       "source_message_ids": [
@@ -32930,7 +32940,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20269",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20269,
       "source_message_ids": [
@@ -33271,7 +33281,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -33279,7 +33289,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20273",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20273,
       "source_message_ids": [
@@ -33752,7 +33762,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -33850,7 +33860,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -33858,7 +33868,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20281",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20281,
       "source_message_ids": [
@@ -34126,7 +34136,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20284",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20284,
       "source_message_ids": [
@@ -34470,21 +34480,23 @@
       ],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-06-11T19:36:45.609+00:00",
-        "trigger_telegram_utc": "2026-06-11T19:36:45+00:00",
-        "trigger_message_id": 20288,
-        "trigger_kind": "text",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "SELL",
         "direction_source": "revision_parser:20288",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal1_20289",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20289,
       "source_message_ids": [
@@ -34843,7 +34855,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -34851,7 +34863,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13661",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13661,
       "source_message_ids": [
@@ -35688,7 +35700,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13674",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13674,
       "source_message_ids": [
@@ -36344,7 +36356,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13681",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13681,
       "source_message_ids": [
@@ -37195,7 +37207,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -37271,7 +37283,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -37279,7 +37291,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13690",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13690,
       "source_message_ids": [
@@ -38145,7 +38157,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -38153,7 +38165,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20293",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20293,
       "source_message_ids": [
@@ -38482,7 +38494,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_13703",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 13703,
       "source_message_ids": [
@@ -39442,7 +39454,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20299",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20299,
       "source_message_ids": [
@@ -39731,7 +39743,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20303",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20303,
       "source_message_ids": [
@@ -40243,7 +40255,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -40320,7 +40332,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -40328,7 +40340,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20314",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20314,
       "source_message_ids": [
@@ -40740,7 +40752,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -40818,7 +40830,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -40895,15 +40907,15 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal2_13724",
-      "record_type": "unknown_candidate",
-      "record_type_reason": "unclassified_provider_message",
+      "record_type": "context_setup",
+      "record_type_reason": "media_or_market_context",
       "channel": "canal2",
       "root_message_id": 13724,
       "source_message_ids": [
@@ -40960,10 +40972,8 @@
       "canonical_execution_count": 0,
       "canonical_corrections": [],
       "duplicate_execution": false,
-      "semantic_status": "needs_review",
-      "semantic_gaps": [
-        "unclassified_record_type"
-      ],
+      "semantic_status": "classified",
+      "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
         "status": "blocked",
@@ -40975,7 +40985,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -41052,7 +41062,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -41182,7 +41192,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -41301,7 +41311,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -41417,7 +41427,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -41496,7 +41506,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -41504,7 +41514,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20320",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20320,
       "source_message_ids": [
@@ -41873,7 +41883,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20328",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20328,
       "source_message_ids": [
@@ -42162,7 +42172,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20332",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20332,
       "source_message_ids": [
@@ -42540,21 +42550,23 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-06-15T18:40:43.100+00:00",
-        "trigger_telegram_utc": "2026-06-15T18:40:42+00:00",
-        "trigger_message_id": 20336,
-        "trigger_kind": "text",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "BUY",
         "direction_source": "revision_parser:20336",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal1_20337",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20337,
       "source_message_ids": [
@@ -42893,7 +42905,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -43034,7 +43046,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -43042,7 +43054,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20341",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20341,
       "source_message_ids": [
@@ -43433,7 +43445,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20347",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20347,
       "source_message_ids": [
@@ -43761,7 +43773,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20352",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20352,
       "source_message_ids": [
@@ -44282,7 +44294,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -44290,7 +44302,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20363",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20363,
       "source_message_ids": [
@@ -44690,7 +44702,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -44816,7 +44828,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -44895,7 +44907,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -44903,7 +44915,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20372",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20372,
       "source_message_ids": [
@@ -45210,7 +45222,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20377",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20377,
       "source_message_ids": [
@@ -45545,7 +45557,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20380",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20380,
       "source_message_ids": [
@@ -46076,7 +46088,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20388",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20388,
       "source_message_ids": [
@@ -46389,7 +46401,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20390",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20390,
       "source_message_ids": [
@@ -46744,21 +46756,23 @@
       ],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-06-17T18:46:36.024+00:00",
-        "trigger_telegram_utc": "2026-06-17T18:46:34+00:00",
-        "trigger_message_id": 20391,
-        "trigger_kind": "text",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "SELL",
         "direction_source": "revision_parser:20391",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal1_20394",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20394,
       "source_message_ids": [
@@ -47270,7 +47284,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -47278,7 +47292,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20404",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20404,
       "source_message_ids": [
@@ -47661,7 +47675,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20408",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20408,
       "source_message_ids": [
@@ -48054,7 +48068,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20417",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20417,
       "source_message_ids": [
@@ -48348,7 +48362,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20421",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20421,
       "source_message_ids": [
@@ -48853,21 +48867,23 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-06-18T15:39:29.983+00:00",
-        "trigger_telegram_utc": "2026-06-18T15:39:29+00:00",
-        "trigger_message_id": 20432,
-        "trigger_kind": "text",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "SELL",
         "direction_source": "revision_parser:20432",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal1_20433",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20433,
       "source_message_ids": [
@@ -49159,7 +49175,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20437",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20437,
       "source_message_ids": [
@@ -49428,7 +49444,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20440",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20440,
       "source_message_ids": [
@@ -49784,7 +49800,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20446",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20446,
       "source_message_ids": [
@@ -49909,7 +49925,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20447",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20447,
       "source_message_ids": [
@@ -50383,15 +50399,15 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal2_13738",
-      "record_type": "unknown_candidate",
-      "record_type_reason": "unclassified_provider_message",
+      "record_type": "context_setup",
+      "record_type_reason": "media_or_market_context",
       "channel": "canal2",
       "root_message_id": 13738,
       "source_message_ids": [
@@ -50447,10 +50463,8 @@
       "canonical_execution_count": 0,
       "canonical_corrections": [],
       "duplicate_execution": false,
-      "semantic_status": "needs_review",
-      "semantic_gaps": [
-        "unclassified_record_type"
-      ],
+      "semantic_status": "classified",
+      "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
         "status": "blocked",
@@ -50462,7 +50476,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -50563,7 +50577,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -50571,7 +50585,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20457",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20457,
       "source_message_ids": [
@@ -50866,7 +50880,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20461",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20461,
       "source_message_ids": [
@@ -51388,7 +51402,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20473",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20473,
       "source_message_ids": [
@@ -51953,7 +51967,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -52050,7 +52064,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -52129,7 +52143,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -52208,7 +52222,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -52287,7 +52301,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -52295,7 +52309,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20489",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20489,
       "source_message_ids": [
@@ -52628,7 +52642,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20495",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20495,
       "source_message_ids": [
@@ -52906,7 +52920,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20498",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20498,
       "source_message_ids": [
@@ -53250,7 +53264,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20504",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20504,
       "source_message_ids": [
@@ -53691,7 +53705,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20513",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20513,
       "source_message_ids": [
@@ -54353,7 +54367,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -54443,14 +54457,16 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-06-23T16:52:01.299+00:00",
-        "trigger_telegram_utc": "2026-06-23T16:52:00+00:00",
-        "trigger_message_id": 20517,
-        "trigger_kind": "text",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "SELL",
         "direction_source": "revision_parser:20517",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
@@ -54526,7 +54542,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -54542,7 +54558,7 @@
       ],
       "signal_ts_utc": "2026-06-24T11:58:30+00:00",
       "first_observed_utc": "2026-06-24T11:58:31.420+00:00",
-      "direction": "SELL",
+      "direction": null,
       "risk_label": "standard",
       "effective_range": null,
       "effective_tps": [],
@@ -54567,9 +54583,7 @@
           "media_sha256": null,
           "media_path": null,
           "media_extraction_status": null,
-          "parsed": {
-            "direction": "SELL"
-          }
+          "parsed": {}
         }
       ],
       "entry_zone_timeline": [],
@@ -54623,14 +54637,17 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-06-24T11:58:31.420+00:00",
-        "trigger_telegram_utc": "2026-06-24T11:58:30+00:00",
-        "trigger_message_id": 20533,
-        "trigger_kind": "text",
-        "direction": "SELL",
-        "direction_source": "revision_parser:20533",
-        "blockers": []
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
+        "direction": null,
+        "direction_source": null,
+        "blockers": [
+          "missing_direction",
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
@@ -54706,7 +54723,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -54714,7 +54731,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20536",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20536,
       "source_message_ids": [
@@ -55129,7 +55146,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -55230,7 +55247,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -55238,7 +55255,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20541",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20541,
       "source_message_ids": [
@@ -55856,7 +55873,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -55864,7 +55881,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20554",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20554,
       "source_message_ids": [
@@ -56307,21 +56324,23 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-06-25T11:39:16.134+00:00",
-        "trigger_telegram_utc": "2026-06-25T11:39:14+00:00",
-        "trigger_message_id": 20563,
-        "trigger_kind": "text",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "SELL",
         "direction_source": "revision_parser:20563",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal1_20564",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20564,
       "source_message_ids": [
@@ -56598,7 +56617,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20567",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20567,
       "source_message_ids": [
@@ -56893,7 +56912,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20571",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20571,
       "source_message_ids": [
@@ -57167,7 +57186,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20574",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20574,
       "source_message_ids": [
@@ -57577,7 +57596,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20584",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20584,
       "source_message_ids": [
@@ -57914,7 +57933,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20590",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20590,
       "source_message_ids": [
@@ -58131,7 +58150,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20591",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20591,
       "source_message_ids": [
@@ -58350,7 +58369,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -58426,7 +58445,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -58434,7 +58453,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20594",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20594,
       "source_message_ids": [
@@ -58651,7 +58670,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20595",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20595,
       "source_message_ids": [
@@ -58873,7 +58892,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -59042,7 +59061,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -59050,7 +59069,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20598",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20598,
       "source_message_ids": [
@@ -59342,7 +59361,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20602",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20602,
       "source_message_ids": [
@@ -59648,7 +59667,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20606",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20606,
       "source_message_ids": [
@@ -59966,7 +59985,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20611",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20611,
       "source_message_ids": [
@@ -60489,7 +60508,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -60568,7 +60587,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -60576,7 +60595,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20618",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20618,
       "source_message_ids": [
@@ -60907,7 +60926,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20624",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20624,
       "source_message_ids": [
@@ -61177,7 +61196,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20627",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20627,
       "source_message_ids": [
@@ -61585,7 +61604,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -61593,7 +61612,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20632",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20632,
       "source_message_ids": [
@@ -61931,7 +61950,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20637",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20637,
       "source_message_ids": [
@@ -62239,7 +62258,7 @@
       ],
       "signal_ts_utc": "2026-06-30T14:34:47+00:00",
       "first_observed_utc": "2026-06-30T14:34:48.223+00:00",
-      "direction": "BUY",
+      "direction": "SELL",
       "risk_label": "standard",
       "effective_range": null,
       "effective_tps": [],
@@ -62265,7 +62284,7 @@
           "media_path": null,
           "media_extraction_status": null,
           "parsed": {
-            "direction": "BUY"
+            "direction": "SELL"
           }
         }
       ],
@@ -62293,21 +62312,23 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-06-30T14:34:48.223+00:00",
-        "trigger_telegram_utc": "2026-06-30T14:34:47+00:00",
-        "trigger_message_id": 20641,
-        "trigger_kind": "text",
-        "direction": "BUY",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
+        "direction": "SELL",
         "direction_source": "revision_parser:20641",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal1_20642",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20642,
       "source_message_ids": [
@@ -62785,7 +62806,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20655",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20655,
       "source_message_ids": [
@@ -63251,7 +63272,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -63259,7 +63280,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20665",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20665,
       "source_message_ids": [
@@ -63625,7 +63646,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20672",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20672,
       "source_message_ids": [
@@ -64051,7 +64072,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -64059,7 +64080,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20680",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20680,
       "source_message_ids": [
@@ -64489,7 +64510,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -64497,7 +64518,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20684",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20684,
       "source_message_ids": [
@@ -64788,7 +64809,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20688",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20688,
       "source_message_ids": [
@@ -65169,7 +65190,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -65177,7 +65198,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20693",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20693,
       "source_message_ids": [
@@ -65599,7 +65620,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -65607,7 +65628,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_2784",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 2784,
       "source_message_ids": [
@@ -66234,7 +66255,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20700",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20700,
       "source_message_ids": [
@@ -66647,7 +66668,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_2787",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 2787,
       "source_message_ids": [
@@ -67359,7 +67380,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -67439,7 +67460,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -67447,7 +67468,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_2806",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 2806,
       "source_message_ids": [
@@ -68278,7 +68299,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_2810",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 2810,
       "source_message_ids": [
@@ -68953,7 +68974,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -68961,7 +68982,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20717",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20717,
       "source_message_ids": [
@@ -69330,7 +69351,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_2814",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 2814,
       "source_message_ids": [
@@ -70034,7 +70055,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20722",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20722,
       "source_message_ids": [
@@ -70439,7 +70460,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_2817",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 2817,
       "source_message_ids": [
@@ -71230,7 +71251,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20729",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20729,
       "source_message_ids": [
@@ -71786,7 +71807,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -71865,7 +71886,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -71873,7 +71894,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_2826",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 2826,
       "source_message_ids": [
@@ -72656,7 +72677,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -72664,7 +72685,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20738",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20738,
       "source_message_ids": [
@@ -73058,7 +73079,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20743",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20743,
       "source_message_ids": [
@@ -73466,7 +73487,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -73542,7 +73563,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -73550,7 +73571,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_2830",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 2830,
       "source_message_ids": [
@@ -74198,7 +74219,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_2834",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 2834,
       "source_message_ids": [
@@ -74738,7 +74759,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20748",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20748,
       "source_message_ids": [
@@ -75062,7 +75083,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_2840",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 2840,
       "source_message_ids": [
@@ -75568,7 +75589,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20751",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20751,
       "source_message_ids": [
@@ -75950,7 +75971,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_2843",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 2843,
       "source_message_ids": [
@@ -76871,7 +76892,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20757",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20757,
       "source_message_ids": [
@@ -77355,7 +77376,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -78247,7 +78268,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -78792,7 +78813,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -79347,14 +79368,16 @@
       ],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-08T08:55:31.989+00:00",
-        "trigger_telegram_utc": "2026-07-08T08:55:31+00:00",
-        "trigger_message_id": 2883,
-        "trigger_kind": "text",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "BUY",
         "direction_source": "revision_parser:2883",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
@@ -80195,7 +80218,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -81957,7 +81980,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -82382,7 +82405,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20765",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20765,
       "source_message_ids": [
@@ -83015,7 +83038,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -83023,7 +83046,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20773",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20773,
       "source_message_ids": [
@@ -83767,7 +83790,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20776",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20776,
       "source_message_ids": [
@@ -84887,7 +84910,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -85769,7 +85792,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -87927,7 +87950,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -87935,7 +87958,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20789",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20789,
       "source_message_ids": [
@@ -88280,7 +88303,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20793",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20793,
       "source_message_ids": [
@@ -88717,7 +88740,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -88794,7 +88817,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -88882,21 +88905,23 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-09T04:18:09.963+00:00",
-        "trigger_telegram_utc": "2026-07-09T04:18:09+00:00",
-        "trigger_message_id": 2968,
-        "trigger_kind": "text",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "SELL",
         "direction_source": "revision_parser:2968",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal2_2969",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 2969,
       "source_message_ids": [
@@ -89557,7 +89582,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_2977",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 2977,
       "source_message_ids": [
@@ -90232,7 +90257,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_2982",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 2982,
       "source_message_ids": [
@@ -90860,7 +90885,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_2988",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 2988,
       "source_message_ids": [
@@ -91818,7 +91843,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -91826,7 +91851,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_2992",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 2992,
       "source_message_ids": [
@@ -92377,7 +92402,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_2994",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 2994,
       "source_message_ids": [
@@ -93394,7 +93419,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -93507,21 +93532,23 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-09T12:22:10.410+00:00",
-        "trigger_telegram_utc": "2026-07-09T12:22:09+00:00",
-        "trigger_message_id": 20798,
-        "trigger_kind": "text",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "SELL",
         "direction_source": "revision_parser:20798",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal2_3009",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3009,
       "source_message_ids": [
@@ -94458,7 +94485,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -94537,7 +94564,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -94545,7 +94572,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3011",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3011,
       "source_message_ids": [
@@ -95369,7 +95396,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3016",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3016,
       "source_message_ids": [
@@ -96205,7 +96232,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3021",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3021,
       "source_message_ids": [
@@ -96854,7 +96881,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20801",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20801,
       "source_message_ids": [
@@ -97383,7 +97410,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -97460,7 +97487,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -97678,7 +97705,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -97776,7 +97803,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -97855,7 +97882,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -97954,7 +97981,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -97962,7 +97989,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3054",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3054,
       "source_message_ids": [
@@ -98787,7 +98814,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -98901,7 +98928,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -98980,7 +99007,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -98988,7 +99015,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3063",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3063,
       "source_message_ids": [
@@ -99696,7 +99723,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20807",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20807,
       "source_message_ids": [
@@ -100357,7 +100384,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3067",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3067,
       "source_message_ids": [
@@ -101305,7 +101332,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3073",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3073,
       "source_message_ids": [
@@ -102264,7 +102291,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3083",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3083,
       "source_message_ids": [
@@ -103112,7 +103139,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20813",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20813,
       "source_message_ids": [
@@ -103551,7 +103578,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -103667,7 +103694,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -103675,7 +103702,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20817",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20817,
       "source_message_ids": [
@@ -104103,7 +104130,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20824",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20824,
       "source_message_ids": [
@@ -104444,7 +104471,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20827",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20827,
       "source_message_ids": [
@@ -104901,7 +104928,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -104917,7 +104944,7 @@
       ],
       "signal_ts_utc": "2026-07-11T13:00:59+00:00",
       "first_observed_utc": "2026-07-11T13:00:59.594+00:00",
-      "direction": "BUY",
+      "direction": "SELL",
       "risk_label": "standard",
       "effective_range": null,
       "effective_tps": [],
@@ -104944,7 +104971,7 @@
           "media_path": null,
           "media_extraction_status": null,
           "parsed": {
-            "direction": "BUY"
+            "direction": "SELL"
           }
         },
         {
@@ -104963,7 +104990,7 @@
           "media_path": null,
           "media_extraction_status": null,
           "parsed": {
-            "direction": "BUY"
+            "direction": "SELL"
           }
         },
         {
@@ -104982,7 +105009,7 @@
           "media_path": null,
           "media_extraction_status": null,
           "parsed": {
-            "direction": "BUY"
+            "direction": "SELL"
           }
         },
         {
@@ -105001,7 +105028,7 @@
           "media_path": null,
           "media_extraction_status": null,
           "parsed": {
-            "direction": "BUY"
+            "direction": "SELL"
           }
         }
       ],
@@ -105029,14 +105056,16 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-11T13:00:59.594+00:00",
-        "trigger_telegram_utc": "2026-07-11T13:00:59+00:00",
-        "trigger_message_id": 3097,
-        "trigger_kind": "text",
-        "direction": "BUY",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
+        "direction": "SELL",
         "direction_source": "revision_parser:3097",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
@@ -105133,7 +105162,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -105212,7 +105241,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -105291,7 +105320,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -105370,7 +105399,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -105378,7 +105407,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3099",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3099,
       "source_message_ids": [
@@ -106225,7 +106254,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3112",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3112,
       "source_message_ids": [
@@ -106686,7 +106715,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3114",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3114,
       "source_message_ids": [
@@ -107555,7 +107584,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3122",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3122,
       "source_message_ids": [
@@ -108197,7 +108226,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3125",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3125,
       "source_message_ids": [
@@ -108952,7 +108981,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -108960,7 +108989,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3130",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3130,
       "source_message_ids": [
@@ -109468,7 +109497,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3133",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3133,
       "source_message_ids": [
@@ -110086,7 +110115,7 @@
       ],
       "signal_ts_utc": "2026-07-13T10:51:46+00:00",
       "first_observed_utc": "2026-07-13T10:51:47.306+00:00",
-      "direction": "SELL",
+      "direction": null,
       "risk_label": "standard",
       "effective_range": [
         4065.0,
@@ -110115,7 +110144,6 @@
           "media_path": null,
           "media_extraction_status": null,
           "parsed": {
-            "direction": "SELL",
             "range": [
               4065.0,
               4070.0
@@ -110165,14 +110193,17 @@
       ],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-13T10:51:47.306+00:00",
-        "trigger_telegram_utc": "2026-07-13T10:51:46+00:00",
-        "trigger_message_id": 20835,
-        "trigger_kind": "text",
-        "direction": "SELL",
-        "direction_source": "revision_parser:20835",
-        "blockers": []
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
+        "direction": null,
+        "direction_source": null,
+        "blockers": [
+          "missing_direction",
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
@@ -110274,7 +110305,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -110391,7 +110422,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -110399,7 +110430,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3146",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3146,
       "source_message_ids": [
@@ -111078,7 +111109,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20836",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20836,
       "source_message_ids": [
@@ -111402,7 +111433,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20839",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20839,
       "source_message_ids": [
@@ -111970,7 +112001,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -111978,7 +112009,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3158",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3158,
       "source_message_ids": [
@@ -112712,7 +112743,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -112869,7 +112900,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -112966,7 +112997,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -113044,7 +113075,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -113122,7 +113153,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -113130,7 +113161,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20854",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20854,
       "source_message_ids": [
@@ -113623,7 +113654,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -113631,7 +113662,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3181",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3181,
       "source_message_ids": [
@@ -114341,7 +114372,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3185",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3185,
       "source_message_ids": [
@@ -115676,7 +115707,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -115754,7 +115785,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -115824,21 +115855,23 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-14T11:45:38.884+00:00",
-        "trigger_telegram_utc": "2026-07-14T11:45:38+00:00",
-        "trigger_message_id": 20859,
-        "trigger_kind": "text",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "SELL",
         "direction_source": "revision_parser:20859",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal2_3198",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3198,
       "source_message_ids": [
@@ -116553,7 +116586,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -116623,21 +116656,23 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-14T12:37:44.716+00:00",
-        "trigger_telegram_utc": "2026-07-14T12:37:43+00:00",
-        "trigger_message_id": 20860,
-        "trigger_kind": "text",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "SELL",
         "direction_source": "revision_parser:20860",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal2_3207",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3207,
       "source_message_ids": [
@@ -117133,7 +117168,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20861",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20861,
       "source_message_ids": [
@@ -117490,7 +117525,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3209",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3209,
       "source_message_ids": [
@@ -118124,7 +118159,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3216",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3216,
       "source_message_ids": [
@@ -118760,8 +118795,8 @@
     {
       "schema_version": 7,
       "provider_signal_id": "canal2_3220",
-      "record_type": "context_setup",
-      "record_type_reason": "media_or_market_context",
+      "record_type": "zone_plan",
+      "record_type_reason": "provider_multi_zone_plan",
       "channel": "canal2",
       "root_message_id": 3220,
       "source_message_ids": [
@@ -118776,7 +118811,16 @@
       "effective_sl": null,
       "entry_zones": [],
       "zone_target": null,
-      "zone_plan_timeline": [],
+      "zone_plan_timeline": [
+        {
+          "message_id": 3220,
+          "observed_ts_utc": "2026-07-14T14:12:12.301+00:00",
+          "telegram_ts_utc": "2026-07-14T14:12:11+00:00",
+          "direction": "BUY",
+          "zones": [],
+          "target": null
+        }
+      ],
       "revisions": [
         {
           "message_id": 3220,
@@ -118941,14 +118985,16 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-14T14:12:12.301+00:00",
-        "trigger_telegram_utc": "2026-07-14T14:12:11+00:00",
-        "trigger_message_id": 3220,
-        "trigger_kind": "text",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "BUY",
         "direction_source": "revision_parser:3220",
-        "blockers": []
+        "blockers": [
+          "provider_zone_plan_not_live_trigger"
+        ]
       }
     },
     {
@@ -119045,7 +119091,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -119140,7 +119186,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -119237,7 +119283,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -119245,7 +119291,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3246",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3246,
       "source_message_ids": [
@@ -119965,7 +120011,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3252",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3252,
       "source_message_ids": [
@@ -120832,7 +120878,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -120840,7 +120886,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3259",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3259,
       "source_message_ids": [
@@ -121816,7 +121862,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -121886,14 +121932,16 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-15T12:12:08.155+00:00",
-        "trigger_telegram_utc": "2026-07-15T12:12:09+00:00",
-        "trigger_message_id": 20866,
-        "trigger_kind": "text",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "SELL",
         "direction_source": "revision_parser:20866",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
@@ -121972,7 +122020,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -122049,7 +122097,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -122057,7 +122105,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20868",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20868,
       "source_message_ids": [
@@ -122475,7 +122523,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3270",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3270,
       "source_message_ids": [
@@ -123223,7 +123271,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3276",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3276,
       "source_message_ids": [
@@ -123871,7 +123919,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20876",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20876,
       "source_message_ids": [
@@ -124375,7 +124423,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -124383,7 +124431,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20882",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20882,
       "source_message_ids": [
@@ -124759,7 +124807,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3282",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3282,
       "source_message_ids": [
@@ -125481,7 +125529,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20886",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20886,
       "source_message_ids": [
@@ -126099,7 +126147,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -126197,7 +126245,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -126327,14 +126375,16 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-15T18:17:38.632+00:00",
-        "trigger_telegram_utc": "2026-07-15T18:17:38+00:00",
-        "trigger_message_id": 3297,
-        "trigger_kind": "text",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "BUY",
         "direction_source": "revision_parser:3297",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
@@ -126413,7 +126463,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -126421,7 +126471,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3302",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3302,
       "source_message_ids": [
@@ -127098,7 +127148,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3304",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3304,
       "source_message_ids": [
@@ -127685,7 +127735,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3309",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3309,
       "source_message_ids": [
@@ -128262,7 +128312,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3313",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3313,
       "source_message_ids": [
@@ -128732,7 +128782,7 @@
       ],
       "signal_ts_utc": "2026-07-16T11:26:42+00:00",
       "first_observed_utc": "2026-07-16T11:26:43.082+00:00",
-      "direction": "SELL",
+      "direction": null,
       "risk_label": "standard",
       "effective_range": null,
       "effective_tps": [],
@@ -128757,9 +128807,7 @@
           "media_sha256": null,
           "media_path": null,
           "media_extraction_status": null,
-          "parsed": {
-            "direction": "SELL"
-          }
+          "parsed": {}
         }
       ],
       "entry_zone_timeline": [],
@@ -128786,21 +128834,24 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-16T11:26:43.082+00:00",
-        "trigger_telegram_utc": "2026-07-16T11:26:42+00:00",
-        "trigger_message_id": 20899,
-        "trigger_kind": "text",
-        "direction": "SELL",
-        "direction_source": "revision_parser:20899",
-        "blockers": []
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
+        "direction": null,
+        "direction_source": null,
+        "blockers": [
+          "missing_direction",
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal2_3315",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3315,
       "source_message_ids": [
@@ -129491,7 +129542,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -129499,7 +129550,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3320",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3320,
       "source_message_ids": [
@@ -130520,7 +130571,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20900",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20900,
       "source_message_ids": [
@@ -130840,7 +130891,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3331",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3331,
       "source_message_ids": [
@@ -131785,21 +131836,23 @@
       ],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-16T13:06:06.676+00:00",
-        "trigger_telegram_utc": "2026-07-16T13:06:06+00:00",
-        "trigger_message_id": 20903,
-        "trigger_kind": "text",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "BUY",
         "direction_source": "revision_parser:20903",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal1_20904",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20904,
       "source_message_ids": [
@@ -132421,7 +132474,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -132429,7 +132482,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3337",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3337,
       "source_message_ids": [
@@ -133094,7 +133147,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20917",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20917,
       "source_message_ids": [
@@ -133454,7 +133507,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3341",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3341,
       "source_message_ids": [
@@ -134240,7 +134293,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3354",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3354,
       "source_message_ids": [
@@ -135189,14 +135242,16 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-16T17:12:33.287+00:00",
-        "trigger_telegram_utc": "2026-07-16T17:12:32+00:00",
-        "trigger_message_id": 3365,
-        "trigger_kind": "text",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "SELL",
         "direction_source": "revision_parser:3365",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
@@ -135301,14 +135356,16 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-16T19:16:18.070+00:00",
-        "trigger_telegram_utc": "2026-07-16T19:16:08+00:00",
-        "trigger_message_id": 3370,
-        "trigger_kind": "edit",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "SELL",
         "direction_source": "revision_parser:3370",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
@@ -135385,7 +135442,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -135465,7 +135522,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -135473,7 +135530,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3376",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3376,
       "source_message_ids": [
@@ -136295,7 +136352,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3379",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3379,
       "source_message_ids": [
@@ -137008,7 +137065,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -137016,7 +137073,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3393",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3393,
       "source_message_ids": [
@@ -137576,7 +137633,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3395",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3395,
       "source_message_ids": [
@@ -138369,7 +138426,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20921",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20921,
       "source_message_ids": [
@@ -138786,7 +138843,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3405",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3405,
       "source_message_ids": [
@@ -139569,7 +139626,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -139694,7 +139751,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -139702,7 +139759,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3417",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3417,
       "source_message_ids": [
@@ -140398,7 +140455,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3421",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3421,
       "source_message_ids": [
@@ -141237,7 +141294,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -141245,7 +141302,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20929",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20929,
       "source_message_ids": [
@@ -141689,21 +141746,23 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-17T14:36:38.829+00:00",
-        "trigger_telegram_utc": "2026-07-17T14:36:38+00:00",
-        "trigger_message_id": 20931,
-        "trigger_kind": "text",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "SELL",
         "direction_source": "revision_parser:20931",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal2_3429",
-      "record_type": "management_only",
-      "record_type_reason": "standalone_management_message",
+      "record_type": "zone_plan",
+      "record_type_reason": "provider_multi_zone_plan",
       "channel": "canal2",
       "root_message_id": 3429,
       "source_message_ids": [
@@ -141718,7 +141777,16 @@
       "effective_sl": null,
       "entry_zones": [],
       "zone_target": null,
-      "zone_plan_timeline": [],
+      "zone_plan_timeline": [
+        {
+          "message_id": 3429,
+          "observed_ts_utc": "2026-07-17T15:05:22.143+00:00",
+          "telegram_ts_utc": "2026-07-17T15:05:13+00:00",
+          "direction": "SELL",
+          "zones": [],
+          "target": null
+        }
+      ],
       "revisions": [
         {
           "message_id": 3429,
@@ -141745,25 +141813,6 @@
       "level_timeline": [],
       "runtime_level_timeline": [],
       "management_events": [
-        {
-          "message_id": 3429,
-          "reply_to_msg_id": null,
-          "observed_ts_utc": "2026-07-17T15:05:22.143+00:00",
-          "telegram_ts_utc": "2026-07-17T15:05:13+00:00",
-          "text": "Good evening ALL \n\nAs you can see on the chart I have marked out and written areas I beileve gold will sell from, \n\nThis should allow you to catch them last pips for the week so you can ENJOY your weekend. \n\nPlease do not leave any trades running over the weekend, with all the news about its not SMART as the market can open ANYWHERE it wants on sunday night. \n\nOn that note: God bless you and thank you for trading with us this week.",
-          "classified_action": null,
-          "classifier_action": null,
-          "modality": "informational",
-          "semantic_source": "unclassified",
-          "execution_options": [],
-          "raw_versions": 3,
-          "update_kinds": [
-            "new",
-            "edit",
-            "poll_new"
-          ],
-          "source": "telegram_raw"
-        },
         {
           "message_id": 3430,
           "reply_to_msg_id": 3429,
@@ -141844,14 +141893,16 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-17T15:05:22.143+00:00",
-        "trigger_telegram_utc": "2026-07-17T15:05:13+00:00",
-        "trigger_message_id": 3429,
-        "trigger_kind": "text",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "SELL",
         "direction_source": "revision_parser:3429",
-        "blockers": []
+        "blockers": [
+          "provider_zone_plan_not_live_trigger"
+        ]
       }
     },
     {
@@ -141929,7 +141980,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -141945,7 +141996,7 @@
       ],
       "signal_ts_utc": "2026-07-17T15:32:22+00:00",
       "first_observed_utc": "2026-07-17T15:32:23.692+00:00",
-      "direction": "BUY",
+      "direction": "SELL",
       "risk_label": "standard",
       "effective_range": [
         4014.0,
@@ -141974,7 +142025,7 @@
           "media_path": null,
           "media_extraction_status": null,
           "parsed": {
-            "direction": "BUY",
+            "direction": "SELL",
             "range": [
               4014.0,
               4016.0
@@ -142022,21 +142073,23 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-17T15:32:23.692+00:00",
-        "trigger_telegram_utc": "2026-07-17T15:32:22+00:00",
-        "trigger_message_id": 20936,
-        "trigger_kind": "text",
-        "direction": "BUY",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
+        "direction": "SELL",
         "direction_source": "revision_parser:20936",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal1_20937",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20937,
       "source_message_ids": [
@@ -142520,7 +142573,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -142536,7 +142589,7 @@
       ],
       "signal_ts_utc": "2026-07-17T16:21:22+00:00",
       "first_observed_utc": "2026-07-17T16:21:23.211+00:00",
-      "direction": "BUY",
+      "direction": null,
       "risk_label": "standard",
       "effective_range": null,
       "effective_tps": [],
@@ -142561,9 +142614,7 @@
           "media_sha256": null,
           "media_path": null,
           "media_extraction_status": null,
-          "parsed": {
-            "direction": "BUY"
-          }
+          "parsed": {}
         }
       ],
       "entry_zone_timeline": [],
@@ -142614,21 +142665,24 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-17T16:21:23.211+00:00",
-        "trigger_telegram_utc": "2026-07-17T16:21:22+00:00",
-        "trigger_message_id": 20944,
-        "trigger_kind": "text",
-        "direction": "BUY",
-        "direction_source": "revision_parser:20944",
-        "blockers": []
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
+        "direction": null,
+        "direction_source": null,
+        "blockers": [
+          "missing_direction",
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal1_20945",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20945,
       "source_message_ids": [
@@ -143159,7 +143213,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -143252,7 +143306,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -143352,7 +143406,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -143467,7 +143521,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -143585,7 +143639,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -143701,7 +143755,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -143780,7 +143834,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -143901,7 +143955,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -143999,7 +144053,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -144078,7 +144132,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -144158,7 +144212,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -144235,7 +144289,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -144243,7 +144297,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3456",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3456,
       "source_message_ids": [
@@ -144815,7 +144869,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3459",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3459,
       "source_message_ids": [
@@ -145637,7 +145691,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -145645,7 +145699,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3470",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3470,
       "source_message_ids": [
@@ -146324,7 +146378,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -146332,7 +146386,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3479",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3479,
       "source_message_ids": [
@@ -147057,7 +147111,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3483",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3483,
       "source_message_ids": [
@@ -147806,7 +147860,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -147814,7 +147868,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20955",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20955,
       "source_message_ids": [
@@ -148176,7 +148230,7 @@
       ],
       "signal_ts_utc": "2026-07-20T11:42:11+00:00",
       "first_observed_utc": "2026-07-20T11:42:12.696+00:00",
-      "direction": "BUY",
+      "direction": "SELL",
       "risk_label": "standard",
       "effective_range": [
         4030.0,
@@ -148205,7 +148259,7 @@
           "media_path": null,
           "media_extraction_status": null,
           "parsed": {
-            "direction": "BUY",
+            "direction": "SELL",
             "range": [
               4030.0,
               4040.0
@@ -148253,14 +148307,16 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-20T11:42:12.696+00:00",
-        "trigger_telegram_utc": "2026-07-20T11:42:11+00:00",
-        "trigger_message_id": 20958,
-        "trigger_kind": "text",
-        "direction": "BUY",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
+        "direction": "SELL",
         "direction_source": "revision_parser:20958",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
@@ -148337,7 +148393,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -148414,7 +148470,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -148551,7 +148607,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -148669,7 +148725,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -148677,7 +148733,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20960",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20960,
       "source_message_ids": [
@@ -149110,7 +149166,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3500",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3500,
       "source_message_ids": [
@@ -149590,7 +149646,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3503",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3503,
       "source_message_ids": [
@@ -150191,7 +150247,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3508",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3508,
       "source_message_ids": [
@@ -150706,7 +150762,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20969",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20969,
       "source_message_ids": [
@@ -151158,7 +151214,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -151236,7 +151292,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -151244,7 +151300,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20975",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20975,
       "source_message_ids": [
@@ -151642,7 +151698,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3513",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3513,
       "source_message_ids": [
@@ -152477,7 +152533,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3515",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3515,
       "source_message_ids": [
@@ -153330,7 +153386,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -153408,7 +153464,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -153487,7 +153543,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -153495,7 +153551,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3526",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3526,
       "source_message_ids": [
@@ -154189,7 +154245,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3530",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3530,
       "source_message_ids": [
@@ -154752,7 +154808,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3532",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3532,
       "source_message_ids": [
@@ -155335,7 +155391,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3541",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3541,
       "source_message_ids": [
@@ -155938,7 +155994,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3546",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3546,
       "source_message_ids": [
@@ -156622,7 +156678,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -156638,7 +156694,7 @@
       ],
       "signal_ts_utc": "2026-07-21T12:03:38+00:00",
       "first_observed_utc": "2026-07-21T12:03:39.207+00:00",
-      "direction": "BUY",
+      "direction": "SELL",
       "risk_label": "standard",
       "effective_range": [
         4068.0,
@@ -156667,7 +156723,7 @@
           "media_path": null,
           "media_extraction_status": null,
           "parsed": {
-            "direction": "BUY",
+            "direction": "SELL",
             "range": [
               4068.0,
               4080.0
@@ -156735,21 +156791,23 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-21T12:03:39.207+00:00",
-        "trigger_telegram_utc": "2026-07-21T12:03:38+00:00",
-        "trigger_message_id": 20982,
-        "trigger_kind": "text",
-        "direction": "BUY",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
+        "direction": "SELL",
         "direction_source": "revision_parser:20982",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal2_3558",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3558,
       "source_message_ids": [
@@ -157468,7 +157526,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20983",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20983,
       "source_message_ids": [
@@ -157937,21 +157995,23 @@
       ],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-21T13:27:57.958+00:00",
-        "trigger_telegram_utc": "2026-07-21T13:27:55+00:00",
-        "trigger_message_id": 3564,
-        "trigger_kind": "text",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "BUY",
         "direction_source": "revision_parser:3564",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal2_3565",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3565,
       "source_message_ids": [
@@ -158575,7 +158635,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3570",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3570,
       "source_message_ids": [
@@ -159219,7 +159279,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3576",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3576,
       "source_message_ids": [
@@ -159794,7 +159854,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_20989",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20989,
       "source_message_ids": [
@@ -160228,7 +160288,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3579",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3579,
       "source_message_ids": [
@@ -160916,7 +160976,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_3587",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 3587,
       "source_message_ids": [
@@ -161954,21 +162014,23 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-21T15:50:48.436+00:00",
-        "trigger_telegram_utc": "2026-07-21T15:50:48+00:00",
-        "trigger_message_id": 20994,
-        "trigger_kind": "text",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "SELL",
         "direction_source": "revision_parser:20994",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal1_20995",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 20995,
       "source_message_ids": [
@@ -162979,14 +163041,16 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-21T15:58:44.888+00:00",
-        "trigger_telegram_utc": "2026-07-21T15:58:44+00:00",
-        "trigger_message_id": 20996,
-        "trigger_kind": "text",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "SELL",
         "direction_source": "revision_parser:20996",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
@@ -163065,15 +163129,15 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal2_3605",
-      "record_type": "unknown_candidate",
-      "record_type_reason": "unclassified_provider_message",
+      "record_type": "context_setup",
+      "record_type_reason": "media_or_market_context",
       "channel": "canal2",
       "root_message_id": 3605,
       "source_message_ids": [
@@ -163129,10 +163193,8 @@
       "canonical_execution_count": 0,
       "canonical_corrections": [],
       "duplicate_execution": false,
-      "semantic_status": "needs_review",
-      "semantic_gaps": [
-        "unclassified_record_type"
-      ],
+      "semantic_status": "classified",
+      "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
         "status": "blocked",
@@ -163144,7 +163206,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -163243,7 +163305,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -163321,15 +163383,15 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal2_3610",
-      "record_type": "management_only",
-      "record_type_reason": "standalone_management_message",
+      "record_type": "zone_plan",
+      "record_type_reason": "provider_multi_zone_plan",
       "channel": "canal2",
       "root_message_id": 3610,
       "source_message_ids": [
@@ -163337,17 +163399,36 @@
       ],
       "signal_ts_utc": "2026-07-21T19:33:12+00:00",
       "first_observed_utc": "2026-07-21T19:33:12.665+00:00",
-      "direction": "BUY",
+      "direction": "SELL",
       "risk_label": "high_risk",
       "effective_range": [
         4121.0,
         4125.0
       ],
       "effective_tps": [],
-      "effective_sl": null,
-      "entry_zones": [],
+      "effective_sl": 4131.0,
+      "entry_zones": [
+        [
+          4121.0,
+          4125.0
+        ]
+      ],
       "zone_target": null,
-      "zone_plan_timeline": [],
+      "zone_plan_timeline": [
+        {
+          "message_id": 3610,
+          "observed_ts_utc": "2026-07-21T19:33:12.665+00:00",
+          "telegram_ts_utc": "2026-07-21T19:33:12+00:00",
+          "direction": "SELL",
+          "zones": [
+            [
+              4121.0,
+              4125.0
+            ]
+          ],
+          "target": null
+        }
+      ],
       "revisions": [
         {
           "message_id": 3610,
@@ -163367,7 +163448,7 @@
           "media_path": null,
           "media_extraction_status": null,
           "parsed": {
-            "direction": "BUY",
+            "direction": "SELL",
             "range": [
               4121.0,
               4125.0
@@ -163398,7 +163479,7 @@
           "telegram_ts_utc": "2026-07-21T19:33:12+00:00",
           "observed_ts_utc": "2026-07-21T19:33:12.665+00:00",
           "tps": [],
-          "sl": null,
+          "sl": 4131.0,
           "source_message_id": 3610,
           "source_kind": "revision",
           "raw_tps": [],
@@ -163406,34 +163487,7 @@
         }
       ],
       "runtime_level_timeline": [],
-      "management_events": [
-        {
-          "message_id": 3610,
-          "reply_to_msg_id": null,
-          "observed_ts_utc": "2026-07-21T19:33:12.665+00:00",
-          "telegram_ts_utc": "2026-07-21T19:33:12+00:00",
-          "text": "Good Evening All\n\nI am still holding my buys risk free\n\nI am looking at a possible sell around 4121 - 4125 area \n\nWe can expect a reaction at this zone. \n\nYou can consider a Sell Limit with the following parameters\n\nSell Limit \nEntry 4121-4125\nTaps 4118/4115/4110/4100\nSL 4131\n\nLimit orders carry more risk as you may not be able to manage it depending on what time price reaches it. Please keep in mind any unexpected news releases around the time price reaches there can also cause volatility therefore this is high risk \n\nHappy trading",
-          "classified_action": "MOVE_SL_TO_BE",
-          "classifier_action": null,
-          "modality": "direct",
-          "semantic_source": "deterministic_parser",
-          "execution_options": [
-            {
-              "action": "MOVE_SL_TO_BE",
-              "provider_stated_be_price": 4121.0
-            }
-          ],
-          "raw_versions": 4,
-          "update_kinds": [
-            "poll_new",
-            "new",
-            "edit",
-            "poll_edit"
-          ],
-          "source": "telegram_raw",
-          "provider_stated_be_price": 4121.0
-        }
-      ],
+      "management_events": [],
       "media": {
         "availability": "none",
         "has_photo": false,
@@ -163452,26 +163506,18 @@
       "duplicate_execution": false,
       "semantic_status": "classified",
       "semantic_gaps": [],
-      "canonicalization_issues": [
-        {
-          "field": "sl",
-          "raw": 4131.0,
-          "canonical": null,
-          "decision": "rejected_invalid",
-          "observed_ts_utc": "2026-07-21T19:33:12.665+00:00",
-          "source_kind": "revision",
-          "source_message_id": 3610
-        }
-      ],
+      "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-21T19:33:12.665+00:00",
-        "trigger_telegram_utc": "2026-07-21T19:33:12+00:00",
-        "trigger_message_id": 3610,
-        "trigger_kind": "text",
-        "direction": "BUY",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
+        "direction": "SELL",
         "direction_source": "revision_parser:3610",
-        "blockers": []
+        "blockers": [
+          "provider_zone_plan_not_live_trigger"
+        ]
       }
     },
     {
@@ -163547,7 +163593,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -163640,15 +163686,15 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal2_251",
-      "record_type": "management_only",
-      "record_type_reason": "standalone_management_message",
+      "record_type": "zone_plan",
+      "record_type_reason": "provider_multi_zone_plan",
       "channel": "canal2",
       "root_message_id": 251,
       "source_message_ids": [
@@ -163656,17 +163702,36 @@
       ],
       "signal_ts_utc": "2026-07-22T01:26:27+00:00",
       "first_observed_utc": "2026-07-22T01:26:28.436+00:00",
-      "direction": "BUY",
+      "direction": "SELL",
       "risk_label": "high_risk",
       "effective_range": [
         4121.0,
         4125.0
       ],
       "effective_tps": [],
-      "effective_sl": null,
-      "entry_zones": [],
+      "effective_sl": 4131.0,
+      "entry_zones": [
+        [
+          4121.0,
+          4125.0
+        ]
+      ],
       "zone_target": null,
-      "zone_plan_timeline": [],
+      "zone_plan_timeline": [
+        {
+          "message_id": 251,
+          "observed_ts_utc": "2026-07-22T17:37:15.592+00:00",
+          "telegram_ts_utc": "2026-07-21T19:33:11+00:00",
+          "direction": "SELL",
+          "zones": [
+            [
+              4121.0,
+              4125.0
+            ]
+          ],
+          "target": null
+        }
+      ],
       "revisions": [
         {
           "message_id": 251,
@@ -163683,7 +163748,7 @@
           "media_path": null,
           "media_extraction_status": null,
           "parsed": {
-            "direction": "BUY",
+            "direction": "SELL",
             "range": [
               4121.0,
               4125.0
@@ -163714,7 +163779,7 @@
           "telegram_ts_utc": "2026-07-21T19:33:11+00:00",
           "observed_ts_utc": "2026-07-22T17:37:15.592+00:00",
           "tps": [],
-          "sl": null,
+          "sl": 4131.0,
           "source_message_id": 251,
           "source_kind": "revision",
           "raw_tps": [],
@@ -163741,29 +163806,6 @@
             "poll_new"
           ],
           "source": "telegram_raw"
-        },
-        {
-          "message_id": 251,
-          "reply_to_msg_id": null,
-          "observed_ts_utc": "2026-07-22T17:37:15.592+00:00",
-          "telegram_ts_utc": "2026-07-21T19:33:11+00:00",
-          "text": "Good Evening All\n\nI am still holding my buys risk free\n\nI am looking at a possible sell around 4121 - 4125 area \n\nWe can expect a reaction at this zone. \n\nYou can consider a Sell Limit with the following parameters\n\nSell Limit \nEntry 4121-4125\nTaps 4118/4115/4110/4100\nSL 4131\n\nLimit orders carry more risk as you may not be able to manage it depending on what time price reaches it. Please keep in mind any unexpected news releases around the time price reaches there can also cause volatility therefore this is high risk \n\nHappy trading",
-          "classified_action": "MOVE_SL_TO_BE",
-          "classifier_action": null,
-          "modality": "direct",
-          "semantic_source": "deterministic_parser",
-          "execution_options": [
-            {
-              "action": "MOVE_SL_TO_BE",
-              "provider_stated_be_price": 4121.0
-            }
-          ],
-          "raw_versions": 1,
-          "update_kinds": [
-            "startup_catchup_new"
-          ],
-          "source": "telegram_raw",
-          "provider_stated_be_price": 4121.0
         }
       ],
       "media": {
@@ -163784,26 +163826,18 @@
       "duplicate_execution": false,
       "semantic_status": "classified",
       "semantic_gaps": [],
-      "canonicalization_issues": [
-        {
-          "field": "sl",
-          "raw": 4131.0,
-          "canonical": null,
-          "decision": "rejected_invalid",
-          "observed_ts_utc": "2026-07-22T17:37:15.592+00:00",
-          "source_kind": "revision",
-          "source_message_id": 251
-        }
-      ],
+      "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-22T17:37:15.592+00:00",
-        "trigger_telegram_utc": "2026-07-21T19:33:11+00:00",
-        "trigger_message_id": 251,
-        "trigger_kind": "text",
-        "direction": "BUY",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
+        "direction": "SELL",
         "direction_source": "revision_parser:251",
-        "blockers": []
+        "blockers": [
+          "provider_zone_plan_not_live_trigger"
+        ]
       }
     },
     {
@@ -163878,7 +163912,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -163894,7 +163928,7 @@
       ],
       "signal_ts_utc": "2026-07-22T04:27:08+00:00",
       "first_observed_utc": "2026-07-22T04:27:09.135+00:00",
-      "direction": "BUY",
+      "direction": "SELL",
       "risk_label": "standard",
       "effective_range": null,
       "effective_tps": [],
@@ -163919,7 +163953,7 @@
           "media_path": null,
           "media_extraction_status": null,
           "parsed": {
-            "direction": "BUY"
+            "direction": "SELL"
           }
         }
       ],
@@ -163966,14 +164000,16 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-22T04:27:09.135+00:00",
-        "trigger_telegram_utc": "2026-07-22T04:27:08+00:00",
-        "trigger_message_id": 255,
-        "trigger_kind": "text",
-        "direction": "BUY",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
+        "direction": "SELL",
         "direction_source": "revision_parser:255",
-        "blockers": []
+        "blockers": [
+          "provider_record_not_formal_signal"
+        ]
       }
     },
     {
@@ -164183,7 +164219,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_261",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 261,
       "source_message_ids": [
@@ -164712,7 +164748,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_266",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 266,
       "source_message_ids": [
@@ -165476,7 +165512,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -165484,7 +165520,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_272",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 272,
       "source_message_ids": [
@@ -166034,7 +166070,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -166042,7 +166078,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_278",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 278,
       "source_message_ids": [
@@ -166535,7 +166571,7 @@
           "media_path": null,
           "media_extraction_status": null,
           "parsed": {
-            "direction": "BUY",
+            "direction": "SELL",
             "range": [
               4181.0,
               4182.0
@@ -166965,7 +167001,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal2_314",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal2",
       "root_message_id": 314,
       "source_message_ids": [
@@ -167736,7 +167772,7 @@
       "schema_version": 7,
       "provider_signal_id": "canal1_21008",
       "record_type": "formal_signal",
-      "record_type_reason": "linked_execution_evidence",
+      "record_type_reason": "entry_or_execution_evidence",
       "channel": "canal1",
       "root_message_id": 21008,
       "source_message_ids": [
@@ -168399,7 +168435,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -168507,15 +168543,15 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal2_247",
-      "record_type": "unknown_candidate",
-      "record_type_reason": "unclassified_provider_message",
+      "record_type": "context_setup",
+      "record_type_reason": "media_or_market_context",
       "channel": "canal2",
       "root_message_id": 247,
       "source_message_ids": [
@@ -168569,10 +168605,8 @@
       "canonical_execution_count": 0,
       "canonical_corrections": [],
       "duplicate_execution": false,
-      "semantic_status": "needs_review",
-      "semantic_gaps": [
-        "unclassified_record_type"
-      ],
+      "semantic_status": "classified",
+      "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
         "status": "blocked",
@@ -168584,7 +168618,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -168677,7 +168711,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -168754,7 +168788,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -168829,7 +168863,7 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
@@ -169807,15 +169841,15 @@
         "direction_source": null,
         "blockers": [
           "missing_direction",
-          "missing_actionable_entry_trigger"
+          "provider_record_not_formal_signal"
         ]
       }
     },
     {
       "schema_version": 7,
       "provider_signal_id": "canal2_326",
-      "record_type": "management_only",
-      "record_type_reason": "standalone_management_message",
+      "record_type": "zone_plan",
+      "record_type_reason": "provider_multi_zone_plan",
       "channel": "canal2",
       "root_message_id": 326,
       "source_message_ids": [
@@ -169833,9 +169867,28 @@
         4109.0
       ],
       "effective_sl": 4096.0,
-      "entry_zones": [],
+      "entry_zones": [
+        [
+          4100.0,
+          4106.0
+        ]
+      ],
       "zone_target": null,
-      "zone_plan_timeline": [],
+      "zone_plan_timeline": [
+        {
+          "message_id": 326,
+          "observed_ts_utc": "2026-07-22T18:56:37.682+00:00",
+          "telegram_ts_utc": "2026-07-22T18:56:36+00:00",
+          "direction": "BUY",
+          "zones": [
+            [
+              4100.0,
+              4106.0
+            ]
+          ],
+          "target": null
+        }
+      ],
       "revisions": [
         {
           "message_id": 326,
@@ -169899,30 +169952,7 @@
         }
       ],
       "runtime_level_timeline": [],
-      "management_events": [
-        {
-          "message_id": 326,
-          "reply_to_msg_id": null,
-          "observed_ts_utc": "2026-07-22T18:56:37.682+00:00",
-          "telegram_ts_utc": "2026-07-22T18:56:36+00:00",
-          "text": "For the experienced traders\n\nBuy Limit\n\n4106 - 4100\n\nSL 4096\n\nTP 4109/4112/4115/4119/Open\n\nPlease note limit orders carry more risk due to the fact that they may not be able to be managed depending on which time the market reaches the given price",
-          "classified_action": "MOVE_SL_TO_BE",
-          "classifier_action": null,
-          "modality": "direct",
-          "semantic_source": "deterministic_parser",
-          "execution_options": [
-            {
-              "action": "MOVE_SL_TO_BE"
-            }
-          ],
-          "raw_versions": 3,
-          "update_kinds": [
-            "edit",
-            "poll_new"
-          ],
-          "source": "telegram_raw"
-        }
-      ],
+      "management_events": [],
       "media": {
         "availability": "none",
         "has_photo": false,
@@ -169943,14 +169973,16 @@
       "semantic_gaps": [],
       "canonicalization_issues": [],
       "entry_contract": {
-        "status": "ready",
-        "trigger_observed_utc": "2026-07-22T18:56:37.682+00:00",
-        "trigger_telegram_utc": "2026-07-22T18:56:36+00:00",
-        "trigger_message_id": 326,
-        "trigger_kind": "edit",
+        "status": "blocked",
+        "trigger_observed_utc": null,
+        "trigger_telegram_utc": null,
+        "trigger_message_id": null,
+        "trigger_kind": null,
         "direction": "BUY",
         "direction_source": "revision_parser:326",
-        "blockers": []
+        "blockers": [
+          "provider_zone_plan_not_live_trigger"
+        ]
       }
     }
   ]

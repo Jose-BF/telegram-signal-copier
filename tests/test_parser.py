@@ -23,6 +23,7 @@ from parser import (
     is_canal2_entry,
     parse_canal1_text,
     parse_canal2,
+    parse_canal2_zone_plan,
     _extract_range,
     _extract_tps,
     _extract_sl,
@@ -67,6 +68,19 @@ class TestDirection:
     def test_empty(self):
         assert _direction("") is None
 
+    def test_immediate_sell_command_wins_over_later_buy_commentary(self):
+        assert (
+            _direction("Sell Gold Now. Buyers may defend 4030")
+            == "SELL"
+        )
+
+    def test_valid_command_wins_over_earlier_negated_command(self):
+        text = "Do not Buy Gold Now. Sell Gold Now"
+
+        assert is_canal2_entry(text) is True
+        assert _direction(text) == "SELL"
+        assert parse_canal2(text)["direction"] == "SELL"
+
 
 # ─── is_canal2_entry ────────────────────────────────────────────────────────
 
@@ -89,6 +103,50 @@ class TestIsCanal2Entry:
 
     def test_new_format_sell_zone_now(self):
         assert is_canal2_entry("Sell Zone Now") is True
+
+    def test_repeat_zone_command_is_entry(self):
+        assert is_canal2_entry("Sell zone again now") is True
+
+    def test_context_with_right_now_and_potential_sell_is_not_entry(self):
+        text = (
+            "As mentioned on the live call I will start to send charts so "
+            "you can see what I see & where I mark my zones!\n\n"
+            "Right now we are between 2 key areas\n\n"
+            "Potential sell at 4051"
+        )
+        assert is_canal2_entry(text) is False
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Do not buy Gold now",
+            "Don't SELL GOLD NOW",
+            "Never buy Gold now",
+            "No, Buy Gold Now",
+            "Not a Sell Gold Now",
+        ],
+    )
+    def test_negated_immediate_order_is_not_entry(self, text):
+        assert is_canal2_entry(text) is False
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Wait is over, Buy Gold Now",
+            "No need to wait. Buy Gold Now",
+            "Potential confirmed: Sell Gold Now",
+        ],
+    )
+    def test_completed_context_allows_immediate_order(self, text):
+        assert is_canal2_entry(text) is True
+
+    def test_unresolved_conditional_order_is_not_entry(self):
+        assert (
+            is_canal2_entry(
+                "If price closes above 4050, Buy Gold Now"
+            )
+            is False
+        )
 
     def test_possible_setup_is_not_entry(self):
         text = "Possible buy coming at 4054 area\n\nWait for the signal"
@@ -116,6 +174,84 @@ class TestIsCanal2Entry:
 
     def test_empty(self):
         assert is_canal2_entry("") is False
+
+
+# ─── parse_canal2_zone_plan ─────────────────────────────────────────────────
+
+class TestParseCanal2ZonePlan:
+    def test_real_sell_limit_plan_is_future_zone_not_market_entry(self):
+        text = (
+            "Good Evening All\n\n"
+            "I am still holding my buys risk free\n\n"
+            "I am looking at a possible sell around 4121 - 4125 area\n\n"
+            "We can expect a reaction at this zone.\n\n"
+            "You can consider a Sell Limit with the following parameters\n\n"
+            "Sell Limit\n"
+            "Entry 4121-4125\n"
+            "Taps 4118/4115/4110/4100\n"
+            "SL 4131"
+        )
+
+        assert is_canal2_entry(text) is False
+        assert parse_canal2_zone_plan(text) == {
+            "direction": "SELL",
+            "zones": [[4121.0, 4125.0]],
+            "target": None,
+        }
+
+    def test_single_future_sell_zone(self):
+        parsed = parse_canal2_zone_plan(
+            "Next Sell Zone at 4030\n\n"
+            "Bear in mind FOMC at 7\n\n"
+            "Look for a quick reaction"
+        )
+
+        assert parsed == {
+            "direction": "SELL",
+            "zones": [[4030.0, 4030.0]],
+            "target": None,
+        }
+
+    def test_single_future_zone_with_reaction_language(self):
+        parsed = parse_canal2_zone_plan(
+            "Next Sell Zone we can expect a reaction is 4017"
+        )
+
+        assert parsed == {
+            "direction": "SELL",
+            "zones": [[4017.0, 4017.0]],
+            "target": None,
+        }
+
+    def test_bare_levels_with_expected_sell_areas_are_zone_plan(self):
+        parsed = parse_canal2_zone_plan(
+            "4007\n4010\n4017\n\n"
+            "These are all strong areas we can expect gold to sell from"
+        )
+
+        assert parsed == {
+            "direction": "SELL",
+            "zones": [
+                [4007.0, 4007.0],
+                [4010.0, 4010.0],
+                [4017.0, 4017.0],
+            ],
+            "target": None,
+        }
+
+    def test_multi_zone_plan(self):
+        parsed = parse_canal2_zone_plan(
+            "Buy Zones Marked Out\n\n4075-4073\n4070-4069"
+        )
+
+        assert parsed == {
+            "direction": "BUY",
+            "zones": [[4073.0, 4075.0], [4069.0, 4070.0]],
+            "target": None,
+        }
+
+    def test_immediate_zone_now_is_not_future_plan(self):
+        assert parse_canal2_zone_plan("Sell Zone Now") is None
 
 
 # ─── is_canal1_signal_text ──────────────────────────────────────────────────

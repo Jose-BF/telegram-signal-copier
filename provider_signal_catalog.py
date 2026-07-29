@@ -10,7 +10,13 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable
 
-from parser import is_canal1_signal_text, is_canal2_entry, parse_canal2
+from parser import (
+    canal2_entry_command_key,
+    is_canal1_signal_text,
+    is_canal2_entry,
+    parse_canal2,
+    parse_canal2_zone_plan,
+)
 from interpretation_firewall import extract_provider_stated_be_price
 from interpretation_firewall import normalize_xauusd_management_price
 import runtime_paths
@@ -62,52 +68,13 @@ DAILY_SUMMARY_RE = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 CONTEXT_SETUP_RE = re.compile(
-    r"\b(?:SUPPORT|RESISTANCE|4\s*H(?:R|OUR)|ANALYSIS|LEVELS?|ZONE)\b",
-    re.IGNORECASE,
-)
-ZONE_RANGE_RE = re.compile(
-    r"(?<!\d)(\d{3,5}(?:\.\d+)?)\s*[-\u2013\u2014]\s*"
-    r"(\d{3,5}(?:\.\d+)?)(?!\d)"
-)
-ZONE_TARGET_RE = re.compile(
-    r"\bTARGET(?:\s+IS|\s*:|\s+AT)?\s*(\d{3,5}(?:\.\d+)?)\b",
+    r"\b(?:SUPPORT|RESISTANCE|4\s*H(?:R|OUR)|ANALYSIS|LEVELS?|ZONES?)\b",
     re.IGNORECASE,
 )
 
 
 def _parse_zone_plan(text: str) -> dict | None:
-    upper = str(text or "").upper()
-    if "ZONE" not in upper:
-        return None
-    if re.search(
-        r"\bBUY\s+ZONES?\b|\bZONES?\s+(?:I|WE)\s+WOULD\s+BUY\b",
-        upper,
-    ):
-        direction = "BUY"
-    elif re.search(
-        r"\bSELL\s+ZONES?\b|\bZONES?\s+(?:I|WE)\s+WOULD\s+SELL\b",
-        upper,
-    ):
-        direction = "SELL"
-    else:
-        return None
-    zones = [
-        sorted([float(match.group(1)), float(match.group(2))])
-        for match in ZONE_RANGE_RE.finditer(text or "")
-    ]
-    target_match = ZONE_TARGET_RE.search(text or "")
-    target = float(target_match.group(1)) if target_match else None
-    plan_language = bool(re.search(
-        r"\bZONES?\s+(?:I\s+)?WOULD\b|\bZONES?\s+MARKED\s+OUT\b",
-        upper,
-    ))
-    if not zones and target is None and not plan_language:
-        return None
-    return {
-        "direction": direction,
-        "zones": zones,
-        "target": target,
-    }
+    return parse_canal2_zone_plan(text)
 
 
 def load_jsonl(path: Path) -> list[dict]:
@@ -429,7 +396,16 @@ def _deterministic_management_semantics(text: str) -> dict | None:
         result["execution_options"] = _execution_options(result)
         return result
 
-    if re.search(r"\b(?:TAKE|CLOSE|SECURE)\s+(?:SOME\s+)?PARTIALS?\b", upper):
+    if (
+        re.search(
+            r"\b(?:TAKE|CLOSE|SECURE)\s+(?:SOME\s+)?PARTIALS?\b",
+            upper,
+        )
+        or re.search(
+            r"\bTAKE\s+PROFITS?\s+FROM\s+(?:THE\s+)?LAYERS?\b",
+            upper,
+        )
+    ):
         result = {
             "action": "CLOSE_PARTIAL",
             "modality": _management_modality(text, actionable=True),
@@ -1442,10 +1418,6 @@ def _finalize(signal: dict) -> dict:
         signal["execution_count"] > signal["canonical_execution_count"]
     )
 
-    if signal["execution_count"]:
-        _promote_record_type(
-            signal, "formal_signal", "linked_execution_evidence")
-
     direction_evidence: list[dict] = []
     entry_candidates: list[dict] = []
     for revision in signal["revisions"]:
@@ -1463,6 +1435,15 @@ def _finalize(signal: dict) -> dict:
             "direction_source": direction_source,
             "_source_order": revision["_source_order"],
         })
+        if signal["channel"] == "canal2":
+            is_actionable_entry = is_canal2_entry(revision.get("text") or "")
+        else:
+            is_actionable_entry = (
+                revision.get("sticker_id") is not None
+                or is_canal1_signal_text(revision.get("text") or "")
+            )
+        if not is_actionable_entry:
+            continue
         if _is_edit_update_kind((revision.get("update_kinds") or [None])[0]):
             trigger_kind = "edit"
         elif revision.get("sticker_id") is not None:
@@ -1564,7 +1545,7 @@ def _finalize(signal: dict) -> dict:
         candidate["_source_order"],
     ))
     trigger = entry_candidates[0] if entry_candidates else None
-    if signal["record_type"] == "zone_plan":
+    if signal["record_type"] != "formal_signal":
         trigger = None
 
     contract_direction = (
@@ -1580,6 +1561,8 @@ def _finalize(signal: dict) -> dict:
         blockers.append("missing_direction")
     if signal["record_type"] == "zone_plan":
         blockers.append("provider_zone_plan_not_live_trigger")
+    elif signal["record_type"] != "formal_signal":
+        blockers.append("provider_record_not_formal_signal")
     elif trigger is None:
         blockers.append("missing_actionable_entry_trigger")
 
@@ -1744,13 +1727,128 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
         if channel in ("canal1", "canal2") and message_id is not None and reply_to is not None:
             reply_parent_by_key[(channel, int(message_id))] = int(reply_to)
 
+    canal2_entry_evidence: dict[int, dict] = {}
+    for row in raw_events:
+        if row.get("channel") != "canal2":
+            continue
+        message_id = row.get("message_id")
+        text = str(row.get("text") or "")
+        if message_id is None or not is_canal2_entry(text):
+            continue
+        message_id = int(message_id)
+        observed_dt = _parse_dt(_telegram_ts(row))
+        if observed_dt is None:
+            continue
+        parsed = _normalise_parsed(parse_canal2(text))
+        candidate = {
+            "message_id": message_id,
+            "observed_dt": observed_dt,
+            "direction": parsed.get("direction"),
+            "plain": not any(
+                key in parsed for key in ("range", "tps", "sl")
+            ),
+            "normalized_text": canal2_entry_command_key(text),
+            "is_reply": bool(
+                row.get("is_reply") or row.get("reply_to_msg_id") is not None
+            ),
+        }
+        previous = canal2_entry_evidence.get(message_id)
+        if previous is None or observed_dt < previous["observed_dt"]:
+            canal2_entry_evidence[message_id] = candidate
+
+    canal2_alias_roots: dict[int, int] = {}
+    canal2_identity_links: dict[int, list[dict]] = {}
+
+    def register_canal2_alias(alias_id: int, root_id: int, link: dict) -> None:
+        alias_id = int(alias_id)
+        root_id = int(root_id)
+        if alias_id == root_id:
+            return
+        existing_root = canal2_alias_roots.get(alias_id)
+        if existing_root is None:
+            canal2_alias_roots[alias_id] = root_id
+        elif existing_root != root_id:
+            return
+        links = canal2_identity_links.setdefault(root_id, [])
+        if link not in links:
+            links.append(link)
+
+    for row in events:
+        if row.get("ev") != "canal2_duplicate_alias_registered":
+            continue
+        parsed_root = _message_id_from_sig(row.get("sig"))
+        alias_id = row.get("alias_message_id")
+        if (
+            parsed_root is None
+            or parsed_root[0] != "canal2"
+            or alias_id is None
+        ):
+            continue
+        register_canal2_alias(
+            int(alias_id),
+            parsed_root[1],
+            {
+                "source": "runtime_duplicate_alias",
+                "root_message_id": parsed_root[1],
+                "companion_message_id": int(alias_id),
+                "telegram_gap_ms": None,
+            },
+        )
+
+    ordered_canal2_entries = sorted(
+        canal2_entry_evidence.values(),
+        key=lambda row: (row["observed_dt"], row["message_id"]),
+    )
+    for previous, current in zip(
+        ordered_canal2_entries,
+        ordered_canal2_entries[1:],
+    ):
+        gap_ms = int(
+            (current["observed_dt"] - previous["observed_dt"])
+            / timedelta(milliseconds=1)
+        )
+        is_repeated_reply_command = (
+            0 <= gap_ms <= 10_000
+            and previous["is_reply"]
+            and not current["is_reply"]
+            and previous["plain"]
+            and current["plain"]
+            and previous["direction"] == current["direction"]
+            and previous["normalized_text"] == current["normalized_text"]
+        )
+        if not is_repeated_reply_command:
+            continue
+        register_canal2_alias(
+            current["message_id"],
+            previous["message_id"],
+            {
+                "source": "near_duplicate_immediate_command",
+                "root_message_id": previous["message_id"],
+                "companion_message_id": current["message_id"],
+                "telegram_gap_ms": gap_ms,
+            },
+        )
+
+    def canal2_root(message_id: int) -> int:
+        current = int(message_id)
+        seen = set()
+        while current in canal2_alias_roots and current not in seen:
+            seen.add(current)
+            current = canal2_alias_roots[current]
+        return current
+
     def thread_root(channel: str, message_id: int) -> int:
         current = int(message_id)
         seen = set()
-        while (channel, current) in reply_parent_by_key and current not in seen:
+        while current not in seen:
+            if channel == "canal2" and current in canal2_entry_evidence:
+                return canal2_root(current)
             seen.add(current)
-            current = reply_parent_by_key[(channel, current)]
-        return current
+            parent = reply_parent_by_key.get((channel, current))
+            if parent is None:
+                break
+            current = parent
+        return canal2_root(current) if channel == "canal2" else current
 
     sticker_evidence: dict[int, datetime] = {}
     text_evidence: dict[int, datetime] = {}
@@ -1889,11 +1987,14 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
         if channel not in ("canal1", "canal2") or message_id is None:
             continue
         message_id = int(message_id)
-        if row.get("is_reply") or row.get("reply_to_msg_id") is not None:
-            continue
         text = str(row.get("text") or "")
-        if channel == "canal2" and is_canal2_entry(text):
-            root_keys.add((channel, message_id))
+        canal2_entry = channel == "canal2" and is_canal2_entry(text)
+        if (
+            row.get("is_reply") or row.get("reply_to_msg_id") is not None
+        ) and not canal2_entry:
+            continue
+        if canal2_entry:
+            root_keys.add((channel, canal2_root(message_id)))
         elif channel == "canal1" and (
             row.get("sticker_id") is not None
             or (
@@ -1902,23 +2003,6 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
             )
         ):
             root_keys.add((channel, message_id))
-
-    for trade in replay_trades:
-        parsed_sig = _message_id_from_sig(trade.get("sig_id"))
-        if not parsed_sig:
-            continue
-        channel, message_id = parsed_sig
-        if channel not in ("canal1", "canal2"):
-            continue
-        root_keys.add((channel, canal1_text_roots.get(message_id, message_id)))
-    for sig_id in execution_batches_by_sig:
-        parsed_sig = _message_id_from_sig(sig_id)
-        if not parsed_sig:
-            continue
-        channel, message_id = parsed_sig
-        if channel not in ("canal1", "canal2"):
-            continue
-        root_keys.add((channel, canal1_text_roots.get(message_id, message_id)))
 
     for channel, message_id in root_keys:
         ensure(
@@ -1938,8 +2022,26 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
         if row.get("is_reply") or reply_to is not None:
             if reply_to is None:
                 continue
+            if (
+                channel == "canal2"
+                and message_id in canal2_entry_evidence
+            ):
+                root_id = canal2_root(message_id)
+                signal = ensure(
+                    channel,
+                    root_id,
+                    "formal_signal",
+                    "immediate_entry_reply",
+                )
+                if message_id == root_id:
+                    signal["_root_message_seen"] = True
+                _append_revision(signal, row)
+                _append_zone_plan(signal, row)
+                continue
             resolved_root = thread_root(channel, message_id)
             root_id = canal1_text_roots.get(resolved_root, resolved_root)
+            if channel == "canal2":
+                root_id = canal2_root(root_id)
             key = (channel, root_id)
             zone_plan = _parse_zone_plan(str(row.get("text") or ""))
             if zone_plan is not None:
@@ -1962,19 +2064,22 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
             continue
 
         root_id = canal1_text_roots.get(message_id, message_id)
+        if channel == "canal2":
+            root_id = canal2_root(root_id)
         formal = (channel, root_id) in root_keys
         record_type, reason = _record_type_for_root(row, formal=formal)
         signal = ensure(channel, root_id, record_type, reason)
         if message_id == root_id:
             signal["_root_message_seen"] = True
         _append_revision(signal, row)
-        if signal["record_type"] == "zone_plan":
-            _append_zone_plan(signal, row)
+        _append_zone_plan(signal, row)
         if signal["record_type"] == "management_only":
             _append_management(signal, row)
 
     for (channel, message_id), candidates in understood_directions_by_key.items():
         root_id = canal1_text_roots.get(message_id, message_id)
+        if channel == "canal2":
+            root_id = canal2_root(root_id)
         if (channel, root_id) not in signals:
             continue
         signal = signals[(channel, root_id)]
@@ -1988,6 +2093,8 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
             continue
         channel, message_id = parsed_sig
         root_id = canal1_text_roots.get(message_id, message_id)
+        if channel == "canal2":
+            root_id = canal2_root(root_id)
         key = (channel, root_id)
         if key not in signals:
             continue
@@ -2001,12 +2108,18 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
         if channel not in ("canal1", "canal2"):
             continue
         root_id = canal1_text_roots.get(message_id, message_id)
-        signal = ensure(
-            channel,
-            root_id,
-            "formal_signal",
-            "linked_execution_evidence",
-        )
+        if channel == "canal2":
+            root_id = canal2_root(root_id)
+        key = (channel, root_id)
+        if key in signals:
+            signal = signals[key]
+        else:
+            signal = ensure(
+                channel,
+                root_id,
+                "unknown_candidate",
+                "linked_execution_evidence_without_raw_root",
+            )
         sig_id = str(trade.get("sig_id"))
         if sig_id not in signal["execution_sig_ids"]:
             signal["execution_sig_ids"].append(sig_id)
@@ -2019,12 +2132,18 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
         if channel not in ("canal1", "canal2"):
             continue
         root_id = canal1_text_roots.get(message_id, message_id)
-        signal = ensure(
-            channel,
-            root_id,
-            "formal_signal",
-            "linked_execution_evidence",
-        )
+        if channel == "canal2":
+            root_id = canal2_root(root_id)
+        key = (channel, root_id)
+        if key in signals:
+            signal = signals[key]
+        else:
+            signal = ensure(
+                channel,
+                root_id,
+                "unknown_candidate",
+                "linked_execution_evidence_without_raw_root",
+            )
         if sig_id not in signal["execution_sig_ids"]:
             signal["execution_sig_ids"].append(sig_id)
         signal["execution_batches"].extend(
@@ -2039,6 +2158,21 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
             links,
             key=lambda link: (
                 link["observed_gap_ms"],
+                link["companion_message_id"],
+                link["source"],
+            ),
+        )
+
+    for root_id, links in canal2_identity_links.items():
+        key = ("canal2", canal2_root(root_id))
+        if key not in signals:
+            continue
+        signals[key]["identity_links"] = sorted(
+            links,
+            key=lambda link: (
+                link["telegram_gap_ms"]
+                if link["telegram_gap_ms"] is not None
+                else float("inf"),
                 link["companion_message_id"],
                 link["source"],
             ),

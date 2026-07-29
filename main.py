@@ -52,8 +52,14 @@ import journal
 import live_auditor
 import pending_actions
 from tools import capture_broker_money_contract as broker_contract
-from listener import client, notify, poll_loop, _is_transient_telegram_history_error
-from parser import predict_sl_from_entry
+from listener import (
+    _is_transient_telegram_history_error,
+    client,
+    notify,
+    poll_loop,
+    restore_canal2_zone_plans_from_journal,
+)
+from parser import canal2_entry_command_key, predict_sl_from_entry
 from state import state
 
 _freeze_traceback_file_handle = None
@@ -1040,6 +1046,105 @@ async def _mt5_connection_monitor(interval_sec: int = 10):
         await asyncio.sleep(interval_sec)
 
 
+def _load_resync_entry_metadata(path, signal_ids) -> dict[str, dict]:
+    """Recover durable Telegram entry identity for live MT5 positions."""
+    from datetime import timezone
+
+    targets = {str(signal_id) for signal_id in signal_ids}
+    source = Path(path)
+    if not targets or not source.exists():
+        return {}
+
+    recovered: dict[str, dict] = {}
+
+    def parse_telegram_timestamp(value):
+        if not value:
+            return None
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+        return parsed
+
+    with source.open("rb") as handle:
+        for raw_line in handle:
+            try:
+                row = json.loads(raw_line.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                continue
+            if not isinstance(row, dict):
+                continue
+            sig_id = str(row.get("sig") or "")
+            if sig_id not in targets or not sig_id.startswith("canal2_"):
+                continue
+
+            event = row.get("ev")
+            if event == "canal2_duplicate_alias_registered":
+                try:
+                    alias_message_id = int(row.get("alias_message_id"))
+                except (TypeError, ValueError):
+                    continue
+                metadata = recovered.setdefault(sig_id, {})
+                aliases = metadata.setdefault(
+                    "telegram_alias_message_ids",
+                    [],
+                )
+                if alias_message_id not in aliases:
+                    aliases.append(alias_message_id)
+                continue
+
+            if event == "telegram_raw":
+                command_key = canal2_entry_command_key(
+                    str(row.get("text") or "")
+                )
+                if command_key is None:
+                    continue
+                reply_to = row.get("reply_to_msg_id")
+                metadata = recovered.setdefault(sig_id, {})
+                metadata.update({
+                    "telegram_entry_command_key": command_key,
+                    "telegram_entry_was_reply": bool(
+                        row.get("is_reply") or reply_to is not None
+                    ),
+                    "telegram_entry_reply_to_message_id": (
+                        int(reply_to) if reply_to is not None else None
+                    ),
+                })
+                telegram_ts = parse_telegram_timestamp(row.get("date_utc"))
+                if telegram_ts is not None:
+                    metadata["telegram_entry_timestamp"] = telegram_ts
+                continue
+
+            if event != "signal_received":
+                continue
+            command_key = (
+                row.get("telegram_entry_command_key")
+                or canal2_entry_command_key(str(row.get("raw_text") or ""))
+            )
+            if command_key is None:
+                continue
+            metadata = recovered.setdefault(sig_id, {})
+            metadata["telegram_entry_command_key"] = str(command_key)
+            if "telegram_entry_was_reply" in row:
+                metadata["telegram_entry_was_reply"] = bool(
+                    row["telegram_entry_was_reply"]
+                )
+            if "telegram_entry_reply_to_message_id" in row:
+                reply_to = row.get("telegram_entry_reply_to_message_id")
+                metadata["telegram_entry_reply_to_message_id"] = (
+                    int(reply_to) if reply_to is not None else None
+                )
+            telegram_ts = parse_telegram_timestamp(
+                row.get("telegram_entry_ts_utc") or row.get("tg_ts")
+            )
+            if telegram_ts is not None:
+                metadata["telegram_entry_timestamp"] = telegram_ts
+
+    return recovered
+
+
 def _resync_orphan_positions():
     """Recupera posiciones huérfanas en MT5 al arrancar el bot.
 
@@ -1068,6 +1173,10 @@ def _resync_orphan_positions():
         print("[Resync] sin posiciones huérfanas en MT5. OK.")
         return
 
+    entry_metadata = _load_resync_entry_metadata(
+        journal.EVENTS_FILE,
+        groups.keys(),
+    )
     try:
         causal_origins, causal_conflicts, invalid_causal_lines = (
             causal_trace.load_signal_origin_index(journal.EVENTS_FILE)
@@ -1097,7 +1206,7 @@ def _resync_orphan_positions():
     # Calculamos el offset comparando el tick actual del servidor con UTC.
     server_offset_h = 0
     try:
-        _tick = mt5.symbol_info_tick(config.MT5_SYMBOL)
+        _tick = executor.mt5.symbol_info_tick(config.MT5_SYMBOL)
         if _tick and _tick.time:
             _srv_now = datetime.fromtimestamp(_tick.time, tz=timezone.utc).replace(tzinfo=None)
             server_offset_h = round((_srv_now - datetime.utcnow()).total_seconds() / 3600)
@@ -1108,6 +1217,7 @@ def _resync_orphan_positions():
     print(f"[Resync] encontradas {len(groups)} señales huérfanas en MT5:")
     for sig_id, g in groups.items():
         causal_origin = causal_origins.get(sig_id, {})
+        entry_identity = entry_metadata.get(sig_id, {})
         # Reconstruir timestamp real de apertura desde MT5 (no datetime.utcnow,
         # que reseteaba el reloj y rompía el time-stop). Sin esto, una posición
         # abierta hace 2h se quedaba con timestamp=ahora y nunca disparaba el
@@ -1156,6 +1266,18 @@ def _resync_orphan_positions():
                 "message_revision_id"
             ),
             source_decision_id=causal_origin.get("decision_id"),
+            telegram_entry_command_key=entry_identity.get(
+                "telegram_entry_command_key"
+            ),
+            telegram_entry_was_reply=bool(
+                entry_identity.get("telegram_entry_was_reply", False)
+            ),
+            telegram_entry_reply_to_message_id=entry_identity.get(
+                "telegram_entry_reply_to_message_id"
+            ),
+            telegram_entry_timestamp=entry_identity.get(
+                "telegram_entry_timestamp"
+            ),
         )
         # Reconstruir tp_overrides del Market B (doble market): el Market B
         # cierra en TP3 (STRATEGY_DOUBLE_MARKET_TP_INDEX). Sin esto, tras el
@@ -1166,6 +1288,11 @@ def _resync_orphan_positions():
         sig.dca_placed = True  # ya están abiertos, no abrir más
         sig.status = "open"
         state.add(sig)
+        for alias_message_id in entry_identity.get(
+            "telegram_alias_message_ids",
+            [],
+        ):
+            state.alias(sig, int(alias_message_id))
         elapsed_min = (datetime.utcnow() - opened_at).total_seconds() / 60
         print(f"  • {sig_id}: {sig.direction} entry={sig.market_fill_price} "
               f"market={sig.market_ticket} marketB={len(extra_markets)} "
@@ -1191,6 +1318,10 @@ def _resync_orphan_positions():
                           tp=sig.tps[0] if sig.tps else None,
                           opened_at=opened_at.isoformat(timespec="seconds"),
                           elapsed_min=round(elapsed_min, 1),
+                          telegram_alias_message_ids=entry_identity.get(
+                              "telegram_alias_message_ids",
+                              [],
+                          ),
                           time_stop_at=time_stop_at.isoformat(timespec="seconds")
                           if time_stop_at else None,
                           be_at_tp_index=be_at_tp_index,
@@ -1427,7 +1558,7 @@ def _finalize_journal_orphans():
 
     server_offset_s = 0
     try:
-        tick = mt5.symbol_info_tick(config.MT5_SYMBOL)
+        tick = executor.mt5.symbol_info_tick(config.MT5_SYMBOL)
         if tick and tick.time:
             server_now = datetime.fromtimestamp(tick.time, tz=timezone.utc)
             server_offset_s = round(
@@ -1723,6 +1854,13 @@ async def main():
     # abiertas en MT5, las recoge para que auto-finalize las trackee.
     _resync_orphan_positions()
     pending_actions.queue.restore_from_spool(state)
+    restored_zone_plans = restore_canal2_zone_plans_from_journal(
+        journal.EVENTS_FILE
+    )
+    print(
+        f"[Resync] zonas futuras activas de Gold Signals: "
+        f"{restored_zone_plans}"
+    )
 
     # Finaliza huerfanos del journal: senales que cerraron en MT5 mientras
     # el bot no las trackeaba (reinicio + posiciones ya cerradas). Registra

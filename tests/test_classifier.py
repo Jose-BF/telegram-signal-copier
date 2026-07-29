@@ -224,6 +224,75 @@ class TestMoveSlToBe:
         assert "CLOSE_PARTIAL" in names
         assert "MOVE_SL_TO_BE" in names
 
+    def test_take_profit_from_layers_preserves_partial_close_intent(self):
+        actions = _actions("Take profit from layers")
+
+        assert [action["action"] for action in actions] == ["CLOSE_PARTIAL"]
+
+    def test_negated_take_profit_does_not_close_positions(self):
+        actions = _actions("Do not take profit from layers yet")
+
+        assert [action["action"] for action in actions] == ["UNKNOWN"]
+        assert actions[0]["requires_review"] is True
+        assert actions[0]["_reason"] == "explicit_negated_instruction"
+
+    def test_valid_be_survives_unrelated_negative_advice(self):
+        actions = _actions(
+            "Move SL to BE now. Don't close too early."
+        )
+
+        assert [action["action"] for action in actions] == ["MOVE_SL_TO_BE"]
+
+    def test_tp_hit_and_protect_capital_keeps_protection_instruction(self):
+        actions = _actions("TP1 hit. Protect capital now")
+
+        assert [action["action"] for action in actions] == [
+            "PROTECT_AND_NOTIFY"
+        ]
+
+    @pytest.mark.asyncio
+    async def test_canal1_negated_partial_is_never_sent_to_gemini(
+            self, monkeypatch):
+        signal = Signal(
+            channel="canal1",
+            message_id=20800,
+            direction="BUY",
+        )
+
+        def fail_gemini(*args, **kwargs):
+            raise AssertionError("explicit negation must be handled locally")
+
+        monkeypatch.setattr("classifier._gemini_classify", fail_gemini)
+
+        actions = await classify_async(
+            "Do not take profit from layers yet",
+            signal=signal,
+        )
+
+        assert [action["action"] for action in actions] == ["UNKNOWN"]
+        assert actions[0]["requires_review"] is True
+
+    @pytest.mark.asyncio
+    async def test_canal1_valid_be_survives_unrelated_negative_advice(
+            self, monkeypatch):
+        signal = Signal(
+            channel="canal1",
+            message_id=20801,
+            direction="BUY",
+        )
+
+        def fail_gemini(*args, **kwargs):
+            raise AssertionError("explicit BE must be handled locally")
+
+        monkeypatch.setattr("classifier._gemini_classify", fail_gemini)
+
+        actions = await classify_async(
+            "Move SL to BE now. Don't close too early.",
+            signal=signal,
+        )
+
+        assert [action["action"] for action in actions] == ["MOVE_SL_TO_BE"]
+
     def test_real_canal2_partial_profit_and_risk_free_preserves_both_intents(self):
         actions = _actions(
             "+35 pips from best entry. I am closing partial profits "

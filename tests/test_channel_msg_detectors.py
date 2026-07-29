@@ -48,9 +48,11 @@ from state import Signal, StateManager
 def _reset_entry_execution_gate():
     listener._entry_execution_gate.reset()
     listener._canal2_opening_msg_ids.clear()
+    listener._canal2_zone_plans.clear()
     yield
     listener._entry_execution_gate.reset()
     listener._canal2_opening_msg_ids.clear()
+    listener._canal2_zone_plans.clear()
 
 
 # ────────────────────────── B1 — MessageDeleted ──────────────────────────
@@ -346,6 +348,48 @@ class TestManagementReplyEdits:
         assert anomalies[0][0] == "canal2_3027"
         assert anomalies[0][2] == "critical"
 
+    def test_reply_message_ids_are_isolated_by_channel(self, monkeypatch):
+        st = StateManager()
+        canal1_signal = Signal(
+            channel="canal1",
+            message_id=100,
+            direction="BUY",
+            status="open",
+        )
+        st.add(canal1_signal)
+        monkeypatch.setattr(listener, "state", st)
+
+        target, route = listener._resolve_management_reply_target(
+            "canal2",
+            100,
+            allow_single_open_fallback=False,
+        )
+
+        assert target is None
+        assert route == "unknown_reply_target"
+
+    def test_test_channel_can_explicitly_resolve_either_provider(
+            self, monkeypatch):
+        st = StateManager()
+        canal1_signal = Signal(
+            channel="canal1",
+            message_id=101,
+            direction="SELL",
+            status="open",
+        )
+        st.add(canal1_signal)
+        monkeypatch.setattr(listener, "state", st)
+
+        target, route = listener._resolve_management_reply_target(
+            "canal2",
+            101,
+            allow_single_open_fallback=False,
+            allow_cross_channel=True,
+        )
+
+        assert target is canal1_signal
+        assert route == "direct"
+
 
 class TestManagementActionDedup:
     def test_same_action_and_text_inside_window_is_duplicate(self, monkeypatch):
@@ -478,14 +522,18 @@ class TestCanal1SignalTextEdits:
 
 class TestCanal2DuplicateAlias:
     @pytest.mark.asyncio
-    async def test_near_duplicate_new_message_aliases_existing_naked_signal(
+    async def test_reply_command_then_same_standalone_command_is_aliased(
             self, monkeypatch):
         st = StateManager()
+        entry_ts = datetime.utcnow() - timedelta(seconds=1)
         existing = Signal(channel="canal2", message_id=12828,
                           direction="BUY",
-                          timestamp=datetime.utcnow() - timedelta(seconds=1),
+                          timestamp=entry_ts,
                           market_ticket=1342891209,
-                          market_fill_price=4563.06)
+                          market_fill_price=4563.06,
+                          telegram_entry_command_key="BUY GOLD NOW",
+                          telegram_entry_was_reply=True,
+                          telegram_entry_reply_to_message_id=12820)
         st.add(existing)
         events = []
         anomalies = []
@@ -505,8 +553,8 @@ class TestCanal2DuplicateAlias:
 
         msg = SimpleNamespace(
             id=12829,
-            text="XAU USD BUY NOW",
-            date=datetime.utcnow(),
+            text="Buy Gold Now",
+            date=entry_ts + timedelta(seconds=1),
             reply_to=None,
         )
 
@@ -517,6 +565,857 @@ class TestCanal2DuplicateAlias:
                    for _, ev, _ in events)
         assert any(category == "channel_msg" and severity == "warning"
                    for _, category, severity, _, _ in anomalies)
+
+    @pytest.mark.asyncio
+    async def test_repeated_plain_command_eight_seconds_later_is_alias(
+            self, monkeypatch):
+        st = StateManager()
+        existing = Signal(
+            channel="canal2",
+            message_id=585,
+            direction="SELL",
+            timestamp=datetime.utcnow() - timedelta(seconds=8),
+            market_ticket=1671689001,
+            market_fill_price=4002.8,
+            telegram_entry_command_key="SELL GOLD NOW",
+            telegram_entry_was_reply=True,
+            telegram_entry_reply_to_message_id=580,
+        )
+        st.add(existing)
+
+        async def fail_run(*args, **kwargs):
+            raise AssertionError("repeated provider command must not reopen")
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(listener, "_run", fail_run)
+        monkeypatch.setattr(listener.journal, "event", lambda *a, **kw: None)
+        monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
+        listener._seen_new_msg_ids.clear()
+        listener._seen_new_msgs_order.clear()
+
+        msg = SimpleNamespace(
+            id=586,
+            text="Sell gold now",
+            date=datetime.utcnow(),
+            reply_to=None,
+        )
+
+        await _process_canal2_new(msg)
+
+        assert st.get("canal2", 586) is existing
+
+    def test_two_independent_standalone_orders_are_not_aliased(self):
+        now = datetime.utcnow()
+        existing = Signal(
+            channel="canal2",
+            message_id=900,
+            direction="SELL",
+            timestamp=now - timedelta(seconds=2),
+            telegram_entry_command_key="SELL GOLD NOW",
+            telegram_entry_was_reply=False,
+        )
+
+        duplicate = listener._canal2_duplicate_alias_candidate(
+            901,
+            "SELL",
+            now,
+            {},
+            [existing],
+            10.0,
+            raw_text="Sell Gold Now",
+            is_reply=False,
+        )
+
+        assert duplicate is None
+
+
+class TestCanal2SemanticRouting:
+    @pytest.mark.asyncio
+    async def test_entry_reply_is_routed_as_reentry_before_management(
+            self, monkeypatch):
+        events = []
+        understood = []
+
+        def fail_management_route(*args, **kwargs):
+            raise AssertionError("entry reply must not enter management route")
+
+        monkeypatch.setattr(
+            listener, "_resolve_management_reply_target",
+            fail_management_route,
+        )
+        monkeypatch.setattr(config, "STRATEGY_ENTRY_MAX_TG_DELAY_S", 1.0)
+        monkeypatch.setattr(
+            listener.journal,
+            "event",
+            lambda sig, ev, **kw: events.append((sig, ev, kw)),
+        )
+        monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
+        monkeypatch.setattr(
+            listener,
+            "_log_telegram_understood",
+            lambda sig, **kw: understood.append((sig, kw)),
+        )
+        listener._seen_new_msg_ids.clear()
+        listener._seen_new_msgs_order.clear()
+
+        msg = SimpleNamespace(
+            id=585,
+            text="Sell Gold Now",
+            date=datetime.utcnow() - timedelta(seconds=5),
+            reply_to=SimpleNamespace(reply_to_msg_id=580),
+        )
+
+        await _process_canal2_new(msg)
+
+        assert any(
+            ev == "signal_skipped"
+            and payload.get("reason") == "stale_entry_signal"
+            for _, ev, payload in events
+        )
+        assert any(
+            ev == "canal2_reply_entry_recognized"
+            and payload.get("reply_to_msg_id") == 580
+            for _, ev, payload in events
+        )
+        assert understood[0][0] == "canal2_585"
+        assert understood[0][1]["is_reply"] is True
+        assert understood[0][1]["reply_to_msg_id"] == 580
+
+    @pytest.mark.asyncio
+    async def test_future_zone_is_registered_without_opening_market(
+            self, monkeypatch):
+        events = []
+
+        async def fail_run(*args, **kwargs):
+            raise AssertionError("future zone must not open market")
+
+        monkeypatch.setattr(listener, "_run", fail_run)
+        monkeypatch.setattr(
+            listener.journal,
+            "event",
+            lambda sig, ev, **kw: events.append((sig, ev, kw)),
+        )
+        monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
+        monkeypatch.setattr(
+            listener,
+            "_schedule_detached",
+            lambda value: value.close(),
+        )
+        listener._seen_new_msg_ids.clear()
+        listener._seen_new_msgs_order.clear()
+        listener._canal2_zone_plans.clear()
+
+        msg = SimpleNamespace(
+            id=612,
+            text=(
+                "Next Sell Zone at 4030\n\n"
+                "Bear in mind FOMC at 7\n\n"
+                "Look for a quick reaction"
+            ),
+            date=datetime.utcnow(),
+            reply_to=None,
+        )
+
+        await _process_canal2_new(msg)
+
+        assert listener._canal2_zone_plans[612]["direction"] == "SELL"
+        assert listener._canal2_zone_plans[612]["zones"] == [[4030.0, 4030.0]]
+        assert any(
+            ev == "canal2_zone_plan_registered"
+            and payload["execution_behavior"] == "observe_only"
+            for _, ev, payload in events
+        )
+
+    @pytest.mark.asyncio
+    async def test_real_sell_limit_plan_never_manages_open_trade(
+            self, monkeypatch):
+        st = StateManager()
+        open_signal = Signal(
+            channel="canal2",
+            message_id=3600,
+            direction="BUY",
+            market_ticket=1700003600,
+        )
+        st.add(open_signal)
+        events = []
+
+        async def fail_execute(*args, **kwargs):
+            raise AssertionError(
+                "a future Sell Limit plan must not manage the open BUY"
+            )
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(listener, "_execute_action", fail_execute)
+        monkeypatch.setattr(
+            listener.journal,
+            "event",
+            lambda sig, ev, **kw: events.append((sig, ev, kw)),
+        )
+        monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
+        monkeypatch.setattr(
+            listener,
+            "_schedule_detached",
+            lambda value: value.close(),
+        )
+        listener._seen_new_msg_ids.clear()
+        listener._seen_new_msgs_order.clear()
+
+        msg = SimpleNamespace(
+            id=3610,
+            text=(
+                "Good Evening All\n\n"
+                "I am still holding my buys risk free\n\n"
+                "I am looking at a possible sell around 4121 - 4125 area\n\n"
+                "We can expect a reaction at this zone.\n\n"
+                "You can consider a Sell Limit with the following parameters\n\n"
+                "Sell Limit\n"
+                "Entry 4121-4125\n"
+                "Taps 4118/4115/4110/4100\n"
+                "SL 4131"
+            ),
+            date=datetime.utcnow(),
+            reply_to=None,
+        )
+
+        await _process_canal2_new(msg)
+
+        assert listener._canal2_zone_plans[3610]["direction"] == "SELL"
+        assert listener._canal2_zone_plans[3610]["zones"] == [
+            [4121.0, 4125.0]
+        ]
+        assert any(
+            ev == "canal2_zone_plan_registered"
+            for _, ev, _ in events
+        )
+
+    @pytest.mark.asyncio
+    async def test_zone_reply_is_attached_to_registered_plan(
+            self, monkeypatch):
+        events = []
+        listener._canal2_zone_plans.clear()
+        listener._canal2_zone_plans[612] = {
+            "direction": "SELL",
+            "zones": [[4030.0, 4030.0]],
+            "target": None,
+        }
+
+        monkeypatch.setattr(
+            listener.journal,
+            "event",
+            lambda sig, ev, **kw: events.append((sig, ev, kw)),
+        )
+        monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
+        listener._seen_new_msg_ids.clear()
+        listener._seen_new_msgs_order.clear()
+
+        msg = SimpleNamespace(
+            id=615,
+            text="Take profit from layers",
+            date=datetime.utcnow(),
+            reply_to=SimpleNamespace(reply_to_msg_id=612),
+        )
+
+        await _process_canal2_new(msg)
+
+        attached = [
+            payload for _, ev, payload in events
+            if ev == "canal2_zone_plan_management"
+        ]
+        assert attached
+        assert attached[0]["zone_plan_signal_id"] == "canal2_612"
+        assert attached[0]["actions"] == ["CLOSE_PARTIAL"]
+
+    @pytest.mark.asyncio
+    async def test_zone_failed_invalidates_registered_plan(
+            self, monkeypatch):
+        events = []
+        listener._canal2_zone_plans.clear()
+        plan = {
+            "direction": "BUY",
+            "zones": [[4055.0, 4061.0]],
+            "target": None,
+        }
+        listener._canal2_zone_plans[2944] = plan
+
+        monkeypatch.setattr(
+            listener.journal,
+            "event",
+            lambda sig, ev, **kw: events.append((sig, ev, kw)),
+        )
+        monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
+        monkeypatch.setattr(
+            listener,
+            "_schedule_detached",
+            lambda value: value.close(),
+        )
+        listener._seen_new_msg_ids.clear()
+        listener._seen_new_msgs_order.clear()
+
+        msg = SimpleNamespace(
+            id=2947,
+            text="Zone failed",
+            date=datetime.utcnow(),
+            reply_to=SimpleNamespace(reply_to_msg_id=2944),
+        )
+
+        await _process_canal2_new(msg)
+
+        assert plan["status"] == "invalidated"
+        attached = [
+            payload for _, ev, payload in events
+            if ev == "canal2_zone_plan_management"
+        ]
+        assert attached[0]["actions"] == ["ZONE_INVALIDATED"]
+        assert attached[0]["actionable"] is False
+
+    @pytest.mark.asyncio
+    async def test_zone_with_price_and_failed_invalidates_existing_plan(
+            self, monkeypatch):
+        plan = {
+            "message_id": 2944,
+            "direction": "SELL",
+            "zones": [[4030.0, 4030.0]],
+            "target": None,
+            "status": "active",
+        }
+        listener._canal2_zone_plans[2944] = plan
+        events = []
+
+        monkeypatch.setattr(
+            listener.journal,
+            "event",
+            lambda sig, ev, **kw: events.append((sig, ev, kw)),
+        )
+        monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
+        monkeypatch.setattr(
+            listener,
+            "_schedule_detached",
+            lambda value: value.close(),
+        )
+        listener._seen_new_msg_ids.clear()
+        listener._seen_new_msgs_order.clear()
+
+        msg = SimpleNamespace(
+            id=2948,
+            text="Sell zone at 4030 failed",
+            date=datetime.utcnow(),
+            reply_to=SimpleNamespace(reply_to_msg_id=2944),
+        )
+
+        await _process_canal2_new(msg)
+
+        assert plan["status"] == "invalidated"
+        assert 2948 not in listener._canal2_zone_plans
+        assert any(
+            ev == "canal2_zone_plan_management"
+            and payload["actions"] == ["ZONE_INVALIDATED"]
+            for _, ev, payload in events
+        )
+
+    def test_zone_reply_aliases_are_restored_from_journal(
+            self, tmp_path):
+        path = tmp_path / "trade_events.jsonl"
+        path.write_text(
+            (
+                '{"ts":"2026-07-29T15:06:48+00:00",'
+                '"sig":"canal2_599",'
+                '"ev":"canal2_zone_plan_registered",'
+                '"channel":"canal2","direction":"SELL",'
+                '"zones":[[4007.0,4007.0],[4010.0,4010.0]],'
+                '"target":null,"source_kind":"reply",'
+                '"thread_root_message_id":598,'
+                '"tg_ts":"2026-07-29T15:06:46+00:00",'
+                '"raw_text":"4007\\n4010\\nSell areas"}\n'
+            ),
+            encoding="utf-8",
+        )
+
+        restored = listener.restore_canal2_zone_plans_from_journal(path)
+
+        assert restored == 1
+        assert listener._canal2_zone_plans[598] is (
+            listener._canal2_zone_plans[599]
+        )
+        assert listener._canal2_zone_plans[598]["zones"] == [
+            [4007.0, 4007.0],
+            [4010.0, 4010.0],
+        ]
+
+    @pytest.mark.asyncio
+    async def test_zone_plan_reply_to_chart_is_not_routed_to_open_trade(
+            self, monkeypatch):
+        events = []
+        listener._canal2_zone_plans.clear()
+
+        def fail_management_route(*args, **kwargs):
+            raise AssertionError(
+                "future areas replied to a chart are not trade management"
+            )
+
+        monkeypatch.setattr(
+            listener,
+            "_resolve_management_reply_target",
+            fail_management_route,
+        )
+        monkeypatch.setattr(
+            listener.journal,
+            "event",
+            lambda sig, ev, **kw: events.append((sig, ev, kw)),
+        )
+        monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
+        monkeypatch.setattr(
+            listener,
+            "_schedule_detached",
+            lambda value: value.close(),
+        )
+        listener._seen_new_msg_ids.clear()
+        listener._seen_new_msgs_order.clear()
+
+        msg = SimpleNamespace(
+            id=599,
+            text=(
+                "4007\n4010\n4017\n\n"
+                "These are all strong areas we can expect gold to sell from"
+            ),
+            date=datetime.utcnow(),
+            reply_to=SimpleNamespace(reply_to_msg_id=598),
+        )
+
+        await _process_canal2_new(msg)
+
+        assert listener._canal2_zone_plans[599]["zones"] == [
+            [4007.0, 4007.0],
+            [4010.0, 4010.0],
+            [4017.0, 4017.0],
+        ]
+        assert listener._canal2_zone_plans[598] is (
+            listener._canal2_zone_plans[599]
+        )
+        assert any(
+            ev == "canal2_zone_plan_registered"
+            and payload["thread_root_message_id"] == 598
+            for _, ev, payload in events
+        )
+
+    @pytest.mark.asyncio
+    async def test_zone_reply_recovers_plan_from_telegram_after_restart(
+            self, monkeypatch):
+        events = []
+        listener._canal2_zone_plans.clear()
+
+        def fail_management_route(*args, **kwargs):
+            raise AssertionError(
+                "a recoverable zone reply must not use the trade route"
+            )
+
+        async def get_reply_message():
+            return SimpleNamespace(
+                id=612,
+                text=(
+                    "Next Sell Zone at 4030\n\n"
+                    "Bear in mind FOMC at 7\n\n"
+                    "Look for a quick reaction"
+                ),
+                date=datetime.utcnow() - timedelta(minutes=5),
+            )
+
+        monkeypatch.setattr(
+            listener,
+            "_resolve_management_reply_target",
+            fail_management_route,
+        )
+        monkeypatch.setattr(
+            listener.journal,
+            "event",
+            lambda sig, ev, **kw: events.append((sig, ev, kw)),
+        )
+        monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
+        listener._seen_new_msg_ids.clear()
+        listener._seen_new_msgs_order.clear()
+
+        msg = SimpleNamespace(
+            id=613,
+            text="Approaching",
+            date=datetime.utcnow(),
+            reply_to=SimpleNamespace(reply_to_msg_id=612),
+            get_reply_message=get_reply_message,
+        )
+
+        await _process_canal2_new(msg)
+
+        assert listener._canal2_zone_plans[612]["source_kind"] == (
+            "reply_recovery"
+        )
+        assert any(
+            ev == "canal2_zone_plan_management"
+            and payload["zone_plan_signal_id"] == "canal2_612"
+            for _, ev, payload in events
+        )
+
+    @pytest.mark.asyncio
+    async def test_edited_zone_reply_recovers_plan_after_restart(
+            self, monkeypatch):
+        events = []
+        listener._canal2_zone_plans.clear()
+        listener._seen_edits.clear()
+        listener._seen_edits_order.clear()
+
+        async def fail_management_edit(*args, **kwargs):
+            raise AssertionError(
+                "a recoverable zone edit must not use the trade route"
+            )
+
+        async def get_reply_message():
+            return SimpleNamespace(
+                id=612,
+                text="Next Sell Zone at 4030\nLook for a quick reaction",
+                date=datetime.utcnow() - timedelta(minutes=5),
+            )
+
+        monkeypatch.setattr(
+            listener,
+            "_process_management_reply_edit",
+            fail_management_edit,
+        )
+        monkeypatch.setattr(
+            listener.journal,
+            "event",
+            lambda sig, ev, **kw: events.append((sig, ev, kw)),
+        )
+        monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
+
+        msg = SimpleNamespace(
+            id=615,
+            text="Take profit from layers",
+            date=datetime.utcnow(),
+            edit_date=datetime.utcnow(),
+            reply_to=SimpleNamespace(reply_to_msg_id=612),
+            get_reply_message=get_reply_message,
+        )
+
+        await _process_canal2_edit(msg)
+
+        assert listener._canal2_zone_plans[612]["source_kind"] == (
+            "reply_recovery"
+        )
+        assert any(
+            ev == "canal2_zone_plan_management"
+            and payload["actions"] == ["CLOSE_PARTIAL"]
+            for _, ev, payload in events
+        )
+
+    @pytest.mark.asyncio
+    async def test_standalone_management_applies_to_single_open_signal(
+            self, monkeypatch):
+        st = StateManager()
+        signal = Signal(
+            channel="canal2",
+            message_id=700,
+            direction="BUY",
+            market_ticket=1700000001,
+        )
+        st.add(signal)
+        executed = []
+        events = []
+
+        async def fake_classify(text, signal=None):
+            return [{
+                "action": "MOVE_SL_TO_BE",
+                "price": None,
+                "confidence": 0.95,
+            }]
+
+        async def fake_execute(target, actions, raw_text="", tg_ts=None):
+            executed.append((target, actions, raw_text))
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(listener, "classify_async", fake_classify)
+        monkeypatch.setattr(listener, "_execute_action", fake_execute)
+        monkeypatch.setattr(
+            listener.journal,
+            "event",
+            lambda sig, ev, **kw: events.append((sig, ev, kw)),
+        )
+        listener._seen_new_msg_ids.clear()
+        listener._seen_new_msgs_order.clear()
+
+        msg = SimpleNamespace(
+            id=701,
+            text="Move SL to BE",
+            date=datetime.utcnow(),
+            reply_to=None,
+        )
+
+        await _process_canal2_new(msg)
+
+        assert executed == [(
+            signal,
+            [{
+                "action": "MOVE_SL_TO_BE",
+                "price": None,
+                "confidence": 0.95,
+            }],
+            "Move SL to BE",
+        )]
+        assert any(
+            ev == "standalone_mgmt_applied"
+            and payload["channel"] == "canal2"
+            for _, ev, payload in events
+        )
+
+    @pytest.mark.asyncio
+    async def test_unknown_photo_reply_never_falls_back_to_open_trade(
+            self, monkeypatch):
+        st = StateManager()
+        signal = Signal(
+            channel="canal2",
+            message_id=720,
+            direction="BUY",
+            market_ticket=1700000020,
+        )
+        st.add(signal)
+        events = []
+
+        async def get_reply_message():
+            return SimpleNamespace(
+                id=710,
+                text="",
+                message="",
+                photo=object(),
+                date=datetime.utcnow() - timedelta(minutes=5),
+            )
+
+        async def fail_execute(*args, **kwargs):
+            raise AssertionError(
+                "unknown photo reply must not manage an unrelated trade"
+            )
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(listener, "_execute_action", fail_execute)
+        monkeypatch.setattr(
+            listener.journal,
+            "event",
+            lambda sig, ev, **kw: events.append((sig, ev, kw)),
+        )
+        monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
+        listener._seen_new_msg_ids.clear()
+        listener._seen_new_msgs_order.clear()
+        listener._canal2_zone_plans.clear()
+
+        msg = SimpleNamespace(
+            id=721,
+            text="Move SL to BE",
+            date=datetime.utcnow(),
+            reply_to=SimpleNamespace(reply_to_msg_id=710),
+            get_reply_message=get_reply_message,
+        )
+
+        await _process_canal2_new(msg)
+
+        unresolved = [
+            payload for _, ev, payload in events
+            if ev == "management_reply_unresolved"
+        ]
+        assert unresolved
+        assert unresolved[0]["reason"] == "reply_root_not_entry"
+
+    @pytest.mark.asyncio
+    async def test_historical_entry_reply_does_not_guess_unique_open_trade(
+            self, monkeypatch):
+        st = StateManager()
+        signal = Signal(
+            channel="canal2",
+            message_id=730,
+            direction="SELL",
+            market_ticket=1700000030,
+        )
+        st.add(signal)
+        executed = []
+
+        async def get_reply_message():
+            return SimpleNamespace(
+                id=729,
+                text="Sell Gold Now",
+                message="Sell Gold Now",
+                date=datetime.utcnow() - timedelta(minutes=5),
+            )
+
+        async def fake_execute(target, actions, raw_text="", tg_ts=None):
+            executed.append((target, actions, raw_text))
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(listener, "_execute_action", fake_execute)
+        events = []
+        monkeypatch.setattr(
+            listener.journal,
+            "event",
+            lambda sig, ev, **kw: events.append((sig, ev, kw)),
+        )
+        monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
+        listener._seen_new_msg_ids.clear()
+        listener._seen_new_msgs_order.clear()
+        listener._canal2_zone_plans.clear()
+
+        msg = SimpleNamespace(
+            id=731,
+            text="Move SL to BE",
+            date=datetime.utcnow(),
+            reply_to=SimpleNamespace(reply_to_msg_id=729),
+            get_reply_message=get_reply_message,
+        )
+
+        await _process_canal2_new(msg)
+
+        assert executed == []
+        assert any(
+            ev == "management_reply_unresolved"
+            and payload["reason"] == "reply_root_identity_unproven"
+            for _, ev, payload in events
+        )
+
+    @pytest.mark.asyncio
+    async def test_known_reply_target_does_not_refetch_telegram_root(
+            self, monkeypatch):
+        st = StateManager()
+        signal = Signal(
+            channel="canal2",
+            message_id=735,
+            direction="BUY",
+            market_ticket=1700000035,
+        )
+        st.add(signal)
+        fetched = []
+        executed = []
+
+        async def get_reply_message():
+            fetched.append(True)
+            return None
+
+        async def fake_execute(target, actions, raw_text="", tg_ts=None):
+            executed.append(target)
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(listener, "_execute_action", fake_execute)
+        monkeypatch.setattr(listener.journal, "event", lambda *a, **kw: None)
+        monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
+        listener._seen_new_msg_ids.clear()
+        listener._seen_new_msgs_order.clear()
+        listener._canal2_zone_plans.clear()
+
+        msg = SimpleNamespace(
+            id=736,
+            text="Move SL to BE",
+            date=datetime.utcnow(),
+            reply_to=SimpleNamespace(reply_to_msg_id=735),
+            get_reply_message=get_reply_message,
+        )
+
+        await _process_canal2_new(msg)
+
+        assert executed == [signal]
+        assert fetched == []
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "I put more sell on 4055.00",
+            "I'm out of this trade",
+        ],
+    )
+    def test_standalone_action_guard_covers_provider_phrases(self, text):
+        assert listener._canal2_context_candidate(text) is True
+
+    @pytest.mark.asyncio
+    async def test_edit_of_live_reply_entry_updates_its_own_levels(
+            self, monkeypatch):
+        st = StateManager()
+        signal = Signal(
+            channel="canal2",
+            message_id=585,
+            direction="SELL",
+            market_ticket=1700000585,
+            market_fill_price=4002.8,
+        )
+        st.add(signal)
+        applied = []
+
+        async def fail_management(*args, **kwargs):
+            raise AssertionError(
+                "edit belongs to the live re-entry, not the older reply root"
+            )
+
+        async def fake_apply(target, parsed, channel, **kwargs):
+            applied.append((target, parsed, channel))
+            return parsed
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(
+            listener, "_process_management_reply_edit", fail_management
+        )
+        monkeypatch.setattr(
+            listener, "_apply_interpreted_entry_levels", fake_apply
+        )
+        monkeypatch.setattr(
+            listener, "_log_telegram_understood", lambda *a, **kw: None
+        )
+        listener._seen_edits.clear()
+        listener._seen_edits_order.clear()
+
+        msg = SimpleNamespace(
+            id=585,
+            text=(
+                "Sell Gold\n4000-4005\n"
+                "TP1 3998\nTP2 3996\nSL 4010"
+            ),
+            message="",
+            date=datetime.utcnow() - timedelta(minutes=1),
+            edit_date=datetime.utcnow(),
+            reply_to=SimpleNamespace(reply_to_msg_id=580),
+        )
+
+        await _process_canal2_edit(msg)
+
+        assert applied
+        assert applied[0][0] is signal
+        assert applied[0][1]["range"] == (4000.0, 4005.0)
+
+    @pytest.mark.asyncio
+    async def test_zone_message_edited_into_entry_drops_stale_zone_cache(
+            self, monkeypatch):
+        plan = {
+            "message_id": 740,
+            "direction": "BUY",
+            "zones": [[4040.0, 4042.0]],
+        }
+        listener._canal2_zone_plans.clear()
+        listener._canal2_zone_plans[740] = plan
+        listener._canal2_zone_plans[739] = plan
+        listener._seen_edits.clear()
+        listener._seen_edits_order.clear()
+        routed = []
+
+        async def fake_new(msg, label="Canal2", dedup=True, **kwargs):
+            routed.append((msg.id, label, dedup))
+
+        monkeypatch.setattr(listener, "_process_canal2_new", fake_new)
+        monkeypatch.setattr(listener.journal, "event", lambda *a, **kw: None)
+        monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
+
+        now = datetime.utcnow()
+        msg = SimpleNamespace(
+            id=740,
+            text="Buy Gold Now",
+            message="Buy Gold Now",
+            date=now,
+            edit_date=now,
+            reply_to=None,
+        )
+
+        await _process_canal2_edit(msg)
+
+        assert routed == [(740, "Canal2_recover", False)]
+        assert 740 not in listener._canal2_zone_plans
+        assert 739 not in listener._canal2_zone_plans
 
 
 class TestCanal2OrphanEditRecovery:
@@ -628,6 +1527,57 @@ class TestCanal2OrphanEditRecovery:
                    for _, ev, _ in events)
 
     @pytest.mark.asyncio
+    async def test_fresh_reply_reentry_edit_recovers_before_management(
+            self, monkeypatch):
+        st = StateManager()
+        older = Signal(
+            channel="canal2",
+            message_id=580,
+            direction="SELL",
+            market_ticket=1700000580,
+        )
+        st.add(older)
+        recovered = []
+
+        async def fail_management(*args, **kwargs):
+            raise AssertionError(
+                "an immediate reply edit is a re-entry, not management"
+            )
+
+        async def fake_process_new(msg, label="Canal2", dedup=True):
+            recovered.append((msg.id, label, dedup))
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(
+            listener,
+            "_process_management_reply_edit",
+            fail_management,
+        )
+        monkeypatch.setattr(listener, "_process_canal2_new", fake_process_new)
+        monkeypatch.setattr(listener.journal, "event", lambda *a, **kw: None)
+        monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
+        monkeypatch.setattr(
+            config,
+            "STRATEGY_C2_ORPHAN_EDIT_MAX_AGE_S",
+            180.0,
+            raising=False,
+        )
+        listener._seen_edits.clear()
+        listener._seen_edits_order.clear()
+
+        msg = SimpleNamespace(
+            id=585,
+            text="Sell Gold Now\n4000-4005\nTP1 3998\nSL 4010",
+            date=datetime.utcnow() - timedelta(seconds=2),
+            edit_date=datetime.utcnow(),
+            reply_to=SimpleNamespace(reply_to_msg_id=580),
+        )
+
+        await _process_canal2_edit(msg)
+
+        assert recovered == [(585, "Canal2_recover", False)]
+
+    @pytest.mark.asyncio
     async def test_entry_edit_during_market_open_is_deferred_not_recovered(
             self, monkeypatch):
         st = StateManager()
@@ -666,6 +1616,63 @@ class TestCanal2OrphanEditRecovery:
         assert "TP1 4514" in deferred["text"]
         assert any(ev == "canal2_orphan_entry_edit_deferred"
                    for _, ev, _ in events)
+
+    @pytest.mark.asyncio
+    async def test_reply_reentry_edit_without_now_is_deferred_during_open(
+            self, monkeypatch):
+        st = StateManager()
+        older = Signal(
+            channel="canal2",
+            message_id=580,
+            direction="SELL",
+            market_ticket=1700000580,
+        )
+        st.add(older)
+        events = []
+
+        async def fail_management(*args, **kwargs):
+            raise AssertionError(
+                "the edit belongs to the opening re-entry message"
+            )
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(
+            listener, "_process_management_reply_edit", fail_management
+        )
+        monkeypatch.setattr(
+            listener.journal,
+            "event",
+            lambda sig, ev, **kw: events.append((sig, ev, kw)),
+        )
+        listener._seen_edits.clear()
+        listener._seen_edits_order.clear()
+        listener._deferred_canal2_entry_edits.clear()
+        _canal2_open_started(585)
+
+        msg = SimpleNamespace(
+            id=585,
+            text=(
+                "Sell Gold\n4000-4005\n"
+                "TP1 3998\nTP2 3996\nSL 4010"
+            ),
+            message="",
+            date=datetime.utcnow() - timedelta(seconds=2),
+            edit_date=datetime.utcnow(),
+            reply_to=SimpleNamespace(reply_to_msg_id=580),
+        )
+
+        try:
+            await _process_canal2_edit(msg)
+        finally:
+            _canal2_open_finished(585)
+
+        deferred = _pop_deferred_canal2_entry_edit(585)
+        assert deferred is not None
+        assert "TP1 3998" in deferred["text"]
+        assert any(
+            ev == "canal2_orphan_entry_edit_deferred"
+            for _, ev, _ in events
+        )
 
     @pytest.mark.asyncio
     async def test_successful_new_signal_applies_deferred_entry_edit(

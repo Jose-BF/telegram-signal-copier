@@ -304,7 +304,7 @@ def test_reply_to_missing_root_is_preserved_as_management_only_record():
         "direction_source": None,
         "blockers": [
             "missing_direction",
-            "missing_actionable_entry_trigger",
+            "provider_record_not_formal_signal",
         ],
     }
 
@@ -1066,7 +1066,7 @@ def test_first_actionable_poll_edit_has_edit_trigger_kind():
     )
 
 
-def test_formal_signal_with_direction_but_no_actionable_trigger_is_blocked():
+def test_runtime_direction_and_execution_do_not_invent_provider_signal():
     events = [
         _raw(
             "canal2",
@@ -1081,6 +1081,7 @@ def test_formal_signal_with_direction_but_no_actionable_trigger_is_blocked():
             "channel": "canal2",
             "message_id": 670,
             "direction": "BUY",
+            "kind": "entry_signal",
         },
     ]
 
@@ -1090,7 +1091,7 @@ def test_formal_signal_with_direction_but_no_actionable_trigger_is_blocked():
     )
     signal = report["signals"][0]
 
-    assert signal["record_type"] == "formal_signal"
+    assert signal["record_type"] == "unknown_candidate"
     assert signal["entry_contract"] == {
         "status": "blocked",
         "trigger_observed_utc": None,
@@ -1099,7 +1100,7 @@ def test_formal_signal_with_direction_but_no_actionable_trigger_is_blocked():
         "trigger_kind": None,
         "direction": "BUY",
         "direction_source": "telegram_understood",
-        "blockers": ["missing_actionable_entry_trigger"],
+        "blockers": ["provider_record_not_formal_signal"],
     }
 
 
@@ -1491,6 +1492,305 @@ def test_zone_plan_is_preserved_without_becoming_a_live_market_trigger():
     assert plan["entry_contract"]["blockers"] == [
         "provider_zone_plan_not_live_trigger"
     ]
+
+
+def test_single_price_future_zone_is_preserved_as_zone_plan():
+    events = [
+        _raw(
+            "canal2",
+            612,
+            "Next Sell Zone at 4030\n\n"
+            "Bear in mind FOMC at 7\n\n"
+            "Look for a quick reaction",
+        ),
+        _raw(
+            "canal2",
+            615,
+            "Take profit from layers",
+            reply_to_msg_id=612,
+            is_reply=True,
+        ),
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+
+    assert report["summary"]["provider_signals"] == 0
+    assert report["summary"]["record_types"] == {"zone_plan": 1}
+    plan = report["signals"][0]
+    assert plan["provider_signal_id"] == "canal2_612"
+    assert plan["direction"] == "SELL"
+    assert plan["entry_zones"] == [[4030.0, 4030.0]]
+    assert plan["management_events"][0]["classified_action"] == "CLOSE_PARTIAL"
+
+
+def test_zone_revision_is_preserved_when_same_message_becomes_live_entry():
+    events = [
+        _raw(
+            "canal2",
+            700,
+            "Next Buy Zone at 4040",
+            ts="2026-07-29T12:00:01+00:00",
+            date_utc="2026-07-29T12:00:00+00:00",
+        ),
+        _raw(
+            "canal2",
+            700,
+            "Buy Gold Now",
+            update_kind="edit",
+            is_edit=True,
+            ts="2026-07-29T12:01:01+00:00",
+            date_utc="2026-07-29T12:00:00+00:00",
+            edit_date_utc="2026-07-29T12:01:00+00:00",
+        ),
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+
+    assert report["summary"]["provider_signals"] == 1
+    signal = report["signals"][0]
+    assert signal["provider_signal_id"] == "canal2_700"
+    assert signal["record_type"] == "formal_signal"
+    assert signal["direction"] == "BUY"
+    assert signal["entry_zones"] == [[4040.0, 4040.0]]
+    assert signal["zone_plan_timeline"] == [
+        {
+            "message_id": 700,
+            "observed_ts_utc": "2026-07-29T12:00:01+00:00",
+            "telegram_ts_utc": "2026-07-29T12:00:00+00:00",
+            "direction": "BUY",
+            "zones": [[4040.0, 4040.0]],
+            "target": None,
+        }
+    ]
+
+
+def test_chart_reply_with_bare_sell_areas_is_preserved_as_zone_plan():
+    events = [
+        _raw(
+            "canal2",
+            598,
+            has_photo=True,
+            ts="2026-07-29T15:06:14+00:00",
+            date_utc="2026-07-29T15:06:13+00:00",
+        ),
+        _raw(
+            "canal2",
+            599,
+            "4007\n4010\n4017\n\n"
+            "These are all strong areas we can expect gold to sell from",
+            reply_to_msg_id=598,
+            is_reply=True,
+            ts="2026-07-29T15:06:48+00:00",
+            date_utc="2026-07-29T15:06:46+00:00",
+        ),
+        _raw(
+            "canal2",
+            603,
+            "Next Sell Zone we can expect a reaction is 4017",
+            reply_to_msg_id=598,
+            is_reply=True,
+            ts="2026-07-29T15:29:09+00:00",
+            date_utc="2026-07-29T15:29:08+00:00",
+        ),
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+
+    assert report["summary"]["record_types"] == {"zone_plan": 1}
+    plan = report["signals"][0]
+    assert plan["provider_signal_id"] == "canal2_598"
+    assert plan["source_message_ids"] == [598, 599, 603]
+    assert plan["zone_plan_timeline"][0]["zones"] == [
+        [4007.0, 4007.0],
+        [4010.0, 4010.0],
+        [4017.0, 4017.0],
+    ]
+    assert plan["zone_plan_timeline"][1]["zones"] == [[4017.0, 4017.0]]
+
+
+def test_executed_context_comment_is_not_promoted_to_provider_signal():
+    context = (
+        "As mentioned on the live call I will start to send charts so you "
+        "can see what I see & where I mark my zones!\n\n"
+        "Right now we are between 2 key areas\n\n"
+        "Potential sell at 4051"
+    )
+    events = [
+        _raw(
+            "canal2",
+            562,
+            context,
+            ts="2026-07-29T07:29:29+00:00",
+            date_utc="2026-07-29T07:29:28+00:00",
+        ),
+        {
+            "ts": "2026-07-29T07:29:29.100+00:00",
+            "sig": "canal2_562",
+            "ev": "signal_received",
+            "channel": "canal2",
+            "direction": "SELL",
+        },
+        {
+            "ts": "2026-07-29T07:29:29.200+00:00",
+            "sig": "canal2_562",
+            "ev": "market_filled",
+            "ticket": 562001,
+            "price": 4049.5,
+        },
+    ]
+    replay = [{
+        "sig_id": "canal2_562",
+        "channel": "canal2",
+        "tickets": [{"ticket": 562001, "open_price": 4049.5}],
+    }]
+
+    report = provider_signal_catalog.build_catalog_report(events, replay)
+
+    assert report["summary"]["provider_signals"] == 0
+    record = report["signals"][0]
+    assert record["record_type"] == "context_setup"
+    assert record["execution_count"] == 1
+    assert record["execution_sig_ids"] == ["canal2_562"]
+    assert record["entry_contract"]["status"] == "blocked"
+    assert record["entry_contract"]["blockers"] == [
+        "provider_record_not_formal_signal"
+    ]
+
+
+def test_executed_potential_comment_stays_unknown_not_formal_signal():
+    events = [
+        _raw(
+            "canal2",
+            563,
+            "Potential sell at 4051",
+            ts="2026-07-29T07:30:01+00:00",
+            date_utc="2026-07-29T07:30:00+00:00",
+        ),
+        {
+            "ts": "2026-07-29T07:30:01.100+00:00",
+            "sig": "canal2_563",
+            "ev": "signal_received",
+            "channel": "canal2",
+            "direction": "SELL",
+        },
+        {
+            "ts": "2026-07-29T07:30:01.200+00:00",
+            "sig": "canal2_563",
+            "ev": "market_filled",
+            "ticket": 563001,
+            "price": 4049.5,
+        },
+    ]
+    replay = [{
+        "sig_id": "canal2_563",
+        "channel": "canal2",
+        "tickets": [{"ticket": 563001, "open_price": 4049.5}],
+    }]
+
+    report = provider_signal_catalog.build_catalog_report(events, replay)
+
+    record = report["signals"][0]
+    assert record["record_type"] == "unknown_candidate"
+    assert record["execution_count"] == 1
+    assert record["entry_contract"]["blockers"] == [
+        "provider_record_not_formal_signal"
+    ]
+
+
+def test_reply_reentry_and_standalone_repeat_share_one_provider_identity():
+    events = [
+        _raw(
+            "canal2",
+            585,
+            "Sell Gold Now",
+            ts="2026-07-29T14:00:45.266+00:00",
+            date_utc="2026-07-29T14:00:39+00:00",
+            reply_to_msg_id=580,
+            is_reply=True,
+        ),
+        _raw(
+            "canal2",
+            586,
+            "Sell gold now",
+            ts="2026-07-29T14:00:48.604+00:00",
+            date_utc="2026-07-29T14:00:47+00:00",
+        ),
+        {
+            "ts": "2026-07-29T14:00:48.606+00:00",
+            "sig": "canal2_586",
+            "ev": "signal_received",
+            "channel": "canal2",
+            "direction": "SELL",
+        },
+        {
+            "ts": "2026-07-29T14:00:48.907+00:00",
+            "sig": "canal2_586",
+            "ev": "market_filled",
+            "ticket": 586001,
+            "price": 4002.81,
+        },
+    ]
+    replay = [{
+        "sig_id": "canal2_586",
+        "channel": "canal2",
+        "tickets": [{"ticket": 586001, "open_price": 4002.81}],
+    }]
+
+    report = provider_signal_catalog.build_catalog_report(events, replay)
+
+    assert report["summary"]["provider_signals"] == 1
+    signal = report["signals"][0]
+    assert signal["provider_signal_id"] == "canal2_585"
+    assert signal["source_message_ids"] == [585, 586]
+    assert signal["execution_sig_ids"] == ["canal2_586"]
+    assert signal["identity_links"] == [{
+        "source": "near_duplicate_immediate_command",
+        "root_message_id": 585,
+        "companion_message_id": 586,
+        "telegram_gap_ms": 8000,
+    }]
+
+
+def test_runtime_alias_and_raw_timing_evidence_are_both_preserved():
+    events = [
+        _raw(
+            "canal2",
+            585,
+            "Sell Gold Now",
+            ts="2026-07-29T14:00:45.266+00:00",
+            date_utc="2026-07-29T14:00:39+00:00",
+            reply_to_msg_id=580,
+            is_reply=True,
+        ),
+        _raw(
+            "canal2",
+            586,
+            "Sell gold now",
+            ts="2026-07-29T14:00:48.604+00:00",
+            date_utc="2026-07-29T14:00:47+00:00",
+        ),
+        {
+            "ts": "2026-07-29T14:00:48.605+00:00",
+            "sig": "canal2_585",
+            "ev": "canal2_duplicate_alias_registered",
+            "alias_message_id": 586,
+        },
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+    signal = report["signals"][0]
+
+    assert {
+        link["source"] for link in signal["identity_links"]
+    } == {
+        "runtime_duplicate_alias",
+        "near_duplicate_immediate_command",
+    }
+    timing = next(
+        link for link in signal["identity_links"]
+        if link["source"] == "near_duplicate_immediate_command"
+    )
+    assert timing["telegram_gap_ms"] == 8000
 
 
 def test_execution_quality_is_rechecked_against_final_provider_range():

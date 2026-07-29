@@ -34,7 +34,7 @@ import pending_actions
 import runtime_control
 import strategies
 import telegram_notifications
-from classifier import classify, classify_async
+from classifier import classify, classify_async, classify_local
 from entry_execution_gate import EntryExecutionGate
 from interpretation_firewall import (
     firewall_decision,
@@ -43,12 +43,14 @@ from interpretation_firewall import (
 )
 from level_interpreter import interpret_entry_levels
 from parser import (
+    canal2_entry_command_key,
     correct_tp_typos,
     is_canal1_signal_text,
     is_canal2_entry,
     levels_consistent_with_direction,
     parse_canal1_text,
     parse_canal2,
+    parse_canal2_zone_plan,
     predict_levels,
     predict_sl_from_entry,
     validate_range_vs_entry,
@@ -486,7 +488,9 @@ def _emit_same_direction_overlap_anomaly(new_signal: Signal,
 def _canal2_duplicate_alias_candidate(message_id: int, direction: str,
                                       timestamp: datetime, parsed: dict,
                                       open_signals: list,
-                                      window_s: float):
+                                      window_s: float, *,
+                                      raw_text: str,
+                                      is_reply: bool):
     """Find an older canal2 signal that should receive this msg as alias.
 
     This is stricter than observability-only duplicate detection: we only alias
@@ -495,12 +499,31 @@ def _canal2_duplicate_alias_candidate(message_id: int, direction: str,
     position. Entry levels may already be provisional, so they are not used as
     a dedupe blocker.
     """
-    if any(k in parsed for k in ("range", "tps", "sl")):
+    if is_reply:
         return None
 
-    probe = Signal(channel="canal2", message_id=message_id,
-                   direction=direction, timestamp=timestamp)
-    return _same_direction_overlap_candidate(probe, open_signals, window_s)
+    command_key = canal2_entry_command_key(raw_text)
+    if command_key is None:
+        return None
+    for existing in open_signals:
+        if existing.channel != "canal2" or existing.status != "open":
+            continue
+        if existing.message_id == message_id:
+            continue
+        if existing.direction != direction:
+            continue
+        if not existing.telegram_entry_was_reply:
+            continue
+        if existing.telegram_entry_command_key != command_key:
+            continue
+        existing_ts = (
+            existing.telegram_entry_timestamp
+            or existing.timestamp
+        )
+        delta_s = abs((timestamp - existing_ts).total_seconds())
+        if delta_s <= window_s:
+            return existing
+    return None
 
 
 def _register_canal2_duplicate_alias(existing: Signal, alias_message_id: int,
@@ -509,7 +532,8 @@ def _register_canal2_duplicate_alias(existing: Signal, alias_message_id: int,
     state.alias(existing, alias_message_id)
     sig_id = _sig_id(existing)
     alias_sig_id = f"canal2_{alias_message_id}"
-    delta_s = abs((timestamp - existing.timestamp).total_seconds())
+    existing_ts = existing.telegram_entry_timestamp or existing.timestamp
+    delta_s = abs((timestamp - existing_ts).total_seconds())
     journal.event(sig_id, "canal2_duplicate_alias_registered",
                   alias_message_id=alias_message_id,
                   alias_signal_id=alias_sig_id,
@@ -613,8 +637,6 @@ def _log_stale_entry_skip(sig_id: str, channel: str, msg, trigger: str,
 
 def _should_recover_canal2_orphan_entry_edit(msg, text: str,
                                              max_age_s: float):
-    if msg.reply_to and msg.reply_to.reply_to_msg_id:
-        return False, _message_age_seconds(msg)
     if not is_canal2_entry(text):
         return False, _message_age_seconds(msg)
 
@@ -1313,6 +1335,8 @@ _entry_execution_gate = EntryExecutionGate(max_committed=1000)
 _entry_serial_locks: dict[str, tuple[object, asyncio.Lock]] = {}
 _canal2_opening_msg_ids: set[int] = set()
 _deferred_canal2_entry_edits: dict[int, dict] = {}
+_canal2_zone_plans: dict[int, dict] = {}
+_CANAL2_ZONE_PLAN_MAX = 200
 
 
 def _new_msg_already_seen(channel: str, msg_id: int) -> bool:
@@ -1547,7 +1571,19 @@ async def _process_management_reply_edit(msg, channel: str,
     if not reply_id:
         return False
 
-    sig, route = _resolve_management_reply_target(channel, reply_id)
+    if channel == "canal2":
+        sig, route = _resolve_management_reply_target(
+            channel,
+            reply_id,
+            allow_single_open_fallback=False,
+        )
+        if sig is None and route != "target_signal_closed":
+            sig, route = await _recover_canal2_management_target_from_reply_root(
+                msg,
+                int(reply_id),
+            )
+    else:
+        sig, route = _resolve_management_reply_target(channel, reply_id)
     if sig is None:
         _log_unresolved_management_reply(msg, channel, reply_id, route)
         return True
@@ -1573,22 +1609,27 @@ async def _process_management_reply_edit(msg, channel: str,
     return True
 
 
-def _resolve_management_reply_target(channel: str, reply_id: int):
+def _resolve_management_reply_target(
+        channel: str, reply_id: int, *,
+        allow_single_open_fallback: bool = True,
+        allow_cross_channel: bool = False):
     """Find the live Signal targeted by a management reply.
 
     Normal path: reply_id is the original signal id or a live alias.
     Restart path: aliases are in-memory only, so a reply can point to a lost
     alias while one recovered signal remains open in the same channel.
     """
-    other_channel = "canal1" if channel == "canal2" else "canal2"
-    sig = state.get(channel, reply_id) or state.get(other_channel, reply_id)
+    sig = state.get(channel, reply_id)
+    if sig is None and allow_cross_channel:
+        other_channel = "canal1" if channel == "canal2" else "canal2"
+        sig = state.get(other_channel, reply_id)
     if sig is not None:
         if sig.status == "open":
             return sig, "direct"
         return None, "target_signal_closed"
 
     same_channel_open = state.open_signals(channel)
-    if len(same_channel_open) == 1:
+    if allow_single_open_fallback and len(same_channel_open) == 1:
         sig = same_channel_open[0]
         journal.event(
             _sig_id(sig),
@@ -1603,6 +1644,42 @@ def _resolve_management_reply_target(channel: str, reply_id: int):
     return None, "unknown_reply_target"
 
 
+async def _recover_canal2_management_target_from_reply_root(
+        msg, reply_id: int):
+    """Inspect the replied root without guessing which live trade owns it."""
+    get_reply = getattr(msg, "get_reply_message", None)
+    if not callable(get_reply):
+        return None, "reply_root_unavailable"
+    try:
+        root_msg = await get_reply()
+    except Exception as exc:
+        journal.event(
+            f"canal2_{msg.id}",
+            "canal2_management_root_recovery_failed",
+            reply_to_msg_id=int(reply_id),
+            error_type=type(exc).__name__,
+            error=str(exc)[:240],
+        )
+        return None, "reply_root_unavailable"
+
+    root_id = getattr(root_msg, "id", None)
+    if root_msg is None or root_id is None or int(root_id) != int(reply_id):
+        return None, "reply_root_unavailable"
+    root_text = _msg_text(root_msg)
+    if not is_canal2_entry(root_text):
+        return None, "reply_root_not_entry"
+
+    journal.event(
+        f"canal2_{msg.id}",
+        "canal2_management_root_identity_unproven",
+        reply_to_msg_id=int(reply_id),
+        channel="canal2",
+        root_direction=parse_canal2(root_text).get("direction"),
+        open_signals=[_sig_id(sig) for sig in state.open_signals("canal2")],
+    )
+    return None, "reply_root_identity_unproven"
+
+
 def _looks_actionable_management_text(text: str) -> bool:
     t = (text or "").upper()
     result_announcement = bool(re.search(
@@ -1612,6 +1689,7 @@ def _looks_actionable_management_text(text: str) -> bool:
     ))
     explicit_instruction = bool(re.search(
         r"\b(?:MOVE\s+SL|SL\s+TO|CLOSE(?:\s+(?:ALL|NOW|HALF|PARTIALS?))?|"
+        r"TAKE\s+PROFITS?\s+FROM\s+(?:THE\s+)?LAYERS?|"
         r"MAKE\b[^\n]{0,40}\bRISK\s+FREE|SET\s+(?:SL|STOP)|CUT\b)",
         t,
     ))
@@ -3518,7 +3596,412 @@ _execute_action = _execute_actions
 
 # ─── Canal 2 procesado (reutilizable) ─────────────────────────────────────────
 
-async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
+def _canal2_context_candidate(text: str) -> bool:
+    """Cheap guard before classifying a non-entry channel2 message."""
+    return bool(re.search(
+        r"\b(?:MOVE|CLOSE|TAKE|BOOK|SECURE|PROTECT|CUT|DELETE|"
+        r"PUT|ADDED|OPENED|TOOK|OUT|"
+        r"SL|STOP\s*LOSS|BE|BREAKEVEN|BREAK\s+EVEN|RISK\s*FREE|"
+        r"TP\s*\d*|TARGET\s*\d*|PROFIT|PIPS?|LAYERS?)\b",
+        text or "",
+        re.IGNORECASE,
+    ))
+
+
+def _canal2_action_names(classification: list[dict]) -> list[str]:
+    return [
+        str(action.get("action"))
+        for action in classification
+        if action.get("action")
+    ]
+
+
+def _canal2_actionable(classification: list[dict]) -> list[dict]:
+    return [
+        action for action in classification
+        if action.get("action") not in ("INFORMATIONAL", "PROGRESS_UPDATE", None)
+    ]
+
+
+def _zone_plan_level_text(plan: dict) -> str:
+    zones = plan.get("zones") or []
+    if not zones:
+        return "sin nivel numerico"
+    rendered = []
+    for low, high in zones:
+        if float(low) == float(high):
+            rendered.append(f"{float(low):.2f}")
+        else:
+            rendered.append(f"{float(low):.2f}-{float(high):.2f}")
+    return ", ".join(rendered)
+
+
+def _drop_canal2_zone_plan_aliases(message_id: int) -> None:
+    """Remove every cache key owned by a message that became an entry."""
+    message_id = int(message_id)
+    records = {
+        id(record)
+        for key, record in _canal2_zone_plans.items()
+        if int(key) == message_id
+        or int(record.get("message_id", -1)) == message_id
+    }
+    for key, record in list(_canal2_zone_plans.items()):
+        if int(key) == message_id or id(record) in records:
+            del _canal2_zone_plans[key]
+
+
+def restore_canal2_zone_plans_from_journal(path) -> int:
+    """Restore active future-zone threads and their reply aliases."""
+    source = Path(path)
+    _canal2_zone_plans.clear()
+    if not source.exists():
+        return 0
+
+    records: dict[int, dict] = {}
+    aliases: dict[int, int] = {}
+    invalidated: set[int] = set()
+
+    with source.open("rb") as handle:
+        for raw_line in handle:
+            try:
+                row = json.loads(raw_line.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                continue
+            if not isinstance(row, dict):
+                continue
+
+            event = row.get("ev")
+            sig_id = str(row.get("sig") or "")
+            if event == "canal2_zone_plan_registered":
+                try:
+                    message_id = int(
+                        row.get("message_id")
+                        or sig_id.removeprefix("canal2_")
+                    )
+                except (TypeError, ValueError):
+                    continue
+                try:
+                    root_id = int(
+                        row.get("thread_root_message_id") or message_id
+                    )
+                except (TypeError, ValueError):
+                    root_id = message_id
+                record = {
+                    "message_id": message_id,
+                    "thread_root_message_id": root_id,
+                    "direction": row.get("direction"),
+                    "zones": row.get("zones") or [],
+                    "target": row.get("target"),
+                    "source_kind": row.get("source_kind") or "journal_restore",
+                    "tg_ts": row.get("tg_ts"),
+                    "raw_text": row.get("raw_text") or "",
+                    "status": "active",
+                }
+                records[message_id] = record
+                aliases[message_id] = message_id
+                aliases[root_id] = message_id
+                invalidated.discard(message_id)
+                continue
+
+            if event != "canal2_zone_plan_management":
+                continue
+            actions = {
+                str(action).upper()
+                for action in (row.get("actions") or [])
+            }
+            if (
+                "ZONE_INVALIDATED" not in actions
+                and str(row.get("zone_plan_status") or "").lower()
+                != "invalidated"
+            ):
+                continue
+            candidate_ids = (
+                row.get("zone_plan_message_id"),
+                row.get("reply_to_msg_id"),
+                row.get("thread_root_message_id"),
+            )
+            zone_plan_signal_id = str(row.get("zone_plan_signal_id") or "")
+            if zone_plan_signal_id.startswith("canal2_"):
+                candidate_ids += (
+                    zone_plan_signal_id.removeprefix("canal2_"),
+                )
+            for candidate in candidate_ids:
+                try:
+                    candidate_id = int(candidate)
+                except (TypeError, ValueError):
+                    continue
+                owner = aliases.get(candidate_id, candidate_id)
+                invalidated.add(owner)
+
+    active_ids = [
+        message_id
+        for message_id in records
+        if message_id not in invalidated
+    ][-_CANAL2_ZONE_PLAN_MAX:]
+    active_set = set(active_ids)
+    for alias_id, owner_id in aliases.items():
+        if owner_id in active_set:
+            _canal2_zone_plans[alias_id] = records[owner_id]
+    return len(active_ids)
+
+
+async def _handle_canal2_zone_plan(msg, text: str, plan: dict,
+                                   source_kind: str = "new",
+                                   thread_root_message_id: int | None = None
+                                   ) -> None:
+    """Register a future provider zone without inventing a market trigger."""
+    root_message_id = (
+        int(thread_root_message_id)
+        if thread_root_message_id is not None
+        else int(msg.id)
+    )
+    record = {
+        **plan,
+        "message_id": int(msg.id),
+        "thread_root_message_id": root_message_id,
+        "raw_text": text,
+        "tg_ts": _msg_ts_iso(msg),
+        "source_kind": source_kind,
+        "status": "active",
+        "registered_utc": datetime.utcnow().isoformat(timespec="milliseconds"),
+    }
+    _canal2_zone_plans[int(msg.id)] = record
+    _canal2_zone_plans[root_message_id] = record
+    while len(_canal2_zone_plans) > _CANAL2_ZONE_PLAN_MAX:
+        oldest = next(iter(_canal2_zone_plans))
+        del _canal2_zone_plans[oldest]
+
+    sig_id = f"canal2_{msg.id}"
+    journal.event(
+        sig_id,
+        "canal2_zone_plan_registered",
+        channel="canal2",
+        direction=plan.get("direction"),
+        zones=plan.get("zones") or [],
+        target=plan.get("target"),
+        source_kind=source_kind,
+        thread_root_message_id=root_message_id,
+        tg_ts=_msg_ts_iso(msg),
+        execution_behavior="observe_only",
+        raw_text=text[:500],
+    )
+    if source_kind not in ("new", "reply"):
+        return
+
+    journal.anomaly(
+        sig_id,
+        "channel_msg",
+        "warning",
+        "zona futura de Gold Signals registrada sin orden inmediata NOW; "
+        "no se abre mercado automaticamente",
+        direction=plan.get("direction"),
+        zones=plan.get("zones") or [],
+        target=plan.get("target"),
+    )
+    provider = provider_display_name("canal2")
+    level_text = _zone_plan_level_text(plan)
+    _schedule_detached(notify(
+        f"⚠️ {provider}\n"
+        f"ZONA FUTURA REGISTRADA\n\n"
+        f"Dirección: {plan.get('direction') or '?'}\n"
+        f"Zona: {level_text}\n\n"
+        f"No se abrió una operación: el mensaje no era una orden NOW. "
+        f"El contexto y sus respuestas quedan guardados para revisión "
+        f"y simulación."
+    ))
+
+
+async def _recover_canal2_zone_plan_from_reply(msg, reply_id: int):
+    """Recover a replied future-zone root after a process restart."""
+    cached = _canal2_zone_plans.get(int(reply_id))
+    if cached is not None:
+        return cached
+
+    get_reply = getattr(msg, "get_reply_message", None)
+    if not callable(get_reply):
+        return None
+
+    try:
+        root_msg = await get_reply()
+    except Exception as exc:
+        journal.event(
+            f"canal2_{msg.id}",
+            "canal2_zone_plan_recovery_failed",
+            channel="canal2",
+            reply_to_msg_id=int(reply_id),
+            error_type=type(exc).__name__,
+            error=str(exc)[:240],
+        )
+        return None
+
+    root_id = getattr(root_msg, "id", None)
+    if root_msg is None or root_id is None or int(root_id) != int(reply_id):
+        return None
+
+    root_text = _msg_text(root_msg)
+    plan = parse_canal2_zone_plan(root_text)
+    if plan is None:
+        return None
+
+    await _handle_canal2_zone_plan(
+        root_msg,
+        root_text,
+        plan,
+        source_kind="reply_recovery",
+    )
+    return _canal2_zone_plans.get(int(reply_id))
+
+
+async def _handle_canal2_zone_plan_reply(msg, reply_id: int,
+                                         plan: dict) -> None:
+    """Attach follow-up management to a non-executed future zone."""
+    text = _msg_text(msg)
+    zone_invalidated = bool(re.search(
+        r"\bZONE\b[^\n.!?]{0,60}\b(?:FAILED|INVALID|BROKEN)\b",
+        text,
+        re.IGNORECASE,
+    ))
+    if zone_invalidated:
+        classification = [{
+            "action": "ZONE_INVALIDATED",
+            "price": None,
+            "confidence": 1.0,
+            "_reason": "provider_invalidated_future_zone",
+        }]
+        plan["status"] = "invalidated"
+        plan["invalidated_by_message_id"] = int(msg.id)
+        plan["invalidated_utc"] = _msg_ts_iso(msg)
+    else:
+        classification = (
+            classify_local(text) if _canal2_context_candidate(text) else []
+        )
+    actions = _canal2_action_names(classification)
+    actionable = (
+        [] if zone_invalidated else _canal2_actionable(classification)
+    )
+    sig_id = f"canal2_{msg.id}"
+    journal.event(
+        sig_id,
+        "canal2_zone_plan_management",
+        channel="canal2",
+        zone_plan_signal_id=f"canal2_{reply_id}",
+        zone_plan_message_id=plan.get("message_id"),
+        thread_root_message_id=plan.get("thread_root_message_id", reply_id),
+        direction=plan.get("direction"),
+        zones=plan.get("zones") or [],
+        actions=actions,
+        actionable=bool(actionable),
+        zone_plan_status=plan.get("status", "active"),
+        execution_behavior="observe_only",
+        text_preview=text[:240].replace("\n", " | "),
+        tg_ts=_msg_ts_iso(msg),
+    )
+    if zone_invalidated:
+        _schedule_detached(notify(
+            f"ℹ️ {provider_display_name('canal2')}\n"
+            f"ZONA INVALIDADA\n\n"
+            f"Zona: {_zone_plan_level_text(plan)}\n"
+            f"El proveedor indicó que la zona falló. No había una orden "
+            f"automática asociada."
+        ))
+        return
+    if not actionable:
+        return
+
+    journal.anomaly(
+        sig_id,
+        "channel_msg",
+        "warning",
+        "gestion recibida para una zona futura sin posiciones MT5 asociadas",
+        zone_plan_signal_id=f"canal2_{reply_id}",
+        actions=actions,
+        text_preview=text[:240].replace("\n", " | "),
+    )
+    _schedule_detached(notify(
+        f"⚠️ {provider_display_name('canal2')}\n"
+        f"GESTIÓN DE ZONA FUTURA\n\n"
+        f"Mensaje: {text[:220]}\n"
+        f"Zona: {_zone_plan_level_text(plan)}\n\n"
+        f"No había posiciones del bot asociadas a esa zona, así que no se "
+        f"ejecutó ninguna orden. El mensaje quedó registrado."
+    ))
+
+
+async def _handle_canal2_standalone(msg, text: str, sig_id: str) -> None:
+    """Route non-reply management without guessing between open baskets."""
+    if not _canal2_context_candidate(text):
+        return
+
+    open_c2 = state.open_signals("canal2")
+    classification = classify_local(text)
+    if not classification and open_c2:
+        classification = await classify_async(text, signal=open_c2[0])
+    actionable = _canal2_actionable(classification)
+    actions = _canal2_action_names(classification)
+    route = _standalone_mgmt_route(len(open_c2), bool(actionable))
+    preview = text[:240].replace("\n", " | ")
+
+    if route == "apply":
+        target = open_c2[0]
+        journal.event(
+            sig_id,
+            "standalone_mgmt_applied",
+            channel="canal2",
+            target=_sig_id(target),
+            actions=actions,
+            text_preview=preview,
+            tg_ts=_msg_ts_iso(msg),
+        )
+        await _execute_action(
+            target,
+            classification,
+            raw_text=text,
+            tg_ts=_msg_ts_iso(msg),
+        )
+        return
+
+    open_ids = [_sig_id(signal) for signal in open_c2]
+    event_name = (
+        "standalone_mgmt_ambiguous"
+        if route == "notify"
+        else "standalone_context_observed"
+    )
+    journal.event(
+        sig_id,
+        event_name,
+        channel="canal2",
+        n_open=len(open_c2),
+        open_signals=open_ids,
+        actions=actions,
+        actionable=bool(actionable),
+        text_preview=preview,
+        tg_ts=_msg_ts_iso(msg),
+    )
+    if route != "notify":
+        return
+
+    journal.anomaly(
+        sig_id,
+        "channel_msg",
+        "warning",
+        "mensaje accionable de Gold Signals sin reply y con varias "
+        "operaciones abiertas; no se aplica automaticamente",
+        open_signals=open_ids,
+        actions=actions,
+        text_preview=preview,
+    )
+    _schedule_detached(notify(
+        f"⚠️ {provider_display_name('canal2')}\n"
+        f"GESTIÓN SIN OPERACIÓN CLARA\n\n"
+        f"Mensaje: {text[:220]}\n"
+        f"Operaciones abiertas: {len(open_ids)}\n\n"
+        f"El bot no actuó porque no puede saber con seguridad a cuál "
+        f"corresponde."
+    ))
+
+
+async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True,
+                              entry_serialized: bool = False):
     # Dedup: el poller activo y el event handler pueden ver el mismo mensaje.
     # _new_msg_already_seen marca como visto atómicamente — el que llega primero
     # procesa; el segundo retorna aquí sin hacer nada.
@@ -3533,11 +4016,73 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
         return
 
     text = msg.text or ""
+    immediate_entry = is_canal2_entry(text)
+    reply_id = (
+        msg.reply_to.reply_to_msg_id
+        if msg.reply_to and msg.reply_to.reply_to_msg_id
+        else None
+    )
+    if immediate_entry and not entry_serialized:
+        async with _entry_serial_lock("canal2"):
+            await _process_canal2_new(
+                msg,
+                label=label,
+                dedup=False,
+                entry_serialized=True,
+            )
+        return
 
-    # Mensaje de gestión (reply a una señal)
-    if msg.reply_to and msg.reply_to.reply_to_msg_id:
-        reply_id = msg.reply_to.reply_to_msg_id
-        sig, route = _resolve_management_reply_target("canal2", reply_id)
+    # An immediate BUY/SELL ... NOW remains an entry even when Telegram shows
+    # it as a reply to an older signal. Gold Signals uses this exact shape for
+    # re-entries; routing replies first used to discard the entry as stale
+    # management when the referenced basket was already closed.
+    if immediate_entry and reply_id is not None:
+        journal.event(
+            f"canal2_{msg.id}",
+            "canal2_reply_entry_recognized",
+            reply_to_msg_id=reply_id,
+            direction=(parse_canal2(text).get("direction")),
+            routing="new_entry",
+            tg_ts=_msg_ts_iso(msg),
+            raw_text=text[:500],
+        )
+
+    # Management reply, but only after ruling out an explicit new entry.
+    if not immediate_entry and reply_id is not None:
+        zone_plan = _canal2_zone_plans.get(int(reply_id))
+        if (
+            zone_plan is None
+            and state.get("canal2", int(reply_id)) is None
+        ):
+            zone_plan = await _recover_canal2_zone_plan_from_reply(
+                msg,
+                int(reply_id),
+            )
+        if zone_plan is not None:
+            await _handle_canal2_zone_plan_reply(msg, int(reply_id), zone_plan)
+            return
+
+        replied_zone_plan = parse_canal2_zone_plan(text)
+        if replied_zone_plan is not None:
+            await _handle_canal2_zone_plan(
+                msg,
+                text,
+                replied_zone_plan,
+                source_kind="reply",
+                thread_root_message_id=int(reply_id),
+            )
+            return
+
+        sig, route = _resolve_management_reply_target(
+            "canal2",
+            reply_id,
+            allow_single_open_fallback=False,
+        )
+        if sig is None and route != "target_signal_closed":
+            sig, route = await _recover_canal2_management_target_from_reply_root(
+                msg,
+                int(reply_id),
+            )
         if sig:
             # PRIMERO: si el reply trae TPs/SL reales (formato típico de
             # Canal 2: "TP1 4689.50\nSL 4701"), actualizar la señal con esos
@@ -3570,7 +4115,21 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
             _log_unresolved_management_reply(msg, "canal2", reply_id, route)
         return
 
-    if not is_canal2_entry(text):
+    if not immediate_entry:
+        zone_plan = parse_canal2_zone_plan(text)
+        if zone_plan is not None:
+            await _handle_canal2_zone_plan(
+                msg,
+                text,
+                zone_plan,
+                source_kind="new",
+            )
+            return
+        await _handle_canal2_standalone(
+            msg,
+            text,
+            f"canal2_{msg.id}",
+        )
         return
 
     parsed = parse_canal2(text)
@@ -3583,6 +4142,8 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
         raw_text=text,
         parsed=parsed,
         tg_ts=_msg_ts_iso(msg),
+        is_reply=reply_id is not None,
+        reply_to_msg_id=reply_id,
     )
     if "direction" not in parsed:
         return
@@ -3605,11 +4166,15 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
         )
         return
 
-    duplicate_ts = datetime.utcnow()
+    duplicate_ts = getattr(msg, "date", None) or datetime.utcnow()
+    if getattr(duplicate_ts, "tzinfo", None) is not None:
+        duplicate_ts = duplicate_ts.replace(tzinfo=None)
     duplicate = _canal2_duplicate_alias_candidate(
         msg.id, direction, duplicate_ts, parsed,
         state.open_signals("canal2"),
         config.STRATEGY_C2_DUPLICATE_ALIAS_WINDOW_S,
+        raw_text=text,
+        is_reply=reply_id is not None,
     )
     if duplicate is not None:
         _register_canal2_duplicate_alias(
@@ -3689,7 +4254,13 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
                   raw_text=text[:500], lot_mult=lot_mult,
                   effective_lot=effective_lot,
                   tg_ts=msg.date.isoformat(timespec="seconds") if msg.date else None,
-                  tg_to_bot_ms=tg_to_bot_ms)
+                  tg_to_bot_ms=tg_to_bot_ms,
+                  telegram_entry_command_key=canal2_entry_command_key(text),
+                  telegram_entry_was_reply=reply_id is not None,
+                  telegram_entry_reply_to_message_id=reply_id,
+                  telegram_entry_ts_utc=duplicate_ts.isoformat(
+                      timespec="milliseconds"
+                  ))
 
     # Contexto de mercado (ATR M5x14 + range reciente + precio): permite al
     # análisis posterior separar fallos de ejecución vs régimen adverso.
@@ -3770,6 +4341,11 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
         channel="canal2",
         message_id=msg.id,
         direction=direction,
+        timestamp=duplicate_ts,
+        telegram_entry_command_key=canal2_entry_command_key(text),
+        telegram_entry_was_reply=reply_id is not None,
+        telegram_entry_reply_to_message_id=reply_id,
+        telegram_entry_timestamp=duplicate_ts,
         market_ticket=ticket,
         market_fill_price=fill_price,
         lot_multiplier=lot_mult,
@@ -3820,32 +4396,99 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True):
 
 async def _process_canal2_edit(msg, label: str = "Canal2"):
     text = msg.text or ""
+    sig = state.get("canal2", msg.id)
+    owns_live_signal = sig is not None and sig.status == "open"
+    owns_entry_identity = (
+        owns_live_signal
+        or _canal2_open_in_progress(msg.id)
+        or _canal2_open_already_committed(msg.id)
+    )
+    immediate_entry = is_canal2_entry(text)
+    reply_id = (
+        msg.reply_to.reply_to_msg_id
+        if msg.reply_to and msg.reply_to.reply_to_msg_id
+        else None
+    )
+    if immediate_entry:
+        _drop_canal2_zone_plan_aliases(msg.id)
 
-    if await _process_management_reply_edit(msg, "canal2", label):
-        return
+    if (
+        not immediate_entry
+        and reply_id is not None
+        and not owns_entry_identity
+    ):
+        zone_plan = _canal2_zone_plans.get(int(reply_id))
+        if (
+            zone_plan is None
+            and state.get("canal2", int(reply_id)) is None
+        ):
+            zone_plan = await _recover_canal2_zone_plan_from_reply(
+                msg,
+                int(reply_id),
+            )
+        if zone_plan is not None:
+            if _edit_already_seen("canal2", msg):
+                return
+            await _handle_canal2_zone_plan_reply(
+                msg,
+                int(reply_id),
+                zone_plan,
+            )
+            return
 
-    sig  = state.get("canal2", msg.id)
+        replied_zone_plan = parse_canal2_zone_plan(text)
+        if replied_zone_plan is not None:
+            if _edit_already_seen("canal2", msg):
+                return
+            await _handle_canal2_zone_plan(
+                msg,
+                text,
+                replied_zone_plan,
+                source_kind="reply_edit",
+                thread_root_message_id=int(reply_id),
+            )
+            return
+
+    # An edited re-entry can still be a Telegram reply to an older trade. If
+    # this message already owns a live Signal, its edit updates that Signal,
+    # not the replied-to historical basket.
+    if not owns_entry_identity and not immediate_entry:
+        if await _process_management_reply_edit(msg, "canal2", label):
+            return
 
     if sig is None:
-        if not is_canal2_entry(text):
-            return
-        if _edit_already_seen("canal2", msg):
-            print(f"[{label}] Edit huérfano duplicado msg={msg.id} "
-                  f"edit_date={getattr(msg, 'edit_date', None)} — ignorado")
-            return
-
-        if (_canal2_open_in_progress(msg.id)
-                or _canal2_open_already_committed(msg.id)):
+        if owns_entry_identity:
+            if _edit_already_seen("canal2", msg):
+                return
             _defer_canal2_entry_edit(msg, text)
             journal.event(
                 f"canal2_{msg.id}",
                 "canal2_orphan_entry_edit_deferred",
-                reason=("market_open_in_progress"
-                        if _canal2_open_in_progress(msg.id)
-                        else "exposure_committed_state_pending"),
+                reason=(
+                    "market_open_in_progress"
+                    if _canal2_open_in_progress(msg.id)
+                    else "exposure_committed_state_pending"
+                ),
                 raw_text=text[:500],
                 tg_ts=_msg_ts_iso(msg),
             )
+            return
+        zone_plan = parse_canal2_zone_plan(text)
+        if zone_plan is not None:
+            if _edit_already_seen("canal2", msg):
+                return
+            await _handle_canal2_zone_plan(
+                msg,
+                text,
+                zone_plan,
+                source_kind="edit",
+            )
+            return
+        if not immediate_entry:
+            return
+        if _edit_already_seen("canal2", msg):
+            print(f"[{label}] Edit huérfano duplicado msg={msg.id} "
+                  f"edit_date={getattr(msg, 'edit_date', None)} — ignorado")
             return
 
         max_age_s = config.STRATEGY_C2_ORPHAN_EDIT_MAX_AGE_S
@@ -3874,8 +4517,6 @@ async def _process_canal2_edit(msg, label: str = "Canal2"):
 
     if sig.status != "open":
         return
-    if not is_canal2_entry(text):
-        return
 
     # Dedup: Telethon a veces re-emite el mismo MessageEdited (mismo edit_date).
     # Sin esto, llegamos a parsear y re-aplicar SL/TP por nada.
@@ -3884,6 +4525,9 @@ async def _process_canal2_edit(msg, label: str = "Canal2"):
         return
 
     parsed = parse_canal2(text)
+    if not immediate_entry and not any(
+            key in parsed for key in ("range", "tps", "sl")):
+        return
     _tg_edit_ts = msg.edit_date.isoformat(timespec="seconds") if msg.edit_date else None
     _log_telegram_understood(
         _sig_id(sig),
@@ -6279,7 +6923,11 @@ if config.TEST_CHANNEL_ID:
             # tickets se quedaban con los TPs provisionales del predictor.
             if msg.reply_to and msg.reply_to.reply_to_msg_id:
                 reply_id = msg.reply_to.reply_to_msg_id
-                sig, route = _resolve_management_reply_target("canal2", reply_id)
+                sig, route = _resolve_management_reply_target(
+                    "canal2",
+                    reply_id,
+                    allow_cross_channel=True,
+                )
                 if sig:
                     parsed_in_reply = parse_canal2(text)
                     _tg_ts = msg.date.isoformat(timespec="seconds") if msg.date else None

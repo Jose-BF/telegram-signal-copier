@@ -267,7 +267,7 @@ STRATEGY_NAKED_PROTECTIVE_SL_OFFSET_USD = _float(
 # Canal2 a veces publica dos BUY/SELL NOW casi seguidos y edita solo el
 # segundo. En esa ventana aliasamos el segundo message_id al trade ya abierto.
 STRATEGY_C2_DUPLICATE_ALIAS_WINDOW_S = _float(
-    "STRATEGY_C2_DUPLICATE_ALIAS_WINDOW_S", 3.0)
+    "STRATEGY_C2_DUPLICATE_ALIAS_WINDOW_S", 10.0)
 
 # Canal1 a veces publica dos stickers iguales casi seguidos y luego manda el
 # texto de niveles solo para el segundo. Abrimos una vez y aliasamos el duplicado.

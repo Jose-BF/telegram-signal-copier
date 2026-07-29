@@ -273,6 +273,12 @@ def _build_context_block(signal) -> dict:
 # ─── Regex local ────────────────────────────────────────────────────────────
 
 _NEG_SL_HIT = ("sl hit", "stop loss hit", "sl was", "sl reached")
+_EXPLICIT_NEGATED_ACTION_RE = re.compile(
+    r"\b(?:do\s+not|don['\u2019]?t|dont|never)\s+"
+    r"(?:take|close|move|set|change|adjust|put|book|secure|"
+    r"protect|cut|delete|open|add)\b",
+    re.IGNORECASE,
+)
 _EXPLICIT_ADDITIONAL_ENTRY_RE = re.compile(
     r"\b(?:i|we)(?:['\u2019]ve|\s+have)?\s+(?:just\s+)?"
     r"(?:put|added|opened|took)\s+(?:some\s+)?more\s+"
@@ -282,6 +288,36 @@ _EXPLICIT_ADDITIONAL_ENTRY_RE = re.compile(
     r"(?P<price>\d{3,5}(?:\.\d{1,3})?)\b",
     re.IGNORECASE,
 )
+
+
+def _negated_action_review(text: str) -> dict | None:
+    if not _EXPLICIT_NEGATED_ACTION_RE.search(text or ""):
+        return None
+    return {
+        "action": "UNKNOWN",
+        "price": None,
+        "confidence": 1.0,
+        "requires_review": True,
+        "_reason": "explicit_negated_instruction",
+    }
+
+
+def _affirmative_action_text(text: str) -> str:
+    """Remove only clauses containing an explicitly negated action."""
+    clauses = re.split(
+        r"[.!?;,\n]+"
+        r"|\s+[-\u2013\u2014]\s+"
+        r"|\b(?:BUT|HOWEVER)\b"
+        r"|\bAND\b(?=\s+(?:DO\s+NOT|DON['\u2019]?T|DONT|NEVER)\b)",
+        text or "",
+        flags=re.IGNORECASE,
+    )
+    return " ".join(
+        clause.strip()
+        for clause in clauses
+        if clause.strip()
+        and not _EXPLICIT_NEGATED_ACTION_RE.search(clause)
+    )
 
 
 def _explicit_additional_entry_action(text: str) -> dict | None:
@@ -308,6 +344,11 @@ def _canal1_safe_regex_classify(text: str) -> list[dict]:
     ordenes directas, sin condicionales, para que Gemini no sea punto unico de
     fallo en mensajes mecanicamente obvios.
     """
+    negated = _negated_action_review(text)
+    if negated:
+        text = _affirmative_action_text(text)
+        if not text:
+            return [negated]
     t = text.lower()
     if re.search(r"\b(if|when|once|unless)\b", t):
         return []
@@ -319,11 +360,18 @@ def _canal1_safe_regex_classify(text: str) -> list[dict]:
     if explicit_addition:
         actions.append(explicit_addition)
 
-    if re.search(
-        r"\b(?:TAKE|CLOSE|CLOSING|BOOK|SECURE)\s+(?:SOME\s+)?"
-        r"PARTIAL(?:S|\s+PROFITS?)?\b",
-        t,
-        re.IGNORECASE,
+    if (
+        re.search(
+            r"\b(?:TAKE|CLOSE|CLOSING|BOOK|SECURE)\s+(?:SOME\s+)?"
+            r"PARTIAL(?:S|\s+PROFITS?)?\b",
+            t,
+            re.IGNORECASE,
+        )
+        or re.search(
+            r"\bTAKE\s+PROFITS?\s+FROM\s+(?:THE\s+)?LAYERS?\b",
+            t,
+            re.IGNORECASE,
+        )
     ):
         actions.append({
             "action": "CLOSE_PARTIAL",
@@ -369,8 +417,14 @@ def _canal1_safe_regex_classify(text: str) -> list[dict]:
 
 def _regex_classify_all(text: str) -> list[dict]:
     """Detecta TODAS las acciones presentes en el texto. Lista vacía si nada."""
-    t = text.lower()
     actions: list[dict] = []
+
+    negated = _negated_action_review(text)
+    if negated:
+        text = _affirmative_action_text(text)
+        if not text:
+            return [negated]
+    t = text.lower()
 
     # 0. Anuncio puro de niveles (TP solos o TP+SL/SP combinados).
     # Evita que Gemini interprete "TP1 4705.50" como CLOSE_AT_TP @4705.5.
@@ -423,13 +477,33 @@ def _regex_classify_all(text: str) -> list[dict]:
             actions.append({"action": "MOVE_SL_TO_PRICE",
                             "price": float(m.group(1)), "confidence": 0.80})
 
-    # Preserve the provider's partial-profit decision without inventing how
-    # many of our positions should close live.
     if re.search(
-        r"\b(?:TAKE|CLOSE|CLOSING|BOOK|SECURE)\s+(?:SOME\s+)?"
-        r"PARTIAL(?:S|\s+PROFITS?)?\b",
+        r"\bprotect\s+(?:(?:my|your|the|our)\s+)?"
+        r"(?:capital|profits?|account|trade)\b",
         t,
         re.IGNORECASE,
+    ):
+        actions.append({
+            "action": "PROTECT_AND_NOTIFY",
+            "price": None,
+            "confidence": 0.95,
+            "_reason": "provider_protection_instruction",
+        })
+
+    # Preserve the provider's partial-profit decision without inventing how
+    # many of our positions should close live.
+    if (
+        re.search(
+            r"\b(?:TAKE|CLOSE|CLOSING|BOOK|SECURE)\s+(?:SOME\s+)?"
+            r"PARTIAL(?:S|\s+PROFITS?)?\b",
+            t,
+            re.IGNORECASE,
+        )
+        or re.search(
+            r"\bTAKE\s+PROFITS?\s+FROM\s+(?:THE\s+)?LAYERS?\b",
+            t,
+            re.IGNORECASE,
+        )
     ):
         actions.append({
             "action": "CLOSE_PARTIAL",
@@ -669,6 +743,13 @@ def classify(text: str, signal=None) -> list[dict]:
         return actions
 
     return _gemini_classify(text, signal=signal)
+
+
+def classify_local(text: str) -> list[dict]:
+    """Return deterministic regex actions without invoking Gemini."""
+    if not text or not text.strip():
+        return []
+    return _regex_classify_all(text)
 
 
 async def classify_async(text: str, signal=None) -> list[dict]:

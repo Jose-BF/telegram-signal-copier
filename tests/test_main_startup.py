@@ -1,11 +1,16 @@
 """Tests for production startup confirmation and orphan recovery."""
 
+import json
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
+import listener
 import main
+import position_lifecycle_monitor
+import state as state_module
+from state import StateManager
 
 
 def test_startup_status_message_confirms_active_production_version():
@@ -263,3 +268,93 @@ def test_orphan_history_default_uses_metatrader5_module(monkeypatch):
 
     assert deals == (closing,)
     assert len(calls) == 2
+
+
+def test_resync_restores_canal2_reply_entry_identity(monkeypatch, tmp_path):
+    opened_at = int(datetime.now(timezone.utc).timestamp()) - 5
+    telegram_ts = datetime.fromtimestamp(opened_at, tz=timezone.utc)
+    events_file = tmp_path / "trade_events.jsonl"
+    events_file.write_text(
+        json.dumps({
+            "ts": (telegram_ts + timedelta(milliseconds=100)).isoformat(),
+            "sig": "canal2_585",
+            "ev": "telegram_raw",
+            "channel": "canal2",
+            "message_id": 585,
+            "text": "Sell Gold Now",
+            "is_reply": True,
+            "reply_to_msg_id": 580,
+            "date_utc": telegram_ts.isoformat(),
+        }) + "\n" + json.dumps({
+            "ts": (telegram_ts + timedelta(seconds=8)).isoformat(),
+            "sig": "canal2_585",
+            "ev": "canal2_duplicate_alias_registered",
+            "alias_message_id": 586,
+        }) + "\n",
+        encoding="utf-8",
+    )
+    st = StateManager()
+    groups = {
+        "canal2_585": {
+            "channel": "canal2",
+            "message_id": 585,
+            "direction": "SELL",
+            "market_ticket": 1671689001,
+            "market_price": 4002.8,
+            "market_sl": 4010.0,
+            "market_tp": 3998.0,
+            "market_open_time": opened_at,
+            "extra_market_tickets": [],
+            "dca_tickets": [],
+        }
+    }
+
+    monkeypatch.setattr(
+        main.executor,
+        "list_open_positions_grouped",
+        lambda: groups,
+    )
+    monkeypatch.setattr(
+        main.causal_trace,
+        "load_signal_origin_index",
+        lambda _path: ({}, {}, []),
+    )
+    monkeypatch.setattr(main.journal, "EVENTS_FILE", events_file)
+    monkeypatch.setattr(main.journal, "event", lambda *args, **kwargs: None)
+    monkeypatch.setattr(state_module, "state", st)
+    monkeypatch.setattr(
+        position_lifecycle_monitor,
+        "start",
+        lambda _signal, _levels: None,
+    )
+    tick_calls = []
+    monkeypatch.setattr(
+        main.executor,
+        "mt5",
+        SimpleNamespace(
+            symbol_info_tick=lambda symbol: tick_calls.append(symbol) or None
+        ),
+    )
+
+    main._resync_orphan_positions()
+
+    signal = st.get("canal2", 585)
+    assert signal is not None
+    assert signal.telegram_entry_command_key == "SELL GOLD NOW"
+    assert signal.telegram_entry_was_reply is True
+    assert signal.telegram_entry_reply_to_message_id == 580
+    assert signal.telegram_entry_timestamp == telegram_ts.replace(tzinfo=None)
+    assert st.get("canal2", 586) is signal
+    assert tick_calls == [main.config.MT5_SYMBOL]
+
+    duplicate = listener._canal2_duplicate_alias_candidate(
+        586,
+        "SELL",
+        telegram_ts.replace(tzinfo=None) + timedelta(seconds=8),
+        {},
+        [signal],
+        10.0,
+        raw_text="Sell Gold Now",
+        is_reply=False,
+    )
+    assert duplicate is signal

@@ -147,22 +147,174 @@ def _extract_sl(text: str) -> Optional[float]:
 
 
 def _direction(text: str) -> Optional[str]:
-    t = text.upper()
-    if "BUY" in t:
-        return "BUY"
-    if "SELL" in t:
-        return "SELL"
-    return None
+    immediate = _canal2_entry_match(text or "")
+    if immediate:
+        return immediate.group("direction").upper()
+    match = re.search(r"\b(BUY|SELL)\b", text or "", re.IGNORECASE)
+    return match.group(1).upper() if match else None
 
 
 # ─── Detección de tipo de mensaje ─────────────────────────────────────────────
 
+_CANAL2_IMMEDIATE_ENTRY_RE = re.compile(
+    r"\b(?P<direction>BUY|SELL)\b"
+    r"(?:\s+(?:XAU(?:\s*USD)?|GOLD|ZONE))?"
+    r"(?:\s+AGAIN)?\s+NOW\b",
+    re.IGNORECASE,
+)
+_CANAL2_PRODUCT_RE = re.compile(
+    r"\b(?:XAU(?:\s*USD)?|GOLD|ZONE)\b",
+    re.IGNORECASE,
+)
+_CANAL2_ENTRY_NEGATION_RE = re.compile(
+    r"(?:"
+    r"\b(?:DO\s+NOT|DON['\u2019]?T|DONT|NEVER)\b[^.!?;]{0,40}"
+    r"|\b(?:NO|NOT)(?:\s+(?:A|AN|THE))?\s*[,;:]?\s*"
+    r")$",
+    re.IGNORECASE,
+)
+_CANAL2_ENTRY_CONDITIONAL_RE = re.compile(
+    r"\b(?:IF|WHEN|ONCE|UNLESS|WOULD|COULD|MIGHT|MAY)\b|"
+    r"\b(?:WAIT|LOOK)\s+(?:FOR|UNTIL)\b|"
+    r"\b(?:POTENTIAL|POSSIBLE)\b(?!\s+CONFIRMED\b)",
+    re.IGNORECASE,
+)
+_CANAL2_ZONE_RANGE_RE = re.compile(
+    r"(?<!\d)(\d{3,5}(?:\.\d+)?)\s*[-\u2013\u2014]\s*"
+    r"(\d{3,5}(?:\.\d+)?)(?!\d)"
+)
+_CANAL2_ZONE_TARGET_RE = re.compile(
+    r"\bTARGET(?:\s+IS|\s*:|\s+AT)?\s*(\d{3,5}(?:\.\d+)?)\b",
+    re.IGNORECASE,
+)
+_CANAL2_SINGLE_ZONE_RE = re.compile(
+    r"\b(?:NEXT|NEW|ANOTHER)?\s*(?P<direction>BUY|SELL)\s+ZONE"
+    r"\s*(?:AT|AROUND|NEAR|@)?\s*(?P<price>\d{3,5}(?:\.\d+)?)\b",
+    re.IGNORECASE,
+)
+_CANAL2_REACTION_ZONE_RE = re.compile(
+    r"\b(?P<direction>BUY|SELL)\s+ZONE\b"
+    r"[^\d\n]{0,60}\bREACTION\s+(?:IS|AT)\s+"
+    r"(?P<price>\d{3,5}(?:\.\d+)?)\b",
+    re.IGNORECASE,
+)
+_CANAL2_EXPECTED_AREAS_RE = re.compile(
+    r"\bAREAS?\b[^\n.!?]{0,100}"
+    r"\b(?P<direction>BUY|SELL)\s+FROM\b",
+    re.IGNORECASE,
+)
+_CANAL2_BARE_PRICE_LINE_RE = re.compile(
+    r"(?m)^\s*(\d{3,5}(?:\.\d+)?)\s*$"
+)
+
+
+def _canal2_entry_match(text: str):
+    if not text:
+        return None
+    normalized = " ".join(text.split())
+    if not _CANAL2_PRODUCT_RE.search(normalized):
+        return None
+    for match in _CANAL2_IMMEDIATE_ENTRY_RE.finditer(normalized):
+        prefix = normalized[max(0, match.start() - 80):match.start()]
+        clause = re.split(r"[.!?;]", prefix)[-1]
+        if _CANAL2_ENTRY_NEGATION_RE.search(clause):
+            continue
+        if _CANAL2_ENTRY_CONDITIONAL_RE.search(clause):
+            continue
+        return match
+    return None
+
+
 def is_canal2_entry(text: str) -> bool:
-    t = " ".join(text.upper().split())
-    has_direction = bool(re.search(r"\b(?:BUY|SELL)\b", t))
-    has_now = bool(re.search(r"\bNOW\b", t))
-    has_product_or_zone = ("XAU" in t) or ("GOLD" in t) or ("ZONE" in t)
-    return has_direction and has_now and has_product_or_zone
+    """Detect an immediate order, not words scattered through commentary."""
+    return _canal2_entry_match(text) is not None
+
+
+def canal2_entry_command_key(text: str) -> Optional[str]:
+    """Canonical identity for one explicit Canal 2 immediate command."""
+    match = _canal2_entry_match(text)
+    if match is None:
+        return None
+    command = " ".join(match.group(0).upper().split())
+    command = re.sub(r"\bXAU(?:\s*USD)?\b", "GOLD", command)
+    command = re.sub(r"\bZONE\b", "GOLD", command)
+    return command
+
+
+def parse_canal2_zone_plan(text: str) -> Optional[dict]:
+    """Extract a future zone without turning it into a market entry."""
+    if not text or is_canal2_entry(text):
+        return None
+
+    upper = " ".join(text.upper().split())
+    direction = None
+    single = (
+        _CANAL2_SINGLE_ZONE_RE.search(text)
+        or _CANAL2_REACTION_ZONE_RE.search(text)
+    )
+    expected_areas = _CANAL2_EXPECTED_AREAS_RE.search(text)
+    limit_plan = re.search(
+        r"\b(?P<direction>BUY|SELL)\s+LIMIT\b",
+        text,
+        re.IGNORECASE,
+    )
+    possible_zone = re.search(
+        r"\bPOSSIBLE\s+(?P<direction>BUY|SELL)\b"
+        r"[^\n.!?]{0,80}\b(?:AROUND|AT|NEAR|ZONE|AREA)\b",
+        text,
+        re.IGNORECASE,
+    )
+    if single:
+        direction = single.group("direction").upper()
+    elif expected_areas:
+        direction = expected_areas.group("direction").upper()
+    elif limit_plan:
+        direction = limit_plan.group("direction").upper()
+    elif possible_zone:
+        direction = possible_zone.group("direction").upper()
+    elif re.search(
+        r"\bBUY\s+ZONES?\b|\bZONES?\s+(?:I|WE)\s+WOULD\s+BUY\b",
+        upper,
+    ):
+        direction = "BUY"
+    elif re.search(
+        r"\bSELL\s+ZONES?\b|\bZONES?\s+(?:I|WE)\s+WOULD\s+SELL\b",
+        upper,
+    ):
+        direction = "SELL"
+    if direction is None:
+        return None
+
+    zones = []
+    for match in _CANAL2_ZONE_RANGE_RE.finditer(text):
+        zone = sorted([float(match.group(1)), float(match.group(2))])
+        if zone not in zones:
+            zones.append(zone)
+    if single and not zones:
+        price = float(single.group("price"))
+        zones = [[price, price]]
+    elif expected_areas and not zones:
+        zones = [
+            [float(match.group(1)), float(match.group(1))]
+            for match in _CANAL2_BARE_PRICE_LINE_RE.finditer(text)
+        ]
+
+    target_match = _CANAL2_ZONE_TARGET_RE.search(text)
+    target = float(target_match.group(1)) if target_match else None
+    plan_language = bool(re.search(
+        r"\bZONES?\s+(?:I\s+)?WOULD\b|"
+        r"\bZONES?\s+MARKED\s+OUT\b|"
+        r"\bNEXT\s+(?:BUY|SELL)\s+ZONE\b|"
+        r"\bAREAS?\b[^\n.!?]{0,100}\b(?:BUY|SELL)\s+FROM\b",
+        upper,
+    ))
+    if not zones and target is None and not plan_language:
+        return None
+    return {
+        "direction": direction,
+        "zones": zones,
+        "target": target,
+    }
 
 
 def is_canal1_signal_text(text: str) -> bool:
