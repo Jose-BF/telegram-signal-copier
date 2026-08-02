@@ -187,7 +187,11 @@ def extract_metrics(sig_id: str, evs: list[dict]) -> dict:
     # ── Mgmt: cuántos aplicados / ignorados / qué acciones ──
     mgmt_actions = Counter(m.get("action", "?") for m in mgmt)
     mgmt_applied = sum(1 for m in mgmt if m.get("will_apply"))
-    mgmt_ignored = len(mgmt) - mgmt_applied
+    mgmt_ignored = sum(
+        1 for message in mgmt
+        if message.get("required_execution") is True
+        and not message.get("will_apply")
+    )
 
     # ── Cierre + tag ──
     final_tag = closed.get("tag") if closed else None

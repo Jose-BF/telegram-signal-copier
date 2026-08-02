@@ -1534,21 +1534,23 @@ def _finalize_journal_orphans():
                 getattr(d, "time", 0) or 0,
             ),
         )
-        comment = str(getattr(close_deal, "comment", "") or "").lower()
-        if comment.startswith("[tp"):
-            tag = "TP"
-        elif comment.startswith("[sl"):
-            tag = "SL"
-        elif "bot_close" in comment:
-            tag = "BOT_CLOSE"
-        else:
-            tag = "MT5_AUTO"
+        from mt5_deal_reason import close_reason_from_deal
+        broker_reason = close_reason_from_deal(close_deal)
+        tag = {
+            "tp": "TP",
+            "sl": "SL",
+            "be": "LOSS_BE",
+            "bot_close": "BOT_CLOSE",
+        }.get(broker_reason, "MT5_AUTO")
         sig_closures[sig].append({
             "ticket": int(pid),
             "exit_price": round(float(getattr(close_deal, "price", 0.0)), 3),
             "pnl": round(position_pnl, 2),
             "closed_by_tag": tag,
             "distance_to_tag": None,
+            "broker_close_reason": broker_reason,
+            "broker_deal_reason": getattr(close_deal, "reason", None),
+            "classification_source": "startup_broker_history",
         })
         raw_close_msc = getattr(close_deal, "time_msc", None)
         if raw_close_msc is not None:

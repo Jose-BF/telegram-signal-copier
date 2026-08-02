@@ -142,7 +142,11 @@ def classify_execution(events: list[dict]) -> dict:
     applied = sum(1 for e in mgmt_msgs if e.get("will_apply"))
     factors["mgmt_msgs_total"] = len(mgmt_msgs)
     factors["mgmt_msgs_applied"] = applied
-    factors["mgmt_msgs_ignored"] = len(mgmt_msgs) - applied
+    factors["mgmt_msgs_ignored"] = sum(
+        1 for event in mgmt_msgs
+        if event.get("required_execution") is True
+        and not event.get("will_apply")
+    )
 
     # Ambiguous notifications no son issues — son comportamiento correcto
     ambig = sum(1 for e in mgmt_msgs if e.get("ambiguous_notified"))

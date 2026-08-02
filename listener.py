@@ -37,6 +37,7 @@ import telegram_notifications
 from classifier import classify, classify_async, classify_local
 from entry_execution_gate import EntryExecutionGate
 from interpretation_firewall import (
+    EXECUTABLE_ACTIONS,
     firewall_decision,
     normalize_xauusd_management_price,
     normalize_classifier_outputs,
@@ -63,6 +64,27 @@ from market_context import compute_market_context
 def _sig_id(signal: Signal) -> str:
     """Identificador único para journal. Mismo formato que state._key()."""
     return f"{signal.channel}_{signal.message_id}"
+
+
+_NON_REQUIRED_MANAGEMENT_REASONS = {
+    "conditional_plan",
+    "conditional_close_text",
+    "level_parser_path",
+    "non_executable_intent",
+    "optional_close_text",
+    "optional_suggestion",
+}
+
+
+def _management_requires_execution(signal: Signal, classification: dict,
+                                   firewall) -> bool:
+    """True only for a direct executable provider order on an open signal."""
+    action = str(classification.get("action") or "").upper()
+    if signal.status != "open" or action not in EXECUTABLE_ACTIONS:
+        return False
+    if classification.get("is_optional") or classification.get("is_conditional"):
+        return False
+    return firewall.reason not in _NON_REQUIRED_MANAGEMENT_REASONS
 
 
 def _text_sha1(text: str | None) -> str | None:
@@ -3102,7 +3124,9 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
                     review_notification_sent = True
                 except Exception as e:
                     print(f"[Notify gemini_failed] error: {e}")
-            journal.append_mgmt(sig_id, classified="GEMINI_FAILED", applied=False)
+            journal.append_mgmt(
+                sig_id, classified="GEMINI_FAILED", applied=False,
+                required=False)
             journal.event(sig_id, "mgmt_msg",
                           action="GEMINI_FAILED", price=None,
                           confidence=0.0,
@@ -3121,6 +3145,8 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
             continue
 
         firewall = firewall_decision(signal, cl, raw_text=raw_text)
+        required_execution = _management_requires_execution(
+            signal, cl, firewall)
         journal.event(sig_id, "interpretation_firewall_decision",
                       action=action_name,
                       price=cl.get("price"),
@@ -3136,6 +3162,7 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
                       is_conditional=bool(cl.get("is_conditional")),
                       is_optional=bool(cl.get("is_optional")),
                       evidence=cl.get("evidence"),
+                      required_execution=required_execution,
                       tg_ts=tg_ts,
                       raw_snippet=raw_text[:120])
         if not firewall.will_execute:
@@ -3151,6 +3178,7 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
                 sig_id,
                 classified=f"{action_name}_{firewall.policy.upper()}",
                 applied=False,
+                required=required_execution,
             )
             journal.event(sig_id, "mgmt_msg",
                           action=action_name, price=cl.get("price"),
@@ -3161,6 +3189,7 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
                           firewall_policy=firewall.policy,
                           firewall_reason=firewall.reason,
                           requires_review=firewall.requires_review,
+                          required_execution=required_execution,
                           raw_snippet=raw_text[:120],
                           tg_ts=tg_ts)
             continue
@@ -3186,7 +3215,7 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
                 except Exception as e:
                     print(f"[Notify low_conf] error: {e}")
             journal.append_mgmt(sig_id, classified=f"{action_name}_LOWCONF",
-                                applied=False)
+                                applied=False, required=True)
             journal.event(sig_id, "mgmt_msg",
                           action=action_name, price=cl.get("price"),
                           provider_stated_be_price=cl.get(
@@ -3194,6 +3223,7 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
                           confidence=confidence,
                           will_apply=False,
                           low_confidence_notified=True,
+                          required_execution=True,
                           raw_snippet=raw_text[:120],
                           tg_ts=tg_ts)
             continue
@@ -3218,7 +3248,9 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
                 except Exception as e:
                     print(f"[Notify Ambig] error: {e}")
             # Marcar en journal como pendiente de decisión humana
-            journal.append_mgmt(sig_id, classified=f"{action_name}_AMBIG", applied=False)
+            journal.append_mgmt(
+                sig_id, classified=f"{action_name}_AMBIG", applied=False,
+                required=True)
             journal.event(sig_id, "mgmt_msg",
                           action=action_name, price=cl.get("price"),
                           provider_stated_be_price=cl.get(
@@ -3226,11 +3258,14 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
                           confidence=confidence,
                           will_apply=False,
                           ambiguous_notified=True,
+                          required_execution=True,
                           raw_snippet=raw_text[:120],
                           tg_ts=tg_ts)
             continue  # no ejecuta esta acción
 
-        journal.append_mgmt(sig_id, classified=cl.get("action", "UNKNOWN"), applied=will_apply)
+        journal.append_mgmt(
+            sig_id, classified=cl.get("action", "UNKNOWN"),
+            applied=will_apply, required=required_execution)
         # Detalles de la acción al journal
         journal.event(sig_id, "mgmt_msg",
                       action=cl.get("action"), price=cl.get("price"),
@@ -3239,6 +3274,7 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
                       confidence=cl.get("confidence"),
                       gemini_failed=bool(cl.get("_gemini_failed")),
                       will_apply=will_apply,
+                      required_execution=required_execution,
                       raw_snippet=raw_text[:120],
                       tg_ts=tg_ts)
         if not will_apply:

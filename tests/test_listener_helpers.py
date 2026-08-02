@@ -22,12 +22,45 @@ from listener import (
     _be_close_negative_decision,
     _breakeven_close_guard_applies,
     _canal1_text_applied_summary,
+    _management_requires_execution,
     _same_direction_overlap_candidate,
     _should_accept_canal1_text,
     _standalone_mgmt_route,
     _unresolved_management_severity,
 )
+from interpretation_firewall import firewall_decision
 from state import Signal
+
+
+def test_optional_provider_suggestion_does_not_count_as_required_execution():
+    signal = Signal(channel="canal1", message_id=21182, direction="SELL")
+    classification = {
+        "action": "CLOSE_ALL",
+        "confidence": 0.95,
+        "is_optional": True,
+    }
+    decision = firewall_decision(
+        signal, classification,
+        raw_text="You can close around entry if you prefer",
+    )
+
+    assert _management_requires_execution(
+        signal, classification, decision) is False
+
+
+def test_direct_provider_order_counts_as_required_execution():
+    signal = Signal(channel="canal2", message_id=380, direction="BUY")
+    classification = {
+        "action": "MOVE_SL_TO_BE",
+        "confidence": 0.95,
+        "is_optional": False,
+        "is_conditional": False,
+    }
+    decision = firewall_decision(
+        signal, classification, raw_text="Move SL to BE")
+
+    assert _management_requires_execution(
+        signal, classification, decision) is True
 
 
 class TestShouldAcceptCanal1Text:

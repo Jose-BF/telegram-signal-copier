@@ -9,6 +9,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
@@ -17,6 +18,7 @@ if str(REPO_DIR) not in sys.path:
     sys.path.insert(0, str(REPO_DIR))
 
 import broker_money
+import runtime_paths
 from tools import capture_broker_money_contract
 
 
@@ -33,6 +35,31 @@ COMPILE_SUCCESS = re.compile(
     r"Result:\s*0 errors,\s*0 warnings",
     flags=re.IGNORECASE,
 )
+RUNTIME_HEARTBEAT_MAX_AGE_SEC = 60.0
+
+
+def _active_bot_runtime(
+    heartbeat_path: Path | None = None,
+    *,
+    now: float | None = None,
+) -> dict | None:
+    """Return a fresh production heartbeat, if the main bot is active."""
+    path = Path(
+        heartbeat_path
+        or os.getenv("BOT_RUNTIME_HEARTBEAT_FILE", "")
+        or runtime_paths.data_path(
+            "runtime_heartbeat.json", repo=REPO_DIR)
+    )
+    try:
+        age = (time.time() if now is None else now) - path.stat().st_mtime
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        return None
+    if age < 0 or age > RUNTIME_HEARTBEAT_MAX_AGE_SEC:
+        return None
+    if payload.get("schema_version") != 2 or not payload.get("pid"):
+        return None
+    return payload
 
 
 def _sha256(path: Path) -> str:
@@ -211,6 +238,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
     parser.add_argument("--verify-only", action="store_true")
     args = parser.parse_args(argv)
+
+    active_runtime = _active_bot_runtime()
+    if active_runtime is not None:
+        print("Broker-money service: BLOCKED")
+        print(
+            "The production bot is running "
+            f"(pid={active_runtime.get('pid')}, "
+            f"exposure={active_runtime.get('exposure_state', 'unknown')})."
+        )
+        print(
+            "Stop run_bot.bat first. This tool opens a separate MT5 Python "
+            "session and could disconnect the live bot."
+        )
+        return 2
 
     import MetaTrader5 as mt5
 

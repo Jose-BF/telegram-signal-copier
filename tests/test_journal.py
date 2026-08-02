@@ -9,6 +9,7 @@ monkeypatch para NO contaminar data/trade_events.jsonl real (problema
 visto con test_pending_actions que escribia al journal de produccion).
 """
 import json
+import csv
 import sys
 import types
 import asyncio
@@ -319,3 +320,53 @@ def test_event_receipts_confirm_each_write_independently(
 
 def test_payload_hash_serializes_sets_in_stable_order():
     assert journal._serialize({"b", "a"}) == ["a", "b"]
+
+
+def test_optional_management_suggestion_is_not_tagged_as_ignored_loss():
+    row = {
+        "closed_by": "SL",
+        "total_pnl_usd": -50.50,
+        "mfe_usd": 1.0,
+        "mae_usd": -50.50,
+        "mgmt_msgs_classified": ["CLOSE_ALL_NOTIFY_REVIEW"],
+        "mgmt_msgs_applied": [False],
+        "mgmt_msgs_required": [False],
+    }
+
+    assert journal._auto_tag(row) == "LOSS_CLEAN"
+
+
+def test_unexecuted_required_management_order_remains_visible_in_loss_tag():
+    row = {
+        "closed_by": "SL",
+        "total_pnl_usd": -20.0,
+        "mfe_usd": 6.0,
+        "mae_usd": -20.0,
+        "mgmt_msgs_classified": ["MOVE_SL_TO_BE_LOWCONF"],
+        "mgmt_msgs_applied": [False],
+        "mgmt_msgs_required": [True],
+    }
+
+    assert journal._auto_tag(row) == "LOSS_MGMT_IGNORED"
+
+
+def test_required_management_metadata_does_not_change_live_csv_schema(
+        isolated_journal):
+    signal_id = "canal1_21182_csv"
+    journal.begin_trade(
+        signal_id, channel="canal1", direction="SELL")
+    journal.append_mgmt(
+        signal_id, classified="CLOSE_ALL_NOTIFY_REVIEW",
+        applied=False, required=False)
+    journal.finalize_trade(
+        signal_id, closed_by="SL", total_pnl_usd=-50.50,
+        closed_at_utc="2026-07-30T15:30:00+00:00",
+        duration_sec=60.0)
+
+    with journal.JOURNAL_FILE.open(encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        row = next(reader)
+
+    assert "mgmt_msgs_required" not in reader.fieldnames
+    assert None not in row
+    assert row["tag"] == "LOSS_CLEAN"

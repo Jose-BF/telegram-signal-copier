@@ -13,12 +13,15 @@ ticket en `signal.sl_by_ticket` y lo pasa como `effective_sl`. Estos tests
 usan los numeros REALES de esas dos operaciones.
 """
 
+from types import SimpleNamespace
+
 import pytest
 
 import causal_trace
 import journal
 import position_lifecycle_monitor
 from position_lifecycle_monitor import (
+    _classify_closures,
     _decide_close_tag,
     _should_emit_periodic_snapshot,
 )
@@ -152,6 +155,14 @@ class TestDecideCloseTag:
         assert tag == "MANUAL"
         assert dist is None
 
+    def test_broker_manual_reason_cannot_be_mislabeled_as_tp(self):
+        tag, dist = _decide_close_tag(
+            exit_price=4533.5, ticket_entry=4540.0, direction="SELL",
+            tps=[4534.0], effective_sl=4555.0, be_armed=False,
+            broker_close_reason="manual")
+        assert tag == "MANUAL"
+        assert dist is None
+
     # ─── REGRESION del bug 2026-05-18 ──────────────────────────────────────
     def test_canal1_19754_sl_movido_por_gestion_no_es_manual(self):
         """canal1_19754: el canal mando 'move SL to 4544'. Las 4 legs
@@ -183,3 +194,77 @@ class TestDecideCloseTag:
             tps=[4551.0, 4556.0, 4561.0, 4566.0], effective_sl=4530.0,
             be_armed=False)
         assert tag == "MANUAL"   # el bug, reproducido con el input viejo
+
+
+def test_mt5_tp_reason_uses_confirmed_ticket_tp_not_later_provider_levels(
+        monkeypatch):
+    """A TP hit before the final provider levels is still a real TP."""
+    ticket = 1688925705
+    signal = Signal(channel="canal1", message_id=21182, direction="SELL")
+    signal.market_ticket = ticket
+    signal.tps = [4039.0, 4037.0, 4035.0, 4033.0]
+    signal.sl = 4052.0
+    signal.tp_by_ticket[ticket] = 4040.68
+
+    deals = [
+        SimpleNamespace(
+            ticket=1, time_msc=1, price=4043.68, profit=0.0,
+            commission=0.0, swap=0.0, reason=3, comment="c1_21182",
+        ),
+        SimpleNamespace(
+            ticket=2, time_msc=2, price=4040.68, profit=2.95,
+            commission=0.0, swap=0.0, fee=-0.05, reason=5, comment="",
+        ),
+    ]
+    monkeypatch.setattr(
+        position_lifecycle_monitor.mt5,
+        "history_deals_get",
+        lambda **_kwargs: deals,
+    )
+
+    closures = _classify_closures(signal)
+
+    assert closures == [{
+        "ticket": ticket,
+        "exit_price": 4040.68,
+        "pnl": 2.90,
+        "closed_by_tag": "TP_PROVISIONAL",
+        "distance_to_tag": 0.0,
+        "broker_close_reason": "tp",
+        "broker_deal_reason": 5,
+        "effective_tp": 4040.68,
+        "effective_sl": 4052.0,
+        "classification_source": "broker_reason_and_effective_level",
+    }]
+
+
+def test_mt5_sl_reason_wins_when_provider_level_changed_after_close(
+        monkeypatch):
+    ticket = 1689000001
+    signal = Signal(channel="canal1", message_id=21183, direction="SELL")
+    signal.market_ticket = ticket
+    signal.tps = [4039.0]
+    signal.sl = 4055.0
+    signal.sl_by_ticket[ticket] = 4090.0
+
+    deals = [
+        SimpleNamespace(
+            ticket=10, time_msc=1, price=4044.0, profit=0.0,
+            commission=0.0, swap=0.0, reason=3, comment="c1_21183",
+        ),
+        SimpleNamespace(
+            ticket=11, time_msc=2, price=4090.2, profit=-50.5,
+            commission=0.0, swap=0.0, reason=4, comment="",
+        ),
+    ]
+    monkeypatch.setattr(
+        position_lifecycle_monitor.mt5,
+        "history_deals_get",
+        lambda **_kwargs: deals,
+    )
+
+    closure = _classify_closures(signal)[0]
+
+    assert closure["closed_by_tag"] == "SL"
+    assert closure["broker_close_reason"] == "sl"
+    assert closure["classification_source"] == "broker_reason_and_effective_level"

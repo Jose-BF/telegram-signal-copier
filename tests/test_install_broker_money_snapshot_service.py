@@ -205,6 +205,33 @@ def test_verify_only_reports_inactive_service_without_traceback(
     assert "missing verified MQL5 broker swap evidence" in output
 
 
+def test_installer_refuses_to_initialize_mt5_while_live_bot_is_running(
+    monkeypatch,
+    capsys,
+):
+    from tools import install_broker_money_snapshot_service as installer
+
+    initialized = []
+    fake_mt5 = SimpleNamespace(
+        initialize=lambda: initialized.append(True) or True,
+        shutdown=lambda: None,
+    )
+    monkeypatch.setitem(sys.modules, "MetaTrader5", fake_mt5)
+    monkeypatch.setattr(
+        installer,
+        "_active_bot_runtime",
+        lambda: {"pid": 4321, "exposure_state": "flat"},
+    )
+
+    result = installer.main(["--verify-only"])
+
+    assert result == 2
+    assert initialized == []
+    output = capsys.readouterr().out
+    assert "bot is running" in output.lower()
+    assert "4321" in output
+
+
 def test_verify_active_rejects_tampered_compiled_service(
     tmp_path,
     monkeypatch,

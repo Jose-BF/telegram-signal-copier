@@ -24,6 +24,7 @@ import reconcile_mt5_ledger
 from reconcile_mt5_ledger import (
     parse_sig_role,
     close_reason_from_comment,
+    close_reason_from_deal,
     reconcile_signal,
 )
 
@@ -104,6 +105,16 @@ class TestCloseReason:
     def test_other(self):
         assert close_reason_from_comment("algo raro") == "other"
         assert close_reason_from_comment("") == "other"
+
+    def test_broker_reason_is_authoritative_when_comment_is_empty(self):
+        assert close_reason_from_deal(
+            SimpleNamespace(reason=5, comment="")) == "tp"
+        assert close_reason_from_deal(
+            SimpleNamespace(reason=4, comment="")) == "sl"
+
+    def test_deal_reason_falls_back_to_comment_for_bot_close(self):
+        assert close_reason_from_deal(
+            SimpleNamespace(reason=3, comment="bot_close")) == "bot_close"
 
 
 # ─── reconcile_signal ───────────────────────────────────────────────────────
@@ -406,6 +417,7 @@ class TestLoadMt5PositionsDealDetail:
             "fee": 0.0,
             "comment": "c1_20700",
             "magic": 20260421,
+            "reason": 3,
         }
         base.update(overrides)
         return SimpleNamespace(**base)
@@ -423,7 +435,8 @@ class TestLoadMt5PositionsDealDetail:
             swap=-0.01,
             commission=-0.02,
             fee=-0.01,
-            comment="[tp 4180.00]",
+            comment="",
+            reason=5,
         )
         monkeypatch.setattr(
             reconcile_mt5_ledger,
@@ -447,6 +460,8 @@ class TestLoadMt5PositionsDealDetail:
         assert pos["open_deal"]["time_msc"] == 1783076049123
         assert pos["close_deal"]["ticket"] == 1307244455
         assert pos["close_deal"]["time_msc"] == 1783077119876
+        assert pos["close_deal"]["reason"] == 5
+        assert pos["close_reason"] == "tp"
         assert [deal["entry"] for deal in pos["deals"]] == [0, 1]
 
 

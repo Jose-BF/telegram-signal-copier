@@ -39,6 +39,10 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 from journal import health_verdict
+from mt5_deal_reason import (
+    close_reason_from_comment as _close_reason_from_comment,
+    close_reason_from_deal as _close_reason_from_deal,
+)
 import runtime_paths
 
 if sys.platform == "win32":
@@ -102,16 +106,12 @@ def parse_sig_role(comment: str):
 
 def close_reason_from_comment(comment: str) -> str:
     """Clasifica el motivo de cierre por el comment del deal de salida."""
-    c = (comment or "").lower()
-    if c.startswith("[sl"):
-        return "sl"
-    if c.startswith("[tp"):
-        return "tp"
-    if c.startswith("[be"):
-        return "be"
-    if "bot_close" in c:
-        return "bot_close"
-    return "other"
+    return _close_reason_from_comment(comment)
+
+
+def close_reason_from_deal(deal) -> str:
+    """Prefer MT5's immutable reason code over a mutable/empty comment."""
+    return _close_reason_from_deal(deal)
 
 
 def _ticket_key(ticket) -> str | None:
@@ -625,8 +625,11 @@ def load_journal_index(path: Path) -> dict:
                 "classified": e.get("action"),
                 "confidence": e.get("confidence"),
                 "applied": e.get("will_apply", False),
-                "skip_reason": ("ambiguous_notified"
-                                if e.get("ambiguous_notified") else None),
+                "required_execution": e.get("required_execution"),
+                "skip_reason": (
+                    "ambiguous_notified" if e.get("ambiguous_notified")
+                    else e.get("firewall_reason")
+                ),
             })
 
         # T6: timeline — eventos clave del trade (OUT del elif chain,
@@ -748,6 +751,7 @@ def _deal_payload(deal) -> dict | None:
         "time_utc": _deal_time_utc(deal),
         "symbol": getattr(deal, "symbol", None),
         "magic": getattr(deal, "magic", None),
+        "reason": getattr(deal, "reason", None),
         "price": getattr(deal, "price", None),
         "volume": getattr(deal, "volume", None),
         "profit": round(_deal_money(deal, "profit"), 2),
@@ -856,7 +860,7 @@ def load_mt5_positions(t_from: datetime, t_to: datetime,
             "close_price": close_deal.price if close_deal else None,
             "close_dt_utc": (datetime.fromtimestamp(close_deal.time, tz=timezone.utc)
                              .isoformat(timespec="seconds")) if close_deal else None,
-            "close_reason": (close_reason_from_comment(close_deal.comment)
+            "close_reason": (close_reason_from_deal(close_deal)
                              if close_deal else None),
             "is_closed": close_deal is not None,
             "pnl_net": pnl_net,

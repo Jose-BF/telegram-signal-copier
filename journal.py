@@ -502,6 +502,7 @@ def begin_trade(signal_id: str, **initial_fields):
             "signal_id": signal_id,
             "mgmt_msgs_classified": [],
             "mgmt_msgs_applied": [],
+            "mgmt_msgs_required": [],
             "mfe_usd": 0.0,
             "mae_usd": 0.0,
             "n_dca_filled": 0,
@@ -516,13 +517,15 @@ def update_trade(signal_id: str, **fields):
             _trades[signal_id].update(fields)
 
 
-def append_mgmt(signal_id: str, classified: str, applied: bool):
+def append_mgmt(signal_id: str, classified: str, applied: bool,
+                required: bool = True):
     """Registra que se recibió un mensaje de gestión y si se aplicó."""
     with _trades_lock:
         if signal_id in _trades:
             t = _trades[signal_id]
             t["mgmt_msgs_classified"].append(classified)
             t["mgmt_msgs_applied"].append(bool(applied))
+            t.setdefault("mgmt_msgs_required", []).append(bool(required))
 
 
 def update_extremes(signal_id: str, current_pl: float, ts: Optional[str] = None):
@@ -570,7 +573,8 @@ def finalize_trade(signal_id: str, **final_fields):
     if t is None:
         # Por si finalize_trade se llama dos veces o sin begin_trade previo
         t = {"signal_id": signal_id, "mgmt_msgs_classified": [],
-             "mgmt_msgs_applied": [], "mfe_usd": 0.0, "mae_usd": 0.0}
+             "mgmt_msgs_applied": [], "mgmt_msgs_required": [],
+             "mfe_usd": 0.0, "mae_usd": 0.0}
 
     t.update(final_fields)
     t["n_mgmt_msgs"] = len(t.get("mgmt_msgs_classified", []))
@@ -632,9 +636,17 @@ def _auto_tag(row: dict) -> str:
 
     classified = row.get("mgmt_msgs_classified", [])
     applied = row.get("mgmt_msgs_applied", [])
-    n_mgmt = len(classified) if isinstance(classified, list) else 0
-    n_applied = sum(applied) if isinstance(applied, list) else 0
-    n_ignored = max(0, n_mgmt - n_applied)
+    required = row.get("mgmt_msgs_required")
+    if isinstance(required, list) and isinstance(applied, list):
+        n_ignored = sum(
+            1 for index, is_required in enumerate(required)
+            if is_required
+            and not bool(applied[index] if index < len(applied) else False)
+        )
+    else:
+        n_mgmt = len(classified) if isinstance(classified, list) else 0
+        n_applied = sum(applied) if isinstance(applied, list) else 0
+        n_ignored = max(0, n_mgmt - n_applied)
 
     if "TIMESTOP" in closed_by or "TIME_STOP" in closed_by:
         return "TIMESTOP"

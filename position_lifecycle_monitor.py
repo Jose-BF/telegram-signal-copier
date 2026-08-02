@@ -36,6 +36,7 @@ import config
 import executor
 import pending_actions
 import strategies
+from mt5_deal_reason import close_reason_from_deal
 from state import Signal
 
 
@@ -148,7 +149,9 @@ def _close_all_positions(signal: Signal, reason: str):
 
 def _decide_close_tag(exit_price: float, ticket_entry: float, direction: str,
                       tps: list, effective_sl,
-                      be_armed: bool) -> tuple[str, "float | None"]:
+                      be_armed: bool, *, effective_tp=None,
+                      broker_close_reason: str | None = None
+                      ) -> tuple[str, "float | None"]:
     """Decide el motivo de cierre de UNA posicion. FUNCION PURA (testeable).
 
     DIRECCIONAL: un TP/SL solo cuenta si el precio lo CRUZO en la direccion
@@ -166,6 +169,47 @@ def _decide_close_tag(exit_price: float, ticket_entry: float, direction: str,
       MANUAL    — ni TP ni SL ni BE → cierre externo desconocido.
     """
     TOL = 0.5
+
+    broker_reason = str(broker_close_reason or "").lower()
+    if broker_reason == "tp":
+        if effective_tp is None:
+            effective_tp = min(
+                (tp for tp in (tps or [])),
+                key=lambda tp: abs(exit_price - tp),
+                default=None,
+            )
+        if effective_tp is None:
+            return "TP", None
+        provider_match = min(
+            enumerate(tps or [], start=1),
+            key=lambda item: abs(float(effective_tp) - float(item[1])),
+            default=None,
+        )
+        if (provider_match is not None
+                and abs(float(effective_tp) - float(provider_match[1])) <= TOL):
+            tag = f"TP{provider_match[0]}"
+        else:
+            tag = "TP_PROVISIONAL"
+        return tag, round(abs(exit_price - float(effective_tp)), 3)
+
+    if broker_reason in {"sl", "be"}:
+        is_be = (
+            broker_reason == "be"
+            or (effective_sl is not None
+                and abs(float(effective_sl) - ticket_entry) <= 1.0)
+            or (be_armed and abs(exit_price - ticket_entry) <= 1.5)
+        )
+        distance = (
+            round(abs(exit_price - float(effective_sl)), 3)
+            if effective_sl is not None else None
+        )
+        return ("LOSS_BE" if is_be else "SL"), distance
+
+    if broker_reason in {"manual", "mobile", "web"}:
+        return "MANUAL", None
+
+    if broker_reason == "bot_close":
+        return "BOT_CLOSE", None
 
     def _tp_crossed(price, tp_level):
         if direction == "SELL":
@@ -242,7 +286,23 @@ def _classify_closures(signal: Signal) -> list[dict]:
             exit_price = close_deal.price
             ticket_entry = open_deal.price  # precio real de apertura de ESTE ticket (no necesariamente = market fill)
             # PnL realizado de TODOS los deals de esta posición (apertura+cierre)
-            pnl_total = sum(d.profit + d.commission + d.swap for d in deals)
+            pnl_total = sum(
+                float(getattr(deal, field, 0.0) or 0.0)
+                for deal in deals
+                for field in ("profit", "commission", "swap", "fee")
+            )
+            broker_reason = close_reason_from_deal(close_deal)
+            broker_deal_reason = getattr(close_deal, "reason", None)
+            effective_sl = signal.sl_by_ticket.get(
+                int(ticket), signal.sl_by_ticket.get(str(ticket), signal.sl))
+            effective_tp = signal.tp_by_ticket.get(
+                int(ticket), signal.tp_by_ticket.get(str(ticket)))
+            evidence = {
+                "broker_close_reason": broker_reason,
+                "broker_deal_reason": broker_deal_reason,
+                "effective_tp": effective_tp,
+                "effective_sl": effective_sl,
+            }
             if ticket in getattr(signal, "be_rescue_tickets", []):
                 out.append({
                     "ticket": int(ticket),
@@ -250,6 +310,8 @@ def _classify_closures(signal: Signal) -> list[dict]:
                     "pnl": round(pnl_total, 2),
                     "closed_by_tag": "BE_RESCUE_TIMEOUT",
                     "distance_to_tag": None,
+                    **evidence,
+                    "classification_source": "bot_state",
                 })
                 continue
 
@@ -264,6 +326,8 @@ def _classify_closures(signal: Signal) -> list[dict]:
                     "pnl": round(pnl_total, 2),
                     "closed_by_tag": "CLOSE_FIRST",
                     "distance_to_tag": None,
+                    **evidence,
+                    "classification_source": "bot_state",
                 })
                 continue
 
@@ -272,10 +336,24 @@ def _classify_closures(signal: Signal) -> list[dict]:
             # pending_actions registró en sl_by_ticket al confirmarlo en MT5;
             # si no, el SL del proveedor. Sin esto el cierre por un SL movido
             # se etiquetaba "MANUAL" (bug 2026-05-18).
-            effective_sl = signal.sl_by_ticket.get(int(ticket), signal.sl)
             tag, dist = _decide_close_tag(
                 exit_price, ticket_entry, signal.direction,
-                signal.tps, effective_sl, signal.be_armed)
+                signal.tps, effective_sl, signal.be_armed,
+                effective_tp=effective_tp,
+                broker_close_reason=broker_reason)
+
+            if broker_reason in {"tp", "sl", "be"}:
+                relevant_level = (
+                    effective_tp if broker_reason == "tp" else effective_sl)
+                source = (
+                    "broker_reason_and_effective_level"
+                    if relevant_level is not None
+                    else "broker_reason"
+                )
+            elif broker_reason in {"manual", "mobile", "web", "bot_close"}:
+                source = "broker_reason"
+            else:
+                source = "price_vs_effective_level"
 
             out.append({
                 "ticket": int(ticket),
@@ -283,6 +361,8 @@ def _classify_closures(signal: Signal) -> list[dict]:
                 "pnl": round(pnl_total, 2),
                 "closed_by_tag": tag,
                 "distance_to_tag": dist,
+                **evidence,
+                "classification_source": source,
             })
     except Exception as e:
         print(f"[Position Monitor] _classify_closures error: {e}")
