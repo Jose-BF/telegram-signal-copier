@@ -226,13 +226,20 @@ def _validated_mql_evidence(
         getattr(instrument_tick, "time", None),
         "python_server_tick_epoch",
     )
-    normalized_native_tick = last_server_tick - rounded_offset
-    python_tick_advance = python_tick_epoch - normalized_native_tick
-    if (
-        python_tick_advance < -2
-        or python_tick_advance > age_seconds + 5
-    ):
+    tick_advances = {
+        "utc_epoch": (
+            python_tick_epoch - (last_server_tick - rounded_offset)
+        ),
+        "broker_server_epoch": python_tick_epoch - last_server_tick,
+    }
+    valid_tick_bases = [
+        (basis, advance)
+        for basis, advance in tick_advances.items()
+        if -2 <= advance <= age_seconds + 5
+    ]
+    if not valid_tick_bases:
         raise RuntimeError("MQL5/Python server tick time mismatch")
+    python_tick_basis, python_tick_advance = valid_tick_bases[0]
 
     cross_checks = {
         "swap_mode": (
@@ -308,6 +315,9 @@ def _validated_mql_evidence(
         "captured_gmt_epoch": captured_gmt,
         "last_server_tick_epoch": last_server_tick,
         "server_tick_lag_seconds": tick_lag,
+        "python_tick_epoch": python_tick_epoch,
+        "python_tick_time_basis": python_tick_basis,
+        "python_tick_advance_seconds": python_tick_advance,
         "evidence_age_seconds": round(age_seconds, 3),
         "utc_offset_seconds": rounded_offset,
     }

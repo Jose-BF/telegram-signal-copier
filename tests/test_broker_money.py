@@ -361,6 +361,45 @@ def test_capture_accepts_newer_symbol_tick_within_snapshot_age(tmp_path):
     assert snapshot["captured_at_utc"] == native_time.isoformat()
 
 
+def test_capture_accepts_python_tick_encoded_in_broker_server_epoch(
+    tmp_path,
+):
+    from types import SimpleNamespace
+    from tools import capture_broker_money_contract
+
+    native_time = datetime(2026, 7, 27, 10, 0, tzinfo=timezone.utc)
+    captured_at = datetime(2026, 7, 27, 10, 0, 47, tzinfo=timezone.utc)
+    server_tick = datetime(2026, 7, 27, 13, 0, 47, tzinfo=timezone.utc)
+    evidence = tmp_path / "broker_swap_evidence.csv"
+    _write_mql_swap_evidence(
+        evidence,
+        captured_gmt_epoch=int(native_time.timestamp()),
+    )
+    instrument = SimpleNamespace(
+        name="XAUUSD",
+        point=0.01,
+        trade_contract_size=100.0,
+        currency_profit="USD",
+        swap_mode=1,
+        swap_long=-75.82,
+        swap_short=27.41,
+        swap_rollover3days=3,
+    )
+
+    snapshot = capture_broker_money_contract.capture_swap_snapshot(
+        _mt5_with_tick(server_tick),
+        instrument,
+        account_server="VantageMarkets-Demo",
+        captured_at=captured_at,
+        mql_evidence_path=evidence,
+    )
+
+    assert snapshot["time_evidence"]["python_tick_time_basis"] == (
+        "broker_server_epoch"
+    )
+    assert snapshot["time_evidence"]["python_tick_advance_seconds"] == 47
+
+
 def test_capture_fails_closed_when_native_mql_swap_evidence_is_missing(
     tmp_path,
 ):
