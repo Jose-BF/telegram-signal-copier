@@ -1807,6 +1807,15 @@ async def _place_dca(signal: Signal):
     return
 
 async def _open_extra_legs(sig: Signal, msg_id: int) -> None:
+    """Expose one atomic opening window to the independent live auditor."""
+    sig.opening_extra_legs = True
+    try:
+        await _open_extra_legs_impl(sig, msg_id)
+    finally:
+        sig.opening_extra_legs = False
+
+
+async def _open_extra_legs_impl(sig: Signal, msg_id: int) -> None:
     """Abre las posiciones market ADICIONALES a la inicial, segun el modo.
 
     Modo "scale_out" (semana de prueba 2026-05-17): abre N-1 posiciones
@@ -3079,15 +3088,46 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
         tg_ts=tg_ts,
     )
 
-    # Captura SL hit para post-SL momentum (point 4): solo una vez aunque haya
-    # varias acciones en el mismo mensaje.
+    # A provider can mention a past SL while our live trade is still open.
+    # MT5, not wording alone, is authoritative for closing the Signal.
     if raw_text and _SL_HIT_RE.search(raw_text):
-        duration_s = (datetime.utcnow() - signal.timestamp).total_seconds()
-        strategies.record_sl_hit(signal.channel, duration_s)
-        signal.status = "closed"
-        sl_hit_detected = True
-        journal.event(sig_id, "sl_hit_detected",
-                      raw_text=raw_text[:200], duration_s=round(duration_s, 1))
+        try:
+            open_positions = await _run(
+                _open_mt5_positions_for_signal, signal)
+        except Exception as exc:
+            open_positions = None
+            query_error = f"{type(exc).__name__}: {exc}"
+        else:
+            query_error = None
+
+        if open_positions == []:
+            duration_s = (datetime.utcnow() - signal.timestamp).total_seconds()
+            strategies.record_sl_hit(signal.channel, duration_s)
+            signal.status = "closed"
+            sl_hit_detected = True
+            journal.event(
+                sig_id,
+                "sl_hit_detected",
+                raw_text=raw_text[:200],
+                duration_s=round(duration_s, 1),
+                evidence="mt5_no_open_positions",
+            )
+        else:
+            journal.event(
+                sig_id,
+                "sl_hit_message_deferred",
+                raw_text=raw_text[:200],
+                reason=(
+                    "mt5_positions_query_failed"
+                    if open_positions is None
+                    else "mt5_positions_still_open"
+                ),
+                open_tickets=(
+                    [position.get("ticket") for position in open_positions]
+                    if open_positions else []
+                ),
+                error=query_error,
+            )
 
     for cl in classifications:
         # Si una acción anterior cerró la señal, no aplicamos las restantes

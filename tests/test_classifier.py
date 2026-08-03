@@ -181,6 +181,37 @@ class TestExplicitAdditionalEntry:
         assert actions[0]["entry_direction"] == "SELL"
         assert actions[0]["price"] == 4055.0
 
+    @pytest.mark.asyncio
+    async def test_canal1_direct_reentry_permission_is_never_lost_to_gemini(
+            self, monkeypatch):
+        def gemini_should_not_run(*args, **kwargs):
+            raise AssertionError("Direct re-entry permission is deterministic")
+
+        monkeypatch.setattr("classifier._gemini_classify",
+                            gemini_should_not_run)
+        signal = Signal(channel="canal1", message_id=20700,
+                        direction="SELL")
+
+        actions = await classify_async(
+            "You can still enter the sell trade", signal=signal)
+
+        assert actions[0]["action"] == "REENTRY_SIGNAL"
+        assert actions[0]["entry_direction"] == "SELL"
+        assert actions[0]["_reason"] == "provider_direct_reentry_permission"
+
+
+class TestCloseOverallProfit:
+    def test_close_overall_profit_is_an_order_not_a_progress_update(self):
+        actions = _actions("+50 pips. Close overall profit")
+
+        assert [action["action"] for action in actions] == ["CLOSE_ALL"]
+        assert actions[0]["_reason"] == "close_overall_profit"
+
+    def test_optional_close_or_risk_free_is_not_forced_close(self):
+        actions = _actions("Close profit or go risk free")
+
+        assert "CLOSE_ALL" not in [action["action"] for action in actions]
+
 
 class TestMoveSlToBe:
     def test_move_sl_to_be(self):

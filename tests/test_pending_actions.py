@@ -25,6 +25,7 @@ from pending_actions import (
     PendingAction,
     DEFAULT_TIMEOUT_S,
     _record_confirmed_levels,
+    _should_alert_waiting_exact_be,
     _should_alert_stuck_stops,
     snapshot,
 )
@@ -1188,3 +1189,18 @@ def test_persistent_provider_instruction_does_not_expire_before_signal_closes():
 
     assert action.signal.status == "open"
     assert action.expired() is False
+
+
+def test_exact_be_wait_alerts_once_after_threshold():
+    action = _make_action(label="BE #12345 -> 4056.50", new_sl=4056.50)
+    action.persist_until_signal_close = True
+    action.waiting_reason = "requested_sl_waits_for_market"
+
+    assert _should_alert_waiting_exact_be(
+        action, age_s=29.9, threshold_s=30.0) is False
+    assert _should_alert_waiting_exact_be(
+        action, age_s=30.0, threshold_s=30.0) is True
+
+    action.stops_alerted = True
+    assert _should_alert_waiting_exact_be(
+        action, age_s=60.0, threshold_s=30.0) is False

@@ -38,6 +38,7 @@ DEFAULT_TIMEOUT_S = 3600
 # para que el user sepa.
 TRANSIENT_STUCK_THRESHOLD_S = 300
 STOPS_STUCK_THRESHOLD_S = 30
+EXACT_BE_WAIT_ALERT_THRESHOLD_S = 30
 
 # Batch E: cuando _run() ve N ticks consecutivos None de mt5.symbol_info_tick,
 # es indicacion fuerte de broker/MT5 down. Emitimos anomaly criticla.
@@ -92,6 +93,19 @@ def _should_alert_stuck_stops(retcode: int, age_s: float,
         mt5_errors.classify(retcode) == "STOPS"
         and age_s >= threshold_s
         and not already_alerted
+    )
+
+
+def _should_alert_waiting_exact_be(action, age_s: float,
+                                   threshold_s: float) -> bool:
+    """Alert once when an exact provider BE remains illegal at market."""
+    return bool(
+        action.kind == "MODIFY_SLTP"
+        and action.persist_until_signal_close
+        and action.new_sl is not None
+        and action.waiting_reason
+        and age_s >= threshold_s
+        and not action.stops_alerted
     )
 
 
@@ -722,12 +736,23 @@ class PendingQueue:
                     # Marca RETRY para que la cola siga
                     result = "RETRY"
 
+                age = time.time() - act.created_at
+                if (
+                    result == "WAIT_PRECONDITION"
+                    and _should_alert_waiting_exact_be(
+                        act,
+                        age,
+                        EXACT_BE_WAIT_ALERT_THRESHOLD_S,
+                    )
+                ):
+                    self._record_stuck_stops(act)
+                    act.stops_alerted = True
+
                 # Batch E: stuck transient warning. Si el retcode es TRANSIENT
                 # y la accion lleva >5min en cola, algo estructural bloquea
                 # (autotrading desactivado permanentemente, broker disconnected
                 # >5min, etc). Warning una vez por accion para no spammear.
                 if result == "RETRY" and act.last_retcode is not None:
-                    age = time.time() - act.created_at
                     stuck_sev = _stuck_transient_severity(
                         act.last_retcode, age, TRANSIENT_STUCK_THRESHOLD_S,
                         getattr(act, "_stuck_warned", False))
@@ -792,6 +817,7 @@ class PendingQueue:
             act.new_sl,
             act.new_tp,
             act.last_retcode,
+            act.last_preflight_reason,
         )
 
     @staticmethod
@@ -806,6 +832,16 @@ class PendingQueue:
         sl_text = str(first.new_sl) if first.new_sl is not None else "sin cambio"
         tp_value = first.new_tp if first.new_tp is not None else first.applied_tp
         tp_text = str(tp_value) if tp_value is not None else "sin cambio"
+        if first.last_preflight_status == "wait_market":
+            return (
+                "BE AUN NO APLICADO\n"
+                f"{channel} - {first.signal.direction}\n"
+                f"BE exacto {sl_text}\n"
+                f"{count} {position_label}: {tickets}\n\n"
+                "El precio actual no permite colocar exactamente ese SL.\n"
+                "Bot: sigue reintentando hasta aplicarlo o cerrar la senal.\n"
+                "Accion: revisa MT5 si necesitas intervenir ahora."
+            )
         return (
             "🚨 PROTECCIÓN PENDIENTE\n"
             f"{channel} · {first.signal.direction}\n"
@@ -845,6 +881,8 @@ class PendingQueue:
                 new_sl=first.new_sl,
                 new_tp=first.new_tp,
                 retcode=first.last_retcode,
+                preflight_status=first.last_preflight_status,
+                preflight_reason=first.last_preflight_reason,
                 mt5_attempts=sum(action.attempts for action in actions),
                 action_ids=[action.action_id for action in actions],
                 **_lineage_fields(first),

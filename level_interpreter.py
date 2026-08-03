@@ -21,7 +21,13 @@ from parser import (
 FALLBACK_RANGE_WIDTH_USD = 5.0
 MAX_PROVIDER_RANGE_WIDTH_USD = 20.0
 MAX_TP_DISTANCE_USD = 80.0
+MAX_SL_DISTANCE_USD = 80.0
 MIN_REBUILT_TP_STEP_USD = 2.0
+MARKET_CONTEXT_SHIFT_UNIT_USD = 100.0
+MARKET_CONTEXT_SHIFT_TRIGGER_USD = 80.0
+MARKET_CONTEXT_SHIFT_MAX_RESIDUAL_USD = 20.0
+MARKET_CONTEXT_SHIFT_MAX_UNITS = 2
+MARKET_CONTEXT_SHIFT_MIN_IMPROVEMENT_USD = 40.0
 
 
 def _round_price(value: float) -> float:
@@ -42,6 +48,87 @@ def synthetic_range_from_entry(direction: str, entry: float,
     if direction == "BUY":
         return (_round_price(entry - width), entry)
     return (entry, _round_price(entry + width))
+
+
+def _shift_plan_to_market_context(direction: str, parsed: dict,
+                                  reference_price: float | None):
+    """Repair a coherent +/-100 XAU typo across the complete level plan."""
+    if reference_price is None or not parsed.get("range"):
+        return parsed, None
+
+    try:
+        raw_range = (
+            _round_price(parsed["range"][0]),
+            _round_price(parsed["range"][1]),
+        )
+        anchor = expected_entry_from_range(direction, raw_range)
+        distance = float(reference_price) - float(anchor)
+    except (IndexError, TypeError, ValueError):
+        return parsed, None
+
+    if abs(distance) < MARKET_CONTEXT_SHIFT_TRIGGER_USD:
+        return parsed, None
+
+    units = round(distance / MARKET_CONTEXT_SHIFT_UNIT_USD)
+    if units == 0 or abs(units) > MARKET_CONTEXT_SHIFT_MAX_UNITS:
+        return parsed, None
+    offset = units * MARKET_CONTEXT_SHIFT_UNIT_USD
+    residual = abs(distance - offset)
+    if residual > MARKET_CONTEXT_SHIFT_MAX_RESIDUAL_USD:
+        return parsed, None
+
+    shifted_range = tuple(_round_price(value + offset) for value in raw_range)
+    usable, _ = _range_is_usable(
+        direction, shifted_range, _round_price(reference_price))
+    if not usable:
+        return parsed, None
+
+    shifted = deepcopy(parsed)
+    shifted["range"] = shifted_range
+    shifted_fields = ["range"]
+
+    def shift_if_closer(value):
+        raw_value = _round_price(value)
+        candidate = _round_price(raw_value + offset)
+        improvement = (
+            abs(raw_value - float(reference_price))
+            - abs(candidate - float(reference_price))
+        )
+        if improvement >= MARKET_CONTEXT_SHIFT_MIN_IMPROVEMENT_USD:
+            return candidate, True
+        return raw_value, False
+
+    if shifted.get("tps"):
+        try:
+            corrected_tps = []
+            any_tp_shifted = False
+            for value in shifted["tps"]:
+                corrected, did_shift = shift_if_closer(value)
+                corrected_tps.append(corrected)
+                any_tp_shifted = any_tp_shifted or did_shift
+            shifted["tps"] = corrected_tps
+            if any_tp_shifted:
+                shifted_fields.append("tps")
+        except (TypeError, ValueError):
+            return parsed, None
+    if shifted.get("sl") is not None:
+        try:
+            shifted["sl"], sl_shifted = shift_if_closer(shifted["sl"])
+            if sl_shifted:
+                shifted_fields.append("sl")
+        except (TypeError, ValueError):
+            return parsed, None
+
+    return shifted, {
+        "field": "plan",
+        "kind": "market_context_shift",
+        "offset": offset,
+        "reference_price": _round_price(reference_price),
+        "original_range": list(raw_range),
+        "corrected_range": list(shifted_range),
+        "residual": _round_price(residual),
+        "shifted_fields": shifted_fields,
+    }
 
 
 def _range_is_usable(direction: str, rng: tuple[float, float],
@@ -114,6 +201,10 @@ def interpret_entry_levels(channel: str, direction: str, parsed: dict,
         normalized["direction"] = direction
 
     corrections: list[dict] = []
+    normalized, context_correction = _shift_plan_to_market_context(
+        direction, normalized, reference_price)
+    if context_correction:
+        corrections.append(context_correction)
     raw_range = normalized.get("range")
     entry = _round_price(reference_price) if reference_price is not None else None
 
@@ -223,7 +314,8 @@ def interpret_entry_levels(channel: str, direction: str, parsed: dict,
         raw_sl = _round_price(raw_sl)
         validation = levels_consistent_with_direction(
             direction, entry, tps=None, sl=raw_sl)
-        if validation["sl_ok"]:
+        sl_distance_ok = abs(raw_sl - entry) <= MAX_SL_DISTANCE_USD
+        if validation["sl_ok"] and sl_distance_ok:
             final_sl = raw_sl
         else:
             final_sl = (predicted or {}).get("sl")
@@ -236,7 +328,11 @@ def interpret_entry_levels(channel: str, direction: str, parsed: dict,
                 "kind": "sl_replaced",
                 "original": raw_sl,
                 "corrected": final_sl,
-                "reason": validation["sl_problem"],
+                "reason": (
+                    validation["sl_problem"]
+                    if not validation["sl_ok"]
+                    else "sl_too_far_from_entry"
+                ),
             })
     elif (predicted or {}).get("sl") is not None:
         final_sl = predicted["sl"]

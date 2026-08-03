@@ -94,3 +94,57 @@ class TestInterpretEntryLevels:
         assert all(tp > 4089.50 for tp in tps)
         assert any(c["field"] == "tps" and c["index"] == 3
                    for c in result["corrections"])
+
+    def test_coherent_hundred_dollar_shift_is_corrected_as_one_plan(self):
+        parsed = {
+            "direction": "SELL",
+            "range": (4132.0, 4137.0),
+            "tps": [4130.0, 4128.0, 4120.0],
+            "sl": 4140.0,
+        }
+
+        result = interpret_entry_levels(
+            "canal2", "SELL", parsed, reference_price=4032.68)
+
+        assert result["parsed"]["range"] == (4032.0, 4037.0)
+        assert result["parsed"]["tps"][:3] == [4030.0, 4028.0, 4020.0]
+        assert result["parsed"]["sl"] == 4040.0
+        assert any(
+            correction["kind"] == "market_context_shift"
+            and correction["offset"] == -100.0
+            for correction in result["corrections"]
+        )
+
+    def test_far_directionally_valid_sl_is_not_applied(self):
+        parsed = {
+            "direction": "SELL",
+            "range": (4032.0, 4037.0),
+            "tps": [4030.0, 4028.0, 4020.0],
+            "sl": 4140.0,
+        }
+
+        result = interpret_entry_levels(
+            "canal2", "SELL", parsed, reference_price=4032.68)
+
+        assert result["parsed"]["sl"] == 4041.0
+        assert any(
+            correction["field"] == "sl"
+            and correction["kind"] == "sl_replaced"
+            and correction["reason"] == "sl_too_far_from_entry"
+            for correction in result["corrections"]
+        )
+
+    def test_market_shift_does_not_move_levels_already_near_live_market(self):
+        parsed = {
+            "direction": "SELL",
+            "range": (4132.0, 4137.0),
+            "tps": [4030.0, 4028.0, 4020.0],
+            "sl": 4040.0,
+        }
+
+        result = interpret_entry_levels(
+            "canal2", "SELL", parsed, reference_price=4032.68)
+
+        assert result["parsed"]["range"] == (4032.0, 4037.0)
+        assert result["parsed"]["tps"][:3] == parsed["tps"]
+        assert result["parsed"]["sl"] == 4040.0

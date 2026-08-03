@@ -259,6 +259,9 @@ class LiveAuditor:
             parsed_sig_id = _position_signal_id(pos)
             sig = signals_by_id.get(parsed_sig_id or "")
             if sig and _scale_out_leg_number(pos) is not None:
+                if getattr(sig, "opening_extra_legs", False):
+                    suppress_orphan_issue_tickets.add(ticket)
+                    continue
                 if _age_seconds(sig, now) < self.settings.orphan_adoption_grace_s:
                     suppress_orphan_issue_tickets.add(ticket)
                     continue

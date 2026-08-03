@@ -335,6 +335,76 @@ async def test_execute_actions_firewall_notify_review_for_reentry(monkeypatch):
     assert firewall[2]["requires_review"] is True
 
 
+@pytest.mark.asyncio
+async def test_historical_sl_comment_does_not_close_live_mt5_positions(
+        monkeypatch):
+    events = []
+    finalized = []
+    monkeypatch.setattr(
+        listener.journal,
+        "event",
+        lambda sig_id, ev, **kw: events.append((sig_id, ev, kw)),
+    )
+    monkeypatch.setattr(listener.journal, "append_mgmt", lambda *a, **kw: None)
+    monkeypatch.setattr(
+        listener,
+        "_open_mt5_positions_for_signal",
+        lambda signal: [{"ticket": signal.market_ticket}],
+    )
+
+    async def fake_finalize(signal, closed_by, notes=""):
+        finalized.append((signal, closed_by, notes))
+
+    monkeypatch.setattr(listener, "_finalize_signal", fake_finalize)
+    listener._seen_management_actions.clear()
+    sig = Signal(
+        channel="canal1",
+        message_id=20700,
+        direction="SELL",
+        market_ticket=9001,
+    )
+
+    await listener._execute_actions(
+        sig,
+        [{"action": "INFORMATIONAL", "confidence": 0.95}],
+        raw_text="SL was HIT. New York wicked it then dumped.",
+    )
+
+    assert sig.status == "open"
+    assert finalized == []
+    deferred = [row for row in events if row[1] == "sl_hit_message_deferred"]
+    assert len(deferred) == 1
+    assert deferred[0][2]["reason"] == "mt5_positions_still_open"
+
+
+@pytest.mark.asyncio
+async def test_extra_leg_opening_exposes_transient_audit_guard(monkeypatch):
+    observed_flags = []
+    events = []
+    sig = Signal(channel="canal2", message_id=380, direction="BUY")
+    sig.market_ticket = 1000
+
+    async def fake_run(fn, *args, **kwargs):
+        observed_flags.append(getattr(sig, "opening_extra_legs", False))
+        return (1001, 4056.50)
+
+    monkeypatch.setattr(listener, "_run", fake_run)
+    monkeypatch.setattr(listener.config, "STRATEGY_C2_ENTRY_MODE", "scale_out")
+    monkeypatch.setattr(listener.config, "STRATEGY_C2_NUM_ENTRIES", 2)
+    monkeypatch.setattr(
+        listener.journal,
+        "event",
+        lambda sig_id, ev, **kw: events.append((sig_id, ev, kw)),
+    )
+    monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
+
+    await listener._open_extra_legs(sig, 380)
+
+    assert observed_flags == [True]
+    assert sig.opening_extra_legs is False
+    assert sig.extra_market_tickets == [1001]
+
+
 def test_management_understanding_flags_uncovered_close_fragment(monkeypatch):
     events = []
     monkeypatch.setattr(

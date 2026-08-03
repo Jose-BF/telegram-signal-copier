@@ -82,6 +82,9 @@ class Signal:
     dca_placed: bool = False  # Nombre legacy; ahora protege el arranque del monitor.
     levels_predicted: bool = False  # TPs/SL vienen del predictor, no del canal
     status: str = "open"  # "open" | "closed"
+    # Transient guard: the live auditor must not adopt a leg while the
+    # listener is still between the MT5 fill and the in-memory append.
+    opening_extra_legs: bool = False
 
     # ─── Estrategias por señal (point 1, 4, 7) ──────────────────────────────
     # Multiplicador de lotaje (1.0 normal, 0.5 HIGH RISK)

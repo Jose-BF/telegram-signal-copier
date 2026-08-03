@@ -190,6 +190,42 @@ def test_orphan_scale_out_leg_waits_for_open_tracking_grace():
     ]
 
 
+def test_scale_out_leg_is_silent_while_listener_is_still_opening_batch():
+    journal = FakeJournal()
+    auditor = LiveAuditor(
+        settings=AuditSettings(
+            snapshot_every_s=0,
+            orphan_adoption_grace_s=0,
+            orphan_confirmation_s=0,
+        ),
+        journal=journal,
+    )
+    sig = _signal()
+    sig.opening_extra_legs = True
+    orphan = _pos(1365772499, comment="c2_13111_B2")
+
+    auditor.audit_cycle(
+        signals=[sig],
+        positions=[
+            _pos(1365772408, sl=4583.0, tp=4572.0),
+            _pos(1365772471, sl=4583.0, tp=4570.0),
+            orphan,
+        ],
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 5, 0),
+    )
+
+    assert sig.extra_market_tickets == [1365772471]
+    assert not [
+        event for event in journal.events
+        if event["ev"] == "mt5_orphan_position_adopted"
+    ]
+    assert not [
+        anomaly for anomaly in journal.anomalies
+        if anomaly.get("code") == "mt5_orphan_position"
+    ]
+
+
 def test_audit_issue_resolution_is_logged_once_levels_are_applied():
     journal = FakeJournal()
     auditor = LiveAuditor(

@@ -288,6 +288,11 @@ _EXPLICIT_ADDITIONAL_ENTRY_RE = re.compile(
     r"(?P<price>\d{3,5}(?:\.\d{1,3})?)\b",
     re.IGNORECASE,
 )
+_DIRECT_REENTRY_PERMISSION_RE = re.compile(
+    r"\byou\s+(?:can\s+still|still\s+can|may\s+still)\s+"
+    r"(?:re[-\s]?)?enter\s+(?:the\s+)?(?P<direction>buy|sell)\s+trade\b",
+    re.IGNORECASE,
+)
 
 
 def _negated_action_review(text: str) -> dict | None:
@@ -336,6 +341,20 @@ def _explicit_additional_entry_action(text: str) -> dict | None:
     }
 
 
+def _direct_reentry_permission_action(text: str) -> dict | None:
+    """Preserve a direct re-entry permission for review without inventing it."""
+    match = _DIRECT_REENTRY_PERMISSION_RE.search(text or "")
+    if not match:
+        return None
+    return {
+        "action": "REENTRY_SIGNAL",
+        "price": None,
+        "entry_direction": match.group("direction").upper(),
+        "confidence": 0.98,
+        "_reason": "provider_direct_reentry_permission",
+    }
+
+
 def _canal1_safe_regex_classify(text: str) -> list[dict]:
     """Regex estrecho para canal1 antes de Gemini.
 
@@ -359,6 +378,9 @@ def _canal1_safe_regex_classify(text: str) -> list[dict]:
     explicit_addition = _explicit_additional_entry_action(text)
     if explicit_addition:
         actions.append(explicit_addition)
+    direct_reentry = _direct_reentry_permission_action(text)
+    if direct_reentry:
+        actions.append(direct_reentry)
 
     if (
         re.search(
@@ -444,6 +466,20 @@ def _regex_classify_all(text: str) -> list[dict]:
     explicit_addition = _explicit_additional_entry_action(text)
     if explicit_addition:
         actions.append(explicit_addition)
+    direct_reentry = _direct_reentry_permission_action(text)
+    if direct_reentry:
+        actions.append(direct_reentry)
+
+    if re.search(
+        r"\bclos(?:e|ing)\s+(?:in\s+)?overall\s+profits?\b",
+        t,
+    ):
+        actions.append({
+            "action": "CLOSE_ALL",
+            "price": None,
+            "confidence": 0.98,
+            "_reason": "close_overall_profit",
+        })
 
     # 1. SL a precio explícito — verbos extendidos (move/change/adjust/set/put)
     m = re.search(
