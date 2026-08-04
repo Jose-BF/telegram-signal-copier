@@ -241,7 +241,10 @@ def canal2_entry_command_key(text: str) -> Optional[str]:
     return command
 
 
-def parse_canal2_zone_plan(text: str) -> Optional[dict]:
+def parse_canal2_zone_plan(
+    text: str,
+    inherited_direction: Optional[str] = None,
+) -> Optional[dict]:
     """Extract a future zone without turning it into a market entry."""
     if not text or is_canal2_entry(text):
         return None
@@ -282,6 +285,8 @@ def parse_canal2_zone_plan(text: str) -> Optional[dict]:
         upper,
     ):
         direction = "SELL"
+    elif str(inherited_direction or "").upper() in {"BUY", "SELL"}:
+        direction = str(inherited_direction).upper()
     if direction is None:
         return None
 
@@ -314,6 +319,12 @@ def parse_canal2_zone_plan(text: str) -> Optional[dict]:
         "direction": direction,
         "zones": zones,
         "target": target,
+        "tps": _extract_tps(text),
+        "sl": _extract_sl(text),
+        "has_open_runner": bool(re.search(
+            r"(?mi)^\s*OPEN(?:\s+(?:RUNNER|TRADE))?\s*$",
+            text,
+        )),
     }
 
 

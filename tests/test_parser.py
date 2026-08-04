@@ -197,6 +197,9 @@ class TestParseCanal2ZonePlan:
             "direction": "SELL",
             "zones": [[4121.0, 4125.0]],
             "target": None,
+            "tps": [],
+            "sl": 4131.0,
+            "has_open_runner": False,
         }
 
     def test_single_future_sell_zone(self):
@@ -210,6 +213,9 @@ class TestParseCanal2ZonePlan:
             "direction": "SELL",
             "zones": [[4030.0, 4030.0]],
             "target": None,
+            "tps": [],
+            "sl": None,
+            "has_open_runner": False,
         }
 
     def test_single_future_zone_with_reaction_language(self):
@@ -221,6 +227,9 @@ class TestParseCanal2ZonePlan:
             "direction": "SELL",
             "zones": [[4017.0, 4017.0]],
             "target": None,
+            "tps": [],
+            "sl": None,
+            "has_open_runner": False,
         }
 
     def test_bare_levels_with_expected_sell_areas_are_zone_plan(self):
@@ -237,6 +246,9 @@ class TestParseCanal2ZonePlan:
                 [4017.0, 4017.0],
             ],
             "target": None,
+            "tps": [],
+            "sl": None,
+            "has_open_runner": False,
         }
 
     def test_multi_zone_plan(self):
@@ -248,10 +260,48 @@ class TestParseCanal2ZonePlan:
             "direction": "BUY",
             "zones": [[4073.0, 4075.0], [4069.0, 4070.0]],
             "target": None,
+            "tps": [],
+            "sl": None,
+            "has_open_runner": False,
         }
 
     def test_immediate_zone_now_is_not_future_plan(self):
         assert parse_canal2_zone_plan("Sell Zone Now") is None
+
+    def test_complete_zone_preserves_trade_levels(self):
+        parsed = parse_canal2_zone_plan(
+            "Gold Buy Zone\n"
+            "4058 - 4053\n"
+            "Targets\n"
+            "4060\n"
+            "4062\n"
+            "Open\n"
+            "SL 4050"
+        )
+
+        assert parsed == {
+            "direction": "BUY",
+            "zones": [[4053.0, 4058.0]],
+            "target": None,
+            "tps": [4060.0, 4062.0],
+            "sl": 4050.0,
+            "has_open_runner": True,
+        }
+
+    def test_session_map_can_inherit_direction_without_becoming_a_signal(self):
+        parsed = parse_canal2_zone_plan(
+            "The zones are\n4073-4071\n4068-4067",
+            inherited_direction="BUY",
+        )
+
+        assert parsed == {
+            "direction": "BUY",
+            "zones": [[4071.0, 4073.0], [4067.0, 4068.0]],
+            "target": None,
+            "tps": [],
+            "sl": None,
+            "has_open_runner": False,
+        }
 
 
 # ─── is_canal1_signal_text ──────────────────────────────────────────────────
