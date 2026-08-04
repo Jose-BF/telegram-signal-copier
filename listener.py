@@ -34,6 +34,14 @@ import pending_actions
 import runtime_control
 import strategies
 import telegram_notifications
+from canal2_zone_lifecycle import (
+    LIFECYCLE_SCHEMA_VERSION,
+    classify_followup as classify_zone_followup,
+    is_executable as zone_plan_is_executable,
+    is_expired as zone_plan_is_expired,
+    merge_plan_record,
+    new_plan_record,
+)
 from classifier import classify, classify_async, classify_local
 from entry_execution_gate import EntryExecutionGate
 from interpretation_firewall import (
@@ -3726,8 +3734,69 @@ def _drop_canal2_zone_plan_aliases(message_id: int) -> None:
             del _canal2_zone_plans[key]
 
 
+def _zone_plan_event_payload(plan: dict) -> dict:
+    return {
+        "lifecycle_schema_version": plan.get(
+            "lifecycle_schema_version", LIFECYCLE_SCHEMA_VERSION
+        ),
+        "message_id": plan.get("message_id"),
+        "thread_root_message_id": plan.get("thread_root_message_id"),
+        "aliases": list(plan.get("aliases") or []),
+        "direction": plan.get("direction"),
+        "zones": plan.get("zones") or [],
+        "target": plan.get("target"),
+        "tps": plan.get("tps") or [],
+        "sl": plan.get("sl"),
+        "has_open_runner": bool(plan.get("has_open_runner")),
+        "source_kind": plan.get("source_kind"),
+        "tg_ts": plan.get("tg_ts"),
+        "raw_text": str(plan.get("raw_text") or "")[:500],
+        "status": plan.get("status"),
+        "registered_utc": plan.get("registered_utc"),
+        "updated_utc": plan.get("updated_utc"),
+        "expires_utc": plan.get("expires_utc"),
+        "activation_requested": bool(plan.get("activation_requested")),
+        "execution_eligible": plan.get("execution_eligible", True),
+        "no_reentry": bool(plan.get("no_reentry")),
+        "consumed": bool(plan.get("consumed")),
+        "entry_generation": int(plan.get("entry_generation") or 0),
+        "entry_generation_id": plan.get("entry_generation_id"),
+        "trigger_claim": plan.get("trigger_claim"),
+    }
+
+
+def _register_canal2_zone_plan_alias(
+    plan: dict,
+    alias_message_id: int,
+    *,
+    source_message_id: int | None = None,
+    emit_event: bool = True,
+) -> bool:
+    alias_id = int(alias_message_id)
+    aliases = plan.setdefault("aliases", [])
+    already_registered = (
+        alias_id in aliases
+        and _canal2_zone_plans.get(alias_id) is plan
+    )
+    if alias_id not in aliases:
+        aliases.append(alias_id)
+    _canal2_zone_plans[alias_id] = plan
+    if already_registered or not emit_event:
+        return False
+    journal.event(
+        f"canal2_{alias_id}",
+        "canal2_zone_plan_alias_registered",
+        lifecycle_schema_version=LIFECYCLE_SCHEMA_VERSION,
+        zone_plan_message_id=plan.get("message_id"),
+        thread_root_message_id=plan.get("thread_root_message_id"),
+        alias_message_id=alias_id,
+        source_message_id=source_message_id,
+    )
+    return True
+
+
 def restore_canal2_zone_plans_from_journal(path) -> int:
-    """Restore active future-zone threads and their reply aliases."""
+    """Replay only schema-v2 zone lifecycles that remain actionable."""
     source = Path(path)
     _canal2_zone_plans.clear()
     if not source.exists():
@@ -3735,7 +3804,6 @@ def restore_canal2_zone_plans_from_journal(path) -> int:
 
     records: dict[int, dict] = {}
     aliases: dict[int, int] = {}
-    invalidated: set[int] = set()
 
     with source.open("rb") as handle:
         for raw_line in handle:
@@ -3746,9 +3814,12 @@ def restore_canal2_zone_plans_from_journal(path) -> int:
             if not isinstance(row, dict):
                 continue
 
+            if row.get("lifecycle_schema_version") != LIFECYCLE_SCHEMA_VERSION:
+                continue
+
             event = row.get("ev")
             sig_id = str(row.get("sig") or "")
-            if event == "canal2_zone_plan_registered":
+            if event == "canal2_zone_plan_created":
                 try:
                     message_id = int(
                         row.get("message_id")
@@ -3765,59 +3836,97 @@ def restore_canal2_zone_plans_from_journal(path) -> int:
                 record = {
                     "message_id": message_id,
                     "thread_root_message_id": root_id,
+                    "aliases": [message_id],
                     "direction": row.get("direction"),
                     "zones": row.get("zones") or [],
                     "target": row.get("target"),
+                    "tps": row.get("tps") or [],
+                    "sl": row.get("sl"),
+                    "has_open_runner": bool(row.get("has_open_runner")),
                     "source_kind": row.get("source_kind") or "journal_restore",
                     "tg_ts": row.get("tg_ts"),
                     "raw_text": row.get("raw_text") or "",
-                    "status": "active",
+                    "lifecycle_schema_version": LIFECYCLE_SCHEMA_VERSION,
+                    "status": row.get("status") or "draft",
+                    "registered_utc": row.get("registered_utc"),
+                    "updated_utc": row.get("updated_utc"),
+                    "expires_utc": row.get("expires_utc"),
+                    "activation_requested": bool(
+                        row.get("activation_requested")
+                    ),
+                    "execution_eligible": row.get(
+                        "execution_eligible", True
+                    ),
+                    "no_reentry": bool(row.get("no_reentry")),
+                    "consumed": bool(row.get("consumed")),
+                    "entry_generation": int(
+                        row.get("entry_generation") or 0
+                    ),
+                    "entry_generation_id": row.get("entry_generation_id"),
+                    "trigger_claim": row.get("trigger_claim"),
                 }
                 records[message_id] = record
                 aliases[message_id] = message_id
                 aliases[root_id] = message_id
-                invalidated.discard(message_id)
                 continue
 
-            if event != "canal2_zone_plan_management":
-                continue
-            actions = {
-                str(action).upper()
-                for action in (row.get("actions") or [])
-            }
-            if (
-                "ZONE_INVALIDATED" not in actions
-                and str(row.get("zone_plan_status") or "").lower()
-                != "invalidated"
-            ):
-                continue
-            candidate_ids = (
-                row.get("zone_plan_message_id"),
-                row.get("reply_to_msg_id"),
-                row.get("thread_root_message_id"),
-            )
-            zone_plan_signal_id = str(row.get("zone_plan_signal_id") or "")
-            if zone_plan_signal_id.startswith("canal2_"):
-                candidate_ids += (
-                    zone_plan_signal_id.removeprefix("canal2_"),
-                )
-            for candidate in candidate_ids:
+            if event == "canal2_zone_plan_alias_registered":
                 try:
-                    candidate_id = int(candidate)
+                    owner_id = int(row.get("zone_plan_message_id"))
+                    alias_id = int(row.get("alias_message_id"))
                 except (TypeError, ValueError):
                     continue
-                owner = aliases.get(candidate_id, candidate_id)
-                invalidated.add(owner)
+                aliases[alias_id] = owner_id
+                continue
 
+            try:
+                owner_id = int(
+                    row.get("zone_plan_message_id")
+                    or sig_id.removeprefix("canal2_")
+                )
+            except (TypeError, ValueError):
+                continue
+            owner_id = aliases.get(owner_id, owner_id)
+            record = records.get(owner_id)
+            if record is None:
+                continue
+            if event == "canal2_zone_plan_updated":
+                for key in _zone_plan_event_payload(record):
+                    if key in row:
+                        record[key] = row[key]
+            elif event == "canal2_zone_plan_transition":
+                for key in (
+                    "status",
+                    "activation_requested",
+                    "execution_eligible",
+                    "no_reentry",
+                    "consumed",
+                    "entry_generation",
+                    "entry_generation_id",
+                    "trigger_claim",
+                    "expires_utc",
+                    "updated_utc",
+                ):
+                    if key in row:
+                        record[key] = row[key]
+            elif event == "canal2_zone_entry_confirmed":
+                record["consumed"] = True
+                record["status"] = "triggered"
+
+    terminal_statuses = {"invalidated", "expired", "triggered"}
     active_ids = [
-        message_id
-        for message_id in records
-        if message_id not in invalidated
+        message_id for message_id, record in records.items()
+        if not record.get("consumed")
+        and record.get("status") not in terminal_statuses
+        and not zone_plan_is_expired(record)
     ][-_CANAL2_ZONE_PLAN_MAX:]
     active_set = set(active_ids)
     for alias_id, owner_id in aliases.items():
         if owner_id in active_set:
-            _canal2_zone_plans[alias_id] = records[owner_id]
+            record = records[owner_id]
+            if alias_id not in record["aliases"]:
+                record["aliases"].append(alias_id)
+            _canal2_zone_plans[alias_id] = record
     return len(active_ids)
 
 
@@ -3825,29 +3934,75 @@ async def _handle_canal2_zone_plan(msg, text: str, plan: dict,
                                    source_kind: str = "new",
                                    thread_root_message_id: int | None = None
                                    ) -> None:
-    """Register a future provider zone without inventing a market trigger."""
+    """Create or merge one versioned provider-zone lifecycle."""
     root_message_id = (
         int(thread_root_message_id)
         if thread_root_message_id is not None
         else int(msg.id)
     )
-    record = {
-        **plan,
-        "message_id": int(msg.id),
-        "thread_root_message_id": root_message_id,
-        "raw_text": text,
-        "tg_ts": _msg_ts_iso(msg),
-        "source_kind": source_kind,
-        "status": "active",
-        "registered_utc": datetime.utcnow().isoformat(timespec="milliseconds"),
-    }
-    _canal2_zone_plans[int(msg.id)] = record
-    _canal2_zone_plans[root_message_id] = record
+    existing = (
+        _canal2_zone_plans.get(int(msg.id))
+        or _canal2_zone_plans.get(root_message_id)
+    )
+    is_current_lifecycle = (
+        existing is not None
+        and existing.get("lifecycle_schema_version")
+        == LIFECYCLE_SCHEMA_VERSION
+    )
+    if is_current_lifecycle:
+        merged, changes = merge_plan_record(
+            existing,
+            plan,
+            raw_text=text,
+            tg_ts=_msg_ts_iso(msg),
+        )
+        existing.clear()
+        existing.update(merged)
+        record = existing
+        created = False
+    else:
+        record = new_plan_record(
+            plan,
+            message_id=int(msg.id),
+            root_message_id=root_message_id,
+            raw_text=text,
+            tg_ts=_msg_ts_iso(msg),
+            source_kind=source_kind,
+        )
+        record["execution_eligible"] = source_kind != "reply_recovery"
+        if source_kind == "reply_recovery":
+            record["status"] = "draft"
+        changes = []
+        created = True
+
+    _register_canal2_zone_plan_alias(
+        record,
+        int(msg.id),
+        source_message_id=int(msg.id),
+        emit_event=not created,
+    )
+    _register_canal2_zone_plan_alias(
+        record,
+        root_message_id,
+        source_message_id=int(msg.id),
+        emit_event=root_message_id != int(msg.id),
+    )
     while len(_canal2_zone_plans) > _CANAL2_ZONE_PLAN_MAX:
         oldest = next(iter(_canal2_zone_plans))
         del _canal2_zone_plans[oldest]
 
     sig_id = f"canal2_{msg.id}"
+    event_name = (
+        "canal2_zone_plan_created" if created
+        else "canal2_zone_plan_updated"
+    )
+    journal.event(
+        sig_id,
+        event_name,
+        **_zone_plan_event_payload(record),
+        changed_fields=changes,
+    )
+    # Compatibility event for existing audits. Schema v2 restore ignores it.
     journal.event(
         sig_id,
         "canal2_zone_plan_registered",
@@ -3858,7 +4013,13 @@ async def _handle_canal2_zone_plan(msg, text: str, plan: dict,
         source_kind=source_kind,
         thread_root_message_id=root_message_id,
         tg_ts=_msg_ts_iso(msg),
-        execution_behavior="observe_only",
+        lifecycle_schema_version=LIFECYCLE_SCHEMA_VERSION,
+        execution_behavior=(
+            "armed_waiting_trigger"
+            if record.get("status") == "armed"
+            and record.get("execution_eligible", True)
+            else "observe_only"
+        ),
         raw_text=text[:500],
     )
     if source_kind not in ("new", "reply"):
@@ -3930,13 +4091,86 @@ async def _recover_canal2_zone_plan_from_reply(msg, reply_id: int):
 
 async def _handle_canal2_zone_plan_reply(msg, reply_id: int,
                                          plan: dict) -> None:
-    """Attach follow-up management to a non-executed future zone."""
+    """Merge one follow-up into its original versioned zone thread."""
     text = _msg_text(msg)
-    zone_invalidated = bool(re.search(
-        r"\bZONE\b[^\n.!?]{0,60}\b(?:FAILED|INVALID|BROKEN)\b",
+    lifecycle_actions = classify_zone_followup(text)
+    previous_status = plan.get("status", "draft")
+    parsed_update = parse_canal2_zone_plan(
         text,
-        re.IGNORECASE,
-    ))
+        inherited_direction=plan.get("direction"),
+    )
+    changed_fields: list[str] = []
+    if parsed_update is not None:
+        merged, changed_fields = merge_plan_record(
+            plan,
+            parsed_update,
+            raw_text=text,
+            tg_ts=_msg_ts_iso(msg),
+        )
+        plan.clear()
+        plan.update(merged)
+
+    if "EXTEND_VALIDITY" in lifecycle_actions:
+        merged, expiry_changes = merge_plan_record(
+            plan,
+            {},
+            extend_validity_hours=12,
+        )
+        plan.clear()
+        plan.update(merged)
+        changed_fields.extend(expiry_changes)
+    if "INVALIDATE" in lifecycle_actions:
+        plan["status"] = "invalidated"
+        plan["invalidated_by_message_id"] = int(msg.id)
+        plan["invalidated_utc"] = _msg_ts_iso(msg)
+    if "NO_REENTRY" in lifecycle_actions:
+        plan["no_reentry"] = True
+        plan["no_reentry_by_message_id"] = int(msg.id)
+    if "MISSED" in lifecycle_actions and not plan.get("consumed"):
+        plan["status"] = "missed"
+    if "REARM" in lifecycle_actions and not plan.get("consumed"):
+        plan["execution_eligible"] = True
+        plan["status"] = (
+            "rearmed" if zone_plan_is_executable(plan) else "draft"
+        )
+    if "APPROACHING" in lifecycle_actions and not plan.get("consumed"):
+        plan["status"] = "approaching"
+    if "ACTIVATE" in lifecycle_actions and not plan.get("consumed"):
+        plan["activation_requested"] = True
+        plan["execution_eligible"] = True
+        plan["status"] = (
+            "armed" if zone_plan_is_executable(plan)
+            else "activation_pending"
+        )
+    if "REENTRY" in lifecycle_actions:
+        plan["reentry_requested_by_message_id"] = int(msg.id)
+        plan["reentry_requested_utc"] = _msg_ts_iso(msg)
+
+    _register_canal2_zone_plan_alias(
+        plan,
+        int(msg.id),
+        source_message_id=int(reply_id),
+    )
+    if changed_fields:
+        journal.event(
+            f"canal2_{msg.id}",
+            "canal2_zone_plan_updated",
+            **_zone_plan_event_payload(plan),
+            changed_fields=list(dict.fromkeys(changed_fields)),
+            update_message_id=int(msg.id),
+        )
+    if lifecycle_actions or plan.get("status") != previous_status:
+        journal.event(
+            f"canal2_{msg.id}",
+            "canal2_zone_plan_transition",
+            **_zone_plan_event_payload(plan),
+            zone_plan_message_id=plan.get("message_id"),
+            from_status=previous_status,
+            lifecycle_actions=lifecycle_actions,
+            transition_message_id=int(msg.id),
+        )
+
+    zone_invalidated = "INVALIDATE" in lifecycle_actions
     if zone_invalidated:
         classification = [{
             "action": "ZONE_INVALIDATED",
@@ -3944,9 +4178,6 @@ async def _handle_canal2_zone_plan_reply(msg, reply_id: int,
             "confidence": 1.0,
             "_reason": "provider_invalidated_future_zone",
         }]
-        plan["status"] = "invalidated"
-        plan["invalidated_by_message_id"] = int(msg.id)
-        plan["invalidated_utc"] = _msg_ts_iso(msg)
     else:
         classification = (
             classify_local(text) if _canal2_context_candidate(text) else []
@@ -3960,15 +4191,16 @@ async def _handle_canal2_zone_plan_reply(msg, reply_id: int,
         sig_id,
         "canal2_zone_plan_management",
         channel="canal2",
-        zone_plan_signal_id=f"canal2_{reply_id}",
+        zone_plan_signal_id=f"canal2_{plan.get('message_id', reply_id)}",
         zone_plan_message_id=plan.get("message_id"),
         thread_root_message_id=plan.get("thread_root_message_id", reply_id),
         direction=plan.get("direction"),
         zones=plan.get("zones") or [],
         actions=actions,
         actionable=bool(actionable),
-        zone_plan_status=plan.get("status", "active"),
-        execution_behavior="observe_only",
+        zone_plan_status=plan.get("status", "draft"),
+        lifecycle_actions=lifecycle_actions,
+        execution_behavior="zone_lifecycle",
         text_preview=text[:240].replace("\n", " | "),
         tg_ts=_msg_ts_iso(msg),
     )
@@ -3989,7 +4221,7 @@ async def _handle_canal2_zone_plan_reply(msg, reply_id: int,
         "channel_msg",
         "warning",
         "gestion recibida para una zona futura sin posiciones MT5 asociadas",
-        zone_plan_signal_id=f"canal2_{reply_id}",
+        zone_plan_signal_id=f"canal2_{plan.get('message_id', reply_id)}",
         actions=actions,
         text_preview=text[:240].replace("\n", " | "),
     )

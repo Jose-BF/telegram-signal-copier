@@ -185,7 +185,7 @@ def classify_followup(text: str) -> list[str]:
         intents.append("APPROACHING")
     if not invalid and re.search(
         r"^(?:the\s+)?(?:buy\s+|sell\s+)?zone\s+is\s+active$|"
-        r"^active(?:\s+now)?$|\byou\s+can\s+enter(?:\s+now)?\b",
+        r"^active\b|\byou\s+can\s+enter(?:\s+now)?\b",
         normalized,
     ):
         intents.append("ACTIVATE")

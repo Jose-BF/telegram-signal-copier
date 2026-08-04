@@ -905,14 +905,14 @@ class TestCanal2SemanticRouting:
         await _process_canal2_new(msg)
 
         assert plan["status"] == "invalidated"
-        assert 2948 not in listener._canal2_zone_plans
+        assert listener._canal2_zone_plans[2948] is plan
         assert any(
             ev == "canal2_zone_plan_management"
             and payload["actions"] == ["ZONE_INVALIDATED"]
             for _, ev, payload in events
         )
 
-    def test_zone_reply_aliases_are_restored_from_journal(
+    def test_legacy_zone_observation_is_not_armed_after_upgrade(
             self, tmp_path):
         path = tmp_path / "trade_events.jsonl"
         path.write_text(
@@ -932,14 +932,159 @@ class TestCanal2SemanticRouting:
 
         restored = listener.restore_canal2_zone_plans_from_journal(path)
 
-        assert restored == 1
-        assert listener._canal2_zone_plans[598] is (
-            listener._canal2_zone_plans[599]
-        )
-        assert listener._canal2_zone_plans[598]["zones"] == [
-            [4007.0, 4007.0],
-            [4010.0, 4010.0],
+        assert restored == 0
+        assert listener._canal2_zone_plans == {}
+
+    def test_schema_v2_zone_and_reply_alias_are_restored(self, tmp_path):
+        path = tmp_path / "trade_events.jsonl"
+        rows = [
+            {
+                "ts": "2026-08-05T09:00:00+00:00",
+                "sig": "canal2_700",
+                "ev": "canal2_zone_plan_created",
+                "lifecycle_schema_version": 2,
+                "message_id": 700,
+                "thread_root_message_id": 700,
+                "direction": "BUY",
+                "zones": [[4053.0, 4058.0]],
+                "tps": [4060.0, 4062.0],
+                "sl": 4050.0,
+                "target": None,
+                "status": "armed",
+                "expires_utc": "2099-08-06T09:00:00+00:00",
+                "raw_text": "Gold Buy Zone",
+            },
+            {
+                "ts": "2026-08-05T09:01:00+00:00",
+                "sig": "canal2_701",
+                "ev": "canal2_zone_plan_alias_registered",
+                "lifecycle_schema_version": 2,
+                "zone_plan_message_id": 700,
+                "alias_message_id": 701,
+            },
         ]
+        path.write_text(
+            "\n".join(__import__("json").dumps(row) for row in rows) + "\n",
+            encoding="utf-8",
+        )
+
+        restored = listener.restore_canal2_zone_plans_from_journal(path)
+
+        assert restored == 1
+        assert listener._canal2_zone_plans[700] is (
+            listener._canal2_zone_plans[701]
+        )
+        assert listener._canal2_zone_plans[700]["status"] == "armed"
+        assert listener._canal2_zone_plans[700]["tps"] == [4060.0, 4062.0]
+
+    @pytest.mark.asyncio
+    async def test_recursive_zone_replies_keep_original_identity(
+            self, monkeypatch):
+        events = []
+        monkeypatch.setattr(
+            listener.journal,
+            "event",
+            lambda sig, ev, **kw: events.append((sig, ev, kw)),
+        )
+        monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
+        monkeypatch.setattr(
+            listener,
+            "_schedule_detached",
+            lambda value: value.close(),
+        )
+        listener._seen_new_msg_ids.clear()
+        listener._seen_new_msgs_order.clear()
+
+        root = SimpleNamespace(
+            id=700,
+            text=(
+                "Gold Buy Zone\n4058 - 4053\nTargets\n"
+                "4060\n4062\nOpen\nSL 4050"
+            ),
+            date=datetime.utcnow(),
+            reply_to=None,
+        )
+        approaching = SimpleNamespace(
+            id=701,
+            text="Approaching",
+            date=datetime.utcnow(),
+            reply_to=SimpleNamespace(reply_to_msg_id=700),
+        )
+        still_valid = SimpleNamespace(
+            id=702,
+            text="Still valid if it comes down",
+            date=datetime.utcnow(),
+            reply_to=SimpleNamespace(reply_to_msg_id=701),
+        )
+
+        await _process_canal2_new(root)
+        await _process_canal2_new(approaching)
+        await _process_canal2_new(still_valid)
+
+        assert listener._canal2_zone_plans[700] is (
+            listener._canal2_zone_plans[701]
+        )
+        assert listener._canal2_zone_plans[701] is (
+            listener._canal2_zone_plans[702]
+        )
+        assert listener._canal2_zone_plans[700]["status"] == "rearmed"
+        aliases = [
+            payload["alias_message_id"]
+            for _, ev, payload in events
+            if ev == "canal2_zone_plan_alias_registered"
+        ]
+        assert 701 in aliases
+        assert 702 in aliases
+
+    @pytest.mark.asyncio
+    async def test_active_full_plan_merges_into_root_instead_of_new_plan(
+            self, monkeypatch):
+        events = []
+        monkeypatch.setattr(
+            listener.journal,
+            "event",
+            lambda sig, ev, **kw: events.append((sig, ev, kw)),
+        )
+        monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
+        monkeypatch.setattr(
+            listener,
+            "_schedule_detached",
+            lambda value: value.close(),
+        )
+        listener._seen_new_msg_ids.clear()
+        listener._seen_new_msgs_order.clear()
+
+        root = SimpleNamespace(
+            id=710,
+            text="Buy Zones Marked Out\n4058 - 4053",
+            date=datetime.utcnow(),
+            reply_to=None,
+        )
+        active = SimpleNamespace(
+            id=711,
+            text=(
+                "Active\nGold Buy Zone\n4058 - 4053\nTargets\n"
+                "4060\n4062\nOpen\nSL 4050"
+            ),
+            date=datetime.utcnow(),
+            reply_to=SimpleNamespace(reply_to_msg_id=710),
+        )
+
+        await _process_canal2_new(root)
+        await _process_canal2_new(active)
+
+        plan = listener._canal2_zone_plans[710]
+        assert listener._canal2_zone_plans[711] is plan
+        assert plan["message_id"] == 710
+        assert plan["tps"] == [4060.0, 4062.0]
+        assert plan["sl"] == 4050.0
+        assert plan["activation_requested"] is True
+        assert plan["status"] == "armed"
+        assert not any(
+            ev == "canal2_zone_plan_created"
+            and payload.get("message_id") == 711
+            for _, ev, payload in events
+        )
 
     @pytest.mark.asyncio
     async def test_zone_plan_reply_to_chart_is_not_routed_to_open_trade(
