@@ -448,6 +448,19 @@ def _regex_classify_all(text: str) -> list[dict]:
             return [negated]
     t = text.lower()
 
+    if re.search(
+        r"\bclos(?:e|ing)\s+(?:the\s+)?overall\s+profits?\s+"
+        r"(?:or|/)\s+(?:set|move|put)\s+(?:the\s+)?"
+        r"(?:(?:stop.?loss|sl)\s+to\s+)?(?:be|breakeven)\b",
+        t,
+    ):
+        return [{
+            "action": "CLOSE_PROFIT_OR_BE",
+            "price": None,
+            "confidence": 0.99,
+            "_reason": "close_profit_or_exact_be",
+        }]
+
     # 0. Anuncio puro de niveles (TP solos o TP+SL/SP combinados).
     # Evita que Gemini interprete "TP1 4705.50" como CLOSE_AT_TP @4705.5.
     # El parser ya extrae los niveles vía parse_canal2 antes del classify,

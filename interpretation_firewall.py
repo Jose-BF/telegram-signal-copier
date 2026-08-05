@@ -15,6 +15,7 @@ from typing import Any
 
 EXECUTABLE_ACTIONS = {
     "CLOSE_ALL",
+    "CLOSE_PROFIT_OR_BE",
     "CLOSE_FIRST",
     "CLOSE_AT_TP",
     "MOVE_SL_TO_BE",

@@ -3042,6 +3042,7 @@ _REVIEW_ACTION_PRIORITY = {
     "LEVEL_CORRECTION": 90,
     "SIGNAL_UPDATED": 90,
     "CLOSE_ALL": 85,
+    "CLOSE_PROFIT_OR_BE": 85,
     "CLOSE_FIRST": 85,
     "MOVE_SL_TO_BE": 85,
     "MOVE_SL_TO_PRICE": 85,
@@ -3360,6 +3361,64 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
                                notes="SL hit detectado en mensaje del canal")
 
 
+async def _apply_exact_break_even(signal: Signal, *, source: str) -> bool:
+    """Queue the real MT5 entry of every still-open ticket as its SL."""
+    tickets = list(signal.all_filled_tickets)
+    requested = []
+    entry_prices = await _run(executor.open_entry_prices, tickets)
+    if entry_prices is None:
+        journal.event(
+            _sig_id(signal),
+            "be_armed_classifier",
+            source=source,
+            semantics="exact_entry_per_ticket",
+            n_requested_exact_be=0,
+            requested=[],
+            closed_tickets_skipped=[],
+            mt5_query_failed=True,
+        )
+        journal.anomaly(
+            _sig_id(signal),
+            "sl_be",
+            "critical",
+            "MT5 no respondio al consultar las entradas para aplicar BE",
+            direction=signal.direction,
+            tickets=tickets,
+            source=source,
+        )
+        return False
+
+    closed_tickets = [
+        ticket for ticket in tickets if ticket not in entry_prices
+    ]
+    for ticket, entry in entry_prices.items():
+        entry = float(entry)
+        pending_actions.enqueue_modify_sl(
+            signal,
+            ticket,
+            entry,
+            label=f"BE #{ticket} -> {entry:.2f}",
+            persist_until_signal_close=True,
+        )
+        requested.append({"ticket": ticket, "entry": entry})
+
+    journal.event(
+        _sig_id(signal),
+        "be_armed_classifier",
+        source=source,
+        semantics="exact_entry_per_ticket",
+        n_requested_exact_be=len(requested),
+        requested=requested,
+        closed_tickets_skipped=closed_tickets,
+        mt5_query_failed=False,
+    )
+    if requested:
+        signal.be_armed = True
+        logger.log_action(signal, "MOVE_SL_TO_BE", requested[0]["entry"])
+        return True
+    return False
+
+
 async def _execute_one_action(signal: Signal, classification: dict, raw_text: str = ""):
     """Ejecuta una sola acción sobre la señal."""
     action = classification.get("action", "INFORMATIONAL")
@@ -3409,7 +3468,67 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
     except Exception as e:
         print(f"[Acción] decision_context error: {e}")
 
-    if action == "CLOSE_ALL":
+    if action == "CLOSE_PROFIT_OR_BE":
+        context = locals().get("ctx")
+        floating_pnl = (
+            float(context.floating_pnl_total)
+            if context is not None else None
+        )
+        if floating_pnl is None:
+            positions = await _run(
+                executor.position_pnls,
+                list(signal.all_filled_tickets),
+            )
+            if positions is not None:
+                floating_pnl = sum(float(pnl) for _, pnl in positions)
+        if floating_pnl is None:
+            journal.anomaly(
+                _sig_id(signal),
+                "management",
+                "critical",
+                "no se pudo resolver CLOSE_PROFIT_OR_BE sin P&L vivo",
+                raw_text=raw_text[:240],
+            )
+            return
+
+        selected_action = (
+            "CLOSE_ALL" if floating_pnl > 0 else "MOVE_SL_TO_BE"
+        )
+        journal.event(
+            _sig_id(signal),
+            "close_profit_or_be_resolved",
+            floating_pnl=floating_pnl,
+            selected_action=selected_action,
+            threshold=0.0,
+            semantics="strict_positive_close_else_exact_entry_be",
+        )
+        if selected_action == "CLOSE_ALL":
+            for ticket in signal.all_filled_tickets:
+                pending_actions.enqueue_close_position(
+                    signal,
+                    ticket,
+                    label=f"CLOSE_PROFIT_OR_BE #{ticket}",
+                )
+            for ticket in signal.pending_tickets:
+                pending_actions.enqueue_cancel_pending(
+                    signal,
+                    ticket,
+                    label=f"CANCEL_PENDING #{ticket}",
+                )
+            signal.status = "closed"
+            logger.log_action(signal, action)
+            await _finalize_signal(
+                signal,
+                closed_by="CLOSE_PROFIT_OR_BE",
+                notes="selected=CLOSE_ALL; reason=positive_live_basket",
+            )
+        else:
+            await _apply_exact_break_even(
+                signal,
+                source="CLOSE_PROFIT_OR_BE_action",
+            )
+
+    elif action == "CLOSE_ALL":
         if await _maybe_handle_breakeven_close_negative(
                 signal, classification, raw_text, locals().get("ctx")):
             return
@@ -3568,56 +3687,10 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
                   f"(tickets={len(tickets)}). Ignorado.")
 
     elif action == "MOVE_SL_TO_BE":
-        tickets = list(signal.all_filled_tickets)
-        requested = []
-        entry_prices = await _run(executor.open_entry_prices, tickets)
-        if entry_prices is None:
-            journal.event(
-                _sig_id(signal),
-                "be_armed_classifier",
-                source="MOVE_SL_TO_BE_action",
-                semantics="exact_entry_per_ticket",
-                n_requested_exact_be=0,
-                requested=[],
-                closed_tickets_skipped=[],
-                mt5_query_failed=True,
-            )
-            journal.anomaly(
-                _sig_id(signal),
-                "sl_be",
-                "critical",
-                "MT5 no respondio al consultar las entradas para aplicar BE",
-                direction=signal.direction,
-                tickets=tickets,
-            )
-            return
-
-        closed_tickets = [ticket for ticket in tickets
-                          if ticket not in entry_prices]
-        for ticket, entry in entry_prices.items():
-            entry = float(entry)
-            pending_actions.enqueue_modify_sl(
-                signal,
-                ticket,
-                entry,
-                label=f"BE #{ticket} -> {entry:.2f}",
-                persist_until_signal_close=True,
-            )
-            requested.append({"ticket": ticket, "entry": entry})
-
-        journal.event(
-            _sig_id(signal),
-            "be_armed_classifier",
+        await _apply_exact_break_even(
+            signal,
             source="MOVE_SL_TO_BE_action",
-            semantics="exact_entry_per_ticket",
-            n_requested_exact_be=len(requested),
-            requested=requested,
-            closed_tickets_skipped=closed_tickets,
-            mt5_query_failed=False,
         )
-        if requested:
-            signal.be_armed = True
-            logger.log_action(signal, action, requested[0]["entry"])
     elif action == "MOVE_SL_TO_PRICE" and price:
         for t in signal.all_filled_tickets:
             pending_actions.enqueue_modify_sl(
