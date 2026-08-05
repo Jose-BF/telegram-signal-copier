@@ -4045,21 +4045,27 @@ def restore_canal2_zone_plans_from_journal(path) -> int:
                     if key in row:
                         record[key] = row[key]
 
-    terminal_statuses = {"invalidated", "expired", "triggered"}
-    active_ids = [
+    terminal_statuses = {"invalidated", "expired"}
+    retained_ids = [
         message_id for message_id, record in records.items()
-        if not record.get("consumed")
-        and record.get("status") not in terminal_statuses
+        if record.get("status") not in terminal_statuses
         and not zone_plan_is_expired(record)
     ][-_CANAL2_ZONE_PLAN_MAX:]
-    active_set = set(active_ids)
+    retained_set = set(retained_ids)
     for alias_id, owner_id in aliases.items():
-        if owner_id in active_set:
+        if owner_id in retained_set:
             record = records[owner_id]
             if alias_id not in record["aliases"]:
                 record["aliases"].append(alias_id)
             _canal2_zone_plans[alias_id] = record
-    return len(active_ids)
+            generation_id = (
+                record.get("alias_generation_ids") or {}
+            ).get(str(alias_id))
+            if generation_id is not None:
+                signal = state.get("canal2", int(generation_id))
+                if signal is not None:
+                    state.alias(signal, alias_id)
+    return len(retained_ids)
 
 
 def _unique_canal2_zone_plans() -> list[dict]:
@@ -4600,6 +4606,8 @@ async def _handle_canal2_zone_plan_reply(msg, reply_id: int,
             else "activation_pending"
         )
     if "REENTRY" in lifecycle_actions:
+        if plan.get("status") not in {"invalidated", "expired"}:
+            plan["execution_eligible"] = True
         plan["reentry_requested_by_message_id"] = int(msg.id)
         plan["reentry_requested_utc"] = _msg_ts_iso(msg)
 

@@ -1861,7 +1861,7 @@ async def main():
         journal.EVENTS_FILE
     )
     print(
-        f"[Resync] zonas futuras activas de Gold Signals: "
+        f"[Resync] contextos vigentes de zonas Gold Signals: "
         f"{restored_zone_plans}"
     )
 

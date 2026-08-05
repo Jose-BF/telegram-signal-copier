@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
+import asyncio
 from types import SimpleNamespace
+import json
 
 import pytest
 
@@ -314,3 +316,140 @@ async def test_lifecycle_reply_after_zone_fill_still_updates_plan(monkeypatch):
     await listener._process_canal2_new(msg, dedup=False)
 
     assert len(handled_plans) == 1
+
+
+def test_restart_restores_triggered_plan_and_binds_reply_alias(
+        monkeypatch, tmp_path):
+    path = tmp_path / "trade_events.jsonl"
+    rows = [
+        {
+            "ts": "2026-08-05T09:00:00+00:00",
+            "sig": "canal2_570",
+            "ev": "canal2_zone_plan_created",
+            "lifecycle_schema_version": 2,
+            "message_id": 570,
+            "thread_root_message_id": 570,
+            "direction": "BUY",
+            "zones": [[4053.0, 4058.0]],
+            "tps": [4060.0, 4062.0],
+            "sl": 4050.0,
+            "status": "armed",
+            "expires_utc": "2099-08-06T09:00:00+00:00",
+        },
+        {
+            "ts": "2026-08-05T09:01:00+00:00",
+            "sig": "canal2_571",
+            "ev": "canal2_zone_plan_alias_registered",
+            "lifecycle_schema_version": 2,
+            "zone_plan_message_id": 570,
+            "alias_message_id": 571,
+        },
+        {
+            "ts": "2026-08-05T09:02:00+00:00",
+            "sig": "canal2_570",
+            "ev": "canal2_zone_entry_confirmed",
+            "lifecycle_schema_version": 2,
+            "zone_plan_message_id": 570,
+            "entry_generation": 1,
+            "entry_generation_id": 570,
+            "confirmed_generation_ids": [570],
+            "alias_generation_ids": {"570": 570, "571": 570},
+            "last_trigger": {"trigger": "first_touch"},
+        },
+    ]
+    path.write_text(
+        "".join(json.dumps(row) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+    runtime_state = StateManager()
+    signal = Signal("canal2", 570, "BUY", market_ticket=950070)
+    runtime_state.add(signal)
+    monkeypatch.setattr(listener, "state", runtime_state)
+
+    restored = listener.restore_canal2_zone_plans_from_journal(path)
+
+    assert restored == 1
+    assert listener._canal2_zone_plans[570] is (
+        listener._canal2_zone_plans[571]
+    )
+    assert listener._canal2_zone_plans[570]["status"] == "triggered"
+    assert runtime_state.get("canal2", 571) is signal
+
+
+@pytest.mark.asyncio
+async def test_failed_fill_keeps_plan_armed_for_next_fresh_tick(monkeypatch):
+    plan = _plan(580)
+    listener._canal2_zone_plans[580] = plan
+    runtime_state = StateManager()
+    attempts = []
+
+    async def fake_open(intent, *, label):
+        attempts.append(intent)
+        if len(attempts) == 1:
+            return None
+        signal = Signal("canal2", 580, "BUY", market_ticket=950080)
+        runtime_state.add(signal)
+        return signal
+
+    monkeypatch.setattr(listener, "state", runtime_state)
+    monkeypatch.setattr(listener, "_open_canal2_intent", fake_open)
+    monkeypatch.setattr(listener.journal, "event", lambda *a, **kw: None)
+
+    assert await listener._process_canal2_zone_tick(_tick()) == 0
+    assert plan["consumed"] is False
+    assert plan["trigger_claim"] is None
+
+    assert await listener._process_canal2_zone_tick(
+        _tick(time_msc=1785920400456)
+    ) == 1
+    assert len(attempts) == 2
+    assert plan["consumed"] is True
+
+
+@pytest.mark.asyncio
+async def test_expired_or_multi_zone_plan_never_opens(monkeypatch):
+    expired = _plan(590)
+    expired["expires_utc"] = "2020-01-01T00:00:00+00:00"
+    multi = _plan(591)
+    multi["zones"] = [[4053.0, 4058.0], [4048.0, 4050.0]]
+    listener._canal2_zone_plans[590] = expired
+    listener._canal2_zone_plans[591] = multi
+    intents = []
+
+    async def fake_open(intent, *, label):
+        intents.append(intent)
+
+    monkeypatch.setattr(listener, "_open_canal2_intent", fake_open)
+    monkeypatch.setattr(listener.journal, "event", lambda *a, **kw: None)
+
+    assert await listener._process_canal2_zone_tick(_tick()) == 0
+    assert intents == []
+    assert expired["status"] == "expired"
+    assert multi["consumed"] is False
+
+
+@pytest.mark.asyncio
+async def test_concurrent_touch_evaluation_opens_one_generation(monkeypatch):
+    plan = _plan(600)
+    listener._canal2_zone_plans[600] = plan
+    runtime_state = StateManager()
+    attempts = []
+
+    async def fake_open(intent, *, label):
+        attempts.append(intent)
+        await asyncio.sleep(0)
+        signal = Signal("canal2", 600, "BUY", market_ticket=950090)
+        runtime_state.add(signal)
+        return signal
+
+    monkeypatch.setattr(listener, "state", runtime_state)
+    monkeypatch.setattr(listener, "_open_canal2_intent", fake_open)
+    monkeypatch.setattr(listener.journal, "event", lambda *a, **kw: None)
+
+    results = await asyncio.gather(
+        listener._process_canal2_zone_tick(_tick()),
+        listener._process_canal2_zone_tick(_tick()),
+    )
+
+    assert sum(results) == 1
+    assert len(attempts) == 1
