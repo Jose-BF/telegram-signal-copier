@@ -730,6 +730,7 @@ def build_replay_trade(
         "analysis_excluded": bool(replay_row.get("analysis_excluded")),
         "analysis_exclusions": list(replay_row.get("analysis_exclusions") or []),
         "signal_text": replay_row.get("signal_text"),
+        "entry_provenance": replay_row.get("entry_provenance"),
         "levels": levels,
         "tickets": tickets,
         "management": list(replay_row.get("management") or []),

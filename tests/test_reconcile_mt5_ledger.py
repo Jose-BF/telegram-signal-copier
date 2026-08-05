@@ -773,6 +773,47 @@ class TestReconcileForensicLifecycle:
 
 
 class TestLoadJournalForensicEvents:
+    def test_zone_entry_provenance_reaches_ledger_index(self, tmp_path):
+        path = tmp_path / "events.jsonl"
+        rows = [
+            {
+                "ts": "2026-08-05T09:00:00+00:00",
+                "sig": "canal2_700",
+                "ev": "signal_received",
+                "direction": "BUY",
+                "raw_text": "Gold Buy Zone",
+                "entry_source_kind": "zone_first_touch",
+                "zone_plan_message_id": 700,
+                "zone_thread_root_message_id": 699,
+                "zone_entry_generation": 1,
+                "zone_trigger_kind": "first_touch",
+                "zone_trigger_side": "ask",
+                "zone_trigger_price": 4055.2,
+                "zone_trigger_time": 1785920400,
+                "zone_trigger_time_msc": 1785920400123,
+            },
+        ]
+        path.write_text(
+            "\n".join(json.dumps(row) for row in rows),
+            encoding="utf-8",
+        )
+
+        indexed = reconcile_mt5_ledger.load_journal_index(path)["canal2_700"]
+
+        assert indexed["entry_provenance"] == {
+            "source_kind": "zone_first_touch",
+            "zone_plan_message_id": 700,
+            "zone_thread_root_message_id": 699,
+            "zone_entry_generation": 1,
+            "zone_trigger_kind": "first_touch",
+            "zone_trigger_side": "ask",
+            "zone_trigger_price": 4055.2,
+            "zone_trigger_time": 1785920400,
+            "zone_trigger_time_msc": 1785920400123,
+        }
+        reconciled = reconcile_signal("canal2_700", indexed, [])
+        assert reconciled["entry_provenance"] == indexed["entry_provenance"]
+
     def test_additive_causal_envelope_preserves_reconcile_semantics(
             self, tmp_path):
         path = tmp_path / "events.jsonl"

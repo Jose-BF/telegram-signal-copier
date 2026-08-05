@@ -90,6 +90,26 @@ def test_closed_trade_with_complete_levels_is_replay_ready():
     assert replay["levels"]["effective_sl"] == 4508.0
 
 
+def test_zone_entry_provenance_is_explicit_in_replay_trade():
+    provenance = {
+        "source_kind": "zone_first_touch",
+        "zone_plan_message_id": 700,
+        "zone_thread_root_message_id": 699,
+        "zone_entry_generation": 1,
+        "zone_trigger_kind": "first_touch",
+        "zone_trigger_side": "ask",
+        "zone_trigger_price": 4055.2,
+        "zone_trigger_time": 1785920400,
+        "zone_trigger_time_msc": 1785920400123,
+    }
+    replay = build_replay_trades.build_replay_trade(
+        _ledger_row(entry_provenance=provenance),
+        [],
+    )
+
+    assert replay["entry_provenance"] == provenance
+
+
 def test_replay_ready_does_not_depend_on_non_causal_telemetry_events():
     events = [
         {"ts": "2026-06-03T08:59:58+00:00", "sig": "bot",

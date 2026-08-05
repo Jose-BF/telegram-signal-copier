@@ -161,6 +161,7 @@ def test_summary_ignores_legacy_handler_entries_without_delay():
 def test_incremental_summary_counts_zone_transitions_and_triggers():
     events = [
         {"ev": "canal2_zone_plan_created", "status": "armed"},
+        {"ev": "canal2_zone_plan_waiting_for_trigger"},
         {"ev": "canal2_zone_plan_alias_registered"},
         {
             "ev": "canal2_zone_plan_transition",
@@ -188,6 +189,7 @@ def test_incremental_summary_counts_zone_transitions_and_triggers():
     summary = log_analysis.summarize_events(events)["zone_lifecycle"]
 
     assert summary["plans_created"] == 1
+    assert summary["armed_waiting"] == 1
     assert summary["plans_updated"] == 0
     assert summary["aliases_registered"] == 1
     assert summary["transitions"] == 1

@@ -3818,6 +3818,49 @@ def _zone_plan_level_text(plan: dict) -> str:
     return ", ".join(rendered)
 
 
+def _format_canal2_zone_plan_notice(plan: dict) -> str:
+    provider = provider_display_name("canal2")
+    direction = plan.get("direction") or "?"
+    zone = _zone_plan_level_text(plan)
+    tps = ", ".join(f"{float(value):.2f}" for value in plan.get("tps") or [])
+    sl = plan.get("sl")
+    levels = (
+        f"{direction} | {zone}\n"
+        f"TP: {tps or 'pendiente'}\n"
+        f"SL: {float(sl):.2f}" if sl is not None else
+        f"{direction} | {zone}\nTP: {tps or 'pendiente'}\nSL: pendiente"
+    )
+    if (
+        zone_plan_is_executable(plan)
+        and plan.get("execution_eligible", True)
+    ):
+        return (
+            f"{provider}\n"
+            f"ZONA ARMADA\n\n"
+            f"{levels}\n\n"
+            f"Estado: esperando el primer toque del precio. "
+            f"El bot abrira la operacion automaticamente."
+        )
+
+    missing = []
+    if direction not in {"BUY", "SELL"}:
+        missing.append("direccion")
+    zones = plan.get("zones") or []
+    if len(zones) != 1:
+        missing.append("una zona unica")
+    if not plan.get("tps"):
+        missing.append("TP")
+    if sl is None:
+        missing.append("SL")
+    return (
+        f"{provider}\n"
+        f"ZONA REGISTRADA\n\n"
+        f"{levels}\n\n"
+        f"Estado: faltan {', '.join(missing) or 'datos validos'}. "
+        f"El bot no abrira hasta tener un plan completo y sin ambiguedad."
+    )
+
+
 def _drop_canal2_zone_plan_aliases(message_id: int) -> None:
     """Remove every cache key owned by a message that became an entry."""
     message_id = int(message_id)
@@ -3905,6 +3948,45 @@ def _register_canal2_zone_plan_alias(
         source_message_id=source_message_id,
     )
     return True
+
+
+def _merge_canal2_zone_execution_levels(
+    plan: dict,
+    parsed: dict,
+    *,
+    raw_text: str,
+    tg_ts: str | None,
+    message_id: int,
+) -> list[str]:
+    """Keep future re-entry levels aligned with live Signal management."""
+    update = {}
+    if parsed.get("range"):
+        update["zones"] = [list(parsed["range"])]
+    if parsed.get("tps"):
+        update["tps"] = list(parsed["tps"])
+    if parsed.get("sl") is not None:
+        update["sl"] = parsed["sl"]
+    if not update:
+        return []
+
+    merged, changes = merge_plan_record(
+        plan,
+        update,
+        raw_text=raw_text,
+        tg_ts=tg_ts,
+    )
+    plan.clear()
+    plan.update(merged)
+    if changes:
+        journal.event(
+            f"canal2_{int(message_id)}",
+            "canal2_zone_plan_updated",
+            **_zone_plan_event_payload(plan),
+            changed_fields=changes,
+            update_message_id=int(message_id),
+            update_source="live_signal_management",
+        )
+    return changes
 
 
 def restore_canal2_zone_plans_from_journal(path) -> int:
@@ -4488,27 +4570,27 @@ async def _handle_canal2_zone_plan(msg, text: str, plan: dict,
     if source_kind not in ("new", "reply"):
         return
 
-    journal.anomaly(
-        sig_id,
-        "channel_msg",
-        "warning",
-        "zona futura de Gold Signals registrada sin orden inmediata NOW; "
-        "no se abre mercado automaticamente",
-        direction=plan.get("direction"),
-        zones=plan.get("zones") or [],
-        target=plan.get("target"),
-    )
-    provider = provider_display_name("canal2")
-    level_text = _zone_plan_level_text(plan)
-    _schedule_detached(notify(
-        f"⚠️ {provider}\n"
-        f"ZONA FUTURA REGISTRADA\n\n"
-        f"Dirección: {plan.get('direction') or '?'}\n"
-        f"Zona: {level_text}\n\n"
-        f"No se abrió una operación: el mensaje no era una orden NOW. "
-        f"El contexto y sus respuestas quedan guardados para revisión "
-        f"y simulación."
-    ))
+    if (
+        zone_plan_is_executable(record)
+        and record.get("execution_eligible", True)
+    ):
+        journal.event(
+            sig_id,
+            "canal2_zone_plan_waiting_for_trigger",
+            **_zone_plan_event_payload(record),
+        )
+    else:
+        journal.anomaly(
+            sig_id,
+            "channel_msg",
+            "warning",
+            "zona de Gold Signals incompleta o ambigua; se registra pero "
+            "no puede abrir mercado todavia",
+            direction=plan.get("direction"),
+            zones=plan.get("zones") or [],
+            target=plan.get("target"),
+        )
+    _schedule_detached(notify(_format_canal2_zone_plan_notice(record)))
 
 
 async def _recover_canal2_zone_plan_from_reply(msg, reply_id: int):
@@ -5129,6 +5211,25 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True,
                     zone_plan,
                 )
                 return
+            _register_canal2_zone_plan_alias(
+                zone_plan,
+                int(msg.id),
+                source_message_id=int(reply_id),
+            )
+            state.alias(bound_signal, int(msg.id))
+            alias_generations = zone_plan.setdefault(
+                "alias_generation_ids", {}
+            )
+            alias_generations.setdefault(
+                str(int(msg.id)), int(bound_signal.message_id)
+            )
+            _merge_canal2_zone_execution_levels(
+                zone_plan,
+                parse_canal2(text),
+                raw_text=text,
+                tg_ts=_msg_ts_iso(msg),
+                message_id=int(msg.id),
+            )
 
         replied_zone_plan = parse_canal2_zone_plan(text)
         if replied_zone_plan is not None:
@@ -5467,6 +5568,15 @@ async def _process_canal2_edit(msg, label: str = "Canal2"):
         is_edit=True,
     )
     print(f"[{label}] Edit señal {msg.id}: {list(parsed.keys())} tg_edit={_tg_edit_ts}")
+    zone_plan = _canal2_zone_plans.get(int(msg.id))
+    if zone_plan is not None:
+        _merge_canal2_zone_execution_levels(
+            zone_plan,
+            parsed,
+            raw_text=text,
+            tg_ts=_tg_edit_ts,
+            message_id=int(msg.id),
+        )
     await _apply_interpreted_entry_levels(
         sig, parsed, "canal2",
         reference_price=sig.market_fill_price,

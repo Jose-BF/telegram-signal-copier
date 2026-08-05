@@ -42,6 +42,24 @@ def _tick(*, bid=4055.0, ask=4055.2, time_msc=1785920400123):
     }
 
 
+def test_armed_zone_notice_describes_live_waiting_state():
+    text = listener._format_canal2_zone_plan_notice(_plan())
+
+    assert "ZONA ARMADA" in text
+    assert "primer toque" in text
+    assert "simulaci" not in text.lower()
+
+
+def test_incomplete_zone_notice_explains_why_it_cannot_open():
+    text = listener._format_canal2_zone_plan_notice(
+        _plan(501, complete=False)
+    )
+
+    assert "ZONA REGISTRADA" in text
+    assert "faltan" in text.lower()
+    assert "no abrira" in text.lower()
+
+
 @pytest.fixture(autouse=True)
 def _reset_zone_runtime():
     listener._canal2_zone_plans.clear()
@@ -288,6 +306,96 @@ async def test_management_reply_after_zone_fill_routes_to_live_signal(
     assert handled_plans == []
     assert len(executions) == 1
     assert executions[0][0] is signal
+
+
+@pytest.mark.asyncio
+async def test_live_zone_level_reply_refreshes_reentry_plan_and_alias(
+        monkeypatch):
+    plan = _plan(555)
+    plan["consumed"] = True
+    plan["status"] = "triggered"
+    plan["alias_generation_ids"] = {"555": 555}
+    listener._canal2_zone_plans[555] = plan
+    runtime_state = StateManager()
+    signal = Signal("canal2", 555, "BUY", market_ticket=950055)
+    runtime_state.add(signal)
+    events = []
+    updates = []
+
+    async def fake_update(target, parsed, **kwargs):
+        updates.append((target, parsed, kwargs))
+
+    async def fake_classify(_text, *, signal=None):
+        return []
+
+    async def fake_execute(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(listener, "state", runtime_state)
+    monkeypatch.setattr(listener, "_update_signal_from_parsed", fake_update)
+    monkeypatch.setattr(listener, "classify_async", fake_classify)
+    monkeypatch.setattr(listener, "_execute_action", fake_execute)
+    monkeypatch.setattr(
+        listener.journal,
+        "event",
+        lambda sig, ev, **kw: events.append((sig, ev, kw)),
+    )
+    monkeypatch.setattr(listener, "_log_telegram_understood", lambda *a, **kw: None)
+
+    msg = SimpleNamespace(
+        id=556,
+        text="TP1 4065\nTP2 4067\nSL 4051",
+        date=datetime.now(timezone.utc),
+        reply_to=SimpleNamespace(reply_to_msg_id=555),
+    )
+    await listener._process_canal2_new(msg, dedup=False)
+
+    assert plan["tps"] == [4065.0, 4067.0]
+    assert plan["sl"] == 4051.0
+    assert runtime_state.get("canal2", 556) is signal
+    assert updates[0][0] is signal
+    assert any(
+        ev == "canal2_zone_plan_updated"
+        and payload["changed_fields"] == ["sl", "tps", "raw_text", "tg_ts"]
+        for _, ev, payload in events
+    )
+
+
+@pytest.mark.asyncio
+async def test_live_zone_entry_edit_refreshes_future_reentry_levels(
+        monkeypatch):
+    plan = _plan(557)
+    plan["consumed"] = True
+    plan["status"] = "triggered"
+    listener._canal2_zone_plans[557] = plan
+    runtime_state = StateManager()
+    signal = Signal("canal2", 557, "BUY", market_ticket=950057)
+    runtime_state.add(signal)
+    applied = []
+
+    async def fake_apply(target, parsed, *args, **kwargs):
+        applied.append((target, parsed, args, kwargs))
+
+    monkeypatch.setattr(listener, "state", runtime_state)
+    monkeypatch.setattr(listener, "_edit_already_seen", lambda *a: False)
+    monkeypatch.setattr(
+        listener, "_apply_interpreted_entry_levels", fake_apply
+    )
+    monkeypatch.setattr(listener.journal, "event", lambda *a, **kw: None)
+    monkeypatch.setattr(listener, "_log_telegram_understood", lambda *a, **kw: None)
+
+    msg = SimpleNamespace(
+        id=557,
+        text="TP1 4066\nTP2 4069\nSL 4052",
+        date=datetime.now(timezone.utc),
+        edit_date=datetime.now(timezone.utc),
+        reply_to=None,
+    )
+    await listener._process_canal2_edit(msg)
+
+    assert plan["tps"] == [4066.0, 4069.0]
+    assert plan["sl"] == 4052.0
+    assert applied[0][0] is signal
 
 
 @pytest.mark.asyncio

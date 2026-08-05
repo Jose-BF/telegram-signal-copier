@@ -349,6 +349,9 @@ def summarize_events(events: list[dict]) -> dict:
     zone_lifecycle = {
         "plans_created": event_counts["canal2_zone_plan_created"],
         "plans_updated": event_counts["canal2_zone_plan_updated"],
+        "armed_waiting": event_counts[
+            "canal2_zone_plan_waiting_for_trigger"
+        ],
         "aliases_registered": event_counts[
             "canal2_zone_plan_alias_registered"
         ],
@@ -477,6 +480,7 @@ def render_compact_report(report: dict) -> str:
     ]
     if any((
         zones.get("plans_created"),
+        zones.get("armed_waiting"),
         zones.get("transitions"),
         zones.get("trigger_attempts"),
         zones.get("unresolved_messages"),
@@ -487,6 +491,7 @@ def render_compact_report(report: dict) -> str:
         ) or "ninguna"
         lines.append(
             f"Zonas Gold Signals: {zones.get('plans_created', 0)} nuevas, "
+            f"{zones.get('armed_waiting', 0)} armadas, "
             f"{zones.get('confirmed_entries', 0)} entradas ({trigger_text}), "
             f"{zones.get('entry_failures', 0)} fallos, "
             f"{zones.get('unresolved_messages', 0)} sin resolver"

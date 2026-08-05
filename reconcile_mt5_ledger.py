@@ -543,6 +543,7 @@ def load_journal_index(path: Path) -> dict:
             "bot_version": None,      # via _attach_bot_version
             # ── T6: expediente completo (signal, gestión, cronología) ──
             "signal_text": None,      # raw_text del signal_received (canal2)
+            "entry_provenance": None, # Telegram NOW or zone trigger
                                       # o text_preview del canal1_text_processing
             "management": [],         # cada mgmt_msg con clasificación + applied
             "timeline": [],           # hitos clave del trade
@@ -558,6 +559,21 @@ def load_journal_index(path: Path) -> dict:
             # más abajo desde canal1_text_processing (fallback).
             if e.get("raw_text") and not d.get("signal_text"):
                 d["signal_text"] = e.get("raw_text")
+            provenance_fields = {
+                "source_kind": e.get("entry_source_kind"),
+                "zone_plan_message_id": e.get("zone_plan_message_id"),
+                "zone_thread_root_message_id": e.get(
+                    "zone_thread_root_message_id"
+                ),
+                "zone_entry_generation": e.get("zone_entry_generation"),
+                "zone_trigger_kind": e.get("zone_trigger_kind"),
+                "zone_trigger_side": e.get("zone_trigger_side"),
+                "zone_trigger_price": e.get("zone_trigger_price"),
+                "zone_trigger_time": e.get("zone_trigger_time"),
+                "zone_trigger_time_msc": e.get("zone_trigger_time_msc"),
+            }
+            if any(value is not None for value in provenance_fields.values()):
+                d["entry_provenance"] = provenance_fields
         elif ev == "market_filled":
             d["n_market_filled"] += 1
         elif ev == "market_b_filled":
@@ -1050,6 +1066,7 @@ def reconcile_signal(sig_id: str, journal: dict | None,
         "order_lifecycle": journal.get("order_lifecycle", []),
         # Expediente completo por trade (T6)
         "signal_text": journal.get("signal_text"),
+        "entry_provenance": journal.get("entry_provenance"),
         "management": journal.get("management", []),
         "timeline": journal.get("timeline", []),
         "reconciled_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
