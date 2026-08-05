@@ -15,6 +15,31 @@ Production runtime:
 - `position_lifecycle_monitor.py` watches open signal lifecycle: BE, time-stop, auto-finalize and leftover position handling. This was formerly the DCA monitor; do not use the old name for new work.
 - `state.py`, `journal.py`, `pending_actions.py`, `live_auditor.py`, `strategies.py`, `parser.py`, `classifier.py` are runtime support modules.
 
+Gold Signals zone execution:
+
+- Immediate `BUY/SELL NOW` messages keep their established execution path.
+- A formal plan with one BUY/SELL zone, at least one TP and an SL is armed on
+  the demo account. BUY uses broker Ask and SELL uses broker Bid; the first
+  fresh tick inside the zone opens through the same Canal 2 order path.
+- Explicit `Active` or `You can enter` may open immediately. Explicit
+  re-entry creates a new generation; `Do not re-enter` blocks later ones.
+- Multi-zone maps and incomplete plans remain observation-only until one
+  complete, unambiguous plan exists. Old pre-schema zone observations are
+  never promoted to live execution after an upgrade.
+- Reply aliases, revised TP/SL values, trigger tick, plan identity and entry
+  generation survive restart and are exposed as `entry_provenance` in ledger
+  and replay records.
+- `Close overall profit OR set breakeven` is one contextual action: a positive
+  live basket closes, while a zero/negative basket receives exact per-ticket
+  breakeven. Both branches are never executed together.
+
+The compact daily log pass is incremental and reports armed zones, confirmed
+entries, trigger types and failures without rescanning the retained corpus:
+
+```powershell
+python tools\analyze_new_logs.py
+```
+
 Replay and simulation foundation:
 
 - `reconcile_mt5_ledger.py` rebuilds `runtime_data/ledger.jsonl` from bot logs plus MT5 history.
