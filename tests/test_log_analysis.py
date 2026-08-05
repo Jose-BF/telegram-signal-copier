@@ -156,3 +156,48 @@ def test_summary_ignores_legacy_handler_entries_without_delay():
     }])
 
     assert report["latency_ms"] == {}
+
+
+def test_incremental_summary_counts_zone_transitions_and_triggers():
+    events = [
+        {"ev": "canal2_zone_plan_created", "status": "armed"},
+        {"ev": "canal2_zone_plan_alias_registered"},
+        {
+            "ev": "canal2_zone_plan_transition",
+            "status": "approaching",
+            "lifecycle_actions": ["APPROACHING"],
+        },
+        {"ev": "canal2_zone_entry_attempted"},
+        {
+            "ev": "canal2_zone_entry_confirmed",
+            "trigger": {"trigger": "first_touch"},
+        },
+        {"ev": "canal2_zone_entry_attempted"},
+        {
+            "ev": "canal2_zone_entry_confirmed",
+            "last_trigger": {"trigger": "explicit_active"},
+        },
+        {"ev": "canal2_zone_entry_failed", "reason": "broker_tick_unavailable"},
+        {
+            "ev": "canal2_zone_plan_management",
+            "actionable": True,
+            "zone_plan_status": "draft",
+        },
+    ]
+
+    summary = log_analysis.summarize_events(events)["zone_lifecycle"]
+
+    assert summary["plans_created"] == 1
+    assert summary["plans_updated"] == 0
+    assert summary["aliases_registered"] == 1
+    assert summary["transitions"] == 1
+    assert summary["transitions_by_action"] == {"APPROACHING": 1}
+    assert summary["trigger_attempts"] == 2
+    assert summary["confirmed_entries"] == 2
+    assert summary["entries_by_trigger"] == {
+        "activation": 1,
+        "first_touch": 1,
+    }
+    assert summary["entry_failures"] == 1
+    assert summary["failures_by_reason"] == {"broker_tick_unavailable": 1}
+    assert summary["unresolved_messages"] == 1

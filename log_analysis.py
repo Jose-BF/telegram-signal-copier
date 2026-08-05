@@ -316,6 +316,55 @@ def summarize_events(events: list[dict]) -> dict:
         for event in unresolved_rows
     }
 
+    zone_transition_actions: Counter[str] = Counter()
+    zone_transition_statuses: Counter[str] = Counter()
+    zone_entry_triggers: Counter[str] = Counter()
+    zone_failure_reasons: Counter[str] = Counter()
+    zone_unresolved_messages = 0
+    for event in events:
+        event_name = str(event.get("ev") or "")
+        if event_name == "canal2_zone_plan_transition":
+            for action in event.get("lifecycle_actions") or []:
+                zone_transition_actions[str(action).upper()] += 1
+            if event.get("status"):
+                zone_transition_statuses[str(event["status"])] += 1
+        elif event_name == "canal2_zone_entry_confirmed":
+            trigger = event.get("trigger") or event.get("last_trigger") or {}
+            trigger_name = (
+                trigger.get("trigger") if isinstance(trigger, dict) else trigger
+            )
+            normalized_trigger = {
+                "explicit_active": "activation",
+                "explicit_reentry": "reentry",
+            }.get(str(trigger_name), str(trigger_name or "unknown"))
+            zone_entry_triggers[normalized_trigger] += 1
+        elif event_name == "canal2_zone_entry_failed":
+            zone_failure_reasons[str(event.get("reason") or "unknown")] += 1
+        elif (
+            event_name == "canal2_zone_plan_management"
+            and bool(event.get("actionable"))
+        ):
+            zone_unresolved_messages += 1
+
+    zone_lifecycle = {
+        "plans_created": event_counts["canal2_zone_plan_created"],
+        "plans_updated": event_counts["canal2_zone_plan_updated"],
+        "aliases_registered": event_counts[
+            "canal2_zone_plan_alias_registered"
+        ],
+        "transitions": event_counts["canal2_zone_plan_transition"],
+        "transitions_by_action": dict(sorted(zone_transition_actions.items())),
+        "statuses": dict(sorted(zone_transition_statuses.items())),
+        "expired": zone_transition_actions["EXPIRE"],
+        "trigger_attempts": event_counts["canal2_zone_entry_attempted"],
+        "confirmed_entries": event_counts["canal2_zone_entry_confirmed"],
+        "entries_by_trigger": dict(sorted(zone_entry_triggers.items())),
+        "entry_failures": event_counts["canal2_zone_entry_failed"],
+        "failures_by_reason": dict(sorted(zone_failure_reasons.items())),
+        "unresolved_messages": zone_unresolved_messages,
+        "monitor_errors": event_counts["canal2_zone_touch_loop_error"],
+    }
+
     return {
         "window": {
             "events": len(events),
@@ -374,6 +423,7 @@ def summarize_events(events: list[dict]) -> dict:
             "top": top_anomalies,
         },
         "latency_ms": latency_report,
+        "zone_lifecycle": zone_lifecycle,
         "event_counts": dict(sorted(event_counts.items())),
     }
 
@@ -408,6 +458,7 @@ def render_compact_report(report: dict) -> str:
     execution = report["execution"]
     interpretation = report["interpretation"]
     anomalies = report["anomalies"]
+    zones = report.get("zone_lifecycle") or {}
     lines = [
         (f"Logs: {scan.get('mode', 'n/a')} | {window['events']} eventos | "
          f"{window['first_ts'] or 'sin inicio'} -> {window['last_ts'] or 'sin fin'}"),
@@ -424,6 +475,22 @@ def render_compact_report(report: dict) -> str:
         (f"Anomalias: {anomalies['critical']} criticas, "
          f"{anomalies['warning']} avisos, {anomalies['unique']} unicas"),
     ]
+    if any((
+        zones.get("plans_created"),
+        zones.get("transitions"),
+        zones.get("trigger_attempts"),
+        zones.get("unresolved_messages"),
+    )):
+        trigger_text = ", ".join(
+            f"{name}={count}"
+            for name, count in (zones.get("entries_by_trigger") or {}).items()
+        ) or "ninguna"
+        lines.append(
+            f"Zonas Gold Signals: {zones.get('plans_created', 0)} nuevas, "
+            f"{zones.get('confirmed_entries', 0)} entradas ({trigger_text}), "
+            f"{zones.get('entry_failures', 0)} fallos, "
+            f"{zones.get('unresolved_messages', 0)} sin resolver"
+        )
     latency_parts = []
     for channel, label in (("canal1", "Canal 1"), ("canal2", "Canal 2")):
         values = (report.get("latency_ms") or {}).get(channel)
