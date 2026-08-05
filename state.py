@@ -207,6 +207,14 @@ class Signal:
     telegram_entry_was_reply: bool = False
     telegram_entry_reply_to_message_id: Optional[int] = None
     telegram_entry_timestamp: Optional[datetime] = None
+    # Exact origin of the MT5 exposure. NOW remains the compatibility default.
+    entry_source_kind: str = "telegram_now"
+    zone_plan_message_id: Optional[int] = None
+    zone_thread_root_message_id: Optional[int] = None
+    zone_trigger_kind: Optional[str] = None
+    zone_trigger_price: Optional[float] = None
+    zone_trigger_time_msc: Optional[int] = None
+    zone_entry_generation: int = 0
 
     @property
     def all_filled_tickets(self) -> list:

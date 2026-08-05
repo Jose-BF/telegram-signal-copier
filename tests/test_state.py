@@ -472,3 +472,14 @@ def test_causal_source_fields_do_not_shift_legacy_positional_arguments():
     assert signal.sl == 4290.0
     assert signal.source_message_revision_id is None
     assert signal.source_decision_id is None
+
+
+def test_zone_entry_evidence_has_safe_defaults():
+    signal = Signal("canal2", 800, "BUY")
+
+    assert signal.entry_source_kind == "telegram_now"
+    assert signal.zone_plan_message_id is None
+    assert signal.zone_trigger_kind is None
+    assert signal.zone_trigger_price is None
+    assert signal.zone_trigger_time_msc is None
+    assert signal.zone_entry_generation == 0

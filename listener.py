@@ -17,6 +17,7 @@ import hashlib
 import json
 import re
 import time
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -67,6 +68,29 @@ from parser import (
 from provider_names import provider_display_name
 from state import Signal, state
 from market_context import compute_market_context
+
+
+@dataclass(frozen=True)
+class _Canal2EntryIntent:
+    """Normalized request consumed by the single Canal 2 opening path."""
+
+    message_id: int
+    direction: str
+    parsed: dict
+    raw_text: str
+    entry_timestamp: datetime
+    telegram_timestamp: datetime | None = None
+    reply_to_message_id: int | None = None
+    source_kind: str = "telegram_now"
+    trigger: dict = field(default_factory=dict)
+    lot_multiplier: float = 1.0
+    lot_reason: str | None = None
+    max_tp_index: int | None = None
+    command_key: str | None = None
+    is_high_risk: bool = False
+    zone_plan_message_id: int | None = None
+    zone_thread_root_message_id: int | None = None
+    zone_entry_generation: int = 0
 
 
 def _sig_id(signal: Signal) -> str:
@@ -4308,6 +4332,267 @@ async def _handle_canal2_standalone(msg, text: str, sig_id: str) -> None:
     ))
 
 
+async def _open_canal2_intent(
+    intent: _Canal2EntryIntent,
+    *,
+    label: str = "Canal2",
+) -> Signal | None:
+    """Open one normalized Canal 2 intent through the established MT5 path."""
+    message_id = int(intent.message_id)
+    direction = str(intent.direction).upper()
+    parsed = dict(intent.parsed)
+    text = intent.raw_text or ""
+    sig_id_pre = f"canal2_{message_id}"
+
+    existing_signal = state.get("canal2", message_id)
+    if existing_signal is not None:
+        _canal2_open_committed(message_id)
+        journal.event(
+            sig_id_pre,
+            "canal2_entry_open_already_claimed",
+            reason="state_already_contains_signal",
+            existing_status=existing_signal.status,
+            existing_tickets=list(existing_signal.all_filled_tickets),
+            entry_source_kind=intent.source_kind,
+            raw_text=text[:500],
+        )
+        return None
+
+    entry_ts = intent.entry_timestamp
+    if entry_ts.tzinfo is not None:
+        entry_ts = entry_ts.astimezone(timezone.utc).replace(tzinfo=None)
+    telegram_ts = intent.telegram_timestamp
+    signal_received_utc = datetime.utcnow()
+    tg_to_bot_ms = None
+    if telegram_ts is not None:
+        tg_naive = telegram_ts
+        if tg_naive.tzinfo is not None:
+            tg_naive = tg_naive.astimezone(timezone.utc).replace(tzinfo=None)
+        tg_to_bot_ms = int(
+            (signal_received_utc - tg_naive).total_seconds() * 1000
+        )
+        if intent.source_kind == "telegram_now" and tg_to_bot_ms > 10000:
+            print(
+                f"[Canal2] tg->bot delay alto: {tg_to_bot_ms}ms "
+                f"(message_id={message_id}). Posible reconexion Telethon."
+            )
+
+    effective_lot = max(
+        0.01,
+        round(config.LOT_SIZE * float(intent.lot_multiplier), 2),
+    )
+    trigger = intent.trigger or {}
+    print(
+        f"\n[{label}] Nueva senal: {direction} (msg={message_id})"
+        f"{f' [{intent.lot_reason}]' if intent.lot_reason else ''}"
+        f"{f' [{intent.source_kind}]' if intent.source_kind != 'telegram_now' else ''}"
+        f"{f' [post-SL: TP cap idx {intent.max_tp_index}]' if intent.max_tp_index is not None else ''}"
+    )
+    journal.event(
+        sig_id_pre,
+        "signal_received",
+        channel="canal2",
+        direction=direction,
+        raw_text=text[:500],
+        lot_mult=float(intent.lot_multiplier),
+        effective_lot=effective_lot,
+        tg_ts=(
+            telegram_ts.isoformat(timespec="seconds")
+            if telegram_ts is not None else None
+        ),
+        tg_to_bot_ms=tg_to_bot_ms,
+        telegram_entry_command_key=intent.command_key,
+        telegram_entry_was_reply=intent.reply_to_message_id is not None,
+        telegram_entry_reply_to_message_id=intent.reply_to_message_id,
+        telegram_entry_ts_utc=entry_ts.isoformat(timespec="milliseconds"),
+        entry_source_kind=intent.source_kind,
+        zone_plan_message_id=intent.zone_plan_message_id,
+        zone_thread_root_message_id=intent.zone_thread_root_message_id,
+        zone_entry_generation=intent.zone_entry_generation,
+        zone_trigger_kind=trigger.get("trigger"),
+        zone_trigger_side=trigger.get("side"),
+        zone_trigger_price=trigger.get("price"),
+        zone_trigger_time=trigger.get("time"),
+        zone_trigger_time_msc=trigger.get("time_msc"),
+        zone_trigger_range=trigger.get("zone"),
+    )
+
+    if not _canal2_open_claim(message_id):
+        journal.event(
+            sig_id_pre,
+            "canal2_entry_open_already_claimed",
+            reason=(
+                "exposure_already_committed"
+                if _canal2_open_already_committed(message_id)
+                else "market_open_in_progress"
+            ),
+            entry_source_kind=intent.source_kind,
+            raw_text=text[:500],
+        )
+        return None
+
+    try:
+        ctx = await _run(compute_market_context, config.MT5_SYMBOL)
+        if ctx:
+            journal.event(sig_id_pre, "market_context", **ctx)
+
+        pre_open_tick = await _run(executor.current_tick_safe)
+        reference_price = _entry_reference_from_tick(direction, pre_open_tick)
+        interpreted = interpret_entry_levels(
+            "canal2", direction, parsed, reference_price=reference_price
+        )
+        _log_entry_level_interpretation(
+            sig_id_pre, "canal2", parsed, interpreted, reference_price
+        )
+        parsed = interpreted["parsed"]
+        result = await _run(
+            executor.open_market_with_fill,
+            direction,
+            effective_lot,
+            parsed.get("sl"),
+            parsed["tps"][0] if parsed.get("tps") else None,
+            f"c2_{message_id}",
+            config.magic_for("canal2"),
+        )
+    except Exception:
+        _canal2_open_finished(message_id)
+        raise
+
+    if not result:
+        _canal2_open_finished(message_id)
+        journal.event(
+            sig_id_pre,
+            "market_fill_failed",
+            reason="executor.open_market returned None",
+            entry_source_kind=intent.source_kind,
+        )
+        journal.anomaly(
+            sig_id_pre,
+            "fill",
+            "critical",
+            "executor.open_market devolvio None; la senal no abrio posicion",
+            channel="canal2",
+            direction=direction,
+            entry_source_kind=intent.source_kind,
+        )
+        return None
+
+    ticket, fill_price = result
+    _canal2_open_committed(message_id)
+    market_filled_utc = datetime.utcnow()
+    fill_latency_ms = int(
+        (market_filled_utc - signal_received_utc).total_seconds() * 1000
+    )
+    tick_ctx = await _run(executor.current_tick_safe)
+    journal.event(
+        sig_id_pre,
+        "market_filled",
+        ticket=ticket,
+        price=fill_price,
+        latency_ms=fill_latency_ms,
+        bid=tick_ctx.get("bid") if tick_ctx else None,
+        ask=tick_ctx.get("ask") if tick_ctx else None,
+        spread=tick_ctx.get("spread") if tick_ctx else None,
+        tick_time=tick_ctx.get("time") if tick_ctx else None,
+        tick_time_msc=tick_ctx.get("time_msc") if tick_ctx else None,
+        entry_source_kind=intent.source_kind,
+    )
+
+    c2_be_idx = (
+        config.STRATEGY_C2_BE_TP_INDEX
+        if config.STRATEGY_C2_BE_TP_INDEX >= 0 else None
+    )
+    c2_target_tp = (
+        config.STRATEGY_C2_TARGET_TP_INDEX
+        if config.STRATEGY_C2_TARGET_TP_INDEX >= 0 else None
+    )
+    c2_time_stop = (
+        datetime.utcnow() + timedelta(minutes=config.STRATEGY_C2_TIME_STOP_MIN)
+        if config.STRATEGY_C2_TIME_STOP_MIN > 0 else None
+    )
+    sig = Signal(
+        channel="canal2",
+        message_id=message_id,
+        direction=direction,
+        timestamp=entry_ts,
+        telegram_entry_command_key=intent.command_key,
+        telegram_entry_was_reply=intent.reply_to_message_id is not None,
+        telegram_entry_reply_to_message_id=intent.reply_to_message_id,
+        telegram_entry_timestamp=(telegram_ts or entry_ts),
+        market_ticket=ticket,
+        market_fill_price=fill_price,
+        lot_multiplier=float(intent.lot_multiplier),
+        max_tp_index=intent.max_tp_index,
+        is_high_risk=intent.is_high_risk,
+        time_stop_at=c2_time_stop,
+        entry_mode=config.STRATEGY_C2_ENTRY_MODE,
+        target_tp_index=c2_target_tp,
+        be_at_tp_index=c2_be_idx,
+        adverse_action=config.STRATEGY_C2_ADVERSE_ACTION,
+        entry_source_kind=intent.source_kind,
+        zone_plan_message_id=intent.zone_plan_message_id,
+        zone_thread_root_message_id=intent.zone_thread_root_message_id,
+        zone_trigger_kind=trigger.get("trigger"),
+        zone_trigger_price=trigger.get("price"),
+        zone_trigger_time_msc=trigger.get("time_msc"),
+        zone_entry_generation=intent.zone_entry_generation,
+    )
+    state.add(sig)
+    _emit_same_direction_overlap_anomaly(sig)
+    journal.begin_trade(
+        _sig_id(sig),
+        channel="canal2",
+        direction=direction,
+        signal_received_utc=signal_received_utc.isoformat(
+            timespec="milliseconds"
+        ),
+        market_filled_utc=market_filled_utc.isoformat(timespec="milliseconds"),
+        fill_latency_ms=fill_latency_ms,
+        market_entry_price=fill_price,
+        adverse_action=config.STRATEGY_C2_ADVERSE_ACTION,
+        entry_source_kind=intent.source_kind,
+        zone_plan_message_id=intent.zone_plan_message_id,
+        zone_trigger_kind=trigger.get("trigger"),
+        zone_trigger_price=trigger.get("price"),
+        zone_trigger_time_msc=trigger.get("time_msc"),
+        zone_entry_generation=intent.zone_entry_generation,
+    )
+    _log_strategy_snapshot(
+        sig,
+        num_entries=config.STRATEGY_C2_NUM_ENTRIES,
+        time_stop_min=config.STRATEGY_C2_TIME_STOP_MIN,
+    )
+    await _open_extra_legs(sig, message_id)
+    parsed = await _apply_interpreted_entry_levels(
+        sig,
+        parsed,
+        "canal2",
+        reference_price=fill_price,
+        tg_ts=(
+            telegram_ts.isoformat(timespec="seconds")
+            if telegram_ts is not None else None
+        ),
+    )
+    deferred = _pop_deferred_canal2_entry_edit(message_id)
+    if deferred:
+        deferred_parsed = parse_canal2(deferred["text"])
+        journal.event(
+            _sig_id(sig),
+            "canal2_deferred_entry_edit_applied",
+            parsed_keys=sorted(deferred_parsed.keys()),
+            tg_ts=deferred.get("tg_ts"),
+        )
+        await _apply_interpreted_entry_levels(
+            sig,
+            deferred_parsed,
+            "canal2",
+            reference_price=sig.market_fill_price,
+            tg_ts=deferred.get("tg_ts"),
+        )
+    logger.log_signal(sig, parsed)
+    return sig
+
+
 async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True,
                               entry_serialized: bool = False):
     # Dedup: el poller activo y el event handler pueden ver el mismo mensaje.
@@ -4535,171 +4820,25 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True,
     # ── POST-SL momentum (point 4) — TP cap ──
     max_tp_idx = strategies.max_tp_index_for_signal("canal2")
 
-    print(f"\n[{label}] Nueva señal: {direction} (msg={msg.id})"
-          f"{f' [{lot_reason}]' if lot_reason else ''}"
-          f"{f' [post-SL: TP cap idx {max_tp_idx}]' if max_tp_idx is not None else ''}")
-
-    # Calcula el lotaje efectivo (mínimo 0.01)
-    effective_lot = max(0.01, round(config.LOT_SIZE * lot_mult, 2))
-
-    # ── JOURNAL: signal_received antes del fill para medir latencia ──
-    sig_id_pre = f"canal2_{msg.id}"
-    signal_received_utc = datetime.utcnow()
-    # tg_to_bot_ms: delay Telegram→bot (campo computado para análisis rápido).
-    # Negativo o muy alto = posible reconexión Telethon, mensaje stale.
-    tg_to_bot_ms = None
-    if msg.date:
-        # msg.date viene timezone-aware (UTC); utcnow() es naive UTC. Forzamos
-        # ambos a naive UTC restando tzinfo para no mezclar.
-        tg_naive = msg.date.replace(tzinfo=None)
-        tg_to_bot_ms = int((signal_received_utc - tg_naive).total_seconds() * 1000)
-        if tg_to_bot_ms > 10000:
-            print(f"[Canal2] ⚠ tg→bot delay alto: {tg_to_bot_ms}ms "
-                  f"(msg.date={msg.date}). Posible reconexión Telethon — "
-                  f"señal podría estar stale.")
-    journal.event(sig_id_pre, "signal_received",
-                  channel="canal2", direction=direction,
-                  raw_text=text[:500], lot_mult=lot_mult,
-                  effective_lot=effective_lot,
-                  tg_ts=msg.date.isoformat(timespec="seconds") if msg.date else None,
-                  tg_to_bot_ms=tg_to_bot_ms,
-                  telegram_entry_command_key=canal2_entry_command_key(text),
-                  telegram_entry_was_reply=reply_id is not None,
-                  telegram_entry_reply_to_message_id=reply_id,
-                  telegram_entry_ts_utc=duplicate_ts.isoformat(
-                      timespec="milliseconds"
-                  ))
-
-    # Contexto de mercado (ATR M5x14 + range reciente + precio): permite al
-    # análisis posterior separar fallos de ejecución vs régimen adverso.
-    if not _canal2_open_claim(msg.id):
-        journal.event(
-            sig_id_pre,
-            "canal2_entry_open_already_claimed",
-            reason=("exposure_already_committed"
-                    if _canal2_open_already_committed(msg.id)
-                    else "market_open_in_progress"),
-            raw_text=text[:500],
-        )
-        return
-
-    try:
-        ctx = await _run(compute_market_context, config.MT5_SYMBOL)
-        if ctx:
-            journal.event(sig_id_pre, "market_context", **ctx)
-
-        pre_open_tick = await _run(executor.current_tick_safe)
-        reference_price = _entry_reference_from_tick(direction, pre_open_tick)
-        interpreted = interpret_entry_levels(
-            "canal2", direction, parsed, reference_price=reference_price)
-        _log_entry_level_interpretation(
-            sig_id_pre, "canal2", parsed, interpreted, reference_price)
-        parsed = interpreted["parsed"]
-
-        magic = config.magic_for("canal2")
-        # A single MT5 call returns ticket plus fill price and keeps every
-        # pre-fill failure inside the same claim-release boundary.
-        result = await _run(
-            executor.open_market_with_fill, direction, effective_lot,
-            parsed.get("sl"), parsed["tps"][0] if parsed.get("tps") else None,
-            f"c2_{msg.id}", magic)
-    except Exception:
-        _canal2_open_finished(msg.id)
-        raise
-    if not result:
-        _canal2_open_finished(msg.id)
-        journal.event(sig_id_pre, "market_fill_failed",
-                      reason="executor.open_market returned None")
-        journal.anomaly(sig_id_pre, "fill", "critical",
-                        "executor.open_market devolvió None — la señal "
-                        "no abrió posición",
-                        channel="canal2", direction=direction)
-        return
-    ticket, fill_price = result
-    # The first confirmed ticket is the irreversible boundary. From here on,
-    # another delivery of this Telegram message must never create exposure,
-    # even if later bookkeeping or level management raises.
-    _canal2_open_committed(msg.id)
-
-    # Timestamp justo tras el retorno de MT5 (más preciso que tras llamada extra)
-    market_filled_utc = datetime.utcnow()
-    fill_latency_ms = int((market_filled_utc - signal_received_utc).total_seconds() * 1000)
-    # Tick context: bid/ask/spread inmediatamente tras el fill — para luego
-    # poder analizar slippage real, condiciones de mercado en la apertura.
-    tick_ctx = await _run(executor.current_tick_safe)
-    journal.event(sig_id_pre, "market_filled",
-                  ticket=ticket, price=fill_price, latency_ms=fill_latency_ms,
-                  bid=tick_ctx.get("bid") if tick_ctx else None,
-                  ask=tick_ctx.get("ask") if tick_ctx else None,
-                  spread=tick_ctx.get("spread") if tick_ctx else None)
-
-    # ── Estrategia Canal 2 (semana de prueba): intra_dca, TPs escalonados ──
-    # N entradas equiespaciadas en el rango. TPs por orden de apertura
-    # (ticket i → tps[i]); -1 en config → None aquí para activar escalonado.
-    # BE_TP_INDEX -1 → sin BE auto (los mensajes del canal lo gestionan vía
-    # classifier). Time-stop sólo notifica (no cierra) según
-    # STRATEGY_TIME_STOP_NOTIFY_ONLY.
-    c2_be_idx = config.STRATEGY_C2_BE_TP_INDEX if config.STRATEGY_C2_BE_TP_INDEX >= 0 else None
-    c2_target_tp = (config.STRATEGY_C2_TARGET_TP_INDEX
-                    if config.STRATEGY_C2_TARGET_TP_INDEX >= 0 else None)
-    c2_time_stop = (datetime.utcnow() + timedelta(minutes=config.STRATEGY_C2_TIME_STOP_MIN)
-                    if config.STRATEGY_C2_TIME_STOP_MIN > 0 else None)
-
-    sig = Signal(
-        channel="canal2",
-        message_id=msg.id,
-        direction=direction,
-        timestamp=duplicate_ts,
-        telegram_entry_command_key=canal2_entry_command_key(text),
-        telegram_entry_was_reply=reply_id is not None,
-        telegram_entry_reply_to_message_id=reply_id,
-        telegram_entry_timestamp=duplicate_ts,
-        market_ticket=ticket,
-        market_fill_price=fill_price,
-        lot_multiplier=lot_mult,
-        max_tp_index=max_tp_idx,
-        is_high_risk=strategies.is_high_risk_signal(text),
-        time_stop_at=c2_time_stop,
-        entry_mode=config.STRATEGY_C2_ENTRY_MODE,
-        target_tp_index=c2_target_tp,
-        be_at_tp_index=c2_be_idx,
-        adverse_action=config.STRATEGY_C2_ADVERSE_ACTION,
+    await _open_canal2_intent(
+        _Canal2EntryIntent(
+            message_id=int(msg.id),
+            direction=direction,
+            parsed=parsed,
+            raw_text=text,
+            entry_timestamp=duplicate_ts,
+            telegram_timestamp=getattr(msg, "date", None),
+            reply_to_message_id=reply_id,
+            source_kind="telegram_now",
+            lot_multiplier=lot_mult,
+            lot_reason=lot_reason,
+            max_tp_index=max_tp_idx,
+            command_key=canal2_entry_command_key(text),
+            is_high_risk=strategies.is_high_risk_signal(text),
+        ),
+        label=label,
     )
-    state.add(sig)
-    _emit_same_direction_overlap_anomaly(sig)
-    journal.begin_trade(
-        _sig_id(sig),
-        channel="canal2",
-        direction=direction,
-        signal_received_utc=signal_received_utc.isoformat(timespec="milliseconds"),
-        market_filled_utc=market_filled_utc.isoformat(timespec="milliseconds"),
-        fill_latency_ms=fill_latency_ms,
-        market_entry_price=fill_price,
-        adverse_action=config.STRATEGY_C2_ADVERSE_ACTION,
-    )
-    _log_strategy_snapshot(
-        sig,
-        num_entries=config.STRATEGY_C2_NUM_ENTRIES,
-        time_stop_min=config.STRATEGY_C2_TIME_STOP_MIN,
-    )
-    # Abre posiciones market extra (modo scale_out, o doble market legacy).
-    await _open_extra_legs(sig, msg.id)
-    parsed = await _apply_interpreted_entry_levels(
-        sig, parsed, "canal2", reference_price=fill_price)
-    deferred = _pop_deferred_canal2_entry_edit(msg.id)
-    if deferred:
-        deferred_parsed = parse_canal2(deferred["text"])
-        journal.event(
-            _sig_id(sig),
-            "canal2_deferred_entry_edit_applied",
-            parsed_keys=sorted(deferred_parsed.keys()),
-            tg_ts=deferred.get("tg_ts"),
-        )
-        await _apply_interpreted_entry_levels(
-            sig, deferred_parsed, "canal2",
-            reference_price=sig.market_fill_price,
-            tg_ts=deferred.get("tg_ts"))
-    logger.log_signal(sig, parsed)
+    return
 
 
 async def _process_canal2_edit(msg, label: str = "Canal2"):
