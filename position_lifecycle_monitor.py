@@ -27,6 +27,7 @@ Implementa estos mecanismos defensivos:
 """
 
 import asyncio
+import time
 from datetime import datetime
 
 import MetaTrader5 as mt5
@@ -63,6 +64,17 @@ def _should_emit_periodic_snapshot(now_ts: float, last_ts: float,
     if interval_s <= 0:
         return True
     return (now_ts - last_ts) >= interval_s
+
+
+def _auto_finalize_grace_elapsed(
+    monitor_started_monotonic: float,
+    *,
+    now_monotonic: float | None = None,
+    grace_s: float = 30.0,
+) -> bool:
+    """Use a local monotonic clock for the post-fill close grace period."""
+    now = time.monotonic() if now_monotonic is None else now_monotonic
+    return (now - monitor_started_monotonic) >= grace_s
 
 
 def _signal_still_alive(signal: Signal) -> bool:
@@ -470,6 +482,22 @@ async def _notify_time_stop(signal: Signal, elapsed_min: float):
         notify = None
 
     summary = _floating_pl_summary(signal)
+    if summary["n_open"] <= 0:
+        signal.time_stop_at = None
+        try:
+            import journal
+            journal.event(
+                f"{signal.channel}_{signal.message_id}",
+                "time_stop_skipped_no_positions",
+                elapsed_min=round(elapsed_min, 1),
+            )
+        except Exception as e:
+            print(
+                "[Position Monitor] journal.event "
+                f"time_stop_skipped_no_positions error: {e}"
+            )
+        return False
+
     next_tp = _next_tp_for_signal(signal)
 
     # MFE/MAE del journal si existe
@@ -534,6 +562,7 @@ async def _notify_time_stop(signal: Signal, elapsed_min: float):
                         n_open=summary["n_open"])
     except Exception as e:
         print(f"[Position Monitor] journal.event time_stop_notified error: {e}")
+    return True
 
 
 async def _arm_be(signal: Signal):
@@ -640,6 +669,7 @@ async def run(signal: Signal, levels: list[float]):
           f"be_trigger={be_trigger} (idx={signal.be_at_tp_index})")
 
     last_tick_ms = 0
+    monitor_started_monotonic = time.monotonic()
     # Throttle de update_extremes: cada 5s actualiza MFE/MAE en el journal.
     # Más frecuente sería I/O excesivo; menos frecuente perdería extremos breves.
     last_extremes_ts = 0.0
@@ -778,8 +808,12 @@ async def run(signal: Signal, levels: list[float]):
                                  avg_entry=round(summary["avg_entry"], 2)
                                      if summary.get("avg_entry") else None,
                                  elapsed_s=round((datetime.utcnow() - signal.timestamp).total_seconds(), 0))
-                elif (signal.all_filled_tickets and
-                      (datetime.utcnow() - signal.timestamp).total_seconds() > 30):
+                elif (
+                    signal.all_filled_tickets
+                    and _auto_finalize_grace_elapsed(
+                        monitor_started_monotonic
+                    )
+                ):
                     # n_open == 0 pero hay tickets registrados → MT5 cerró todas
                     # las posiciones vía TP o SL sin que el canal mandara mensaje.
                     # El listener nunca supo del cierre → nunca llamó _finalize_signal.

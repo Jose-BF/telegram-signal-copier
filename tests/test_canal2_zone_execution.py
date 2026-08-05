@@ -61,10 +61,16 @@ def test_incomplete_zone_notice_explains_why_it_cannot_open():
 
 
 @pytest.fixture(autouse=True)
-def _reset_zone_runtime():
+def _reset_zone_runtime(monkeypatch):
+    async def fake_notify(_text):
+        return None
+
     listener._canal2_zone_plans.clear()
     listener._entry_execution_gate.reset()
     listener._canal2_opening_msg_ids.clear()
+    monkeypatch.setattr(listener, "notify", fake_notify)
+    monkeypatch.setattr(listener.journal, "event", lambda *a, **kw: None)
+    monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
     yield
     listener._canal2_zone_plans.clear()
     listener._entry_execution_gate.reset()
@@ -96,7 +102,7 @@ async def test_first_touch_opens_once_and_consumes_generation(monkeypatch):
     monkeypatch.setattr(
         listener.journal,
         "event",
-        lambda sig, ev, **kw: events.append((sig, ev, kw)),
+        lambda signal_id, ev, **kw: events.append((signal_id, ev, kw)),
     )
 
     assert await listener._process_canal2_zone_tick(_tick()) == 1
@@ -186,6 +192,49 @@ async def test_active_incomplete_waits_then_final_levels_trigger(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_incomplete_zone_is_waiting_state_not_runtime_anomaly(
+        monkeypatch):
+    events = []
+    anomalies = []
+    msg = SimpleNamespace(
+        id=525,
+        text="Gold Buy Zone 4058 - 4053",
+        date=datetime.now(timezone.utc),
+    )
+
+    monkeypatch.setattr(
+        listener.journal,
+        "event",
+        lambda signal_id, ev, **fields:
+        events.append((signal_id, ev, fields)),
+    )
+    monkeypatch.setattr(
+        listener.journal,
+        "anomaly",
+        lambda *args, **fields: anomalies.append((args, fields)),
+    )
+
+    await listener._handle_canal2_zone_plan(
+        msg,
+        msg.text,
+        {
+            "direction": "BUY",
+            "zones": [[4053.0, 4058.0]],
+            "target": None,
+            "tps": [],
+            "sl": None,
+            "has_open_runner": True,
+        },
+    )
+
+    assert anomalies == []
+    assert any(
+        ev == "canal2_zone_plan_waiting_for_levels"
+        for _, ev, _ in events
+    )
+
+
+@pytest.mark.asyncio
 async def test_reentry_uses_new_message_identity(monkeypatch):
     plan = _plan(530)
     plan["consumed"] = True
@@ -264,6 +313,65 @@ def test_current_tick_safe_includes_broker_clock(monkeypatch):
 
     assert result["time"] == 1785920400
     assert result["time_msc"] == 1785920400123
+
+
+def test_zone_entry_clock_normalizes_broker_server_offset():
+    observed = datetime(2026, 8, 5, 9, 0, 0, 250000, tzinfo=timezone.utc)
+    raw_broker = datetime(2026, 8, 5, 12, 0, 0, 200000,
+                          tzinfo=timezone.utc)
+    trigger = {
+        "time": int(raw_broker.timestamp()),
+        "time_msc": int(raw_broker.timestamp() * 1000),
+        "observed_utc": observed.isoformat(timespec="milliseconds"),
+    }
+
+    normalized = listener._zone_entry_timestamp(trigger)
+
+    assert normalized == raw_broker - listener.timedelta(hours=3)
+    assert trigger["clock_basis"] == "broker_time_normalized"
+    assert trigger["broker_utc_offset_s"] == 10800
+    assert trigger["normalized_time_utc"] == normalized.isoformat(
+        timespec="milliseconds"
+    )
+
+
+def test_zone_entry_clock_keeps_true_utc_broker_time():
+    observed = datetime(2026, 8, 5, 9, 0, 0, 250000, tzinfo=timezone.utc)
+    raw_broker = datetime(2026, 8, 5, 9, 0, 0, 200000,
+                          tzinfo=timezone.utc)
+    trigger = {
+        "time_msc": int(raw_broker.timestamp() * 1000),
+        "observed_utc": observed.isoformat(timespec="milliseconds"),
+    }
+
+    normalized = listener._zone_entry_timestamp(trigger)
+
+    assert normalized == raw_broker
+    assert trigger["broker_utc_offset_s"] == 0
+
+
+def test_zone_activation_notice_is_human_readable():
+    plan = _plan(565)
+    signal = Signal(
+        "canal2",
+        565,
+        "BUY",
+        market_ticket=950065,
+        market_fill_price=4056.25,
+    )
+    signal.extra_market_tickets.append(950066)
+
+    text = listener._format_canal2_zone_activation_notice(
+        plan,
+        signal,
+        {"trigger": "first_touch", "price": 4056.30},
+    )
+
+    assert "Gold Signals" in text
+    assert "ZONA ACTIVADA" in text
+    assert "4056.25" in text
+    assert "2 posiciones" in text
+    assert "canal2_" not in text
 
 
 @pytest.mark.asyncio
@@ -482,6 +590,62 @@ def test_restart_restores_triggered_plan_and_binds_reply_alias(
     )
     assert listener._canal2_zone_plans[570]["status"] == "triggered"
     assert runtime_state.get("canal2", 571) is signal
+
+
+def test_restart_recovers_zone_fill_when_confirmation_event_was_lost(
+        monkeypatch, tmp_path):
+    path = tmp_path / "trade_events.jsonl"
+    rows = [
+        {
+            "ts": "2026-08-05T09:00:00+00:00",
+            "sig": "canal2_575",
+            "ev": "canal2_zone_plan_created",
+            "lifecycle_schema_version": 2,
+            "message_id": 575,
+            "thread_root_message_id": 575,
+            "direction": "SELL",
+            "zones": [[4181.0, 4187.0]],
+            "tps": [4179.0, 4177.0],
+            "sl": 4190.0,
+            "status": "armed",
+            "expires_utc": "2099-08-06T09:00:00+00:00",
+        },
+        {
+            "ts": "2026-08-05T09:01:00+00:00",
+            "sig": "canal2_575",
+            "ev": "signal_received",
+            "lifecycle_schema_version": 2,
+            "entry_source_kind": "zone_first_touch",
+            "zone_plan_message_id": 575,
+            "zone_entry_generation": 1,
+            "zone_trigger_kind": "first_touch",
+        },
+        {
+            "ts": "2026-08-05T09:01:01+00:00",
+            "sig": "canal2_575",
+            "ev": "market_filled",
+            "lifecycle_schema_version": 2,
+            "entry_source_kind": "zone_first_touch",
+            "ticket": 950075,
+            "price": 4181.15,
+        },
+    ]
+    path.write_text(
+        "".join(json.dumps(row) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+    runtime_state = StateManager()
+    signal = Signal("canal2", 575, "SELL", market_ticket=950075)
+    runtime_state.add(signal)
+    monkeypatch.setattr(listener, "state", runtime_state)
+
+    restored = listener.restore_canal2_zone_plans_from_journal(path)
+
+    assert restored == 1
+    restored_plan = listener._canal2_zone_plans[575]
+    assert restored_plan["status"] == "triggered"
+    assert restored_plan["consumed"] is True
+    assert restored_plan["confirmed_generation_ids"] == [575]
 
 
 @pytest.mark.asyncio

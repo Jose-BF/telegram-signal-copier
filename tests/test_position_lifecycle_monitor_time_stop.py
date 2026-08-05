@@ -63,3 +63,46 @@ async def test_notify_time_stop_emits_outcome_anomaly_without_closing(
     assert events[0][0:2] == ("canal1_19822", "time_stop_notified")
     assert anomalies[0][0:3] == ("canal1_19822", "outcome", "warning")
     assert anomalies[0][4]["pl"] == -41.9
+
+
+@pytest.mark.asyncio
+async def test_notify_time_stop_skips_alert_when_mt5_has_no_positions(
+        monkeypatch):
+    events = []
+    notifications = []
+
+    async def fake_notify(text):
+        notifications.append(text)
+
+    monkeypatch.setitem(sys.modules, "listener",
+                        SimpleNamespace(notify=fake_notify))
+    monkeypatch.setattr(
+        position_lifecycle_monitor, "_floating_pl_summary",
+        lambda _sig: {
+            "pl": 0.0,
+            "n_open": 0,
+            "lots_total": 0.0,
+            "current_price": None,
+            "avg_entry": None,
+        })
+
+    import journal
+    monkeypatch.setattr(
+        journal, "event",
+        lambda sig, ev, **fields: events.append((sig, ev, fields)))
+
+    sig = Signal(channel="canal2", message_id=575, direction="SELL")
+    sig.time_stop_at = datetime.utcnow()
+
+    result = await position_lifecycle_monitor._notify_time_stop(
+        sig, elapsed_min=60.0
+    )
+
+    assert result is False
+    assert notifications == []
+    assert sig.time_stop_at is None
+    assert events == [(
+        "canal2_575",
+        "time_stop_skipped_no_positions",
+        {"elapsed_min": 60.0},
+    )]

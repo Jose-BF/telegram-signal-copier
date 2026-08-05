@@ -42,6 +42,17 @@ def test_periodic_snapshot_sampling_can_be_disabled_for_tests():
         now_ts=100.0, last_ts=99.9, interval_s=0.0) is True
 
 
+def test_auto_finalize_grace_uses_monitor_clock_not_signal_timestamp():
+    assert position_lifecycle_monitor._auto_finalize_grace_elapsed(
+        monitor_started_monotonic=100.0,
+        now_monotonic=129.9,
+    ) is False
+    assert position_lifecycle_monitor._auto_finalize_grace_elapsed(
+        monitor_started_monotonic=100.0,
+        now_monotonic=130.0,
+    ) is True
+
+
 @pytest.mark.asyncio
 async def test_delayed_market_open_emits_internal_decision_manifest(
     monkeypatch,

@@ -3861,6 +3861,43 @@ def _format_canal2_zone_plan_notice(plan: dict) -> str:
     )
 
 
+def _format_canal2_zone_activation_notice(
+    plan: dict,
+    signal: Signal,
+    trigger: dict,
+) -> str:
+    """Human-facing confirmation sent only after MT5 accepted the entry."""
+    provider = provider_display_name("canal2")
+    direction = str(signal.direction or plan.get("direction") or "?").upper()
+    entry = signal.market_fill_price
+    if entry is None:
+        entry = trigger.get("price")
+    entry_text = f"{float(entry):.2f}" if entry is not None else "no disponible"
+    position_count = len(signal.all_filled_tickets)
+    position_label = "posicion" if position_count == 1 else "posiciones"
+    zone = _zone_plan_level_text(plan)
+    tps = signal.tps or list(plan.get("tps") or [])
+    tp_text = ", ".join(f"{float(value):.2f}" for value in tps)
+    sl = signal.sl if signal.sl is not None else plan.get("sl")
+    sl_text = f"{float(sl):.2f}" if sl is not None else "pendiente"
+    trigger_text = {
+        "first_touch": "primer toque de la zona",
+        "explicit_active": "activacion indicada por el trader",
+        "explicit_reentry": "reentrada indicada por el trader",
+    }.get(str(trigger.get("trigger") or ""), "activacion confirmada")
+
+    return (
+        f"✅ {provider}\n"
+        f"ZONA ACTIVADA · {direction}\n\n"
+        f"Entrada real: {entry_text}\n"
+        f"Zona: {zone}\n"
+        f"Abiertas: {position_count} {position_label}\n"
+        f"SL: {sl_text}\n"
+        f"TP: {tp_text or 'pendiente'}\n\n"
+        f"Origen: {trigger_text}."
+    )
+
+
 def _drop_canal2_zone_plan_aliases(message_id: int) -> None:
     """Remove every cache key owned by a message that became an entry."""
     message_id = int(message_id)
@@ -3998,6 +4035,7 @@ def restore_canal2_zone_plans_from_journal(path) -> int:
 
     records: dict[int, dict] = {}
     aliases: dict[int, int] = {}
+    zone_signal_contexts: dict[str, dict] = {}
 
     with source.open("rb") as handle:
         for raw_line in handle:
@@ -4008,11 +4046,16 @@ def restore_canal2_zone_plans_from_journal(path) -> int:
             if not isinstance(row, dict):
                 continue
 
-            if row.get("lifecycle_schema_version") != LIFECYCLE_SCHEMA_VERSION:
-                continue
-
             event = row.get("ev")
             sig_id = str(row.get("sig") or "")
+            runtime_fill_event = event in {"signal_received", "market_filled"}
+            if (
+                not runtime_fill_event
+                and row.get("lifecycle_schema_version")
+                != LIFECYCLE_SCHEMA_VERSION
+            ):
+                continue
+
             if event == "canal2_zone_plan_created":
                 try:
                     message_id = int(
@@ -4078,6 +4121,101 @@ def restore_canal2_zone_plans_from_journal(path) -> int:
                 except (TypeError, ValueError):
                     continue
                 aliases[alias_id] = owner_id
+                continue
+
+            if event == "signal_received":
+                source_kind = str(row.get("entry_source_kind") or "")
+                if not source_kind.startswith("zone_"):
+                    continue
+                zone_signal_contexts[sig_id] = {
+                    "entry_source_kind": source_kind,
+                    "zone_plan_message_id": row.get(
+                        "zone_plan_message_id"
+                    ),
+                    "zone_entry_generation": row.get(
+                        "zone_entry_generation"
+                    ),
+                    "trigger": {
+                        "trigger": row.get("zone_trigger_kind"),
+                        "side": row.get("zone_trigger_side"),
+                        "price": row.get("zone_trigger_price"),
+                        "time": row.get("zone_trigger_time"),
+                        "time_msc": row.get("zone_trigger_time_msc"),
+                        "zone": row.get("zone_trigger_range"),
+                        "observed_utc": row.get(
+                            "zone_trigger_observed_utc"
+                        ),
+                        "normalized_time_utc": row.get(
+                            "zone_trigger_normalized_utc"
+                        ),
+                        "broker_utc_offset_s": row.get(
+                            "zone_trigger_broker_utc_offset_s"
+                        ),
+                        "clock_basis": row.get(
+                            "zone_trigger_clock_basis"
+                        ),
+                    },
+                }
+                continue
+
+            if event == "market_filled":
+                context = dict(zone_signal_contexts.get(sig_id) or {})
+                source_kind = str(
+                    row.get("entry_source_kind")
+                    or context.get("entry_source_kind")
+                    or ""
+                )
+                if not source_kind.startswith("zone_"):
+                    continue
+                try:
+                    generation_id = int(
+                        row.get("generation_message_id")
+                        or sig_id.removeprefix("canal2_")
+                    )
+                    owner_id = int(
+                        row.get("zone_plan_message_id")
+                        or context.get("zone_plan_message_id")
+                        or generation_id
+                    )
+                except (TypeError, ValueError):
+                    continue
+                owner_id = aliases.get(owner_id, owner_id)
+                record = records.get(owner_id)
+                if record is None:
+                    continue
+
+                generation = int(
+                    row.get("zone_entry_generation")
+                    or context.get("zone_entry_generation")
+                    or record.get("entry_generation")
+                    or 1
+                )
+                confirmed_ids = record.setdefault(
+                    "confirmed_generation_ids", []
+                )
+                if generation_id not in confirmed_ids:
+                    confirmed_ids.append(generation_id)
+                record["entry_generation"] = max(
+                    int(record.get("entry_generation") or 0), generation
+                )
+                record["entry_generation_id"] = generation_id
+                record["trigger_claim"] = None
+                record["activation_requested"] = False
+                record["consumed"] = True
+                record["status"] = "triggered"
+                trigger = dict(context.get("trigger") or {})
+                if trigger:
+                    record["last_trigger"] = trigger
+                aliases_to_bind = (
+                    [generation_id]
+                    if source_kind == "zone_reentry"
+                    else [int(value) for value in record.get("aliases") or []]
+                )
+                alias_generations = record.setdefault(
+                    "alias_generation_ids", {}
+                )
+                for alias_id in aliases_to_bind:
+                    alias_generations[str(alias_id)] = generation_id
                 continue
 
             try:
@@ -4188,20 +4326,91 @@ def _zone_trigger_evidence(plan: dict, tick: dict, kind: str) -> dict:
         "price": price,
         "time": tick.get("time"),
         "time_msc": tick.get("time_msc"),
+        "observed_utc": datetime.now(timezone.utc).isoformat(
+            timespec="milliseconds"
+        ),
         "zone": zone,
         "outside_zone": outside_zone,
         "deviation_from_zone": deviation,
     }
 
 
+_ZONE_CLOCK_ROUND_S = 15 * 60
+_ZONE_CLOCK_MAX_OFFSET_S = 14 * 60 * 60
+_ZONE_CLOCK_RESIDUAL_TOLERANCE_S = 30.0
+
+
 def _zone_entry_timestamp(trigger: dict) -> datetime:
-    broker_epoch = trigger.get("time")
-    if broker_epoch is not None:
+    """Normalize a broker-local tick epoch onto the observed UTC clock.
+
+    Some MT5 brokers expose ``tick.time`` encoded with server-local wall time
+    even though the Python API presents it as an epoch.  Comparing that raw
+    value with the instant at which we observed the tick lets us identify a
+    whole/quarter-hour server offset without guessing the broker timezone.
+    The raw and normalized clocks stay in ``trigger`` for deterministic replay.
+    """
+    observed = datetime.now(timezone.utc)
+    observed_raw = trigger.get("observed_utc")
+    if observed_raw:
         try:
-            return datetime.fromtimestamp(float(broker_epoch), tz=timezone.utc)
+            observed = datetime.fromisoformat(str(observed_raw))
+            if observed.tzinfo is None:
+                observed = observed.replace(tzinfo=timezone.utc)
+            else:
+                observed = observed.astimezone(timezone.utc)
+        except (TypeError, ValueError):
+            observed = datetime.now(timezone.utc)
+    trigger["observed_utc"] = observed.isoformat(timespec="milliseconds")
+
+    raw_epoch = None
+    if trigger.get("time_msc") is not None:
+        try:
+            raw_epoch = float(trigger["time_msc"]) / 1000.0
+        except (TypeError, ValueError):
+            raw_epoch = None
+    if raw_epoch is None and trigger.get("time") is not None:
+        try:
+            raw_epoch = float(trigger["time"])
+        except (TypeError, ValueError):
+            raw_epoch = None
+
+    raw_dt = None
+    if raw_epoch is not None:
+        try:
+            raw_dt = datetime.fromtimestamp(raw_epoch, tz=timezone.utc)
         except (OSError, OverflowError, TypeError, ValueError):
-            pass
-    return datetime.now(timezone.utc)
+            raw_dt = None
+
+    normalized = observed
+    offset_s = None
+    residual_s = None
+    basis = "observed_utc_fallback"
+    if raw_dt is not None:
+        delta_s = (raw_dt - observed).total_seconds()
+        candidate_offset_s = int(
+            round(delta_s / _ZONE_CLOCK_ROUND_S) * _ZONE_CLOCK_ROUND_S
+        )
+        residual_s = delta_s - candidate_offset_s
+        if (
+            abs(candidate_offset_s) <= _ZONE_CLOCK_MAX_OFFSET_S
+            and abs(residual_s) <= _ZONE_CLOCK_RESIDUAL_TOLERANCE_S
+        ):
+            offset_s = candidate_offset_s
+            normalized = raw_dt - timedelta(seconds=offset_s)
+            basis = "broker_time_normalized"
+
+    trigger["raw_broker_time_utc"] = (
+        raw_dt.isoformat(timespec="milliseconds") if raw_dt else None
+    )
+    trigger["broker_utc_offset_s"] = offset_s
+    trigger["clock_residual_ms"] = (
+        int(round(residual_s * 1000)) if residual_s is not None else None
+    )
+    trigger["clock_basis"] = basis
+    trigger["normalized_time_utc"] = normalized.isoformat(
+        timespec="milliseconds"
+    )
+    return normalized
 
 
 async def _trigger_canal2_zone_entry(
@@ -4391,9 +4600,12 @@ async def _trigger_canal2_zone_entry(
         zone_plan_message_id=plan_message_id,
         generation_message_id=generation_id,
         trigger=trigger,
-        signal_id=_sig_id(signal),
+        opened_signal_id=_sig_id(signal),
         tickets=list(signal.all_filled_tickets),
     )
+    _schedule_detached(notify(
+        _format_canal2_zone_activation_notice(plan, signal, trigger)
+    ))
     return signal
 
 
@@ -4580,15 +4792,11 @@ async def _handle_canal2_zone_plan(msg, text: str, plan: dict,
             **_zone_plan_event_payload(record),
         )
     else:
-        journal.anomaly(
+        journal.event(
             sig_id,
-            "channel_msg",
-            "warning",
-            "zona de Gold Signals incompleta o ambigua; se registra pero "
-            "no puede abrir mercado todavia",
-            direction=plan.get("direction"),
-            zones=plan.get("zones") or [],
-            target=plan.get("target"),
+            "canal2_zone_plan_waiting_for_levels",
+            **_zone_plan_event_payload(record),
+            reason="incomplete_or_ambiguous_levels",
         )
     _schedule_detached(notify(_format_canal2_zone_plan_notice(record)))
 
@@ -4941,6 +5149,10 @@ async def _open_canal2_intent(
     journal.event(
         sig_id_pre,
         "signal_received",
+        lifecycle_schema_version=(
+            LIFECYCLE_SCHEMA_VERSION
+            if intent.source_kind.startswith("zone_") else None
+        ),
         channel="canal2",
         direction=direction,
         raw_text=text[:500],
@@ -4965,6 +5177,14 @@ async def _open_canal2_intent(
         zone_trigger_time=trigger.get("time"),
         zone_trigger_time_msc=trigger.get("time_msc"),
         zone_trigger_range=trigger.get("zone"),
+        zone_trigger_observed_utc=trigger.get("observed_utc"),
+        zone_trigger_raw_broker_utc=trigger.get("raw_broker_time_utc"),
+        zone_trigger_normalized_utc=trigger.get("normalized_time_utc"),
+        zone_trigger_broker_utc_offset_s=trigger.get(
+            "broker_utc_offset_s"
+        ),
+        zone_trigger_clock_residual_ms=trigger.get("clock_residual_ms"),
+        zone_trigger_clock_basis=trigger.get("clock_basis"),
     )
 
     if not _canal2_open_claim(message_id):
@@ -5037,6 +5257,10 @@ async def _open_canal2_intent(
     journal.event(
         sig_id_pre,
         "market_filled",
+        lifecycle_schema_version=(
+            LIFECYCLE_SCHEMA_VERSION
+            if intent.source_kind.startswith("zone_") else None
+        ),
         ticket=ticket,
         price=fill_price,
         latency_ms=fill_latency_ms,
@@ -5046,6 +5270,19 @@ async def _open_canal2_intent(
         tick_time=tick_ctx.get("time") if tick_ctx else None,
         tick_time_msc=tick_ctx.get("time_msc") if tick_ctx else None,
         entry_source_kind=intent.source_kind,
+        zone_plan_message_id=intent.zone_plan_message_id,
+        zone_thread_root_message_id=intent.zone_thread_root_message_id,
+        zone_entry_generation=intent.zone_entry_generation,
+        generation_message_id=message_id,
+        zone_trigger_kind=trigger.get("trigger"),
+        zone_trigger_price=trigger.get("price"),
+        zone_trigger_time_msc=trigger.get("time_msc"),
+        zone_trigger_observed_utc=trigger.get("observed_utc"),
+        zone_trigger_normalized_utc=trigger.get("normalized_time_utc"),
+        zone_trigger_broker_utc_offset_s=trigger.get(
+            "broker_utc_offset_s"
+        ),
+        zone_trigger_clock_basis=trigger.get("clock_basis"),
     )
 
     c2_be_idx = (
@@ -5105,6 +5342,12 @@ async def _open_canal2_intent(
         zone_trigger_kind=trigger.get("trigger"),
         zone_trigger_price=trigger.get("price"),
         zone_trigger_time_msc=trigger.get("time_msc"),
+        zone_trigger_observed_utc=trigger.get("observed_utc"),
+        zone_trigger_normalized_utc=trigger.get("normalized_time_utc"),
+        zone_trigger_broker_utc_offset_s=trigger.get(
+            "broker_utc_offset_s"
+        ),
+        zone_trigger_clock_basis=trigger.get("clock_basis"),
         zone_entry_generation=intent.zone_entry_generation,
     )
     _log_strategy_snapshot(
