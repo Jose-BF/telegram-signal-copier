@@ -42,6 +42,7 @@ from canal2_zone_lifecycle import (
     is_expired as zone_plan_is_expired,
     merge_plan_record,
     new_plan_record,
+    touch_decision as zone_touch_decision,
 )
 from classifier import classify, classify_async, classify_local
 from entry_execution_gate import EntryExecutionGate
@@ -3786,6 +3787,13 @@ def _zone_plan_event_payload(plan: dict) -> dict:
         "entry_generation": int(plan.get("entry_generation") or 0),
         "entry_generation_id": plan.get("entry_generation_id"),
         "trigger_claim": plan.get("trigger_claim"),
+        "confirmed_generation_ids": list(
+            plan.get("confirmed_generation_ids") or []
+        ),
+        "alias_generation_ids": dict(
+            plan.get("alias_generation_ids") or {}
+        ),
+        "last_trigger": dict(plan.get("last_trigger") or {}),
     }
 
 
@@ -3805,6 +3813,13 @@ def _register_canal2_zone_plan_alias(
     if alias_id not in aliases:
         aliases.append(alias_id)
     _canal2_zone_plans[alias_id] = plan
+    alias_generations = plan.setdefault("alias_generation_ids", {})
+    source_generation = alias_generations.get(str(source_message_id))
+    if source_generation is not None and str(alias_id) not in alias_generations:
+        alias_generations[str(alias_id)] = int(source_generation)
+        owner = state.get("canal2", int(source_generation))
+        if owner is not None:
+            state.alias(owner, alias_id)
     if already_registered or not emit_event:
         return False
     journal.event(
@@ -3888,6 +3903,13 @@ def restore_canal2_zone_plans_from_journal(path) -> int:
                     ),
                     "entry_generation_id": row.get("entry_generation_id"),
                     "trigger_claim": row.get("trigger_claim"),
+                    "confirmed_generation_ids": list(
+                        row.get("confirmed_generation_ids") or []
+                    ),
+                    "alias_generation_ids": dict(
+                        row.get("alias_generation_ids") or {}
+                    ),
+                    "last_trigger": dict(row.get("last_trigger") or {}),
                 }
                 records[message_id] = record
                 aliases[message_id] = message_id
@@ -3928,6 +3950,9 @@ def restore_canal2_zone_plans_from_journal(path) -> int:
                     "entry_generation",
                     "entry_generation_id",
                     "trigger_claim",
+                    "confirmed_generation_ids",
+                    "alias_generation_ids",
+                    "last_trigger",
                     "expires_utc",
                     "updated_utc",
                 ):
@@ -3936,6 +3961,16 @@ def restore_canal2_zone_plans_from_journal(path) -> int:
             elif event == "canal2_zone_entry_confirmed":
                 record["consumed"] = True
                 record["status"] = "triggered"
+                for key in (
+                    "entry_generation",
+                    "entry_generation_id",
+                    "trigger_claim",
+                    "confirmed_generation_ids",
+                    "alias_generation_ids",
+                    "last_trigger",
+                ):
+                    if key in row:
+                        record[key] = row[key]
 
     terminal_statuses = {"invalidated", "expired", "triggered"}
     active_ids = [
@@ -3952,6 +3987,331 @@ def restore_canal2_zone_plans_from_journal(path) -> int:
                 record["aliases"].append(alias_id)
             _canal2_zone_plans[alias_id] = record
     return len(active_ids)
+
+
+def _unique_canal2_zone_plans() -> list[dict]:
+    """Return each aliased zone lifecycle exactly once."""
+    seen: set[int] = set()
+    plans: list[dict] = []
+    for plan in _canal2_zone_plans.values():
+        identity = id(plan)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        plans.append(plan)
+    return plans
+
+
+def _zone_trigger_evidence(plan: dict, tick: dict, kind: str) -> dict:
+    """Freeze the broker-side price and clock that authorized an entry."""
+    direction = str(plan.get("direction") or "").upper()
+    side = "ask" if direction == "BUY" else "bid"
+    price = tick.get(side)
+    zones = plan.get("zones") or []
+    zone = sorted(float(value) for value in zones[0]) if zones else []
+    outside_zone = None
+    deviation = None
+    if price is not None and len(zone) == 2:
+        price = float(price)
+        low, high = zone
+        outside_zone = not low <= price <= high
+        if price < low:
+            deviation = low - price
+        elif price > high:
+            deviation = price - high
+        else:
+            deviation = 0.0
+    return {
+        "trigger": kind,
+        "side": side,
+        "price": price,
+        "time": tick.get("time"),
+        "time_msc": tick.get("time_msc"),
+        "zone": zone,
+        "outside_zone": outside_zone,
+        "deviation_from_zone": deviation,
+    }
+
+
+def _zone_entry_timestamp(trigger: dict) -> datetime:
+    broker_epoch = trigger.get("time")
+    if broker_epoch is not None:
+        try:
+            return datetime.fromtimestamp(float(broker_epoch), tz=timezone.utc)
+        except (OSError, OverflowError, TypeError, ValueError):
+            pass
+    return datetime.now(timezone.utc)
+
+
+async def _trigger_canal2_zone_entry(
+    plan: dict,
+    trigger: dict,
+    *,
+    generation_message_id: int | None = None,
+    telegram_timestamp: datetime | None = None,
+) -> Signal | None:
+    """Turn one claimed zone generation into normal Canal 2 exposure."""
+    kind = str(trigger.get("trigger") or "first_touch")
+    is_reentry = kind == "explicit_reentry"
+    plan_message_id = int(plan.get("message_id"))
+    generation_id = int(
+        generation_message_id if is_reentry else plan_message_id
+    )
+    sig_id = f"canal2_{generation_id}"
+
+    if plan.get("execution_eligible") is False:
+        return None
+    if not zone_plan_is_executable(plan):
+        return None
+    if plan.get("status") in {"invalidated", "expired"}:
+        return None
+    if not is_reentry and plan.get("consumed"):
+        return None
+    if is_reentry and plan.get("no_reentry"):
+        journal.event(
+            sig_id,
+            "canal2_zone_reentry_blocked",
+            zone_plan_message_id=plan_message_id,
+            generation_message_id=generation_id,
+            reason="provider_no_reentry",
+        )
+        return None
+
+    confirmed_ids = plan.setdefault("confirmed_generation_ids", [])
+    if generation_id in confirmed_ids:
+        return state.get("canal2", generation_id)
+    if plan.get("trigger_claim") is not None:
+        return None
+
+    if trigger.get("price") is None:
+        tick = await _run(executor.current_tick_safe)
+        if not tick:
+            journal.event(
+                sig_id,
+                "canal2_zone_entry_failed",
+                zone_plan_message_id=plan_message_id,
+                generation_message_id=generation_id,
+                trigger_kind=kind,
+                reason="broker_tick_unavailable",
+            )
+            return None
+        trigger = _zone_trigger_evidence(plan, tick, kind)
+
+    claim = f"{kind}:{generation_id}:{trigger.get('time_msc')}"
+    plan["trigger_claim"] = claim
+    journal.event(
+        sig_id,
+        "canal2_zone_entry_attempted",
+        **_zone_plan_event_payload(plan),
+        zone_plan_message_id=plan_message_id,
+        generation_message_id=generation_id,
+        trigger=trigger,
+    )
+
+    raw_text = str(plan.get("raw_text") or "")
+    lot_multiplier, lot_reason = strategies.lot_multiplier_for_signal(
+        raw_text
+    )
+    if lot_multiplier <= 0:
+        plan["trigger_claim"] = None
+        journal.event(
+            sig_id,
+            "canal2_zone_entry_failed",
+            zone_plan_message_id=plan_message_id,
+            generation_message_id=generation_id,
+            trigger_kind=kind,
+            reason="non_positive_lot_multiplier",
+        )
+        return None
+
+    parsed = {
+        "direction": str(plan["direction"]).upper(),
+        "range": tuple(float(value) for value in plan["zones"][0]),
+        "tps": [float(value) for value in plan.get("tps") or []],
+        "sl": float(plan["sl"]),
+    }
+    source_kind = {
+        "first_touch": "zone_first_touch",
+        "explicit_active": "zone_explicit_active",
+        "explicit_reentry": "zone_reentry",
+    }.get(kind, "zone_first_touch")
+    intent = _Canal2EntryIntent(
+        message_id=generation_id,
+        direction=parsed["direction"],
+        parsed=parsed,
+        raw_text=raw_text,
+        entry_timestamp=_zone_entry_timestamp(trigger),
+        telegram_timestamp=telegram_timestamp,
+        reply_to_message_id=(
+            plan_message_id if is_reentry else None
+        ),
+        source_kind=source_kind,
+        trigger=dict(trigger),
+        lot_multiplier=lot_multiplier,
+        lot_reason=lot_reason,
+        max_tp_index=strategies.max_tp_index_for_signal("canal2"),
+        is_high_risk=strategies.is_high_risk_signal(raw_text),
+        zone_plan_message_id=plan_message_id,
+        zone_thread_root_message_id=int(
+            plan.get("thread_root_message_id") or plan_message_id
+        ),
+        zone_entry_generation=int(plan.get("entry_generation") or 0) + 1,
+    )
+
+    try:
+        signal = await _open_canal2_intent(
+            intent,
+            label="Canal2_zone",
+        )
+    except Exception as exc:
+        plan["trigger_claim"] = None
+        journal.event(
+            sig_id,
+            "canal2_zone_entry_failed",
+            zone_plan_message_id=plan_message_id,
+            generation_message_id=generation_id,
+            trigger_kind=kind,
+            reason="opening_exception",
+            error_type=type(exc).__name__,
+            error=str(exc)[:240],
+        )
+        journal.anomaly(
+            sig_id,
+            "fill",
+            "critical",
+            "fallo abriendo una zona activa de Gold Signals",
+            zone_plan_message_id=plan_message_id,
+            generation_message_id=generation_id,
+            error_type=type(exc).__name__,
+            error=str(exc)[:240],
+        )
+        return None
+
+    if signal is None:
+        signal = state.get("canal2", generation_id)
+    if signal is None:
+        plan["trigger_claim"] = None
+        journal.event(
+            sig_id,
+            "canal2_zone_entry_failed",
+            zone_plan_message_id=plan_message_id,
+            generation_message_id=generation_id,
+            trigger_kind=kind,
+            reason="market_fill_not_confirmed",
+        )
+        return None
+
+    if state.get("canal2", generation_id) is None:
+        state.add(signal)
+    if generation_id not in confirmed_ids:
+        confirmed_ids.append(generation_id)
+    plan["entry_generation"] = int(plan.get("entry_generation") or 0) + 1
+    plan["entry_generation_id"] = generation_id
+    plan["last_trigger"] = dict(trigger)
+    plan["trigger_claim"] = None
+    plan["activation_requested"] = False
+    plan["consumed"] = True
+    plan["status"] = "triggered"
+
+    aliases_to_bind = (
+        [generation_id]
+        if is_reentry
+        else [int(value) for value in plan.get("aliases") or []]
+    )
+    alias_generations = plan.setdefault("alias_generation_ids", {})
+    for alias_id in aliases_to_bind:
+        alias_generations[str(alias_id)] = generation_id
+        state.alias(signal, alias_id)
+
+    journal.event(
+        sig_id,
+        "canal2_zone_entry_confirmed",
+        **_zone_plan_event_payload(plan),
+        zone_plan_message_id=plan_message_id,
+        generation_message_id=generation_id,
+        trigger=trigger,
+        signal_id=_sig_id(signal),
+        tickets=list(signal.all_filled_tickets),
+    )
+    return signal
+
+
+async def _process_canal2_zone_tick(tick: dict) -> int:
+    """Evaluate one fresh broker tick against every unique active plan."""
+    opened = 0
+    for plan in _unique_canal2_zone_plans():
+        if plan.get("consumed") and not plan.get("activation_requested"):
+            continue
+        if zone_plan_is_expired(plan):
+            if plan.get("status") != "expired":
+                previous = plan.get("status")
+                plan["status"] = "expired"
+                plan["activation_requested"] = False
+                journal.event(
+                    f"canal2_{plan.get('message_id')}",
+                    "canal2_zone_plan_transition",
+                    **_zone_plan_event_payload(plan),
+                    zone_plan_message_id=plan.get("message_id"),
+                    from_status=previous,
+                    lifecycle_actions=["EXPIRE"],
+                )
+            continue
+
+        if plan.get("activation_requested"):
+            if not zone_plan_is_executable(plan):
+                continue
+            trigger = _zone_trigger_evidence(plan, tick, "explicit_active")
+        else:
+            trigger = zone_touch_decision(plan, tick)
+        if trigger is None:
+            continue
+        if await _trigger_canal2_zone_entry(plan, trigger) is not None:
+            opened += 1
+    return opened
+
+
+async def canal2_zone_touch_loop(interval_s: float = 0.1) -> None:
+    """Observe fresh MT5 ticks without blocking Telegram delivery."""
+    last_tick_identity = None
+    journal.event(
+        "bot",
+        "canal2_zone_touch_loop_started",
+        interval_s=float(interval_s),
+        lifecycle_schema_version=LIFECYCLE_SCHEMA_VERSION,
+    )
+    while True:
+        try:
+            actionable = any(
+                plan.get("execution_eligible", True)
+                and not plan.get("consumed")
+                and plan.get("status") not in {"invalidated", "expired"}
+                for plan in _unique_canal2_zone_plans()
+            )
+            if not actionable:
+                await asyncio.sleep(max(float(interval_s), 0.25))
+                continue
+            tick = await _run(executor.current_tick_safe)
+            if tick:
+                identity = tick.get("time_msc") or (
+                    tick.get("time"), tick.get("bid"), tick.get("ask")
+                )
+                if identity != last_tick_identity:
+                    last_tick_identity = identity
+                    await _process_canal2_zone_tick(tick)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            journal.event(
+                "bot",
+                "canal2_zone_touch_loop_error",
+                error_type=type(exc).__name__,
+                error=str(exc)[:240],
+            )
+            print(
+                "[Canal2 zone] Error no fatal observando ticks: "
+                f"{type(exc).__name__}: {exc}"
+            )
+        await asyncio.sleep(float(interval_s))
 
 
 async def _handle_canal2_zone_plan(msg, text: str, plan: dict,
@@ -4192,6 +4552,33 @@ async def _handle_canal2_zone_plan_reply(msg, reply_id: int,
             from_status=previous_status,
             lifecycle_actions=lifecycle_actions,
             transition_message_id=int(msg.id),
+        )
+
+    if "REENTRY" in lifecycle_actions:
+        if plan.get("no_reentry"):
+            journal.event(
+                f"canal2_{msg.id}",
+                "canal2_zone_reentry_blocked",
+                zone_plan_message_id=plan.get("message_id"),
+                generation_message_id=int(msg.id),
+                reason="provider_no_reentry",
+            )
+        elif zone_plan_is_executable(plan):
+            await _trigger_canal2_zone_entry(
+                plan,
+                {"trigger": "explicit_reentry"},
+                generation_message_id=int(msg.id),
+                telegram_timestamp=getattr(msg, "date", None),
+            )
+    elif (
+        plan.get("activation_requested")
+        and zone_plan_is_executable(plan)
+        and plan.get("status") not in {"invalidated", "expired"}
+    ):
+        await _trigger_canal2_zone_entry(
+            plan,
+            {"trigger": "explicit_active"},
+            telegram_timestamp=getattr(msg, "date", None),
         )
 
     zone_invalidated = "INVALIDATE" in lifecycle_actions
@@ -4652,8 +5039,15 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True,
                 int(reply_id),
             )
         if zone_plan is not None:
-            await _handle_canal2_zone_plan_reply(msg, int(reply_id), zone_plan)
-            return
+            lifecycle_actions = classify_zone_followup(text)
+            bound_signal = state.get("canal2", int(reply_id))
+            if lifecycle_actions or bound_signal is None:
+                await _handle_canal2_zone_plan_reply(
+                    msg,
+                    int(reply_id),
+                    zone_plan,
+                )
+                return
 
         replied_zone_plan = parse_canal2_zone_plan(text)
         if replied_zone_plan is not None:
@@ -4874,14 +5268,17 @@ async def _process_canal2_edit(msg, label: str = "Canal2"):
                 int(reply_id),
             )
         if zone_plan is not None:
-            if _edit_already_seen("canal2", msg):
+            lifecycle_actions = classify_zone_followup(text)
+            bound_signal = state.get("canal2", int(reply_id))
+            if lifecycle_actions or bound_signal is None:
+                if _edit_already_seen("canal2", msg):
+                    return
+                await _handle_canal2_zone_plan_reply(
+                    msg,
+                    int(reply_id),
+                    zone_plan,
+                )
                 return
-            await _handle_canal2_zone_plan_reply(
-                msg,
-                int(reply_id),
-                zone_plan,
-            )
-            return
 
         replied_zone_plan = parse_canal2_zone_plan(text)
         if replied_zone_plan is not None:

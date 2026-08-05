@@ -1040,6 +1040,18 @@ class TestCanal2SemanticRouting:
     async def test_active_full_plan_merges_into_root_instead_of_new_plan(
             self, monkeypatch):
         events = []
+        triggers = []
+
+        async def fake_trigger(plan, trigger, **kwargs):
+            triggers.append((plan, trigger, kwargs))
+            return None
+
+        monkeypatch.setattr(
+            listener,
+            "_trigger_canal2_zone_entry",
+            fake_trigger,
+            raising=False,
+        )
         monkeypatch.setattr(
             listener.journal,
             "event",
@@ -1080,6 +1092,7 @@ class TestCanal2SemanticRouting:
         assert plan["sl"] == 4050.0
         assert plan["activation_requested"] is True
         assert plan["status"] == "armed"
+        assert len(triggers) == 1
         assert not any(
             ev == "canal2_zone_plan_created"
             and payload.get("message_id") == 711

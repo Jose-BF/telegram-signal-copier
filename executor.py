@@ -580,7 +580,7 @@ def current_tick() -> dict:
 def current_tick_safe() -> Optional[dict]:
     """Como current_tick pero NUNCA lanza excepción.
 
-    Devuelve dict {bid, ask, mid, spread} o None si MT5 no responde.
+    Devuelve precio y reloj nativo del broker, o None si MT5 no responde.
     Usado en logging enriquecido (no critical path) — preferimos no romper
     el flujo del bot por un fallo de tick.
 
@@ -598,6 +598,8 @@ def current_tick_safe() -> Optional[dict]:
             "ask": round(tick.ask, 2),
             "mid": round((tick.bid + tick.ask) / 2, 2),
             "spread": round(tick.ask - tick.bid, 2),
+            "time": getattr(tick, "time", None),
+            "time_msc": getattr(tick, "time_msc", None),
         }
     except Exception as e:
         print(f"[MT5] current_tick_safe excepcion: {type(e).__name__}: {e}")

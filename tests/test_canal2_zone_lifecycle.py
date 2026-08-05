@@ -93,6 +93,13 @@ def test_consumed_plan_cannot_trigger_twice():
     assert touch_decision(record, {"bid": 4054.0, "ask": 4054.2}) is None
 
 
+def test_recovered_legacy_context_cannot_trigger_without_fresh_rearm():
+    record = _record()
+    record["execution_eligible"] = False
+
+    assert touch_decision(record, {"bid": 4054.0, "ask": 4054.2}) is None
+
+
 def test_followup_classifier_keeps_statuses_distinct():
     assert classify_followup("Approaching the buy zone") == ["APPROACHING"]
     assert classify_followup("Active") == ["ACTIVATE"]

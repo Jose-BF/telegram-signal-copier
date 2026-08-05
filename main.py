@@ -54,6 +54,7 @@ import pending_actions
 from tools import capture_broker_money_contract as broker_contract
 from listener import (
     _is_transient_telegram_history_error,
+    canal2_zone_touch_loop,
     client,
     notify,
     poll_loop,
@@ -1917,6 +1918,7 @@ async def main():
     asyncio.ensure_future(_pending_correction_watchdog())
     asyncio.ensure_future(_position_reconciler())
     live_auditor.start()
+    asyncio.ensure_future(canal2_zone_touch_loop())
     # Poller activo: bypass del updateChannelTooLong de Telethon.
     # Entrega mensajes y edits de Canal 2 en ~1s en lugar de 60-600s.
     asyncio.ensure_future(poll_loop())

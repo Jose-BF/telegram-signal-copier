@@ -93,6 +93,9 @@ def new_plan_record(
         "entry_generation": 0,
         "entry_generation_id": None,
         "trigger_claim": None,
+        "confirmed_generation_ids": [],
+        "alias_generation_ids": {},
+        "last_trigger": {},
     }
     if is_executable(plan):
         plan["status"] = "armed"
@@ -200,7 +203,11 @@ def classify_followup(text: str) -> list[str]:
 
 def touch_decision(plan: dict[str, Any], tick: dict[str, Any]) -> dict[str, Any] | None:
     """Return immutable first-touch evidence for an eligible fresh tick."""
-    if plan.get("consumed") or plan.get("trigger_claim"):
+    if (
+        plan.get("execution_eligible") is False
+        or plan.get("consumed")
+        or plan.get("trigger_claim")
+    ):
         return None
     if plan.get("status") not in _TOUCHABLE_STATUSES or not is_executable(plan):
         return None
