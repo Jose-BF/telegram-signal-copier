@@ -107,6 +107,36 @@ def _execution_ticket_id(row: dict) -> int | None:
         return None
 
 
+def _execution_entry_provenance(row: dict | None) -> dict:
+    if row is None:
+        return {}
+    field_map = {
+        "entry_source_kind": "source_kind",
+        "zone_plan_message_id": "zone_plan_message_id",
+        "zone_thread_root_message_id": "zone_thread_root_message_id",
+        "zone_entry_generation": "zone_entry_generation",
+        "zone_trigger_kind": "zone_trigger_kind",
+        "zone_trigger_side": "zone_trigger_side",
+        "zone_trigger_price": "zone_trigger_price",
+        "zone_trigger_range": "zone_trigger_range",
+        "zone_trigger_time": "zone_trigger_time",
+        "zone_trigger_time_msc": "zone_trigger_time_msc",
+        "zone_trigger_observed_utc": "zone_trigger_observed_utc",
+        "zone_trigger_normalized_utc": "zone_trigger_normalized_utc",
+        "zone_trigger_broker_utc_offset_s": (
+            "zone_trigger_broker_utc_offset_s"
+        ),
+        "zone_trigger_clock_basis": "zone_trigger_clock_basis",
+    }
+    provenance: dict = {}
+    for source, target in field_map.items():
+        value = row.get(source)
+        if value is None:
+            continue
+        provenance[target] = list(value) if isinstance(value, list) else value
+    return provenance
+
+
 def _execution_batches(
     events: list[dict],
     replay_trades: list[dict],
@@ -134,6 +164,7 @@ def _execution_batches(
                 "signal_received_utc": (
                     boundary.get("ts") if boundary is not None else None
                 ),
+                "entry_provenance": _execution_entry_provenance(boundary),
                 "first_fill_utc": None,
                 "last_fill_utc": None,
                 "ticket_ids": [],
@@ -220,6 +251,7 @@ def _execution_batches(
             ),
             "ticket_ids": ticket_ids,
             "fills": fills,
+            "entry_provenance": dict(trade.get("entry_provenance") or {}),
         })
 
     for sig_id, batches in batches_by_sig.items():

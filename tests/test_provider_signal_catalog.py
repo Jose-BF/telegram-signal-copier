@@ -248,6 +248,16 @@ def test_single_execution_batch_is_canonical_without_correction():
             "ev": "signal_received",
             "channel": "canal2",
             "direction": "BUY",
+            "entry_source_kind": "zone_explicit_active",
+            "zone_plan_message_id": 380,
+            "zone_thread_root_message_id": 380,
+            "zone_entry_generation": 1,
+            "zone_trigger_kind": "explicit_active",
+            "zone_trigger_side": "ask",
+            "zone_trigger_price": 4056.3,
+            "zone_trigger_range": [4051.3, 4056.3],
+            "zone_trigger_time": 1785920400,
+            "zone_trigger_time_msc": 1785920400123,
         },
         {
             "ts": "2026-07-23T15:30:26.200+00:00",
@@ -270,6 +280,18 @@ def test_single_execution_batch_is_canonical_without_correction():
     ]
     assert signal["canonical_corrections"] == []
     assert signal["duplicate_execution"] is False
+    assert signal["execution_batches"][0]["entry_provenance"] == {
+        "source_kind": "zone_explicit_active",
+        "zone_plan_message_id": 380,
+        "zone_thread_root_message_id": 380,
+        "zone_entry_generation": 1,
+        "zone_trigger_kind": "explicit_active",
+        "zone_trigger_side": "ask",
+        "zone_trigger_price": 4056.3,
+        "zone_trigger_range": [4051.3, 4056.3],
+        "zone_trigger_time": 1785920400,
+        "zone_trigger_time_msc": 1785920400123,
+    }
 
 
 def test_reply_to_missing_root_is_preserved_as_management_only_record():
