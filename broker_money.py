@@ -459,7 +459,25 @@ class BrokerMoneyConverter:
         volume: Decimal,
         opened: datetime,
         closed: datetime,
+        verified_utc_offset_seconds: int | None = None,
     ) -> dict:
+        if (
+            isinstance(verified_utc_offset_seconds, bool)
+            or (
+                verified_utc_offset_seconds is not None
+                and (
+                    not isinstance(verified_utc_offset_seconds, int)
+                    or abs(verified_utc_offset_seconds) > 14 * 3600
+                )
+            )
+        ):
+            return {
+                "status": "blocked",
+                "strategy_pnl": None,
+                "profit_currency_pnl": None,
+                "rollovers": [],
+                "blockers": ["invalid_verified_swap_offset_evidence"],
+            }
         window_start = opened - timedelta(days=1)
         window_end = closed + timedelta(days=1)
         relevant = [
@@ -475,7 +493,7 @@ class BrokerMoneyConverter:
             int((snapshot.get("time_evidence") or {})["utc_offset_seconds"])
             for snapshot in relevant
         }
-        if not offsets:
+        if not offsets and verified_utc_offset_seconds is None:
             return {
                 "status": "blocked",
                 "strategy_pnl": None,
@@ -483,7 +501,7 @@ class BrokerMoneyConverter:
                 "rollovers": [],
                 "blockers": ["missing_swap_offset_evidence"],
             }
-        if len(offsets) != 1:
+        if len(offsets) > 1:
             return {
                 "status": "blocked",
                 "strategy_pnl": None,
@@ -492,7 +510,27 @@ class BrokerMoneyConverter:
                 "blockers": ["swap_offset_transition_unverified"],
             }
 
-        offset_seconds = next(iter(offsets))
+        if offsets:
+            offset_seconds = next(iter(offsets))
+            if (
+                verified_utc_offset_seconds is not None
+                and verified_utc_offset_seconds != offset_seconds
+            ):
+                return {
+                    "status": "blocked",
+                    "strategy_pnl": None,
+                    "profit_currency_pnl": None,
+                    "rollovers": [],
+                    "blockers": ["swap_offset_evidence_mismatch"],
+                }
+            offset_evidence = (
+                "swap_snapshots_and_tick_contract"
+                if verified_utc_offset_seconds is not None
+                else "swap_snapshots"
+            )
+        else:
+            offset_seconds = int(verified_utc_offset_seconds)
+            offset_evidence = "verified_tick_contract"
         offset = timedelta(seconds=offset_seconds)
         server_opened = opened + offset
         server_midnight = datetime.combine(
@@ -741,6 +779,7 @@ class BrokerMoneyConverter:
                 )
             ),
             "rollovers": rollovers,
+            "offset_evidence": offset_evidence,
             "blockers": [],
         }
 
@@ -754,6 +793,7 @@ class BrokerMoneyConverter:
         open_time_utc: object,
         close_time_utc: object,
         allow_overnight: bool = False,
+        verified_utc_offset_seconds: int | None = None,
     ) -> dict:
         blockers: list[str] = []
         opened = _parse_utc(open_time_utc)
@@ -829,6 +869,7 @@ class BrokerMoneyConverter:
                 volume=volume_value,
                 opened=opened,
                 closed=closed,
+                verified_utc_offset_seconds=verified_utc_offset_seconds,
             )
         elif closed.date() != opened.date():
             swap = {

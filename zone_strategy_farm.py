@@ -343,7 +343,7 @@ def build_zone_farm_report(
             continue
         if day not in day_cache and spec.entry_ready:
             day_cache[day] = tick_source.load_day(day)
-        ticks, _tick_evidence, tick_blockers = day_cache.get(
+        ticks, tick_evidence, tick_blockers = day_cache.get(
             day,
             (pd.DataFrame(), None, []),
         )
@@ -367,6 +367,11 @@ def build_zone_farm_report(
                 ))
             continue
         horizon = pd.to_datetime(ticks["time_utc"], utc=True).max().to_pydatetime()
+        tick_offset = (
+            tick_evidence.get("utc_offset_seconds")
+            if isinstance(tick_evidence, Mapping)
+            else None
+        )
         for policy in policy_catalog:
             row = simulate_zone_policy(
                 spec,
@@ -374,6 +379,7 @@ def build_zone_farm_report(
                 policy,
                 horizon_at=horizon,
                 money_converter=money_converter,
+                verified_utc_offset_seconds=tick_offset,
             )
             row["signal_date"] = day.isoformat()
             row["ready_at_utc"] = spec.ready_at_utc.isoformat()

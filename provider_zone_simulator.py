@@ -373,6 +373,7 @@ def _apply_exits_and_money(
     horizon: datetime,
     tick_size: float,
     money_converter,
+    verified_utc_offset_seconds: int | None,
 ) -> dict:
     if not row["filled_legs"]:
         row["strategy_value"] = 0.0
@@ -441,13 +442,20 @@ def _apply_exits_and_money(
         if money_converter is None:
             priced["money"] = None
         else:
+            money_values_for_leg = {
+                "direction": direction,
+                "open_price": leg["open_price"],
+                "close_price": close_price,
+                "volume": leg["volume"],
+                "open_time_utc": leg["open_time_utc"],
+                "close_time_utc": close["close_time_utc"],
+            }
+            if verified_utc_offset_seconds is not None:
+                money_values_for_leg["verified_utc_offset_seconds"] = (
+                    verified_utc_offset_seconds
+                )
             money = money_converter.convert_leg(
-                direction=direction,
-                open_price=leg["open_price"],
-                close_price=close_price,
-                volume=leg["volume"],
-                open_time_utc=leg["open_time_utc"],
-                close_time_utc=close["close_time_utc"],
+                **money_values_for_leg,
             )
             priced["money"] = money
             if money.get("status") == "verified":
@@ -503,6 +511,7 @@ def simulate_zone_policy(
     horizon_at: datetime,
     tick_size: float = 0.01,
     money_converter=None,
+    verified_utc_offset_seconds: int | None = None,
 ) -> dict:
     row = _base_row(spec, policy, status="blocked")
     if spec.blockers:
@@ -561,6 +570,7 @@ def simulate_zone_policy(
             horizon,
             tick_size,
             money_converter,
+            verified_utc_offset_seconds,
         )
     filled: dict[int, dict] = {}
     planned_levels: dict[int, float] = {}
@@ -733,6 +743,7 @@ def simulate_zone_policy(
         horizon,
         tick_size,
         money_converter,
+        verified_utc_offset_seconds,
     )
 
 

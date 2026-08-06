@@ -45,7 +45,10 @@ class FakeTickSource:
         self.ticks = ticks
         self.blockers = list(blockers)
         self.evidence_by_day = {
-            "2026-08-04": {"parquet_sha256": "a" * 64}
+            "2026-08-04": {
+                "parquet_sha256": "a" * 64,
+                "utc_offset_seconds": 10800,
+            }
         }
 
     def load_day(self, day):
@@ -71,6 +74,15 @@ class FakeMoneyConverter:
             "pnl_currency": "EUR",
             "blockers": [],
         }
+
+
+class CapturingMoneyConverter(FakeMoneyConverter):
+    def __init__(self):
+        self.offsets = []
+
+    def convert_leg(self, **values):
+        self.offsets.append(values.get("verified_utc_offset_seconds"))
+        return super().convert_leg(**values)
 
 
 def test_farm_emits_one_row_per_plan_and_policy_even_when_blocked():
@@ -125,6 +137,27 @@ def test_invalid_tick_day_blocks_every_policy_without_dropping_plan():
     assert report["rows"][0]["blockers"] == [
         "semantic_tick_time_unverified:2026-08-04"
     ]
+
+
+def test_farm_passes_verified_tick_clock_to_money_conversion():
+    catalog = {"schema_version": 7, "signals": [zone_record()]}
+    source = FakeTickSource(pd.DataFrame([
+        (t(0), 104.8, 105.0),
+        (t(1), 110.0, 110.2),
+    ], columns=["time_utc", "bid", "ask"]))
+    converter = CapturingMoneyConverter()
+
+    report = build_zone_farm_report(
+        catalog,
+        source,
+        policies=(zone_policy_by_id("one_first_touch"),),
+        money_converter=converter,
+        since="2026-08-04",
+        until="2026-08-04",
+    )
+
+    assert report["rows"][0]["money_status"] == "verified"
+    assert converter.offsets == [10800]
 
 
 def test_observed_baseline_validation_uses_all_execution_fills():

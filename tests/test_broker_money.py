@@ -809,6 +809,72 @@ def test_overnight_swap_blocks_without_two_close_matching_snapshots():
     ]
 
 
+def test_intraday_points_swap_accepts_verified_tick_clock_offset():
+    converter = _swap_converter(
+        _swap_snapshot("2026-08-02T22:11:56+00:00"),
+    )
+
+    result = converter.convert_leg(
+        direction="BUY",
+        open_price=4100.0,
+        close_price=4100.0,
+        volume=0.01,
+        open_time_utc="2026-08-05T10:00:00+00:00",
+        close_time_utc="2026-08-05T12:00:00+00:00",
+        verified_utc_offset_seconds=10800,
+    )
+
+    assert result["status"] == "verified"
+    assert result["strategy_pnl"] == 0.0
+    assert result["swap"] == {
+        "status": "verified",
+        "strategy_pnl": 0.0,
+        "profit_currency_pnl": 0.0,
+        "rollovers": [],
+        "offset_evidence": "verified_tick_contract",
+        "blockers": [],
+    }
+
+
+def test_intraday_points_swap_still_blocks_without_clock_evidence():
+    converter = _swap_converter(
+        _swap_snapshot("2026-08-02T22:11:56+00:00"),
+    )
+
+    result = converter.convert_leg(
+        direction="BUY",
+        open_price=4100.0,
+        close_price=4100.0,
+        volume=0.01,
+        open_time_utc="2026-08-05T10:00:00+00:00",
+        close_time_utc="2026-08-05T12:00:00+00:00",
+    )
+
+    assert result["status"] == "blocked"
+    assert result["blockers"] == ["missing_swap_offset_evidence"]
+
+
+def test_verified_tick_clock_never_substitutes_rollover_snapshots():
+    converter = _swap_converter(
+        _swap_snapshot("2026-08-02T22:11:56+00:00"),
+    )
+
+    result = converter.convert_leg(
+        direction="BUY",
+        open_price=4100.0,
+        close_price=4100.0,
+        volume=0.01,
+        open_time_utc="2026-08-05T20:30:00+00:00",
+        close_time_utc="2026-08-05T21:30:00+00:00",
+        verified_utc_offset_seconds=10800,
+    )
+
+    assert result["status"] == "blocked"
+    assert result["blockers"] == [
+        "missing_swap_rollover_bracket:2026-08-05T21:00:00+00:00"
+    ]
+
+
 def test_overnight_swap_blocks_when_broker_spec_changes_across_rollover():
     converter = _swap_converter(
         _swap_snapshot("2026-07-27T20:55:00+00:00", swap_short=27.41),
