@@ -248,6 +248,7 @@ class VerifiedConversionTickCache:
         self.cache_dir = Path(cache_dir)
         self.symbol = str(symbol)
         self._frames: dict[str, pd.DataFrame] = {}
+        self.evidence_by_day: dict[str, dict] = {}
 
     def load_day(self, day: date) -> tuple[pd.DataFrame, str | None]:
         day_text = day.isoformat()
@@ -291,6 +292,7 @@ class VerifiedConversionTickCache:
         if frame.empty:
             return pd.DataFrame(), f"invalid_conversion_quotes:{day_text}"
         self._frames[day_text] = frame
+        self.evidence_by_day[day_text] = deepcopy(contract)
         return frame, None
 
 
@@ -318,6 +320,7 @@ class BrokerMoneyConverter:
         self.currency = str(self.account["currency"])
         self.currency_digits = int(self.account["currency_digits"])
         self.quantum = Decimal(1).scaleb(-self.currency_digits)
+        self._conversion_tick_cache: VerifiedConversionTickCache | None = None
         if quote_loader is None:
             if tick_cache_dir is None:
                 raise ValueError("money conversion tick cache is required")
@@ -325,8 +328,15 @@ class BrokerMoneyConverter:
                 tick_cache_dir,
                 symbol=str(self.conversion.get("symbol") or ""),
             )
+            self._conversion_tick_cache = cache
             quote_loader = cache.load_day
         self.quote_loader = quote_loader
+
+    @property
+    def conversion_tick_evidence(self) -> dict[str, dict]:
+        if self._conversion_tick_cache is None:
+            return {}
+        return deepcopy(self._conversion_tick_cache.evidence_by_day)
 
     def _money(self, value: Decimal) -> Decimal:
         return value.quantize(self.quantum, rounding=ROUND_HALF_UP)

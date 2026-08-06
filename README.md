@@ -113,8 +113,11 @@ orders. `observed_execution_summary` proves actual MT5 fills against ticks;
 zero-latency policy resembles those fills. A mismatch in the second does not
 erase valid observed execution evidence. Comparisons use both raw and
 risk-normalized P&L, while incomplete plans and invalid tick days remain
-visible blockers. No policy is eligible for live promotion without untouched
-forward/OOS evidence.
+visible blockers. Research runs never invent a close at the end of the cached
+day: a position that is still open is reported as `open_at_horizon`. Explicit
+re-entry and re-arm-after-terminal lifecycles remain named blockers until each
+generation can be simulated independently. No policy is eligible for live
+promotion without untouched forward/OOS evidence.
 
 Prepare an independent Strategy Tester proof after rebuilding
 `runtime_data/replay_trades.jsonl`:

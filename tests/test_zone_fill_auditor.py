@@ -66,6 +66,24 @@ def test_auditor_reports_first_touch_for_each_depth():
     assert audit["maximum_penetration_pct"] == 62.0
 
 
+def test_auditor_does_not_invent_zone_touch_after_price_gapped_below_zone():
+    ticks = frame([
+        (t(0), 99.6, 99.8),
+        (t(1), 99.4, 99.6),
+    ])
+
+    audit = audit_zone_depths(
+        spec(buy_state(BASE)),
+        ticks,
+        fractions=(0.0, 0.5, 1.0),
+        horizon_at=t(1),
+    )
+
+    assert audit["touched_depths"] == []
+    assert audit["first_touch_by_depth"] == {}
+    assert audit["maximum_penetration_pct"] == 0.0
+
+
 def test_auditor_applies_range_revision_only_after_observation():
     ticks = frame([
         (t(1), 104.8, 105.0),

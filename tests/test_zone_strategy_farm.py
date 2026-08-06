@@ -215,6 +215,55 @@ def test_farm_separates_observed_execution_from_modeled_policy_match():
     assert report["modeled_baseline_summary"]["proofs"] == 0
 
 
+def test_lifecycle_blocker_does_not_erase_observed_execution_proof():
+    trigger_server_msc = int((t(0.3) + timedelta(hours=3)).timestamp() * 1000)
+    execution = {
+        "execution_batch_id": "canal2_9000#exec1",
+        "signal_received_utc": t(0.35).isoformat(),
+        "entry_provenance": {
+            "source_kind": "zone_active",
+            "zone_trigger_kind": "explicit_active",
+            "zone_trigger_time_msc": trigger_server_msc,
+        },
+        "fills": [
+            {
+                "observed_utc": t(0.4 + index * 0.1).isoformat(),
+                "price": 104.95 - index * 0.01,
+            }
+            for index in range(5)
+        ],
+    }
+    record = zone_record(execution=[execution])
+    record["management_events"] = [
+        management(t(0.1), None, "Left without us"),
+        management(t(0.2), None, "Still valid"),
+        management(t(0.3), "ACTIVATE_ZONE", "Active"),
+    ]
+    source = FakeTickSource(pd.DataFrame([
+        (t(0), 104.8, 105.0),
+        (t(0.4), 104.7, 104.9),
+        (t(0.5), 104.69, 104.89),
+        (t(0.6), 104.68, 104.88),
+        (t(0.7), 104.67, 104.87),
+        (t(0.8), 104.66, 104.86),
+        (t(1), 110.0, 110.2),
+    ], columns=["time_utc", "bid", "ask"]))
+
+    report = build_zone_farm_report(
+        {"schema_version": 7, "signals": [record]},
+        source,
+        policies=(zone_policy_by_id("one_first_touch"),),
+        money_converter=FakeMoneyConverter(),
+        since="2026-08-04",
+        until="2026-08-04",
+    )
+
+    assert report["rows"][0]["status"] == "blocked"
+    assert "unsupported_rearm_after_terminal" in report["rows"][0]["blockers"]
+    assert report["observed_execution_summary"]["proofs"] == 1
+    assert report["observed_execution_summary"]["verified"] == 1
+
+
 def test_farm_keeps_observed_mt5_result_separate_from_modeled_pnl():
     catalog = {"schema_version": 7, "signals": [zone_record()]}
     source = FakeTickSource(pd.DataFrame([
@@ -346,16 +395,52 @@ def test_observed_active_execution_uses_provider_activation_not_zone_touch():
     assert proof["trigger_delta_ms"] == 100
 
 
+def test_observed_execution_audit_never_uses_a_future_tick():
+    trigger_server_msc = int((t(0.05) + timedelta(hours=3)).timestamp() * 1000)
+    execution = {
+        "signal_received_utc": t(0.1).isoformat(),
+        "entry_provenance": {
+            "source_kind": "zone_first_touch",
+            "zone_trigger_kind": "first_touch",
+            "zone_trigger_time_msc": trigger_server_msc,
+        },
+        "fills": [
+            {"observed_utc": t(0.18).isoformat(), "price": 105.0},
+        ],
+    }
+    frame = pd.DataFrame([
+        (t(0.1), 99.8, 100.0),
+        (t(0.2), 104.8, 105.0),
+    ], columns=["time_utc", "bid", "ask"])
+
+    proof = audit_observed_zone_execution(
+        build_zone_trade_spec(zone_record(execution=[execution])),
+        execution,
+        frame,
+        zone_audit={"first_touch_utc": t(0.05).isoformat()},
+        verified_utc_offset_seconds=10800,
+        expected_fill_count=1,
+        fill_price_tolerance=1.0,
+    )
+
+    assert proof["status"] == "blocked"
+    assert proof["fills"][0]["tick_utc"] == t(0.1).isoformat()
+    assert "execution_fill_price_outside_tolerance:0" in proof["blockers"]
+
+
 def test_policy_metrics_calculate_money_drawdown_and_profit_factor():
     metrics = calculate_zone_policy_metrics([
         {"status": "filled", "money_status": "verified", "strategy_pnl": 10.0,
-         "planned_volume": 0.05,
+         "planned_volume": 0.05, "planned_risk_price_lots": 0.25,
+         "risk_reference_price_lots": 0.25,
          "provider_signal_id": "a", "ready_at_utc": t(0).isoformat()},
         {"status": "filled", "money_status": "verified", "strategy_pnl": -15.0,
-         "planned_volume": 0.05,
+         "planned_volume": 0.05, "planned_risk_price_lots": 0.25,
+         "risk_reference_price_lots": 0.25,
          "provider_signal_id": "b", "ready_at_utc": t(1).isoformat()},
         {"status": "filled", "money_status": "verified", "strategy_pnl": 5.0,
-         "planned_volume": 0.05,
+         "planned_volume": 0.05, "planned_risk_price_lots": 0.25,
+         "risk_reference_price_lots": 0.25,
          "provider_signal_id": "c", "ready_at_utc": t(2).isoformat()},
     ])
 
@@ -371,10 +456,12 @@ def test_policy_metrics_calculate_money_drawdown_and_profit_factor():
 def test_policy_metrics_normalize_smaller_policies_to_equal_planned_risk():
     metrics = calculate_zone_policy_metrics([
         {"status": "filled", "money_status": "verified", "strategy_pnl": 2.0,
-         "planned_volume": 0.01,
+         "planned_volume": 0.01, "planned_risk_price_lots": 0.1,
+         "risk_reference_price_lots": 0.5,
          "provider_signal_id": "a", "ready_at_utc": t(0).isoformat()},
         {"status": "filled", "money_status": "verified", "strategy_pnl": -1.0,
-         "planned_volume": 0.01,
+         "planned_volume": 0.01, "planned_risk_price_lots": 0.1,
+         "risk_reference_price_lots": 0.5,
          "provider_signal_id": "b", "ready_at_utc": t(1).isoformat()},
     ])
 
@@ -385,6 +472,35 @@ def test_policy_metrics_normalize_smaller_policies_to_equal_planned_risk():
     assert metrics["risk_normalized_maximum_drawdown"] == 5.0
 
 
+def test_policy_metrics_normalize_equal_volume_by_actual_sl_risk():
+    metrics = calculate_zone_policy_metrics([
+        {
+            "status": "filled",
+            "money_status": "verified",
+            "strategy_pnl": 4.0,
+            "planned_volume": 0.05,
+            "planned_risk_price_lots": 0.5,
+            "risk_reference_price_lots": 0.5,
+            "provider_signal_id": "a",
+            "ready_at_utc": t(0).isoformat(),
+        },
+        {
+            "status": "filled",
+            "money_status": "verified",
+            "strategy_pnl": 4.0,
+            "planned_volume": 0.05,
+            "planned_risk_price_lots": 0.25,
+            "risk_reference_price_lots": 0.5,
+            "provider_signal_id": "b",
+            "ready_at_utc": t(1).isoformat(),
+        },
+    ])
+
+    assert metrics["verified_net_pnl"] == 8.0
+    assert metrics["risk_normalized_net_pnl"] == 12.0
+    assert metrics["risk_reference"] == "current_live_zone_trigger_per_plan"
+
+
 def test_policy_metrics_publish_reproducible_daily_and_leg_contributions():
     metrics = calculate_zone_policy_metrics([
         {
@@ -392,6 +508,8 @@ def test_policy_metrics_publish_reproducible_daily_and_leg_contributions():
             "money_status": "verified",
             "strategy_pnl": 3.0,
             "planned_volume": 0.05,
+            "planned_risk_price_lots": 0.25,
+            "risk_reference_price_lots": 0.25,
             "planned_leg_count": 2,
             "signal_date": "2026-08-04",
             "provider_signal_id": "a",
@@ -415,6 +533,8 @@ def test_policy_metrics_publish_reproducible_daily_and_leg_contributions():
             "money_status": "verified",
             "strategy_pnl": -1.0,
             "planned_volume": 0.05,
+            "planned_risk_price_lots": 0.25,
+            "risk_reference_price_lots": 0.25,
             "planned_leg_count": 2,
             "signal_date": "2026-08-05",
             "provider_signal_id": "b",
@@ -491,3 +611,54 @@ def test_farm_is_deterministic_and_contains_no_live_execution_imports():
     assert "executor" not in source
     assert "MetaTrader5" not in source
     assert "mt5_session" not in source
+
+
+def test_farm_fingerprints_money_conversion_tick_days_after_pricing():
+    catalog = {"schema_version": 7, "signals": [zone_record()]}
+    tick_source = FakeTickSource(pd.DataFrame([
+        (t(0), 104.8, 105.0),
+        (t(1), 110.0, 110.2),
+    ], columns=["time_utc", "bid", "ask"]))
+    converter = FakeMoneyConverter()
+    converter.conversion_tick_evidence = {
+        "2026-08-04": {
+            "symbol": "EURUSD",
+            "parquet_sha256": "b" * 64,
+            "contract_sha256": "c" * 64,
+        }
+    }
+
+    report = build_zone_farm_report(
+        catalog,
+        tick_source,
+        policies=(zone_policy_by_id("one_first_touch"),),
+        money_converter=converter,
+        since="2026-08-04",
+        until="2026-08-04",
+    )
+
+    assert report["source_fingerprints"]["money_tick_days"] == (
+        converter.conversion_tick_evidence
+    )
+
+
+def test_farm_never_invents_an_end_of_day_close_for_an_open_zone_leg():
+    catalog = {"schema_version": 7, "signals": [zone_record()]}
+    tick_source = FakeTickSource(pd.DataFrame([
+        (t(0), 104.8, 105.0),
+        (t(1), 105.8, 106.0),
+    ], columns=["time_utc", "bid", "ask"]))
+
+    report = build_zone_farm_report(
+        catalog,
+        tick_source,
+        policies=(zone_policy_by_id("one_first_touch"),),
+        money_converter=FakeMoneyConverter(),
+        since="2026-08-04",
+        until="2026-08-04",
+    )
+
+    row = report["rows"][0]
+    assert row["status"] == "blocked"
+    assert row["blockers"] == ["leg_0:open_at_horizon"]
+    assert row["strategy_pnl"] is None

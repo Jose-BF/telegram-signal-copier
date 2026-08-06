@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -9,6 +10,22 @@ from math import isfinite
 from numbers import Real
 from types import MappingProxyType
 from typing import Any
+
+from canal2_zone_lifecycle import classify_followup
+
+
+_GENERATION_TERMINAL_ACTIONS = {
+    "CLOSE_ALL",
+    "CLOSE_PARTIAL",
+    "PROGRESS_UPDATE",
+    "SL_HIT_ANNOUNCEMENT",
+    "TP_HIT_ANNOUNCEMENT",
+}
+_GENERATION_TERMINAL_TEXT = re.compile(
+    r"\b(?:missed|invalid(?:ated)?|cancel(?:led|ed)?|target\s*\d+)\b|"
+    r"\b(?:left|went|took\s+off)\s+without\s+us\b",
+    re.IGNORECASE,
+)
 
 
 FrozenRow = Mapping[str, object]
@@ -332,6 +349,7 @@ def build_zone_trade_spec(record: Mapping[str, object]) -> ProviderZoneSpec:
             invalid_geometries.append(geometry)
             if states:
                 warnings.append(f"{geometry}:{observed.isoformat()}")
+                blockers.append(f"invalid_causal_revision:{geometry}")
             continue
         state = ZoneState(
             observed_utc=observed,
@@ -366,6 +384,23 @@ def build_zone_trade_spec(record: Mapping[str, object]) -> ProviderZoneSpec:
         "management_events",
         blockers,
     )
+    terminal_seen = False
+    for event in management_events:
+        text = str(event.get("text") or "")
+        intents = classify_followup(text)
+        if "REENTRY" in intents:
+            blockers.append("unsupported_explicit_reentry_generation")
+        if "REARM" in intents and terminal_seen:
+            blockers.append("unsupported_rearm_after_terminal")
+
+        action = str(event.get("classified_action") or "").upper()
+        if (
+            action in _GENERATION_TERMINAL_ACTIONS
+            or "MISSED" in intents
+            or "INVALIDATE" in intents
+            or _GENERATION_TERMINAL_TEXT.search(text)
+        ):
+            terminal_seen = True
     execution_batches = (
         _frozen_execution_batches(record.get("execution_batches"), blockers)
         if record.get("execution_batches")

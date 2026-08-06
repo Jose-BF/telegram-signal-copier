@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
 from math import isfinite
 from typing import Iterable
@@ -83,6 +84,9 @@ def _base_row(
         "planned_leg_count": len(policy.depth_fractions),
         "filled_leg_count": 0,
         "planned_volume": policy.total_planned_volume,
+        "planned_risk_price_lots": None,
+        "risk_reference_price_lots": None,
+        "risk_reference_policy_id": None,
         "filled_volume": 0.0,
         "average_fill_price": None,
         "result_unit": "xauusd_price_lots",
@@ -179,6 +183,21 @@ def _first_crossing_index(
         return None
     positions = np.flatnonzero(
         _crossing_mask(direction, quotes[start:stop], level)
+    )
+    return start + int(positions[0]) if len(positions) else None
+
+
+def _first_zone_touch_index(
+    quotes: np.ndarray,
+    zone: tuple[float, float],
+    start: int,
+    stop: int,
+) -> int | None:
+    if start >= stop:
+        return None
+    lower, upper = zone
+    positions = np.flatnonzero(
+        (quotes[start:stop] >= lower) & (quotes[start:stop] <= upper)
     )
     return start + int(positions[0]) if len(positions) else None
 
@@ -323,6 +342,41 @@ def _directional_delta(
     return open_price - close_price
 
 
+def _planned_risk_price_lots(
+    direction: str,
+    filled_legs: Iterable[Mapping[str, object]],
+    unfilled_legs: Iterable[Mapping[str, object]],
+) -> float | None:
+    total = 0.0
+    legs = (*filled_legs, *unfilled_legs)
+    if not legs:
+        return None
+    for leg in legs:
+        try:
+            entry = float(
+                leg.get("open_price")
+                if leg.get("open_price") is not None
+                else leg["planned_level"]
+            )
+            sl = float(
+                leg.get("entry_sl")
+                if leg.get("entry_sl") is not None
+                else leg["planned_sl"]
+            )
+            volume = float(leg["volume"])
+        except (KeyError, TypeError, ValueError):
+            return None
+        distance = entry - sl if direction == "BUY" else sl - entry
+        if (
+            not all(isfinite(value) for value in (entry, sl, volume, distance))
+            or distance <= 0
+            or volume <= 0
+        ):
+            return None
+        total += distance * volume
+    return round(total, 8)
+
+
 def _basket_excursions(
     direction: str,
     legs: list[dict],
@@ -357,17 +411,22 @@ def _basket_excursions(
             continue
         active = (
             (times >= pd.Timestamp(leg_open).value)
-            & (times <= pd.Timestamp(leg_close).value)
+            & (times < pd.Timestamp(leg_close).value)
         )
-        if not np.any(active):
-            continue
+        closed = times >= pd.Timestamp(leg_close).value
         open_price = float(leg["open_price"])
         volume = float(leg["volume"])
         if direction == "BUY":
             values = (quote_values[start:stop] - open_price) * volume
         else:
             values = (open_price - quote_values[start:stop]) * volume
-        floating += np.where(active, values, 0.0)
+        contribution = np.where(active, values, 0.0)
+        contribution = np.where(
+            closed,
+            float(leg["strategy_value"]),
+            contribution,
+        )
+        floating += contribution
     maximum_favorable = float(np.max(floating))
     maximum_adverse = float(np.min(floating))
     return {
@@ -394,6 +453,7 @@ def _apply_exits_and_money(
     tick_size: float,
     money_converter,
     verified_utc_offset_seconds: int | None,
+    allow_horizon_close: bool,
 ) -> dict:
     if not row["filled_legs"]:
         row["strategy_value"] = 0.0
@@ -426,6 +486,7 @@ def _apply_exits_and_money(
             tp_events=tp_events,
             horizon_at=horizon,
             tick_size=tick_size,
+            allow_horizon_close=allow_horizon_close,
         )
         priced = dict(leg)
         if close.get("status") != "simulated":
@@ -532,6 +593,7 @@ def simulate_zone_policy(
     tick_size: float = 0.01,
     money_converter=None,
     verified_utc_offset_seconds: int | None = None,
+    allow_horizon_close: bool = True,
 ) -> dict:
     row = _base_row(spec, policy, status="blocked")
     if spec.blockers:
@@ -591,6 +653,7 @@ def simulate_zone_policy(
             tick_size,
             money_converter,
             verified_utc_offset_seconds,
+            allow_horizon_close,
         )
     filled: dict[int, dict] = {}
     planned_levels: dict[int, float] = {}
@@ -627,14 +690,11 @@ def simulate_zone_policy(
             continue
 
         if market_indices and not market_triggered:
-            trigger_leg = market_indices[0]
-            trigger_level = planned_levels[trigger_leg]
             candidates: list[tuple[datetime, int, str]] = []
             if policy.trigger_mode in {"zone_touch", "zone_touch_or_active"}:
-                zone_index = _first_crossing_index(
-                    active_state.direction,
+                zone_index = _first_zone_touch_index(
                     quote_values,
-                    trigger_level,
+                    active_state.zone,
                     segment_start,
                     segment_stop,
                 )
@@ -704,6 +764,7 @@ def simulate_zone_policy(
                             prepared, fill_index
                         ).isoformat(),
                         "open_price": round(quote, 8),
+                        "entry_sl": float(active_state.sl),
                         "touch_side": (
                             "ask" if active_state.direction == "BUY" else "bid"
                         ),
@@ -740,6 +801,7 @@ def simulate_zone_policy(
                 "planned_level": level,
                 "open_time_utc": _timestamp(prepared, fill_index).isoformat(),
                 "open_price": level,
+                "entry_sl": float(active_state.sl),
                 "touch_side": (
                     "ask" if active_state.direction == "BUY" else "bid"
                 ),
@@ -766,6 +828,7 @@ def simulate_zone_policy(
                 leg_index,
                 _planned_level(states[-1], depth),
             ),
+            "planned_sl": float(states[-1].sl),
             "cancel_reason": cutoff_reason,
             "cancel_time_utc": cutoff.isoformat(),
         }
@@ -791,6 +854,11 @@ def simulate_zone_policy(
         "filled_legs": filled_legs,
         "unfilled_legs": unfilled_legs,
     })
+    row["planned_risk_price_lots"] = _planned_risk_price_lots(
+        states[0].direction,
+        filled_legs,
+        unfilled_legs,
+    )
     return _apply_exits_and_money(
         row,
         spec,
@@ -800,6 +868,7 @@ def simulate_zone_policy(
         tick_size,
         money_converter,
         verified_utc_offset_seconds,
+        allow_horizon_close,
     )
 
 

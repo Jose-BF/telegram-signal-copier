@@ -961,6 +961,7 @@ def replay_first_close(
     horizon_at: datetime,
     tick_size: object,
     forced_close_at: datetime | None = None,
+    allow_horizon_close: bool = True,
 ) -> dict:
     """Return the first independently provable close for one ticket."""
     direction = str(direction or "").upper()
@@ -1249,6 +1250,8 @@ def replay_first_close(
 
     if forced is not None:
         return _blocked("missing_ticks_after_management")
+    if not allow_horizon_close:
+        return _blocked("open_at_horizon")
     final_index = window_stop - 1
     group_start, group_stop = group_bounds(final_index)
     prices = side_values[group_start:group_stop]

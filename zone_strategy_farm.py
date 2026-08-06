@@ -27,6 +27,10 @@ from zone_fill_auditor import audit_zone_depths
 
 SCHEMA_VERSION = 1
 BASELINE_POLICY_ID = "current_live_zone_trigger"
+SIMULATION_ONLY_BLOCKERS = {
+    "unsupported_explicit_reentry_generation",
+    "unsupported_rearm_after_terminal",
+}
 RISK_REFERENCE_VOLUME = 0.05
 
 
@@ -127,6 +131,9 @@ def _blocked_policy_row(
         "planned_leg_count": len(policy.depth_fractions),
         "filled_leg_count": 0,
         "planned_volume": policy.total_planned_volume,
+        "planned_risk_price_lots": None,
+        "risk_reference_price_lots": None,
+        "risk_reference_policy_id": None,
         "filled_volume": 0.0,
         "average_fill_price": None,
         "result_unit": "xauusd_price_lots",
@@ -324,28 +331,17 @@ def audit_observed_zone_execution(
                 continue
             fill_times.append(observed)
             observed_ns = pd.Timestamp(observed).value
-            insertion = int(np.searchsorted(
+            tick_index = int(np.searchsorted(
                 prepared.times_ns,
                 observed_ns,
-                side="left",
-            ))
-            candidates = [
-                candidate
-                for candidate in (insertion - 1, insertion)
-                if 0 <= candidate < len(prepared.times_ns)
-            ]
-            if not candidates:
+                side="right",
+            )) - 1
+            if tick_index < 0:
                 blockers.append(f"missing_tick_near_execution_fill:{index}")
                 continue
-            tick_index = min(
-                candidates,
-                key=lambda candidate: abs(
-                    int(prepared.times_ns[candidate]) - observed_ns
-                ),
-            )
-            tick_delta_ms = int(round(abs(
-                int(prepared.times_ns[tick_index]) - observed_ns
-            ) / 1_000_000))
+            tick_delta_ms = int(round(
+                (observed_ns - int(prepared.times_ns[tick_index])) / 1_000_000
+            ))
             quote = float(quote_values[tick_index])
             price_delta = round(abs(fill_price - quote), 8)
             if tick_delta_ms > fill_tick_tolerance_ms:
@@ -441,7 +437,7 @@ def _maximum_drawdown(values: Sequence[float]) -> float:
     return round(maximum, 2)
 
 
-def _risk_normalized_pnl(row: Mapping[str, object]) -> float | None:
+def _volume_normalized_pnl(row: Mapping[str, object]) -> float | None:
     try:
         value = float(row["strategy_pnl"])
         planned_volume = float(row["planned_volume"])
@@ -450,6 +446,35 @@ def _risk_normalized_pnl(row: Mapping[str, object]) -> float | None:
     if not isfinite(value) or not isfinite(planned_volume) or planned_volume <= 0:
         return None
     return value * RISK_REFERENCE_VOLUME / planned_volume
+
+
+def _risk_normalization_multiplier(
+    row: Mapping[str, object],
+) -> float | None:
+    try:
+        planned_risk = float(row["planned_risk_price_lots"])
+        reference_risk = float(row["risk_reference_price_lots"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if (
+        not isfinite(planned_risk)
+        or not isfinite(reference_risk)
+        or planned_risk <= 0
+        or reference_risk <= 0
+    ):
+        return None
+    return reference_risk / planned_risk
+
+
+def _risk_normalized_pnl(row: Mapping[str, object]) -> float | None:
+    try:
+        value = float(row["strategy_pnl"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    multiplier = _risk_normalization_multiplier(row)
+    if not isfinite(value) or multiplier is None:
+        return None
+    return value * multiplier
 
 
 def calculate_zone_policy_metrics(rows: Iterable[Mapping[str, object]]) -> dict:
@@ -474,10 +499,23 @@ def calculate_zone_policy_metrics(rows: Iterable[Mapping[str, object]]) -> dict:
     normalized = [
         float(value) for value in normalized_values if value is not None
     ]
+    volume_normalized_values = [_volume_normalized_pnl(row) for row in verified]
+    volume_normalization_complete = bool(verified) and all(
+        value is not None for value in volume_normalized_values
+    )
+    volume_normalized = [
+        float(value)
+        for value in volume_normalized_values
+        if value is not None
+    ]
     planned_volumes = sorted({
         round(float(row["planned_volume"]), 8)
         for row in verified
-        if _risk_normalized_pnl(row) is not None
+        if (
+            row.get("planned_volume") is not None
+            and isfinite(float(row["planned_volume"]))
+            and float(row["planned_volume"]) > 0
+        )
     })
     positive = sum(value for value in values if value > 0)
     negative = abs(sum(value for value in values if value < 0))
@@ -554,16 +592,13 @@ def calculate_zone_policy_metrics(rows: Iterable[Mapping[str, object]]) -> dict:
             bucket["verified_net_pnl"] = (
                 float(bucket["verified_net_pnl"]) + leg_pnl
             )
-            try:
-                planned_volume = float(row["planned_volume"])
-            except (KeyError, TypeError, ValueError):
-                planned_volume = 0.0
-            if not isfinite(planned_volume) or planned_volume <= 0:
+            multiplier = _risk_normalization_multiplier(row)
+            if multiplier is None:
                 bucket["normalization_complete"] = False
             else:
                 bucket["risk_normalized_net_pnl"] = (
                     float(bucket["risk_normalized_net_pnl"])
-                    + leg_pnl * RISK_REFERENCE_VOLUME / planned_volume
+                    + leg_pnl * multiplier
                 )
     daily_results = [
         {
@@ -609,6 +644,11 @@ def calculate_zone_policy_metrics(rows: Iterable[Mapping[str, object]]) -> dict:
             key = str(float(depth))
             if key in depth_counts:
                 depth_counts[key] += 1
+    risk_reference_ids = sorted({
+        str(row.get("risk_reference_policy_id") or BASELINE_POLICY_ID)
+        for row in verified
+        if _risk_normalized_pnl(row) is not None
+    })
     net = round(sum(values), 2)
     drawdown = _maximum_drawdown(values)
     normalized_net = (
@@ -616,6 +656,11 @@ def calculate_zone_policy_metrics(rows: Iterable[Mapping[str, object]]) -> dict:
     )
     normalized_drawdown = (
         _maximum_drawdown(normalized) if normalization_complete else None
+    )
+    volume_normalized_net = (
+        round(sum(volume_normalized), 2)
+        if volume_normalization_complete
+        else None
     )
     return {
         "plans": len(ordered),
@@ -647,6 +692,11 @@ def calculate_zone_policy_metrics(rows: Iterable[Mapping[str, object]]) -> dict:
             planned_volumes[0] if len(planned_volumes) == 1 else None
         ),
         "risk_normalization_complete": normalization_complete,
+        "risk_reference": (
+            f"{risk_reference_ids[0]}_per_plan"
+            if len(risk_reference_ids) == 1
+            else None
+        ),
         "risk_normalized_net_pnl": normalized_net,
         "risk_normalized_expectancy_per_verified_plan": (
             round(normalized_net / len(verified), 4)
@@ -663,6 +713,8 @@ def calculate_zone_policy_metrics(rows: Iterable[Mapping[str, object]]) -> dict:
             )
             else None
         ),
+        "volume_normalization_complete": volume_normalization_complete,
+        "volume_normalized_net_pnl": volume_normalized_net,
         "daily_results": daily_results,
         "leg_contributions": leg_contributions,
         "depth_touch_counts": depth_counts,
@@ -787,13 +839,18 @@ def build_zone_farm_report(
                     None,
                 ))
             continue
-        if day not in day_cache and spec.entry_ready:
+        if day not in day_cache and spec.ready_at_utc is not None:
             day_cache[day] = tick_source.load_day(day)
         ticks, tick_evidence, tick_blockers = day_cache.get(
             day,
             (pd.DataFrame(), None, []),
         )
-        if spec.blockers:
+        execution_blockers = tuple(
+            blocker
+            for blocker in spec.blockers
+            if blocker not in SIMULATION_ONLY_BLOCKERS
+        )
+        if execution_blockers:
             block_execution_proofs(*spec.blockers)
             for policy in policy_catalog:
                 rows.append(_blocked_policy_row(
@@ -810,11 +867,10 @@ def build_zone_farm_report(
                 rows.append(_blocked_policy_row(
                     spec,
                     policy,
-                    blockers,
+                    (*spec.blockers, *blockers),
                     day,
                 ))
             continue
-        tick_valid_complete_plans += 1
         horizon = pd.to_datetime(ticks["time_utc"], utc=True).max().to_pydatetime()
         tick_offset = (
             tick_evidence.get("utc_offset_seconds")
@@ -838,6 +894,16 @@ def build_zone_farm_report(
             )
             execution_proofs_for_spec.append(proof)
             observed_execution_proofs.append(proof)
+        if spec.blockers:
+            for policy in policy_catalog:
+                rows.append(_blocked_policy_row(
+                    spec,
+                    policy,
+                    spec.blockers,
+                    day,
+                ))
+            continue
+        tick_valid_complete_plans += 1
         for policy in policy_catalog:
             row = simulate_zone_policy(
                 spec,
@@ -846,6 +912,7 @@ def build_zone_farm_report(
                 horizon_at=horizon,
                 money_converter=money_converter,
                 verified_utc_offset_seconds=tick_offset,
+                allow_horizon_close=False,
             )
             row["signal_date"] = day.isoformat()
             row["ready_at_utc"] = spec.ready_at_utc.isoformat()
@@ -885,6 +952,33 @@ def build_zone_farm_report(
             row["modeled_baseline_proofs"] = proofs
             row["observed_execution_proofs"] = execution_proofs_for_spec
             rows.append(row)
+
+    baseline_risk_by_signal: dict[str, float] = {}
+    for row in rows:
+        if row.get("policy_id") != BASELINE_POLICY_ID:
+            continue
+        try:
+            planned_risk = float(row["planned_risk_price_lots"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if isfinite(planned_risk) and planned_risk > 0:
+            baseline_risk_by_signal[str(row["provider_signal_id"])] = planned_risk
+    for row in rows:
+        signal_id = str(row.get("provider_signal_id") or "")
+        reference_risk = baseline_risk_by_signal.get(signal_id)
+        reference_policy = BASELINE_POLICY_ID
+        if reference_risk is None:
+            try:
+                candidate = float(row["planned_risk_price_lots"])
+            except (KeyError, TypeError, ValueError):
+                candidate = 0.0
+            if isfinite(candidate) and candidate > 0:
+                reference_risk = candidate
+                reference_policy = str(row.get("policy_id") or "self")
+        row["risk_reference_price_lots"] = reference_risk
+        row["risk_reference_policy_id"] = (
+            reference_policy if reference_risk is not None else None
+        )
 
     policy_summaries = {
         policy.policy_id: calculate_zone_policy_metrics(
@@ -1006,6 +1100,14 @@ def build_zone_farm_report(
                 float(row["strategy_pnl"]) for row in comparable
             ), 2),
         }
+    fingerprints = dict(source_fingerprints or {})
+    money_tick_evidence = getattr(
+        money_converter,
+        "conversion_tick_evidence",
+        None,
+    )
+    if isinstance(money_tick_evidence, Mapping):
+        fingerprints["money_tick_days"] = dict(money_tick_evidence)
     return {
         "schema_version": SCHEMA_VERSION,
         "scope": {
@@ -1019,7 +1121,7 @@ def build_zone_farm_report(
             "policy_count": len(policy_catalog),
             "expected_rows": len(records) * len(policy_catalog),
         },
-        "source_fingerprints": dict(source_fingerprints or {}),
+        "source_fingerprints": fingerprints,
         "policy_catalog": policies_payload,
         "policy_catalog_sha256": _canonical_sha256(policies_payload),
         "rows": rows,

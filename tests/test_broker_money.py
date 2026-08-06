@@ -2,7 +2,7 @@
 import csv
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import pandas as pd
 
@@ -639,6 +639,38 @@ def _converter(frame=None):
         _contract(),
         quote_loader=lambda _day: (quotes, None),
     )
+
+
+def test_conversion_tick_cache_exposes_the_exact_verified_day_contract(
+    tmp_path,
+    monkeypatch,
+):
+    day = date(2026, 8, 4)
+    evidence = {
+        "day": day.isoformat(),
+        "symbol": "EURUSD",
+        "parquet_sha256": "a" * 64,
+        "contract_sha256": "b" * 64,
+        "size_bytes": 1234,
+        "utc_offset_seconds": 10800,
+    }
+    quotes = _quotes()
+    monkeypatch.setattr(
+        broker_money.ensure_replay_tick_cache,
+        "load_valid_day_contract",
+        lambda *_args, **_kwargs: dict(evidence),
+    )
+    monkeypatch.setattr(broker_money.pd, "read_parquet", lambda *_a, **_k: quotes)
+    cache = broker_money.VerifiedConversionTickCache(
+        tmp_path,
+        symbol="EURUSD",
+    )
+
+    frame, error = cache.load_day(day)
+
+    assert error is None
+    assert not frame.empty
+    assert cache.evidence_by_day == {day.isoformat(): evidence}
 
 
 def _swap_converter(*snapshots, frame=None):

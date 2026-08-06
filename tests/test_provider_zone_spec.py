@@ -84,6 +84,24 @@ def test_invalid_buy_geometry_is_named_and_not_dropped():
     assert spec.blockers == ("invalid_buy_zone_geometry",)
 
 
+def test_invalid_revision_after_ready_blocks_instead_of_reusing_old_levels():
+    record = zone_record(
+        ranges=[event("10:00:00", range=[100, 105])],
+        levels=[
+            event("10:00:00", tps=[110], sl=95),
+            event("10:01:00", tps=[110], sl=103),
+        ],
+    )
+
+    spec = build_zone_trade_spec(record)
+
+    assert spec.ready_states[0].sl == 95.0
+    assert spec.entry_ready is False
+    assert spec.blockers == (
+        "invalid_causal_revision:invalid_buy_zone_geometry",
+    )
+
+
 def test_sell_geometry_is_directional_and_targets_are_sorted_by_distance():
     record = zone_record(
         direction="SELL",
@@ -136,6 +154,46 @@ def test_management_events_are_sorted_and_deeply_frozen():
         spec.management_events[0]["classified_action"] = "CLOSE_ALL"
     with pytest.raises(FrozenInstanceError):
         spec.channel = "other"
+
+
+def test_explicit_reentry_is_blocked_until_generations_are_modeled():
+    record = zone_record(
+        ranges=[event("10:00:00", range=[100, 105])],
+        levels=[event("10:00:00", tps=[110], sl=95)],
+        management=[
+            event("10:01:00", classified_action="TP_HIT_ANNOUNCEMENT",
+                  text="Target 1"),
+            event("10:02:00", text="I am re entering"),
+        ],
+    )
+
+    spec = build_zone_trade_spec(record)
+
+    assert spec.entry_ready is False
+    assert "unsupported_explicit_reentry_generation" in spec.blockers
+
+
+def test_rearm_after_terminal_event_is_blocked_but_simple_validation_is_not():
+    base = {
+        "ranges": [event("10:00:00", range=[100, 105])],
+        "levels": [event("10:00:00", tps=[110], sl=95)],
+    }
+    simple = build_zone_trade_spec(zone_record(
+        **base,
+        management=[event("10:01:00", text="Still valid")],
+    ))
+    reopened = build_zone_trade_spec(zone_record(
+        **base,
+        management=[
+            event("10:01:00", text="Cancel for now. Left without us"),
+            event("10:02:00", text="Zone is still valid"),
+        ],
+    ))
+
+    assert simple.entry_ready is True
+    assert "unsupported_rearm_after_terminal" not in simple.blockers
+    assert reopened.entry_ready is False
+    assert "unsupported_rearm_after_terminal" in reopened.blockers
 
 
 def test_incomplete_zone_returns_one_named_blocked_spec():

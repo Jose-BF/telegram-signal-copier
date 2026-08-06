@@ -192,32 +192,38 @@ remain unchanged in this phase.
 
 ## First Calibration Run
 
-The deterministic 2026-07-29 through 2026-08-05 run retained 59 zone records:
-41 had complete textual plans and 27 also had a valid tick contract. The 18
-incomplete plans and 14 complete plans on the invalid 2026-08-03 tick clock
-remained visible as blockers. Nine policies therefore produced all 531
-expected rows, including 288 blocked rows.
+The strict deterministic 2026-07-29 through 2026-08-05 run retained all 59
+zone records. Thirty-six passed the causal plan and lifecycle contract; 24 of
+those also had a valid tick contract. Twenty-three source plans and 12 complete
+plans on the invalid 2026-08-03 tick clock remained visible as blockers. Nine
+policies therefore produced all 531 expected rows, including 315 blocked rows.
 
-The independent depth auditor checked all 243 eligible policy rows with zero
-disagreements. All five observed MT5 zone baskets and their 25 fills were
-verified directly against ticks. The zero-latency modeled baseline matched
-four of those five baskets; the remaining basket is retained as observed
-broker-latency evidence rather than being mislabeled as a tick failure.
+The independent depth auditor checked all 216 eligible policy rows with zero
+disagreements. Five real MT5 baskets were examined separately. Four executions
+passed the complete trigger-and-fill proof. `canal2_1112` retained its five
+tick-consistent fills but failed the causal trigger proof because the provider
+had terminated the opportunity again before the bot entered. Of the four
+modeled baseline comparisons, three matched. The remaining mismatch is kept as
+broker-latency/slippage evidence instead of being mislabeled as a tick failure.
 
-At equal 0.05-lot planned exposure and common provider-level exits, the
-current live trigger modeled `-125.28 EUR` across the 27 tick-valid complete
-plans. `one_plus_four_equal` modeled `-39.41 EUR` with a lower maximum
-drawdown (`74.11 EUR` versus `206.27 EUR`). On the five opportunities actually
-executed by the bot, the same modeled comparison was `-194.00 EUR` versus
-`-74.11 EUR`; actual reconciled live MT5 P&L was `-167.70 EUR`, shown only as
-context because live fills and management were not the common modeled exit
-contract.
+Under common provider-level exits, the current live trigger modeled
+`-75.01 EUR` across the 24 tick-valid plans, with `155.17 EUR` maximum
+drawdown. The best exploratory result was `all_first_touch_causal_expiry`:
+`-35.66 EUR` raw and `-44.41 EUR` after normalizing each plan to the current
+policy's actual entry-to-SL risk, with `114.38 EUR` risk-normalized drawdown.
+That is a `+30.60 EUR` paired risk-normalized improvement over the current
+trigger, but it is still a loss. `one_plus_four_equal` produced `-47.55 EUR`
+raw and `-63.91 EUR` risk-normalized, only `+11.10 EUR` over the current
+trigger at equal risk. Actual reconciled P&L for the five live MT5 baskets was
+`-167.70 EUR`, shown only as context because live fills and management were not
+the common modeled exit contract.
 
-This is evidence of improvement over the current entry shape, not evidence of
-profitability. `one_plus_four_equal` remained negative, its daily result was
-unstable and deeper legs did not add positive aggregate P&L in this small
-sample. Selection therefore remains `exploratory_only` pending untouched
-forward days and repair or replacement of blocked evidence.
+The review also removed four optimistic shortcuts: a quote beyond the zone no
+longer counts as a touch, open positions are not force-closed at the last tick,
+later invalid geometry cannot reuse an earlier valid state, and explicit
+re-entry/re-arm generations cannot be merged into the original trade. The
+selection remains `exploratory_only`: no tested policy was profitable, the
+sample is small and no untouched forward/OOS period exists yet.
 
 ## Acceptance
 

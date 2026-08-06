@@ -179,6 +179,26 @@ def test_market_legs_use_first_touch_then_declared_spacing():
         104.7,
         104.6,
     ]
+    assert result["planned_risk_price_lots"] == 0.49
+    assert all(leg["entry_sl"] == 95.0 for leg in result["filled_legs"])
+
+
+def test_market_first_touch_requires_an_observed_tick_inside_the_zone():
+    frame = ticks([
+        (t(0), 99.6, 99.8),
+        (t(1), 99.4, 99.6),
+    ])
+
+    result = simulate_zone_policy(
+        buy_spec(zone=(100, 105)),
+        frame,
+        zone_policy_by_id("current_live_zone_trigger"),
+        horizon_at=t(1),
+    )
+
+    assert result["status"] == "unfilled"
+    assert result["entry_trigger_kind"] is None
+    assert result["filled_legs"] == []
 
 
 def test_provider_progress_cancels_only_unfilled_future_entries():
@@ -441,6 +461,9 @@ def test_money_is_sum_of_independently_converted_filled_legs():
     ]
     assert result["basket_excursions"]["maximum_adverse_price_lots"] < 0
     assert result["basket_excursions"]["maximum_favorable_price_lots"] > 0
+    assert result["basket_excursions"]["maximum_favorable_price_lots"] >= (
+        result["strategy_value"]
+    )
     assert result["basket_excursions"]["holding_time_ms"] == 3000
 
 
@@ -484,3 +507,17 @@ def test_horizon_close_uses_last_executable_quote():
     assert leg["close_price"] == 97.2
     assert leg["exit_quote_side"] == "ask"
     assert leg["price_delta"] == 2.8
+
+
+def test_research_mode_blocks_a_leg_still_open_at_the_tick_horizon():
+    result = simulate_zone_policy(
+        buy_spec(zone=(100, 105)),
+        ticks([(t(0), 104.8, 105.0), (t(1), 105.8, 106.0)]),
+        zone_policy_by_id("one_first_touch"),
+        horizon_at=t(1),
+        allow_horizon_close=False,
+    )
+
+    assert result["status"] == "blocked"
+    assert result["blockers"] == ["leg_0:open_at_horizon"]
+    assert result["strategy_pnl"] is None

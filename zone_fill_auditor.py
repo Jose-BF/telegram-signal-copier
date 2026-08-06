@@ -118,6 +118,7 @@ def audit_zone_depths(
     first_touch: dict[float, str] = {}
     maximum_depth = float("-inf")
     ticks_in_zone = 0
+    zone_observed = False
     for tick_index in range(start, stop):
         timestamp_ns = int(prepared.times_ns[tick_index])
         while (
@@ -141,9 +142,13 @@ def audit_zone_depths(
             depth = (upper - quote) / width
         else:
             depth = (quote - lower) / width
-        maximum_depth = max(maximum_depth, depth)
-        if lower <= quote <= upper:
+        inside_zone = lower <= quote <= upper
+        if inside_zone:
             ticks_in_zone += 1
+            zone_observed = True
+        if not zone_observed:
+            continue
+        maximum_depth = max(maximum_depth, depth)
         observed = pd.Timestamp(
             timestamp_ns,
             unit="ns",
