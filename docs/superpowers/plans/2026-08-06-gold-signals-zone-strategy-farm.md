@@ -595,44 +595,44 @@ Run: `git add zone_strategy_farm.py tests/test_zone_strategy_farm.py && git comm
 - Test: existing and newly created test suites
 - Output outside Git: `%TEMP%\codex-trading-design-20260806-015658\zone_strategy_farm.json`
 
-- [ ] **Step 1: Run the focused simulator suite**
+- [x] **Step 1: Run the focused simulator suite**
 
 Run: `python -m pytest tests/test_zone_entry_policies.py tests/test_provider_zone_spec.py tests/test_provider_zone_simulator.py tests/test_zone_fill_auditor.py tests/test_zone_strategy_farm.py -q`
 
 Expected: all tests PASS with no warnings.
 
-- [ ] **Step 2: Run the existing replay and money regression suites**
+- [x] **Step 2: Run the existing replay and money regression suites**
 
 Run: `python -m pytest tests/test_simulation_oracle.py tests/test_broker_money.py tests/test_provider_strategy_simulator.py tests/test_strategy_farm.py -q`
 
 Expected: all tests PASS.
 
-- [ ] **Step 3: Run the full repository suite**
+- [x] **Step 3: Run the full repository suite**
 
 Run: `python -m pytest -q`
 
 Expected: all non-integration tests PASS; only the repository's documented skip remains.
 
-- [ ] **Step 4: Execute the farm against the read-only robust snapshot**
+- [x] **Step 4: Execute the farm against the read-only robust snapshot**
 
 Use the CLI from Task 6 with `since=2026-07-29` and `until=2026-08-05`.
 Verify exactly 41 complete plans are represented, 2026-08-03 remains visibly
 blocked by its invalid tick-clock contract, and all five observed August 5
 zone baskets receive a baseline proof row.
 
-- [ ] **Step 5: Independently compare depth counts**
+- [x] **Step 5: Independently compare depth counts**
 
 Run the auditor for all tick-valid plans and require exact agreement with the
 farm at depths `0, 20, 40, 60, 80, 100` percent. Any disagreement blocks the
 comparison report.
 
-- [ ] **Step 6: Document honest usage**
+- [x] **Step 6: Document honest usage**
 
 Add a short README section stating that the farm is offline, exploratory,
 does not modify live behavior, retains blocked zones and cannot promote a
 policy without forward/OOS evidence.
 
-- [ ] **Step 7: Verify diff and commit**
+- [x] **Step 7: Verify diff and commit**
 
 Run: `git diff --check`
 

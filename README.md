@@ -57,6 +57,12 @@ Replay and simulation foundation:
 - `provider_signal_catalog.py` groups raw Telegram messages and edits into one canonical provider signal, including signals the bot did not execute.
 - `provider_trade_spec.py` turns every formal provider signal into an immutable virtual-trade contract without requiring an MT5 ticket.
 - `provider_strategy_simulator.py` enters BUY at Ask or SELL at Bid after the configured causal latency, then replays policy price paths over verified ticks.
+- `provider_zone_spec.py` reconstructs each Gold Signals zone only from values
+  already observed at that instant; later edits cannot leak backwards.
+- `zone_strategy_farm.py` compares first-touch, provider-`Active` and layered
+  zone entries at equal planned risk. It publishes daily and per-layer P&L,
+  retains every incomplete or tick-blocked plan in the denominator and audits
+  zone penetration with an independent implementation.
 - `strategy_policies.py` defines the shared close/BE/runner policy matrix for both channels.
 - `strategy_simulator.py` replays alternative management over the entries,
   volumes and confirmed level history actually executed by MT5. Canonical
@@ -87,6 +93,28 @@ python strategy_farm.py --from 2026-07-06
 python strategy_farm.py --from 2026-07-06 --provider-latency-ms 0 --provider-latency-ms 150 --provider-latency-ms 250
 python strategy_farm.py --from 2026-07-06 --include-trades --output runtime_data/strategy_farm_detail.json
 ```
+
+Run the offline Gold Signals zone experiment separately from the live bot:
+
+```powershell
+python zone_strategy_farm.py `
+  --catalog runtime_data/provider_signal_catalog.json `
+  --tick-cache runtime_data/ticks_cache `
+  --money-contract runtime_data/broker_money_contract.json `
+  --money-tick-cache runtime_data/money_ticks_cache `
+  --observed-replay runtime_data/replay_trades.jsonl `
+  --since 2026-07-29 --until 2026-08-05 `
+  --output runtime_data/zone_strategy_farm.json
+```
+
+This farm is research-only: it cannot import live execution modules or change
+orders. `observed_execution_summary` proves actual MT5 fills against ticks;
+`modeled_baseline_summary` separately measures how closely the deterministic
+zero-latency policy resembles those fills. A mismatch in the second does not
+erase valid observed execution evidence. Comparisons use both raw and
+risk-normalized P&L, while incomplete plans and invalid tick days remain
+visible blockers. No policy is eligible for live promotion without untouched
+forward/OOS evidence.
 
 Prepare an independent Strategy Tester proof after rebuilding
 `runtime_data/replay_trades.jsonl`:

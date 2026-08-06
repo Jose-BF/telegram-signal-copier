@@ -82,13 +82,17 @@ eligible generation.
 The first experiment for the new zone format varies only entry behavior and
 holds exits constant:
 
-1. `all_first_touch`: current baseline, five 0.01 market legs on first touch.
-2. `one_first_touch`: one 0.01 leg, no deeper entries.
-3. `one_plus_four_equal`: one first-touch leg and four 0.01 levels distributed
+1. `current_live_zone_trigger`: current baseline, five 0.01 market legs on
+   first touch or the provider's explicit `Active` trigger.
+2. `all_first_touch_causal_expiry`: five 0.01 market legs only on first touch.
+3. `all_provider_active`: five 0.01 market legs only after explicit `Active`.
+4. `one_first_touch`: one 0.01 leg, no deeper entries.
+5. `one_provider_active`: one 0.01 leg only after explicit `Active`.
+6. `one_plus_four_equal`: one first-touch leg and four 0.01 levels distributed
    evenly toward the favorable edge.
-4. `five_equal_limits`: five equal 0.01 pending levels across the full zone.
-5. `best_half_ladder`: five 0.01 levels restricted to the favorable half.
-6. `mid_and_best`: entries only at midpoint and favorable edge, with declared
+7. `five_equal_limits`: five equal 0.01 pending levels across the full zone.
+8. `best_half_ladder`: five 0.01 levels restricted to the favorable half.
+9. `mid_and_best`: entries only at midpoint and favorable edge, with declared
    volume allocation totaling no more than 0.05.
 
 BUY levels progress from the upper boundary toward the lower boundary. SELL
@@ -185,6 +189,35 @@ Promotion requires a separate feature flag, demo-only soak, complete order
 and cancellation logging, a clean VM with no open positions, full tests and
 explicit user approval. Immediate `BUY/SELL NOW` signals and Dubai Investing
 remain unchanged in this phase.
+
+## First Calibration Run
+
+The deterministic 2026-07-29 through 2026-08-05 run retained 59 zone records:
+41 had complete textual plans and 27 also had a valid tick contract. The 18
+incomplete plans and 14 complete plans on the invalid 2026-08-03 tick clock
+remained visible as blockers. Nine policies therefore produced all 531
+expected rows, including 288 blocked rows.
+
+The independent depth auditor checked all 243 eligible policy rows with zero
+disagreements. All five observed MT5 zone baskets and their 25 fills were
+verified directly against ticks. The zero-latency modeled baseline matched
+four of those five baskets; the remaining basket is retained as observed
+broker-latency evidence rather than being mislabeled as a tick failure.
+
+At equal 0.05-lot planned exposure and common provider-level exits, the
+current live trigger modeled `-125.28 EUR` across the 27 tick-valid complete
+plans. `one_plus_four_equal` modeled `-39.41 EUR` with a lower maximum
+drawdown (`74.11 EUR` versus `206.27 EUR`). On the five opportunities actually
+executed by the bot, the same modeled comparison was `-194.00 EUR` versus
+`-74.11 EUR`; actual reconciled live MT5 P&L was `-167.70 EUR`, shown only as
+context because live fills and management were not the common modeled exit
+contract.
+
+This is evidence of improvement over the current entry shape, not evidence of
+profitability. `one_plus_four_equal` remained negative, its daily result was
+unstable and deeper legs did not add positive aggregate P&L in this small
+sample. Selection therefore remains `exploratory_only` pending untouched
+forward days and repair or replacement of blocked evidence.
 
 ## Acceptance
 
