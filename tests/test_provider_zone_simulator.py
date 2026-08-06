@@ -296,3 +296,130 @@ def test_simulation_is_deterministic_and_does_not_mutate_inputs():
     assert first == second
     assert spec == original_spec
     assert_frame_equal(frame, original_frame)
+
+
+def test_filled_leg_closes_on_provider_tp_with_directional_quote():
+    frame = ticks([
+        (t(0), 104.8, 105.0),
+        (t(1), 110.0, 110.2),
+    ])
+
+    result = simulate_zone_policy(
+        buy_spec(zone=(100, 105)),
+        frame,
+        zone_policy_by_id("one_first_touch"),
+        horizon_at=t(1),
+    )
+
+    leg = result["filled_legs"][0]
+    assert leg["close_reason"] == "tp"
+    assert leg["close_time_utc"] == t(1).isoformat()
+    assert leg["close_price"] == 110.0
+    assert leg["exit_quote_side"] == "bid"
+    assert leg["price_delta"] == 5.0
+    assert leg["strategy_value"] == 0.05
+    assert result["strategy_value"] == 0.05
+    assert result["result_unit"] == "xauusd_price_lots"
+    assert result["money_status"] == "unverified"
+    assert result["strategy_pnl"] is None
+
+
+class FakeMoneyConverter:
+    currency = "EUR"
+    currency_digits = 2
+
+    def convert_leg(
+        self,
+        *,
+        direction,
+        open_price,
+        close_price,
+        volume,
+        open_time_utc,
+        close_time_utc,
+    ):
+        del open_time_utc, close_time_utc
+        delta = (
+            close_price - open_price
+            if direction == "BUY"
+            else open_price - close_price
+        )
+        pnl = round(delta * 100 * volume, 2)
+        return {
+            "status": "verified",
+            "strategy_pnl": pnl,
+            "profit_currency_pnl": pnl,
+            "pnl_currency": self.currency,
+            "blockers": [],
+        }
+
+
+def test_money_is_sum_of_independently_converted_filled_legs():
+    spec = buy_spec(zone=(100, 105))
+    frame = ticks([
+        (t(0), 102.3, 102.5),
+        (t(1), 99.8, 100.0),
+        (t(2), 110.0, 110.2),
+        (t(3), 115.0, 115.2),
+    ])
+
+    result = simulate_zone_policy(
+        spec,
+        frame,
+        zone_policy_by_id("mid_and_best"),
+        horizon_at=t(3),
+        money_converter=FakeMoneyConverter(),
+    )
+
+    assert result["money_status"] == "verified"
+    assert result["pnl_currency"] == "EUR"
+    assert result["strategy_pnl"] == 56.25
+    assert [leg["money"]["strategy_pnl"] for leg in result["filled_legs"]] == [
+        18.75,
+        37.5,
+    ]
+    assert result["basket_excursions"]["maximum_adverse_price_lots"] < 0
+    assert result["basket_excursions"]["maximum_favorable_price_lots"] > 0
+    assert result["basket_excursions"]["holding_time_ms"] == 3000
+
+
+class BlockedMoneyConverter(FakeMoneyConverter):
+    def convert_leg(self, **kwargs):
+        del kwargs
+        return {
+            "status": "blocked",
+            "strategy_pnl": None,
+            "profit_currency_pnl": None,
+            "pnl_currency": "EUR",
+            "blockers": ["missing_conversion_ticks:EURUSD"],
+        }
+
+
+def test_blocked_money_never_leaks_partial_euro_pnl():
+    result = simulate_zone_policy(
+        buy_spec(zone=(100, 105)),
+        ticks([(t(0), 104.8, 105.0), (t(1), 110.0, 110.2)]),
+        zone_policy_by_id("one_first_touch"),
+        horizon_at=t(1),
+        money_converter=BlockedMoneyConverter(),
+    )
+
+    assert result["status"] == "filled"
+    assert result["money_status"] == "blocked"
+    assert result["strategy_pnl"] is None
+    assert result["money_blockers"] == ["missing_conversion_ticks:EURUSD"]
+
+
+def test_horizon_close_uses_last_executable_quote():
+    result = simulate_zone_policy(
+        sell_spec(zone=(100, 105)),
+        ticks([(t(0), 100.0, 100.2), (t(2), 97.0, 97.2)]),
+        zone_policy_by_id("one_first_touch"),
+        horizon_at=t(2),
+    )
+
+    leg = result["filled_legs"][0]
+    assert leg["close_reason"] == "horizon_close"
+    assert leg["close_price"] == 97.2
+    assert leg["exit_quote_side"] == "ask"
+    assert leg["price_delta"] == 2.8

@@ -9,7 +9,11 @@ import numpy as np
 import pandas as pd
 
 from provider_zone_spec import ProviderZoneSpec, ZoneState
-from simulation_oracle import PreparedTickWindow, prepare_tick_window
+from simulation_oracle import (
+    PreparedTickWindow,
+    prepare_tick_window,
+    replay_first_close,
+)
 from zone_entry_policies import ZoneEntryPolicy
 
 
@@ -77,6 +81,14 @@ def _base_row(
         "planned_volume": policy.total_planned_volume,
         "filled_volume": 0.0,
         "average_fill_price": None,
+        "result_unit": "xauusd_price_lots",
+        "strategy_value": None,
+        "money_status": "not_applicable" if status == "blocked" else "unverified",
+        "strategy_pnl": None,
+        "pnl_currency": None,
+        "profit_currency_pnl": None,
+        "money_blockers": [],
+        "basket_excursions": None,
         "zone_diagnostics": {
             "touched": False,
             "first_touch_utc": None,
@@ -254,6 +266,235 @@ def _zone_diagnostics(
     }
 
 
+def _provider_level_events(
+    states: tuple[ZoneState, ...],
+    leg_index: int,
+) -> tuple[list[dict], list[dict]]:
+    sl_events: list[dict] = []
+    tp_events: list[dict] = []
+    previous_sl: float | None = None
+    previous_tp: float | None = None
+    for state in states:
+        if state.sl != previous_sl:
+            sl_events.append({
+                "ts": state.observed_utc,
+                "level": state.sl,
+                "source": "provider_zone_state",
+            })
+            previous_sl = state.sl
+        target = state.tps[min(leg_index, len(state.tps) - 1)]
+        if target != previous_tp:
+            tp_events.append({
+                "ts": state.observed_utc,
+                "level": target,
+                "source": "provider_zone_state",
+            })
+            previous_tp = target
+    return sl_events, tp_events
+
+
+def _directional_delta(
+    direction: str,
+    open_price: float,
+    close_price: float,
+) -> float:
+    if direction == "BUY":
+        return close_price - open_price
+    return open_price - close_price
+
+
+def _basket_excursions(
+    direction: str,
+    legs: list[dict],
+    prepared: PreparedTickWindow,
+    realized_value: float,
+) -> dict | None:
+    if not legs:
+        return None
+    opened = [_utc(leg.get("open_time_utc")) for leg in legs]
+    closed = [_utc(leg.get("close_time_utc")) for leg in legs]
+    if any(value is None for value in (*opened, *closed)):
+        return None
+    opened_values = [value for value in opened if value is not None]
+    closed_values = [value for value in closed if value is not None]
+    first_open = min(opened_values)
+    last_close = max(closed_values)
+    start, stop = _segment_bounds(
+        prepared,
+        first_open,
+        last_close,
+        include_stop=True,
+    )
+    if start >= stop:
+        return None
+    quote_values = prepared.bid if direction == "BUY" else prepared.ask
+    floating = np.zeros(stop - start, dtype=float)
+    times = prepared.times_ns[start:stop]
+    for leg in legs:
+        leg_open = _utc(leg["open_time_utc"])
+        leg_close = _utc(leg["close_time_utc"])
+        if leg_open is None or leg_close is None:
+            continue
+        active = (
+            (times >= pd.Timestamp(leg_open).value)
+            & (times <= pd.Timestamp(leg_close).value)
+        )
+        if not np.any(active):
+            continue
+        open_price = float(leg["open_price"])
+        volume = float(leg["volume"])
+        if direction == "BUY":
+            values = (quote_values[start:stop] - open_price) * volume
+        else:
+            values = (open_price - quote_values[start:stop]) * volume
+        floating += np.where(active, values, 0.0)
+    maximum_favorable = float(np.max(floating))
+    maximum_adverse = float(np.min(floating))
+    return {
+        "maximum_favorable_price_lots": round(maximum_favorable, 8),
+        "maximum_adverse_price_lots": round(maximum_adverse, 8),
+        "giveback_price_lots": round(
+            max(0.0, maximum_favorable - realized_value),
+            8,
+        ),
+        "holding_time_ms": int(round(
+            (last_close - first_open).total_seconds() * 1000
+        )),
+        "first_open_utc": first_open.isoformat(),
+        "last_close_utc": last_close.isoformat(),
+    }
+
+
+def _apply_exits_and_money(
+    row: dict,
+    spec: ProviderZoneSpec,
+    policy: ZoneEntryPolicy,
+    prepared: PreparedTickWindow,
+    horizon: datetime,
+    tick_size: float,
+    money_converter,
+) -> dict:
+    if not row["filled_legs"]:
+        row["strategy_value"] = 0.0
+        row["money_status"] = (
+            "verified_no_fill" if money_converter is not None else "unverified"
+        )
+        if money_converter is not None:
+            row["strategy_pnl"] = 0.0
+            row["profit_currency_pnl"] = 0.0
+            row["pnl_currency"] = str(money_converter.currency)
+        return row
+
+    direction = spec.ready_states[0].direction
+    exit_blockers: list[str] = []
+    money_blockers: list[str] = []
+    money_values: list[float] = []
+    profit_currency_values: list[float] = []
+    priced_legs: list[dict] = []
+    for leg in row["filled_legs"]:
+        sl_events, tp_events = _provider_level_events(
+            spec.ready_states,
+            int(leg["leg_index"]),
+        )
+        close = replay_first_close(
+            direction=direction,
+            opened_at=_utc(leg["open_time_utc"]),
+            open_price=leg["open_price"],
+            ticks=prepared,
+            sl_events=sl_events,
+            tp_events=tp_events,
+            horizon_at=horizon,
+            tick_size=tick_size,
+        )
+        priced = dict(leg)
+        if close.get("status") != "simulated":
+            blockers = close.get("blockers") or ["unpriced_zone_leg"]
+            priced["close_status"] = "blocked"
+            priced["blockers"] = list(blockers)
+            exit_blockers.extend(
+                f"leg_{leg['leg_index']}:{blocker}" for blocker in blockers
+            )
+            priced_legs.append(priced)
+            continue
+        close_price = float(close["close_price"])
+        price_delta = _directional_delta(
+            direction,
+            float(leg["open_price"]),
+            close_price,
+        )
+        strategy_value = price_delta * float(leg["volume"])
+        priced.update({
+            "close_status": "simulated",
+            "close_reason": close["close_reason"],
+            "close_time_utc": close["close_time_utc"],
+            "close_price": close_price,
+            "trigger_level": close.get("trigger_level"),
+            "exit_quote_side": close["quote_side"],
+            "exit_touch_price": close["touch_price"],
+            "exit_touch_bid": close["touch_bid"],
+            "exit_touch_ask": close["touch_ask"],
+            "exit_touch_source_index": close["touch_source_index"],
+            "price_delta": round(price_delta, 8),
+            "strategy_value": round(strategy_value, 8),
+            "blockers": [],
+        })
+        if money_converter is None:
+            priced["money"] = None
+        else:
+            money = money_converter.convert_leg(
+                direction=direction,
+                open_price=leg["open_price"],
+                close_price=close_price,
+                volume=leg["volume"],
+                open_time_utc=leg["open_time_utc"],
+                close_time_utc=close["close_time_utc"],
+            )
+            priced["money"] = money
+            if money.get("status") == "verified":
+                money_values.append(float(money["strategy_pnl"]))
+                if money.get("profit_currency_pnl") is not None:
+                    profit_currency_values.append(
+                        float(money["profit_currency_pnl"])
+                    )
+            else:
+                money_blockers.extend(money.get("blockers") or [])
+        priced_legs.append(priced)
+
+    row["filled_legs"] = priced_legs
+    if exit_blockers:
+        row["status"] = "blocked"
+        row["blockers"] = _stable_strings((*row["blockers"], *exit_blockers))
+        row["money_status"] = "not_applicable"
+        return row
+
+    strategy_value = round(sum(
+        float(leg["strategy_value"]) for leg in priced_legs
+    ), 8)
+    row["strategy_value"] = strategy_value
+    row["basket_excursions"] = _basket_excursions(
+        direction,
+        priced_legs,
+        prepared,
+        strategy_value,
+    )
+    if money_converter is None:
+        row["money_status"] = "unverified"
+        return row
+    row["pnl_currency"] = str(money_converter.currency)
+    if money_blockers:
+        row["money_status"] = "blocked"
+        row["money_blockers"] = _stable_strings(money_blockers)
+        return row
+    digits = int(getattr(money_converter, "currency_digits", 2))
+    row["money_status"] = "verified"
+    row["strategy_pnl"] = round(sum(money_values), digits)
+    row["profit_currency_pnl"] = round(
+        sum(profit_currency_values),
+        8,
+    )
+    return row
+
+
 def simulate_zone_policy(
     spec: ProviderZoneSpec,
     ticks: pd.DataFrame | PreparedTickWindow,
@@ -263,7 +504,6 @@ def simulate_zone_policy(
     tick_size: float = 0.01,
     money_converter=None,
 ) -> dict:
-    del money_converter
     row = _base_row(spec, policy, status="blocked")
     if spec.blockers:
         row["blockers"] = list(spec.blockers)
@@ -313,7 +553,15 @@ def simulate_zone_policy(
     )
     if not states:
         row["status"] = "unfilled"
-        return row
+        return _apply_exits_and_money(
+            row,
+            spec,
+            policy,
+            prepared,
+            horizon,
+            tick_size,
+            money_converter,
+        )
     filled: dict[int, dict] = {}
     planned_levels: dict[int, float] = {}
     market_triggered = False
@@ -477,7 +725,15 @@ def simulate_zone_policy(
         "filled_legs": filled_legs,
         "unfilled_legs": unfilled_legs,
     })
-    return row
+    return _apply_exits_and_money(
+        row,
+        spec,
+        policy,
+        prepared,
+        horizon,
+        tick_size,
+        money_converter,
+    )
 
 
 __all__ = ["DEPTH_AUDIT_FRACTIONS", "simulate_zone_policy"]
