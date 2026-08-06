@@ -111,6 +111,9 @@ def test_farm_emits_one_row_per_plan_and_policy_even_when_blocked():
 
     assert len(report["rows"]) == 4
     assert report["scope"]["zone_plans"] == 2
+    assert report["scope"]["complete_zone_plans"] == 1
+    assert report["scope"]["incomplete_zone_plans"] == 1
+    assert report["scope"]["tick_valid_complete_zone_plans"] == 1
     assert report["scope"]["policy_count"] == 2
     assert report["summary"]["blocked_rows"] == 2
     assert report["audit_summary"]["disagreements"] == 0
@@ -188,10 +191,13 @@ def test_observed_baseline_validation_uses_all_execution_fills():
 def test_policy_metrics_calculate_money_drawdown_and_profit_factor():
     metrics = calculate_zone_policy_metrics([
         {"status": "filled", "money_status": "verified", "strategy_pnl": 10.0,
+         "planned_volume": 0.05,
          "provider_signal_id": "a", "ready_at_utc": t(0).isoformat()},
         {"status": "filled", "money_status": "verified", "strategy_pnl": -15.0,
+         "planned_volume": 0.05,
          "provider_signal_id": "b", "ready_at_utc": t(1).isoformat()},
         {"status": "filled", "money_status": "verified", "strategy_pnl": 5.0,
+         "planned_volume": 0.05,
          "provider_signal_id": "c", "ready_at_utc": t(2).isoformat()},
     ])
 
@@ -200,6 +206,25 @@ def test_policy_metrics_calculate_money_drawdown_and_profit_factor():
     assert metrics["worst_basket"] == -15.0
     assert metrics["profit_factor"] == 1.0
     assert metrics["expectancy_per_verified_plan"] == 0.0
+    assert metrics["risk_normalized_net_pnl"] == 0.0
+    assert metrics["risk_normalized_maximum_drawdown"] == 15.0
+
+
+def test_policy_metrics_normalize_smaller_policies_to_equal_planned_risk():
+    metrics = calculate_zone_policy_metrics([
+        {"status": "filled", "money_status": "verified", "strategy_pnl": 2.0,
+         "planned_volume": 0.01,
+         "provider_signal_id": "a", "ready_at_utc": t(0).isoformat()},
+        {"status": "filled", "money_status": "verified", "strategy_pnl": -1.0,
+         "planned_volume": 0.01,
+         "provider_signal_id": "b", "ready_at_utc": t(1).isoformat()},
+    ])
+
+    assert metrics["verified_net_pnl"] == 1.0
+    assert metrics["risk_reference_volume"] == 0.05
+    assert metrics["policy_planned_volume"] == 0.01
+    assert metrics["risk_normalized_net_pnl"] == 5.0
+    assert metrics["risk_normalized_maximum_drawdown"] == 5.0
 
 
 def test_farm_is_deterministic_and_contains_no_live_execution_imports():

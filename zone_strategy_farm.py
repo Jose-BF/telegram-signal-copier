@@ -25,6 +25,7 @@ from zone_fill_auditor import audit_zone_depths
 
 SCHEMA_VERSION = 1
 BASELINE_POLICY_ID = "all_first_touch_live"
+RISK_REFERENCE_VOLUME = 0.05
 
 
 def _utc(value: object) -> datetime | None:
@@ -197,6 +198,17 @@ def _maximum_drawdown(values: Sequence[float]) -> float:
     return round(maximum, 2)
 
 
+def _risk_normalized_pnl(row: Mapping[str, object]) -> float | None:
+    try:
+        value = float(row["strategy_pnl"])
+        planned_volume = float(row["planned_volume"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not isfinite(value) or not isfinite(planned_volume) or planned_volume <= 0:
+        return None
+    return value * RISK_REFERENCE_VOLUME / planned_volume
+
+
 def calculate_zone_policy_metrics(rows: Iterable[Mapping[str, object]]) -> dict:
     ordered = sorted(
         list(rows),
@@ -212,6 +224,18 @@ def calculate_zone_policy_metrics(rows: Iterable[Mapping[str, object]]) -> dict:
         and row.get("strategy_pnl") is not None
     ]
     values = [float(row["strategy_pnl"]) for row in verified]
+    normalized_values = [_risk_normalized_pnl(row) for row in verified]
+    normalization_complete = bool(verified) and all(
+        value is not None for value in normalized_values
+    )
+    normalized = [
+        float(value) for value in normalized_values if value is not None
+    ]
+    planned_volumes = sorted({
+        round(float(row["planned_volume"]), 8)
+        for row in verified
+        if _risk_normalized_pnl(row) is not None
+    })
     positive = sum(value for value in values if value > 0)
     negative = abs(sum(value for value in values if value < 0))
     days: dict[str, float] = defaultdict(float)
@@ -229,6 +253,12 @@ def calculate_zone_policy_metrics(rows: Iterable[Mapping[str, object]]) -> dict:
                 depth_counts[key] += 1
     net = round(sum(values), 2)
     drawdown = _maximum_drawdown(values)
+    normalized_net = (
+        round(sum(normalized), 2) if normalization_complete else None
+    )
+    normalized_drawdown = (
+        _maximum_drawdown(normalized) if normalization_complete else None
+    )
     return {
         "plans": len(ordered),
         "filled_plans": sum(row.get("status") == "filled" for row in ordered),
@@ -254,9 +284,31 @@ def calculate_zone_policy_metrics(rows: Iterable[Mapping[str, object]]) -> dict:
         "return_over_drawdown": (
             round(net / drawdown, 4) if drawdown > 0 else None
         ),
+        "risk_reference_volume": RISK_REFERENCE_VOLUME,
+        "policy_planned_volume": (
+            planned_volumes[0] if len(planned_volumes) == 1 else None
+        ),
+        "risk_normalization_complete": normalization_complete,
+        "risk_normalized_net_pnl": normalized_net,
+        "risk_normalized_expectancy_per_verified_plan": (
+            round(normalized_net / len(verified), 4)
+            if normalized_net is not None and verified
+            else None
+        ),
+        "risk_normalized_maximum_drawdown": normalized_drawdown,
+        "risk_normalized_return_over_drawdown": (
+            round(normalized_net / normalized_drawdown, 4)
+            if (
+                normalized_net is not None
+                and normalized_drawdown is not None
+                and normalized_drawdown > 0
+            )
+            else None
+        ),
         "depth_touch_counts": depth_counts,
         "ranking_eligible": (
             len(verified) == len(ordered)
+            and normalization_complete
             and not any(row.get("status") == "blocked" for row in ordered)
         ),
     }
@@ -329,8 +381,15 @@ def build_zone_farm_report(
     rows: list[dict] = []
     audit_disagreements: list[dict] = []
     baseline_proofs: list[dict] = []
+    complete_plans = 0
+    incomplete_plans = 0
+    tick_valid_complete_plans = 0
     for record in records:
         spec = build_zone_trade_spec(record)
+        if spec.entry_ready:
+            complete_plans += 1
+        else:
+            incomplete_plans += 1
         day = spec.ready_at_utc.date() if spec.ready_at_utc else _record_day(record)
         if day is None:
             for policy in policy_catalog:
@@ -366,6 +425,7 @@ def build_zone_farm_report(
                     day,
                 ))
             continue
+        tick_valid_complete_plans += 1
         horizon = pd.to_datetime(ticks["time_utc"], utc=True).max().to_pydatetime()
         tick_offset = (
             tick_evidence.get("utc_offset_seconds")
@@ -446,6 +506,11 @@ def build_zone_farm_report(
                 - float(baseline_rows[signal_id]["strategy_pnl"])
                 for signal_id in shared
             ), 2),
+            "risk_normalized_pnl_delta": round(sum(
+                float(_risk_normalized_pnl(policy_rows[signal_id]) or 0.0)
+                - float(_risk_normalized_pnl(baseline_rows[signal_id]) or 0.0)
+                for signal_id in shared
+            ), 2),
         }
 
     blocked_rows = sum(row.get("status") == "blocked" for row in rows)
@@ -457,12 +522,15 @@ def build_zone_farm_report(
     verified_candidates = [
         (policy_id, metrics)
         for policy_id, metrics in policy_summaries.items()
-        if metrics["verified_money_plans"] > 0
+        if (
+            metrics["verified_money_plans"] > 0
+            and metrics["risk_normalized_net_pnl"] is not None
+        )
     ]
     best_subset = (
         max(
             verified_candidates,
-            key=lambda item: item[1]["verified_net_pnl"],
+            key=lambda item: item[1]["risk_normalized_net_pnl"],
         )[0]
         if verified_candidates
         else None
@@ -475,6 +543,9 @@ def build_zone_farm_report(
             "since": since_day.isoformat() if since_day else None,
             "until": until_day.isoformat() if until_day else None,
             "zone_plans": len(records),
+            "complete_zone_plans": complete_plans,
+            "incomplete_zone_plans": incomplete_plans,
+            "tick_valid_complete_zone_plans": tick_valid_complete_plans,
             "policy_count": len(policy_catalog),
             "expected_rows": len(records) * len(policy_catalog),
         },
