@@ -482,9 +482,124 @@ def calculate_zone_policy_metrics(rows: Iterable[Mapping[str, object]]) -> dict:
     positive = sum(value for value in values if value > 0)
     negative = abs(sum(value for value in values if value < 0))
     days: dict[str, float] = defaultdict(float)
+    daily_buckets: dict[str, dict[str, object]] = {}
+    leg_buckets: dict[int, dict[str, object]] = {}
     for row, value in zip(verified, values, strict=True):
         day = str(row.get("signal_date") or "unknown")
         days[day] += value
+        normalized_value = _risk_normalized_pnl(row)
+        daily = daily_buckets.setdefault(day, {
+            "verified_plans": 0,
+            "filled_plans": 0,
+            "verified_net_pnl": 0.0,
+            "risk_normalized_net_pnl": 0.0,
+            "normalization_complete": True,
+        })
+        daily["verified_plans"] = int(daily["verified_plans"]) + 1
+        daily["filled_plans"] = int(daily["filled_plans"]) + int(
+            row.get("status") == "filled"
+        )
+        daily["verified_net_pnl"] = (
+            float(daily["verified_net_pnl"]) + value
+        )
+        if normalized_value is None:
+            daily["normalization_complete"] = False
+        else:
+            daily["risk_normalized_net_pnl"] = (
+                float(daily["risk_normalized_net_pnl"])
+                + normalized_value
+            )
+
+        planned_legs: dict[int, Mapping[str, object]] = {}
+        for leg in (
+            *(row.get("unfilled_legs") or []),
+            *(row.get("filled_legs") or []),
+        ):
+            if not isinstance(leg, Mapping):
+                continue
+            try:
+                leg_index = int(leg["leg_index"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            planned_legs[leg_index] = leg
+        for leg_index, leg in planned_legs.items():
+            bucket = leg_buckets.setdefault(leg_index, {
+                "depth_fraction": float(leg.get("depth_fraction") or 0.0),
+                "planned_occurrences": 0,
+                "filled_occurrences": 0,
+                "verified_net_pnl": 0.0,
+                "risk_normalized_net_pnl": 0.0,
+                "normalization_complete": True,
+            })
+            bucket["planned_occurrences"] = (
+                int(bucket["planned_occurrences"]) + 1
+            )
+        for leg in row.get("filled_legs") or []:
+            if not isinstance(leg, Mapping):
+                continue
+            money = leg.get("money")
+            if not isinstance(money, Mapping) or money.get("status") != "verified":
+                continue
+            try:
+                leg_index = int(leg["leg_index"])
+                leg_pnl = float(money["strategy_pnl"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if not isfinite(leg_pnl):
+                continue
+            bucket = leg_buckets[leg_index]
+            bucket["filled_occurrences"] = (
+                int(bucket["filled_occurrences"]) + 1
+            )
+            bucket["verified_net_pnl"] = (
+                float(bucket["verified_net_pnl"]) + leg_pnl
+            )
+            try:
+                planned_volume = float(row["planned_volume"])
+            except (KeyError, TypeError, ValueError):
+                planned_volume = 0.0
+            if not isfinite(planned_volume) or planned_volume <= 0:
+                bucket["normalization_complete"] = False
+            else:
+                bucket["risk_normalized_net_pnl"] = (
+                    float(bucket["risk_normalized_net_pnl"])
+                    + leg_pnl * RISK_REFERENCE_VOLUME / planned_volume
+                )
+    daily_results = [
+        {
+            "signal_date": day,
+            "verified_plans": int(bucket["verified_plans"]),
+            "filled_plans": int(bucket["filled_plans"]),
+            "verified_net_pnl": round(float(bucket["verified_net_pnl"]), 2),
+            "risk_normalized_net_pnl": (
+                round(float(bucket["risk_normalized_net_pnl"]), 2)
+                if bucket["normalization_complete"]
+                else None
+            ),
+        }
+        for day, bucket in sorted(daily_buckets.items())
+    ]
+    leg_contributions = []
+    for leg_index, bucket in sorted(leg_buckets.items()):
+        planned_occurrences = int(bucket["planned_occurrences"])
+        filled_occurrences = int(bucket["filled_occurrences"])
+        leg_contributions.append({
+            "leg_index": leg_index,
+            "depth_fraction": float(bucket["depth_fraction"]),
+            "planned_occurrences": planned_occurrences,
+            "filled_occurrences": filled_occurrences,
+            "fill_rate": (
+                round(filled_occurrences / planned_occurrences, 4)
+                if planned_occurrences
+                else None
+            ),
+            "verified_net_pnl": round(float(bucket["verified_net_pnl"]), 2),
+            "risk_normalized_net_pnl": (
+                round(float(bucket["risk_normalized_net_pnl"]), 2)
+                if bucket["normalization_complete"]
+                else None
+            ),
+        })
     depth_counts = {str(depth): 0 for depth in DEPTH_AUDIT_FRACTIONS}
     for row in ordered:
         diagnostics = row.get("zone_diagnostics")
@@ -548,6 +663,8 @@ def calculate_zone_policy_metrics(rows: Iterable[Mapping[str, object]]) -> dict:
             )
             else None
         ),
+        "daily_results": daily_results,
+        "leg_contributions": leg_contributions,
         "depth_touch_counts": depth_counts,
         "ranking_eligible": (
             len(verified) == len(ordered)

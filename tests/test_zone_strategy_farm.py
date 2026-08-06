@@ -385,6 +385,91 @@ def test_policy_metrics_normalize_smaller_policies_to_equal_planned_risk():
     assert metrics["risk_normalized_maximum_drawdown"] == 5.0
 
 
+def test_policy_metrics_publish_reproducible_daily_and_leg_contributions():
+    metrics = calculate_zone_policy_metrics([
+        {
+            "status": "filled",
+            "money_status": "verified",
+            "strategy_pnl": 3.0,
+            "planned_volume": 0.05,
+            "planned_leg_count": 2,
+            "signal_date": "2026-08-04",
+            "provider_signal_id": "a",
+            "ready_at_utc": t(0).isoformat(),
+            "filled_legs": [
+                {
+                    "leg_index": 0,
+                    "depth_fraction": 0.0,
+                    "money": {"status": "verified", "strategy_pnl": 5.0},
+                },
+                {
+                    "leg_index": 1,
+                    "depth_fraction": 1.0,
+                    "money": {"status": "verified", "strategy_pnl": -2.0},
+                },
+            ],
+            "unfilled_legs": [],
+        },
+        {
+            "status": "filled",
+            "money_status": "verified",
+            "strategy_pnl": -1.0,
+            "planned_volume": 0.05,
+            "planned_leg_count": 2,
+            "signal_date": "2026-08-05",
+            "provider_signal_id": "b",
+            "ready_at_utc": t(1).isoformat(),
+            "filled_legs": [
+                {
+                    "leg_index": 0,
+                    "depth_fraction": 0.0,
+                    "money": {"status": "verified", "strategy_pnl": -1.0},
+                },
+            ],
+            "unfilled_legs": [
+                {"leg_index": 1, "depth_fraction": 1.0},
+            ],
+        },
+    ])
+
+    assert metrics["daily_results"] == [
+        {
+            "signal_date": "2026-08-04",
+            "verified_plans": 1,
+            "filled_plans": 1,
+            "verified_net_pnl": 3.0,
+            "risk_normalized_net_pnl": 3.0,
+        },
+        {
+            "signal_date": "2026-08-05",
+            "verified_plans": 1,
+            "filled_plans": 1,
+            "verified_net_pnl": -1.0,
+            "risk_normalized_net_pnl": -1.0,
+        },
+    ]
+    assert metrics["leg_contributions"] == [
+        {
+            "leg_index": 0,
+            "depth_fraction": 0.0,
+            "planned_occurrences": 2,
+            "filled_occurrences": 2,
+            "fill_rate": 1.0,
+            "verified_net_pnl": 4.0,
+            "risk_normalized_net_pnl": 4.0,
+        },
+        {
+            "leg_index": 1,
+            "depth_fraction": 1.0,
+            "planned_occurrences": 2,
+            "filled_occurrences": 1,
+            "fill_rate": 0.5,
+            "verified_net_pnl": -2.0,
+            "risk_normalized_net_pnl": -2.0,
+        },
+    ]
+
+
 def test_farm_is_deterministic_and_contains_no_live_execution_imports():
     catalog = {"schema_version": 7, "signals": [zone_record()]}
     tick_source = FakeTickSource(pd.DataFrame([
