@@ -200,6 +200,26 @@ def _frozen_sorted_rows(
     )
 
 
+def _frozen_execution_batches(
+    value: object,
+    blockers: list[str],
+) -> tuple[FrozenRow, ...]:
+    ordered: list[tuple[datetime, int, Mapping[str, object]]] = []
+    for index, row in enumerate(_rows(value, "execution_batches")):
+        observed = _parse_utc(
+            row.get("signal_received_utc") or row.get("first_fill_utc")
+        )
+        if observed is None:
+            blockers.append(f"invalid_execution_batch_time:{index}")
+            continue
+        ordered.append((observed, index, row))
+    ordered.sort(key=lambda item: (item[0], item[1]))
+    return tuple(
+        _deep_freeze(row)  # type: ignore[arg-type]
+        for _observed, _index, row in ordered
+    )
+
+
 def build_zone_trade_spec(record: Mapping[str, object]) -> ProviderZoneSpec:
     if record.get("record_type") != "zone_plan":
         raise ValueError("build_zone_trade_spec accepts only zone_plan records")
@@ -346,11 +366,11 @@ def build_zone_trade_spec(record: Mapping[str, object]) -> ProviderZoneSpec:
         "management_events",
         blockers,
     )
-    execution_batches = _frozen_sorted_rows(
-        record.get("execution_batches"),
-        "execution_batches",
-        blockers,
-    ) if record.get("execution_batches") else ()
+    execution_batches = (
+        _frozen_execution_batches(record.get("execution_batches"), blockers)
+        if record.get("execution_batches")
+        else ()
+    )
     return ProviderZoneSpec(
         provider_signal_id=str(record.get("provider_signal_id") or ""),
         channel=str(record.get("channel") or ""),

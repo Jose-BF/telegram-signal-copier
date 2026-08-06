@@ -159,3 +159,27 @@ def test_adapter_rejects_non_zone_records():
 
     with pytest.raises(ValueError, match="zone_plan"):
         build_zone_trade_spec(record)
+
+
+def test_execution_batch_uses_signal_received_time_not_management_time():
+    record = zone_record(
+        ranges=[event("10:00:00", range=[100, 105])],
+        levels=[event("10:00:00", tps=[110], sl=95)],
+    )
+    record["execution_batches"] = [{
+        "execution_batch_id": "canal2_9000#exec1",
+        "signal_received_utc": utc("10:01:00").isoformat(),
+        "first_fill_utc": utc("10:01:01").isoformat(),
+        "fills": [{
+            "observed_utc": utc("10:01:01").isoformat(),
+            "price": 104.9,
+        }],
+    }]
+
+    spec = build_zone_trade_spec(record)
+
+    assert spec.blockers == ()
+    assert len(spec.execution_batches) == 1
+    assert spec.execution_batches[0]["execution_batch_id"] == (
+        "canal2_9000#exec1"
+    )
