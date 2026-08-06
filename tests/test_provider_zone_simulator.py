@@ -161,7 +161,7 @@ def test_market_legs_use_first_touch_then_declared_spacing():
     result = simulate_zone_policy(
         buy_spec(zone=(100, 105)),
         frame,
-        zone_policy_by_id("all_first_touch_live"),
+        zone_policy_by_id("current_live_zone_trigger"),
         horizon_at=t(2),
     )
 
@@ -222,12 +222,73 @@ def test_live_baseline_keeps_waiting_after_provider_progress():
     result = simulate_zone_policy(
         spec,
         frame,
-        zone_policy_by_id("all_first_touch_live"),
+        zone_policy_by_id("current_live_zone_trigger"),
         horizon_at=t(4),
     )
 
     assert result["fill_cutoff_reason"] == "session_end"
     assert result["filled_leg_count"] == 5
+
+
+def test_current_live_trigger_uses_active_before_later_zone_touch():
+    spec = buy_spec(
+        zone=(100, 105),
+        management_events=[management(t(1), None, "Active")],
+    )
+    frame = ticks([
+        (t(0), 106.0, 106.2),
+        (t(1), 106.1, 106.3),
+        (t(1.125), 106.2, 106.4),
+        (t(1.250), 106.3, 106.5),
+        (t(1.375), 106.4, 106.6),
+        (t(1.500), 106.5, 106.7),
+        (t(3), 104.8, 105.0),
+    ])
+
+    result = simulate_zone_policy(
+        spec,
+        frame,
+        zone_policy_by_id("current_live_zone_trigger"),
+        horizon_at=t(3),
+    )
+
+    assert result["entry_trigger_kind"] == "provider_active"
+    assert result["entry_trigger_utc"] == t(1).isoformat()
+    assert result["filled_legs"][0]["open_time_utc"] == t(1).isoformat()
+
+
+def test_first_touch_policy_ignores_earlier_active_message():
+    spec = buy_spec(
+        zone=(100, 105),
+        management_events=[management(t(1), None, "Active")],
+    )
+    frame = ticks([
+        (t(0), 106.0, 106.2),
+        (t(1), 106.1, 106.3),
+        (t(3), 104.8, 105.0),
+    ])
+
+    result = simulate_zone_policy(
+        spec,
+        frame,
+        zone_policy_by_id("one_first_touch"),
+        horizon_at=t(3),
+    )
+
+    assert result["entry_trigger_kind"] == "zone_touch"
+    assert result["entry_trigger_utc"] == t(3).isoformat()
+
+
+def test_provider_active_policy_does_not_invent_missing_activation():
+    result = simulate_zone_policy(
+        buy_spec(zone=(100, 105)),
+        ticks([(t(0), 104.8, 105.0)]),
+        zone_policy_by_id("one_provider_active"),
+        horizon_at=t(1),
+    )
+
+    assert result["status"] == "unfilled"
+    assert result["entry_trigger_kind"] is None
 
 
 def test_unfilled_levels_reprice_after_causal_zone_revision():

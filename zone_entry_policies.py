@@ -6,6 +6,11 @@ from math import isfinite
 
 SUPPORTED_ORDER_MODES = {"market", "limit"}
 SUPPORTED_EXPIRY_MODES = {"session_end", "provider_progress"}
+SUPPORTED_TRIGGER_MODES = {
+    "zone_touch",
+    "provider_active",
+    "zone_touch_or_active",
+}
 MAX_PLANNED_VOLUME = 0.05
 
 
@@ -16,6 +21,7 @@ class ZoneEntryPolicy:
     volumes: tuple[float, ...]
     order_modes: tuple[str, ...]
     expiry_mode: str
+    trigger_mode: str = "zone_touch"
     activation_latency_ms: int = 0
     market_leg_spacing_ms: int = 125
 
@@ -43,6 +49,8 @@ class ZoneEntryPolicy:
             raise ValueError("unsupported entry order mode")
         if self.expiry_mode not in SUPPORTED_EXPIRY_MODES:
             raise ValueError("unsupported entry expiry mode")
+        if self.trigger_mode not in SUPPORTED_TRIGGER_MODES:
+            raise ValueError("unsupported entry trigger mode")
         if self.activation_latency_ms < 0 or self.market_leg_spacing_ms < 0:
             raise ValueError("entry timing values cannot be negative")
 
@@ -54,11 +62,12 @@ class ZoneEntryPolicy:
 def default_zone_entry_policies() -> tuple[ZoneEntryPolicy, ...]:
     return (
         ZoneEntryPolicy(
-            "all_first_touch_live",
+            "current_live_zone_trigger",
             (0.0, 0.0, 0.0, 0.0, 0.0),
             (0.01,) * 5,
             ("market",) * 5,
             "session_end",
+            "zone_touch_or_active",
         ),
         ZoneEntryPolicy(
             "all_first_touch_causal_expiry",
@@ -68,11 +77,27 @@ def default_zone_entry_policies() -> tuple[ZoneEntryPolicy, ...]:
             "provider_progress",
         ),
         ZoneEntryPolicy(
+            "all_provider_active",
+            (0.0, 0.0, 0.0, 0.0, 0.0),
+            (0.01,) * 5,
+            ("market",) * 5,
+            "provider_progress",
+            "provider_active",
+        ),
+        ZoneEntryPolicy(
             "one_first_touch",
             (0.0,),
             (0.01,),
             ("market",),
             "provider_progress",
+        ),
+        ZoneEntryPolicy(
+            "one_provider_active",
+            (0.0,),
+            (0.01,),
+            ("market",),
+            "provider_progress",
+            "provider_active",
         ),
         ZoneEntryPolicy(
             "one_plus_four_equal",

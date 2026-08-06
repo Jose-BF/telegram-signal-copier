@@ -8,6 +8,7 @@ from typing import Iterable
 import numpy as np
 import pandas as pd
 
+from canal2_zone_lifecycle import classify_followup
 from provider_zone_spec import ProviderZoneSpec, ZoneState
 from simulation_oracle import (
     PreparedTickWindow,
@@ -76,6 +77,9 @@ def _base_row(
         "source_sha256": spec.source_sha256,
         "fill_cutoff_utc": None,
         "fill_cutoff_reason": None,
+        "entry_trigger_mode": policy.trigger_mode,
+        "entry_trigger_kind": None,
+        "entry_trigger_utc": None,
         "planned_leg_count": len(policy.depth_fractions),
         "filled_leg_count": 0,
         "planned_volume": policy.total_planned_volume,
@@ -128,6 +132,22 @@ def _fill_cutoff(
     candidates.sort(key=lambda item: item[0])
     observed, reason = candidates[0]
     return min(observed, horizon), reason
+
+
+def _provider_active_times(
+    spec: ProviderZoneSpec,
+    cutoff: datetime,
+) -> tuple[datetime, ...]:
+    active: list[datetime] = []
+    for event in spec.management_events:
+        observed = _utc(event.get("observed_ts_utc"))
+        if observed is None or observed > cutoff:
+            continue
+        action = str(event.get("classified_action") or "").upper()
+        lifecycle = classify_followup(str(event.get("text") or ""))
+        if action in {"ACTIVATE", "ACTIVATE_ZONE"} or "ACTIVATE" in lifecycle:
+            active.append(observed)
+    return tuple(sorted(set(active)))
 
 
 def _planned_level(state: ZoneState, depth_fraction: float) -> float:
@@ -575,6 +595,7 @@ def simulate_zone_policy(
     filled: dict[int, dict] = {}
     planned_levels: dict[int, float] = {}
     market_triggered = False
+    active_times = _provider_active_times(spec, cutoff)
     quote_values = (
         prepared.ask if states[0].direction == "BUY" else prepared.bid
     )
@@ -608,18 +629,51 @@ def simulate_zone_policy(
         if market_indices and not market_triggered:
             trigger_leg = market_indices[0]
             trigger_level = planned_levels[trigger_leg]
-            trigger_index = _first_crossing_index(
-                active_state.direction,
-                quote_values,
-                trigger_level,
-                segment_start,
-                segment_stop,
-            )
-            if trigger_index is not None:
+            candidates: list[tuple[datetime, int, str]] = []
+            if policy.trigger_mode in {"zone_touch", "zone_touch_or_active"}:
+                zone_index = _first_crossing_index(
+                    active_state.direction,
+                    quote_values,
+                    trigger_level,
+                    segment_start,
+                    segment_stop,
+                )
+                if zone_index is not None:
+                    candidates.append((
+                        _timestamp(prepared, zone_index),
+                        zone_index,
+                        "zone_touch",
+                    ))
+            if policy.trigger_mode in {
+                "provider_active",
+                "zone_touch_or_active",
+            }:
+                for active_at in active_times:
+                    if not start <= active_at <= stop:
+                        continue
+                    active_index = int(np.searchsorted(
+                        prepared.times_ns,
+                        pd.Timestamp(active_at).value,
+                        side="left",
+                    ))
+                    if segment_start <= active_index < segment_stop:
+                        candidates.append((
+                            active_at,
+                            active_index,
+                            "provider_active",
+                        ))
+                        break
+            if candidates:
+                trigger_time, trigger_index, trigger_kind = min(
+                    candidates,
+                    key=lambda item: (item[0], item[1], item[2]),
+                )
                 market_triggered = True
-                trigger_time = _timestamp(prepared, trigger_index)
+                row["entry_trigger_kind"] = trigger_kind
+                row["entry_trigger_utc"] = trigger_time.isoformat()
+                execution_time = _timestamp(prepared, trigger_index)
                 for market_order, leg_index in enumerate(market_indices):
-                    scheduled = trigger_time + timedelta(
+                    scheduled = execution_time + timedelta(
                         milliseconds=(
                             market_order * policy.market_leg_spacing_ms
                         )
@@ -660,6 +714,8 @@ def simulate_zone_policy(
                             prepared.source_indices[fill_index]
                         ),
                         "state_observed_utc": active_state.observed_utc.isoformat(),
+                        "entry_trigger_kind": trigger_kind,
+                        "entry_trigger_utc": trigger_time.isoformat(),
                     }
 
         for leg_index, mode in enumerate(policy.order_modes):

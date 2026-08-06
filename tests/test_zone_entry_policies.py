@@ -11,7 +11,7 @@ from zone_entry_policies import (
 def test_catalog_has_unique_bounded_policies():
     policies = default_zone_entry_policies()
 
-    assert len(policies) == 7
+    assert len(policies) == 9
     assert len({policy.policy_id for policy in policies}) == len(policies)
     assert all(policy.total_planned_volume <= 0.05 for policy in policies)
 
@@ -31,7 +31,7 @@ def test_one_plus_four_equal_spans_the_whole_zone():
     assert policy.expiry_mode == "provider_progress"
 
 
-def test_live_baseline_is_the_only_session_end_policy():
+def test_current_live_trigger_is_the_only_session_end_policy():
     policies = default_zone_entry_policies()
 
     session_end = [
@@ -39,7 +39,19 @@ def test_live_baseline_is_the_only_session_end_policy():
         for policy in policies
         if policy.expiry_mode == "session_end"
     ]
-    assert session_end == ["all_first_touch_live"]
+    assert session_end == ["current_live_zone_trigger"]
+    baseline = zone_policy_by_id("current_live_zone_trigger")
+    assert baseline.trigger_mode == "zone_touch_or_active"
+
+
+def test_provider_active_policies_are_explicit_and_risk_bounded():
+    all_active = zone_policy_by_id("all_provider_active")
+    one_active = zone_policy_by_id("one_provider_active")
+
+    assert all_active.trigger_mode == "provider_active"
+    assert all_active.total_planned_volume == 0.05
+    assert one_active.trigger_mode == "provider_active"
+    assert one_active.total_planned_volume == 0.01
 
 
 def test_mid_and_best_keeps_equal_total_risk_budget():
