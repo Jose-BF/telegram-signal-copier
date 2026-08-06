@@ -4,8 +4,10 @@ from pathlib import Path
 
 import pandas as pd
 
+from provider_zone_spec import build_zone_trade_spec
 from zone_entry_policies import zone_policy_by_id
 from zone_strategy_farm import (
+    audit_observed_zone_execution,
     build_zone_farm_report,
     calculate_zone_policy_metrics,
     validate_observed_baseline,
@@ -21,6 +23,10 @@ def t(seconds):
 
 def event(at, **values):
     return {"observed_ts_utc": at.isoformat(), **values}
+
+
+def management(at, action, text=""):
+    return event(at, classified_action=action, text=text)
 
 
 def zone_record(signal_id="canal2_9000", *, complete=True, execution=()):
@@ -163,6 +169,89 @@ def test_farm_passes_verified_tick_clock_to_money_conversion():
     assert converter.offsets == [10800]
 
 
+def test_farm_separates_observed_execution_from_modeled_policy_match():
+    trigger_server_msc = int((t(0.05) + timedelta(hours=3)).timestamp() * 1000)
+    execution = {
+        "execution_batch_id": "canal2_9000#exec1",
+        "signal_received_utc": t(0.2).isoformat(),
+        "entry_provenance": {
+            "source_kind": "zone_first_touch",
+            "zone_trigger_kind": "first_touch",
+            "zone_trigger_time_msc": trigger_server_msc,
+        },
+        "fills": [
+            {
+                "observed_utc": t(0.3 + index * 0.1).isoformat(),
+                "price": 104.95 - index * 0.01,
+            }
+            for index in range(5)
+        ],
+    }
+    catalog = {
+        "schema_version": 7,
+        "signals": [zone_record(execution=[execution])],
+    }
+    source = FakeTickSource(pd.DataFrame([
+        (t(0), 104.8, 105.0),
+        (t(0.3), 104.7, 104.9),
+        (t(0.4), 104.69, 104.89),
+        (t(0.5), 104.68, 104.88),
+        (t(0.6), 104.67, 104.87),
+        (t(0.7), 104.66, 104.86),
+        (t(1), 110.0, 110.2),
+    ], columns=["time_utc", "bid", "ask"]))
+
+    report = build_zone_farm_report(
+        catalog,
+        source,
+        policies=(zone_policy_by_id("one_first_touch"),),
+        money_converter=FakeMoneyConverter(),
+        since="2026-08-04",
+        until="2026-08-04",
+    )
+
+    assert report["observed_execution_summary"]["proofs"] == 1
+    assert report["observed_execution_summary"]["verified"] == 1
+    assert report["modeled_baseline_summary"]["proofs"] == 0
+
+
+def test_farm_keeps_observed_mt5_result_separate_from_modeled_pnl():
+    catalog = {"schema_version": 7, "signals": [zone_record()]}
+    source = FakeTickSource(pd.DataFrame([
+        (t(0), 104.8, 105.0),
+        (t(1), 110.0, 110.2),
+    ], columns=["time_utc", "bid", "ask"]))
+
+    report = build_zone_farm_report(
+        catalog,
+        source,
+        policies=(zone_policy_by_id("one_first_touch"),),
+        money_converter=FakeMoneyConverter(),
+        observed_trades=[{
+            "sig_id": "canal2_9000",
+            "status": "closed",
+            "pnl_real_mt5": -3.25,
+            "pnl_mt5_complete": True,
+            "reconciled_ok": True,
+            "analysis_excluded": False,
+            "tickets": [{"ticket": 1}],
+        }],
+        since="2026-08-04",
+        until="2026-08-04",
+    )
+
+    observed = report["observed_live_result"]
+    assert observed["comparison_role"] == "context_only"
+    assert observed["trades"] == 1
+    assert observed["verified_trades"] == 1
+    assert observed["verified_net_pnl"] == -3.25
+    assert observed["pnl_currency"] == "EUR"
+    assert observed["modeled_common_exit_by_policy"]["one_first_touch"] == {
+        "plans": 1,
+        "verified_net_pnl": 5.0,
+    }
+
+
 def test_observed_baseline_validation_uses_all_execution_fills():
     simulated = {
         "filled_legs": [
@@ -186,6 +275,75 @@ def test_observed_baseline_validation_uses_all_execution_fills():
     assert proof["max_time_delta_ms"] == 575
     assert proof["max_price_delta"] == 0.2
     assert proof["within_tolerance"] is True
+
+
+def test_observed_first_touch_execution_is_audited_against_independent_ticks():
+    trigger_server_msc = int((t(0.05) + timedelta(hours=3)).timestamp() * 1000)
+    execution = {
+        "signal_received_utc": t(0.2).isoformat(),
+        "entry_provenance": {
+            "source_kind": "zone_first_touch",
+            "zone_trigger_kind": "first_touch",
+            "zone_trigger_time_msc": trigger_server_msc,
+        },
+        "fills": [
+            {"observed_utc": t(0.3).isoformat(), "price": 104.95},
+        ],
+    }
+    frame = pd.DataFrame([
+        (t(0), 104.8, 105.0),
+        (t(0.3), 104.7, 104.9),
+    ], columns=["time_utc", "bid", "ask"])
+
+    proof = audit_observed_zone_execution(
+        build_zone_trade_spec(zone_record(execution=[execution])),
+        execution,
+        frame,
+        zone_audit={"first_touch_utc": t(0).isoformat()},
+        verified_utc_offset_seconds=10800,
+        expected_fill_count=1,
+    )
+
+    assert proof["status"] == "verified"
+    assert proof["trigger_kind"] == "first_touch"
+    assert proof["trigger_delta_ms"] == 50
+    assert proof["max_fill_tick_delta_ms"] == 0
+    assert proof["max_fill_price_delta"] == 0.05
+
+
+def test_observed_active_execution_uses_provider_activation_not_zone_touch():
+    record = zone_record()
+    record["management_events"] = [management(t(1), None, "Active")]
+    spec = build_zone_trade_spec(record)
+    trigger_server_msc = int((t(0.9) + timedelta(hours=3)).timestamp() * 1000)
+    execution = {
+        "signal_received_utc": t(1.1).isoformat(),
+        "entry_provenance": {
+            "source_kind": "zone_explicit_active",
+            "zone_trigger_kind": "explicit_active",
+            "zone_trigger_time_msc": trigger_server_msc,
+        },
+        "fills": [
+            {"observed_utc": t(1.2).isoformat(), "price": 106.2},
+        ],
+    }
+    frame = pd.DataFrame([
+        (t(1.2), 106.0, 106.2),
+        (t(2), 104.8, 105.0),
+    ], columns=["time_utc", "bid", "ask"])
+
+    proof = audit_observed_zone_execution(
+        spec,
+        execution,
+        frame,
+        zone_audit={"first_touch_utc": t(2).isoformat()},
+        verified_utc_offset_seconds=10800,
+        expected_fill_count=1,
+    )
+
+    assert proof["status"] == "verified"
+    assert proof["trigger_kind"] == "explicit_active"
+    assert proof["trigger_delta_ms"] == 100
 
 
 def test_policy_metrics_calculate_money_drawdown_and_profit_factor():

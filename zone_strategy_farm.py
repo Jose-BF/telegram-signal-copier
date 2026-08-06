@@ -6,16 +6,18 @@ import json
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from math import isfinite
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from broker_money import BrokerMoneyConverter, load_contract
+from canal2_zone_lifecycle import classify_followup
 from provider_zone_simulator import DEPTH_AUDIT_FRACTIONS, simulate_zone_policy
 from provider_zone_spec import ProviderZoneSpec, build_zone_trade_spec
-from simulation_oracle import IndependentTickCache
+from simulation_oracle import IndependentTickCache, prepare_tick_window
 from zone_entry_policies import (
     ZoneEntryPolicy,
     default_zone_entry_policies,
@@ -24,7 +26,7 @@ from zone_fill_auditor import audit_zone_depths
 
 
 SCHEMA_VERSION = 1
-BASELINE_POLICY_ID = "all_first_touch_live"
+BASELINE_POLICY_ID = "current_live_zone_trigger"
 RISK_REFERENCE_VOLUME = 0.05
 
 
@@ -68,6 +70,24 @@ def _file_sha256(path: Path) -> str:
         while chunk := handle.read(1024 * 1024):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _load_jsonl(path: Path) -> list[dict]:
+    rows: list[dict] = []
+    for line_number, line in enumerate(
+        Path(path).read_text(encoding="utf-8").splitlines(),
+        start=1,
+    ):
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"invalid JSONL line {line_number}: {path}") from exc
+        if not isinstance(row, dict):
+            raise ValueError(f"JSONL line {line_number} is not an object: {path}")
+        rows.append(row)
+    return rows
 
 
 def _canonical_sha256(value: object) -> str:
@@ -122,7 +142,8 @@ def _blocked_policy_row(
         "unfilled_legs": [],
         "audit_status": "not_applicable",
         "audit": None,
-        "observed_baseline_proofs": [],
+        "modeled_baseline_proofs": [],
+        "observed_execution_proofs": [],
     }
 
 
@@ -184,6 +205,228 @@ def validate_observed_baseline(
         ),
         "blockers": _stable_strings(blockers),
         "execution_batch_id": execution_batch.get("execution_batch_id"),
+    }
+
+
+def _observed_trigger_utc(
+    provenance: Mapping[str, object],
+    verified_utc_offset_seconds: int | None,
+) -> datetime | None:
+    normalized = _utc(provenance.get("zone_trigger_normalized_utc"))
+    if normalized is not None:
+        return normalized
+    raw_msc = provenance.get("zone_trigger_time_msc")
+    if (
+        isinstance(raw_msc, bool)
+        or not isinstance(raw_msc, (int, float))
+        or isinstance(verified_utc_offset_seconds, bool)
+        or not isinstance(verified_utc_offset_seconds, int)
+    ):
+        return None
+    try:
+        return (
+            datetime.fromtimestamp(float(raw_msc) / 1000.0, timezone.utc)
+            - timedelta(seconds=verified_utc_offset_seconds)
+        )
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
+def _expected_provider_active(
+    spec: ProviderZoneSpec,
+    observed_trigger: datetime | None,
+) -> datetime | None:
+    candidates: list[datetime] = []
+    for event in spec.management_events:
+        observed = _utc(event.get("observed_ts_utc"))
+        if observed is None:
+            continue
+        action = str(event.get("classified_action") or "").upper()
+        lifecycle = classify_followup(str(event.get("text") or ""))
+        if action in {"ACTIVATE", "ACTIVATE_ZONE"} or "ACTIVATE" in lifecycle:
+            candidates.append(observed)
+    if not candidates:
+        return None
+    if observed_trigger is None:
+        return min(candidates)
+    return min(candidates, key=lambda value: abs(value - observed_trigger))
+
+
+def audit_observed_zone_execution(
+    spec: ProviderZoneSpec,
+    execution_batch: Mapping[str, object],
+    ticks: pd.DataFrame,
+    *,
+    zone_audit: Mapping[str, object],
+    verified_utc_offset_seconds: int | None,
+    expected_fill_count: int = 5,
+    trigger_tolerance_ms: int = 1500,
+    fill_tick_tolerance_ms: int = 250,
+    fill_price_tolerance: float = 1.0,
+    execution_window_ms: int = 5000,
+) -> dict:
+    blockers: list[str] = []
+    provenance = execution_batch.get("entry_provenance")
+    if not isinstance(provenance, Mapping):
+        provenance = {}
+        blockers.append("missing_execution_entry_provenance")
+    trigger_kind = str(provenance.get("zone_trigger_kind") or "")
+    observed_trigger = _observed_trigger_utc(
+        provenance,
+        verified_utc_offset_seconds,
+    )
+    expected_trigger: datetime | None = None
+    if trigger_kind == "first_touch":
+        first_by_depth = zone_audit.get("first_touch_by_depth")
+        expected_trigger = _utc(zone_audit.get("first_touch_utc"))
+        if expected_trigger is None and isinstance(first_by_depth, Mapping):
+            expected_trigger = _utc(first_by_depth.get("0.0"))
+        if expected_trigger is None:
+            blockers.append("missing_independent_first_touch")
+    elif trigger_kind == "explicit_active":
+        expected_trigger = _expected_provider_active(spec, observed_trigger)
+        if expected_trigger is None:
+            blockers.append("missing_provider_active_event")
+    else:
+        blockers.append(f"unsupported_execution_trigger:{trigger_kind or 'missing'}")
+    if observed_trigger is None:
+        blockers.append("missing_normalized_execution_trigger")
+    trigger_delta_ms = (
+        int(round(abs((observed_trigger - expected_trigger).total_seconds()) * 1000))
+        if observed_trigger is not None and expected_trigger is not None
+        else None
+    )
+    if trigger_delta_ms is not None and trigger_delta_ms > trigger_tolerance_ms:
+        blockers.append("execution_trigger_outside_tolerance")
+
+    prepared, tick_blockers = prepare_tick_window(ticks)
+    if tick_blockers or prepared is None:
+        blockers.extend(tick_blockers or ["invalid_execution_audit_ticks"])
+    fills = list(execution_batch.get("fills") or [])
+    if len(fills) != expected_fill_count:
+        blockers.append("observed_execution_fill_count_mismatch")
+    direction = spec.ready_states[0].direction if spec.ready_states else ""
+    if direction not in {"BUY", "SELL"}:
+        blockers.append("missing_execution_audit_direction")
+    fill_details: list[dict] = []
+    fill_times: list[datetime] = []
+    if prepared is not None and direction in {"BUY", "SELL"}:
+        quote_values = prepared.ask if direction == "BUY" else prepared.bid
+        quote_side = "ask" if direction == "BUY" else "bid"
+        for index, fill in enumerate(fills):
+            observed = _utc(fill.get("observed_utc"))
+            try:
+                fill_price = float(fill.get("price"))
+            except (TypeError, ValueError):
+                fill_price = float("nan")
+            if observed is None or not isfinite(fill_price):
+                blockers.append(f"invalid_observed_execution_fill:{index}")
+                continue
+            fill_times.append(observed)
+            observed_ns = pd.Timestamp(observed).value
+            insertion = int(np.searchsorted(
+                prepared.times_ns,
+                observed_ns,
+                side="left",
+            ))
+            candidates = [
+                candidate
+                for candidate in (insertion - 1, insertion)
+                if 0 <= candidate < len(prepared.times_ns)
+            ]
+            if not candidates:
+                blockers.append(f"missing_tick_near_execution_fill:{index}")
+                continue
+            tick_index = min(
+                candidates,
+                key=lambda candidate: abs(
+                    int(prepared.times_ns[candidate]) - observed_ns
+                ),
+            )
+            tick_delta_ms = int(round(abs(
+                int(prepared.times_ns[tick_index]) - observed_ns
+            ) / 1_000_000))
+            quote = float(quote_values[tick_index])
+            price_delta = round(abs(fill_price - quote), 8)
+            if tick_delta_ms > fill_tick_tolerance_ms:
+                blockers.append(f"execution_fill_tick_too_far:{index}")
+            if price_delta > fill_price_tolerance:
+                blockers.append(f"execution_fill_price_outside_tolerance:{index}")
+            fill_details.append({
+                "fill_index": index,
+                "observed_utc": observed.isoformat(),
+                "fill_price": fill_price,
+                "quote_side": quote_side,
+                "tick_utc": pd.Timestamp(
+                    int(prepared.times_ns[tick_index]),
+                    unit="ns",
+                    tz="UTC",
+                ).to_pydatetime().isoformat(),
+                "tick_quote": quote,
+                "tick_delta_ms": tick_delta_ms,
+                "price_delta": price_delta,
+            })
+
+    signal_received = _utc(execution_batch.get("signal_received_utc"))
+    trigger_to_signal_ms = None
+    signal_to_first_fill_ms = None
+    trigger_to_last_fill_ms = None
+    if observed_trigger is not None and signal_received is not None:
+        trigger_to_signal_ms = int(round(
+            (signal_received - observed_trigger).total_seconds() * 1000
+        ))
+        if trigger_to_signal_ms < 0:
+            blockers.append("signal_received_before_observed_trigger")
+    elif signal_received is None:
+        blockers.append("missing_execution_signal_received_time")
+    if fill_times:
+        fill_times.sort()
+        if signal_received is not None:
+            signal_to_first_fill_ms = int(round(
+                (fill_times[0] - signal_received).total_seconds() * 1000
+            ))
+            if signal_to_first_fill_ms < 0:
+                blockers.append("execution_fill_before_signal_received")
+        if observed_trigger is not None:
+            trigger_to_last_fill_ms = int(round(
+                (fill_times[-1] - observed_trigger).total_seconds() * 1000
+            ))
+            if not 0 <= trigger_to_last_fill_ms <= execution_window_ms:
+                blockers.append("execution_batch_outside_time_window")
+
+    stable_blockers = _stable_strings(blockers)
+    return {
+        "status": "verified" if not stable_blockers else "blocked",
+        "within_tolerance": not stable_blockers,
+        "execution_batch_id": execution_batch.get("execution_batch_id"),
+        "provider_signal_id": spec.provider_signal_id,
+        "trigger_kind": trigger_kind or None,
+        "observed_trigger_utc": (
+            observed_trigger.isoformat() if observed_trigger else None
+        ),
+        "expected_trigger_utc": (
+            expected_trigger.isoformat() if expected_trigger else None
+        ),
+        "trigger_delta_ms": trigger_delta_ms,
+        "trigger_tolerance_ms": trigger_tolerance_ms,
+        "fill_count": len(fills),
+        "expected_fill_count": expected_fill_count,
+        "fill_tick_tolerance_ms": fill_tick_tolerance_ms,
+        "fill_price_tolerance": fill_price_tolerance,
+        "max_fill_tick_delta_ms": max(
+            (row["tick_delta_ms"] for row in fill_details),
+            default=None,
+        ),
+        "max_fill_price_delta": max(
+            (row["price_delta"] for row in fill_details),
+            default=None,
+        ),
+        "trigger_to_signal_ms": trigger_to_signal_ms,
+        "signal_to_first_fill_ms": signal_to_first_fill_ms,
+        "trigger_to_last_fill_ms": trigger_to_last_fill_ms,
+        "execution_window_ms": execution_window_ms,
+        "fills": fill_details,
+        "blockers": stable_blockers,
     }
 
 
@@ -345,6 +588,7 @@ def build_zone_farm_report(
     *,
     policies: Iterable[ZoneEntryPolicy] | None = None,
     money_converter=None,
+    observed_trades: Iterable[Mapping[str, object]] | None = None,
     since: str | date | None = None,
     until: str | date | None = None,
     source_fingerprints: Mapping[str, object] | None = None,
@@ -376,22 +620,48 @@ def build_zone_farm_report(
         str(row.get("signal_ts_utc") or row.get("first_observed_utc") or ""),
         str(row.get("provider_signal_id") or ""),
     ))
+    execution_sig_to_provider: dict[str, str] = {}
+    for record in records:
+        provider_id = str(record.get("provider_signal_id") or "")
+        if provider_id:
+            execution_sig_to_provider[provider_id] = provider_id
+        for sig_id in record.get("execution_sig_ids") or []:
+            execution_sig_to_provider[str(sig_id)] = provider_id
+        for batch in record.get("execution_batches") or []:
+            if isinstance(batch, Mapping) and batch.get("sig_id"):
+                execution_sig_to_provider[str(batch["sig_id"])] = provider_id
 
     day_cache: dict[date, tuple[pd.DataFrame, dict | None, list[str]]] = {}
     rows: list[dict] = []
     audit_disagreements: list[dict] = []
     baseline_proofs: list[dict] = []
+    observed_execution_proofs: list[dict] = []
     complete_plans = 0
     incomplete_plans = 0
     tick_valid_complete_plans = 0
     for record in records:
         spec = build_zone_trade_spec(record)
+        execution_proofs_for_spec: list[dict] = []
+
+        def block_execution_proofs(*blockers: object) -> None:
+            for batch in spec.execution_batches:
+                proof = {
+                    "status": "blocked",
+                    "within_tolerance": False,
+                    "execution_batch_id": batch.get("execution_batch_id"),
+                    "provider_signal_id": spec.provider_signal_id,
+                    "blockers": _stable_strings(blockers),
+                }
+                execution_proofs_for_spec.append(proof)
+                observed_execution_proofs.append(proof)
+
         if spec.entry_ready:
             complete_plans += 1
         else:
             incomplete_plans += 1
         day = spec.ready_at_utc.date() if spec.ready_at_utc else _record_day(record)
         if day is None:
+            block_execution_proofs("missing_signal_date")
             for policy in policy_catalog:
                 rows.append(_blocked_policy_row(
                     spec,
@@ -407,6 +677,7 @@ def build_zone_farm_report(
             (pd.DataFrame(), None, []),
         )
         if spec.blockers:
+            block_execution_proofs(*spec.blockers)
             for policy in policy_catalog:
                 rows.append(_blocked_policy_row(
                     spec,
@@ -417,6 +688,7 @@ def build_zone_farm_report(
             continue
         if tick_blockers or ticks.empty:
             blockers = tick_blockers or [f"missing_ticks:{day.isoformat()}"]
+            block_execution_proofs(*blockers)
             for policy in policy_catalog:
                 rows.append(_blocked_policy_row(
                     spec,
@@ -432,6 +704,23 @@ def build_zone_farm_report(
             if isinstance(tick_evidence, Mapping)
             else None
         )
+        observed_zone_audit = audit_zone_depths(
+            spec,
+            ticks,
+            fractions=DEPTH_AUDIT_FRACTIONS,
+            horizon_at=horizon,
+            expiry_mode="session_end",
+        )
+        for batch in spec.execution_batches:
+            proof = audit_observed_zone_execution(
+                spec,
+                batch,
+                ticks,
+                zone_audit=observed_zone_audit,
+                verified_utc_offset_seconds=tick_offset,
+            )
+            execution_proofs_for_spec.append(proof)
+            observed_execution_proofs.append(proof)
         for policy in policy_catalog:
             row = simulate_zone_policy(
                 spec,
@@ -476,7 +765,8 @@ def build_zone_farm_report(
                     proof["provider_signal_id"] = spec.provider_signal_id
                     proofs.append(proof)
                     baseline_proofs.append(proof)
-            row["observed_baseline_proofs"] = proofs
+            row["modeled_baseline_proofs"] = proofs
+            row["observed_execution_proofs"] = execution_proofs_for_spec
             rows.append(row)
 
     policy_summaries = {
@@ -519,6 +809,11 @@ def build_zone_farm_report(
         selection_blockers.append("blocked_source_rows_present")
     if audit_disagreements:
         selection_blockers.append("independent_audit_disagreement")
+    if any(
+        proof.get("within_tolerance") is not True
+        for proof in observed_execution_proofs
+    ):
+        selection_blockers.append("observed_execution_not_verified")
     verified_candidates = [
         (policy_id, metrics)
         for policy_id, metrics in policy_summaries.items()
@@ -536,6 +831,64 @@ def build_zone_farm_report(
         else None
     )
     policies_payload = [asdict(policy) for policy in policy_catalog]
+    observed_details: list[dict] = []
+    for trade in observed_trades or ():
+        sig_id = str(trade.get("sig_id") or "")
+        provider_id = execution_sig_to_provider.get(sig_id)
+        if provider_id is None:
+            continue
+        blockers: list[str] = []
+        try:
+            pnl = float(trade.get("pnl_real_mt5"))
+        except (TypeError, ValueError):
+            pnl = float("nan")
+        if not isfinite(pnl):
+            blockers.append("missing_observed_mt5_pnl")
+        if trade.get("status") != "closed":
+            blockers.append("observed_trade_not_closed")
+        if trade.get("pnl_mt5_complete") is not True:
+            blockers.append("observed_mt5_pnl_incomplete")
+        if trade.get("reconciled_ok") is not True:
+            blockers.append("observed_trade_not_reconciled")
+        if trade.get("analysis_excluded") is True:
+            blockers.append("observed_trade_analysis_excluded")
+        stable = _stable_strings(blockers)
+        observed_details.append({
+            "provider_signal_id": provider_id,
+            "sig_id": sig_id,
+            "status": "verified" if not stable else "blocked",
+            "pnl_real_mt5": round(pnl, 2) if isfinite(pnl) else None,
+            "ticket_count": len(trade.get("tickets") or []),
+            "blockers": stable,
+        })
+    observed_details.sort(key=lambda row: (
+        str(row["provider_signal_id"]),
+        str(row["sig_id"]),
+    ))
+    verified_observed = [
+        row for row in observed_details if row["status"] == "verified"
+    ]
+    observed_provider_ids = {
+        str(row["provider_signal_id"]) for row in verified_observed
+    }
+    modeled_on_observed: dict[str, dict] = {}
+    for policy in policy_catalog:
+        comparable = [
+            row
+            for row in rows
+            if (
+                row.get("policy_id") == policy.policy_id
+                and str(row.get("provider_signal_id")) in observed_provider_ids
+                and row.get("money_status") in {"verified", "verified_no_fill"}
+                and row.get("strategy_pnl") is not None
+            )
+        ]
+        modeled_on_observed[policy.policy_id] = {
+            "plans": len(comparable),
+            "verified_net_pnl": round(sum(
+                float(row["strategy_pnl"]) for row in comparable
+            ), 2),
+        }
     return {
         "schema_version": SCHEMA_VERSION,
         "scope": {
@@ -570,7 +923,7 @@ def build_zone_farm_report(
             "disagreements": len(audit_disagreements),
             "details": audit_disagreements,
         },
-        "observed_baseline_summary": {
+        "modeled_baseline_summary": {
             "proofs": len(baseline_proofs),
             "verified": sum(
                 proof.get("within_tolerance") is True
@@ -581,6 +934,38 @@ def build_zone_farm_report(
                 for proof in baseline_proofs
             ),
             "details": baseline_proofs,
+        },
+        "observed_execution_summary": {
+            "proofs": len(observed_execution_proofs),
+            "verified": sum(
+                proof.get("within_tolerance") is True
+                for proof in observed_execution_proofs
+            ),
+            "blocked": sum(
+                proof.get("within_tolerance") is not True
+                for proof in observed_execution_proofs
+            ),
+            "details": observed_execution_proofs,
+        },
+        "observed_live_result": {
+            "comparison_role": "context_only",
+            "reason": (
+                "observed live management and fills differ from the common "
+                "modeled exit contract"
+            ),
+            "trades": len(observed_details),
+            "verified_trades": len(verified_observed),
+            "blocked_trades": len(observed_details) - len(verified_observed),
+            "verified_net_pnl": round(sum(
+                float(row["pnl_real_mt5"]) for row in verified_observed
+            ), 2),
+            "pnl_currency": (
+                str(money_converter.currency)
+                if money_converter is not None
+                else None
+            ),
+            "details": observed_details,
+            "modeled_common_exit_by_policy": modeled_on_observed,
         },
         "selection": {
             "status": "exploratory_only",
@@ -607,6 +992,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--tick-cache", type=Path, required=True)
     parser.add_argument("--money-contract", type=Path, required=True)
     parser.add_argument("--money-tick-cache", type=Path, required=True)
+    parser.add_argument("--observed-replay", type=Path)
     parser.add_argument("--since")
     parser.add_argument("--until")
     parser.add_argument("--output", type=Path, required=True)
@@ -631,11 +1017,21 @@ def main(argv: list[str] | None = None) -> int:
         catalog,
         tick_source,
         money_converter=money_converter,
+        observed_trades=(
+            _load_jsonl(args.observed_replay)
+            if args.observed_replay is not None
+            else None
+        ),
         since=args.since,
         until=args.until,
         source_fingerprints={
             "catalog_sha256": _file_sha256(args.catalog),
             "money_contract_sha256": _file_sha256(args.money_contract),
+            **(
+                {"observed_replay_sha256": _file_sha256(args.observed_replay)}
+                if args.observed_replay is not None
+                else {}
+            ),
         },
     )
     report["source_fingerprints"]["tick_days"] = tick_source.evidence_by_day
@@ -656,6 +1052,7 @@ if __name__ == "__main__":
 
 
 __all__ = [
+    "audit_observed_zone_execution",
     "build_zone_farm_report",
     "calculate_zone_policy_metrics",
     "validate_observed_baseline",
