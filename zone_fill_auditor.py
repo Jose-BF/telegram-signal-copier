@@ -53,7 +53,13 @@ def _blocked(spec: ProviderZoneSpec, blockers: Iterable[object]) -> dict:
     }
 
 
-def _cutoff(spec: ProviderZoneSpec, horizon: datetime) -> datetime:
+def _cutoff(
+    spec: ProviderZoneSpec,
+    horizon: datetime,
+    expiry_mode: str,
+) -> datetime:
+    if expiry_mode == "session_end":
+        return horizon
     candidates: list[datetime] = []
     for event in spec.management_events:
         observed = _utc(event.get("observed_ts_utc"))
@@ -74,6 +80,7 @@ def audit_zone_depths(
     *,
     fractions: Iterable[float],
     horizon_at: datetime,
+    expiry_mode: str = "provider_progress",
 ) -> dict:
     if spec.blockers:
         return _blocked(spec, spec.blockers)
@@ -84,6 +91,8 @@ def audit_zone_depths(
         return _blocked(spec, ["invalid_horizon_time"])
     if horizon < spec.ready_at_utc:
         return _blocked(spec, ["horizon_before_zone_activation"])
+    if expiry_mode not in {"provider_progress", "session_end"}:
+        return _blocked(spec, ["invalid_audit_expiry_mode"])
     depths = tuple(float(value) for value in fractions)
     if (
         not depths
@@ -97,7 +106,7 @@ def audit_zone_depths(
     if len({state.direction for state in spec.ready_states}) != 1:
         return _blocked(spec, ["direction_revision_after_ready"])
 
-    cutoff = _cutoff(spec, horizon)
+    cutoff = _cutoff(spec, horizon, expiry_mode)
     start_ns = pd.Timestamp(spec.ready_at_utc).value
     stop_ns = pd.Timestamp(cutoff).value
     start = int(prepared.times_ns.searchsorted(start_ns, side="left"))

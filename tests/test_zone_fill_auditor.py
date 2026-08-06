@@ -127,3 +127,33 @@ def test_auditor_blocks_invalid_ticks_without_partial_depths():
     assert audit["status"] == "blocked"
     assert audit["touched_depths"] == []
     assert audit["blockers"] == ["crossed_quote:0"]
+
+
+def test_auditor_can_reproduce_live_session_end_expiry():
+    zone_spec = spec(
+        buy_state(BASE),
+        management=({
+            "observed_ts_utc": t(1).isoformat(),
+            "classified_action": "PROGRESS_UPDATE",
+            "text": "+30 pips",
+        },),
+    )
+    ticks = frame([(t(0), 106.0, 106.2), (t(2), 104.8, 105.0)])
+
+    safe = audit_zone_depths(
+        zone_spec,
+        ticks,
+        fractions=(0.0,),
+        horizon_at=t(2),
+        expiry_mode="provider_progress",
+    )
+    live = audit_zone_depths(
+        zone_spec,
+        ticks,
+        fractions=(0.0,),
+        horizon_at=t(2),
+        expiry_mode="session_end",
+    )
+
+    assert safe["touched_depths"] == []
+    assert live["touched_depths"] == [0.0]
