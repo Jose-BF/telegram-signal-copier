@@ -96,6 +96,8 @@ def new_plan_record(
         "confirmed_generation_ids": [],
         "alias_generation_ids": {},
         "last_trigger": {},
+        "first_touch_observed": False,
+        "first_touch_evidence": {},
     }
     if is_executable(plan):
         plan["status"] = "armed"

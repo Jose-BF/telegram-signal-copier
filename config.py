@@ -202,6 +202,13 @@ STRATEGY_C2_TARGET_TP_INDEX = int(os.getenv("STRATEGY_C2_TARGET_TP_INDEX", "-1")
 STRATEGY_C2_BE_TP_INDEX     = int(os.getenv("STRATEGY_C2_BE_TP_INDEX", "0"))       # 0 = BE en TP1
 STRATEGY_C2_TIME_STOP_MIN   = int(os.getenv("STRATEGY_C2_TIME_STOP_MIN", "60"))    # notify only
 
+# Gold Signals zone plans are observed on first touch, but only an explicit
+# provider activation opens exposure by default. Set to 1 to restore the
+# previous first-touch execution policy without changing code.
+STRATEGY_C2_ZONE_FIRST_TOUCH_EXECUTION_ENABLED = (
+    os.getenv("STRATEGY_C2_ZONE_FIRST_TOUCH_EXECUTION_ENABLED", "0") == "1"
+)
+
 # ─── Estrategia C: CLOSE_FIRST canal2 — rescate BE ──────────────────────────
 # Cuando el canal 2 manda "close first entries" SIN que la posición esté en
 # profit, en vez de cerrar a mercado en pérdida ponemos TP=BE en todas las

@@ -42,11 +42,17 @@ def _tick(*, bid=4055.0, ask=4055.2, time_msc=1785920400123):
     }
 
 
-def test_armed_zone_notice_describes_live_waiting_state():
+def test_armed_zone_notice_describes_explicit_activation_policy(monkeypatch):
+    monkeypatch.setattr(
+        listener.config,
+        "STRATEGY_C2_ZONE_FIRST_TOUCH_EXECUTION_ENABLED",
+        False,
+    )
     text = listener._format_canal2_zone_plan_notice(_plan())
 
-    assert "ZONA ARMADA" in text
-    assert "primer toque" in text
+    assert "ZONA EN OBSERVACION" in text
+    assert "primer toque quedara registrado" in text
+    assert "trader indique activacion" in text
     assert "simulaci" not in text.lower()
 
 
@@ -68,6 +74,12 @@ def _reset_zone_runtime(monkeypatch):
     listener._canal2_zone_plans.clear()
     listener._entry_execution_gate.reset()
     listener._canal2_opening_msg_ids.clear()
+    monkeypatch.setattr(
+        listener.config,
+        "STRATEGY_C2_ZONE_FIRST_TOUCH_EXECUTION_ENABLED",
+        True,
+        raising=False,
+    )
     monkeypatch.setattr(listener, "notify", fake_notify)
     monkeypatch.setattr(listener.journal, "event", lambda *a, **kw: None)
     monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
@@ -75,6 +87,46 @@ def _reset_zone_runtime(monkeypatch):
     listener._canal2_zone_plans.clear()
     listener._entry_execution_gate.reset()
     listener._canal2_opening_msg_ids.clear()
+
+
+@pytest.mark.asyncio
+async def test_first_touch_is_observed_without_opening_when_execution_disabled(
+        monkeypatch):
+    plan = _plan(499)
+    listener._canal2_zone_plans[499] = plan
+    intents = []
+    events = []
+
+    async def fake_open(intent, *, label):
+        intents.append(intent)
+        return None
+
+    monkeypatch.setattr(
+        listener.config,
+        "STRATEGY_C2_ZONE_FIRST_TOUCH_EXECUTION_ENABLED",
+        False,
+        raising=False,
+    )
+    monkeypatch.setattr(listener, "_open_canal2_intent", fake_open)
+    monkeypatch.setattr(
+        listener.journal,
+        "event",
+        lambda signal_id, ev, **kw: events.append((signal_id, ev, kw)),
+    )
+
+    assert await listener._process_canal2_zone_tick(_tick()) == 0
+    assert await listener._process_canal2_zone_tick(
+        _tick(time_msc=1785920400456)
+    ) == 0
+
+    assert intents == []
+    assert plan["consumed"] is False
+    assert plan["status"] == "armed"
+    assert plan["first_touch_observed"] is True
+    assert plan["first_touch_evidence"]["price"] == 4055.2
+    touch_events = [event for event in events if event[1] == "canal2_zone_first_touch_observed"]
+    assert len(touch_events) == 1
+    assert touch_events[0][2]["execution_enabled"] is False
 
 
 @pytest.mark.asyncio
@@ -98,6 +150,12 @@ async def test_first_touch_opens_once_and_consumes_generation(monkeypatch):
         return signal
 
     monkeypatch.setattr(listener, "state", state)
+    monkeypatch.setattr(
+        listener.config,
+        "STRATEGY_C2_ZONE_FIRST_TOUCH_EXECUTION_ENABLED",
+        True,
+        raising=False,
+    )
     monkeypatch.setattr(listener, "_open_canal2_intent", fake_open)
     monkeypatch.setattr(
         listener.journal,
@@ -140,6 +198,11 @@ async def test_explicit_activation_opens_outside_zone_and_logs_deviation(
 
     monkeypatch.setattr(listener, "_open_canal2_intent", fake_open)
     monkeypatch.setattr(listener.journal, "event", lambda *a, **kw: None)
+    monkeypatch.setattr(
+        listener.config,
+        "STRATEGY_C2_ZONE_FIRST_TOUCH_EXECUTION_ENABLED",
+        False,
+    )
 
     opened = await listener._process_canal2_zone_tick(
         _tick(bid=4063.8, ask=4064.0)
@@ -640,6 +703,56 @@ def test_restart_restores_triggered_plan_and_binds_reply_alias(
     )
     assert listener._canal2_zone_plans[570]["status"] == "triggered"
     assert runtime_state.get("canal2", 571) is signal
+
+
+def test_restart_restores_observed_first_touch_without_consuming_plan(tmp_path):
+    path = tmp_path / "trade_events.jsonl"
+    evidence = {
+        "trigger": "first_touch",
+        "side": "ask",
+        "price": 4055.2,
+        "time_msc": 1785920400123,
+        "normalized_time_utc": "2026-08-05T09:00:00.123+00:00",
+    }
+    rows = [
+        {
+            "ts": "2026-08-05T08:59:00+00:00",
+            "sig": "canal2_572",
+            "ev": "canal2_zone_plan_created",
+            "lifecycle_schema_version": 2,
+            "message_id": 572,
+            "thread_root_message_id": 572,
+            "direction": "BUY",
+            "zones": [[4053.0, 4058.0]],
+            "tps": [4060.0, 4062.0],
+            "sl": 4050.0,
+            "status": "armed",
+            "expires_utc": "2099-08-06T09:00:00+00:00",
+        },
+        {
+            "ts": "2026-08-05T09:00:00.200+00:00",
+            "sig": "canal2_572",
+            "ev": "canal2_zone_first_touch_observed",
+            "lifecycle_schema_version": 2,
+            "zone_plan_message_id": 572,
+            "first_touch_observed": True,
+            "first_touch_evidence": evidence,
+            "execution_enabled": False,
+        },
+    ]
+    path.write_text(
+        "".join(json.dumps(row) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+
+    restored = listener.restore_canal2_zone_plans_from_journal(path)
+
+    assert restored == 1
+    plan = listener._canal2_zone_plans[572]
+    assert plan["first_touch_observed"] is True
+    assert plan["first_touch_evidence"] == evidence
+    assert plan["consumed"] is False
+    assert plan["status"] == "armed"
 
 
 def test_restart_recovers_zone_fill_when_confirmation_event_was_lost(

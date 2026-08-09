@@ -3837,6 +3837,14 @@ def _format_canal2_zone_plan_notice(plan: dict) -> str:
         zone_plan_is_executable(plan)
         and plan.get("execution_eligible", True)
     ):
+        if not config.STRATEGY_C2_ZONE_FIRST_TOUCH_EXECUTION_ENABLED:
+            return (
+                f"{provider}\n"
+                f"ZONA EN OBSERVACION\n\n"
+                f"{levels}\n\n"
+                f"Estado: el primer toque quedara registrado. "
+                f"El bot abrira solo cuando el trader indique activacion."
+            )
         return (
             f"{provider}\n"
             f"ZONA ARMADA\n\n"
@@ -3950,6 +3958,10 @@ def _zone_plan_event_payload(plan: dict) -> dict:
             plan.get("alias_generation_ids") or {}
         ),
         "last_trigger": dict(plan.get("last_trigger") or {}),
+        "first_touch_observed": bool(plan.get("first_touch_observed")),
+        "first_touch_evidence": dict(
+            plan.get("first_touch_evidence") or {}
+        ),
     }
 
 
@@ -4111,6 +4123,12 @@ def restore_canal2_zone_plans_from_journal(path) -> int:
                         row.get("alias_generation_ids") or {}
                     ),
                     "last_trigger": dict(row.get("last_trigger") or {}),
+                    "first_touch_observed": bool(
+                        row.get("first_touch_observed")
+                    ),
+                    "first_touch_evidence": dict(
+                        row.get("first_touch_evidence") or {}
+                    ),
                 }
                 records[message_id] = record
                 aliases[message_id] = message_id
@@ -4236,6 +4254,13 @@ def restore_canal2_zone_plans_from_journal(path) -> int:
                 for key in _zone_plan_event_payload(record):
                     if key in row:
                         record[key] = row[key]
+            elif event == "canal2_zone_first_touch_observed":
+                record["first_touch_observed"] = True
+                record["first_touch_evidence"] = dict(
+                    row.get("first_touch_evidence")
+                    or row.get("trigger")
+                    or {}
+                )
             elif event == "canal2_zone_plan_transition":
                 for key in (
                     "status",
@@ -4639,6 +4664,25 @@ async def _process_canal2_zone_tick(tick: dict) -> int:
             trigger = _zone_trigger_evidence(plan, tick, "explicit_active")
         else:
             trigger = zone_touch_decision(plan, tick)
+            if trigger is not None and not plan.get("first_touch_observed"):
+                trigger = dict(trigger)
+                _zone_entry_timestamp(trigger)
+                plan["first_touch_observed"] = True
+                plan["first_touch_evidence"] = dict(trigger)
+                journal.event(
+                    f"canal2_{plan.get('message_id')}",
+                    "canal2_zone_first_touch_observed",
+                    **_zone_plan_event_payload(plan),
+                    zone_plan_message_id=plan.get("message_id"),
+                    execution_enabled=bool(
+                        config.STRATEGY_C2_ZONE_FIRST_TOUCH_EXECUTION_ENABLED
+                    ),
+                )
+            if (
+                trigger is not None
+                and not config.STRATEGY_C2_ZONE_FIRST_TOUCH_EXECUTION_ENABLED
+            ):
+                continue
         if trigger is None:
             continue
         if await _trigger_canal2_zone_entry(plan, trigger) is not None:
@@ -4661,6 +4705,11 @@ async def canal2_zone_touch_loop(interval_s: float = 0.1) -> None:
                 plan.get("execution_eligible", True)
                 and not plan.get("consumed")
                 and plan.get("status") not in {"invalidated", "expired"}
+                and (
+                    config.STRATEGY_C2_ZONE_FIRST_TOUCH_EXECUTION_ENABLED
+                    or plan.get("activation_requested")
+                    or not plan.get("first_touch_observed")
+                )
                 for plan in _unique_canal2_zone_plans()
             )
             if not actionable:
