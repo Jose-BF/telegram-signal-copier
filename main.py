@@ -1785,7 +1785,7 @@ def _live_strategy_contract() -> dict:
             "STRATEGY_MAX_PLANNED_LOTS_PER_SIGNAL no permite ni una posicion"
         )
     return {
-        "schema_version": 1,
+        "contract_schema_version": 1,
         "evidence_status": "forward_trial",
         "dubai": {
             "entry_mode": config.STRATEGY_C1_ENTRY_MODE,

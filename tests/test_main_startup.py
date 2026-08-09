@@ -116,6 +116,8 @@ def test_publish_live_strategy_contract_records_exact_runtime_policy(
     assert contract["gold"]["zone_explicit_activation"] is True
     assert contract["risk"]["max_planned_lots_per_signal"] == 0.05
     assert contract["risk"]["exposure_cap_enforced"] is True
+    assert contract["contract_schema_version"] == 1
+    assert "schema_version" not in contract
     assert contract["evidence_status"] == "forward_trial"
 
 
