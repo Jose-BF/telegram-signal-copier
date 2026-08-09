@@ -1562,6 +1562,25 @@ def build_farm_execution(
     rows_by_policy = {policy.policy_id: [] for policy in policies}
     effective_baselines: list[dict] = []
 
+    def verified_trade_offset_seconds(trade: dict) -> int | None:
+        offsets: set[int] = set()
+        for day in observed_tick_replay_validator._required_tick_days(
+            trade,
+            5,
+        ):
+            contract = tick_loader.verified_contracts.get(day) or {}
+            value = contract.get("utc_offset_seconds")
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, int)
+                or abs(value) > 14 * 3600
+            ):
+                return None
+            offsets.add(value)
+        if len(offsets) != 1:
+            return None
+        return next(iter(offsets))
+
     for trade in selected_trades:
         ticks, missing = tick_loader.load_ticks_for_trade(trade, pad_minutes=5)
         if not ticks.empty:
@@ -1588,6 +1607,7 @@ def build_farm_execution(
             "sig_id": str(trade.get("sig_id")),
             "baseline": baseline,
         })
+        verified_utc_offset_seconds = verified_trade_offset_seconds(trade)
         counterfactual_horizon_blockers = (
             _counterfactual_horizon_blockers(
                 trade,
@@ -1623,6 +1643,9 @@ def build_farm_execution(
                     require_provider_timeline=True,
                     level_timeline_authority="mt5_execution",
                     money_converter=money_converter,
+                    verified_utc_offset_seconds=(
+                        verified_utc_offset_seconds
+                    ),
                     default_unit_value=unit_value,
                     default_unit_source=unit_source,
                     horizon_policy=policy.horizon_policy,

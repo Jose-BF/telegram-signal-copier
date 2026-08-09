@@ -638,6 +638,46 @@ class _FakeTickLoader:
         return pd.DataFrame(), []
 
 
+def test_farm_passes_verified_tick_clock_to_executed_simulator(
+    tmp_path,
+    monkeypatch,
+):
+    captured = []
+    monkeypatch.setattr(
+        strategy_farm.observed_tick_replay_validator,
+        "ReplayTickFrameCache",
+        _FakeTickLoader,
+    )
+
+    def fake_simulate(*args, **kwargs):
+        captured.append(kwargs)
+        return _row(0.0, status="unchanged")
+
+    monkeypatch.setattr(
+        strategy_farm.strategy_simulator,
+        "simulate_trade",
+        fake_simulate,
+    )
+
+    strategy_farm.build_farm_execution(
+        [_farm_trade("canal1_1")],
+        [_exact_baseline("canal1_1")],
+        tick_cache_dir=tmp_path / "ticks",
+        policies=[strategy_policies.StrategyPolicy(
+            policy_id="runner",
+            close_legs=0,
+            be_legs=0,
+            runner_legs=1,
+            base_leg_count=1,
+        )],
+        catalog={"signals": [_provider_signal("canal1_1")]},
+        from_date="2026-07-06",
+        minimum_trades=1,
+    )
+
+    assert captured[0]["verified_utc_offset_seconds"] == 10_800
+
+
 def test_farm_execution_exposes_exact_provenance_payloads(
     tmp_path,
     monkeypatch,

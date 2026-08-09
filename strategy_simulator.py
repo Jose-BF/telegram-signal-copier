@@ -806,6 +806,7 @@ def _simulate_ticket_policy(
     default_unit_source: str,
     horizon_policy: str,
     money_converter=None,
+    verified_utc_offset_seconds: int | None = None,
     provider_sl_events: list[dict] | None = None,
     provider_tp_events: list[dict] | None = None,
 ) -> dict:
@@ -866,6 +867,7 @@ def _simulate_ticket_policy(
             volume=volume,
             open_time_utc=ticket.get("open_dt_utc"),
             close_time_utc=close["time_utc"],
+            verified_utc_offset_seconds=verified_utc_offset_seconds,
         )
         money_status = money.get("status")
         money_blockers = list(money.get("blockers") or [])
@@ -1007,6 +1009,7 @@ def simulate_trade(
     require_provider_timeline: bool = False,
     level_timeline_authority: str = "canonical_provider",
     money_converter=None,
+    verified_utc_offset_seconds: int | None = None,
 ) -> dict:
     """Simulate one management strategy for one replay trade."""
     if policy is None:
@@ -1224,6 +1227,7 @@ def simulate_trade(
                 horizon_policy,
                 round(float(default_unit_value), 8),
                 default_unit_source,
+                verified_utc_offset_seconds,
             )
             cached = result_cache.get(cache_key) if result_cache is not None else None
             if cached is None:
@@ -1238,6 +1242,9 @@ def simulate_trade(
                     default_unit_source=default_unit_source,
                     horizon_policy=horizon_policy,
                     money_converter=money_converter,
+                    verified_utc_offset_seconds=(
+                        verified_utc_offset_seconds
+                    ),
                     provider_sl_events=(
                         _provider_level_events(
                             provider_signal, ticket_index, "sl")

@@ -697,6 +697,7 @@ def test_executed_counterfactual_uses_verified_broker_money_converter():
             assert kwargs["close_time_utc"] == (
                 "2026-07-06T10:10:00.850+00:00"
             )
+            assert kwargs["verified_utc_offset_seconds"] == 10_800
             return {
                 "status": "verified",
                 "strategy_pnl": 42.17,
@@ -745,6 +746,7 @@ def test_executed_counterfactual_uses_verified_broker_money_converter():
         require_provider_timeline=True,
         level_timeline_authority="mt5_execution",
         money_converter=VerifiedMoney(),
+        verified_utc_offset_seconds=10_800,
         baseline_audit={"status": "exact"},
     )
 
