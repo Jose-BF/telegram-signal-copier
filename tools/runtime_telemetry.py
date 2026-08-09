@@ -480,45 +480,71 @@ def _select_contiguous_payload(
     by_start: dict[int, list[tuple[int, bytes]]] = {}
     maximum_end = 0
     for start, end, _raw_hash, payload in chunks:
+        if start < 0 or end <= start or len(payload) != end - start:
+            raise ValueError(
+                f"invalid contiguous chunk for {stream}: {start}:{end}"
+            )
         by_start.setdefault(start, []).append((end, payload))
         maximum_end = max(maximum_end, end)
 
-    # Each node stores the furthest reachable offset and up to two distinct
-    # payload variants. More than one variant at the same furthest offset is
-    # ambiguous and must fail closed.
-    solutions: dict[int, tuple[int, dict[str, bytes]]] = {}
-    for start in sorted(by_start, reverse=True):
-        options: list[tuple[int, bytes]] = []
-        for end, payload in by_start[start]:
-            suffix_end, suffixes = solutions.get(
-                end,
-                (end, {_sha256(b""): b""}),
-            )
-            for suffix in suffixes.values():
-                options.append((suffix_end, payload + suffix))
-        furthest = max(final for final, _payload in options)
-        variants: dict[str, bytes] = {}
-        for final, payload in options:
-            if final != furthest:
-                continue
-            variants.setdefault(_sha256(payload), payload)
-            if len(variants) > 1:
-                break
-        solutions[start] = (furthest, variants)
-
-    if 0 not in solutions:
+    if 0 not in by_start:
         first = min(by_start)
         raise ValueError(f"range gap: expected 0, got {first}")
-    final_end, variants = solutions[0]
-    if final_end != maximum_end:
+
+    # Determine graph reachability using byte offsets only. The previous
+    # implementation stored a fully concatenated suffix at every offset,
+    # which made a stream with N small chunks consume O(N^2) bytes.
+    reachable_from_zero = {0}
+    for start in sorted(by_start):
+        if start not in reachable_from_zero:
+            continue
+        reachable_from_zero.update(end for end, _payload in by_start[start])
+
+    final_end = max(reachable_from_zero)
+    if maximum_end not in reachable_from_zero:
         later = sorted(start for start in by_start if start >= final_end)
         detail = str(later[0]) if later else "overlapping unreachable range"
         raise ValueError(f"range gap: expected {final_end}, got {detail}")
-    if len(variants) != 1:
-        raise ValueError(
-            f"ambiguous contiguous history for {stream} at byte {final_end}"
-        )
-    return next(iter(variants.values()))
+
+    reaches_maximum = {maximum_end}
+    for start in sorted(by_start, reverse=True):
+        if any(end in reaches_maximum for end, _payload in by_start[start]):
+            reaches_maximum.add(start)
+
+    # Build one complete path exactly once. Every other complete-path chunk
+    # is then compared against the same absolute byte range. This accepts
+    # equivalent histories split at different boundaries and fails closed on
+    # any real content ambiguity without retaining quadratic suffix copies.
+    cursor = 0
+    parts: list[bytes] = []
+    while cursor < maximum_end:
+        options = [
+            (end, payload)
+            for end, payload in by_start.get(cursor, [])
+            if end in reaches_maximum
+        ]
+        if not options:
+            raise ValueError(
+                f"range gap: expected {cursor}, got unreachable maximum"
+            )
+        end, payload = max(options, key=lambda option: option[0])
+        parts.append(payload)
+        cursor = end
+
+    selected = b"".join(parts)
+    selected_view = memoryview(selected)
+    for start, options in by_start.items():
+        if start not in reachable_from_zero:
+            continue
+        for end, payload in options:
+            if end not in reaches_maximum:
+                continue
+            if selected_view[start:end] != payload:
+                raise ValueError(
+                    f"ambiguous contiguous history for {stream} "
+                    f"at byte {maximum_end}"
+                )
+    return selected
 
 
 def _assemble_chunks(

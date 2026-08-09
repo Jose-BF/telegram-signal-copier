@@ -350,6 +350,47 @@ def test_materialize_selects_longest_contiguous_alternate_tail(tmp_path):
     assert (output / "trade_events.jsonl").read_bytes() == newest_payload
 
 
+def test_contiguous_selection_is_linear_in_stream_size(monkeypatch):
+    payload = b"x" * 400
+    chunks = [
+        (offset, offset + 1, f"hash-{offset}", payload[offset:offset + 1])
+        for offset in range(len(payload))
+    ]
+    hashed_bytes = 0
+    original_sha256 = runtime_telemetry._sha256
+
+    def bounded_sha256(value):
+        nonlocal hashed_bytes
+        hashed_bytes += len(value)
+        if hashed_bytes > len(payload) * 10:
+            raise AssertionError("contiguous selection hashed quadratic data")
+        return original_sha256(value)
+
+    monkeypatch.setattr(runtime_telemetry, "_sha256", bounded_sha256)
+
+    selected = runtime_telemetry._select_contiguous_payload(
+        "trade_events.jsonl",
+        chunks,
+    )
+
+    assert selected == payload
+
+
+def test_contiguous_selection_rejects_conflicting_complete_paths():
+    chunks = [
+        (0, 2, "h1", b"ab"),
+        (2, 4, "h2", b"cd"),
+        (0, 1, "h3", b"a"),
+        (1, 4, "h4", b"Xcd"),
+    ]
+
+    with pytest.raises(ValueError, match="ambiguous contiguous history"):
+        runtime_telemetry._select_contiguous_payload(
+            "trade_events.jsonl",
+            chunks,
+        )
+
+
 def test_materialize_validation_failure_leaves_existing_corpus_untouched(
     tmp_path,
 ):
