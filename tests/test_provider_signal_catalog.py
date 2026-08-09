@@ -2539,6 +2539,84 @@ def test_canonical_timeline_repairs_high_confidence_sl_prefix_typo():
     )
 
 
+def test_complete_provider_correction_replaces_the_previous_price_generation():
+    events = [
+        _raw(
+            "canal2",
+            1170,
+            "Gold Sell Zone\n\n4059 - 4064\n\nTargets\n"
+            "4057\n4055\n4047\n\nSL 4067",
+            ts="2026-08-06T07:00:51.164+00:00",
+        ),
+        _raw(
+            "canal2",
+            1170,
+            "Gold Sell Zone\n\n4259 - 4264\n\nTargets\n"
+            "4257\n4255\n4247\n\nSL 4267",
+            ts="2026-08-06T07:07:25.266+00:00",
+            update_kind="edit",
+            is_edit=True,
+            edit_date_utc="2026-08-06T07:07:24+00:00",
+        ),
+    ]
+
+    signal = provider_signal_catalog.build_catalog_report(events, [])["signals"][0]
+
+    assert signal["effective_range"] == [4259.0, 4264.0]
+    assert signal["effective_tps"] == [4257.0, 4255.0, 4247.0]
+    assert signal["effective_sl"] == 4267.0
+
+
+def test_market_context_prefix_repair_is_canonical_but_inference_is_not():
+    events = [
+        _raw(
+            "canal2",
+            1167,
+            "Gold Sell Zone\n\n4062 - 4067\n\nTargets\n"
+            "4060\n4058\n4047\n\nSL 4070",
+            ts="2026-08-06T06:17:15.484+00:00",
+        ),
+        {
+            "ts": "2026-08-06T06:17:15.500+00:00",
+            "sig": "canal2_1167",
+            "ev": "entry_levels_interpreted",
+            "channel": "canal2",
+            "reference_price": 4259.8,
+            "original": {
+                "direction": "SELL",
+                "range": [4062.0, 4067.0],
+                "tps": [4060.0, 4058.0, 4047.0],
+                "sl": 4070.0,
+            },
+            "interpreted": {
+                "direction": "SELL",
+                "range": [4262.0, 4267.0],
+                "tps": [4260.0, 4258.0, 4247.0],
+                "sl": 4270.0,
+            },
+            "corrections": [{
+                "field": "plan",
+                "kind": "market_context_shift",
+                "offset": 200.0,
+                "reference_price": 4259.8,
+                "shifted_fields": ["range", "tps", "sl"],
+            }],
+            "provisional": True,
+        },
+    ]
+
+    signal = provider_signal_catalog.build_catalog_report(events, [])["signals"][0]
+
+    assert signal["effective_range"] == [4262.0, 4267.0]
+    assert signal["effective_tps"] == [4260.0, 4258.0, 4247.0]
+    assert signal["effective_sl"] == 4270.0
+    assert any(
+        issue.get("decision") == "market_context_prefix_repair"
+        and issue.get("source_message_id") == 1167
+        for issue in signal["canonicalization_issues"]
+    )
+
+
 def test_runtime_inferred_levels_remain_separate_provider_evidence():
     events = [
         _raw(

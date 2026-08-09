@@ -14961,13 +14961,18 @@
       "direction": "BUY",
       "risk_label": "standard",
       "effective_range": [
-        4824.0,
-        4828.0
+        4324.0,
+        4328.0
       ],
       "effective_tps": [
-        4831.0
+        4331.0,
+        4333.0,
+        4335.0,
+        4337.0,
+        4344.0,
+        4355.0
       ],
-      "effective_sl": 4820.0,
+      "effective_sl": 4320.0,
       "entry_zones": [],
       "zone_target": null,
       "zone_plan_timeline": [],
@@ -15256,8 +15261,8 @@
           "telegram_ts_utc": "2026-06-09T14:01:38+00:00",
           "observed_ts_utc": "2026-06-09T14:01:41.973+00:00",
           "range": [
-            4824.0,
-            4828.0
+            4324.0,
+            4328.0
           ],
           "raw_range": [
             4324.0,
@@ -15271,8 +15276,8 @@
           "telegram_ts_utc": "2026-06-09T14:01:50+00:00",
           "observed_ts_utc": "2026-06-09T14:01:51.008+00:00",
           "range": [
-            4824.0,
-            4828.0
+            4324.0,
+            4328.0
           ],
           "raw_range": [
             4324.0,
@@ -15286,8 +15291,8 @@
           "telegram_ts_utc": "2026-06-09T14:02:00+00:00",
           "observed_ts_utc": "2026-06-09T14:02:12.673+00:00",
           "range": [
-            4824.0,
-            4828.0
+            4324.0,
+            4328.0
           ],
           "raw_range": [
             4324.0,
@@ -15301,8 +15306,8 @@
           "telegram_ts_utc": "2026-06-09T14:02:54+00:00",
           "observed_ts_utc": "2026-06-09T14:02:55.016+00:00",
           "range": [
-            4824.0,
-            4828.0
+            4324.0,
+            4328.0
           ],
           "raw_range": [
             4324.0,
@@ -15316,8 +15321,8 @@
           "telegram_ts_utc": "2026-06-09T14:04:46+00:00",
           "observed_ts_utc": "2026-06-09T14:04:52.604+00:00",
           "range": [
-            4824.0,
-            4828.0
+            4324.0,
+            4328.0
           ],
           "raw_range": [
             4324.0,
@@ -15357,9 +15362,13 @@
           "telegram_ts_utc": "2026-06-09T14:01:38+00:00",
           "observed_ts_utc": "2026-06-09T14:01:41.973+00:00",
           "tps": [
-            4831.0
+            4331.0,
+            4333.0,
+            4335.0,
+            4337.0,
+            4344.0
           ],
-          "sl": 4820.0,
+          "sl": 4320.0,
           "source_message_id": 13508,
           "source_kind": "revision",
           "raw_tps": [
@@ -15375,9 +15384,13 @@
           "telegram_ts_utc": "2026-06-09T14:01:50+00:00",
           "observed_ts_utc": "2026-06-09T14:01:51.008+00:00",
           "tps": [
-            4831.0
+            4331.0,
+            4333.0,
+            4335.0,
+            4337.0,
+            4344.0
           ],
-          "sl": 4820.0,
+          "sl": 4320.0,
           "source_message_id": 13508,
           "source_kind": "revision",
           "raw_tps": [
@@ -15393,9 +15406,14 @@
           "telegram_ts_utc": "2026-06-09T14:02:00+00:00",
           "observed_ts_utc": "2026-06-09T14:02:12.673+00:00",
           "tps": [
-            4831.0
+            4331.0,
+            4333.0,
+            4335.0,
+            4337.0,
+            4344.0,
+            4365.0
           ],
-          "sl": 4820.0,
+          "sl": 4320.0,
           "source_message_id": 13508,
           "source_kind": "revision",
           "raw_tps": [
@@ -15412,9 +15430,14 @@
           "telegram_ts_utc": "2026-06-09T14:02:54+00:00",
           "observed_ts_utc": "2026-06-09T14:02:55.016+00:00",
           "tps": [
-            4831.0
+            4331.0,
+            4333.0,
+            4335.0,
+            4337.0,
+            4344.0,
+            4355.0
           ],
-          "sl": 4820.0,
+          "sl": 4320.0,
           "source_message_id": 13508,
           "source_kind": "revision",
           "raw_tps": [
@@ -15431,9 +15454,14 @@
           "telegram_ts_utc": "2026-06-09T14:04:46+00:00",
           "observed_ts_utc": "2026-06-09T14:04:52.604+00:00",
           "tps": [
-            4831.0
+            4331.0,
+            4333.0,
+            4335.0,
+            4337.0,
+            4344.0,
+            4355.0
           ],
-          "sl": 4820.0,
+          "sl": 4320.0,
           "source_message_id": 13508,
           "source_kind": "revision",
           "raw_tps": [
@@ -15629,8 +15657,8 @@
         {
           "sig_id": "canal2_13508",
           "canonical_range": [
-            4824.0,
-            4828.0
+            4324.0,
+            4328.0
           ],
           "runtime_entry_quality": {
             "case": "B_favorable",
@@ -15644,35 +15672,35 @@
               "ticket": 1408561688,
               "open_price": 4329.89,
               "inside_final_provider_range": false,
-              "distance_outside": 494.11
+              "distance_outside": 1.89
             },
             {
               "ticket": 1408561712,
               "open_price": 4329.83,
               "inside_final_provider_range": false,
-              "distance_outside": 494.17
+              "distance_outside": 1.83
             },
             {
               "ticket": 1408561732,
               "open_price": 4329.79,
               "inside_final_provider_range": false,
-              "distance_outside": 494.21
+              "distance_outside": 1.79
             },
             {
               "ticket": 1408561770,
               "open_price": 4329.51,
               "inside_final_provider_range": false,
-              "distance_outside": 494.49
+              "distance_outside": 1.51
             },
             {
               "ticket": 1408561803,
               "open_price": 4329.42,
               "inside_final_provider_range": false,
-              "distance_outside": 494.58
+              "distance_outside": 1.42
             }
           ],
           "all_entries_inside": false,
-          "max_distance_outside": 494.58
+          "max_distance_outside": 1.89
         }
       ],
       "execution_count": 1,
@@ -15706,378 +15734,6 @@
           ],
           "decision": "repaired_prefix_typo",
           "observed_ts_utc": "2026-06-09T14:01:10.626+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "entry_range",
-          "raw": [
-            4324.0,
-            4328.0
-          ],
-          "canonical": [
-            4824.0,
-            4828.0
-          ],
-          "decision": "repaired_prefix_typo",
-          "observed_ts_utc": "2026-06-09T14:01:41.973+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp1",
-          "raw": 4331.0,
-          "canonical": 4831.0,
-          "decision": "rejected_keep_previous",
-          "observed_ts_utc": "2026-06-09T14:01:41.973+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp2",
-          "raw": 4333.0,
-          "canonical": null,
-          "decision": "rejected_invalid",
-          "observed_ts_utc": "2026-06-09T14:01:41.973+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp3",
-          "raw": 4335.0,
-          "canonical": null,
-          "decision": "rejected_invalid",
-          "observed_ts_utc": "2026-06-09T14:01:41.973+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp4",
-          "raw": 4337.0,
-          "canonical": null,
-          "decision": "rejected_invalid",
-          "observed_ts_utc": "2026-06-09T14:01:41.973+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp5",
-          "raw": 4344.0,
-          "canonical": null,
-          "decision": "rejected_invalid",
-          "observed_ts_utc": "2026-06-09T14:01:41.973+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "sl",
-          "raw": 4320.0,
-          "canonical": 4820.0,
-          "decision": "rejected_keep_previous",
-          "observed_ts_utc": "2026-06-09T14:01:41.973+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "entry_range",
-          "raw": [
-            4324.0,
-            4328.0
-          ],
-          "canonical": [
-            4824.0,
-            4828.0
-          ],
-          "decision": "repaired_prefix_typo",
-          "observed_ts_utc": "2026-06-09T14:01:51.008+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp1",
-          "raw": 4331.0,
-          "canonical": 4831.0,
-          "decision": "rejected_keep_previous",
-          "observed_ts_utc": "2026-06-09T14:01:51.008+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp2",
-          "raw": 4333.0,
-          "canonical": null,
-          "decision": "rejected_invalid",
-          "observed_ts_utc": "2026-06-09T14:01:51.008+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp3",
-          "raw": 4335.0,
-          "canonical": null,
-          "decision": "rejected_invalid",
-          "observed_ts_utc": "2026-06-09T14:01:51.008+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp4",
-          "raw": 4337.0,
-          "canonical": null,
-          "decision": "rejected_invalid",
-          "observed_ts_utc": "2026-06-09T14:01:51.008+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp5",
-          "raw": 4344.0,
-          "canonical": null,
-          "decision": "rejected_invalid",
-          "observed_ts_utc": "2026-06-09T14:01:51.008+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "sl",
-          "raw": 4320.0,
-          "canonical": 4820.0,
-          "decision": "rejected_keep_previous",
-          "observed_ts_utc": "2026-06-09T14:01:51.008+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "entry_range",
-          "raw": [
-            4324.0,
-            4328.0
-          ],
-          "canonical": [
-            4824.0,
-            4828.0
-          ],
-          "decision": "repaired_prefix_typo",
-          "observed_ts_utc": "2026-06-09T14:02:12.673+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp1",
-          "raw": 4331.0,
-          "canonical": 4831.0,
-          "decision": "rejected_keep_previous",
-          "observed_ts_utc": "2026-06-09T14:02:12.673+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp2",
-          "raw": 4333.0,
-          "canonical": null,
-          "decision": "rejected_invalid",
-          "observed_ts_utc": "2026-06-09T14:02:12.673+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp3",
-          "raw": 4335.0,
-          "canonical": null,
-          "decision": "rejected_invalid",
-          "observed_ts_utc": "2026-06-09T14:02:12.673+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp4",
-          "raw": 4337.0,
-          "canonical": null,
-          "decision": "rejected_invalid",
-          "observed_ts_utc": "2026-06-09T14:02:12.673+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp5",
-          "raw": 4344.0,
-          "canonical": null,
-          "decision": "rejected_invalid",
-          "observed_ts_utc": "2026-06-09T14:02:12.673+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp6",
-          "raw": 4365.0,
-          "canonical": null,
-          "decision": "rejected_invalid",
-          "observed_ts_utc": "2026-06-09T14:02:12.673+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "sl",
-          "raw": 4320.0,
-          "canonical": 4820.0,
-          "decision": "rejected_keep_previous",
-          "observed_ts_utc": "2026-06-09T14:02:12.673+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "entry_range",
-          "raw": [
-            4324.0,
-            4328.0
-          ],
-          "canonical": [
-            4824.0,
-            4828.0
-          ],
-          "decision": "repaired_prefix_typo",
-          "observed_ts_utc": "2026-06-09T14:02:55.016+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp1",
-          "raw": 4331.0,
-          "canonical": 4831.0,
-          "decision": "rejected_keep_previous",
-          "observed_ts_utc": "2026-06-09T14:02:55.016+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp2",
-          "raw": 4333.0,
-          "canonical": null,
-          "decision": "rejected_invalid",
-          "observed_ts_utc": "2026-06-09T14:02:55.016+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp3",
-          "raw": 4335.0,
-          "canonical": null,
-          "decision": "rejected_invalid",
-          "observed_ts_utc": "2026-06-09T14:02:55.016+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp4",
-          "raw": 4337.0,
-          "canonical": null,
-          "decision": "rejected_invalid",
-          "observed_ts_utc": "2026-06-09T14:02:55.016+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp5",
-          "raw": 4344.0,
-          "canonical": null,
-          "decision": "rejected_invalid",
-          "observed_ts_utc": "2026-06-09T14:02:55.016+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp6",
-          "raw": 4355.0,
-          "canonical": null,
-          "decision": "rejected_invalid",
-          "observed_ts_utc": "2026-06-09T14:02:55.016+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "sl",
-          "raw": 4320.0,
-          "canonical": 4820.0,
-          "decision": "rejected_keep_previous",
-          "observed_ts_utc": "2026-06-09T14:02:55.016+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "entry_range",
-          "raw": [
-            4324.0,
-            4328.0
-          ],
-          "canonical": [
-            4824.0,
-            4828.0
-          ],
-          "decision": "repaired_prefix_typo",
-          "observed_ts_utc": "2026-06-09T14:04:52.604+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp1",
-          "raw": 4331.0,
-          "canonical": 4831.0,
-          "decision": "rejected_keep_previous",
-          "observed_ts_utc": "2026-06-09T14:04:52.604+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp2",
-          "raw": 4333.0,
-          "canonical": null,
-          "decision": "rejected_invalid",
-          "observed_ts_utc": "2026-06-09T14:04:52.604+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp3",
-          "raw": 4335.0,
-          "canonical": null,
-          "decision": "rejected_invalid",
-          "observed_ts_utc": "2026-06-09T14:04:52.604+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp4",
-          "raw": 4337.0,
-          "canonical": null,
-          "decision": "rejected_invalid",
-          "observed_ts_utc": "2026-06-09T14:04:52.604+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp5",
-          "raw": 4344.0,
-          "canonical": null,
-          "decision": "rejected_invalid",
-          "observed_ts_utc": "2026-06-09T14:04:52.604+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "tp6",
-          "raw": 4355.0,
-          "canonical": null,
-          "decision": "rejected_invalid",
-          "observed_ts_utc": "2026-06-09T14:04:52.604+00:00",
-          "source_kind": "revision",
-          "source_message_id": 13508
-        },
-        {
-          "field": "sl",
-          "raw": 4320.0,
-          "canonical": 4820.0,
-          "decision": "rejected_keep_previous",
-          "observed_ts_utc": "2026-06-09T14:04:52.604+00:00",
           "source_kind": "revision",
           "source_message_id": 13508
         }
@@ -168051,8 +167707,8 @@
       "direction": "BUY",
       "risk_label": "standard",
       "effective_range": [
-        4045.0,
-        4045.0
+        4145.0,
+        4145.0
       ],
       "effective_tps": [
         4150.0,
@@ -168060,7 +167716,7 @@
         4160.0,
         4165.0
       ],
-      "effective_sl": 4035.0,
+      "effective_sl": 4135.0,
       "entry_zones": [],
       "zone_target": null,
       "zone_plan_timeline": [],
@@ -168162,8 +167818,8 @@
           "telegram_ts_utc": "2026-07-22T16:40:15+00:00",
           "observed_ts_utc": "2026-07-22T16:40:16.704+00:00",
           "range": [
-            4045.0,
-            4045.0
+            4145.0,
+            4145.0
           ],
           "raw_range": [
             4145.0,
@@ -168204,7 +167860,7 @@
             4160.0,
             4165.0
           ],
-          "sl": 4035.0,
+          "sl": 4135.0,
           "source_message_id": 21009,
           "source_kind": "revision",
           "raw_tps": [
@@ -168518,8 +168174,8 @@
         {
           "sig_id": "canal1_21008",
           "canonical_range": [
-            4045.0,
-            4045.0
+            4145.0,
+            4145.0
           ],
           "runtime_entry_quality": {
             "case": "A_inside",
@@ -168533,29 +168189,29 @@
               "ticket": 1637429260,
               "open_price": 4146.91,
               "inside_final_provider_range": false,
-              "distance_outside": 101.91
+              "distance_outside": 1.91
             },
             {
               "ticket": 1637429303,
               "open_price": 4146.86,
               "inside_final_provider_range": false,
-              "distance_outside": 101.86
+              "distance_outside": 1.86
             },
             {
               "ticket": 1637429334,
               "open_price": 4146.85,
               "inside_final_provider_range": false,
-              "distance_outside": 101.85
+              "distance_outside": 1.85
             },
             {
               "ticket": 1637429361,
               "open_price": 4146.83,
               "inside_final_provider_range": false,
-              "distance_outside": 101.83
+              "distance_outside": 1.83
             }
           ],
           "all_entries_inside": false,
-          "max_distance_outside": 101.91
+          "max_distance_outside": 1.91
         }
       ],
       "execution_count": 1,
@@ -168567,32 +168223,7 @@
       "duplicate_execution": false,
       "semantic_status": "complete",
       "semantic_gaps": [],
-      "canonicalization_issues": [
-        {
-          "field": "entry_range",
-          "raw": [
-            4145.0,
-            4145.0
-          ],
-          "canonical": [
-            4045.0,
-            4045.0
-          ],
-          "decision": "repaired_prefix_typo",
-          "observed_ts_utc": "2026-07-22T16:40:16.704+00:00",
-          "source_kind": "revision",
-          "source_message_id": 21009
-        },
-        {
-          "field": "sl",
-          "raw": 4135.0,
-          "canonical": 4035.0,
-          "decision": "rejected_keep_previous",
-          "observed_ts_utc": "2026-07-22T16:40:16.704+00:00",
-          "source_kind": "revision",
-          "source_message_id": 21009
-        }
-      ],
+      "canonicalization_issues": [],
       "identity_links": [
         {
           "source": "raw_nearest",

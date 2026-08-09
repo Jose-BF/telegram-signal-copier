@@ -1219,6 +1219,36 @@ def _canonical_observations(signal: dict) -> list[dict]:
                 }
             ),
         })
+    for runtime in signal.get("runtime_level_timeline") or []:
+        corrections = runtime.get("corrections") or []
+        market_context_shift = next(
+            (
+                correction
+                for correction in corrections
+                if correction.get("kind") == "market_context_shift"
+            ),
+            None,
+        )
+        if market_context_shift is None:
+            continue
+        runtime_tps = runtime.get("tps") or []
+        observations.append({
+            "observed_ts_utc": runtime.get("observed_ts_utc"),
+            "telegram_ts_utc": runtime.get("telegram_ts_utc"),
+            "source_kind": "runtime_market_context_repair",
+            "source_message_id": signal.get("root_message_id"),
+            "_source_order": int(runtime.get("_source_order") or 0),
+            "raw_range": runtime.get("range"),
+            "raw_tps": runtime_tps,
+            "raw_sl": runtime.get("sl"),
+            "full_tp_snapshot": bool(runtime_tps),
+            "tp_updates": {
+                str(index): float(value)
+                for index, value in enumerate(runtime_tps, start=1)
+            },
+            "canonical_decision": "market_context_prefix_repair",
+            "canonical_correction": market_context_shift,
+        })
     observations.sort(
         key=lambda row: _causal_row_sort_key(
             row,
@@ -1237,6 +1267,7 @@ def _rebuild_canonical_timeline(signal: dict) -> None:
     entry_timeline: list[dict] = []
     level_timeline: list[dict] = []
     issues: list[dict] = []
+    missing_level = object()
 
     def current_tps() -> list[float]:
         return [tp_state[index] for index in sorted(tp_state)]
@@ -1244,13 +1275,20 @@ def _rebuild_canonical_timeline(signal: dict) -> None:
     def apply_range(
         raw_observation: dict,
         knowledge_observation: dict,
+        *,
+        validation_tps: list[float] | None = None,
+        validation_sl=missing_level,
     ) -> bool:
         nonlocal current_range
         candidate, decision = _canonical_range_candidate(
             raw_observation["raw_range"],
             direction=direction,
-            tps=current_tps(),
-            sl=current_sl,
+            tps=(
+                current_tps()
+                if validation_tps is None
+                else validation_tps
+            ),
+            sl=current_sl if validation_sl is missing_level else validation_sl,
         )
         if candidate is None:
             return False
@@ -1280,15 +1318,49 @@ def _rebuild_canonical_timeline(signal: dict) -> None:
         return True
 
     for observation in _canonical_observations(signal):
+        raw_tps = [float(value) for value in observation.get("raw_tps") or []]
+        raw_sl = observation.get("raw_sl")
         raw_range = observation.get("raw_range")
         if raw_range:
-            if apply_range(observation, observation):
+            normalized_raw_range = sorted(float(value) for value in raw_range)
+            complete_bundle_is_coherent = (
+                len(normalized_raw_range) == 2
+                and bool(raw_tps)
+                and raw_sl is not None
+                and _range_compatible(
+                    normalized_raw_range,
+                    direction,
+                    raw_tps,
+                    float(raw_sl),
+                )
+            )
+            if apply_range(
+                observation,
+                observation,
+                validation_tps=(raw_tps if complete_bundle_is_coherent else None),
+                validation_sl=(
+                    float(raw_sl)
+                    if complete_bundle_is_coherent
+                    else missing_level
+                ),
+            ):
                 pending_range = None
             else:
                 pending_range = observation
 
-        raw_tps = [float(value) for value in observation.get("raw_tps") or []]
-        raw_sl = observation.get("raw_sl")
+        canonical_decision = observation.get("canonical_decision")
+        if canonical_decision:
+            issues.append(_canonical_issue(
+                observation,
+                field="price_bundle",
+                raw=observation.get("canonical_correction"),
+                canonical={
+                    "range": list(raw_range) if raw_range else None,
+                    "tps": raw_tps,
+                    "sl": raw_sl,
+                },
+                decision=str(canonical_decision),
+            ))
         has_level_update = bool(raw_tps or raw_sl is not None)
 
         updates = {
