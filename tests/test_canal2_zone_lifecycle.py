@@ -23,6 +23,7 @@ def _complete_plan(direction="BUY"):
 
 
 def _record(direction="BUY", now=None):
+    observed_now = now or datetime.now(timezone.utc)
     return new_plan_record(
         _complete_plan(direction),
         message_id=500,
@@ -30,7 +31,7 @@ def _record(direction="BUY", now=None):
         raw_text="formal plan",
         tg_ts="2026-08-05T09:00:00+00:00",
         source_kind="new",
-        now_utc=now or datetime(2026, 8, 5, 9, 0, tzinfo=timezone.utc),
+        now_utc=observed_now,
     )
 
 
