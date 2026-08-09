@@ -23,6 +23,7 @@ from listener import (
     _breakeven_close_guard_applies,
     _canal1_text_applied_summary,
     _management_requires_execution,
+    _rescue_market_capacity,
     _same_direction_overlap_candidate,
     _should_accept_canal1_text,
     _standalone_mgmt_route,
@@ -304,6 +305,134 @@ class TestRuntimeTradeMonitor:
         await listener._place_dca(sig)
 
         assert sig.dca_placed is True
+
+    @pytest.mark.asyncio
+    async def test_place_dca_starts_dubai_basket_guard_without_be_or_time_stop(
+            self, monkeypatch):
+        sig = Signal(channel="canal1", message_id=21190, direction="BUY")
+        sig.market_ticket = 789
+
+        started = []
+        monkeypatch.setattr(
+            listener.config,
+            "STRATEGY_C1_BASKET_GUARD_ENABLED",
+            True,
+        )
+        monkeypatch.setattr(
+            listener.position_lifecycle_monitor,
+            "start",
+            lambda signal, levels: started.append((signal, levels)),
+        )
+
+        await listener._place_dca(sig)
+
+        assert sig.dca_placed is True
+        assert started == [(sig, [])]
+
+
+class TestRescueMarketExposureCap:
+    def test_four_positions_can_add_one_rescue_leg(self, monkeypatch):
+        monkeypatch.setattr(
+            listener.config,
+            "STRATEGY_MAX_PLANNED_LOTS_PER_SIGNAL",
+            0.05,
+        )
+        sig = Signal(
+            channel="canal1",
+            message_id=21290,
+            direction="BUY",
+            market_ticket=101,
+            extra_market_tickets=[102, 103, 104],
+        )
+
+        capacity = _rescue_market_capacity(sig)
+
+        assert capacity == {
+            "allowed": True,
+            "current_positions": 4,
+            "current_lots": 0.04,
+            "projected_lots": 0.05,
+            "max_lots": 0.05,
+        }
+
+    def test_five_positions_cannot_add_a_sixth_leg(self, monkeypatch):
+        monkeypatch.setattr(
+            listener.config,
+            "STRATEGY_MAX_PLANNED_LOTS_PER_SIGNAL",
+            0.05,
+        )
+        sig = Signal(
+            channel="canal2",
+            message_id=930,
+            direction="SELL",
+            market_ticket=201,
+            extra_market_tickets=[202, 203, 204, 205],
+        )
+
+        capacity = _rescue_market_capacity(sig)
+
+        assert capacity == {
+            "allowed": False,
+            "current_positions": 5,
+            "current_lots": 0.05,
+            "projected_lots": 0.06,
+            "max_lots": 0.05,
+        }
+
+    @pytest.mark.asyncio
+    async def test_adverse_range_skips_rescue_before_sending_mt5_order(
+            self, monkeypatch):
+        monkeypatch.setattr(
+            listener.config,
+            "STRATEGY_MAX_PLANNED_LOTS_PER_SIGNAL",
+            0.05,
+        )
+        sig = Signal(
+            channel="canal2",
+            message_id=931,
+            direction="SELL",
+            market_ticket=201,
+            extra_market_tickets=[202, 203, 204, 205],
+            adverse_action="rescue_market",
+        )
+        events = []
+
+        def fake_entry_price(ticket):
+            assert ticket == 201
+            return 4100.0
+
+        async def fake_run(fn, *args):
+            if fn is listener.executor.current_tick:
+                pytest.fail("exposure cap must stop before reading rescue tick")
+            if fn is listener.executor.open_market:
+                pytest.fail("exposure cap must stop before sending an MT5 order")
+            return fn(*args)
+
+        monkeypatch.setattr(listener.executor, "entry_price", fake_entry_price)
+        monkeypatch.setattr(listener, "_run", fake_run)
+        monkeypatch.setattr(
+            listener.journal,
+            "event",
+            lambda sig_id, event, **fields: events.append(
+                (sig_id, event, fields)
+            ),
+        )
+        monkeypatch.setattr(
+            listener.journal, "update_trade", lambda *args, **kwargs: None,
+        )
+
+        closed = await listener._handle_range_arrival_safety(
+            sig, 4090.0, 4095.0,
+        )
+
+        assert closed is False
+        assert sig.entry_mode == "market_only"
+        skipped = next(
+            fields for _, event, fields in events
+            if event == "rescue_market_skipped_exposure_cap"
+        )
+        assert skipped["current_positions"] == 5
+        assert skipped["projected_lots"] == 0.06
 
 
 class TestPollerTelegramBackoff:

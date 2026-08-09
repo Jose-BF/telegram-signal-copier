@@ -14,6 +14,7 @@ import builtins
 import faulthandler
 import io
 import json
+import math
 import os
 import sys
 from datetime import datetime
@@ -49,6 +50,7 @@ import broker_money
 import config
 import executor
 import journal
+import live_basket_guard
 import live_auditor
 import pending_actions
 from tools import capture_broker_money_contract as broker_contract
@@ -1179,6 +1181,14 @@ def _resync_orphan_positions():
         groups.keys(),
     )
     try:
+        basket_guard_states = live_basket_guard.load_guard_states(
+            journal.EVENTS_FILE,
+            groups.keys(),
+        )
+    except OSError as exc:
+        basket_guard_states = {}
+        print(f"[Resync] no pude cargar proteccion de cestas: {exc}")
+    try:
         causal_origins, causal_conflicts, invalid_causal_lines = (
             causal_trace.load_signal_origin_index(journal.EVENTS_FILE)
         )
@@ -1280,6 +1290,15 @@ def _resync_orphan_positions():
                 "telegram_entry_timestamp"
             ),
         )
+        recovered_guard = basket_guard_states.get(sig_id)
+        if recovered_guard is not None:
+            sig.basket_guard_armed = recovered_guard.armed
+            sig.basket_guard_triggered = recovered_guard.triggered
+            sig.basket_guard_peak_pl = recovered_guard.peak_pl
+            sig.basket_guard_trigger_reason = recovered_guard.trigger_reason
+            sig.basket_guard_recovery_pending = (
+                recovered_guard.recovery_pending
+            )
         # Reconstruir tp_overrides del Market B (doble market): el Market B
         # cierra en TP3 (STRATEGY_DOUBLE_MARKET_TP_INDEX). Sin esto, tras el
         # resync el Market B se quedaba sin override (canal2_12497 lo perdio
@@ -1748,6 +1767,88 @@ def _terminate_legacy_watcher_parent(parent=None) -> bool:
         return False
 
 
+def _live_strategy_contract() -> dict:
+    """Return the exact live policy deployed by this process."""
+    guard = live_basket_guard.GuardPolicy(
+        enabled=config.STRATEGY_C1_BASKET_GUARD_ENABLED,
+        channel="canal1",
+        loss_cap=config.STRATEGY_C1_BASKET_LOSS_CAP,
+        profit_arm=config.STRATEGY_C1_BASKET_PROFIT_ARM,
+        profit_lock=config.STRATEGY_C1_BASKET_PROFIT_LOCK,
+    )
+    max_lots = float(config.STRATEGY_MAX_PLANNED_LOTS_PER_SIGNAL)
+    if (
+        not math.isfinite(max_lots)
+        or max_lots < max(0.01, round(float(config.LOT_SIZE), 2))
+    ):
+        raise ValueError(
+            "STRATEGY_MAX_PLANNED_LOTS_PER_SIGNAL no permite ni una posicion"
+        )
+    return {
+        "schema_version": 1,
+        "evidence_status": "forward_trial",
+        "dubai": {
+            "entry_mode": config.STRATEGY_C1_ENTRY_MODE,
+            "num_entries": int(config.STRATEGY_C1_NUM_ENTRIES),
+            "basket_guard": {
+                "enabled": bool(guard.enabled),
+                "loss_cap": float(guard.loss_cap),
+                "profit_arm": float(guard.profit_arm),
+                "profit_lock": float(guard.profit_lock),
+                "poll_seconds": max(
+                    0.1,
+                    float(config.STRATEGY_C1_BASKET_GUARD_POLL_S),
+                ),
+                "money_source": (
+                    "mt5_position_profit_account_currency"
+                ),
+            },
+        },
+        "gold": {
+            "immediate_entry_mode": config.STRATEGY_C2_ENTRY_MODE,
+            "num_entries": int(config.STRATEGY_C2_NUM_ENTRIES),
+            "zone_first_touch_execution": bool(
+                config.STRATEGY_C2_ZONE_FIRST_TOUCH_EXECUTION_ENABLED
+            ),
+            "zone_explicit_activation": True,
+        },
+        "risk": {
+            "lot_per_position": float(config.LOT_SIZE),
+            "max_planned_lots_per_signal": round(max_lots, 8),
+            "exposure_cap_enforced": True,
+            "volume_increased_by_trial": False,
+        },
+    }
+
+
+def _live_strategy_summary(contract: dict) -> str:
+    guard = contract["dubai"]["basket_guard"]
+    gold = contract["gold"]
+    risk = contract["risk"]
+    guard_text = (
+        f"ON <= {guard['loss_cap']:.2f}; arma +{guard['profit_arm']:.2f}; "
+        f"asegura +{guard['profit_lock']:.2f}"
+        if guard["enabled"]
+        else "OFF"
+    )
+    zone_text = (
+        "primer toque ejecuta"
+        if gold["zone_first_touch_execution"]
+        else "primer toque observa; solo Active ejecuta"
+    )
+    return (
+        f"[Strategy] Dubai guard {guard_text} EUR | Gold zonas: "
+        f"{zone_text} | max {risk['max_planned_lots_per_signal']:.2f} lot"
+    )
+
+
+def _publish_live_strategy_contract() -> dict:
+    contract = _live_strategy_contract()
+    journal.event("bot", "live_strategy_contract", **contract)
+    print(_live_strategy_summary(contract))
+    return contract
+
+
 def _startup_status_message(
     git_info: dict,
     *,
@@ -1841,6 +1942,17 @@ async def main():
     # lo cubre → cada fila del ledger carga su `bot_version`.
     journal.event("bot", "session_started", **git_info,
                   started_utc=datetime.utcnow().isoformat(timespec="seconds"))
+    try:
+        _publish_live_strategy_contract()
+    except ValueError as exc:
+        print(f"[Startup] ARRANQUE BLOQUEADO: estrategia invalida: {exc}")
+        journal.event(
+            "bot",
+            "startup_blocked_invalid_strategy",
+            error=str(exc),
+        )
+        journal.flush_events(timeout=10.0)
+        raise SystemExit(78) from exc
 
     # Validar configuración mínima
     if not config.CANAL1_BUY_STICKER_ID or not config.CANAL1_SELL_STICKER_ID:

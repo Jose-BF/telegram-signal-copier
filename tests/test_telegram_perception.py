@@ -405,6 +405,34 @@ async def test_extra_leg_opening_exposes_transient_audit_guard(monkeypatch):
     assert sig.extra_market_tickets == [1001]
 
 
+@pytest.mark.asyncio
+async def test_scale_out_never_opens_beyond_signal_exposure_cap(monkeypatch):
+    sig = Signal(channel="canal2", message_id=932, direction="BUY")
+    sig.market_ticket = 1000
+    calls = []
+
+    async def fake_run(fn, *args, **kwargs):
+        ticket = 1001 + len(calls)
+        calls.append(args)
+        return (ticket, 4056.50)
+
+    monkeypatch.setattr(listener, "_run", fake_run)
+    monkeypatch.setattr(listener.config, "LOT_SIZE", 0.01)
+    monkeypatch.setattr(listener.config, "STRATEGY_C2_ENTRY_MODE", "scale_out")
+    monkeypatch.setattr(listener.config, "STRATEGY_C2_NUM_ENTRIES", 6)
+    monkeypatch.setattr(
+        listener.config, "STRATEGY_MAX_PLANNED_LOTS_PER_SIGNAL", 0.05,
+    )
+    monkeypatch.setattr(listener.journal, "event", lambda *a, **kw: None)
+    monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
+
+    await listener._open_extra_legs(sig, 932)
+
+    assert len(calls) == 4
+    assert len(sig.all_filled_tickets) == 5
+    assert len(sig.all_filled_tickets) * sig.effective_lot == 0.05
+
+
 def test_management_understanding_flags_uncovered_close_fragment(monkeypatch):
     events = []
     monkeypatch.setattr(

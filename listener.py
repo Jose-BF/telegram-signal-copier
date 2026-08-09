@@ -1817,6 +1817,24 @@ def _num_entries_for_channel(channel: str) -> int:
     return config.STRATEGY_C2_NUM_ENTRIES
 
 
+def _rescue_market_capacity(signal: Signal) -> dict:
+    """Return whether one more same-sized market leg fits the live cap."""
+    current_positions = len(signal.all_filled_tickets)
+    lot = float(signal.effective_lot)
+    current_lots = round(current_positions * lot, 8)
+    projected_lots = round(current_lots + lot, 8)
+    max_lots = round(
+        float(config.STRATEGY_MAX_PLANNED_LOTS_PER_SIGNAL), 8,
+    )
+    return {
+        "allowed": projected_lots <= max_lots + 1e-9,
+        "current_positions": current_positions,
+        "current_lots": current_lots,
+        "projected_lots": projected_lots,
+        "max_lots": max_lots,
+    }
+
+
 # --- Monitor de trade vivo ---------------------------------------------------
 
 async def _place_dca(signal: Signal):
@@ -1831,14 +1849,29 @@ async def _place_dca(signal: Signal):
     signal.dca_placed = True
 
     needs_monitor_anyway = (
-        signal.time_stop_at is not None or signal.be_at_tp_index is not None
+        signal.time_stop_at is not None
+        or signal.be_at_tp_index is not None
+        or (
+            signal.channel == "canal1"
+            and config.STRATEGY_C1_BASKET_GUARD_ENABLED
+        )
     )
     if not needs_monitor_anyway:
-        print("[Trade Monitor] Sin BE/time-stop configurados; monitor omitido.")
+        print(
+            "[Trade Monitor] Sin BE/time-stop/proteccion de cesta; "
+            "monitor omitido."
+        )
         return
 
-    print(f"[Trade Monitor] Activo para BE/time-stop "
-          f"(be@idx={signal.be_at_tp_index}, ts={signal.time_stop_at})")
+    guard_active = bool(
+        signal.channel == "canal1"
+        and config.STRATEGY_C1_BASKET_GUARD_ENABLED
+    )
+    print(
+        f"[Trade Monitor] Activo para BE/time-stop/proteccion "
+        f"(be@idx={signal.be_at_tp_index}, ts={signal.time_stop_at}, "
+        f"basket_guard={guard_active})"
+    )
     position_lifecycle_monitor.start(signal, [])
     return
 
@@ -1883,6 +1916,20 @@ async def _open_extra_legs_impl(sig: Signal, msg_id: int) -> None:
         opened = 0
         n_attempted = max(0, n_legs - 1)
         for n in range(1, n_legs):   # n = 1..N-1 (la leg 0 es el market inicial)
+            capacity = _rescue_market_capacity(sig)
+            if not capacity["allowed"]:
+                journal.event(
+                    sig_id,
+                    "scale_out_leg_skipped_exposure_cap",
+                    leg=n,
+                    configured_positions=n_legs,
+                    **capacity,
+                )
+                print(
+                    f"[{channel}] Scale-out limitado a "
+                    f"{capacity['max_lots']:.2f} lot por senal"
+                )
+                break
             result = await _run(executor.open_market_with_fill, sig.direction,
                                 config.LOT_SIZE, None, None,
                                 f"{cprefix}_{msg_id}_B{n}", magic)
@@ -2163,6 +2210,20 @@ async def _handle_range_arrival_safety(signal: Signal, lo: float, hi: float) -> 
         # Mantener el original + abrir nuevo market a precio actual.
         # El rescue es la entrada óptima (precio adverso = mejor para BUY/SELL).
         # SL común, TP del rescue = último TP disponible (max recorrido).
+        capacity = _rescue_market_capacity(signal)
+        if not capacity["allowed"]:
+            print(
+                "[Layered] rescue omitido: limite de exposicion "
+                f"{capacity['max_lots']:.2f} lot alcanzado "
+                f"({capacity['current_positions']} posiciones)"
+            )
+            journal.event(
+                sig_id,
+                "rescue_market_skipped_exposure_cap",
+                **capacity,
+            )
+            signal.entry_mode = "market_only"
+            return False
         try:
             tick = await _run(executor.current_tick)
         except Exception as e:

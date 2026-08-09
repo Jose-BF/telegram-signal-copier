@@ -122,6 +122,15 @@ class Signal:
     # ¿BE ya disparado en esta señal? (interno, no tocar)
     be_armed: bool = False
 
+    # Aggregate account-currency protection for Dubai Investing. These fields
+    # are persisted as journal transitions and rebuilt after a restart.
+    basket_guard_armed: bool = False
+    basket_guard_triggered: bool = False
+    basket_guard_peak_pl: Optional[float] = None
+    basket_guard_trigger_reason: Optional[str] = None
+    basket_guard_recovery_pending: bool = False
+    basket_guard_close_tickets: list = field(default_factory=list)
+
     # Tickets cerrados explícitamente por acción CLOSE_FIRST.
     # Se rellena en listener.py al ejecutar el action. Usado en
     # _classify_closures para taggear esos cierres como "CLOSE_FIRST"

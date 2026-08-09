@@ -279,3 +279,35 @@ def test_mt5_sl_reason_wins_when_provider_level_changed_after_close(
     assert closure["closed_by_tag"] == "SL"
     assert closure["broker_close_reason"] == "sl"
     assert closure["classification_source"] == "broker_reason_and_effective_level"
+
+
+def test_basket_guard_close_uses_bot_state_before_price_classification(
+        monkeypatch):
+    ticket = 1689000002
+    signal = Signal(channel="canal1", message_id=21184, direction="BUY")
+    signal.market_ticket = ticket
+    signal.tps = [4050.0]
+    signal.sl = 4030.0
+    signal.basket_guard_close_tickets = [ticket]
+    signal.basket_guard_trigger_reason = "loss_cap"
+
+    deals = [
+        SimpleNamespace(
+            ticket=20, time_msc=1, price=4040.0, profit=0.0,
+            commission=0.0, swap=0.0, fee=0.0, reason=3, comment="c1_21184",
+        ),
+        SimpleNamespace(
+            ticket=21, time_msc=2, price=4035.0, profit=-5.0,
+            commission=0.0, swap=0.0, fee=-0.05, reason=1, comment="",
+        ),
+    ]
+    monkeypatch.setattr(
+        position_lifecycle_monitor.mt5,
+        "history_deals_get",
+        lambda **_kwargs: deals,
+    )
+
+    closure = _classify_closures(signal)[0]
+
+    assert closure["closed_by_tag"] == "BASKET_GUARD_LOSS_CAP"
+    assert closure["classification_source"] == "bot_state"

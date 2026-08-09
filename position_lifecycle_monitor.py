@@ -35,6 +35,7 @@ import MetaTrader5 as mt5
 import causal_trace
 import config
 import executor
+import live_basket_guard
 import pending_actions
 import strategies
 from mt5_deal_reason import close_reason_from_deal
@@ -45,6 +46,124 @@ from state import Signal
 # el broker o MT5 esta down. Antes giraba indefinidamente sin anomaly. Ahora
 # tras alcanzar threshold emite warning una vez por episodio.
 NULL_TICK_STREAK_THRESHOLD = 3000   # ~30s a 10ms por ciclo
+
+
+def _basket_guard_policy() -> live_basket_guard.GuardPolicy:
+    return live_basket_guard.GuardPolicy(
+        enabled=config.STRATEGY_C1_BASKET_GUARD_ENABLED,
+        channel="canal1",
+        loss_cap=config.STRATEGY_C1_BASKET_LOSS_CAP,
+        profit_arm=config.STRATEGY_C1_BASKET_PROFIT_ARM,
+        profit_lock=config.STRATEGY_C1_BASKET_PROFIT_LOCK,
+    )
+
+
+def _basket_guard_enabled_for(signal: Signal) -> bool:
+    return bool(
+        config.STRATEGY_C1_BASKET_GUARD_ENABLED
+        and signal.channel == "canal1"
+    )
+
+
+def _journal_event(signal_id: str, event: str, **fields) -> None:
+    import journal
+    journal.event(signal_id, event, **fields)
+
+
+def _guard_state(signal: Signal) -> live_basket_guard.GuardState:
+    return live_basket_guard.GuardState(
+        armed=bool(signal.basket_guard_armed),
+        triggered=bool(signal.basket_guard_triggered),
+        peak_pl=signal.basket_guard_peak_pl,
+        trigger_reason=signal.basket_guard_trigger_reason,
+        recovery_pending=bool(signal.basket_guard_recovery_pending),
+    )
+
+
+def _store_guard_state(
+    signal: Signal,
+    state: live_basket_guard.GuardState,
+) -> None:
+    signal.basket_guard_armed = state.armed
+    signal.basket_guard_triggered = state.triggered
+    signal.basket_guard_peak_pl = state.peak_pl
+    signal.basket_guard_trigger_reason = state.trigger_reason
+    signal.basket_guard_recovery_pending = state.recovery_pending
+
+
+def _apply_live_basket_guard(
+    signal: Signal,
+    summary: dict,
+) -> live_basket_guard.GuardDecision:
+    policy = _basket_guard_policy()
+    decision = live_basket_guard.evaluate_guard(
+        channel=signal.channel,
+        floating_pl=float(summary.get("pl") or 0.0),
+        n_open=int(summary.get("n_open") or 0),
+        state=_guard_state(signal),
+        policy=policy,
+    )
+    _store_guard_state(signal, decision.state)
+    signal_id = f"{signal.channel}_{signal.message_id}"
+    common = {
+        "channel": signal.channel,
+        "observed_pl": round(decision.observed_pl, 2),
+        "peak_pl": (
+            round(float(decision.state.peak_pl), 2)
+            if decision.state.peak_pl is not None else None
+        ),
+        "n_open": int(summary.get("n_open") or 0),
+        "open_tickets": [
+            int(ticket) for ticket in summary.get("open_tickets") or []
+        ],
+        "loss_cap": float(policy.loss_cap),
+        "profit_arm": float(policy.profit_arm),
+        "profit_lock": float(policy.profit_lock),
+        "money_source": "mt5_position_profit_account_currency",
+    }
+
+    if decision.action == "arm":
+        _journal_event(signal_id, "basket_guard_armed", **common)
+        return decision
+    if decision.action != "close":
+        return decision
+
+    tickets = common["open_tickets"]
+    try:
+        for ticket in tickets:
+            if ticket not in signal.basket_guard_close_tickets:
+                signal.basket_guard_close_tickets.append(ticket)
+            pending_actions.enqueue_close_position(
+                signal,
+                ticket,
+                label=f"BASKET_GUARD_{decision.reason.upper()} #{ticket}",
+            )
+        for ticket in signal.pending_tickets:
+            pending_actions.enqueue_cancel_pending(
+                signal,
+                ticket,
+                label=(
+                    f"BASKET_GUARD_{decision.reason.upper()} pend #{ticket}"
+                ),
+            )
+    except Exception:
+        # A partial spool/write failure must be retried on the next sample.
+        signal.basket_guard_recovery_pending = True
+        raise
+    signal.basket_guard_recovery_pending = False
+    event = (
+        "basket_guard_close_recovered"
+        if decision.reason == "recovery"
+        else "basket_guard_triggered"
+    )
+    _journal_event(
+        signal_id,
+        event,
+        reason=decision.reason,
+        queued_close_count=len(tickets),
+        **common,
+    )
+    return decision
 
 
 def _should_alert_null_tick_streak(streak: int, already_alerted: bool,
@@ -315,6 +434,21 @@ def _classify_closures(signal: Signal) -> list[dict]:
                 "effective_tp": effective_tp,
                 "effective_sl": effective_sl,
             }
+            if ticket in getattr(signal, "basket_guard_close_tickets", []):
+                reason = str(
+                    getattr(signal, "basket_guard_trigger_reason", None)
+                    or "triggered"
+                ).upper()
+                out.append({
+                    "ticket": int(ticket),
+                    "exit_price": round(exit_price, 2),
+                    "pnl": round(pnl_total, 2),
+                    "closed_by_tag": f"BASKET_GUARD_{reason}",
+                    "distance_to_tag": None,
+                    **evidence,
+                    "classification_source": "bot_state",
+                })
+                continue
             if ticket in getattr(signal, "be_rescue_tickets", []):
                 out.append({
                     "ticket": int(ticket),
@@ -388,7 +522,7 @@ def _floating_pl_summary(signal: Signal) -> dict:
     Si no se puede leer el tick o las posiciones, devuelve dict con None.
     """
     out = {"pl": 0.0, "n_open": 0, "avg_entry": None, "current_price": None,
-           "lots_total": 0.0}
+           "lots_total": 0.0, "open_tickets": []}
     tick = mt5.symbol_info_tick(config.MT5_SYMBOL)
     if tick:
         # Para BUY el "precio actual relevante" para cierre es bid; para SELL ask.
@@ -402,6 +536,7 @@ def _floating_pl_summary(signal: Signal) -> dict:
         p = pos[0]
         out["pl"] += p.profit
         out["n_open"] += 1
+        out["open_tickets"].append(int(t))
         out["lots_total"] += p.volume
         weighted_entry += p.price_open * p.volume
 
@@ -656,7 +791,12 @@ async def run(signal: Signal, levels: list[float]):
       - La señal pasa a status='closed' (SL hit, CLOSE_ALL, time-stop)
       - El TIME-STOP defensivo se dispara → cierra todo
     """
-    if not levels and signal.time_stop_at is None and signal.be_at_tp_index is None:
+    if (
+        not levels
+        and signal.time_stop_at is None
+        and signal.be_at_tp_index is None
+        and not _basket_guard_enabled_for(signal)
+    ):
         return
 
     pending = list(levels)
@@ -674,6 +814,15 @@ async def run(signal: Signal, levels: list[float]):
     # Más frecuente sería I/O excesivo; menos frecuente perdería extremos breves.
     last_extremes_ts = 0.0
     EXTREMES_INTERVAL_S = 5.0
+
+    # Local MT5 sampling for the Dubai basket guard. It is independent from
+    # journal snapshots so logging latency cannot delay a risk decision.
+    last_basket_guard_ts = 0.0
+    basket_guard_interval_s = max(
+        0.1,
+        float(config.STRATEGY_C1_BASKET_GUARD_POLL_S),
+    )
+    basket_guard_error_alerted = False
 
     # Batch E: track null-tick streak para detectar broker/MT5 down dentro
     # del monitor. Antes giraba en silencio.
@@ -782,12 +931,63 @@ async def run(signal: Signal, levels: list[float]):
 
         last_tick_ms = tick.time_msc
 
+        guard_summary = None
+        now_monotonic = time.monotonic()
+        if (
+            _basket_guard_enabled_for(signal)
+            and now_monotonic - last_basket_guard_ts
+            >= basket_guard_interval_s
+        ):
+            last_basket_guard_ts = now_monotonic
+            try:
+                guard_summary = await asyncio.to_thread(
+                    _floating_pl_summary,
+                    signal,
+                )
+                decision = _apply_live_basket_guard(signal, guard_summary)
+                if decision.action == "arm":
+                    print(
+                        f"[Basket Guard] Dubai {signal.message_id}: "
+                        f"proteccion armada en {decision.observed_pl:.2f}"
+                    )
+                elif decision.action == "close":
+                    print(
+                        f"[Basket Guard] Dubai {signal.message_id}: "
+                        f"cierre {decision.reason} en "
+                        f"{decision.observed_pl:.2f}"
+                    )
+                basket_guard_error_alerted = False
+            except Exception as exc:
+                print(
+                    f"[Basket Guard] error Dubai {signal.message_id}: "
+                    f"{type(exc).__name__}: {exc}"
+                )
+                if not basket_guard_error_alerted:
+                    try:
+                        import journal as _j_bg
+                        _j_bg.anomaly(
+                            f"{signal.channel}_{signal.message_id}",
+                            "mt5",
+                            "critical",
+                            "proteccion de cesta Dubai sin lectura valida",
+                            exc_type=type(exc).__name__,
+                            exc_msg=str(exc)[:300],
+                        )
+                    except Exception:
+                        pass
+                basket_guard_error_alerted = True
+
         # ── Track MFE/MAE + auto-finalize (throttled cada 5s) ──
         now_ts = datetime.utcnow().timestamp()
         if now_ts - last_extremes_ts >= EXTREMES_INTERVAL_S:
             last_extremes_ts = now_ts
             try:
-                summary = await asyncio.to_thread(_floating_pl_summary, signal)
+                summary = guard_summary
+                if summary is None:
+                    summary = await asyncio.to_thread(
+                        _floating_pl_summary,
+                        signal,
+                    )
                 if summary["n_open"] > 0:
                     import journal as _j
                     sig_id = f"{signal.channel}_{signal.message_id}"

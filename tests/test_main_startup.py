@@ -6,6 +6,8 @@ import sys
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
+import pytest
+
 import listener
 import main
 import position_lifecycle_monitor
@@ -68,6 +70,73 @@ def test_startup_status_message_does_not_infer_sync_from_clean_main():
     })
 
     assert "Codigo: estado local sin verificar" in text
+
+
+def test_publish_live_strategy_contract_records_exact_runtime_policy(
+        monkeypatch):
+    events = []
+    monkeypatch.setattr(main.config, "LOT_SIZE", 0.01)
+    monkeypatch.setattr(
+        main.config, "STRATEGY_MAX_PLANNED_LOTS_PER_SIGNAL", 0.05,
+    )
+    monkeypatch.setattr(main.config, "STRATEGY_C1_NUM_ENTRIES", 4)
+    monkeypatch.setattr(main.config, "STRATEGY_C2_NUM_ENTRIES", 5)
+    monkeypatch.setattr(
+        main.config,
+        "STRATEGY_C1_BASKET_GUARD_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(main.config, "STRATEGY_C1_BASKET_LOSS_CAP", -50.0)
+    monkeypatch.setattr(main.config, "STRATEGY_C1_BASKET_PROFIT_ARM", 30.0)
+    monkeypatch.setattr(main.config, "STRATEGY_C1_BASKET_PROFIT_LOCK", 20.0)
+    monkeypatch.setattr(main.config, "STRATEGY_C1_BASKET_GUARD_POLL_S", 0.5)
+    monkeypatch.setattr(
+        main.config,
+        "STRATEGY_C2_ZONE_FIRST_TOUCH_EXECUTION_ENABLED",
+        False,
+    )
+    monkeypatch.setattr(
+        main.journal,
+        "event",
+        lambda sig, ev, **fields: events.append((sig, ev, fields)),
+    )
+
+    contract = main._publish_live_strategy_contract()
+
+    assert events == [("bot", "live_strategy_contract", contract)]
+    assert contract["dubai"]["basket_guard"] == {
+        "enabled": True,
+        "loss_cap": -50.0,
+        "profit_arm": 30.0,
+        "profit_lock": 20.0,
+        "poll_seconds": 0.5,
+        "money_source": "mt5_position_profit_account_currency",
+    }
+    assert contract["gold"]["zone_first_touch_execution"] is False
+    assert contract["gold"]["zone_explicit_activation"] is True
+    assert contract["risk"]["max_planned_lots_per_signal"] == 0.05
+    assert contract["risk"]["exposure_cap_enforced"] is True
+    assert contract["evidence_status"] == "forward_trial"
+
+
+def test_live_strategy_contract_reports_effective_guard_poll_interval(
+        monkeypatch):
+    monkeypatch.setattr(main.config, "STRATEGY_C1_BASKET_GUARD_POLL_S", 0.01)
+
+    contract = main._live_strategy_contract()
+
+    assert contract["dubai"]["basket_guard"]["poll_seconds"] == 0.1
+
+
+@pytest.mark.parametrize("max_lots", [0.0, float("nan"), float("inf")])
+def test_live_strategy_contract_rejects_invalid_exposure_cap(
+        monkeypatch, max_lots):
+    monkeypatch.setattr(
+        main.config, "STRATEGY_MAX_PLANNED_LOTS_PER_SIGNAL", max_lots,
+    )
+
+    with pytest.raises(ValueError, match="STRATEGY_MAX_PLANNED_LOTS"):
+        main._live_strategy_contract()
 
 
 def test_git_info_compares_head_with_origin_main(monkeypatch):
@@ -358,3 +427,66 @@ def test_resync_restores_canal2_reply_entry_identity(monkeypatch, tmp_path):
         is_reply=False,
     )
     assert duplicate is signal
+
+
+def test_resync_restores_armed_dubai_basket_guard(monkeypatch, tmp_path):
+    opened_at = int(datetime.now(timezone.utc).timestamp()) - 5
+    events_file = tmp_path / "trade_events.jsonl"
+    events_file.write_text(
+        json.dumps({
+            "sig": "canal1_21190",
+            "ev": "basket_guard_armed",
+            "observed_pl": 31.0,
+            "peak_pl": 34.5,
+        }) + "\n",
+        encoding="utf-8",
+    )
+    st = StateManager()
+    groups = {
+        "canal1_21190": {
+            "channel": "canal1",
+            "message_id": 21190,
+            "direction": "BUY",
+            "market_ticket": 1671689010,
+            "market_price": 4040.0,
+            "market_sl": 4030.0,
+            "market_tp": 4050.0,
+            "market_open_time": opened_at,
+            "extra_market_tickets": [],
+            "dca_tickets": [],
+        }
+    }
+    started = []
+
+    monkeypatch.setattr(
+        main.executor,
+        "list_open_positions_grouped",
+        lambda: groups,
+    )
+    monkeypatch.setattr(
+        main.causal_trace,
+        "load_signal_origin_index",
+        lambda _path: ({}, {}, []),
+    )
+    monkeypatch.setattr(main.journal, "EVENTS_FILE", events_file)
+    monkeypatch.setattr(main.journal, "event", lambda *args, **kwargs: None)
+    monkeypatch.setattr(state_module, "state", st)
+    monkeypatch.setattr(
+        position_lifecycle_monitor,
+        "start",
+        lambda signal, levels: started.append((signal, levels)),
+    )
+    monkeypatch.setattr(
+        main.executor,
+        "mt5",
+        SimpleNamespace(symbol_info_tick=lambda _symbol: None),
+    )
+
+    main._resync_orphan_positions()
+
+    signal = st.get("canal1", 21190)
+    assert signal is not None
+    assert signal.basket_guard_armed is True
+    assert signal.basket_guard_triggered is False
+    assert signal.basket_guard_peak_pl == 34.5
+    assert started == [(signal, [])]

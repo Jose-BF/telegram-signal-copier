@@ -19,8 +19,8 @@ Gold Signals zone execution:
 
 - Immediate `BUY/SELL NOW` messages keep their established execution path.
 - A formal plan with one BUY/SELL zone, at least one TP and an SL is armed on
-  the demo account. BUY uses broker Ask and SELL uses broker Bid; the first
-  fresh tick inside the zone opens through the same Canal 2 order path.
+  the demo account. BUY uses broker Ask and SELL uses broker Bid. Its first
+  fresh touch is recorded for analysis but does not open exposure.
 - Explicit `Active` or `You can enter` may open immediately. Explicit
   re-entry creates a new generation; `Do not re-enter` blocks later ones.
 - Multi-zone maps and incomplete plans remain observation-only until one
@@ -32,6 +32,22 @@ Gold Signals zone execution:
 - `Close overall profit OR set breakeven` is one contextual action: a positive
   live basket closes, while a zero/negative basket receives exact per-ticket
   breakeven. Both branches are never executed together.
+
+Current demo forward policy:
+
+- Dubai Investing keeps provider entries, TP/SL, management and scale-out.
+  A per-signal MT5 basket guard closes at `-50` account-currency units, arms
+  at `+30`, and secures the basket if it returns to `+20`.
+- Gold Signals immediate entries are unchanged. Zone plans open only after an
+  explicit provider activation; first touch remains observation-only.
+- Position volume is unchanged: `0.01` per leg. The runtime enforces
+  `STRATEGY_MAX_PLANNED_LOTS_PER_SIGNAL=0.05` across initial and rescue legs,
+  so a late rescue cannot silently create a sixth position.
+- Startup publishes a `live_strategy_contract` event and one readable console
+  line containing the exact active switches and thresholds.
+- This is a forward demo trial calibrated on retained history, not evidence of
+  guaranteed profitability. Set `STRATEGY_C1_BASKET_GUARD_ENABLED=0` or
+  `STRATEGY_C2_ZONE_FIRST_TOUCH_EXECUTION_ENABLED=1` to roll back each change.
 
 The compact daily log pass is incremental and reports armed zones, confirmed
 entries, trigger types and failures without rescanning the retained corpus:

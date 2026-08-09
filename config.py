@@ -65,6 +65,9 @@ def magic_for(channel: str) -> int:
 
 # Trading
 LOT_SIZE = _float("LOT_SIZE", 0.01)
+STRATEGY_MAX_PLANNED_LOTS_PER_SIGNAL = _float(
+    "STRATEGY_MAX_PLANNED_LOTS_PER_SIGNAL", 0.05,
+)
 
 # Heartbeat de runtime para el watcher externo. Si el proceso queda vivo pero
 # congelado, tools/run_bot_watch.py reinicia el bot al ver este fichero viejo.
@@ -187,6 +190,20 @@ STRATEGY_C1_NUM_ENTRIES     = int(os.getenv("STRATEGY_C1_NUM_ENTRIES", "4"))
 STRATEGY_C1_TARGET_TP_INDEX = int(os.getenv("STRATEGY_C1_TARGET_TP_INDEX", "-1"))  # -1 = escalonado
 STRATEGY_C1_TIME_STOP_MIN   = int(os.getenv("STRATEGY_C1_TIME_STOP_MIN", "60"))    # notify only
 STRATEGY_C1_BE_TP_INDEX     = int(os.getenv("STRATEGY_C1_BE_TP_INDEX", "-1"))      # -1 = sin BE
+
+# Demo forward trial: protect the aggregate MT5 P/L of each Dubai signal.
+# Values are in the account currency reported directly by MT5.
+STRATEGY_C1_BASKET_GUARD_ENABLED = (
+    os.getenv("STRATEGY_C1_BASKET_GUARD_ENABLED", "1") == "1"
+)
+STRATEGY_C1_BASKET_LOSS_CAP = _float(
+    "STRATEGY_C1_BASKET_LOSS_CAP", -50.0)
+STRATEGY_C1_BASKET_PROFIT_ARM = _float(
+    "STRATEGY_C1_BASKET_PROFIT_ARM", 30.0)
+STRATEGY_C1_BASKET_PROFIT_LOCK = _float(
+    "STRATEGY_C1_BASKET_PROFIT_LOCK", 20.0)
+STRATEGY_C1_BASKET_GUARD_POLL_S = _float(
+    "STRATEGY_C1_BASKET_GUARD_POLL_S", 0.5)
 
 # CANAL 2 — modo scale_out (semana de prueba 2026-05-17). Igual que C1:
 # NUM_ENTRIES posiciones market de golpe, TPs escalonados (pos k -> TPk),
