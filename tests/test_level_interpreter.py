@@ -1,4 +1,7 @@
-from level_interpreter import interpret_entry_levels
+from level_interpreter import (
+    align_provider_plan_to_market_context,
+    interpret_entry_levels,
+)
 
 
 class TestInterpretEntryLevels:
@@ -148,3 +151,35 @@ class TestInterpretEntryLevels:
         assert result["parsed"]["range"] == (4032.0, 4037.0)
         assert result["parsed"]["tps"][:3] == parsed["tps"]
         assert result["parsed"]["sl"] == 4040.0
+
+
+def test_zone_bundle_alignment_shifts_only_supplied_provider_levels():
+    parsed = {
+        "direction": "SELL",
+        "zones": [[4062.0, 4067.0]],
+        "tps": [4060.0, 4058.0, 4047.0],
+        "sl": 4070.0,
+        "has_open_runner": True,
+    }
+
+    result = align_provider_plan_to_market_context(
+        "SELL",
+        parsed,
+        reference_price=4259.8,
+    )
+
+    assert result["parsed"]["zones"] == [[4262.0, 4267.0]]
+    assert result["parsed"]["tps"] == [4260.0, 4258.0, 4247.0]
+    assert result["parsed"]["sl"] == 4270.0
+    assert "range" not in result["parsed"]
+    assert result["corrections"] == [{
+        "field": "plan",
+        "kind": "market_context_shift",
+        "offset": 200.0,
+        "reference_price": 4259.8,
+        "original_range": [4062.0, 4067.0],
+        "corrected_range": [4262.0, 4267.0],
+        "residual": 2.2,
+        "shifted_fields": ["zones", "tps", "sl"],
+    }]
+    assert result["provisional"] is True

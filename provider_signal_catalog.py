@@ -851,6 +851,9 @@ def _append_runtime_level(signal: dict, row: dict) -> None:
     if not isinstance(interpreted, dict):
         return
     entry_range = interpreted.get("range")
+    interpreted_zones = interpreted.get("zones") or []
+    if entry_range is None and len(interpreted_zones) == 1:
+        entry_range = interpreted_zones[0]
     tps = interpreted.get("tps") or []
     sl = interpreted.get("sl")
     if not entry_range and not tps and sl is None:

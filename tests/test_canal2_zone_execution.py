@@ -235,6 +235,56 @@ async def test_incomplete_zone_is_waiting_state_not_runtime_anomaly(
 
 
 @pytest.mark.asyncio
+async def test_complete_zone_prefix_is_aligned_to_live_market_before_storage(
+        monkeypatch):
+    events = []
+    msg = SimpleNamespace(
+        id=526,
+        text=(
+            "Gold Sell Zone\n4062 - 4067\nTargets\n"
+            "4060\n4058\n4047\nSL 4070"
+        ),
+        date=datetime.now(timezone.utc),
+    )
+    monkeypatch.setattr(
+        listener.executor,
+        "current_tick_safe",
+        lambda: _tick(bid=4259.8, ask=4260.0),
+    )
+    monkeypatch.setattr(
+        listener.journal,
+        "event",
+        lambda signal_id, ev, **fields:
+        events.append((signal_id, ev, fields)),
+    )
+
+    await listener._handle_canal2_zone_plan(
+        msg,
+        msg.text,
+        {
+            "direction": "SELL",
+            "zones": [[4062.0, 4067.0]],
+            "target": None,
+            "tps": [4060.0, 4058.0, 4047.0],
+            "sl": 4070.0,
+            "has_open_runner": True,
+        },
+    )
+
+    stored = listener._canal2_zone_plans[526]
+    assert stored["zones"] == [[4262.0, 4267.0]]
+    assert stored["tps"] == [4260.0, 4258.0, 4247.0]
+    assert stored["sl"] == 4270.0
+    correction = next(
+        fields
+        for _, ev, fields in events
+        if ev == "entry_levels_interpreted"
+    )
+    assert correction["reference_price"] == 4259.8
+    assert correction["corrections"][0]["kind"] == "market_context_shift"
+
+
+@pytest.mark.asyncio
 async def test_reentry_uses_new_message_identity(monkeypatch):
     plan = _plan(530)
     plan["consumed"] = True

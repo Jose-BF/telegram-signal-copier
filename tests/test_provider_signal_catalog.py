@@ -2584,13 +2584,13 @@ def test_market_context_prefix_repair_is_canonical_but_inference_is_not():
             "reference_price": 4259.8,
             "original": {
                 "direction": "SELL",
-                "range": [4062.0, 4067.0],
+                "zones": [[4062.0, 4067.0]],
                 "tps": [4060.0, 4058.0, 4047.0],
                 "sl": 4070.0,
             },
             "interpreted": {
                 "direction": "SELL",
-                "range": [4262.0, 4267.0],
+                "zones": [[4262.0, 4267.0]],
                 "tps": [4260.0, 4258.0, 4247.0],
                 "sl": 4270.0,
             },

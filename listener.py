@@ -52,7 +52,10 @@ from interpretation_firewall import (
     normalize_xauusd_management_price,
     normalize_classifier_outputs,
 )
-from level_interpreter import interpret_entry_levels
+from level_interpreter import (
+    align_provider_plan_to_market_context,
+    interpret_entry_levels,
+)
 from parser import (
     canal2_entry_command_key,
     correct_tp_typos,
@@ -4701,6 +4704,28 @@ async def _handle_canal2_zone_plan(msg, text: str, plan: dict,
         _canal2_zone_plans.get(int(msg.id))
         or _canal2_zone_plans.get(root_message_id)
     )
+    if (
+        source_kind != "reply_recovery"
+        and zone_plan_is_executable(plan)
+    ):
+        tick = await _run(executor.current_tick_safe)
+        reference_price = _entry_reference_from_tick(
+            plan.get("direction"),
+            tick,
+        )
+        aligned = align_provider_plan_to_market_context(
+            plan.get("direction"),
+            plan,
+            reference_price=reference_price,
+        )
+        _log_entry_level_interpretation(
+            f"canal2_{msg.id}",
+            "canal2",
+            plan,
+            aligned,
+            reference_price,
+        )
+        plan = aligned["parsed"]
     is_current_lifecycle = (
         existing is not None
         and existing.get("lifecycle_schema_version")

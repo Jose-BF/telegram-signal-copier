@@ -131,6 +131,52 @@ def _shift_plan_to_market_context(direction: str, parsed: dict,
     }
 
 
+def align_provider_plan_to_market_context(
+        direction: str, parsed: dict,
+        reference_price: float | None = None) -> dict:
+    """Align only provider-supplied prices; never infer missing levels."""
+    normalized = deepcopy(parsed or {})
+    direction = str(direction or normalized.get("direction") or "").upper()
+    if direction:
+        normalized["direction"] = direction
+
+    zones = normalized.get("zones") or []
+    uses_zone_shape = bool(zones) and not normalized.get("range")
+    candidate = deepcopy(normalized)
+    if uses_zone_shape:
+        candidate["range"] = tuple(zones[0])
+
+    shifted, correction = _shift_plan_to_market_context(
+        direction,
+        candidate,
+        reference_price,
+    )
+    if correction is None:
+        return {
+            "parsed": normalized,
+            "corrections": [],
+            "provisional": False,
+        }
+
+    if uses_zone_shape:
+        offset = float(correction["offset"])
+        shifted["zones"] = [
+            [_round_price(value + offset) for value in zone]
+            for zone in zones
+        ]
+        shifted.pop("range", None)
+        correction["shifted_fields"] = [
+            "zones" if field == "range" else field
+            for field in correction.get("shifted_fields") or []
+        ]
+
+    return {
+        "parsed": shifted,
+        "corrections": [correction],
+        "provisional": True,
+    }
+
+
 def _range_is_usable(direction: str, rng: tuple[float, float],
                      reference_price: float | None) -> tuple[bool, str | None]:
     lo, hi = rng
