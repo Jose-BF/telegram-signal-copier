@@ -285,6 +285,7 @@ def test_runtime_snapshot_requires_durable_event_before_writing_contract(
     try:
         main._capture_broker_money_contract_snapshot(
             path=path,
+            events_path=tmp_path / "trade_events.jsonl",
             force=True,
         )
     except RuntimeError as exc:
