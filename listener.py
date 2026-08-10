@@ -48,6 +48,8 @@ from classifier import classify, classify_async, classify_local
 from entry_execution_gate import EntryExecutionGate
 from interpretation_firewall import (
     EXECUTABLE_ACTIONS,
+    LEVEL_ONLY_ACTIONS,
+    NOTIFY_REVIEW_ACTIONS,
     firewall_decision,
     normalize_xauusd_management_price,
     normalize_classifier_outputs,
@@ -3658,17 +3660,16 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
             pos_info.append({"ticket": t, "pnl": pnl, "entry": entry,
                              "tp": tp_obj, "recorrido": recorrido})
 
-        # ── ESTRATEGIA C: bifurcación canal2 — rescate BE si NO hay profit ──
-        # Análisis 19+20 may: cuando canal2 manda CLOSE_FIRST sin que la
-        # posición esté en profit, cerrar a mercado materializa la pérdida
-        # (canal2_12691: −$26.55). En su lugar ponemos TP=BE + time-stop:
-        # si el precio rebota al entry las posiciones cierran limpias.
-        # Canal 1 NO aplica (CLOSE_FIRST allí cierra 1 sola posición market).
+        # Gold Signals sometimes says "close first/best entries" after a
+        # layered basket has moved into profit. Our copied positions may all
+        # be clustered at market instead. If our basket is not actually in
+        # profit, we cannot identify those profitable layers faithfully.
+        # Preserve the original trade and treat any explicit BE instruction
+        # from the same message independently.
         entries_known = [p["entry"] for p in pos_info if p["entry"] is not None]
         entry_avg = (sum(entries_known) / len(entries_known)
                      if entries_known else None)
         if (signal.channel == "canal2"
-                and config.STRATEGY_C2_CLOSE_FIRST_BE_ENABLED
                 and entry_avg is not None and cur_price is not None):
             price_vs_entry = (cur_price - entry_avg
                               if signal.direction == "BUY"
@@ -3677,10 +3678,38 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
                 price_vs_entry, config.STRATEGY_C2_CLOSE_FIRST_PROFIT_PTS)
             print(f"[Acción] CLOSE_FIRST canal2: precio vs entry "
                   f"{price_vs_entry:+.2f} pts → decisión={decision}")
-            if decision == "set_tp_be_all":
-                await _close_first_be_rescue(signal, pos_info,
-                                             cur_price, entry_avg)
-                logger.log_action(signal, action)
+            if decision == "defer_layer_mismatch":
+                journal.event(
+                    _sig_id(signal),
+                    "close_first_layer_mismatch_deferred",
+                    provider_instruction="close_first_entries",
+                    outcome="original_trade_preserved",
+                    n_positions=len(pos_info),
+                    tickets=[p["ticket"] for p in pos_info],
+                    entry_avg=round(entry_avg, 3),
+                    current_price=round(cur_price, 3),
+                    price_vs_entry=round(price_vs_entry, 3),
+                    raw_text=raw_text[:240],
+                )
+                journal.anomaly(
+                    _sig_id(signal),
+                    "management",
+                    "warning",
+                    "Gold Signals indicó cerrar primeras entradas, pero la "
+                    "cesta copiada no estaba en beneficio; se conserva la "
+                    "operación original",
+                    price_vs_entry=round(price_vs_entry, 3),
+                    n_positions=len(pos_info),
+                )
+                _schedule_detached(notify(
+                    f"⚠️ {provider_display_name(signal.channel)}\n"
+                    f"CAPAS NO EQUIVALENTES\n\n"
+                    f"El proveedor pidió cerrar sus primeras entradas, pero "
+                    f"nuestra cesta está en {price_vs_entry:+.2f} puntos "
+                    f"respecto a la entrada.\n\n"
+                    f"No se cerraron posiciones ni se cambiaron los TP. "
+                    f"Una orden explícita de BE se procesa por separado."
+                ))
                 return
             # decision == "close_half" → hay profit real, cae a la lógica
             # clásica de abajo (cerrar mitad a mercado, asegurar parciales).
@@ -3862,11 +3891,62 @@ def _canal2_action_names(classification: list[dict]) -> list[str]:
     ]
 
 
-def _canal2_actionable(classification: list[dict]) -> list[dict]:
+_TARGET_REQUIRING_ACTIONS = (
+    EXECUTABLE_ACTIONS
+    | NOTIFY_REVIEW_ACTIONS
+    | LEVEL_ONLY_ACTIONS
+    | {"CLOSE_PARTIAL"}
+)
+
+
+def _target_requiring_actions(classification: list[dict]) -> list[dict]:
+    """Return intents that need a concrete live signal or human review."""
     return [
-        action for action in classification
-        if action.get("action") not in ("INFORMATIONAL", "PROGRESS_UPDATE", None)
+        item for item in classification
+        if str(item.get("action") or "").upper()
+        in _TARGET_REQUIRING_ACTIONS
     ]
+
+
+_TP_ANNOUNCEMENT_INDEX_RE = re.compile(r"\bTP\s*([1-9])\b", re.IGNORECASE)
+
+
+def _recent_tp_announcement_target(
+    open_signals: list[Signal],
+    text: str,
+    *,
+    observed_at: datetime | None = None,
+    max_age_s: float = 180.0,
+) -> Signal | None:
+    """Resolve a standalone TP announcement from recent observed price hits.
+
+    Attribution is deliberately strict: exactly one open signal must have
+    touched the announced TP within the recent window. Ambiguous cases remain
+    unassigned and never cause a trading action.
+    """
+    match = _TP_ANNOUNCEMENT_INDEX_RE.search(text or "")
+    if not match:
+        return None
+    tp_index = int(match.group(1)) - 1
+    at = observed_at or datetime.utcnow()
+    if at.tzinfo is not None:
+        at = at.astimezone(timezone.utc).replace(tzinfo=None)
+
+    candidates = []
+    for signal in open_signals:
+        hit_at = (getattr(signal, "observed_tp_hits", {}) or {}).get(tp_index)
+        if hit_at is None:
+            continue
+        if hit_at.tzinfo is not None:
+            hit_at = hit_at.astimezone(timezone.utc).replace(tzinfo=None)
+        age_s = (at - hit_at).total_seconds()
+        if -5.0 <= age_s <= max_age_s:
+            candidates.append(signal)
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def _canal2_actionable(classification: list[dict]) -> list[dict]:
+    return _target_requiring_actions(classification)
 
 
 def _zone_plan_level_text(plan: dict) -> str:
@@ -5163,8 +5243,25 @@ async def _handle_canal2_standalone(msg, text: str, sig_id: str) -> None:
         classification = await classify_async(text, signal=open_c2[0])
     actionable = _canal2_actionable(classification)
     actions = _canal2_action_names(classification)
-    route = _standalone_mgmt_route(len(open_c2), bool(actionable))
     preview = text[:240].replace("\n", " | ")
+
+    if not actionable:
+        contextual_target = _recent_tp_announcement_target(open_c2, text)
+        if contextual_target is not None:
+            journal.event(
+                sig_id,
+                "standalone_context_attributed",
+                channel="canal2",
+                target=_sig_id(contextual_target),
+                attribution="recent_observed_tp_hit",
+                actions=actions,
+                actionable=False,
+                text_preview=preview,
+                tg_ts=_msg_ts_iso(msg),
+            )
+            return
+
+    route = _standalone_mgmt_route(len(open_c2), bool(actionable))
 
     if route == "apply":
         target = open_c2[0]
@@ -6065,22 +6162,17 @@ async def canal2_edit(event):
     )
 
 
-# ─── Helpers PUROS de la estrategia C — CLOSE_FIRST canal2 (rescate BE) ───
-# Análisis de 5 señales CLOSE_FIRST perdedoras (19+20 mayo): el peor caso
-# (canal2_12691, −$26.55) tuvo el precio rebotando al entry en 7 segundos
-# pero la lógica clásica ya había cerrado 2 a mercado en pérdida y dejado
-# las 3 restantes hit SL del proveedor. La estrategia C aprovecha el rebote:
-# pone TP=BE en LAS 5 cuando NO hay profit + time-stop 60s defensivo.
+# ─── Helper puro de CLOSE_FIRST para Gold Signals ───────────────────────────
 
 def _close_first_decision(price_vs_entry_pts: float,
                           profit_threshold_pts: float = 0.5) -> str:
     """Decide la rama de CLOSE_FIRST canal2:
 
-      "close_half"    → lógica clásica (cerrar mitad a mercado, BE en resto).
-                        Se aplica solo cuando hay profit REAL (> threshold).
-      "set_tp_be_all" → rama RESCATE BE para todas las posiciones + time-stop.
-                        Para los casos en loss o BE donde el proveedor
-                        está cerrando por reversal inminente, no por profit.
+      "close_half"           → cerrar las capas de menor recorrido cuando
+                               nuestra cesta sí tiene beneficio real.
+      "defer_layer_mismatch" → conservar la operación cuando el proveedor
+                               habla de capas rentables que nosotros no
+                               podemos identificar en nuestra cesta.
 
     Pura — solo decide la rama. La aplicación va en _execute_actions.
 
@@ -6090,7 +6182,7 @@ def _close_first_decision(price_vs_entry_pts: float,
     """
     if price_vs_entry_pts > profit_threshold_pts:
         return "close_half"
-    return "set_tp_be_all"
+    return "defer_layer_mismatch"
 
 
 def _safe_tp_be(direction: str, entry: float, current_price: float,
@@ -6337,15 +6429,40 @@ async def _handle_canal1_standalone(msg, text: str, sig_id: str):
         return
 
     # Clasificar con la señal más reciente como contexto del trade.
-    cl = await classify_async(text, signal=open_c1[0])
-    actionable = [a for a in cl
-                  if a.get("action") not in ("INFORMATIONAL", None)]
+    cl = normalize_classifier_outputs(
+        await classify_async(text, signal=open_c1[0])
+    )
+    actionable = _target_requiring_actions(cl)
+    actions = [item.get("action") for item in cl if item.get("action")]
+
+    if not actionable:
+        contextual_target = _recent_tp_announcement_target(open_c1, text)
+        if contextual_target is not None:
+            journal.event(
+                sig_id,
+                "standalone_context_attributed",
+                channel="canal1",
+                target=_sig_id(contextual_target),
+                attribution="recent_observed_tp_hit",
+                actions=actions,
+                actionable=False,
+                text_preview=txt_preview,
+            )
+            return
+
     route = _standalone_mgmt_route(len(open_c1), bool(actionable))
 
     if route == "log":
-        journal.event(sig_id, "msg_dropped",
-                      reason="standalone_text_not_actionable",
-                      text_preview=txt_preview)
+        journal.event(
+            sig_id,
+            "standalone_context_observed",
+            channel="canal1",
+            n_open=len(open_c1),
+            open_signals=[_sig_id(signal) for signal in open_c1],
+            actions=actions,
+            actionable=False,
+            text_preview=txt_preview,
+        )
     elif route == "apply":
         target = open_c1[0]
         journal.event(sig_id, "standalone_mgmt_applied",
@@ -6371,7 +6488,8 @@ async def _handle_canal1_standalone(msg, text: str, sig_id: str):
                         actions=[a.get("action") for a in actionable])
         try:
             asyncio.create_task(notify(
-                f"⚠ Canal1: mensaje de gestión SIN reply, destino AMBIGUO.\n\n"
+                f"⚠ {provider_display_name('canal1')}: mensaje de gestión "
+                f"SIN reply, destino AMBIGUO.\n\n"
                 f"Texto: {text[:200]}\n"
                 f"Acción(es) detectada(s): "
                 f"{[a.get('action') for a in actionable]}\n"

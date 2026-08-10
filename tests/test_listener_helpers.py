@@ -175,6 +175,140 @@ class TestStandaloneMgmtRoute:
         assert _standalone_mgmt_route(0, has_actionable=True) == "log"
 
 
+def test_only_commands_or_review_intents_require_a_standalone_target():
+    classifications = [
+        {"action": "MARKET_COMMENTARY"},
+        {"action": "TP_HIT_ANNOUNCEMENT"},
+        {"action": "PROGRESS_UPDATE"},
+        {"action": "REENTRY_SIGNAL"},
+    ]
+
+    assert listener._target_requiring_actions(classifications) == [
+        {"action": "REENTRY_SIGNAL"},
+    ]
+
+
+def test_tp_announcement_targets_unique_recent_observed_hit():
+    now = datetime(2026, 8, 10, 14, 51, 14)
+    older = Signal(channel="canal1", message_id=21321, direction="SELL")
+    newer = Signal(channel="canal1", message_id=21325, direction="SELL")
+    newer.observed_tp_hits = {0: now - timedelta(seconds=40)}
+
+    target = listener._recent_tp_announcement_target(
+        [older, newer],
+        "TP1 HIT! 50+ PIPS secured!",
+        observed_at=now,
+    )
+
+    assert target is newer
+
+
+def test_tp_announcement_does_not_guess_when_two_recent_hits_match():
+    now = datetime(2026, 8, 10, 14, 51, 14)
+    first = Signal(channel="canal1", message_id=21321, direction="SELL")
+    second = Signal(channel="canal1", message_id=21325, direction="SELL")
+    first.observed_tp_hits = {0: now - timedelta(seconds=30)}
+    second.observed_tp_hits = {0: now - timedelta(seconds=40)}
+
+    assert listener._recent_tp_announcement_target(
+        [first, second],
+        "TP1 HIT",
+        observed_at=now,
+    ) is None
+
+
+@pytest.mark.asyncio
+async def test_canal1_commentary_with_two_open_signals_does_not_alert(
+        monkeypatch):
+    first = Signal(channel="canal1", message_id=21321, direction="SELL")
+    second = Signal(channel="canal1", message_id=21325, direction="SELL")
+    events = []
+    anomalies = []
+    notifications = []
+
+    monkeypatch.setattr(
+        listener.state,
+        "open_signals",
+        lambda channel=None: [first, second],
+    )
+
+    async def _classify(*args, **kwargs):
+        return [{"action": "MARKET_COMMENTARY", "confidence": 0.99}]
+
+    monkeypatch.setattr(listener, "classify_async", _classify)
+    monkeypatch.setattr(
+        listener.journal,
+        "event",
+        lambda sig_id, ev, **kwargs: events.append({"ev": ev, **kwargs}),
+    )
+    monkeypatch.setattr(
+        listener.journal,
+        "anomaly",
+        lambda *args, **kwargs: anomalies.append((args, kwargs)),
+    )
+    monkeypatch.setattr(
+        listener.asyncio,
+        "create_task",
+        lambda coro: (notifications.append(True), coro.close()),
+    )
+
+    await listener._handle_canal1_standalone(
+        SimpleNamespace(),
+        "Lets try again",
+        "canal1_21328",
+    )
+
+    assert anomalies == []
+    assert notifications == []
+    assert any(event["ev"] == "standalone_context_observed"
+               for event in events)
+
+
+@pytest.mark.asyncio
+async def test_canal1_tp_announcement_records_unique_recent_target(
+        monkeypatch):
+    now = datetime.utcnow()
+    older = Signal(channel="canal1", message_id=21321, direction="SELL")
+    newer = Signal(channel="canal1", message_id=21325, direction="SELL")
+    newer.observed_tp_hits = {0: now - timedelta(seconds=40)}
+    events = []
+
+    monkeypatch.setattr(
+        listener.state,
+        "open_signals",
+        lambda channel=None: [older, newer],
+    )
+
+    async def _classify(*args, **kwargs):
+        return [{"action": "TP_HIT_ANNOUNCEMENT", "confidence": 0.99}]
+
+    monkeypatch.setattr(listener, "classify_async", _classify)
+    monkeypatch.setattr(
+        listener.journal,
+        "event",
+        lambda sig_id, ev, **kwargs: events.append({"ev": ev, **kwargs}),
+    )
+    monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **k: None)
+    monkeypatch.setattr(
+        listener.asyncio,
+        "create_task",
+        lambda coro: coro.close(),
+    )
+
+    await listener._handle_canal1_standalone(
+        SimpleNamespace(),
+        "TP1 HIT! 50+ PIPS secured!",
+        "canal1_21326",
+    )
+
+    attributed = next(
+        event for event in events
+        if event["ev"] == "standalone_context_attributed"
+    )
+    assert attributed["target"] == "canal1_21325"
+    assert attributed["attribution"] == "recent_observed_tp_hit"
+
+
 class TestRealizedPl:
     def test_manual_close_deal_with_zero_magic_is_included(self, monkeypatch):
         sig = Signal(channel="canal1", message_id=19885, direction="SELL")

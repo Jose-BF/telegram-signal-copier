@@ -122,6 +122,11 @@ class Signal:
     # ¿BE ya disparado en esta señal? (interno, no tocar)
     be_armed: bool = False
 
+    # TP levels observed by the live tick monitor. Used only to attribute a
+    # later standalone "TP1 HIT" message when several provider signals remain
+    # open; it never triggers a trading action by itself.
+    observed_tp_hits: dict = field(default_factory=dict)
+
     # Aggregate account-currency protection for Dubai Investing. These fields
     # are persisted as journal transitions and rebuilt after a restart.
     basket_guard_armed: bool = False

@@ -1,22 +1,12 @@
-"""
-test_close_first_canal2.py — Estrategia C: TP=BE + time-stop.
+"""Regression tests for Gold Signals partial-close management.
 
-Cuando llega CLOSE_FIRST en canal2:
-  - Si precio en profit > +0.5 pts del entry: aplicar lógica clásica
-    (cerrar n//2 a mercado, ya validada en otros tests).
-  - Si NO hay profit (precio <= entry+0.5): rama RESCATE BE:
-        1. Poner TP=BE en LAS 5 posiciones (no cerrar nada a mercado).
-        2. Time-stop 60s: si quedan posiciones abiertas al expirar,
-           cerrar a mercado.
+When the provider asks to close its first/best layered entries, the bot only
+closes part of our basket if our own entries are genuinely in profit. A flat
+or losing copied basket is not equivalent to the provider's layers, so the
+instruction is recorded and deferred without changing the original trade.
 
-Diseñada tras analizar 5 señales CLOSE_FIRST perdedoras (19+20 mayo):
-en canal2_12691 (el peor de la sesión, −$26.55) el precio rebotó al
-entry en 7 segundos pero la lógica actual ya había cerrado en pérdida
-las 2 con menor recorrido y las 3 restantes hit SL del proveedor.
-
-Tests cubren:
-  1) _close_first_decision (decisor puro)
-  2) _safe_tp_be (TP=BE respetando stops_level del broker)
+The older BE-rescue helpers remain covered below because the generic BE rescue
+still shares their price-safety helper.
 """
 import json
 
@@ -33,8 +23,8 @@ from state import Signal
 
 class TestCloseFirstDecision:
     """Decide la rama de CLOSE_FIRST para canal2:
-       'close_half'    → lógica clásica (cerrar mitad a mercado + BE rest).
-       'set_tp_be_all' → rama rescate (TP=BE en todas + time-stop).
+       'close_half'           → cerrar una parte cuando hay profit real.
+       'defer_layer_mismatch' → conservar la cesta si las capas no coinciden.
     """
 
     def test_profit_significativo_close_half(self):
@@ -42,32 +32,120 @@ class TestCloseFirstDecision:
         assert _close_first_decision(price_vs_entry_pts=1.5) == "close_half"
 
     def test_profit_justo_en_threshold_close_half(self):
-        # +0.5 pts exacto: no estrictamente >, así que cae al rescate
-        # NOTA decisión: ">" estricto → en threshold exacto NO se considera
-        # profit suficiente. Es la rama segura.
-        assert _close_first_decision(price_vs_entry_pts=0.5) == "set_tp_be_all"
+        # +0.5 exacto no cubre con holgura spread/deslizamiento.
+        assert _close_first_decision(
+            price_vs_entry_pts=0.5,
+        ) == "defer_layer_mismatch"
 
     def test_profit_pequeno_set_tp_be(self):
-        # +0.3 pts no es suficiente — usar rescate
-        assert _close_first_decision(price_vs_entry_pts=0.3) == "set_tp_be_all"
+        assert _close_first_decision(
+            price_vs_entry_pts=0.3,
+        ) == "defer_layer_mismatch"
 
     def test_be_exacto_set_tp_be(self):
-        # 0.0 pts (precio == entry) → rescate
-        assert _close_first_decision(price_vs_entry_pts=0.0) == "set_tp_be_all"
+        assert _close_first_decision(
+            price_vs_entry_pts=0.0,
+        ) == "defer_layer_mismatch"
 
     def test_loss_set_tp_be(self):
-        # En loss claramente → rescate (caso canal2_12691)
-        assert _close_first_decision(price_vs_entry_pts=-0.41) == "set_tp_be_all"
+        assert _close_first_decision(
+            price_vs_entry_pts=-0.41,
+        ) == "defer_layer_mismatch"
 
     def test_loss_grande_set_tp_be(self):
-        # Loss grande → rescate (caso canal2_12631 con -3.06)
-        assert _close_first_decision(price_vs_entry_pts=-3.06) == "set_tp_be_all"
+        assert _close_first_decision(
+            price_vs_entry_pts=-3.06,
+        ) == "defer_layer_mismatch"
+
+    def test_provider_best_entry_mismatch_is_deferred_without_forced_exit(self):
+        assert _close_first_decision(
+            price_vs_entry_pts=-1.1,
+        ) == "defer_layer_mismatch"
+
+
+@pytest.mark.asyncio
+async def test_close_first_layer_mismatch_preserves_original_trade(
+        monkeypatch):
+    signal = Signal(
+        channel="canal2",
+        message_id=1313,
+        direction="BUY",
+        market_ticket=810,
+        extra_market_tickets=[811, 812, 813, 814],
+        market_fill_price=4300.0,
+        tps=[4303.0, 4305.0, 4307.0, 4309.0],
+        sl=4291.0,
+    )
+    tickets = signal.all_filled_tickets
+    closes = []
+    tp_changes = []
+    rescue_calls = []
+    events = []
+
+    monkeypatch.setattr(
+        listener.executor,
+        "position_pnls",
+        lambda requested: [(ticket, -1.0) for ticket in requested],
+    )
+    monkeypatch.setattr(
+        listener.executor,
+        "current_tick_safe",
+        lambda: {"bid": 4298.9, "ask": 4299.1},
+    )
+    monkeypatch.setattr(
+        listener.executor,
+        "entry_price",
+        lambda ticket: 4300.0,
+    )
+    monkeypatch.setattr(
+        listener.pending_actions,
+        "enqueue_close_position",
+        lambda *args, **kwargs: closes.append((args, kwargs)),
+    )
+    monkeypatch.setattr(
+        listener.pending_actions,
+        "enqueue_modify_tp",
+        lambda *args, **kwargs: tp_changes.append((args, kwargs)),
+    )
+
+    async def _capture_rescue(*args, **kwargs):
+        rescue_calls.append((args, kwargs))
+
+    monkeypatch.setattr(listener, "_close_first_be_rescue", _capture_rescue)
+    monkeypatch.setattr(listener.logger, "log_action", lambda *a, **k: None)
+    monkeypatch.setattr(
+        listener.journal,
+        "event",
+        lambda sig_id, ev, **kwargs: events.append({
+            "sig_id": sig_id,
+            "ev": ev,
+            **kwargs,
+        }),
+    )
+    monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **k: None)
+    monkeypatch.setattr(listener, "_schedule_detached", lambda coro: coro.close())
+
+    await listener._execute_one_action(
+        signal,
+        {"action": "CLOSE_FIRST", "confidence": 0.99},
+        raw_text="Close first entries and make risk free",
+    )
+
+    assert signal.all_filled_tickets == tickets
+    assert closes == []
+    assert tp_changes == []
+    assert rescue_calls == []
+    deferred = next(
+        event for event in events
+        if event["ev"] == "close_first_layer_mismatch_deferred"
+    )
+    assert deferred["price_vs_entry"] == pytest.approx(-1.1)
 
     def test_threshold_configurable(self):
-        # Permitir override del threshold (default 0.5)
-        # Con threshold=1.0, +0.7 debe ir a rescate (no a close_half)
+        # Permitir override del threshold (default 0.5).
         assert _close_first_decision(price_vs_entry_pts=0.7,
-                                      profit_threshold_pts=1.0) == "set_tp_be_all"
+                                      profit_threshold_pts=1.0) == (
+                                          "defer_layer_mismatch")
         assert _close_first_decision(price_vs_entry_pts=1.5,
                                       profit_threshold_pts=1.0) == "close_half"
 

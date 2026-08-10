@@ -100,15 +100,31 @@ def normalize_xauusd_management_price(price, reference) -> float | None:
         return None
     if not isfinite(price_f):
         return None
-    if 1000 <= price_f <= 9999:
-        return price_f
-
     try:
         reference_f = float(reference)
     except (TypeError, ValueError):
-        return None
+        return price_f if 1000 <= price_f <= 9999 else None
     if not isfinite(reference_f) or not 1000 <= reference_f <= 9999:
-        return None
+        return price_f if 1000 <= price_f <= 9999 else None
+
+    if 1000 <= price_f <= 9999:
+        # Providers occasionally drop the hundreds digit while editing a
+        # live XAUUSD level (for example 4050 while price is near 4346). Only
+        # repair a gross displacement when the local-hundreds candidate is
+        # both close to the live reference and at least $100 more plausible.
+        direct_distance = abs(price_f - reference_f)
+        local_candidate = (
+            int(reference_f / 100) * 100 + (price_f % 100)
+        )
+        candidate_distance = abs(local_candidate - reference_f)
+        if (
+            direct_distance >= 150
+            and candidate_distance <= 50
+            and direct_distance - candidate_distance >= 100
+        ):
+            return round(local_candidate, 3)
+        return price_f
+
     if not 0 <= price_f < 100:
         return None
 

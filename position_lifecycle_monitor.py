@@ -1081,6 +1081,7 @@ async def run(signal: Signal, levels: list[float]):
                        (direction == "SELL" and price_for_tp <= tp_price))
                 if hit:
                     tps_touched.add(tp_idx)
+                    signal.observed_tp_hits[tp_idx] = datetime.utcnow()
                     elapsed_s = round(
                         (datetime.utcnow() - signal.timestamp).total_seconds(), 1)
                     try:

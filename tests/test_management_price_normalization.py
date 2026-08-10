@@ -63,3 +63,60 @@ async def test_move_sl_to_price_expands_canal2_short_gold_level(
         "reference_price": 4575.36,
         "raw_snippet": f"Move SL to {int(short_price)}",
     }]
+
+
+@pytest.mark.asyncio
+async def test_move_sl_repairs_dropped_hundreds_digit_from_live_context(
+        monkeypatch):
+    calls = []
+    events = []
+
+    monkeypatch.setattr(
+        listener.pending_actions,
+        "enqueue_modify_sl",
+        lambda signal, ticket, price, label="", **kwargs: calls.append({
+            "ticket": ticket,
+            "price": price,
+            "label": label,
+        }),
+    )
+    monkeypatch.setattr(listener.logger, "log_action", lambda *a, **k: None)
+    monkeypatch.setattr(
+        listener.journal,
+        "event",
+        lambda sig_id, ev, **kw: events.append({
+            "sig_id": sig_id,
+            "ev": ev,
+            **kw,
+        }),
+    )
+
+    signal = Signal(
+        channel="canal1",
+        message_id=21321,
+        direction="SELL",
+        market_ticket=1739049504,
+        extra_market_tickets=[1739049522],
+        market_fill_price=4346.36,
+        range_low=4345.0,
+        range_high=4350.0,
+        tps=[4340.0, 4335.0, 4330.0, 4325.0],
+        sl=4365.0,
+    )
+
+    await listener._execute_one_action(
+        signal,
+        {
+            "action": "MOVE_SL_TO_PRICE",
+            "price": 4050.0,
+            "confidence": 0.95,
+        },
+        raw_text="Running +50 pips move sl to 4050.00 around be",
+    )
+
+    assert [call["price"] for call in calls] == [4350.0, 4350.0]
+    repair = next(event for event in events
+                  if event["ev"] == "mgmt_price_normalized")
+    assert repair["raw_price"] == 4050.0
+    assert repair["normalized_price"] == 4350.0
+    assert repair["reference_price"] == 4346.36
