@@ -216,9 +216,9 @@ def _validated_mql_evidence(
     if (
         tick_lag != captured_server - last_server_tick
         or tick_lag < 0
-        or tick_lag > 300
     ):
-        raise RuntimeError("stale MQL5 broker server-time evidence")
+        raise RuntimeError("inconsistent MQL5 broker server-time evidence")
+    mql_tick_fresh = tick_lag <= 300
     instrument_tick = mt5.symbol_info_tick(str(instrument.name))
     if instrument_tick is None:
         raise RuntimeError("missing Python server tick evidence")
@@ -227,10 +227,8 @@ def _validated_mql_evidence(
         "python_server_tick_epoch",
     )
     tick_advances = {
-        "utc_epoch": (
-            python_tick_epoch - (last_server_tick - rounded_offset)
-        ),
-        "broker_server_epoch": python_tick_epoch - last_server_tick,
+        "utc_epoch": python_tick_epoch - captured_gmt,
+        "broker_server_epoch": python_tick_epoch - captured_server,
     }
     valid_tick_bases = [
         (basis, advance)
@@ -315,6 +313,7 @@ def _validated_mql_evidence(
         "captured_gmt_epoch": captured_gmt,
         "last_server_tick_epoch": last_server_tick,
         "server_tick_lag_seconds": tick_lag,
+        "mql_tick_fresh": mql_tick_fresh,
         "python_tick_epoch": python_tick_epoch,
         "python_tick_time_basis": python_tick_basis,
         "python_tick_advance_seconds": python_tick_advance,

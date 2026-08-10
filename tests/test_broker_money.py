@@ -2,7 +2,7 @@
 import csv
 import hashlib
 import json
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pandas as pd
 
@@ -74,14 +74,21 @@ def _write_mql_swap_evidence(
     account_server: str = "VantageMarkets-Demo",
     symbol: str = "XAUUSD",
     swap_short: float = 27.41,
+    last_server_tick_epoch: int | None = None,
 ):
+    captured_server_epoch = captured_gmt_epoch + 3 * 3600
+    native_tick_epoch = (
+        captured_server_epoch
+        if last_server_tick_epoch is None
+        else last_server_tick_epoch
+    )
     row = {
         "schema_version": 1,
-        "captured_server_epoch": captured_gmt_epoch + 3 * 3600,
+        "captured_server_epoch": captured_server_epoch,
         "captured_gmt_epoch": captured_gmt_epoch,
-        "last_server_tick_epoch": captured_gmt_epoch + 3 * 3600,
+        "last_server_tick_epoch": native_tick_epoch,
         "server_utc_offset_seconds": 3 * 3600,
-        "server_tick_lag_seconds": 0,
+        "server_tick_lag_seconds": captured_server_epoch - native_tick_epoch,
         "terminal_build": 5100,
         "account_server": account_server,
         "instrument_symbol": symbol,
@@ -398,6 +405,44 @@ def test_capture_accepts_python_tick_encoded_in_broker_server_epoch(
         "broker_server_epoch"
     )
     assert snapshot["time_evidence"]["python_tick_advance_seconds"] == 47
+
+
+def test_capture_uses_live_python_tick_when_service_tick_is_stale(tmp_path):
+    from types import SimpleNamespace
+    from tools import capture_broker_money_contract
+
+    native_time = datetime(2026, 8, 10, 6, 15, tzinfo=timezone.utc)
+    stale_server_tick = int(native_time.timestamp()) + 3 * 3600 - 7 * 86400
+    evidence = tmp_path / "broker_swap_evidence.csv"
+    _write_mql_swap_evidence(
+        evidence,
+        captured_gmt_epoch=int(native_time.timestamp()),
+        last_server_tick_epoch=stale_server_tick,
+    )
+    instrument = SimpleNamespace(
+        name="XAUUSD",
+        point=0.01,
+        trade_contract_size=100.0,
+        currency_profit="USD",
+        swap_mode=1,
+        swap_long=-75.82,
+        swap_short=27.41,
+        swap_rollover3days=3,
+    )
+    live_server_tick = native_time + timedelta(hours=3)
+
+    snapshot = capture_broker_money_contract.capture_swap_snapshot(
+        _mt5_with_tick(live_server_tick),
+        instrument,
+        account_server="VantageMarkets-Demo",
+        captured_at=native_time + timedelta(seconds=2),
+        mql_evidence_path=evidence,
+    )
+
+    time_evidence = snapshot["time_evidence"]
+    assert time_evidence["python_tick_time_basis"] == "broker_server_epoch"
+    assert time_evidence["python_tick_advance_seconds"] == 0
+    assert time_evidence["mql_tick_fresh"] is False
 
 
 def test_capture_fails_closed_when_native_mql_swap_evidence_is_missing(
