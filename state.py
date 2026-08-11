@@ -135,6 +135,9 @@ class Signal:
     basket_guard_trigger_reason: Optional[str] = None
     basket_guard_recovery_pending: bool = False
     basket_guard_close_tickets: list = field(default_factory=list)
+    basket_guard_known_tickets: list = field(default_factory=list)
+    basket_guard_realized_by_ticket: dict = field(default_factory=dict)
+    basket_guard_realized_degraded_logged: bool = False
 
     # A live close requested by our own management path remains "open" until
     # MT5 confirms every ticket closed. The lifecycle monitor uses this tag

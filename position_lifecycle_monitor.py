@@ -95,19 +95,59 @@ def _apply_live_basket_guard(
     signal: Signal,
     summary: dict,
 ) -> live_basket_guard.GuardDecision:
+    if summary.get("positions_complete", True) is False:
+        raise RuntimeError("MT5 positions_get unavailable for basket guard")
+
     policy = _basket_guard_policy()
+    floating_pl = float(summary.get("floating_pl", summary.get("pl")) or 0.0)
+    realized_pl = float(summary.get("realized_pl") or 0.0)
+    realized_complete = bool(summary.get("realized_complete", True))
+    total_pl = summary.get("total_pl")
+    if total_pl is None and realized_complete:
+        total_pl = summary.get("pl", floating_pl + realized_pl)
+    observed_pl = float(total_pl) if total_pl is not None else floating_pl
+
+    signal_id = f"{signal.channel}_{signal.message_id}"
+    if not realized_complete and not signal.basket_guard_realized_degraded_logged:
+        signal.basket_guard_realized_degraded_logged = True
+        _journal_event(
+            signal_id,
+            "basket_guard_total_pl_degraded",
+            floating_pl=round(floating_pl, 2),
+            realized_pl=round(realized_pl, 2),
+            total_pl=None,
+            missing_realized_tickets=list(
+                summary.get("missing_realized_tickets") or []
+            ),
+        )
+    elif realized_complete and signal.basket_guard_realized_degraded_logged:
+        signal.basket_guard_realized_degraded_logged = False
+        _journal_event(
+            signal_id,
+            "basket_guard_total_pl_recovered",
+            floating_pl=round(floating_pl, 2),
+            realized_pl=round(realized_pl, 2),
+            total_pl=round(float(total_pl), 2),
+        )
+
     decision = live_basket_guard.evaluate_guard(
         channel=signal.channel,
-        floating_pl=float(summary.get("pl") or 0.0),
+        floating_pl=observed_pl,
         n_open=int(summary.get("n_open") or 0),
         state=_guard_state(signal),
         policy=policy,
+        profit_evidence_complete=realized_complete,
     )
     _store_guard_state(signal, decision.state)
-    signal_id = f"{signal.channel}_{signal.message_id}"
     common = {
         "channel": signal.channel,
         "observed_pl": round(decision.observed_pl, 2),
+        "floating_pl": round(floating_pl, 2),
+        "realized_pl": round(realized_pl, 2),
+        "total_pl": (
+            round(float(total_pl), 2) if total_pl is not None else None
+        ),
+        "realized_complete": realized_complete,
         "peak_pl": (
             round(float(decision.state.peak_pl), 2)
             if decision.state.peak_pl is not None else None
@@ -119,7 +159,7 @@ def _apply_live_basket_guard(
         "loss_cap": float(policy.loss_cap),
         "profit_arm": float(policy.profit_arm),
         "profit_lock": float(policy.profit_lock),
-        "money_source": "mt5_position_profit_account_currency",
+        "money_source": "realized_plus_floating_account_currency",
     }
 
     if decision.action == "arm":
@@ -530,22 +570,33 @@ def _floating_pl_summary(signal: Signal) -> dict:
     Devuelve dict con: pl, n_open, avg_entry, current_price.
     Si no se puede leer el tick o las posiciones, devuelve dict con None.
     """
-    out = {"pl": 0.0, "n_open": 0, "avg_entry": None, "current_price": None,
-           "lots_total": 0.0, "open_tickets": []}
+    out = {
+        "pl": 0.0,
+        "n_open": 0,
+        "avg_entry": None,
+        "current_price": None,
+        "lots_total": 0.0,
+        "open_tickets": [],
+        "positions_complete": True,
+    }
     tick = mt5.symbol_info_tick(config.MT5_SYMBOL)
     if tick:
         # Para BUY el "precio actual relevante" para cierre es bid; para SELL ask.
         out["current_price"] = (tick.bid if signal.direction == "BUY" else tick.ask)
 
+    all_open = mt5.positions_get()
+    if all_open is None:
+        out["positions_complete"] = False
+        return out
+
+    wanted = set(int(ticket) for ticket in signal.all_filled_tickets)
     weighted_entry = 0.0
-    for t in signal.all_filled_tickets:
-        pos = mt5.positions_get(ticket=t)
-        if not pos:
+    for p in all_open:
+        if int(p.ticket) not in wanted:
             continue
-        p = pos[0]
         out["pl"] += p.profit
         out["n_open"] += 1
-        out["open_tickets"].append(int(t))
+        out["open_tickets"].append(int(p.ticket))
         out["lots_total"] += p.volume
         weighted_entry += p.price_open * p.volume
 
@@ -553,6 +604,73 @@ def _floating_pl_summary(signal: Signal) -> dict:
         out["avg_entry"] = weighted_entry / out["lots_total"]
 
     return out
+
+
+def _confirmed_realized_ticket_pl(ticket: int) -> float | None:
+    deals = mt5.history_deals_get(position=int(ticket))
+    if deals is None or len(deals) < 2:
+        return None
+    return sum(
+        float(getattr(deal, field, 0.0) or 0.0)
+        for deal in deals
+        for field in ("profit", "commission", "swap", "fee")
+    )
+
+
+def _signal_pl_summary(signal: Signal) -> dict:
+    """Combine current MT5 exposure with confirmed account-currency closes."""
+    summary = _floating_pl_summary(signal)
+    floating_pl = float(summary.get("pl") or 0.0)
+    summary["floating_pl"] = floating_pl
+
+    known_tickets = []
+    seen = set()
+    for ticket in (
+        list(signal.basket_guard_known_tickets)
+        + list(signal.all_filled_tickets)
+    ):
+        ticket = int(ticket)
+        if ticket in seen:
+            continue
+        seen.add(ticket)
+        known_tickets.append(ticket)
+    signal.basket_guard_known_tickets = known_tickets
+
+    cache = signal.basket_guard_realized_by_ticket
+    open_tickets = set(int(ticket) for ticket in summary.get("open_tickets") or [])
+    missing = []
+    if summary.get("positions_complete", True):
+        for ticket in known_tickets:
+            if ticket in open_tickets or ticket in cache or str(ticket) in cache:
+                continue
+            realized = _confirmed_realized_ticket_pl(ticket)
+            if realized is None:
+                missing.append(ticket)
+                continue
+            cache[ticket] = float(realized)
+            _journal_event(
+                f"{signal.channel}_{signal.message_id}",
+                "basket_guard_realized_ticket_confirmed",
+                ticket=ticket,
+                realized_pl=round(float(realized), 8),
+                money_fields=["profit", "commission", "swap", "fee"],
+            )
+    else:
+        missing = [ticket for ticket in known_tickets if ticket not in open_tickets]
+
+    realized_pl = sum(float(value) for value in cache.values())
+    realized_complete = bool(
+        summary.get("positions_complete", True) and not missing
+    )
+    summary.update({
+        "realized_pl": realized_pl,
+        "realized_complete": realized_complete,
+        "missing_realized_tickets": missing,
+        "total_pl": (
+            floating_pl + realized_pl if realized_complete else None
+        ),
+    })
+    return summary
 
 
 def _next_tp_for_signal(signal: Signal) -> float | None:
@@ -827,9 +945,9 @@ async def run(signal: Signal, levels: list[float]):
     # Local MT5 sampling for the Dubai basket guard. It is independent from
     # journal snapshots so logging latency cannot delay a risk decision.
     last_basket_guard_ts = 0.0
-    basket_guard_interval_s = max(
+    basket_guard_interval_s = min(
         0.1,
-        float(config.STRATEGY_C1_BASKET_GUARD_POLL_S),
+        max(0.01, float(config.STRATEGY_C1_BASKET_GUARD_POLL_S)),
     )
     basket_guard_error_alerted = False
 
@@ -950,7 +1068,7 @@ async def run(signal: Signal, levels: list[float]):
             last_basket_guard_ts = now_monotonic
             try:
                 guard_summary = await asyncio.to_thread(
-                    _floating_pl_summary,
+                    _signal_pl_summary,
                     signal,
                 )
                 decision = _apply_live_basket_guard(signal, guard_summary)
@@ -1018,6 +1136,8 @@ async def run(signal: Signal, levels: list[float]):
                                      if summary.get("avg_entry") else None,
                                  elapsed_s=round((datetime.utcnow() - signal.timestamp).total_seconds(), 0))
                 elif (
+                    summary.get("positions_complete", True)
+                    and
                     signal.all_filled_tickets
                     and _auto_finalize_grace_elapsed(
                         monitor_started_monotonic

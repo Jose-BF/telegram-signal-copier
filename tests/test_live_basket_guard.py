@@ -7,6 +7,8 @@ from live_basket_guard import (
     GuardState,
     evaluate_guard,
     load_guard_states,
+    load_realized_ticket_cache,
+    load_signal_ticket_ids,
 )
 
 
@@ -177,6 +179,38 @@ def test_guard_rejects_non_finite_mt5_profit_sample():
         )
 
 
+def test_guard_does_not_arm_or_lock_profit_without_complete_evidence():
+    no_arm = evaluate_guard(
+        channel="canal1",
+        floating_pl=35.0,
+        n_open=2,
+        state=GuardState(),
+        policy=POLICY,
+        profit_evidence_complete=False,
+    )
+    no_lock = evaluate_guard(
+        channel="canal1",
+        floating_pl=10.0,
+        n_open=2,
+        state=GuardState(armed=True, peak_pl=35.0),
+        policy=POLICY,
+        profit_evidence_complete=False,
+    )
+    loss_close = evaluate_guard(
+        channel="canal1",
+        floating_pl=-51.0,
+        n_open=2,
+        state=GuardState(),
+        policy=POLICY,
+        profit_evidence_complete=False,
+    )
+
+    assert no_arm.action == "none"
+    assert no_arm.state.peak_pl is None
+    assert no_lock.action == "none"
+    assert loss_close.reason == "loss_cap"
+
+
 def test_guard_state_is_recovered_from_journal(tmp_path):
     path = tmp_path / "trade_events.jsonl"
     rows = [
@@ -214,4 +248,54 @@ def test_guard_state_is_recovered_from_journal(tmp_path):
             trigger_reason="profit_lock",
             recovery_pending=True,
         )
+    }
+
+
+def test_realized_ticket_cache_is_recovered_from_journal(tmp_path):
+    path = tmp_path / "trade_events.jsonl"
+    rows = [
+        {
+            "sig": "canal1_100",
+            "ev": "basket_guard_realized_ticket_confirmed",
+            "ticket": 101,
+            "realized_pl": 3.83,
+        },
+        {
+            "sig": "canal1_100",
+            "ev": "basket_guard_realized_ticket_confirmed",
+            "ticket": 102,
+            "realized_pl": 7.30,
+        },
+        {
+            "sig": "canal2_200",
+            "ev": "basket_guard_realized_ticket_confirmed",
+            "ticket": 201,
+            "realized_pl": 99.0,
+        },
+    ]
+    path.write_text(
+        "".join(json.dumps(row) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+
+    assert load_realized_ticket_cache(path, {"canal1_100"}) == {
+        "canal1_100": {101: 3.83, 102: 7.30}
+    }
+
+
+def test_signal_ticket_ids_are_recovered_from_fill_events(tmp_path):
+    path = tmp_path / "trade_events.jsonl"
+    rows = [
+        {"sig": "canal1_100", "ev": "market_filled", "ticket": 101},
+        {"sig": "canal1_100", "ev": "scale_out_leg_filled", "ticket": 102},
+        {"sig": "canal1_100", "ev": "dca_filled", "ticket": 103},
+        {"sig": "canal1_100", "ev": "pending_placed", "ticket": 999},
+    ]
+    path.write_text(
+        "".join(json.dumps(row) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+
+    assert load_signal_ticket_ids(path, {"canal1_100"}) == {
+        "canal1_100": [101, 102, 103]
     }

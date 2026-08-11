@@ -203,7 +203,7 @@ STRATEGY_C1_BASKET_PROFIT_ARM = _float(
 STRATEGY_C1_BASKET_PROFIT_LOCK = _float(
     "STRATEGY_C1_BASKET_PROFIT_LOCK", 20.0)
 STRATEGY_C1_BASKET_GUARD_POLL_S = _float(
-    "STRATEGY_C1_BASKET_GUARD_POLL_S", 0.5)
+    "STRATEGY_C1_BASKET_GUARD_POLL_S", 0.1)
 
 # CANAL 2 — modo scale_out (semana de prueba 2026-05-17). Igual que C1:
 # NUM_ENTRIES posiciones market de golpe, TPs escalonados (pos k -> TPk),

@@ -109,8 +109,8 @@ def test_publish_live_strategy_contract_records_exact_runtime_policy(
         "loss_cap": -50.0,
         "profit_arm": 30.0,
         "profit_lock": 20.0,
-        "poll_seconds": 0.5,
-        "money_source": "mt5_position_profit_account_currency",
+        "poll_seconds": 0.1,
+        "money_source": "realized_plus_floating_account_currency",
     }
     assert contract["gold"]["zone_first_touch_execution"] is False
     assert contract["gold"]["zone_explicit_activation"] is True
@@ -127,7 +127,7 @@ def test_live_strategy_contract_reports_effective_guard_poll_interval(
 
     contract = main._live_strategy_contract()
 
-    assert contract["dubai"]["basket_guard"]["poll_seconds"] == 0.1
+    assert contract["dubai"]["basket_guard"]["poll_seconds"] == 0.01
 
 
 @pytest.mark.parametrize("max_lots", [0.0, float("nan"), float("inf")])
@@ -440,6 +440,15 @@ def test_resync_restores_armed_dubai_basket_guard(monkeypatch, tmp_path):
             "ev": "basket_guard_armed",
             "observed_pl": 31.0,
             "peak_pl": 34.5,
+        }) + "\n" + json.dumps({
+            "sig": "canal1_21190",
+            "ev": "market_filled",
+            "ticket": 1671689009,
+        }) + "\n" + json.dumps({
+            "sig": "canal1_21190",
+            "ev": "basket_guard_realized_ticket_confirmed",
+            "ticket": 1671689009,
+            "realized_pl": 7.30,
         }) + "\n",
         encoding="utf-8",
     )
@@ -491,4 +500,6 @@ def test_resync_restores_armed_dubai_basket_guard(monkeypatch, tmp_path):
     assert signal.basket_guard_armed is True
     assert signal.basket_guard_triggered is False
     assert signal.basket_guard_peak_pl == 34.5
+    assert signal.basket_guard_known_tickets == [1671689009]
+    assert signal.basket_guard_realized_by_ticket == {1671689009: 7.30}
     assert started == [(signal, [])]

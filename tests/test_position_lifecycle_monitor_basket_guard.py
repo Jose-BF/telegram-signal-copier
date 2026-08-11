@@ -210,3 +210,106 @@ def test_guard_retries_after_partial_queue_failure(monkeypatch):
     assert recovered.reason == "recovery"
     assert queued == [1001, 1003]
     assert signal.basket_guard_recovery_pending is False
+
+
+def test_guard_arms_from_realized_plus_floating_profit(monkeypatch):
+    _enable_guard(monkeypatch)
+    signal = Signal(
+        channel="canal1",
+        message_id=901,
+        direction="BUY",
+        market_ticket=1001,
+        extra_market_tickets=[1002, 1003, 1004],
+    )
+    open_positions = [
+        SimpleNamespace(
+            ticket=1003,
+            profit=10.50,
+            volume=0.01,
+            price_open=4200.0,
+        ),
+        SimpleNamespace(
+            ticket=1004,
+            profit=11.66,
+            volume=0.01,
+            price_open=4200.1,
+        ),
+    ]
+    history_calls = []
+    deals = {
+        1001: [
+            SimpleNamespace(profit=0.0, commission=-0.10, swap=0.0, fee=0.0),
+            SimpleNamespace(profit=4.03, commission=-0.10, swap=0.0, fee=0.0),
+        ],
+        1002: [
+            SimpleNamespace(profit=0.0, commission=-0.10, swap=0.0, fee=0.0),
+            SimpleNamespace(profit=7.55, commission=-0.10, swap=-0.05, fee=0.0),
+        ],
+    }
+    monkeypatch.setattr(monitor.mt5, "positions_get", lambda: open_positions)
+    monkeypatch.setattr(
+        monitor.mt5,
+        "history_deals_get",
+        lambda position: history_calls.append(position) or deals[position],
+    )
+    monkeypatch.setattr(
+        monitor.mt5,
+        "symbol_info_tick",
+        lambda symbol: SimpleNamespace(bid=4202.0, ask=4202.1),
+    )
+    events = []
+    monkeypatch.setattr(
+        monitor,
+        "_journal_event",
+        lambda sig_id, event, **fields: events.append((event, fields)),
+    )
+
+    first_summary = monitor._signal_pl_summary(signal)
+    second_summary = monitor._signal_pl_summary(signal)
+    decision = monitor._apply_live_basket_guard(signal, first_summary)
+
+    assert first_summary["floating_pl"] == pytest.approx(22.16)
+    assert first_summary["realized_pl"] == pytest.approx(11.13)
+    assert first_summary["total_pl"] == pytest.approx(33.29)
+    assert first_summary["realized_complete"] is True
+    assert second_summary["total_pl"] == pytest.approx(33.29)
+    assert history_calls == [1001, 1002]
+    assert decision.action == "arm"
+    armed = next(fields for event, fields in events if event == "basket_guard_armed")
+    assert armed["floating_pl"] == pytest.approx(22.16)
+    assert armed["realized_pl"] == pytest.approx(11.13)
+    assert armed["total_pl"] == pytest.approx(33.29)
+
+
+def test_incomplete_realized_history_allows_only_known_floating_loss(monkeypatch):
+    _enable_guard(monkeypatch)
+    signal = _signal()
+    positive = {
+        "pl": 35.0,
+        "floating_pl": 35.0,
+        "realized_pl": 0.0,
+        "total_pl": None,
+        "realized_complete": False,
+        "n_open": 2,
+        "open_tickets": [1002, 1003],
+    }
+    negative = {**positive, "pl": -51.0, "floating_pl": -51.0}
+    monkeypatch.setattr(monitor, "_journal_event", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        monitor.pending_actions,
+        "enqueue_close_position",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        monitor.pending_actions,
+        "enqueue_cancel_pending",
+        lambda *args, **kwargs: None,
+    )
+
+    no_arm = monitor._apply_live_basket_guard(signal, positive)
+    loss_close = monitor._apply_live_basket_guard(signal, negative)
+
+    assert no_arm.action == "none"
+    assert signal.basket_guard_armed is False
+    assert loss_close.action == "close"
+    assert loss_close.reason == "loss_cap"

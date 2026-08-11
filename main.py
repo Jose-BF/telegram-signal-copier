@@ -1185,8 +1185,18 @@ def _resync_orphan_positions():
             journal.EVENTS_FILE,
             groups.keys(),
         )
+        basket_guard_realized = live_basket_guard.load_realized_ticket_cache(
+            journal.EVENTS_FILE,
+            groups.keys(),
+        )
+        basket_guard_tickets = live_basket_guard.load_signal_ticket_ids(
+            journal.EVENTS_FILE,
+            groups.keys(),
+        )
     except OSError as exc:
         basket_guard_states = {}
+        basket_guard_realized = {}
+        basket_guard_tickets = {}
         print(f"[Resync] no pude cargar proteccion de cestas: {exc}")
     try:
         causal_origins, causal_conflicts, invalid_causal_lines = (
@@ -1299,6 +1309,12 @@ def _resync_orphan_positions():
             sig.basket_guard_recovery_pending = (
                 recovered_guard.recovery_pending
             )
+        sig.basket_guard_known_tickets = list(
+            basket_guard_tickets.get(sig_id, [])
+        )
+        sig.basket_guard_realized_by_ticket = dict(
+            basket_guard_realized.get(sig_id, {})
+        )
         # Reconstruir tp_overrides del Market B (doble market): el Market B
         # cierra en TP3 (STRATEGY_DOUBLE_MARKET_TP_INDEX). Sin esto, tras el
         # resync el Market B se quedaba sin override (canal2_12497 lo perdio
@@ -1795,12 +1811,15 @@ def _live_strategy_contract() -> dict:
                 "loss_cap": float(guard.loss_cap),
                 "profit_arm": float(guard.profit_arm),
                 "profit_lock": float(guard.profit_lock),
-                "poll_seconds": max(
+                "poll_seconds": min(
                     0.1,
-                    float(config.STRATEGY_C1_BASKET_GUARD_POLL_S),
+                    max(
+                        0.01,
+                        float(config.STRATEGY_C1_BASKET_GUARD_POLL_S),
+                    ),
                 ),
                 "money_source": (
-                    "mt5_position_profit_account_currency"
+                    "realized_plus_floating_account_currency"
                 ),
             },
         },
