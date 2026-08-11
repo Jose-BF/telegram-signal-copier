@@ -33,6 +33,8 @@ data/runtime_handler_activity.json
 data/runtime_handler_activity.json.tmp
 runtime_data/
 runtime_telemetry_checkout/
+data/telegram_media/
+data/telegram_media.jsonl
 data/strategy_sim*.json
 
 # Eventos y journal: gitignored por defecto, EXCEPTO los ficheros canónicos

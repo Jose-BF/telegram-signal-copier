@@ -39,6 +39,7 @@ def _runtime(tmp_path: Path) -> Path:
 
 def test_default_export_includes_console_diagnostics():
     assert "bot_runtime.log" in runtime_telemetry.DEFAULT_STREAM_NAMES
+    assert "telegram_media.jsonl" in runtime_telemetry.DEFAULT_STREAM_NAMES
 
 
 def test_checkpoint_exports_only_complete_records_and_advances_cursor(

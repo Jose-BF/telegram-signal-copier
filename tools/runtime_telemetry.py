@@ -32,7 +32,11 @@ import runtime_paths
 
 
 TELEMETRY_DIR_NAME = ".telemetry"
-DEFAULT_STREAM_NAMES = (*runtime_paths.AUTHORITATIVE_STREAMS, "bot_runtime.log")
+DEFAULT_STREAM_NAMES = (
+    *runtime_paths.AUTHORITATIVE_STREAMS,
+    "bot_runtime.log",
+    "telegram_media.jsonl",
+)
 DEFAULT_MAX_CHUNK_BYTES = 4 * 1024 * 1024
 DEFAULT_GIT_TIMEOUT_SEC = 30.0
 DEFAULT_PUBLISH_LOCK_STALE_SEC = 15 * 60.0

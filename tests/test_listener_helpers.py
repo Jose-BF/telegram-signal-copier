@@ -979,6 +979,57 @@ class TestPollerStartupCatchup:
         assert flushes == []
 
     @pytest.mark.asyncio
+    async def test_dispatch_does_not_wait_for_media_capture(
+        self,
+        monkeypatch,
+    ):
+        self._reset_poller_state()
+        message = SimpleNamespace(
+            id=285,
+            chat_id=-1001642806869,
+            text="",
+            message="",
+            date=datetime(2026, 8, 11, 9, 30, tzinfo=timezone.utc),
+            edit_date=None,
+            sticker=None,
+            photo=SimpleNamespace(id=77),
+            document=None,
+            reply_to=None,
+        )
+        capture_started = asyncio.Event()
+        release_capture = asyncio.Event()
+        processed = []
+
+        async def capture(*args, **kwargs):
+            capture_started.set()
+            await release_capture.wait()
+
+        async def process(msg):
+            processed.append(msg.id)
+
+        monkeypatch.setattr(
+            listener.telegram_media_evidence,
+            "capture_message_media",
+            capture,
+        )
+        monkeypatch.setattr(listener, "_process_canal1_new", process)
+        monkeypatch.setattr(listener.journal, "event", lambda *a, **kw: None)
+
+        assert await asyncio.wait_for(
+            listener._dispatch_telegram_message(
+                message,
+                "canal1",
+                "new",
+            ),
+            timeout=0.2,
+        ) is True
+        await asyncio.wait_for(capture_started.wait(), timeout=0.2)
+        assert processed == [285]
+
+        release_capture.set()
+        await asyncio.sleep(0)
+
+    @pytest.mark.asyncio
     async def test_dispatch_processes_even_when_raw_receipt_failed(
         self,
         monkeypatch,

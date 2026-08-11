@@ -35,6 +35,7 @@ import pending_actions
 import runtime_control
 import strategies
 import telegram_notifications
+import telegram_media_evidence
 from canal2_zone_lifecycle import (
     LIFECYCLE_SCHEMA_VERSION,
     classify_followup as classify_zone_followup,
@@ -1135,6 +1136,41 @@ def _schedule_detached(awaitable):
     """Schedule delayed bot work without retaining a Telegram decision."""
     with causal_trace.detached_context(), journal.detached_test_mode():
         return asyncio.ensure_future(awaitable)
+
+
+def _schedule_media_capture(
+    msg,
+    channel_name: str,
+    update_kind: str,
+    message_revision_id: str,
+):
+    """Start evidence capture without adding latency to message handling."""
+    if not getattr(config, "TELEGRAM_MEDIA_CAPTURE_ENABLED", True):
+        return None
+    if not telegram_media_evidence.has_capture_candidate(msg):
+        return None
+    capture = telegram_media_evidence.capture_message_media(
+        client,
+        msg,
+        channel=channel_name,
+        update_kind=update_kind,
+        message_revision_id=message_revision_id,
+    )
+    try:
+        return _schedule_detached(capture)
+    except Exception as exc:
+        capture.close()
+        journal.event(
+            f"{channel_name}_{getattr(msg, 'id', 'unknown')}",
+            "telegram_media_capture_schedule_failed",
+            channel=channel_name,
+            message_id=getattr(msg, "id", None),
+            update_kind=update_kind,
+            message_revision_id=message_revision_id,
+            exception_type=type(exc).__name__,
+            exception_message=str(exc)[:500],
+        )
+        return None
 
 
 # ─── Notificaciones al usuario por Telegram ───────────────────────────────────
@@ -8164,6 +8200,12 @@ async def _dispatch_telegram_message(
                 f"{channel_name}_{msg.id}",
                 "telegram_decision_started",
                 **decision_identity,
+            )
+            _schedule_media_capture(
+                msg,
+                channel_name,
+                update_kind,
+                message_revision_id,
             )
 
             if update_kind == "new":
