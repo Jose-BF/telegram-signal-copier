@@ -278,6 +278,15 @@ def _close_all_positions(signal: Signal, reason: str):
     signal.status = "closed"
 
 
+def _dominant_close_tag(signal: Signal, by_tag: dict) -> str:
+    requested = getattr(signal, "requested_close_reason", None)
+    if requested:
+        return str(requested)
+    if not by_tag:
+        return "MT5_AUTO"
+    return max(by_tag.items(), key=lambda item: item[1])[0]
+
+
 def _decide_close_tag(exit_price: float, ticket_entry: float, direction: str,
                       tps: list, effective_sl,
                       be_armed: bool, *, effective_tp=None,
@@ -1035,8 +1044,7 @@ async def run(signal: Signal, levels: list[float]):
                                  summary_by_tag=by_tag)
                         from listener import _finalize_signal
                         # closed_by usa el tag dominante (mayoría de tickets)
-                        dominant_tag = max(by_tag.items(), key=lambda x: x[1])[0] \
-                                       if by_tag else "MT5_AUTO"
+                        dominant_tag = _dominant_close_tag(signal, by_tag)
                         await _finalize_signal(
                             signal, closed_by=dominant_tag,
                             notes=f"auto-finalize: {summary_str}"

@@ -136,6 +136,11 @@ class Signal:
     basket_guard_recovery_pending: bool = False
     basket_guard_close_tickets: list = field(default_factory=list)
 
+    # A live close requested by our own management path remains "open" until
+    # MT5 confirms every ticket closed. The lifecycle monitor uses this tag
+    # when it performs the definitive journal finalization.
+    requested_close_reason: Optional[str] = None
+
     # Tickets cerrados explícitamente por acción CLOSE_FIRST.
     # Se rellena en listener.py al ejecutar el action. Usado en
     # _classify_closures para taggear esos cierres como "CLOSE_FIRST"

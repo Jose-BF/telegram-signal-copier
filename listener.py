@@ -545,6 +545,186 @@ def _emit_same_direction_overlap_anomaly(new_signal: Signal,
                     delta_s=round(delta_s, 3))
 
 
+def _is_explicit_signal_retraction(text: str) -> bool:
+    normalized = str(text or "").lower().replace("’", "'")
+    normalized = re.sub(r"[^a-z0-9'\s]", " ", normalized)
+    normalized = " ".join(normalized.split())
+    return normalized in {
+        "this is not a new signal",
+        "this was not a new signal",
+        "this isn't a new signal",
+        "this wasn't a new signal",
+        "not a new signal",
+    }
+
+
+def _signal_levels_materially_equal(
+    left: Signal,
+    right: Signal,
+    *,
+    level_tolerance: float = 0.5,
+    fill_tolerance: float = 1.0,
+) -> bool:
+    if left.direction != right.direction:
+        return False
+    if left.sl is None or right.sl is None:
+        return False
+    if abs(float(left.sl) - float(right.sl)) > level_tolerance:
+        return False
+    if not left.tps or len(left.tps) != len(right.tps):
+        return False
+    if any(
+        abs(float(left_tp) - float(right_tp)) > level_tolerance
+        for left_tp, right_tp in zip(left.tps, right.tps)
+    ):
+        return False
+
+    left_has_range = left.range_low is not None and left.range_high is not None
+    right_has_range = right.range_low is not None and right.range_high is not None
+    if left_has_range and right_has_range:
+        return (
+            abs(float(left.range_low) - float(right.range_low))
+            <= level_tolerance
+            and abs(float(left.range_high) - float(right.range_high))
+            <= level_tolerance
+        )
+    if left_has_range != right_has_range:
+        return False
+
+    if left.market_fill_price is None or right.market_fill_price is None:
+        return False
+    command_keys_match = (
+        left.telegram_entry_command_key is not None
+        and left.telegram_entry_command_key == right.telegram_entry_command_key
+    )
+    return command_keys_match and (
+        abs(float(left.market_fill_price) - float(right.market_fill_price))
+        <= fill_tolerance
+    )
+
+
+def _as_naive_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value
+    return value.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def _select_explicit_duplicate_retraction(
+    open_signals: list[Signal],
+    now: datetime,
+    *,
+    max_age_s: float = 180.0,
+) -> dict:
+    ordered = sorted(
+        (signal for signal in open_signals if signal.status == "open"),
+        key=lambda signal: _as_naive_utc(signal.timestamp),
+        reverse=True,
+    )
+    if len(ordered) < 2:
+        return {"candidate": None, "original": None, "reason": "not_enough_open_signals"}
+
+    candidate = ordered[0]
+    age_s = (_as_naive_utc(now) - _as_naive_utc(candidate.timestamp)).total_seconds()
+    if age_s < 0 or age_s > float(max_age_s):
+        return {"candidate": None, "original": None, "reason": "newest_outside_window"}
+    if not candidate.all_filled_tickets and not candidate.pending_tickets:
+        return {"candidate": None, "original": None, "reason": "newest_has_no_exposure"}
+
+    matches = [
+        original
+        for original in ordered[1:]
+        if original.channel == candidate.channel
+        and _signal_levels_materially_equal(candidate, original)
+    ]
+    if len(matches) == 1:
+        return {
+            "candidate": candidate,
+            "original": matches[0],
+            "reason": "proven_duplicate",
+            "age_s": age_s,
+        }
+    if len(matches) > 1:
+        reason = "multiple_matching_originals"
+    else:
+        reason = "no_materially_identical_original"
+    return {"candidate": None, "original": None, "reason": reason, "age_s": age_s}
+
+
+async def _handle_explicit_signal_retraction(msg, channel: str) -> bool:
+    text = getattr(msg, "text", None) or getattr(msg, "message", None) or ""
+    if not _is_explicit_signal_retraction(text):
+        return False
+
+    msg_date = getattr(msg, "date", None) or datetime.now(timezone.utc)
+    result = _select_explicit_duplicate_retraction(
+        state.open_signals(channel),
+        _as_naive_utc(msg_date),
+    )
+    evidence_id = f"{channel}_{getattr(msg, 'id', 'unknown')}"
+    journal.event(
+        evidence_id,
+        "provider_signal_retraction_received",
+        channel=channel,
+        raw_text=text[:240],
+        selection_reason=result["reason"],
+        tg_ts=_msg_ts_iso(msg),
+    )
+
+    candidate = result.get("candidate")
+    original = result.get("original")
+    if candidate is None or original is None:
+        open_ids = [_sig_id(signal) for signal in state.open_signals(channel)]
+        journal.anomaly(
+            evidence_id,
+            "channel_msg",
+            "warning",
+            "retractacion explicita sin duplicado demostrable; no se tocaron ordenes",
+            reason=result["reason"],
+            open_signals=open_ids,
+            raw_text=text[:240],
+        )
+        _schedule_detached(notify(
+            f"⚠️ {provider_display_name(channel)}\n"
+            "RETRACTACIÓN SIN DESTINO SEGURO\n\n"
+            f"Mensaje: {text[:180]}\n"
+            "El bot no cambió ninguna operación. Revisa MT5."
+        ))
+        return True
+
+    candidate.requested_close_reason = "PROVIDER_RETRACTED"
+    for ticket in candidate.all_filled_tickets:
+        pending_actions.enqueue_close_position(
+            candidate,
+            ticket,
+            label=f"PROVIDER_RETRACTED #{ticket}",
+        )
+    for ticket in candidate.pending_tickets:
+        pending_actions.enqueue_cancel_pending(
+            candidate,
+            ticket,
+            label=f"PROVIDER_RETRACTED pending #{ticket}",
+        )
+    journal.event(
+        _sig_id(candidate),
+        "provider_duplicate_retraction_applied",
+        retraction_message_id=getattr(msg, "id", None),
+        retracted_signal_id=_sig_id(candidate),
+        original_signal_id=_sig_id(original),
+        age_s=round(float(result.get("age_s", 0.0)), 3),
+        closed_tickets=list(candidate.all_filled_tickets),
+        cancelled_tickets=list(candidate.pending_tickets),
+        raw_text=text[:240],
+    )
+    _schedule_detached(notify(
+        f"✅ {provider_display_name(channel)}\n"
+        "SEÑAL DUPLICADA RETIRADA\n\n"
+        f"Cerrando {len(candidate.all_filled_tickets)} posiciones de la señal "
+        f"{candidate.message_id}. La operación original {original.message_id} "
+        "se mantiene."
+    ))
+    return True
+
+
 def _canal2_duplicate_alias_candidate(message_id: int, direction: str,
                                       timestamp: datetime, parsed: dict,
                                       open_signals: list,
@@ -5669,6 +5849,10 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True,
         return
 
     text = msg.text or ""
+    if _is_explicit_signal_retraction(text):
+        async with _entry_serial_lock("canal2"):
+            await _handle_explicit_signal_retraction(msg, "canal2")
+        return
     immediate_entry = is_canal2_entry(text)
     reply_id = (
         msg.reply_to.reply_to_msg_id
@@ -6551,6 +6735,11 @@ async def _process_canal1_new(msg):
         return
 
     text = msg.text or ""
+
+    if _is_explicit_signal_retraction(text):
+        async with _entry_serial_lock("canal1"):
+            await _handle_explicit_signal_retraction(msg, "canal1")
+        return
 
     # Mensaje de gestión (reply a una señal)
     if msg.reply_to and msg.reply_to.reply_to_msg_id:
