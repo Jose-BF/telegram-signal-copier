@@ -138,6 +138,52 @@ _file_lock = Lock()         # protege escrituras a disco
 _trades_lock = Lock()       # protege el dict en memoria
 _trades: dict[str, dict] = {}   # signal_id -> dict acumulador
 _notify_loop: Optional[asyncio.AbstractEventLoop] = None
+_critical_notify_lock = Lock()
+_critical_notify_seen: dict[str, float] = {}
+
+
+def _critical_notify_cooldown_s() -> float:
+    try:
+        return max(0.0, float(os.getenv("CRITICAL_NOTIFY_COOLDOWN_S", "600")))
+    except ValueError:
+        return 600.0
+
+
+def _critical_notify_fingerprint(
+    signal_id: str,
+    category: str,
+    detail: str,
+) -> str:
+    payload = "\x1f".join((str(signal_id), str(category), str(detail)))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _critical_notify_allowed(
+    signal_id: str,
+    category: str,
+    detail: str,
+    *,
+    now: float | None = None,
+) -> bool:
+    observed_at = time.monotonic() if now is None else float(now)
+    cooldown = _critical_notify_cooldown_s()
+    fingerprint = _critical_notify_fingerprint(signal_id, category, detail)
+    with _critical_notify_lock:
+        previous = _critical_notify_seen.get(fingerprint)
+        if previous is not None and observed_at - previous < cooldown:
+            return False
+        _critical_notify_seen[fingerprint] = observed_at
+        if len(_critical_notify_seen) > 2000:
+            cutoff = observed_at - max(cooldown, 1.0)
+            for key, timestamp in list(_critical_notify_seen.items()):
+                if timestamp < cutoff:
+                    del _critical_notify_seen[key]
+    return True
+
+
+def _reset_critical_notify_rate_limit() -> None:
+    with _critical_notify_lock:
+        _critical_notify_seen.clear()
 _event_queue: Queue = Queue()
 _event_writer_guard = Lock()
 _event_writer_thread: Optional[Thread] = None
@@ -460,11 +506,29 @@ def _notify_critical(signal_id: str, category: str, detail: str, ctx: dict):
             running_loop = None
 
         if running_loop is not None and running_loop.is_running():
+            if not _critical_notify_allowed(signal_id, category, detail):
+                event(
+                    signal_id,
+                    "critical_notify_suppressed",
+                    category=category,
+                    detail=detail,
+                    cooldown_s=_critical_notify_cooldown_s(),
+                )
+                return
             schedule(running_loop)
             return
 
         loop = _notify_loop
         if loop is not None and loop.is_running():
+            if not _critical_notify_allowed(signal_id, category, detail):
+                event(
+                    signal_id,
+                    "critical_notify_suppressed",
+                    category=category,
+                    detail=detail,
+                    cooldown_s=_critical_notify_cooldown_s(),
+                )
+                return
             loop.call_soon_threadsafe(schedule, loop)
             return
 

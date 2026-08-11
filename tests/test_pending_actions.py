@@ -957,6 +957,28 @@ class TestModifyPreconditions:
         assert "1 intento MT5 por posicion" in text
         assert "continua reintentando" in text.lower()
 
+    def test_structural_incident_groups_cent_level_be_differences(self):
+        actions = [
+            _make_action(new_sl=value, new_tp=4065.0)
+            for value in (4059.61, 4059.63, 4059.65)
+        ]
+        for index, action in enumerate(actions, start=1):
+            action.ticket = 200 + index
+            action.attempts = 2
+            action.last_retcode = 10016
+            action.last_preflight_status = "wait_market"
+            action.last_preflight_reason = "sl_wrong_side"
+
+        keys = {
+            PendingQueue._structural_incident_key(action)
+            for action in actions
+        }
+        text = PendingQueue._format_structural_notification(actions)
+
+        assert len(keys) == 1
+        assert "3 posiciones" in text
+        assert "4059.61 a 4059.65" in text
+
 
 def test_stuck_stops_alerts_once_after_threshold():
     assert _should_alert_stuck_stops(10016, 30.0, 30.0, False) is True

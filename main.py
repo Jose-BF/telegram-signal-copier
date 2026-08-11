@@ -498,35 +498,50 @@ async def _broker_money_contract_monitor(
         else float(config.BOT_BROKER_CONTRACT_POLL_SEC)
     )
     interval = max(30.0, interval)
-    previous_ready = _broker_contract_ready
+    failure_streak = 0
+    interruption_notified = False
+    notify_after_failures = max(
+        2,
+        int(config.BOT_BROKER_CONTRACT_NOTIFY_FAILURES),
+    )
     while True:
         await asyncio.sleep(interval)
         current_ready = await asyncio.to_thread(
             _try_capture_broker_money_contract_snapshot
         )
-        if previous_ready is True and current_ready is False:
-            await _notify_broker_contract_status(
-                "REGISTRO DE SIMULACION INTERRUMPIDO\n"
-                "El bot sigue operando. Las operaciones nocturnas podrian "
-                "quedar sin coste exacto hasta que se recupere."
-            )
-        elif previous_ready is False and current_ready is True:
+        if current_ready is False:
+            failure_streak += 1
+            if (
+                not interruption_notified
+                and failure_streak >= notify_after_failures
+            ):
+                interruption_notified = await _notify_broker_contract_status(
+                    "REGISTRO DE SIMULACION INTERRUMPIDO\n"
+                    "El bot sigue operando. Las operaciones nocturnas podrian "
+                    "quedar sin coste exacto hasta que se recupere."
+                )
+            continue
+
+        failure_streak = 0
+        if interruption_notified:
             await _notify_broker_contract_status(
                 "REGISTRO DE SIMULACION RECUPERADO\n"
                 "La captura monetaria de MT5 vuelve a estar activa."
             )
-        previous_ready = current_ready
+            interruption_notified = False
 
 
-async def _notify_broker_contract_status(text: str) -> None:
+async def _notify_broker_contract_status(text: str) -> bool:
     try:
         await notify(text)
+        return True
     except Exception as exc:
         journal.event(
             "bot",
             "broker_money_contract_status_notify_failed",
             error=f"{type(exc).__name__}: {exc}",
         )
+        return False
 
 
 def _should_apply_naked_protective_sl(sig) -> bool:

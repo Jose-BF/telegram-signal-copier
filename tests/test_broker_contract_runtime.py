@@ -384,10 +384,46 @@ async def test_runtime_monitor_notifies_only_capture_state_transitions(
     assert "RECUPERADO" in notifications[1]
 
 
-async def test_runtime_monitor_survives_notification_transport_failure(
+async def test_runtime_monitor_ignores_one_transient_failed_sample(
     monkeypatch,
 ):
     outcomes = iter([False, True])
+    notifications = []
+    main._broker_contract_ready = True
+
+    async def no_wait(_seconds):
+        return None
+
+    def capture():
+        try:
+            return next(outcomes)
+        except StopIteration as exc:
+            raise asyncio.CancelledError from exc
+
+    monkeypatch.setattr(main.asyncio, "sleep", no_wait)
+    monkeypatch.setattr(
+        main,
+        "_try_capture_broker_money_contract_snapshot",
+        capture,
+    )
+    monkeypatch.setattr(
+        main,
+        "notify",
+        lambda text: notifications.append(text),
+    )
+
+    try:
+        await main._broker_money_contract_monitor(interval_sec=30)
+    except asyncio.CancelledError:
+        pass
+
+    assert notifications == []
+
+
+async def test_runtime_monitor_survives_notification_transport_failure(
+    monkeypatch,
+):
+    outcomes = iter([False, False, True])
     capture_calls = []
     journal_events = []
     main._broker_contract_ready = True
@@ -426,9 +462,8 @@ async def test_runtime_monitor_survives_notification_transport_failure(
     except asyncio.CancelledError:
         pass
 
-    assert capture_calls == [False, True]
+    assert capture_calls == [False, False, True]
     assert [event[1] for event in journal_events] == [
-        "broker_money_contract_status_notify_failed",
         "broker_money_contract_status_notify_failed",
     ]
 

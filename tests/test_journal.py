@@ -27,6 +27,7 @@ def isolated_journal(tmp_path, monkeypatch):
     """Redirige EVENTS_FILE/JOURNAL_FILE a tmp_path."""
     monkeypatch.setattr(journal, "EVENTS_FILE", tmp_path / "events.jsonl")
     monkeypatch.setattr(journal, "JOURNAL_FILE", tmp_path / "journal.csv")
+    journal._reset_critical_notify_rate_limit()
     return tmp_path / "events.jsonl"
 
 
@@ -124,6 +125,42 @@ class TestAnomaly:
         assert calls[0].startswith("🚨 MT5 NECESITA ATENCIÓN")
         assert "Ticket: 1" in calls[0]
         assert "s1" not in calls[0]
+
+    @pytest.mark.asyncio
+    async def test_repeated_critical_keeps_both_logs_but_notifies_once(
+        self,
+        isolated_journal,
+        monkeypatch,
+    ):
+        calls = []
+
+        async def fake_notify(text):
+            calls.append(text)
+
+        monkeypatch.setitem(
+            sys.modules,
+            "listener",
+            types.SimpleNamespace(notify=fake_notify),
+        )
+        journal.set_notify_loop(None)
+
+        for _ in range(2):
+            journal.anomaly(
+                "canal1_100",
+                "mt5",
+                "critical",
+                "MT5 no responde",
+                ticket=123,
+            )
+        await asyncio.sleep(0)
+
+        rows = _events(isolated_journal)
+        assert len([row for row in rows if row["ev"] == "anomaly"]) == 2
+        assert len([
+            row for row in rows
+            if row["ev"] == "critical_notify_suppressed"
+        ]) == 1
+        assert len(calls) == 1
 
     @pytest.mark.asyncio
     async def test_notify_critical_from_worker_thread_uses_registered_loop(

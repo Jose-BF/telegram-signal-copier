@@ -814,11 +814,19 @@ class PendingQueue:
             act.signal.message_id,
             act.signal.direction,
             act.kind,
-            act.new_sl,
-            act.new_tp,
             act.last_retcode,
+            act.last_preflight_status,
             act.last_preflight_reason,
         )
+
+    @staticmethod
+    def _format_level_range(values: list[float]) -> str:
+        numeric = sorted({float(value) for value in values if value is not None})
+        if not numeric:
+            return "sin cambio"
+        if len(numeric) == 1:
+            return str(numeric[0])
+        return f"{numeric[0]} a {numeric[-1]}"
 
     @staticmethod
     def _format_structural_notification(actions: list[PendingAction]) -> str:
@@ -829,9 +837,13 @@ class PendingQueue:
         position_label = "posicion" if count == 1 else "posiciones"
         attempts = max(action.attempts for action in actions)
         attempt_label = "intento" if attempts == 1 else "intentos"
-        sl_text = str(first.new_sl) if first.new_sl is not None else "sin cambio"
-        tp_value = first.new_tp if first.new_tp is not None else first.applied_tp
-        tp_text = str(tp_value) if tp_value is not None else "sin cambio"
+        sl_text = PendingQueue._format_level_range([
+            action.new_sl for action in actions
+        ])
+        tp_text = PendingQueue._format_level_range([
+            action.new_tp if action.new_tp is not None else action.applied_tp
+            for action in actions
+        ])
         if first.last_preflight_status == "wait_market":
             return (
                 "BE AUN NO APLICADO\n"
@@ -878,8 +890,15 @@ class PendingQueue:
                 kind=first.kind,
                 tickets=[action.ticket for action in actions],
                 ticket_count=len(actions),
-                new_sl=first.new_sl,
-                new_tp=first.new_tp,
+                new_sl_values=sorted({
+                    action.new_sl for action in actions
+                    if action.new_sl is not None
+                }),
+                new_tp_values=sorted({
+                    action.new_tp if action.new_tp is not None else action.applied_tp
+                    for action in actions
+                    if action.new_tp is not None or action.applied_tp is not None
+                }),
                 retcode=first.last_retcode,
                 preflight_status=first.last_preflight_status,
                 preflight_reason=first.last_preflight_reason,
