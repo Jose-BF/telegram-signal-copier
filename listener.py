@@ -2035,6 +2035,13 @@ async def _apply_sl_tp(signal: Signal):
         pass
     direction = signal.direction
 
+    position_levels = await _run(
+        executor.open_position_levels,
+        list(signal.all_filled_tickets),
+    )
+    if position_levels is None:
+        position_levels = {}
+
     for i, t in enumerate(signal.all_filled_tickets):
         # TP segun override o escalonado
         if t in signal.tp_overrides and signal.tps:
@@ -2044,8 +2051,32 @@ async def _apply_sl_tp(signal: Signal):
         else:
             tp_i = signal.tp_for_position(i)
 
+        installed = position_levels.get(int(t), {})
+        installed_tp = installed.get("tp")
+        point = float(installed.get("point") or 0.01)
+        tp_already_installed = (
+            tp_i is not None
+            and installed_tp not in (None, 0, 0.0)
+            and abs(float(installed_tp) - float(tp_i))
+            <= max(point / 2.0, 1e-8)
+        )
+        if tp_already_installed:
+            journal.event(
+                _sig_id(signal),
+                "tp_preserved_installed",
+                ticket=t,
+                requested_tp=float(tp_i),
+                installed_tp=float(installed_tp),
+                point=point,
+            )
+
         # ── TP PERSECUCION ───────────────────────────────────────────────
-        if tp_i is not None and tick is not None and signal.tps:
+        if (
+            tp_i is not None
+            and not tp_already_installed
+            and tick is not None
+            and signal.tps
+        ):
             if direction == "BUY":
                 # TP valido si esta a > min_dist por encima del bid actual
                 tp_valido = tp_i > tick.bid + min_dist
@@ -2120,28 +2151,32 @@ async def _apply_sl_tp(signal: Signal):
                         continue  # no encolar el modify normal
 
         # SL: si BE armado, usar entry de este ticket. Si no, signal.sl.
+        tp_to_apply = None if tp_already_installed else tp_i
         if signal.be_armed:
             sl_to_apply = await _run(executor.entry_price, t)
             if sl_to_apply is None:
                 # Sin entry legible: aplicar solo TP (no tocar SL existente)
-                if tp_i is not None:
+                if tp_to_apply is not None:
                     pending_actions.enqueue_modify_tp(
-                        signal, t, tp_i, label=f"TP[{i}]→{tp_i} #{t} (BE preserved)"
+                        signal, t, tp_to_apply,
+                        label=f"TP[{i}]→{tp_to_apply} #{t} (BE preserved)"
                     )
                 continue
         else:
             sl_to_apply = signal.sl
 
-        if sl_to_apply is not None and tp_i is not None:
+        if sl_to_apply is not None and tp_to_apply is not None:
             label_suffix = " (BE)" if signal.be_armed else ""
             pending_actions.enqueue_modify_sltp(
-                signal, t, sl_to_apply, tp_i,
-                label=f"SL/TP[{i}]→{tp_i} #{t}{label_suffix}"
+                signal, t, sl_to_apply, tp_to_apply,
+                label=f"SL/TP[{i}]→{tp_to_apply} #{t}{label_suffix}"
             )
         elif sl_to_apply is not None:
             pending_actions.enqueue_modify_sl(signal, t, sl_to_apply, label=f"SL #{t}")
-        elif tp_i is not None:
-            pending_actions.enqueue_modify_tp(signal, t, tp_i, label=f"TP[{i}]→{tp_i} #{t}")
+        elif tp_to_apply is not None:
+            pending_actions.enqueue_modify_tp(
+                signal, t, tp_to_apply, label=f"TP[{i}]→{tp_to_apply} #{t}"
+            )
 
 
 # ─── Gestión de señal completa ────────────────────────────────────────────────

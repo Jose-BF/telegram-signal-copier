@@ -1439,6 +1439,38 @@ def open_entry_prices(tickets: list[int]) -> Optional[dict[int, float]]:
     }
 
 
+def open_position_levels(tickets: list[int]) -> Optional[dict[int, dict]]:
+    """Return the SL/TP currently installed on requested open positions.
+
+    ``None`` means the MT5 query failed. Missing keys are positions that are
+    no longer open, so callers must not treat them as zero-valued levels.
+    """
+    if not tickets:
+        return {}
+    all_open = mt5.positions_get()
+    if all_open is None:
+        return None
+
+    wanted = set(int(ticket) for ticket in tickets)
+    symbol_specs = {}
+    levels = {}
+    for position in all_open:
+        ticket = int(position.ticket)
+        if ticket not in wanted:
+            continue
+        symbol = getattr(position, "symbol", config.MT5_SYMBOL)
+        if symbol not in symbol_specs:
+            symbol_specs[symbol] = mt5.symbol_info(symbol)
+        spec = symbol_specs[symbol]
+        levels[ticket] = {
+            "sl": float(getattr(position, "sl", 0.0) or 0.0),
+            "tp": float(getattr(position, "tp", 0.0) or 0.0),
+            "digits": int(getattr(spec, "digits", 2) if spec else 2),
+            "point": float(getattr(spec, "point", 0.01) if spec else 0.01),
+        }
+    return levels
+
+
 def position_pnls(tickets: list[int]) -> list[tuple[int, float]]:
     """Devuelve [(ticket, floating_pnl), ...] para los tickets que SIGUEN abiertos.
 
