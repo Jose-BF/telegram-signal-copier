@@ -3550,7 +3550,7 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
         if floating_pnl is None:
             journal.anomaly(
                 _sig_id(signal),
-                "management",
+                "channel_msg",
                 "critical",
                 "no se pudo resolver CLOSE_PROFIT_OR_BE sin P&L vivo",
                 raw_text=raw_text[:240],
@@ -3693,7 +3693,7 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
                 )
                 journal.anomaly(
                     _sig_id(signal),
-                    "management",
+                    "channel_msg",
                     "warning",
                     "Gold Signals indicó cerrar primeras entradas, pero la "
                     "cesta copiada no estaba en beneficio; se conserva la "
@@ -8109,7 +8109,7 @@ async def _poller_initial_scan_channel(
     if not coverage_complete:
         journal.anomaly(
             "bot",
-            "telegram",
+            "channel_msg",
             "critical",
             "startup catch-up excedio el limite sin alcanzar la cobertura previa",
             channel=channel_name,
@@ -8143,7 +8143,7 @@ async def _poller_initial_scan_channel(
                 channel_name,
                 "startup_catchup_new",
             )
-            dispatched = await _dispatch_telegram_message(
+            dispatched = await _poller_dispatch_message(
                 msg,
                 channel_name,
                 "new",
@@ -8156,7 +8156,7 @@ async def _poller_initial_scan_channel(
                 channel_name,
                 "startup_catchup_edit",
             )
-            dispatched = await _dispatch_telegram_message(
+            dispatched = await _poller_dispatch_message(
                 msg,
                 channel_name,
                 "edit",
@@ -8204,6 +8204,38 @@ async def _poller_poll_or_initialize(channel_id: int, channel_name: str):
         await _poller_initial_scan_channel(channel_id, channel_name)
         return
     await _poll_channel(channel_id, channel_name)
+
+
+async def _poller_dispatch_message(
+    msg,
+    channel_name: str,
+    kind: str,
+    *,
+    label: str | None = None,
+    raw_receipt=None,
+) -> bool:
+    """Keep one bad message from terminating fallback coverage."""
+    try:
+        return await _dispatch_telegram_message(
+            msg,
+            channel_name,
+            kind,
+            label=label,
+            raw_receipt=raw_receipt,
+        )
+    except Exception as exc:
+        journal.anomaly(
+            f"{channel_name}_{getattr(msg, 'id', 'unknown')}",
+            "channel_msg",
+            "critical",
+            "fallo procesando mensaje desde el poller; queda pendiente de reintento",
+            channel=channel_name,
+            message_id=getattr(msg, "id", None),
+            message_kind=kind,
+            exception_type=type(exc).__name__,
+            exception_message=str(exc)[:240],
+        )
+        return False
 
 
 async def _poller_expand_active_messages(
@@ -8299,7 +8331,7 @@ async def _poll_channel(channel_id: int, channel_name: str):
             # (que es el unico que llama _new_msg_already_seen). Eso
             # garantiza single-processing sin race con el poller.
             raw_receipt = _msg_diag(msg, channel_name, "poll_new")
-            dispatched = await _dispatch_telegram_message(
+            dispatched = await _poller_dispatch_message(
                 msg,
                 channel_name,
                 "new",
@@ -8314,7 +8346,7 @@ async def _poll_channel(channel_id: int, channel_name: str):
         elif edit_date != prev:
             # Mensaje editado desde el último poll
             raw_receipt = _msg_diag(msg, channel_name, "poll_edit")
-            dispatched = await _dispatch_telegram_message(
+            dispatched = await _poller_dispatch_message(
                 msg,
                 channel_name,
                 "edit",
@@ -8336,7 +8368,7 @@ async def _poll_channel(channel_id: int, channel_name: str):
     elif not coverage_complete:
         journal.anomaly(
             "bot",
-            "telegram",
+            "channel_msg",
             "critical",
             "active poll excedio el limite sin alcanzar un mensaje conocido",
             channel=channel_name,
@@ -8404,7 +8436,39 @@ async def poll_loop():
                 keys = list(_poller_msg_state.keys())
                 for k in keys[:500]:
                     del _poller_msg_state[k]
-                print(f"[Poller] Limpieza estado: {len(keys)} → {len(_poller_msg_state)}")
+                print(
+                    f"[Poller] Limpieza estado: {len(keys)} -> "
+                    f"{len(_poller_msg_state)}"
+                )
+
+
+async def poll_loop_supervised(restart_delay_s: float = 2.0):
+    """Restart the fallback poller after an unexpected task exit."""
+    restart_count = 0
+    while True:
+        try:
+            await poll_loop()
+            raise RuntimeError("poll_loop finalizo sin cancelacion")
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            restart_count += 1
+            journal.anomaly(
+                "bot",
+                "channel_msg",
+                "critical",
+                "poller de respaldo detenido; reinicio automatico pendiente",
+                restart_count=restart_count,
+                exception_type=type(exc).__name__,
+                exception_message=str(exc)[:240],
+            )
+            journal.event(
+                "bot",
+                "poller_restarting",
+                restart_count=restart_count,
+                restart_delay_s=float(restart_delay_s),
+            )
+            await asyncio.sleep(max(0.0, float(restart_delay_s)))
 
 
 # ─── Canal de pruebas ─────────────────────────────────────────────────────────

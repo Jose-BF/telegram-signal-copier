@@ -1545,6 +1545,135 @@ class TestPollerStartupCatchup:
         ]
         assert fake_client.offsets == [None, 3]
 
+    @pytest.mark.asyncio
+    async def test_active_poll_keeps_failed_message_retryable(
+        self,
+        monkeypatch,
+    ):
+        self._reset_poller_state()
+        message = SimpleNamespace(
+            id=5,
+            chat_id=-1003908582492,
+            date=datetime(2026, 8, 11, 9, 14, tzinfo=timezone.utc),
+            edit_date=None,
+        )
+
+        class FakeClient:
+            async def get_messages(self, channel_id, limit, **kwargs):
+                return [message]
+
+        anomalies = []
+        monkeypatch.setattr(listener, "client", FakeClient())
+        monkeypatch.setattr(listener, "_msg_diag", lambda *args: None)
+        monkeypatch.setattr(
+            listener,
+            "_poller_record_coverage",
+            lambda *args, **kwargs: pytest.fail(
+                "failed dispatch must not advance coverage"
+            ),
+        )
+
+        async def fail_dispatch(*args, **kwargs):
+            raise RuntimeError("invalid anomaly category")
+
+        monkeypatch.setattr(
+            listener,
+            "_dispatch_telegram_message",
+            fail_dispatch,
+        )
+        monkeypatch.setattr(
+            listener.journal,
+            "anomaly",
+            lambda *args, **kwargs: anomalies.append((args, kwargs)),
+        )
+
+        await listener._poll_channel(-1003908582492, "canal2")
+
+        assert ("canal2", 5) not in listener._poller_msg_state
+        assert len(anomalies) == 1
+        assert anomalies[0][0][1:3] == ("channel_msg", "critical")
+        assert anomalies[0][1]["message_id"] == 5
+
+    @pytest.mark.asyncio
+    async def test_startup_scan_keeps_failed_message_retryable(
+        self,
+        monkeypatch,
+    ):
+        self._reset_poller_state()
+        message = SimpleNamespace(
+            id=6,
+            chat_id=-1003908582492,
+            date=datetime(2026, 8, 11, 9, 15, tzinfo=timezone.utc),
+            edit_date=None,
+        )
+
+        class FakeClient:
+            async def get_messages(self, channel_id, limit, **kwargs):
+                return [message]
+
+        monkeypatch.setattr(listener, "client", FakeClient())
+        monkeypatch.setattr(listener, "_msg_diag", lambda *args: None)
+        monkeypatch.setattr(
+            listener,
+            "_load_poller_startup_history",
+            lambda *args: {
+                "has_channel_history": True,
+                "coverage_cutoff": datetime(
+                    2026, 8, 11, 9, 0, tzinfo=timezone.utc
+                ),
+                "message_versions": {},
+                "processing_contract_utc": datetime(
+                    2026, 8, 11, 8, 59, tzinfo=timezone.utc
+                ),
+            },
+        )
+        monkeypatch.setattr(listener.journal, "anomaly", lambda *args, **kwargs: None)
+
+        async def fail_dispatch(*args, **kwargs):
+            raise RuntimeError("handler failed during catch-up")
+
+        monkeypatch.setattr(
+            listener,
+            "_dispatch_telegram_message",
+            fail_dispatch,
+        )
+
+        assert await listener._poller_initial_scan_channel(
+            -1003908582492,
+            "canal2",
+        ) is False
+        assert ("canal2", 6) not in listener._poller_msg_state
+        assert "canal2" not in listener._poller_initialized_channels
+
+
+@pytest.mark.asyncio
+async def test_poll_loop_supervisor_restarts_after_unexpected_exit(monkeypatch):
+    calls = []
+    events = []
+
+    async def flaky_poll_loop():
+        calls.append(len(calls) + 1)
+        if len(calls) == 1:
+            raise RuntimeError("poller died")
+        raise asyncio.CancelledError
+
+    async def no_wait(_seconds):
+        return None
+
+    monkeypatch.setattr(listener, "poll_loop", flaky_poll_loop)
+    monkeypatch.setattr(listener.asyncio, "sleep", no_wait)
+    monkeypatch.setattr(
+        listener.journal,
+        "event",
+        lambda *args, **kwargs: events.append((args, kwargs)),
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        await listener.poll_loop_supervised(restart_delay_s=0)
+
+    assert calls == [1, 2]
+    assert any(args[1] == "poller_restarting" for args, _ in events)
+
 
 class TestUnresolvedManagementSeverity:
     def test_closed_target_is_forensic_only_even_if_text_looks_actionable(self):

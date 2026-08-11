@@ -59,7 +59,7 @@ from listener import (
     canal2_zone_touch_loop,
     client,
     notify,
-    poll_loop,
+    poll_loop_supervised,
     restore_canal2_zone_plans_from_journal,
 )
 from parser import canal2_entry_command_key, predict_sl_from_entry
@@ -2033,7 +2033,7 @@ async def main():
     asyncio.ensure_future(canal2_zone_touch_loop())
     # Poller activo: bypass del updateChannelTooLong de Telethon.
     # Entrega mensajes y edits de Canal 2 en ~1s en lugar de 60-600s.
-    asyncio.ensure_future(poll_loop())
+    asyncio.ensure_future(poll_loop_supervised())
 
     try:
         await _run_until_disconnected_with_backoff()
