@@ -58,8 +58,10 @@ from listener import (
     _is_transient_telegram_history_error,
     canal2_zone_touch_loop,
     client,
+    drain_media_capture_tasks,
     notify,
     poll_loop_supervised,
+    schedule_pending_media_recovery,
     restore_canal2_zone_plans_from_journal,
 )
 from parser import canal2_entry_command_key, predict_sl_from_entry
@@ -533,8 +535,8 @@ async def _broker_money_contract_monitor(
 
 async def _notify_broker_contract_status(text: str) -> bool:
     try:
-        await notify(text)
-        return True
+        delivered = await notify(text)
+        return delivered is not False
     except Exception as exc:
         journal.event(
             "bot",
@@ -1490,13 +1492,7 @@ def _finalize_journal_orphans():
     received = {}
     closed = set()
     filled_tickets = defaultdict(set)
-    fill_events = {
-        "market_filled",
-        "market_b_filled",
-        "scale_out_leg_filled",
-        "dca_filled",
-        "rescue_market_filled",
-    }
+    fill_events = live_basket_guard.FILLED_TICKET_EVENTS
     try:
         for line in events_file.read_text(encoding="utf-8").splitlines():
             if not line.strip():
@@ -2050,6 +2046,7 @@ async def main():
         git_info,
         money_capture_ready=money_capture_ready,
     ))
+    schedule_pending_media_recovery(journal.EVENTS_FILE)
 
     asyncio.ensure_future(_runtime_heartbeat())
     asyncio.ensure_future(_heartbeat())
@@ -2072,6 +2069,11 @@ async def main():
     try:
         await _run_until_disconnected_with_backoff()
     finally:
+        await drain_media_capture_tasks(
+            timeout_s=float(
+                getattr(config, "TELEGRAM_MEDIA_SHUTDOWN_GRACE_S", 5.0)
+            )
+        )
         journal.event("bot", "session_closed",
                       ended_utc=datetime.utcnow().isoformat(timespec="seconds"))
         if not journal.flush_events(timeout=10.0):

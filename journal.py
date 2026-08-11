@@ -153,8 +153,38 @@ def _critical_notify_fingerprint(
     signal_id: str,
     category: str,
     detail: str,
+    ctx: dict | None = None,
 ) -> str:
-    payload = "\x1f".join((str(signal_id), str(category), str(detail)))
+    identity_fields = (
+        "ticket",
+        "tickets",
+        "retcode",
+        "last_retcode",
+        "preflight_status",
+        "preflight_reason",
+        "reason",
+        "action",
+        "kind",
+        "exception_type",
+        "direction",
+    )
+    identity = {
+        key: ctx[key]
+        for key in identity_fields
+        if ctx is not None and key in ctx
+    }
+    payload = json.dumps(
+        {
+            "signal_id": str(signal_id),
+            "category": str(category),
+            "detail": str(detail),
+            "identity": identity,
+        },
+        default=str,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -163,11 +193,17 @@ def _critical_notify_allowed(
     category: str,
     detail: str,
     *,
+    ctx: dict | None = None,
     now: float | None = None,
 ) -> bool:
     observed_at = time.monotonic() if now is None else float(now)
     cooldown = _critical_notify_cooldown_s()
-    fingerprint = _critical_notify_fingerprint(signal_id, category, detail)
+    fingerprint = _critical_notify_fingerprint(
+        signal_id,
+        category,
+        detail,
+        ctx,
+    )
     with _critical_notify_lock:
         previous = _critical_notify_seen.get(fingerprint)
         if previous is not None and observed_at - previous < cooldown:
@@ -506,7 +542,12 @@ def _notify_critical(signal_id: str, category: str, detail: str, ctx: dict):
             running_loop = None
 
         if running_loop is not None and running_loop.is_running():
-            if not _critical_notify_allowed(signal_id, category, detail):
+            if not _critical_notify_allowed(
+                signal_id,
+                category,
+                detail,
+                ctx=ctx,
+            ):
                 event(
                     signal_id,
                     "critical_notify_suppressed",
@@ -520,7 +561,12 @@ def _notify_critical(signal_id: str, category: str, detail: str, ctx: dict):
 
         loop = _notify_loop
         if loop is not None and loop.is_running():
-            if not _critical_notify_allowed(signal_id, category, detail):
+            if not _critical_notify_allowed(
+                signal_id,
+                category,
+                detail,
+                ctx=ctx,
+            ):
                 event(
                     signal_id,
                     "critical_notify_suppressed",

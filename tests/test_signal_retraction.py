@@ -40,6 +40,7 @@ def test_detects_only_explicit_duplicate_retraction_phrases(text):
     [
         "This is a new signal",
         "Is this not a new signal?",
+        "This is not a new signal?",
         "Wait for a new signal",
         "Not a new setup yet, keep watching",
     ],

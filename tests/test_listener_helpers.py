@@ -1030,6 +1030,98 @@ class TestPollerStartupCatchup:
         await asyncio.sleep(0)
 
     @pytest.mark.asyncio
+    async def test_media_capture_tasks_are_drained_before_shutdown(
+        self,
+        monkeypatch,
+    ):
+        listener._media_capture_tasks.clear()
+        capture_started = asyncio.Event()
+        release_capture = asyncio.Event()
+
+        async def capture(*args, **kwargs):
+            capture_started.set()
+            await release_capture.wait()
+
+        monkeypatch.setattr(
+            listener.telegram_media_evidence,
+            "capture_message_media",
+            capture,
+        )
+        message = SimpleNamespace(
+            id=286,
+            photo=SimpleNamespace(id=78),
+            sticker=None,
+            document=None,
+        )
+
+        task = listener._schedule_media_capture(
+            message,
+            "canal1",
+            "new",
+            "revision_286",
+        )
+        await capture_started.wait()
+        release_capture.set()
+
+        assert await listener.drain_media_capture_tasks(timeout_s=0.5) == {
+            "completed": 1,
+            "cancelled": 0,
+        }
+        assert task.done()
+        assert not listener._media_capture_tasks
+
+    @pytest.mark.asyncio
+    async def test_pending_media_recovery_fetches_original_message(
+        self,
+        monkeypatch,
+    ):
+        request = {
+            "channel": "canal2",
+            "message_id": 600,
+            "update_kind": "edit",
+            "message_revision_id": "revision_600",
+        }
+        message = SimpleNamespace(
+            id=600,
+            photo=SimpleNamespace(id=90),
+            sticker=None,
+            document=None,
+        )
+        captured = []
+
+        class Client:
+            async def get_messages(self, channel_id, ids):
+                assert channel_id == listener.config.CANAL_2_ID
+                assert ids == 600
+                return message
+
+        async def capture(client, msg, **kwargs):
+            captured.append((client, msg, kwargs))
+
+        monkeypatch.setattr(listener, "client", Client())
+        monkeypatch.setattr(
+            listener.telegram_media_evidence,
+            "load_pending_capture_requests",
+            lambda path: [request],
+        )
+        monkeypatch.setattr(
+            listener.telegram_media_evidence,
+            "capture_message_media",
+            capture,
+        )
+        monkeypatch.setattr(listener.journal, "event", lambda *a, **kw: None)
+
+        assert await listener.recover_pending_media_captures(
+            events_path="events.jsonl"
+        ) == 1
+        assert captured[0][1] is message
+        assert captured[0][2] == {
+            "channel": "canal2",
+            "update_kind": "edit",
+            "message_revision_id": "revision_600",
+        }
+
+    @pytest.mark.asyncio
     async def test_dispatch_processes_even_when_raw_receipt_failed(
         self,
         monkeypatch,
@@ -1724,6 +1816,71 @@ async def test_poll_loop_supervisor_restarts_after_unexpected_exit(monkeypatch):
 
     assert calls == [1, 2]
     assert any(args[1] == "poller_restarting" for args, _ in events)
+
+
+@pytest.mark.asyncio
+async def test_poller_batch_keeps_other_channel_alive_after_one_channel_fails(
+    monkeypatch,
+):
+    calls = []
+    events = []
+
+    async def poll_one(channel_id, channel_name):
+        calls.append(channel_name)
+        if channel_name == "canal2":
+            raise RuntimeError("temporary channel failure")
+        return True
+
+    monkeypatch.setattr(listener, "_poller_poll_or_initialize", poll_one)
+    monkeypatch.setattr(
+        listener.journal,
+        "event",
+        lambda *args, **kwargs: events.append((args, kwargs)),
+    )
+
+    await listener._poller_poll_batch(
+        [(-1002, "canal2"), (-1001, "canal1")]
+    )
+
+    assert calls == ["canal2", "canal1"]
+    assert any(args[1] == "poller_channel_cycle_failed" for args, _ in events)
+
+
+@pytest.mark.asyncio
+async def test_poller_batch_propagates_cancellation(monkeypatch):
+    async def poll_one(channel_id, channel_name):
+        if channel_name == "canal2":
+            raise asyncio.CancelledError
+        return True
+
+    monkeypatch.setattr(listener, "_poller_poll_or_initialize", poll_one)
+
+    with pytest.raises(asyncio.CancelledError):
+        await listener._poller_poll_batch(
+            [(-1002, "canal2"), (-1001, "canal1")]
+        )
+
+
+@pytest.mark.asyncio
+async def test_poller_startup_scan_keeps_scanning_after_one_channel_fails(
+    monkeypatch,
+):
+    calls = []
+
+    async def scan_one(channel_id, channel_name):
+        calls.append(channel_name)
+        if channel_name == "canal2":
+            raise RuntimeError("temporary startup scan failure")
+        return True
+
+    monkeypatch.setattr(listener, "_poller_initial_scan_channel", scan_one)
+    monkeypatch.setattr(listener.journal, "event", lambda *args, **kwargs: None)
+
+    await listener._poller_initial_scan_batch(
+        [(-1002, "canal2"), (-1001, "canal1")]
+    )
+
+    assert calls == ["canal2", "canal1"]
 
 
 class TestUnresolvedManagementSeverity:

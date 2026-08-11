@@ -547,7 +547,10 @@ def _emit_same_direction_overlap_anomaly(new_signal: Signal,
 
 
 def _is_explicit_signal_retraction(text: str) -> bool:
-    normalized = str(text or "").lower().replace("’", "'")
+    raw_text = str(text or "")
+    if "?" in raw_text or "¿" in raw_text:
+        return False
+    normalized = raw_text.lower().replace("’", "'")
     normalized = re.sub(r"[^a-z0-9'\s]", " ", normalized)
     normalized = " ".join(normalized.split())
     return normalized in {
@@ -1120,6 +1123,7 @@ async def _finalize_signal(signal: Signal, closed_by: str, notes: str = ""):
         print(f"[Journal] _finalize_signal error: {e}")
 
 client = TelegramClient("signal_session", config.TELEGRAM_API_ID, config.TELEGRAM_API_HASH)
+_media_capture_tasks: set[asyncio.Future] = set()
 
 # ─── Helper async→sync MT5 ────────────────────────────────────────────────────
 
@@ -1136,6 +1140,13 @@ def _schedule_detached(awaitable):
     """Schedule delayed bot work without retaining a Telegram decision."""
     with causal_trace.detached_context(), journal.detached_test_mode():
         return asyncio.ensure_future(awaitable)
+
+
+def _track_media_capture_task(task):
+    if isinstance(task, asyncio.Future):
+        _media_capture_tasks.add(task)
+        task.add_done_callback(_media_capture_tasks.discard)
+    return task
 
 
 def _schedule_media_capture(
@@ -1157,7 +1168,7 @@ def _schedule_media_capture(
         message_revision_id=message_revision_id,
     )
     try:
-        return _schedule_detached(capture)
+        return _track_media_capture_task(_schedule_detached(capture))
     except Exception as exc:
         capture.close()
         journal.event(
@@ -1173,6 +1184,102 @@ def _schedule_media_capture(
         return None
 
 
+async def drain_media_capture_tasks(timeout_s: float = 5.0) -> dict[str, int]:
+    """Give evidence downloads a bounded grace period during shutdown."""
+    tasks = {task for task in _media_capture_tasks if not task.done()}
+    if not tasks:
+        return {"completed": 0, "cancelled": 0}
+
+    done, pending = await asyncio.wait(
+        tasks,
+        timeout=max(0.0, float(timeout_s)),
+    )
+    for task in pending:
+        task.cancel()
+    if pending:
+        await asyncio.gather(*pending, return_exceptions=True)
+    for task in done | pending:
+        _media_capture_tasks.discard(task)
+
+    result = {
+        "completed": sum(1 for task in done if not task.cancelled()),
+        "cancelled": len(pending) + sum(1 for task in done if task.cancelled()),
+    }
+    journal.event("bot", "telegram_media_capture_drain", **result)
+    return result
+
+
+async def recover_pending_media_captures(events_path=None) -> int:
+    """Retry media requests interrupted by an earlier bot shutdown."""
+    source = events_path or journal.EVENTS_FILE
+    requests = await asyncio.to_thread(
+        telegram_media_evidence.load_pending_capture_requests,
+        source,
+    )
+    recovered = 0
+    for request in requests:
+        channel_name = str(request.get("channel") or "")
+        channel_id = {
+            "canal1": config.CANAL_1_ID,
+            "canal2": config.CANAL_2_ID,
+        }.get(channel_name)
+        message_id = request.get("message_id")
+        revision_id = str(request.get("message_revision_id") or "")
+        if channel_id is None or message_id is None or not revision_id:
+            continue
+        try:
+            message = await client.get_messages(channel_id, ids=int(message_id))
+            if isinstance(message, (list, tuple)):
+                message = message[0] if message else None
+            if message is None:
+                journal.event(
+                    f"{channel_name}_{message_id}",
+                    "telegram_media_capture_unavailable",
+                    channel=channel_name,
+                    message_id=int(message_id),
+                    message_revision_id=revision_id,
+                    reason="telegram_message_not_found",
+                )
+                continue
+            await telegram_media_evidence.capture_message_media(
+                client,
+                message,
+                channel=channel_name,
+                update_kind=str(request.get("update_kind") or "recovery"),
+                message_revision_id=revision_id,
+            )
+            recovered += 1
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            journal.event(
+                f"{channel_name}_{message_id}",
+                "telegram_media_capture_recovery_failed",
+                channel=channel_name,
+                message_id=int(message_id),
+                message_revision_id=revision_id,
+                exception_type=type(exc).__name__,
+                exception_message=str(exc)[:500],
+            )
+    if requests:
+        journal.event(
+            "bot",
+            "telegram_media_capture_recovery_completed",
+            pending=len(requests),
+            recovered=recovered,
+        )
+    return recovered
+
+
+def schedule_pending_media_recovery(events_path=None):
+    recovery = recover_pending_media_captures(events_path=events_path)
+    try:
+        return _track_media_capture_task(_schedule_detached(recovery))
+    except Exception:
+        recovery.close()
+        raise
+
+
 # ─── Notificaciones al usuario por Telegram ───────────────────────────────────
 
 # _notify_peer: legacy (fallback Telethon sin bot token). Mantenido para
@@ -1180,7 +1287,7 @@ def _schedule_media_capture(
 _notify_peer = None
 
 
-async def notify(text: str):
+async def notify(text: str) -> bool:
     """Envía una notificación al usuario vía Telegram.
 
     Si config.TELEGRAM_BOT_TOKEN está configurado, usa el Bot HTTP API:
@@ -1215,7 +1322,7 @@ async def notify(text: str):
                 journal.event("bot", "notify_failed",
                               method="bot_api", reason=f"resolve_me: {exc}",
                               text_preview=text_preview)
-                return
+                return False
 
         def _http_send():
             url = f"https://api.telegram.org/bot{token}/sendMessage"
@@ -1241,13 +1348,14 @@ async def notify(text: str):
                           method="bot_api", chat_id=str(chat_id),
                           status=status, text_preview=text_preview,
                           text_len=len(text))
+            return True
         except Exception as e:
             print(f"[Notify] ERROR enviando notificación (Bot API): {e} | texto={text[:80]!r}")
             journal.event("bot", "notify_failed",
                           method="bot_api", chat_id=str(chat_id),
                           error=str(e)[:300], text_preview=text_preview,
                           text_len=len(text))
-        return
+            return False
 
     # Fallback: Telethon del usuario (sin push notification en mobile)
     global _notify_peer
@@ -1262,11 +1370,13 @@ async def notify(text: str):
                       method="telethon_fallback", text_preview=text_preview,
                       text_len=len(text),
                       warning="NO push notification on mobile (telethon fallback)")
+        return True
     except Exception as e:
         print(f"[Notify] ERROR enviando notificación (fallback Telethon): {e} | texto={text[:80]!r}")
         journal.event("bot", "notify_failed",
                       method="telethon_fallback", error=str(e)[:300],
                       text_preview=text_preview, text_len=len(text))
+        return False
 
 
 async def _resolve_notify_chat_id():
@@ -2255,7 +2365,14 @@ async def _apply_sl_tp(signal: Signal):
         executor.open_position_levels,
         list(signal.all_filled_tickets),
     )
-    if position_levels is None:
+    position_levels_available = position_levels is not None
+    if not position_levels_available:
+        journal.event(
+            _sig_id(signal),
+            "position_levels_unavailable_tp_preserved",
+            tickets=list(signal.all_filled_tickets),
+            behavior="sl_only_no_tp_chase",
+        )
         position_levels = {}
 
     for i, t in enumerate(signal.all_filled_tickets):
@@ -2288,6 +2405,8 @@ async def _apply_sl_tp(signal: Signal):
 
         # ── TP PERSECUCION ───────────────────────────────────────────────
         if (
+            position_levels_available
+            and
             tp_i is not None
             and not tp_already_installed
             and tick is not None
@@ -2367,7 +2486,11 @@ async def _apply_sl_tp(signal: Signal):
                         continue  # no encolar el modify normal
 
         # SL: si BE armado, usar entry de este ticket. Si no, signal.sl.
-        tp_to_apply = None if tp_already_installed else tp_i
+        tp_to_apply = (
+            None
+            if tp_already_installed or not position_levels_available
+            else tp_i
+        )
         if signal.be_armed:
             sl_to_apply = await _run(executor.entry_price, t)
             if sl_to_apply is None:
@@ -8670,8 +8793,7 @@ async def poll_loop():
 
     # ── Fase 1: scan inicial con recuperación del intervalo sin cobertura ──
     print("[Poller] Scan inicial — comprobando mensajes durante la parada...")
-    for channel_id, channel_name in watched:
-        await _poller_initial_scan_channel(channel_id, channel_name)
+    await _poller_initial_scan_batch(watched)
 
     print(f"[Poller] Activo. Polling cada {_POLL_INTERVAL_S}s | "
           f"canales: {[c for _, c in watched]} | limit={_POLL_MSG_LIMIT}")
@@ -8688,10 +8810,7 @@ async def poll_loop():
     _poll_count = 0
     while True:
         await asyncio.sleep(_POLL_INTERVAL_S)
-        await asyncio.gather(*[
-            _poller_poll_or_initialize(channel_id, channel_name)
-            for channel_id, channel_name in watched
-        ])
+        await _poller_poll_batch(watched)
 
         # Limpieza periódica del estado interno (cada 7200 polls ≈ 1 hora)
         # para evitar crecimiento ilimitado de _poller_msg_state.
@@ -8706,6 +8825,47 @@ async def poll_loop():
                     f"[Poller] Limpieza estado: {len(keys)} -> "
                     f"{len(_poller_msg_state)}"
                 )
+
+
+async def _poller_initial_scan_batch(watched):
+    """Scan every channel even when one Telegram history call fails."""
+    for channel_id, channel_name in watched:
+        try:
+            await _poller_initial_scan_channel(channel_id, channel_name)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            journal.event(
+                "bot",
+                "poller_channel_startup_failed",
+                channel=channel_name,
+                channel_id=channel_id,
+                exception_type=type(exc).__name__,
+                exception_message=str(exc)[:240],
+            )
+
+
+async def _poller_poll_batch(watched):
+    """Poll channels concurrently without coupling their failure domains."""
+    results = await asyncio.gather(
+        *(
+            _poller_poll_or_initialize(channel_id, channel_name)
+            for channel_id, channel_name in watched
+        ),
+        return_exceptions=True,
+    )
+    for (channel_id, channel_name), result in zip(watched, results):
+        if isinstance(result, asyncio.CancelledError):
+            raise result
+        if isinstance(result, BaseException):
+            journal.event(
+                "bot",
+                "poller_channel_cycle_failed",
+                channel=channel_name,
+                channel_id=channel_id,
+                exception_type=type(result).__name__,
+                exception_message=str(result)[:240],
+            )
 
 
 async def poll_loop_supervised(restart_delay_s: float = 2.0):

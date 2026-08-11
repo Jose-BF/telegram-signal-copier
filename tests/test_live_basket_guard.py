@@ -289,6 +289,7 @@ def test_signal_ticket_ids_are_recovered_from_fill_events(tmp_path):
         {"sig": "canal1_100", "ev": "market_filled", "ticket": 101},
         {"sig": "canal1_100", "ev": "scale_out_leg_filled", "ticket": 102},
         {"sig": "canal1_100", "ev": "dca_filled", "ticket": 103},
+        {"sig": "canal1_100", "ev": "rescue_market_opened", "ticket": 104},
         {"sig": "canal1_100", "ev": "pending_placed", "ticket": 999},
     ]
     path.write_text(
@@ -297,5 +298,5 @@ def test_signal_ticket_ids_are_recovered_from_fill_events(tmp_path):
     )
 
     assert load_signal_ticket_ids(path, {"canal1_100"}) == {
-        "canal1_100": [101, 102, 103]
+        "canal1_100": [101, 102, 103, 104]
     }

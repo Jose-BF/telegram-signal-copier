@@ -468,6 +468,43 @@ async def test_runtime_monitor_survives_notification_transport_failure(
     ]
 
 
+async def test_runtime_monitor_does_not_announce_recovery_after_false_send(
+    monkeypatch,
+):
+    outcomes = iter([False, False, True])
+    notifications = []
+    main._broker_contract_ready = True
+
+    async def no_wait(_seconds):
+        return None
+
+    def capture():
+        try:
+            return next(outcomes)
+        except StopIteration as exc:
+            raise asyncio.CancelledError from exc
+
+    async def notify_not_delivered(text):
+        notifications.append(text)
+        return False
+
+    monkeypatch.setattr(main.asyncio, "sleep", no_wait)
+    monkeypatch.setattr(
+        main,
+        "_try_capture_broker_money_contract_snapshot",
+        capture,
+    )
+    monkeypatch.setattr(main, "notify", notify_not_delivered)
+
+    try:
+        await main._broker_money_contract_monitor(interval_sec=30)
+    except asyncio.CancelledError:
+        pass
+
+    assert len(notifications) == 1
+    assert "INTERRUMPIDO" in notifications[0]
+
+
 async def test_runtime_monitor_moves_capture_off_the_telegram_event_loop(
     monkeypatch,
 ):

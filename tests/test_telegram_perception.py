@@ -8,6 +8,41 @@ import listener
 from state import Signal, TradeContext
 
 
+@pytest.mark.asyncio
+async def test_notify_reports_legacy_transport_delivery(monkeypatch):
+    peer = object()
+
+    async def get_entity(_chat):
+        return peer
+
+    async def send_message(actual_peer, text):
+        assert actual_peer is peer
+        assert text == "status"
+
+    monkeypatch.setattr(listener.config, "TELEGRAM_BOT_TOKEN", None)
+    monkeypatch.setattr(listener.config, "NOTIFY_CHAT_ID", 123)
+    monkeypatch.setattr(listener, "_notify_peer", None)
+    monkeypatch.setattr(listener.client, "get_entity", get_entity)
+    monkeypatch.setattr(listener.client, "send_message", send_message)
+    monkeypatch.setattr(listener.journal, "event", lambda *a, **kw: None)
+
+    assert await listener.notify("status") is True
+
+
+@pytest.mark.asyncio
+async def test_notify_reports_legacy_transport_failure(monkeypatch):
+    async def get_entity(_chat):
+        raise TimeoutError("Telegram offline")
+
+    monkeypatch.setattr(listener.config, "TELEGRAM_BOT_TOKEN", None)
+    monkeypatch.setattr(listener.config, "NOTIFY_CHAT_ID", 123)
+    monkeypatch.setattr(listener, "_notify_peer", None)
+    monkeypatch.setattr(listener.client, "get_entity", get_entity)
+    monkeypatch.setattr(listener.journal, "event", lambda *a, **kw: None)
+
+    assert await listener.notify("status") is False
+
+
 def test_msg_diag_emits_telegram_raw_event(monkeypatch):
     events = []
     monkeypatch.setattr(

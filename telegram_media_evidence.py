@@ -23,6 +23,12 @@ import runtime_paths
 MEDIA_ARCHIVE_STREAM = "telegram_media.jsonl"
 MEDIA_DIRECTORY = "telegram_media"
 _PERSIST_LOCK = threading.Lock()
+_TERMINAL_CAPTURE_EVENTS = frozenset({
+    "telegram_media_capture_stored",
+    "telegram_media_capture_skipped",
+    "telegram_media_capture_failed",
+    "telegram_media_capture_unavailable",
+})
 
 
 @dataclass(frozen=True)
@@ -86,6 +92,34 @@ def describe_message_media(msg) -> MediaDescriptor | None:
 
 def has_capture_candidate(msg) -> bool:
     return describe_message_media(msg) is not None
+
+
+def load_pending_capture_requests(path: str | Path) -> list[dict]:
+    """Return capture requests interrupted before a terminal result."""
+    source = Path(path)
+    if not source.exists():
+        return []
+
+    pending: dict[str, dict] = {}
+    try:
+        with source.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                try:
+                    row = json.loads(line)
+                except (json.JSONDecodeError, TypeError):
+                    continue
+                revision_id = str(row.get("message_revision_id") or "")
+                if not revision_id:
+                    continue
+                event = row.get("ev")
+                if event == "telegram_media_capture_requested":
+                    if row.get("channel") and row.get("message_id") is not None:
+                        pending[revision_id] = row
+                elif event in _TERMINAL_CAPTURE_EVENTS:
+                    pending.pop(revision_id, None)
+    except OSError:
+        return []
+    return list(pending.values())
 
 
 def _safe_extension(descriptor: MediaDescriptor, payload: bytes) -> str:
@@ -207,9 +241,11 @@ async def capture_message_media(
     runtime_dir: Path | None = None,
     max_bytes: int | None = None,
     timeout_s: float | None = None,
-    event_writer: Callable = journal.event,
+    event_writer: Callable | None = None,
 ) -> CaptureResult | None:
     """Download and archive media without propagating operational failures."""
+
+    event_writer = event_writer or journal.event
 
     descriptor = describe_message_media(msg)
     if descriptor is None:
@@ -319,6 +355,15 @@ async def capture_message_media(
                 path=path,
                 archive_appended=archive_appended,
             )
+        except asyncio.CancelledError:
+            _emit(
+                event_writer,
+                sig_id,
+                "telegram_media_capture_cancelled",
+                **common,
+                attempt=attempt,
+            )
+            raise
         except Exception as exc:
             last_error = exc
             if attempt < attempts:

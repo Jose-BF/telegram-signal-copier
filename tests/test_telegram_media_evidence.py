@@ -1,4 +1,5 @@
 import base64
+import asyncio
 import json
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -18,6 +19,104 @@ def _photo_message(message_id: int = 501):
         sticker=None,
         document=None,
     )
+
+
+def test_pending_capture_requests_exclude_completed_revisions(tmp_path):
+    events_path = tmp_path / "trade_events.jsonl"
+    rows = [
+        {
+            "sig": "canal1_501",
+            "ev": "telegram_media_capture_requested",
+            "channel": "canal1",
+            "message_id": 501,
+            "update_kind": "new",
+            "message_revision_id": "revision_pending",
+        },
+        {
+            "sig": "canal1_502",
+            "ev": "telegram_media_capture_requested",
+            "channel": "canal1",
+            "message_id": 502,
+            "update_kind": "edit",
+            "message_revision_id": "revision_stored",
+        },
+        {
+            "sig": "canal1_502",
+            "ev": "telegram_media_capture_stored",
+            "message_revision_id": "revision_stored",
+        },
+    ]
+    events_path.write_text(
+        "".join(json.dumps(row) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+
+    assert telegram_media_evidence.load_pending_capture_requests(
+        events_path
+    ) == [rows[0]]
+
+
+def test_cancelled_capture_remains_recoverable(tmp_path):
+    events_path = tmp_path / "trade_events.jsonl"
+    request = {
+        "sig": "canal2_600",
+        "ev": "telegram_media_capture_requested",
+        "channel": "canal2",
+        "message_id": 600,
+        "update_kind": "new",
+        "message_revision_id": "revision_cancelled",
+    }
+    rows = [
+        request,
+        {
+            "sig": "canal2_600",
+            "ev": "telegram_media_capture_cancelled",
+            "message_revision_id": "revision_cancelled",
+        },
+    ]
+    events_path.write_text(
+        "".join(json.dumps(row) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+
+    assert telegram_media_evidence.load_pending_capture_requests(
+        events_path
+    ) == [request]
+
+
+@pytest.mark.asyncio
+async def test_cancelled_download_records_recoverable_interruption(tmp_path):
+    events = []
+    started = asyncio.Event()
+
+    class Client:
+        async def download_media(self, message, file):
+            started.set()
+            await asyncio.Event().wait()
+
+    task = asyncio.create_task(
+        telegram_media_evidence.capture_message_media(
+            Client(),
+            _photo_message(),
+            channel="canal1",
+            update_kind="new",
+            message_revision_id="revision_cancelled",
+            runtime_dir=tmp_path,
+            event_writer=lambda sig, event, **fields: events.append(
+                (sig, event, fields)
+            ),
+        )
+    )
+    await started.wait()
+    task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert [event for _, event, _ in events] == [
+        "telegram_media_capture_requested",
+        "telegram_media_capture_cancelled",
+    ]
 
 
 @pytest.mark.asyncio

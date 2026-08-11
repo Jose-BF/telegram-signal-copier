@@ -9,6 +9,16 @@ from pathlib import Path
 from typing import Iterable
 
 
+FILLED_TICKET_EVENTS = frozenset({
+    "market_filled",
+    "market_b_filled",
+    "scale_out_leg_filled",
+    "dca_filled",
+    "rescue_market_opened",
+    "rescue_market_filled",
+})
+
+
 @dataclass(frozen=True)
 class GuardPolicy:
     enabled: bool
@@ -197,16 +207,10 @@ def load_signal_ticket_ids(
     path: str | Path,
     signal_ids: Iterable[str],
 ) -> dict[str, list[int]]:
-    fill_events = {
-        "market_filled",
-        "market_b_filled",
-        "scale_out_leg_filled",
-        "dca_filled",
-    }
     recovered: dict[str, list[int]] = {}
     seen: dict[str, set[int]] = {}
     for row in _iter_signal_events(path, signal_ids) or ():
-        if row.get("ev") not in fill_events:
+        if row.get("ev") not in FILLED_TICKET_EVENTS:
             continue
         try:
             signal_id = str(row["sig"])

@@ -148,3 +148,69 @@ async def test_apply_sl_tp_keeps_chasing_a_genuinely_missing_target(monkeypatch)
 
     assert queued == [("sltp", ticket, 4385.0, 4410.0)]
     assert "tp_chase_advanced" in events
+
+
+@pytest.mark.asyncio
+async def test_apply_sl_tp_never_chases_or_closes_when_mt5_levels_are_unreadable(
+    monkeypatch,
+):
+    ticket = 1644451053
+    signal = Signal(
+        channel="canal2",
+        message_id=1361,
+        direction="BUY",
+        market_ticket=ticket,
+        market_fill_price=4390.0,
+        tps=[4395.0, 4401.5, 4405.0, 4410.0],
+        sl=4385.0,
+    )
+
+    monkeypatch.setattr(
+        listener.executor,
+        "open_position_levels",
+        lambda tickets: None,
+    )
+
+    async def fake_run(function, *args):
+        if function is listener.executor.open_position_levels:
+            return None
+        if function.__name__ == "symbol_info_tick":
+            return SimpleNamespace(bid=4412.0, ask=4412.2)
+        if function.__name__ == "symbol_info":
+            return SimpleNamespace(trade_stops_level=30, point=0.01)
+        return function(*args)
+
+    queued = []
+    events = []
+    monkeypatch.setattr(listener, "_run", fake_run)
+    monkeypatch.setattr(
+        listener.pending_actions,
+        "enqueue_modify_sl",
+        lambda sig, item, sl, label="": queued.append(("sl", item, sl)),
+    )
+    monkeypatch.setattr(
+        listener.pending_actions,
+        "enqueue_modify_tp",
+        lambda *args, **kwargs: queued.append(("tp",)),
+    )
+    monkeypatch.setattr(
+        listener.pending_actions,
+        "enqueue_modify_sltp",
+        lambda *args, **kwargs: queued.append(("sltp",)),
+    )
+    monkeypatch.setattr(
+        listener.pending_actions,
+        "enqueue_close_position",
+        lambda *args, **kwargs: queued.append(("close",)),
+    )
+    monkeypatch.setattr(
+        listener.journal,
+        "event",
+        lambda sig, ev, **fields: events.append((ev, fields)),
+    )
+
+    await listener._apply_sl_tp(signal)
+
+    assert queued == [("sl", ticket, 4385.0)]
+    assert not any(ev.startswith("tp_chase_") for ev, _ in events)
+    assert any(ev == "position_levels_unavailable_tp_preserved" for ev, _ in events)

@@ -163,6 +163,73 @@ class TestAnomaly:
         assert len(calls) == 1
 
     @pytest.mark.asyncio
+    async def test_distinct_tickets_are_not_hidden_by_critical_cooldown(
+        self,
+        isolated_journal,
+        monkeypatch,
+    ):
+        calls = []
+
+        async def fake_notify(text):
+            calls.append(text)
+
+        monkeypatch.setitem(
+            sys.modules,
+            "listener",
+            types.SimpleNamespace(notify=fake_notify),
+        )
+        journal.set_notify_loop(None)
+
+        for ticket in (123, 456):
+            journal.anomaly(
+                "canal1_100",
+                "mt5",
+                "critical",
+                "MT5 no responde",
+                ticket=ticket,
+                retcode=10016,
+            )
+        await asyncio.sleep(0)
+
+        rows = _events(isolated_journal)
+        assert not any(
+            row["ev"] == "critical_notify_suppressed" for row in rows
+        )
+        assert len(calls) == 2
+
+    @pytest.mark.asyncio
+    async def test_price_noise_does_not_bypass_critical_cooldown(
+        self,
+        isolated_journal,
+        monkeypatch,
+    ):
+        calls = []
+
+        async def fake_notify(text):
+            calls.append(text)
+
+        monkeypatch.setitem(
+            sys.modules,
+            "listener",
+            types.SimpleNamespace(notify=fake_notify),
+        )
+        journal.set_notify_loop(None)
+
+        for price in (4300.0, 4300.2):
+            journal.anomaly(
+                "canal1_100",
+                "mt5",
+                "critical",
+                "No se pudo proteger la posicion",
+                ticket=123,
+                retcode=10016,
+                price=price,
+            )
+        await asyncio.sleep(0)
+
+        assert len(calls) == 1
+
+    @pytest.mark.asyncio
     async def test_notify_critical_from_worker_thread_uses_registered_loop(
             self, isolated_journal, monkeypatch):
         calls = []
