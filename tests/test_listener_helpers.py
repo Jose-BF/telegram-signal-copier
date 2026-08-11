@@ -635,6 +635,10 @@ class TestPollerStartupCatchup:
         listener._dispatch_inflight_revisions.clear()
         listener._dispatch_completed_revisions.clear()
         listener._dispatch_completed_order.clear()
+        if hasattr(listener, "_poller_dispatch_retry_state"):
+            listener._poller_dispatch_retry_state.clear()
+        if hasattr(listener, "_poller_dispatch_retry_messages"):
+            listener._poller_dispatch_retry_messages.clear()
 
     def test_unseen_message_during_downtime_is_dispatched_as_new(self):
         history = {
@@ -1097,6 +1101,9 @@ class TestPollerStartupCatchup:
 
         async def capture(client, msg, **kwargs):
             captured.append((client, msg, kwargs))
+            return listener.telegram_media_evidence.CaptureResult(
+                status="stored"
+            )
 
         monkeypatch.setattr(listener, "client", Client())
         monkeypatch.setattr(
@@ -1120,6 +1127,45 @@ class TestPollerStartupCatchup:
             "update_kind": "edit",
             "message_revision_id": "revision_600",
         }
+
+    @pytest.mark.asyncio
+    async def test_pending_media_recovery_does_not_count_failed_download(
+        self,
+        monkeypatch,
+    ):
+        request = {
+            "channel": "canal2",
+            "message_id": 601,
+            "update_kind": "new",
+            "message_revision_id": "revision_601",
+        }
+        message = SimpleNamespace(id=601)
+
+        class Client:
+            async def get_messages(self, channel_id, ids):
+                return message
+
+        async def capture(*args, **kwargs):
+            return listener.telegram_media_evidence.CaptureResult(
+                status="failed"
+            )
+
+        monkeypatch.setattr(listener, "client", Client())
+        monkeypatch.setattr(
+            listener.telegram_media_evidence,
+            "load_pending_capture_requests",
+            lambda path: [request],
+        )
+        monkeypatch.setattr(
+            listener.telegram_media_evidence,
+            "capture_message_media",
+            capture,
+        )
+        monkeypatch.setattr(listener.journal, "event", lambda *a, **kw: None)
+
+        assert await listener.recover_pending_media_captures(
+            events_path="events.jsonl"
+        ) == 0
 
     @pytest.mark.asyncio
     async def test_dispatch_processes_even_when_raw_receipt_failed(
@@ -1786,7 +1832,210 @@ class TestPollerStartupCatchup:
             "canal2",
         ) is False
         assert ("canal2", 6) not in listener._poller_msg_state
-        assert "canal2" not in listener._poller_initialized_channels
+        assert "canal2" in listener._poller_initialized_channels
+
+    @pytest.mark.asyncio
+    async def test_active_poll_failure_does_not_block_newer_message(
+        self,
+        monkeypatch,
+    ):
+        self._reset_poller_state()
+        older_bad = SimpleNamespace(id=10, edit_date=None)
+        newer_good = SimpleNamespace(id=11, edit_date=None)
+        processed = []
+
+        class FakeClient:
+            async def get_messages(self, channel_id, limit, **kwargs):
+                return [newer_good, older_bad]
+
+        async def dispatch(msg, *args, **kwargs):
+            processed.append(msg.id)
+            return msg.id != 10
+
+        monkeypatch.setattr(listener, "client", FakeClient())
+        monkeypatch.setattr(listener, "_msg_diag", lambda *args: None)
+        monkeypatch.setattr(listener, "_poller_dispatch_message", dispatch)
+        monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
+
+        await listener._poll_channel(-1003908582492, "canal2")
+
+        assert processed == [10, 11]
+        assert ("canal2", 10) not in listener._poller_msg_state
+        assert ("canal2", 11) in listener._poller_msg_state
+
+    @pytest.mark.asyncio
+    async def test_startup_failure_does_not_block_newer_message(
+        self,
+        monkeypatch,
+    ):
+        self._reset_poller_state()
+        older_bad = SimpleNamespace(
+            id=10,
+            date=datetime(2026, 8, 11, 9, 10, tzinfo=timezone.utc),
+            edit_date=None,
+        )
+        newer_good = SimpleNamespace(
+            id=11,
+            date=datetime(2026, 8, 11, 9, 11, tzinfo=timezone.utc),
+            edit_date=None,
+        )
+
+        class FakeClient:
+            async def get_messages(self, channel_id, limit, **kwargs):
+                return [newer_good, older_bad]
+
+        processed = []
+
+        async def dispatch(msg, *args, **kwargs):
+            processed.append(msg.id)
+            return msg.id != 10
+
+        monkeypatch.setattr(listener, "client", FakeClient())
+        monkeypatch.setattr(listener, "_msg_diag", lambda *args: None)
+        monkeypatch.setattr(listener, "_poller_dispatch_message", dispatch)
+        monkeypatch.setattr(
+            listener,
+            "_load_poller_startup_history",
+            lambda *args, **kwargs: {
+                "has_channel_history": True,
+                "coverage_cutoff": datetime(
+                    2026, 8, 11, 9, 0, tzinfo=timezone.utc
+                ),
+                "message_versions": {},
+                "processing_contract_utc": datetime(
+                    2026, 8, 11, 8, 59, tzinfo=timezone.utc
+                ),
+            },
+        )
+        monkeypatch.setattr(listener.journal, "event", lambda *a, **kw: None)
+        monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
+
+        assert await listener._poller_initial_scan_channel(
+            -1003908582492,
+            "canal2",
+        ) is False
+        assert processed == [10, 11]
+        assert ("canal2", 10) not in listener._poller_msg_state
+        assert ("canal2", 11) in listener._poller_msg_state
+        assert "canal2" in listener._poller_initialized_channels
+
+    @pytest.mark.asyncio
+    async def test_failed_message_uses_backoff_without_being_forgotten(
+        self,
+        monkeypatch,
+    ):
+        self._reset_poller_state()
+        now = [100.0]
+        calls = []
+        message = SimpleNamespace(id=12, edit_date=None)
+
+        async def dispatch(*args, **kwargs):
+            calls.append(message.id)
+            raise RuntimeError("deterministic parser failure")
+
+        monkeypatch.setattr(listener, "_dispatch_telegram_message", dispatch)
+        monkeypatch.setattr(listener, "_poller_now_monotonic", lambda: now[0])
+        monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
+        monkeypatch.setattr(listener.journal, "event", lambda *a, **kw: None)
+
+        assert await listener._poller_dispatch_message(
+            message,
+            "canal2",
+            "new",
+        ) is False
+        assert await listener._poller_dispatch_message(
+            message,
+            "canal2",
+            "new",
+        ) is None
+        assert calls == [12]
+
+        now[0] = 103.0
+        assert await listener._poller_dispatch_message(
+            message,
+            "canal2",
+            "new",
+        ) is False
+        assert calls == [12, 12]
+
+    @pytest.mark.asyncio
+    async def test_failed_message_is_retried_after_it_leaves_recent_window(
+        self,
+        monkeypatch,
+    ):
+        self._reset_poller_state()
+        now = [100.0]
+        attempts = []
+        message = SimpleNamespace(id=13, edit_date=None)
+
+        async def dispatch(*args, **kwargs):
+            attempts.append(message.id)
+            if len(attempts) == 1:
+                raise RuntimeError("temporary parser failure")
+            return True
+
+        monkeypatch.setattr(listener, "_dispatch_telegram_message", dispatch)
+        monkeypatch.setattr(listener, "_poller_now_monotonic", lambda: now[0])
+        monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
+        monkeypatch.setattr(listener.journal, "event", lambda *a, **kw: None)
+
+        assert await listener._poller_dispatch_message(
+            message,
+            "canal2",
+            "new",
+        ) is False
+        now[0] = 103.0
+
+        await listener._poller_retry_pending_messages("canal2")
+
+        assert attempts == [13, 13]
+        assert ("canal2", 13) in listener._poller_msg_state
+        assert not listener._poller_dispatch_retry_state
+
+    @pytest.mark.asyncio
+    async def test_newer_edit_discards_failed_older_edit_retry(
+        self,
+        monkeypatch,
+    ):
+        self._reset_poller_state()
+        now = [100.0]
+        old_edit = SimpleNamespace(
+            id=14,
+            edit_date=datetime(2026, 8, 11, 9, 10, tzinfo=timezone.utc),
+        )
+        new_edit = SimpleNamespace(
+            id=14,
+            edit_date=datetime(2026, 8, 11, 9, 11, tzinfo=timezone.utc),
+        )
+        attempts = []
+
+        async def dispatch(msg, *args, **kwargs):
+            attempts.append(msg.edit_date)
+            if msg is old_edit:
+                raise RuntimeError("old edit failed")
+            return True
+
+        monkeypatch.setattr(listener, "_dispatch_telegram_message", dispatch)
+        monkeypatch.setattr(listener, "_poller_now_monotonic", lambda: now[0])
+        monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
+        monkeypatch.setattr(listener.journal, "event", lambda *a, **kw: None)
+
+        assert await listener._poller_dispatch_message(
+            old_edit,
+            "canal2",
+            "edit",
+        ) is False
+        assert await listener._poller_dispatch_message(
+            new_edit,
+            "canal2",
+            "edit",
+        ) is True
+        now[0] = 103.0
+
+        await listener._poller_retry_pending_messages("canal2")
+
+        assert attempts == [old_edit.edit_date, new_edit.edit_date]
+        assert not listener._poller_dispatch_retry_state
 
 
 @pytest.mark.asyncio

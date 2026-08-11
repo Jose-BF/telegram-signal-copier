@@ -238,12 +238,40 @@ def test_guard_arms_from_realized_plus_floating_profit(monkeypatch):
     history_calls = []
     deals = {
         1001: [
-            SimpleNamespace(profit=0.0, commission=-0.10, swap=0.0, fee=0.0),
-            SimpleNamespace(profit=4.03, commission=-0.10, swap=0.0, fee=0.0),
+            SimpleNamespace(
+                entry=monitor.mt5.DEAL_ENTRY_IN,
+                volume=0.01,
+                profit=0.0,
+                commission=-0.10,
+                swap=0.0,
+                fee=0.0,
+            ),
+            SimpleNamespace(
+                entry=monitor.mt5.DEAL_ENTRY_OUT,
+                volume=0.01,
+                profit=4.03,
+                commission=-0.10,
+                swap=0.0,
+                fee=0.0,
+            ),
         ],
         1002: [
-            SimpleNamespace(profit=0.0, commission=-0.10, swap=0.0, fee=0.0),
-            SimpleNamespace(profit=7.55, commission=-0.10, swap=-0.05, fee=0.0),
+            SimpleNamespace(
+                entry=monitor.mt5.DEAL_ENTRY_IN,
+                volume=0.01,
+                profit=0.0,
+                commission=-0.10,
+                swap=0.0,
+                fee=0.0,
+            ),
+            SimpleNamespace(
+                entry=monitor.mt5.DEAL_ENTRY_OUT,
+                volume=0.01,
+                profit=7.55,
+                commission=-0.10,
+                swap=-0.05,
+                fee=0.0,
+            ),
         ],
     }
     monkeypatch.setattr(monitor.mt5, "positions_get", lambda: open_positions)
@@ -279,6 +307,29 @@ def test_guard_arms_from_realized_plus_floating_profit(monkeypatch):
     assert armed["floating_pl"] == pytest.approx(22.16)
     assert armed["realized_pl"] == pytest.approx(11.13)
     assert armed["total_pl"] == pytest.approx(33.29)
+
+
+@pytest.mark.parametrize(
+    "deals",
+    [
+        [
+            SimpleNamespace(entry=0, volume=0.01, profit=0.0),
+            SimpleNamespace(entry=0, volume=0.01, profit=0.0),
+        ],
+        [
+            SimpleNamespace(entry=0, volume=0.01, profit=0.0),
+            SimpleNamespace(entry=1, volume=0.005, profit=2.0),
+        ],
+    ],
+)
+def test_realized_pl_rejects_open_only_or_partial_history(monkeypatch, deals):
+    monkeypatch.setattr(
+        monitor.mt5,
+        "history_deals_get",
+        lambda position: deals,
+    )
+
+    assert monitor._confirmed_realized_ticket_pl(1001) is None
 
 
 def test_incomplete_realized_history_allows_only_known_floating_loss(monkeypatch):

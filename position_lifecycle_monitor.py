@@ -610,6 +610,23 @@ def _confirmed_realized_ticket_pl(ticket: int) -> float | None:
     deals = mt5.history_deals_get(position=int(ticket))
     if deals is None or len(deals) < 2:
         return None
+    entry_in = getattr(mt5, "DEAL_ENTRY_IN", 0)
+    exit_entries = {
+        getattr(mt5, "DEAL_ENTRY_OUT", 1),
+        getattr(mt5, "DEAL_ENTRY_OUT_BY", 3),
+    }
+    opened_volume = sum(
+        float(getattr(deal, "volume", 0.0) or 0.0)
+        for deal in deals
+        if getattr(deal, "entry", None) == entry_in
+    )
+    closed_volume = sum(
+        float(getattr(deal, "volume", 0.0) or 0.0)
+        for deal in deals
+        if getattr(deal, "entry", None) in exit_entries
+    )
+    if opened_volume <= 0.0 or closed_volume + 1e-9 < opened_volume:
+        return None
     return sum(
         float(getattr(deal, field, 0.0) or 0.0)
         for deal in deals

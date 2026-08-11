@@ -230,6 +230,45 @@ class TestAnomaly:
         assert len(calls) == 1
 
     @pytest.mark.asyncio
+    async def test_failed_critical_delivery_is_retryable_immediately(
+        self,
+        isolated_journal,
+        monkeypatch,
+    ):
+        outcomes = iter([False, True])
+        calls = []
+
+        async def fake_notify(text):
+            calls.append(text)
+            return next(outcomes)
+
+        monkeypatch.setitem(
+            sys.modules,
+            "listener",
+            types.SimpleNamespace(notify=fake_notify),
+        )
+        journal.set_notify_loop(None)
+
+        journal.anomaly(
+            "canal1_100",
+            "mt5",
+            "critical",
+            "MT5 no responde",
+            ticket=123,
+        )
+        await asyncio.sleep(0)
+        journal.anomaly(
+            "canal1_100",
+            "mt5",
+            "critical",
+            "MT5 no responde",
+            ticket=123,
+        )
+        await asyncio.sleep(0)
+
+        assert len(calls) == 2
+
+    @pytest.mark.asyncio
     async def test_notify_critical_from_worker_thread_uses_registered_loop(
             self, isolated_journal, monkeypatch):
         calls = []

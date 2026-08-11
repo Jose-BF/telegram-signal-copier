@@ -140,6 +140,7 @@ _trades: dict[str, dict] = {}   # signal_id -> dict acumulador
 _notify_loop: Optional[asyncio.AbstractEventLoop] = None
 _critical_notify_lock = Lock()
 _critical_notify_seen: dict[str, float] = {}
+_critical_notify_inflight: set[str] = set()
 
 
 def _critical_notify_cooldown_s() -> float:
@@ -188,14 +189,14 @@ def _critical_notify_fingerprint(
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def _critical_notify_allowed(
+def _critical_notify_claim(
     signal_id: str,
     category: str,
     detail: str,
     *,
     ctx: dict | None = None,
     now: float | None = None,
-) -> bool:
+) -> str | None:
     observed_at = time.monotonic() if now is None else float(now)
     cooldown = _critical_notify_cooldown_s()
     fingerprint = _critical_notify_fingerprint(
@@ -206,20 +207,39 @@ def _critical_notify_allowed(
     )
     with _critical_notify_lock:
         previous = _critical_notify_seen.get(fingerprint)
-        if previous is not None and observed_at - previous < cooldown:
-            return False
+        if (
+            fingerprint in _critical_notify_inflight
+            or previous is not None and observed_at - previous < cooldown
+        ):
+            return None
+        _critical_notify_inflight.add(fingerprint)
+    return fingerprint
+
+
+def _critical_notify_complete(
+    fingerprint: str,
+    delivered: bool,
+    *,
+    now: float | None = None,
+) -> None:
+    observed_at = time.monotonic() if now is None else float(now)
+    cooldown = _critical_notify_cooldown_s()
+    with _critical_notify_lock:
+        _critical_notify_inflight.discard(fingerprint)
+        if not delivered:
+            return
         _critical_notify_seen[fingerprint] = observed_at
         if len(_critical_notify_seen) > 2000:
             cutoff = observed_at - max(cooldown, 1.0)
             for key, timestamp in list(_critical_notify_seen.items()):
                 if timestamp < cutoff:
                     del _critical_notify_seen[key]
-    return True
 
 
 def _reset_critical_notify_rate_limit() -> None:
     with _critical_notify_lock:
         _critical_notify_seen.clear()
+        _critical_notify_inflight.clear()
 _event_queue: Queue = Queue()
 _event_writer_guard = Lock()
 _event_writer_thread: Optional[Thread] = None
@@ -530,10 +550,20 @@ def _notify_critical(signal_id: str, category: str, detail: str, ctx: dict):
         from listener import notify
         text = format_critical_notification(signal_id, category, detail, ctx)
 
-        def schedule(loop: asyncio.AbstractEventLoop):
+        async def deliver(fingerprint: str):
+            delivered = False
             try:
-                loop.create_task(notify(text))
+                delivered = await notify(text) is not False
+            except Exception as exc:
+                print(f"[journal.anomaly] notify delivery failed: {exc}")
+            finally:
+                _critical_notify_complete(fingerprint, delivered)
+
+        def schedule(loop: asyncio.AbstractEventLoop, fingerprint: str):
+            try:
+                loop.create_task(deliver(fingerprint))
             except Exception as e:
+                _critical_notify_complete(fingerprint, False)
                 print(f"[journal.anomaly] notify schedule failed: {e}")
 
         try:
@@ -542,12 +572,13 @@ def _notify_critical(signal_id: str, category: str, detail: str, ctx: dict):
             running_loop = None
 
         if running_loop is not None and running_loop.is_running():
-            if not _critical_notify_allowed(
+            fingerprint = _critical_notify_claim(
                 signal_id,
                 category,
                 detail,
                 ctx=ctx,
-            ):
+            )
+            if fingerprint is None:
                 event(
                     signal_id,
                     "critical_notify_suppressed",
@@ -556,17 +587,18 @@ def _notify_critical(signal_id: str, category: str, detail: str, ctx: dict):
                     cooldown_s=_critical_notify_cooldown_s(),
                 )
                 return
-            schedule(running_loop)
+            schedule(running_loop, fingerprint)
             return
 
         loop = _notify_loop
         if loop is not None and loop.is_running():
-            if not _critical_notify_allowed(
+            fingerprint = _critical_notify_claim(
                 signal_id,
                 category,
                 detail,
                 ctx=ctx,
-            ):
+            )
+            if fingerprint is None:
                 event(
                     signal_id,
                     "critical_notify_suppressed",
@@ -575,7 +607,11 @@ def _notify_critical(signal_id: str, category: str, detail: str, ctx: dict):
                     cooldown_s=_critical_notify_cooldown_s(),
                 )
                 return
-            loop.call_soon_threadsafe(schedule, loop)
+            try:
+                loop.call_soon_threadsafe(schedule, loop, fingerprint)
+            except Exception:
+                _critical_notify_complete(fingerprint, False)
+                raise
             return
 
         print("[journal.anomaly] no asyncio loop available for critical notify")

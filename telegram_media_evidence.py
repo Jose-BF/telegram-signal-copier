@@ -26,7 +26,6 @@ _PERSIST_LOCK = threading.Lock()
 _TERMINAL_CAPTURE_EVENTS = frozenset({
     "telegram_media_capture_stored",
     "telegram_media_capture_skipped",
-    "telegram_media_capture_failed",
     "telegram_media_capture_unavailable",
 })
 

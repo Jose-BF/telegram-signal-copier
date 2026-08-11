@@ -1241,14 +1241,24 @@ async def recover_pending_media_captures(events_path=None) -> int:
                     reason="telegram_message_not_found",
                 )
                 continue
-            await telegram_media_evidence.capture_message_media(
+            result = await telegram_media_evidence.capture_message_media(
                 client,
                 message,
                 channel=channel_name,
                 update_kind=str(request.get("update_kind") or "recovery"),
                 message_revision_id=revision_id,
             )
-            recovered += 1
+            if result is None:
+                journal.event(
+                    f"{channel_name}_{message_id}",
+                    "telegram_media_capture_unavailable",
+                    channel=channel_name,
+                    message_id=int(message_id),
+                    message_revision_id=revision_id,
+                    reason="media_missing_on_recovery",
+                )
+            elif result.status == "stored":
+                recovered += 1
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -7947,6 +7957,8 @@ _POLLER_HISTORY_BACKOFF_BASE_S = 15.0
 _POLLER_HISTORY_BACKOFF_MAX_S = 120.0
 _poller_history_backoff_until: dict[str, float] = {}
 _poller_history_failures: dict[str, int] = {}
+_poller_dispatch_retry_state: dict[tuple, tuple[int, float]] = {}
+_poller_dispatch_retry_messages: dict[tuple, tuple[object, str | None]] = {}
 
 
 def _poller_now_monotonic() -> float:
@@ -8514,6 +8526,7 @@ async def _poller_initial_scan_channel(
         return False
 
     counts = {"baseline": 0, "seen": 0, "new": 0, "edit": 0}
+    failed_message_ids = []
     for msg in reversed(msgs):
         action = _poller_startup_action(msg, history)
         counts[action] += 1
@@ -8552,13 +8565,14 @@ async def _poller_initial_scan_channel(
                 label="Canal2_catchup" if channel_name == "canal2" else None,
                 raw_receipt=raw_receipt,
             )
-        if dispatched is False:
+        if dispatched is not True:
             print(
-                f"[Poller] {channel_name}: recuperacion pausada en "
-                f"mensaje {msg.id}; se reintentara sin avanzar cobertura.",
+                f"[Poller] {channel_name}: mensaje {msg.id} pendiente; "
+                "continua con los posteriores y se reintentara.",
                 flush=True,
             )
-            return False
+            failed_message_ids.append(int(msg.id))
+            continue
         _poller_msg_state[key] = msg.edit_date
 
     _poller_initialized_channels.add(channel_name)
@@ -8578,6 +8592,15 @@ async def _poller_initial_scan_channel(
         f"recuperados={counts['new']} edits={counts['edit']} | "
         f"ya vistos={counts['seen']} base={counts['baseline']}"
     )
+    if failed_message_ids:
+        journal.event(
+            "bot",
+            "poller_startup_scan_incomplete",
+            channel=channel_name,
+            channel_id=channel_id,
+            failed_message_ids=failed_message_ids,
+        )
+        return False
     _poller_record_coverage(
         channel_name,
         channel_id,
@@ -8602,17 +8625,41 @@ async def _poller_dispatch_message(
     *,
     label: str | None = None,
     raw_receipt=None,
-) -> bool:
+) -> bool | None:
     """Keep one bad message from terminating fallback coverage."""
+    retry_key = _poller_dispatch_retry_key(msg, channel_name, kind)
+    failures, retry_after = _poller_dispatch_retry_state.get(
+        retry_key,
+        (0, 0.0),
+    )
+    if _poller_now_monotonic() < retry_after:
+        return None
+
     try:
-        return await _dispatch_telegram_message(
+        dispatched = await _dispatch_telegram_message(
             msg,
             channel_name,
             kind,
             label=label,
             raw_receipt=raw_receipt,
         )
+        if dispatched is True:
+            prior = _poller_dispatch_retry_state.pop(retry_key, None)
+            _poller_dispatch_retry_messages.pop(retry_key, None)
+            _poller_discard_superseded_retries(retry_key, msg)
+            if prior is not None:
+                journal.event(
+                    f"{channel_name}_{getattr(msg, 'id', 'unknown')}",
+                    "poller_message_recovered",
+                    channel=channel_name,
+                    message_id=getattr(msg, "id", None),
+                    message_kind=kind,
+                    previous_failures=prior[0],
+                )
+            return True
+        failures += 1
     except Exception as exc:
+        failures += 1
         journal.anomaly(
             f"{channel_name}_{getattr(msg, 'id', 'unknown')}",
             "channel_msg",
@@ -8624,7 +8671,89 @@ async def _poller_dispatch_message(
             exception_type=type(exc).__name__,
             exception_message=str(exc)[:240],
         )
-        return False
+    cooldown_s = min(60.0, 2.0 ** min(failures, 6))
+    _poller_dispatch_retry_state[retry_key] = (
+        failures,
+        _poller_now_monotonic() + cooldown_s,
+    )
+    _poller_dispatch_retry_messages[retry_key] = (msg, label)
+    journal.event(
+        f"{channel_name}_{getattr(msg, 'id', 'unknown')}",
+        "poller_message_retry_scheduled",
+        channel=channel_name,
+        message_id=getattr(msg, "id", None),
+        message_kind=kind,
+        failures=failures,
+        cooldown_s=cooldown_s,
+    )
+    return False
+
+
+def _poller_dispatch_retry_key(msg, channel_name: str, kind: str) -> tuple:
+    revision = getattr(msg, "edit_date", None)
+    revision_token = (
+        revision.isoformat()
+        if revision is not None and hasattr(revision, "isoformat")
+        else str(revision or kind)
+    )
+    return (
+        channel_name,
+        int(getattr(msg, "id")),
+        kind,
+        revision_token,
+    )
+
+
+def _poller_discard_superseded_retries(
+    successful_key: tuple,
+    successful_msg,
+) -> None:
+    successful_edit = getattr(successful_msg, "edit_date", None)
+    removed = 0
+    for retry_key, (pending_msg, _label) in list(
+        _poller_dispatch_retry_messages.items()
+    ):
+        if retry_key[:3] != successful_key[:3] or retry_key == successful_key:
+            continue
+        pending_edit = getattr(pending_msg, "edit_date", None)
+        superseded = (
+            successful_key[2] == "new"
+            or successful_edit is not None
+            and pending_edit is not None
+            and pending_edit <= successful_edit
+        )
+        if not superseded:
+            continue
+        _poller_dispatch_retry_messages.pop(retry_key, None)
+        _poller_dispatch_retry_state.pop(retry_key, None)
+        removed += 1
+    if removed:
+        journal.event(
+            f"{successful_key[0]}_{successful_key[1]}",
+            "poller_superseded_retries_discarded",
+            channel=successful_key[0],
+            message_id=successful_key[1],
+            message_kind=successful_key[2],
+            removed=removed,
+        )
+async def _poller_retry_pending_messages(channel_name: str) -> None:
+    """Retry cached failures even after they leave Telegram's recent page."""
+    pending = list(_poller_dispatch_retry_messages.items())
+    for retry_key, (msg, label) in pending:
+        if retry_key[0] != channel_name:
+            continue
+        result = await _poller_dispatch_message(
+            msg,
+            channel_name,
+            retry_key[2],
+            label=label,
+        )
+        if result is True:
+            _poller_msg_state[(channel_name, int(msg.id))] = getattr(
+                msg,
+                "edit_date",
+                None,
+            )
 
 
 async def _poller_expand_active_messages(
@@ -8727,9 +8856,9 @@ async def _poll_channel(channel_id: int, channel_name: str):
                 label="Canal2_poll" if channel_name == "canal2" else None,
                 raw_receipt=raw_receipt,
             )
-            if dispatched is False:
+            if dispatched is not True:
                 all_dispatched = False
-                break
+                continue
             _poller_msg_state[key] = edit_date
 
         elif edit_date != prev:
@@ -8742,10 +8871,17 @@ async def _poll_channel(channel_id: int, channel_name: str):
                 label="Canal2_poll" if channel_name == "canal2" else None,
                 raw_receipt=raw_receipt,
             )
-            if dispatched is False:
+            if dispatched is not True:
                 all_dispatched = False
-                break
+                continue
             _poller_msg_state[key] = edit_date
+
+    await _poller_retry_pending_messages(channel_name)
+    channel_has_pending = any(
+        retry_key[0] == channel_name
+        for retry_key in _poller_dispatch_retry_messages
+    )
+    all_dispatched = all_dispatched and not channel_has_pending
 
     if coverage_complete and all_dispatched:
         _poller_record_coverage(

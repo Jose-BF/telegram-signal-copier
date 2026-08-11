@@ -84,6 +84,34 @@ def test_cancelled_capture_remains_recoverable(tmp_path):
     ) == [request]
 
 
+def test_failed_capture_remains_recoverable(tmp_path):
+    events_path = tmp_path / "trade_events.jsonl"
+    request = {
+        "sig": "canal2_601",
+        "ev": "telegram_media_capture_requested",
+        "channel": "canal2",
+        "message_id": 601,
+        "update_kind": "new",
+        "message_revision_id": "revision_failed",
+    }
+    rows = [
+        request,
+        {
+            "sig": "canal2_601",
+            "ev": "telegram_media_capture_failed",
+            "message_revision_id": "revision_failed",
+        },
+    ]
+    events_path.write_text(
+        "".join(json.dumps(row) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+
+    assert telegram_media_evidence.load_pending_capture_requests(
+        events_path
+    ) == [request]
+
+
 @pytest.mark.asyncio
 async def test_cancelled_download_records_recoverable_interruption(tmp_path):
     events = []
