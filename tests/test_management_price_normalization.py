@@ -42,7 +42,7 @@ async def test_move_sl_to_price_expands_canal2_short_gold_level(
         sl=4583.0,
     )
 
-    await listener._execute_one_action(
+    outcome = await listener._execute_one_action(
         sig,
         {"action": "MOVE_SL_TO_PRICE",
          "price": short_price,
@@ -51,6 +51,7 @@ async def test_move_sl_to_price_expands_canal2_short_gold_level(
     )
 
     assert [c["price"] for c in calls] == [expected_price, expected_price]
+    assert outcome == "requested"
     assert all(str(expected_price) in c["label"] for c in calls)
 
     normalized = [e for e in events if e["ev"] == "mgmt_price_normalized"]

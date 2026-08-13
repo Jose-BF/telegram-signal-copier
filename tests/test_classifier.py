@@ -24,7 +24,12 @@ import asyncio
 
 import pytest
 
-from classifier import _regex_classify_all, classify_one, classify_async
+from classifier import (
+    _canal1_safe_regex_classify,
+    _regex_classify_all,
+    classify_async,
+    classify_one,
+)
 from state import Signal
 
 
@@ -236,14 +241,14 @@ class TestMoveSlToBe:
         assert "MOVE_SL_TO_BE" in [a["action"] for a in actions]
 
     def test_zero_percent_risk(self):
-        # "0% risk" → BE
+        # Sin nivel explicito no inventamos BE: aseguramos la cesta real.
         actions = _actions("Lock in 0% risk now")
-        assert "MOVE_SL_TO_BE" in [a["action"] for a in actions]
+        assert "SECURE_BASKET" in [a["action"] for a in actions]
 
     def test_risk_free(self):
         # Caso real journal: "If you have lower entries keep them risk free"
         actions = _actions("If you have lower entries keep them risk free.")
-        assert "MOVE_SL_TO_BE" in [a["action"] for a in actions]
+        assert "SECURE_BASKET" in [a["action"] for a in actions]
 
     def test_sl_to_be_short(self):
         actions = _actions("SL to BE")
@@ -332,7 +337,7 @@ class TestMoveSlToBe:
 
         assert [action["action"] for action in actions] == [
             "CLOSE_PARTIAL",
-            "MOVE_SL_TO_BE",
+            "SECURE_BASKET",
         ]
 
     def test_make_stop_loss_price_without_to(self):
@@ -606,14 +611,14 @@ class TestCompoundMessages:
         assert "CLOSE_FIRST" in names
 
     def test_real_risk_free_with_close_first(self):
-        # Caso real journal: combina CLOSE_FIRST + risk-free (BE)
+        # Caso real: combina parcial explicito con proteccion matematica.
         text = (
             "To protect your capital close your first entries now. \n\n"
             "If you have lower entries keep them risk free."
         )
         actions = _actions(text)
         names = [a["action"] for a in actions]
-        assert "MOVE_SL_TO_BE" in names      # por "risk free"
+        assert "SECURE_BASKET" in names      # por "risk free"
         assert "CLOSE_FIRST" in names         # por "close your first entries"
 
 
@@ -859,3 +864,42 @@ class TestGeminiRichContract:
 
         assert result[0]["action"] == "DAILY_SUMMARY"
         assert result[0]["summary"] == {"trades": 3, "wins": 2, "be": 1}
+
+
+class TestRiskFreeSemantics:
+    def test_generic_risk_free_secures_basket_without_inventing_be(self):
+        names = _action_names("Make your trade risk free")
+
+        assert names == ["SECURE_BASKET"]
+        assert "MOVE_SL_TO_BE" not in names
+
+    def test_canal1_generic_risk_free_uses_same_project_wide_semantics(self):
+        actions = _canal1_safe_regex_classify(
+            "Take partials and make the trade risk free"
+        )
+
+        assert [action["action"] for action in actions] == [
+            "CLOSE_PARTIAL",
+            "SECURE_BASKET",
+        ]
+
+    def test_explicit_be_remains_exact_be(self):
+        names = _action_names("Move SL to BE now")
+
+        assert names == ["MOVE_SL_TO_BE"]
+
+    def test_explicit_be_alternative_wins_over_generic_risk_free(self):
+        names = _action_names(
+            "Make your trade risk free or move stop loss above entry"
+        )
+
+        assert names == ["MOVE_SL_TO_BE"]
+        assert "SECURE_BASKET" not in names
+
+    def test_provider_explanation_is_evidence_not_a_live_order(self):
+        names = _action_names(
+            "Risk free doesn't mean move SL. It means close partials "
+            "enough so even if it reverses you cannot lose."
+        )
+
+        assert names == ["INFORMATIONAL"]

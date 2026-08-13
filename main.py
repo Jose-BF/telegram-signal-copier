@@ -501,10 +501,15 @@ async def _broker_money_contract_monitor(
     )
     interval = max(30.0, interval)
     failure_streak = 0
+    success_streak = 0
     interruption_notified = False
     notify_after_failures = max(
         2,
         int(config.BOT_BROKER_CONTRACT_NOTIFY_FAILURES),
+    )
+    recover_after_successes = max(
+        2,
+        int(config.BOT_BROKER_CONTRACT_RECOVERY_SUCCESSES),
     )
     while True:
         await asyncio.sleep(interval)
@@ -512,6 +517,7 @@ async def _broker_money_contract_monitor(
             _try_capture_broker_money_contract_snapshot
         )
         if current_ready is False:
+            success_streak = 0
             failure_streak += 1
             if (
                 not interruption_notified
@@ -526,11 +532,18 @@ async def _broker_money_contract_monitor(
 
         failure_streak = 0
         if interruption_notified:
-            await _notify_broker_contract_status(
+            success_streak += 1
+            if success_streak < recover_after_successes:
+                continue
+            recovery_notified = await _notify_broker_contract_status(
                 "REGISTRO DE SIMULACION RECUPERADO\n"
                 "La captura monetaria de MT5 vuelve a estar activa."
             )
-            interruption_notified = False
+            if recovery_notified:
+                interruption_notified = False
+                success_streak = 0
+        else:
+            success_streak = 0
 
 
 async def _notify_broker_contract_status(text: str) -> bool:
@@ -1618,6 +1631,7 @@ def _finalize_journal_orphans():
         pass
 
     # 3. Finalizar los huerfanos cuyas posiciones cerraron TODAS en MT5
+    account_currency = executor.account_evidence().get("currency")
     n_fixed = 0
     for sid in orphans:
         if sid not in sig_has_deals:
@@ -1694,6 +1708,8 @@ def _finalize_journal_orphans():
                     round(duration_s, 1) if duration_s is not None else None
                 ),
                 total_pnl_usd=pnl,
+                account_currency=account_currency,
+                mt5_server_offset_s=server_offset_s,
                 n_tickets_opened=len(closures),
                 notes="startup orphan recovery from synchronized MT5 history",
             )

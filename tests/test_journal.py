@@ -513,3 +513,70 @@ def test_required_management_metadata_does_not_change_live_csv_schema(
     assert "mgmt_msgs_required" not in reader.fieldnames
     assert None not in row
     assert row["tag"] == "LOSS_CLEAN"
+
+
+def test_append_mgmt_tracks_truthful_management_outcome(isolated_journal):
+    journal.begin_trade("canal2_1474")
+
+    journal.append_mgmt(
+        "canal2_1474",
+        classified="SECURE_BASKET",
+        applied=True,
+        required=True,
+        outcome="requested",
+    )
+
+    trade = journal.get_trade("canal2_1474")
+    assert trade["mgmt_msgs_outcomes"] == ["requested"]
+    assert trade["mgmt_msgs_applied"] == [True]
+
+
+def test_append_mgmt_rejects_unknown_management_outcome(isolated_journal):
+    journal.begin_trade("canal1_21361")
+
+    with pytest.raises(ValueError, match="management outcome"):
+        journal.append_mgmt(
+            "canal1_21361",
+            classified="MOVE_SL_TO_BE",
+            applied=False,
+            outcome="executed_maybe",
+        )
+
+
+def test_signal_closed_declares_utc_and_account_currency_units(
+    isolated_journal,
+):
+    signal_id = "canal2_1480_money_units"
+    journal.begin_trade(signal_id, channel="canal2", direction="SELL")
+    journal.update_extremes(
+        signal_id,
+        current_pl=8.25,
+        ts="2026-08-13T09:05:00+00:00",
+    )
+    journal.update_extremes(
+        signal_id,
+        current_pl=-3.50,
+        ts="2026-08-13T09:06:00+00:00",
+    )
+
+    journal.finalize_trade(
+        signal_id,
+        closed_by="TP",
+        total_pnl_usd=5.75,
+        account_currency="EUR",
+        closed_at_utc="2026-08-13T09:07:00+00:00",
+        duration_sec=120.0,
+    )
+
+    closed = next(
+        row for row in _events(isolated_journal)
+        if row["ev"] == "signal_closed"
+    )
+    assert closed["time_basis"] == "UTC"
+    assert closed["closed_at_utc"] == "2026-08-13T09:07:00+00:00"
+    assert closed["account_currency"] == "EUR"
+    assert closed["money_unit"] == "account_currency"
+    assert closed["total_pl_account_currency"] == 5.75
+    assert closed["mfe_account_currency"] == 8.25
+    assert closed["mae_account_currency"] == -3.50
+    assert closed["total_pl"] == 5.75

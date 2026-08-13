@@ -42,7 +42,9 @@ Available actions:
 - CLOSE_AT_TP      → close position at specific TP (price = tp number 1..5)
 - CLOSE_PARTIAL    → record that the provider took partial profit; do not
                      invent a live close quantity
-- MOVE_SL_TO_BE    → move stop loss to breakeven / entry / 0% risk
+- SECURE_BASKET    → close only mathematically proved partials so the
+                     remaining basket cannot lose at its installed stops
+- MOVE_SL_TO_BE    → explicit instruction to move stop loss to entry
 - MOVE_SL_TO_PRICE → move stop loss to specific price (price = the number)
 - INFORMATIONAL    → no action needed (TP/SL hit announcements, status, commentary)
 
@@ -82,7 +84,8 @@ BE armed:       {be_armed}
 
 ═══ TRADER'S TYPICAL PHRASES ═══
 EXPLICIT ACTIONS:
-  "Move SL to BE" / "0% risk" / "secure the trade" → MOVE_SL_TO_BE (high conf)
+  "Move SL to BE" → MOVE_SL_TO_BE (high conf)
+  "Make the trade risk free" / "0% risk" → SECURE_BASKET (high conf)
   "Close all" / "out of trade" / "closing our last entries" → CLOSE_ALL (high conf)
   "Move SL to 4750" / "adjust stop to 4750" → MOVE_SL_TO_PRICE (price=4750)
   "Close first entry" / "close early entries" → CLOSE_FIRST (high conf)
@@ -203,7 +206,7 @@ run every action through a firewall before MT5:
   "message_role": "direct_order|conditional_plan|optional_suggestion|daily_summary|weekly_summary|progress_update|market_commentary|media_companion|unknown",
   "actions": [
     {{
-      "type": "CLOSE_ALL|CLOSE_FIRST|CLOSE_AT_TP|CLOSE_PARTIAL|MOVE_SL_TO_BE|MOVE_SL_TO_PRICE|LEVEL_UPDATE|LEVEL_CORRECTION|ENTRY_UPDATE|REENTRY_SIGNAL|CONDITIONAL_PLAN|OPTIONAL_SUGGESTION|TP_HIT_ANNOUNCEMENT|SL_HIT_ANNOUNCEMENT|BE_ANNOUNCEMENT|PROGRESS_UPDATE|DAILY_SUMMARY|WEEKLY_SUMMARY|MARKET_COMMENTARY|HIGH_RISK_WARNING|UNKNOWN",
+      "type": "CLOSE_ALL|CLOSE_FIRST|CLOSE_AT_TP|CLOSE_PARTIAL|SECURE_BASKET|MOVE_SL_TO_BE|MOVE_SL_TO_PRICE|LEVEL_UPDATE|LEVEL_CORRECTION|ENTRY_UPDATE|REENTRY_SIGNAL|CONDITIONAL_PLAN|OPTIONAL_SUGGESTION|TP_HIT_ANNOUNCEMENT|SL_HIT_ANNOUNCEMENT|BE_ANNOUNCEMENT|PROGRESS_UPDATE|DAILY_SUMMARY|WEEKLY_SUMMARY|MARKET_COMMENTARY|HIGH_RISK_WARNING|UNKNOWN",
       "price": null_or_number,
       "confidence": 0.0_to_1.0,
       "target": "all_open_positions|first_entries|single_position|none",
@@ -293,6 +296,43 @@ _DIRECT_REENTRY_PERMISSION_RE = re.compile(
     r"(?:re[-\s]?)?enter\s+(?:the\s+)?(?P<direction>buy|sell)\s+trade\b",
     re.IGNORECASE,
 )
+_RISK_FREE_EXPLANATION_RE = re.compile(
+    r"\brisk.?free\b.{0,80}\b(?:does\s+not|doesn['\u2019]?t|doesnt)\s+"
+    r"mean\s+(?:move|moving|set|setting)\b",
+    re.IGNORECASE | re.DOTALL,
+)
+_GENERIC_RISK_FREE_RE = re.compile(
+    r"\brisk.?free\b|\b0\s*%?\s*risk\b|\bzero\s+risk\b",
+    re.IGNORECASE,
+)
+_EXPLICIT_BE_PATTERNS = (
+    r"\bmove\s+(?:my\s+|your\s+|the\s+)?sl\s+to\s+be\b",
+    r"\bmove\s+(?:my\s+|your\s+|the\s+)?stop.?loss\s+to\s+"
+    r"(?:be|breakeven|entry)\b",
+    r"\bmove\s+(?:my\s+|your\s+|the\s+)?(?:sl|stop.?loss)\s+"
+    r"(?:above|below)\s+(?:the\s+|my\s+|your\s+)?"
+    r"(?:entry|entries|lowest|highest)\b",
+    r"\bset(?:ting)?\s+(?:sl\s+to\s+)?(?:be|breakeven)\b",
+    r"\bsl\s+to\s+(?:be|breakeven|entry)\b",
+    r"\bmove\b.{0,30}\b(?:sl|stop.?loss)\b.{0,30}\b"
+    r"(?:0\s*%?\s*risk|zero\s+risk)\b",
+    r"\bto\s+breakeven\b",
+)
+
+
+def _is_risk_free_explanation(text: str) -> bool:
+    return bool(_RISK_FREE_EXPLANATION_RE.search(text or ""))
+
+
+def _has_explicit_be_instruction(text: str) -> bool:
+    return any(
+        re.search(pattern, text or "", re.IGNORECASE)
+        for pattern in _EXPLICIT_BE_PATTERNS
+    )
+
+
+def _has_generic_risk_free_instruction(text: str) -> bool:
+    return bool(_GENERIC_RISK_FREE_RE.search(text or ""))
 
 
 def _negated_action_review(text: str) -> dict | None:
@@ -369,6 +409,13 @@ def _canal1_safe_regex_classify(text: str) -> list[dict]:
         if not text:
             return [negated]
     t = text.lower()
+    if _is_risk_free_explanation(text):
+        return [{
+            "action": "INFORMATIONAL",
+            "price": None,
+            "confidence": 1.0,
+            "_reason": "provider_risk_free_explanation",
+        }]
     if re.search(r"\b(if|when|once|unless)\b", t):
         return []
     if re.search(r"\bwatch\b.*\b(close|exit|sl|stop|move)\b", t):
@@ -402,16 +449,7 @@ def _canal1_safe_regex_classify(text: str) -> list[dict]:
             "_reason": "provider_partial_profit",
         })
 
-    be_phrases = [
-        r"\bmove\s+(?:my\s+|your\s+|the\s+)?sl\s+to\s+be\b",
-        r"\bmove\s+(?:my\s+|your\s+|the\s+)?stop.?loss\s+to\s+(?:be|breakeven|entry)\b",
-        r"\bset(?:ting)?\s+(?:sl\s+to\s+)?(?:be|breakeven)\b",
-        r"\bsl\s+to\s+(?:be|breakeven|entry)\b",
-        r"\b0\s*%?\s*risk\b",
-        r"\bzero\s+risk\b",
-        r"\brisk.?free\b",
-    ]
-    if any(re.search(p, t) for p in be_phrases):
+    if _has_explicit_be_instruction(text):
         action = {"action": "MOVE_SL_TO_BE",
                   "price": None, "confidence": 0.95,
                   "_reason": "canal1_safe_direct_be"}
@@ -419,6 +457,13 @@ def _canal1_safe_regex_classify(text: str) -> list[dict]:
         if provider_price is not None:
             action["provider_stated_be_price"] = provider_price
         actions.append(action)
+    elif _has_generic_risk_free_instruction(text):
+        actions.append({
+            "action": "SECURE_BASKET",
+            "price": None,
+            "confidence": 0.95,
+            "_reason": "provider_generic_risk_free",
+        })
 
     close_all_phrases = [
         r"\bclose\s+all\b",
@@ -427,7 +472,6 @@ def _canal1_safe_regex_classify(text: str) -> list[dict]:
         r"\bclos(?:e|ing)\s+(?:my\s+|our\s+|the\s+)?trades?\s+now\b",
         r"\bclos(?:e|ing)\s+(?:our\s+|the\s+)?last\s+entries\b",
         r"\bi(?:'m| am)\s+out\s+(?:of\s+)?(?:this\s+|the\s+)?trade\b",
-        r"\bout\s+of\s+(?:this\s+|the\s+)?trade\b",
     ]
     if any(re.search(p, t) for p in close_all_phrases):
         actions.append({"action": "CLOSE_ALL",
@@ -447,6 +491,13 @@ def _regex_classify_all(text: str) -> list[dict]:
         if not text:
             return [negated]
     t = text.lower()
+    if _is_risk_free_explanation(text):
+        return [{
+            "action": "INFORMATIONAL",
+            "price": None,
+            "confidence": 1.0,
+            "_reason": "provider_risk_free_explanation",
+        }]
 
     if re.search(
         r"\bclos(?:e|ing)\s+(?:the\s+)?overall\s+profits?\s+"
@@ -561,27 +612,21 @@ def _regex_classify_all(text: str) -> list[dict]:
             "_reason": "provider_partial_profit",
         })
 
-    # 2. SL a BE / risk-free / breakeven
-    be_phrases = [
-        r"move\s+(?:my\s+|your\s+)?sl\s+to\s+be\b",
-        r"move\s+(?:my\s+|your\s+|the\s+)?stop.?loss\s+to\s+(?:be|breakeven|entry)",
-        r"set(?:ting)?\s+(?:sl\s+to\s+)?(?:be|breakeven)\b",
-        r"sl\s+to\s+(?:be|breakeven|entry)\b",
-        r"\b0\s*%?\s*risk\b",
-        r"\bzero\s+risk\b",
-        r"risk.?free",
-        r"move.*stop.*above.*lowest",
-        r"move.*stop.*below.*highest",
-        r"to\s+breakeven\b",
-        r"\bbe\s+risk.?free\b",
-    ]
-    if any(re.search(p, t) for p in be_phrases):
+    # 2. Explicit BE and generic risk-free are different provider intents.
+    if _has_explicit_be_instruction(text):
         action = {"action": "MOVE_SL_TO_BE",
                   "price": None, "confidence": 0.95}
         provider_price = extract_provider_stated_be_price(text)
         if provider_price is not None:
             action["provider_stated_be_price"] = provider_price
         actions.append(action)
+    elif _has_generic_risk_free_instruction(text):
+        actions.append({
+            "action": "SECURE_BASKET",
+            "price": None,
+            "confidence": 0.95,
+            "_reason": "provider_generic_risk_free",
+        })
 
     # 3. "I am out at BE" / "closing here at BE" → trader cierra todo en BE
     out_be_phrases = [

@@ -290,12 +290,17 @@ async def test_execute_actions_emits_management_understanding(monkeypatch):
 async def test_execute_actions_firewall_logs_conditional_plan_without_execution(monkeypatch):
     events = []
     executed = []
+    mgmt = []
     monkeypatch.setattr(
         listener.journal,
         "event",
         lambda sig_id, ev, **kw: events.append((sig_id, ev, kw)),
     )
-    monkeypatch.setattr(listener.journal, "append_mgmt", lambda *a, **kw: None)
+    monkeypatch.setattr(
+        listener.journal,
+        "append_mgmt",
+        lambda *a, **kw: mgmt.append((a, kw)),
+    )
 
     async def fake_execute_one(signal, classification, raw_text=""):
         executed.append((signal, classification, raw_text))
@@ -323,6 +328,10 @@ async def test_execute_actions_firewall_logs_conditional_plan_without_execution(
     assert firewall[2]["policy"] == "log_only"
     assert firewall[2]["will_execute"] is False
     assert firewall[2]["reason"] == "conditional_plan"
+    assert mgmt[0][1]["outcome"] == "ignored"
+    outcome = next(row for row in events
+                   if row[1] == "management_action_outcome")
+    assert outcome[2]["outcome"] == "ignored"
 
 
 @pytest.mark.asyncio
@@ -330,12 +339,17 @@ async def test_execute_actions_firewall_notify_review_for_reentry(monkeypatch):
     events = []
     executed = []
     notified = []
+    mgmt = []
     monkeypatch.setattr(
         listener.journal,
         "event",
         lambda sig_id, ev, **kw: events.append((sig_id, ev, kw)),
     )
-    monkeypatch.setattr(listener.journal, "append_mgmt", lambda *a, **kw: None)
+    monkeypatch.setattr(
+        listener.journal,
+        "append_mgmt",
+        lambda *a, **kw: mgmt.append((a, kw)),
+    )
 
     async def fake_execute_one(signal, classification, raw_text=""):
         executed.append((signal, classification, raw_text))
@@ -368,6 +382,10 @@ async def test_execute_actions_firewall_notify_review_for_reentry(monkeypatch):
     assert firewall[2]["policy"] == "notify_review"
     assert firewall[2]["will_execute"] is False
     assert firewall[2]["requires_review"] is True
+    assert mgmt[0][1]["outcome"] == "deferred"
+    outcome = next(row for row in events
+                   if row[1] == "management_action_outcome")
+    assert outcome[2]["outcome"] == "deferred"
 
 
 @pytest.mark.asyncio

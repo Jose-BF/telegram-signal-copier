@@ -18,6 +18,7 @@ EXECUTABLE_ACTIONS = {
     "CLOSE_PROFIT_OR_BE",
     "CLOSE_FIRST",
     "CLOSE_AT_TP",
+    "SECURE_BASKET",
     "MOVE_SL_TO_BE",
     "MOVE_SL_TO_PRICE",
 }
@@ -301,6 +302,9 @@ def firewall_decision(signal, classification: dict,
     if action not in EXECUTABLE_ACTIONS:
         return FirewallDecision("notify_review", False, "unknown_action", True)
 
+    if action == "CLOSE_ALL" and _looks_non_holder_scope(text):
+        return FirewallDecision("log_only", False, "non_holder_scope", False)
+
     confidence = float(classification.get("confidence") or 0.0)
     if confidence < 0.5 and not classification.get("_reason"):
         return FirewallDecision("notify_review", False, "low_confidence", True)
@@ -337,3 +341,18 @@ def _looks_optional_close(text: str) -> bool:
         "members who",
     )
     return any(marker in text for marker in optional_markers)
+
+
+def _looks_non_holder_scope(text: str) -> bool:
+    if not text:
+        return False
+    return any(marker in text for marker in (
+        "for who is out",
+        "for who are out",
+        "for those who are out",
+        "for those out",
+        "who is out of the trade",
+        "who are out of the trade",
+        "if you are out of the trade",
+        "if you're out of the trade",
+    ))

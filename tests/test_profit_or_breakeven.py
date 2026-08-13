@@ -91,7 +91,7 @@ async def test_positive_basket_closes_once_without_moving_be(monkeypatch):
 
     monkeypatch.setattr(listener, "_finalize_signal", fake_finalize)
 
-    await listener._execute_one_action(
+    outcome = await listener._execute_one_action(
         signal,
         {
             "action": "CLOSE_PROFIT_OR_BE",
@@ -102,6 +102,7 @@ async def test_positive_basket_closes_once_without_moving_be(monkeypatch):
     )
 
     assert closes == [1001, 1002]
+    assert outcome == "requested"
     assert cancels == [2001]
     assert modifies == []
     assert signal.status == "closed"
@@ -150,7 +151,7 @@ async def test_non_positive_basket_sets_exact_be_without_closing(monkeypatch):
 
     monkeypatch.setattr(listener, "_run", fake_run)
 
-    await listener._execute_one_action(
+    outcome = await listener._execute_one_action(
         signal,
         {
             "action": "CLOSE_PROFIT_OR_BE",
@@ -161,6 +162,7 @@ async def test_non_positive_basket_sets_exact_be_without_closing(monkeypatch):
     )
 
     assert closes == []
+    assert outcome == "requested"
     assert modifies == [(1101, 4057.25), (1102, 4056.80)]
     assert signal.status == "open"
     assert signal.be_armed is True

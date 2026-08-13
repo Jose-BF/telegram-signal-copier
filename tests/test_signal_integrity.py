@@ -82,6 +82,11 @@ async def test_finalize_signal_continues_when_mt5_has_no_open_positions(
     monkeypatch.setattr(listener, "journal", journal)
     monkeypatch.setattr("MetaTrader5.positions_get", lambda: [])
     monkeypatch.setattr("MetaTrader5.history_deals_get", lambda position: [])
+    monkeypatch.setattr(
+        listener.executor,
+        "account_evidence",
+        lambda: {"currency": "EUR"},
+    )
 
     async def no_sleep(_seconds):
         return None
@@ -95,4 +100,6 @@ async def test_finalize_signal_continues_when_mt5_has_no_open_positions(
     assert len(journal.finalized) == 1
     assert journal.finalized[0]["sig"] == "canal2_13288"
     assert journal.finalized[0]["closed_by"] == "TP"
+    assert journal.finalized[0]["account_currency"] == "EUR"
+    assert journal.finalized[0]["closed_at_utc"].endswith("+00:00")
     assert not journal.anomalies

@@ -2356,6 +2356,110 @@ def test_media_message_without_content_hash_is_blocked():
     assert report["rows"][0]["status"] == "missing_media_evidence"
 
 
+def test_later_stored_media_capture_completes_raw_message_evidence():
+    raw = _row(
+        "telegram_raw",
+        "event_media_raw",
+        monotonic_ns=100,
+        channel="canal1",
+        chat_id=-1001642806869,
+        message_id=20700,
+        update_kind="new",
+        is_edit=False,
+        revision_token="new",
+        message_revision_id=_MSGREV_MEDIA,
+        has_text=False,
+        text="",
+        text_sha1=None,
+        has_media=True,
+        media_sha256=None,
+    )
+    stored = _row(
+        "telegram_media_capture_stored",
+        "event_media_stored",
+        monotonic_ns=110,
+        channel="canal1",
+        message_id=20700,
+        update_kind="new",
+        message_revision_id=_MSGREV_MEDIA,
+        media_sha256="f" * 64,
+        size_bytes=512,
+        storage_path="telegram_media/canal1/media.webp",
+        archive_stream="telegram_media.jsonl",
+        archive_appended=True,
+        attempts=1,
+    )
+    later_poll_copy = dict(raw)
+    later_poll_copy.update({
+        "event_id": "event_media_raw_poll_copy",
+        "monotonic_ns": 115,
+        "update_kind": "poll_edit",
+        "is_edit": True,
+    })
+    _rehash(later_poll_copy)
+    started = _row(
+        "telegram_decision_started",
+        "event_media_started",
+        monotonic_ns=120,
+        channel="canal1",
+        chat_id=-1001642806869,
+        message_id=20700,
+        update_kind="new",
+        revision_token="new",
+        message_revision_id=_MSGREV_MEDIA,
+        decision_id="decision_media",
+    )
+    processed = _row(
+        "telegram_processed",
+        "event_media_processed",
+        monotonic_ns=130,
+        channel="canal1",
+        chat_id=-1001642806869,
+        message_id=20700,
+        update_kind="new",
+        revision_token="new",
+        message_revision_id=_MSGREV_MEDIA,
+        decision_id="decision_media",
+        declared_action_ids=[],
+        declared_action_count=0,
+    )
+
+    report = audit_causal_lineage.audit_rows(
+        [raw, stored, later_poll_copy, started, processed],
+        source_sha256="d" * 64,
+    )
+
+    assert {row["status"] for row in report["rows"]} == {"complete"}
+
+
+def test_same_revision_from_edit_and_poller_is_one_immutable_message():
+    rows = _complete_chain()
+    duplicate_transport = dict(rows[0])
+    duplicate_transport.update({
+        "event_id": "event_raw_poll_transport",
+        "monotonic_ns": 105,
+        "update_kind": "poll_new",
+        "is_edit": False,
+    })
+    rows[0]["update_kind"] = "edit"
+    rows[0]["is_edit"] = True
+    rows[1]["update_kind"] = "edit"
+    rows[5]["update_kind"] = "edit"
+    _rehash(rows[0])
+    _rehash(rows[1])
+    _rehash(rows[5])
+    _rehash(duplicate_transport)
+    rows.insert(1, duplicate_transport)
+
+    report = audit_causal_lineage.audit_rows(
+        rows,
+        source_sha256="d" * 64,
+    )
+
+    assert report["relations"]["contradictory_message_revision_ids"] == []
+    assert {row["status"] for row in report["rows"]} == {"complete"}
+
+
 def test_schema_two_envelope_requires_verified_code_commit():
     raw = _complete_chain()[0]
     raw["code_commit"] = None

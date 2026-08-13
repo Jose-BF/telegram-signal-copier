@@ -649,6 +649,7 @@ def begin_trade(signal_id: str, **initial_fields):
             "mgmt_msgs_classified": [],
             "mgmt_msgs_applied": [],
             "mgmt_msgs_required": [],
+            "mgmt_msgs_outcomes": [],
             "mfe_usd": 0.0,
             "mae_usd": 0.0,
             "n_dca_filled": 0,
@@ -663,15 +664,22 @@ def update_trade(signal_id: str, **fields):
             _trades[signal_id].update(fields)
 
 
+_MANAGEMENT_OUTCOMES = {"requested", "deferred", "ignored", "failed"}
+
+
 def append_mgmt(signal_id: str, classified: str, applied: bool,
-                required: bool = True):
-    """Registra que se recibió un mensaje de gestión y si se aplicó."""
+                required: bool = True, outcome: Optional[str] = None):
+    """Registra una gestión sin confundir solicitud con confirmación MT5."""
+    resolved_outcome = outcome or ("requested" if applied else "ignored")
+    if resolved_outcome not in _MANAGEMENT_OUTCOMES:
+        raise ValueError(f"invalid management outcome: {resolved_outcome}")
     with _trades_lock:
         if signal_id in _trades:
             t = _trades[signal_id]
             t["mgmt_msgs_classified"].append(classified)
             t["mgmt_msgs_applied"].append(bool(applied))
             t.setdefault("mgmt_msgs_required", []).append(bool(required))
+            t.setdefault("mgmt_msgs_outcomes", []).append(resolved_outcome)
 
 
 def update_extremes(signal_id: str, current_pl: float, ts: Optional[str] = None):
@@ -720,6 +728,7 @@ def finalize_trade(signal_id: str, **final_fields):
         # Por si finalize_trade se llama dos veces o sin begin_trade previo
         t = {"signal_id": signal_id, "mgmt_msgs_classified": [],
              "mgmt_msgs_applied": [], "mgmt_msgs_required": [],
+             "mgmt_msgs_outcomes": [],
              "mfe_usd": 0.0, "mae_usd": 0.0}
 
     t.update(final_fields)
@@ -749,8 +758,29 @@ def finalize_trade(signal_id: str, **final_fields):
         print(f"[journal] ERROR escribiendo fila final {signal_id}: {e}")
 
     # También dejamos rastro en eventos (ya rutea solo según _mark_and_get_test)
-    event(signal_id, "signal_closed", tag=t.get("tag"),
-          total_pl=t.get("total_pnl_usd"))
+    event(
+        signal_id,
+        "signal_closed",
+        tag=t.get("tag"),
+        total_pl=t.get("total_pnl_usd"),
+        total_pl_account_currency=t.get(
+            "total_pnl_account_currency",
+            t.get("total_pnl_usd"),
+        ),
+        mfe_account_currency=t.get(
+            "mfe_account_currency",
+            t.get("mfe_usd"),
+        ),
+        mae_account_currency=t.get(
+            "mae_account_currency",
+            t.get("mae_usd"),
+        ),
+        money_unit="account_currency",
+        account_currency=t.get("account_currency"),
+        closed_at_utc=t.get("closed_at_utc"),
+        time_basis="UTC",
+        mt5_server_offset_s=t.get("mt5_server_offset_s"),
+    )
 
     # Limpieza del registry para no acumular memoria de tests pasados
     if is_test:

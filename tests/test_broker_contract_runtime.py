@@ -349,7 +349,7 @@ def test_runtime_snapshot_failure_is_visible_but_never_stops_trading(
 async def test_runtime_monitor_notifies_only_capture_state_transitions(
     monkeypatch,
 ):
-    outcomes = iter([False, False, True])
+    outcomes = iter([False, False, True, True, True])
     notifications = []
     main._broker_contract_ready = True
 
@@ -382,6 +382,53 @@ async def test_runtime_monitor_notifies_only_capture_state_transitions(
     assert "INTERRUMPIDO" in notifications[0]
     assert "sigue operando" in notifications[0]
     assert "RECUPERADO" in notifications[1]
+
+
+async def test_runtime_monitor_requires_stable_recovery_before_notifying(
+    monkeypatch,
+):
+    outcomes = iter([False, False, True, False, True, True, True])
+    capture_calls = []
+    notifications = []
+    main._broker_contract_ready = True
+
+    async def no_wait(_seconds):
+        return None
+
+    def capture():
+        try:
+            result = next(outcomes)
+        except StopIteration as exc:
+            raise asyncio.CancelledError from exc
+        capture_calls.append(result)
+        return result
+
+    async def capture_notification(text):
+        notifications.append((len(capture_calls), text))
+        return True
+
+    monkeypatch.setattr(main.asyncio, "sleep", no_wait)
+    monkeypatch.setattr(
+        main,
+        "_try_capture_broker_money_contract_snapshot",
+        capture,
+    )
+    monkeypatch.setattr(main, "notify", capture_notification)
+    monkeypatch.setattr(
+        main.config,
+        "BOT_BROKER_CONTRACT_RECOVERY_SUCCESSES",
+        3,
+        raising=False,
+    )
+
+    try:
+        await main._broker_money_contract_monitor(interval_sec=30)
+    except asyncio.CancelledError:
+        pass
+
+    assert [sample for sample, _text in notifications] == [2, 7]
+    assert "INTERRUMPIDO" in notifications[0][1]
+    assert "RECUPERADO" in notifications[1][1]
 
 
 async def test_runtime_monitor_ignores_one_transient_failed_sample(

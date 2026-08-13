@@ -1471,6 +1471,132 @@ def open_position_levels(tickets: list[int]) -> Optional[dict[int, dict]]:
     return levels
 
 
+def risk_free_basket_snapshot(tickets: list[int]) -> Optional[dict]:
+    """Capture the account-currency evidence needed to secure a basket.
+
+    ``None`` means MT5 did not answer the open-position query. Absent tickets
+    only contribute realized P&L when their deal history proves a complete
+    round trip; otherwise ``realized_complete`` is false and callers must
+    preserve the live trade.
+    """
+    requested = list(dict.fromkeys(
+        int(ticket) for ticket in tickets
+        if not isinstance(ticket, bool) and int(ticket) > 0
+    ))
+    all_open = mt5.positions_get()
+    if all_open is None:
+        return None
+
+    wanted = set(requested)
+    open_by_ticket = {
+        int(position.ticket): position
+        for position in all_open
+        if int(getattr(position, "ticket", 0) or 0) in wanted
+    }
+    open_legs = []
+    for ticket in requested:
+        position = open_by_ticket.get(ticket)
+        if position is None:
+            continue
+        position_type = getattr(position, "type", None)
+        is_buy = position_type == getattr(mt5, "POSITION_TYPE_BUY", 0)
+        order_type = (
+            getattr(mt5, "ORDER_TYPE_BUY", 0)
+            if is_buy else getattr(mt5, "ORDER_TYPE_SELL", 1)
+        )
+        symbol = str(getattr(position, "symbol", config.MT5_SYMBOL))
+        volume = float(getattr(position, "volume", 0.0) or 0.0)
+        entry = float(getattr(position, "price_open", 0.0) or 0.0)
+        current = float(getattr(position, "price_current", 0.0) or 0.0)
+        sl = float(getattr(position, "sl", 0.0) or 0.0)
+        tp = float(getattr(position, "tp", 0.0) or 0.0)
+        swap = float(getattr(position, "swap", 0.0) or 0.0)
+        current_pnl = float(getattr(position, "profit", 0.0) or 0.0) + swap
+
+        stop_pnl = None
+        if volume > 0 and entry > 0 and sl > 0:
+            calculated = mt5.order_calc_profit(
+                order_type, symbol, volume, entry, sl,
+            )
+            if calculated is not None:
+                stop_pnl = float(calculated) + swap
+
+        target_distance = None
+        if current > 0 and tp > 0:
+            target_distance = max(
+                (tp - current) if is_buy else (current - tp),
+                0.0,
+            )
+
+        open_legs.append({
+            "ticket": ticket,
+            "current_pnl": current_pnl,
+            "stop_pnl": stop_pnl,
+            "target_distance": target_distance,
+            "sl": sl,
+            "tp": tp,
+        })
+
+    entry_in = getattr(mt5, "DEAL_ENTRY_IN", 0)
+    entry_out = getattr(mt5, "DEAL_ENTRY_OUT", 1)
+    entry_inout = getattr(mt5, "DEAL_ENTRY_INOUT", 2)
+    entry_out_by = getattr(mt5, "DEAL_ENTRY_OUT_BY", 3)
+    realized_total = 0.0
+    missing_realized = []
+    for ticket in requested:
+        deals = mt5.history_deals_get(position=ticket)
+        if not deals:
+            missing_realized.append(ticket)
+            continue
+        in_volume = 0.0
+        out_volume = 0.0
+        for deal in deals:
+            volume = float(getattr(deal, "volume", 0.0) or 0.0)
+            deal_entry = getattr(deal, "entry", None)
+            if deal_entry == entry_in:
+                in_volume += volume
+            elif deal_entry in {entry_out, entry_out_by}:
+                out_volume += volume
+            elif deal_entry == entry_inout:
+                in_volume += volume
+                out_volume += volume
+        open_position = open_by_ticket.get(ticket)
+        if open_position is not None:
+            current_volume = float(
+                getattr(open_position, "volume", 0.0) or 0.0
+            )
+            history_is_complete = (
+                in_volume > 0
+                and current_volume > 0
+                and abs((in_volume - out_volume) - current_volume) <= 1e-8
+            )
+        else:
+            history_is_complete = (
+                in_volume > 0 and out_volume + 1e-9 >= in_volume
+            )
+        if not history_is_complete:
+            missing_realized.append(ticket)
+            continue
+        realized_total += sum(
+            float(getattr(deal, field, 0.0) or 0.0)
+            for deal in deals
+            for field in ("profit", "commission", "swap", "fee")
+        )
+
+    account = mt5.account_info()
+    return {
+        "open_legs": open_legs,
+        "realized_pnl": (
+            realized_total if not missing_realized else None
+        ),
+        "realized_complete": not missing_realized,
+        "missing_realized_tickets": missing_realized,
+        "account_currency": (
+            str(getattr(account, "currency", "") or "") or None
+        ),
+    }
+
+
 def position_pnls(tickets: list[int]) -> list[tuple[int, float]]:
     """Devuelve [(ticket, floating_pnl), ...] para los tickets que SIGUEN abiertos.
 

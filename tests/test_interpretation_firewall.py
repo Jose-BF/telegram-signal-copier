@@ -185,3 +185,40 @@ def test_executable_direct_order_passes_firewall():
     assert decision.policy == "auto_execute"
     assert decision.will_execute is True
     assert decision.reason == "direct_executable"
+
+
+def test_secured_basket_is_a_first_class_executable_intent():
+    sig = Signal(channel="canal2", message_id=1474, direction="BUY")
+    action = {
+        "action": "SECURE_BASKET",
+        "confidence": 0.98,
+        "message_role": "direct_order",
+    }
+
+    decision = firewall_decision(
+        sig, action, raw_text="Make your trade risk free"
+    )
+
+    assert "SECURE_BASKET" in EXECUTABLE_ACTIONS
+    assert decision.policy == "auto_execute"
+    assert decision.will_execute is True
+
+
+def test_non_holder_scope_can_never_close_the_live_trade():
+    sig = Signal(channel="canal1", message_id=21399, direction="BUY")
+    action = {
+        "action": "CLOSE_ALL",
+        "confidence": 0.92,
+        "message_role": "direct_order",
+        "_reason": "canal1_safe_direct_close",
+    }
+
+    decision = firewall_decision(
+        sig,
+        action,
+        raw_text="This is for who is out of the trade",
+    )
+
+    assert decision.policy == "log_only"
+    assert decision.will_execute is False
+    assert decision.reason == "non_holder_scope"

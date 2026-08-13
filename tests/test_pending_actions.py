@@ -20,6 +20,7 @@ from types import SimpleNamespace
 import pytest
 
 import causal_trace
+import pending_actions
 from pending_actions import (
     PendingQueue,
     PendingAction,
@@ -786,8 +787,8 @@ class TestModifyPreconditions:
         assert coalesced["coalesced_into_action_id"] == first.action_id
 
     def test_changed_coalesced_action_supersedes_queue_identity(
-        self,
-        monkeypatch,
+            self,
+            monkeypatch,
     ):
         events = []
         monkeypatch.setattr(
@@ -824,6 +825,53 @@ class TestModifyPreconditions:
         )
         assert coalesced["action_id"] == changed.action_id
         assert coalesced["supersedes_action_id"] == first_action_id
+
+    @pytest.mark.asyncio
+    async def test_completed_action_cannot_absorb_update_while_next_leg_runs(
+            self, monkeypatch):
+        q = PendingQueue()
+        first = _make_action(new_sl=4059.61, new_tp=4052.0)
+        second = _make_action(new_sl=4059.61, new_tp=4050.0)
+        second.ticket = first.ticket + 1
+        replacement = _make_action(new_sl=4060.25, new_tp=4051.0)
+        old_first_action_id = first.action_id
+        replacement_action_id = replacement.action_id
+        seen = []
+        injected = False
+        tick_msc = 100
+
+        async def fake_try_once(action):
+            nonlocal injected
+            seen.append(action.action_id)
+            action.last_retcode = 10009
+            if action is second and not injected:
+                injected = True
+                q.add(replacement)
+            return "DONE"
+
+        def fake_tick(_symbol):
+            nonlocal tick_msc
+            tick_msc += 1
+            return SimpleNamespace(time_msc=tick_msc)
+
+        q._actions.extend([first, second])
+        monkeypatch.setattr(q, "_try_once", fake_try_once)
+        monkeypatch.setattr(q, "_ensure_runner", lambda: None)
+        monkeypatch.setattr(q, "_persist_spool", lambda: None)
+        monkeypatch.setattr(q, "_log_done", lambda action: None)
+        monkeypatch.setattr(
+            pending_actions, "_record_confirmed_levels", lambda action: None
+        )
+        monkeypatch.setattr(
+            pending_actions.mt5, "symbol_info_tick", fake_tick
+        )
+
+        await q._run()
+
+        assert seen[0] == old_first_action_id
+        assert seen[-1] == replacement_action_id
+        assert seen.count(replacement_action_id) == 1
+        assert q._actions == []
 
     def test_last_attempt_does_not_change_spool_fingerprint(self):
         q = PendingQueue()

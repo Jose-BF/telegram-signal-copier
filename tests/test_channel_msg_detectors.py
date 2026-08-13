@@ -391,6 +391,111 @@ class TestManagementReplyEdits:
         assert route == "direct"
 
 
+class TestManagementReplyAncestry:
+    @pytest.mark.asyncio
+    async def test_reply_through_media_routes_only_to_its_original_signal(
+            self, monkeypatch):
+        st = StateManager()
+        intended = Signal(
+            channel="canal1", message_id=21361, direction="BUY",
+            market_ticket=1700001361,
+        )
+        other = Signal(
+            channel="canal1", message_id=21362, direction="SELL",
+            market_ticket=1700001362,
+        )
+        st.add(intended)
+        st.add(other)
+        events = []
+
+        original = SimpleNamespace(
+            id=21361,
+            text="BUY GOLD NOW",
+            reply_to=None,
+        )
+
+        async def media_get_reply():
+            return original
+
+        media = SimpleNamespace(
+            id=21365,
+            text="",
+            reply_to=SimpleNamespace(reply_to_msg_id=21361),
+            get_reply_message=media_get_reply,
+        )
+
+        async def management_get_reply():
+            return media
+
+        management = SimpleNamespace(
+            id=21366,
+            text="Move SL to BE",
+            reply_to=SimpleNamespace(reply_to_msg_id=21365),
+            get_reply_message=management_get_reply,
+        )
+
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(
+            listener.journal,
+            "event",
+            lambda sig, ev, **kw: events.append((sig, ev, kw)),
+        )
+
+        target, route = await (
+            listener._resolve_management_reply_target_with_ancestry(
+                management,
+                "canal1",
+                21365,
+                allow_single_open_fallback=True,
+            )
+        )
+
+        assert target is intended
+        assert route == "reply_ancestry_hop_2"
+        routed = next(
+            payload for _, ev, payload in events
+            if ev == "management_reply_routed_by_ancestry"
+        )
+        assert routed["source_message_id"] == 21366
+        assert routed["target_signal_id"] == "canal1_21361"
+        assert routed["ancestry_message_ids"] == [21365, 21361]
+
+    @pytest.mark.asyncio
+    async def test_ancestry_never_guesses_between_multiple_open_signals(
+            self, monkeypatch):
+        st = StateManager()
+        st.add(Signal("canal2", 730, "SELL", market_ticket=1700000730))
+        st.add(Signal("canal2", 731, "BUY", market_ticket=1700000731))
+
+        async def get_reply_message():
+            return SimpleNamespace(
+                id=729,
+                text="Sell Gold Now",
+                reply_to=None,
+            )
+
+        msg = SimpleNamespace(
+            id=732,
+            text="Move SL to BE",
+            reply_to=SimpleNamespace(reply_to_msg_id=729),
+            get_reply_message=get_reply_message,
+        )
+        monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(listener.journal, "event", lambda *a, **kw: None)
+
+        target, route = await (
+            listener._resolve_management_reply_target_with_ancestry(
+                msg,
+                "canal2",
+                729,
+                allow_single_open_fallback=False,
+            )
+        )
+
+        assert target is None
+        assert route == "reply_root_identity_unproven"
+
+
 class TestManagementActionDedup:
     def test_same_action_and_text_inside_window_is_duplicate(self, monkeypatch):
         listener._seen_management_actions.clear()
@@ -461,7 +566,12 @@ class TestManagementActionDedup:
 
         assert len(executed) == 1
         assert len(mgmt) == 1
+        assert mgmt[0][1]["outcome"] == "requested"
         assert [ev for _, ev, _ in events].count("mgmt_msg") == 1
+        outcomes = [row for row in events
+                    if row[1] == "management_action_outcome"]
+        assert len(outcomes) == 1
+        assert outcomes[0][2]["outcome"] == "requested"
         duplicates = [row for row in events
                       if row[1] == "mgmt_msg_duplicate_skipped"]
         assert len(duplicates) == 1

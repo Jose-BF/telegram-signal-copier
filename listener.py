@@ -36,6 +36,7 @@ import runtime_control
 import strategies
 import telegram_notifications
 import telegram_media_evidence
+from risk_free_basket import BasketLeg, plan_risk_free_basket
 from canal2_zone_lifecycle import (
     LIFECYCLE_SCHEMA_VERSION,
     classify_followup as classify_zone_followup,
@@ -110,6 +111,7 @@ _NON_REQUIRED_MANAGEMENT_REASONS = {
     "conditional_close_text",
     "level_parser_path",
     "non_executable_intent",
+    "non_holder_scope",
     "optional_close_text",
     "optional_suggestion",
 }
@@ -124,6 +126,31 @@ def _management_requires_execution(signal: Signal, classification: dict,
     if classification.get("is_optional") or classification.get("is_conditional"):
         return False
     return firewall.reason not in _NON_REQUIRED_MANAGEMENT_REASONS
+
+
+def _record_management_action_outcome(
+        sig_id: str, *, classified: str, action: str, applied: bool,
+        required: bool, outcome: str, reason: str | None = None,
+        tg_ts: str | None = None) -> None:
+    """Record dispatch truth; MT5 terminal events remain execution proof."""
+    journal.append_mgmt(
+        sig_id,
+        classified=classified,
+        applied=applied,
+        required=required,
+        outcome=outcome,
+    )
+    journal.event(
+        sig_id,
+        "management_action_outcome",
+        action=action,
+        classified=classified,
+        outcome=outcome,
+        required_execution=required,
+        reason=reason,
+        tg_ts=tg_ts,
+        semantics="dispatch_not_terminal_execution",
+    )
 
 
 def _text_sha1(text: str | None) -> str | None:
@@ -1067,8 +1094,13 @@ async def _finalize_signal(signal: Signal, closed_by: str, notes: str = ""):
         if not await _finalize_integrity_allows(signal, closed_by):
             return
 
-        now = datetime.utcnow()
-        duration_s = (now - signal.timestamp).total_seconds()
+        closed_at_utc = datetime.now(timezone.utc)
+        signal_started_utc = signal.timestamp
+        if signal_started_utc.tzinfo is None:
+            signal_started_utc = signal_started_utc.replace(tzinfo=timezone.utc)
+        else:
+            signal_started_utc = signal_started_utc.astimezone(timezone.utc)
+        duration_s = (closed_at_utc - signal_started_utc).total_seconds()
         # Pequeña espera para que el deal de cierre llegue al historial de MT5
         await asyncio.sleep(0.5)
 
@@ -1109,12 +1141,14 @@ async def _finalize_signal(signal: Signal, closed_by: str, notes: str = ""):
             print(f"[Journal] pos_summary error (no critico): {e}")
 
         pnl = _realized_pl(signal)
+        account = await _run(executor.account_evidence)
         journal.finalize_trade(
             sig_id,
-            closed_at_utc=now.isoformat(timespec="milliseconds"),
+            closed_at_utc=closed_at_utc.isoformat(timespec="milliseconds"),
             closed_by=closed_by,
             duration_sec=round(duration_s, 1),
             total_pnl_usd=pnl,
+            account_currency=account.get("currency") if account else None,
             sl_final=signal.sl,
             n_tickets_opened=len(signal.all_filled_tickets),
             notes=notes,
@@ -1967,19 +2001,12 @@ async def _process_management_reply_edit(msg, channel: str,
     if not reply_id:
         return False
 
-    if channel == "canal2":
-        sig, route = _resolve_management_reply_target(
-            channel,
-            reply_id,
-            allow_single_open_fallback=False,
-        )
-        if sig is None and route != "target_signal_closed":
-            sig, route = await _recover_canal2_management_target_from_reply_root(
-                msg,
-                int(reply_id),
-            )
-    else:
-        sig, route = _resolve_management_reply_target(channel, reply_id)
+    sig, route = await _resolve_management_reply_target_with_ancestry(
+        msg,
+        channel,
+        int(reply_id),
+        allow_single_open_fallback=(channel == "canal1"),
+    )
     if sig is None:
         _log_unresolved_management_reply(msg, channel, reply_id, route)
         return True
@@ -2038,6 +2065,118 @@ def _resolve_management_reply_target(
     if same_channel_open:
         return None, "ambiguous_open_signals"
     return None, "unknown_reply_target"
+
+
+async def _resolve_management_reply_target_with_ancestry(
+        msg, channel: str, reply_id: int, *,
+        allow_single_open_fallback: bool,
+        allow_cross_channel: bool = False,
+        max_hops: int = 3):
+    """Resolve a management reply through bounded Telegram reply ancestry.
+
+    Providers often reply to a chart or caption that itself replies to the
+    original signal. Every hop must be fetched and its message id must match
+    Telegram's declared parent; no direction/time heuristic is used.
+    """
+    direct, route = _resolve_management_reply_target(
+        channel,
+        int(reply_id),
+        allow_single_open_fallback=False,
+        allow_cross_channel=allow_cross_channel,
+    )
+    if direct is not None or route == "target_signal_closed":
+        return direct, route
+
+    current = msg
+    expected_parent_id = int(reply_id)
+    ancestry_ids = []
+    terminal_reason = "reply_root_unavailable"
+    for hop in range(1, max(1, int(max_hops)) + 1):
+        get_reply = getattr(current, "get_reply_message", None)
+        if not callable(get_reply):
+            terminal_reason = "reply_root_unavailable"
+            break
+        try:
+            parent = await get_reply()
+        except Exception as exc:
+            journal.event(
+                f"{channel}_{getattr(msg, 'id', 'unknown')}",
+                "management_reply_ancestry_fetch_failed",
+                reply_to_msg_id=expected_parent_id,
+                hop=hop,
+                error_type=type(exc).__name__,
+                error=str(exc)[:240],
+            )
+            terminal_reason = "reply_root_unavailable"
+            break
+
+        parent_id = getattr(parent, "id", None)
+        if (parent is None or parent_id is None
+                or int(parent_id) != expected_parent_id):
+            terminal_reason = "reply_root_unavailable"
+            break
+        parent_id = int(parent_id)
+        ancestry_ids.append(parent_id)
+
+        target, target_route = _resolve_management_reply_target(
+            channel,
+            parent_id,
+            allow_single_open_fallback=False,
+            allow_cross_channel=allow_cross_channel,
+        )
+        if target is not None:
+            resolved_route = f"reply_ancestry_hop_{hop}"
+            journal.event(
+                _sig_id(target),
+                "management_reply_routed_by_ancestry",
+                source_message_id=int(getattr(msg, "id", 0) or 0),
+                target_signal_id=_sig_id(target),
+                channel=channel,
+                route=resolved_route,
+                ancestry_message_ids=ancestry_ids,
+            )
+            return target, resolved_route
+        if target_route == "target_signal_closed":
+            return None, target_route
+
+        parent_reply = getattr(parent, "reply_to", None)
+        next_parent_id = getattr(parent_reply, "reply_to_msg_id", None)
+        if not next_parent_id:
+            if channel == "canal2" and is_canal2_entry(_msg_text(parent)):
+                journal.event(
+                    f"canal2_{getattr(msg, 'id', 'unknown')}",
+                    "canal2_management_root_identity_unproven",
+                    reply_to_msg_id=parent_id,
+                    channel="canal2",
+                    root_direction=parse_canal2(
+                        _msg_text(parent)
+                    ).get("direction"),
+                    open_signals=[
+                        _sig_id(sig) for sig in state.open_signals("canal2")
+                    ],
+                    ancestry_message_ids=ancestry_ids,
+                )
+                terminal_reason = "reply_root_identity_unproven"
+            else:
+                terminal_reason = "reply_root_not_entry"
+            break
+        current = parent
+        expected_parent_id = int(next_parent_id)
+    else:
+        terminal_reason = "reply_ancestry_limit"
+
+    if allow_single_open_fallback:
+        fallback, fallback_route = _resolve_management_reply_target(
+            channel,
+            int(reply_id),
+            allow_single_open_fallback=True,
+            allow_cross_channel=allow_cross_channel,
+        )
+        if fallback is not None or fallback_route == "target_signal_closed":
+            return fallback, fallback_route
+        if fallback_route == "ambiguous_open_signals":
+            return None, fallback_route
+    return None, terminal_reason
 
 
 async def _recover_canal2_management_target_from_reply_root(
@@ -3648,9 +3787,16 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
                     review_notification_sent = True
                 except Exception as e:
                     print(f"[Notify gemini_failed] error: {e}")
-            journal.append_mgmt(
-                sig_id, classified="GEMINI_FAILED", applied=False,
-                required=False)
+            _record_management_action_outcome(
+                sig_id,
+                classified="GEMINI_FAILED",
+                action="GEMINI_FAILED",
+                applied=False,
+                required=False,
+                outcome="deferred",
+                reason="classifier_failed",
+                tg_ts=tg_ts,
+            )
             journal.event(sig_id, "mgmt_msg",
                           action="GEMINI_FAILED", price=None,
                           confidence=0.0,
@@ -3698,11 +3844,18 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
                     review_notification_sent = True
                 except Exception as e:
                     print(f"[Notify firewall] error: {e}")
-            journal.append_mgmt(
+            blocked_outcome = (
+                "deferred" if firewall.requires_review else "ignored"
+            )
+            _record_management_action_outcome(
                 sig_id,
                 classified=f"{action_name}_{firewall.policy.upper()}",
+                action=action_name,
                 applied=False,
                 required=required_execution,
+                outcome=blocked_outcome,
+                reason=firewall.reason,
+                tg_ts=tg_ts,
             )
             journal.event(sig_id, "mgmt_msg",
                           action=action_name, price=cl.get("price"),
@@ -3738,8 +3891,16 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
                     review_notification_sent = True
                 except Exception as e:
                     print(f"[Notify low_conf] error: {e}")
-            journal.append_mgmt(sig_id, classified=f"{action_name}_LOWCONF",
-                                applied=False, required=True)
+            _record_management_action_outcome(
+                sig_id,
+                classified=f"{action_name}_LOWCONF",
+                action=action_name,
+                applied=False,
+                required=True,
+                outcome="deferred",
+                reason="low_confidence",
+                tg_ts=tg_ts,
+            )
             journal.event(sig_id, "mgmt_msg",
                           action=action_name, price=cl.get("price"),
                           provider_stated_be_price=cl.get(
@@ -3772,9 +3933,16 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
                 except Exception as e:
                     print(f"[Notify Ambig] error: {e}")
             # Marcar en journal como pendiente de decisión humana
-            journal.append_mgmt(
-                sig_id, classified=f"{action_name}_AMBIG", applied=False,
-                required=True)
+            _record_management_action_outcome(
+                sig_id,
+                classified=f"{action_name}_AMBIG",
+                action=action_name,
+                applied=False,
+                required=True,
+                outcome="deferred",
+                reason="ambiguous_confidence",
+                tg_ts=tg_ts,
+            )
             journal.event(sig_id, "mgmt_msg",
                           action=action_name, price=cl.get("price"),
                           provider_stated_be_price=cl.get(
@@ -3787,9 +3955,6 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
                           tg_ts=tg_ts)
             continue  # no ejecuta esta acción
 
-        journal.append_mgmt(
-            sig_id, classified=cl.get("action", "UNKNOWN"),
-            applied=will_apply, required=required_execution)
         # Detalles de la acción al journal
         journal.event(sig_id, "mgmt_msg",
                       action=cl.get("action"), price=cl.get("price"),
@@ -3802,9 +3967,70 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
                       raw_snippet=raw_text[:120],
                       tg_ts=tg_ts)
         if not will_apply:
+            _record_management_action_outcome(
+                sig_id,
+                classified=cl.get("action", "UNKNOWN"),
+                action=action_name,
+                applied=False,
+                required=required_execution,
+                outcome="ignored",
+                reason="target_signal_closed",
+                tg_ts=tg_ts,
+            )
             print(f"[Acción] {cl.get('action')} ignorada — señal {signal.message_id} ya cerrada")
             continue
-        await _execute_one_action(signal, cl, raw_text=raw_text)
+        if action_name == "INFORMATIONAL":
+            await _execute_one_action(signal, cl, raw_text=raw_text)
+            dispatch_outcome = "ignored"
+            dispatch_reason = "informational_only"
+        else:
+            try:
+                returned_outcome = await _execute_one_action(
+                    signal, cl, raw_text=raw_text
+                )
+            except Exception as exc:
+                _record_management_action_outcome(
+                    sig_id,
+                    classified=cl.get("action", "UNKNOWN"),
+                    action=action_name,
+                    applied=False,
+                    required=required_execution,
+                    outcome="failed",
+                    reason=f"{type(exc).__name__}: {exc}"[:240],
+                    tg_ts=tg_ts,
+                )
+                journal.anomaly(
+                    sig_id,
+                    "channel_msg",
+                    "critical",
+                    "fallo al despachar una accion de gestion",
+                    action=action_name,
+                    error_type=type(exc).__name__,
+                    error=str(exc)[:240],
+                )
+                print(
+                    f"[Acción] {action_name} no pudo despacharse: "
+                    f"{type(exc).__name__}: {exc}"
+                )
+                continue
+            dispatch_outcome = (
+                returned_outcome
+                if returned_outcome in {
+                    "requested", "deferred", "ignored", "failed"
+                }
+                else "requested"
+            )
+            dispatch_reason = "action_handler_result"
+        _record_management_action_outcome(
+            sig_id,
+            classified=cl.get("action", "UNKNOWN"),
+            action=action_name,
+            applied=(dispatch_outcome == "requested"),
+            required=required_execution,
+            outcome=dispatch_outcome,
+            reason=dispatch_reason,
+            tg_ts=tg_ts,
+        )
 
     if sl_hit_detected:
         await _finalize_signal(signal, closed_by="SL",
@@ -3880,7 +4106,7 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
         if price is None:
             print(f"[Accion] MOVE_SL_TO_PRICE ignorada: precio invalido "
                   f"en mensaje {raw_text[:80]!r}")
-            return
+            return "failed"
         classification = {**classification, "price": price}
 
     if action == "INFORMATIONAL":
@@ -3939,7 +4165,7 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
                 "no se pudo resolver CLOSE_PROFIT_OR_BE sin P&L vivo",
                 raw_text=raw_text[:240],
             )
-            return
+            return "deferred"
 
         selected_action = (
             "CLOSE_ALL" if floating_pnl > 0 else "MOVE_SL_TO_BE"
@@ -3972,16 +4198,18 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
                 closed_by="CLOSE_PROFIT_OR_BE",
                 notes="selected=CLOSE_ALL; reason=positive_live_basket",
             )
+            return "requested"
         else:
-            await _apply_exact_break_even(
+            applied = await _apply_exact_break_even(
                 signal,
                 source="CLOSE_PROFIT_OR_BE_action",
             )
+            return "requested" if applied else "failed"
 
     elif action == "CLOSE_ALL":
         if await _maybe_handle_breakeven_close_negative(
                 signal, classification, raw_text, locals().get("ctx")):
-            return
+            return "requested"
         # El cierre se encola con reintento — si falla por transient, reintenta;
         # si no hay posición (ya cerrada por SL/TP), se considera hecho.
         for t in signal.all_filled_tickets:
@@ -3992,6 +4220,93 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
         logger.log_action(signal, action)
         await _finalize_signal(signal, closed_by="CLOSE_ALL",
                                notes=f"reason={classification.get('_reason', 'classifier')}")
+        return "requested"
+
+    elif action == "SECURE_BASKET":
+        snapshot = await _run(
+            executor.risk_free_basket_snapshot,
+            list(signal.all_filled_tickets),
+        )
+        if snapshot is None:
+            snapshot = {
+                "account_currency": None,
+                "realized_complete": False,
+                "realized_pnl": None,
+                "missing_realized_tickets": [],
+                "open_legs": [],
+            }
+
+        legs = [
+            BasketLeg(
+                ticket=int(leg["ticket"]),
+                current_pnl=float(leg["current_pnl"]),
+                stop_pnl=leg.get("stop_pnl"),
+                target_distance=leg.get("target_distance"),
+            )
+            for leg in snapshot.get("open_legs", [])
+        ]
+        realized_pnl = (
+            snapshot.get("realized_pnl")
+            if snapshot.get("realized_complete") else None
+        )
+        plan = plan_risk_free_basket(
+            legs,
+            realized_pnl=realized_pnl,
+            safety_buffer=config.BOT_RISK_FREE_SAFETY_BUFFER_ACCOUNT,
+        )
+        journal.event(
+            _sig_id(signal),
+            "risk_free_basket_decision",
+            **plan.as_dict(),
+            account_currency=snapshot.get("account_currency"),
+            n_open_legs=len(legs),
+            realized_complete=bool(snapshot.get("realized_complete")),
+            missing_realized_tickets=snapshot.get(
+                "missing_realized_tickets", []
+            ),
+            raw_text=raw_text[:240],
+        )
+
+        if plan.status == "secure":
+            for ticket in plan.close_tickets:
+                pending_actions.enqueue_close_position(
+                    signal,
+                    ticket,
+                    label=(
+                        f"SECURE_BASKET #{ticket} "
+                        f"floor={plan.projected_floor:.2f}"
+                    ),
+                )
+            for ticket in plan.close_tickets:
+                if ticket not in signal.risk_free_close_tickets:
+                    signal.risk_free_close_tickets.append(ticket)
+            logger.log_action(signal, action, plan.projected_floor)
+            return "requested"
+        if plan.status in {"already_secured", "no_open_positions"}:
+            return "ignored"
+        elif plan.status not in {"already_secured", "no_open_positions"}:
+            currency = snapshot.get("account_currency") or "divisa de cuenta"
+            journal.anomaly(
+                _sig_id(signal),
+                "channel_msg",
+                "warning",
+                "orden risk free conservada por falta de prueba monetaria",
+                status=plan.status,
+                reason=plan.reason,
+                n_open_legs=len(legs),
+                missing_realized_tickets=snapshot.get(
+                    "missing_realized_tickets", []
+                ),
+                raw_text=raw_text[:240],
+            )
+            _schedule_detached(notify(
+                f"⚠️ {provider_display_name(signal.channel)}\n"
+                f"NO SE PUDO ASEGURAR LA CESTA\n\n"
+                f"El proveedor pidió dejarla sin riesgo, pero faltan datos "
+                f"para demostrar un resultado protegido en {currency}.\n\n"
+                f"Se mantienen todas las posiciones y sus niveles actuales."
+            ))
+            return "deferred"
 
     elif action == "CLOSE_FIRST":
         # CONTEXTUAL por RECORRIDO RESTANTE (commit 2026-05-15).
@@ -4015,7 +4330,7 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
         open_positions = await _run(executor.position_pnls, all_tickets)
         if not open_positions:
             print(f"[Acción] CLOSE_FIRST: sin posiciones abiertas — nada que cerrar")
-            return
+            return "deferred"
         open_set = {t for t, _ in open_positions}
 
         # Precio actual para calcular recorrido
@@ -4094,7 +4409,7 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
                     f"No se cerraron posiciones ni se cambiaron los TP. "
                     f"Una orden explícita de BE se procesa por separado."
                 ))
-                return
+                return "deferred"
             # decision == "close_half" → hay profit real, cae a la lógica
             # clásica de abajo (cerrar mitad a mercado, asegurar parciales).
 
@@ -4144,6 +4459,7 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
                       current_price=cur_price,
                       mode="contextual_recorrido")
         logger.log_action(signal, action)
+        return "requested"
 
     elif action == "CLOSE_AT_TP" and price:
         # price viene como número de TP (1..5). En modo escalonado, posición i
@@ -4156,18 +4472,21 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
                 signal, target, label=f"CLOSE_AT_TP{tp_idx+1} #{target}"
             )
             logger.log_action(signal, action, float(price))
+            return "requested"
         else:
             # No hay ticket asignado a ese TP (ej: el canal cierra TP4 pero solo
             # hay 2 tickets abiertos). Lo registramos sin tocar nada — el canal
             # probablemente está informando que YA cerró ese TP en su lado.
             print(f"[Acción] CLOSE_AT_TP{int(price)} sin ticket asignado "
                   f"(tickets={len(tickets)}). Ignorado.")
+            return "ignored"
 
     elif action == "MOVE_SL_TO_BE":
-        await _apply_exact_break_even(
+        applied = await _apply_exact_break_even(
             signal,
             source="MOVE_SL_TO_BE_action",
         )
+        return "requested" if applied else "failed"
     elif action == "MOVE_SL_TO_PRICE" and price:
         for t in signal.all_filled_tickets:
             pending_actions.enqueue_modify_sl(
@@ -4178,6 +4497,7 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
                 signal, t, price, label=f"SL→{price} pend #{t}"
             )
         logger.log_action(signal, action, price)
+        return "requested"
 
     elif action == "PROTECT_AND_NOTIFY":
         # Notificar al usuario con contexto completo del trade. NO actuar
@@ -4188,6 +4508,8 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
             await notify_ambiguous_decision(signal, classification, raw_text)
         except Exception as e:
             print(f"[Acción] PROTECT_AND_NOTIFY error: {e}")
+            return "failed"
+        return "deferred"
 
     elif action == "SIGNAL_UPDATED":
         # Trader dijo "entries cambiaron". Lógica acordada con usuario:
@@ -4229,8 +4551,10 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
                           action_taken=("close" if pl > 0.5
                                         else "sl_to_current" if pl > -2
                                         else "no_action"))
+            return "requested" if pl > -2 else "deferred"
         except Exception as e:
             print(f"[Acción] SIGNAL_UPDATED error: {e}")
+            return "failed"
 
     elif action == "HIGH_RISK_WARNING":
         # Solo notificar — no tocar el trade. La estrategia ya tiene
@@ -4246,6 +4570,9 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
             )
         except Exception as e:
             print(f"[Acción] HIGH_RISK_WARNING notify error: {e}")
+        return "ignored"
+
+    return "ignored"
 
 
 # Alias retrocompat: código antiguo que llamaba a _execute_action(sig, dict)
@@ -6105,16 +6432,12 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True,
             )
             return
 
-        sig, route = _resolve_management_reply_target(
+        sig, route = await _resolve_management_reply_target_with_ancestry(
+            msg,
             "canal2",
-            reply_id,
+            int(reply_id),
             allow_single_open_fallback=False,
         )
-        if sig is None and route != "target_signal_closed":
-            sig, route = await _recover_canal2_management_target_from_reply_root(
-                msg,
-                int(reply_id),
-            )
         if sig:
             # PRIMERO: si el reply trae TPs/SL reales (formato típico de
             # Canal 2: "TP1 4689.50\nSL 4701"), actualizar la señal con esos
@@ -6913,7 +7236,12 @@ async def _process_canal1_new(msg):
     # Mensaje de gestión (reply a una señal)
     if msg.reply_to and msg.reply_to.reply_to_msg_id:
         reply_id = msg.reply_to.reply_to_msg_id
-        sig, route = _resolve_management_reply_target("canal1", reply_id)
+        sig, route = await _resolve_management_reply_target_with_ancestry(
+            msg,
+            "canal1",
+            int(reply_id),
+            allow_single_open_fallback=True,
+        )
         if sig:
             # Gemini con contexto del trade (dirección, P&L, posiciones, etc.)
             cl = await classify_async(text, signal=sig)
@@ -9080,10 +9408,14 @@ if config.TEST_CHANNEL_ID:
             # tickets se quedaban con los TPs provisionales del predictor.
             if msg.reply_to and msg.reply_to.reply_to_msg_id:
                 reply_id = msg.reply_to.reply_to_msg_id
-                sig, route = _resolve_management_reply_target(
-                    "canal2",
-                    reply_id,
-                    allow_cross_channel=True,
+                sig, route = await (
+                    _resolve_management_reply_target_with_ancestry(
+                        msg,
+                        "canal2",
+                        int(reply_id),
+                        allow_single_open_fallback=True,
+                        allow_cross_channel=True,
+                    )
                 )
                 if sig:
                     parsed_in_reply = parse_canal2(text)

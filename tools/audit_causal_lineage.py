@@ -14,6 +14,7 @@ from typing import Iterable, Optional
 
 
 TELEGRAM_RAW_EVENTS = {"telegram_raw"}
+TELEGRAM_MEDIA_EVIDENCE_EVENTS = {"telegram_media_capture_stored"}
 TELEGRAM_DECISION_START_EVENTS = {"telegram_decision_started"}
 TELEGRAM_PROCESSED_EVENTS = {"telegram_processed"}
 TELEGRAM_FAILED_DECISION_EVENTS = {"telegram_processing_failed"}
@@ -66,6 +67,7 @@ ACTION_TERMINAL_EVENTS = {
 }
 RELEVANT_EVENTS = (
     TELEGRAM_RAW_EVENTS
+    | TELEGRAM_MEDIA_EVIDENCE_EVENTS
     | DECISION_START_EVENTS
     | DECISION_ROOT_EVENTS
     | ACTION_EVENTS
@@ -480,12 +482,35 @@ def _semantic_is_edit(update_kind) -> Optional[bool]:
 
 
 def _telegram_identity(row: dict) -> tuple:
+    # ``update_kind`` is delivery transport, not immutable message identity.
+    # The same Telegram revision can legitimately arrive as live ``edit`` and
+    # later as ``poll_new``; each raw row validates its own is_edit flag.
     return (
         row.get("channel"),
         row.get("chat_id"),
         row.get("message_id"),
         row.get("revision_token"),
-        _semantic_is_edit(row.get("update_kind")),
+    )
+
+
+def _has_stored_media_evidence(row: dict) -> bool:
+    size_bytes = row.get("size_bytes")
+    attempts = row.get("attempts")
+    return (
+        row.get("ev") in TELEGRAM_MEDIA_EVIDENCE_EVENTS
+        and isinstance(row.get("message_revision_id"), str)
+        and bool(row.get("message_revision_id"))
+        and _valid_sha256(row.get("media_sha256"))
+        and isinstance(size_bytes, int)
+        and not isinstance(size_bytes, bool)
+        and size_bytes > 0
+        and isinstance(row.get("storage_path"), str)
+        and bool(row.get("storage_path"))
+        and isinstance(row.get("archive_stream"), str)
+        and bool(row.get("archive_stream"))
+        and isinstance(attempts, int)
+        and not isinstance(attempts, bool)
+        and attempts > 0
     )
 
 
@@ -1676,6 +1701,7 @@ def audit_rows(
     decision_final_rows = defaultdict(list)
     raw_message_identities = defaultdict(set)
     raw_message_rows = defaultdict(list)
+    stored_media_rows = defaultdict(list)
     raw_message_revisions = set()
     processed_message_revisions = set()
     processed_decisions = set()
@@ -1712,6 +1738,12 @@ def audit_rows(
                 _telegram_identity(row)
             )
             raw_message_rows[str(message_revision_id)].append(row)
+        if (
+            event_name in TELEGRAM_MEDIA_EVIDENCE_EVENTS
+            and message_revision_id
+            and _has_stored_media_evidence(row)
+        ):
+            stored_media_rows[str(message_revision_id)].append(row)
         if (
             event_name in (DECISION_START_EVENTS | DECISION_ROOT_EVENTS)
             and decision_id
@@ -2390,6 +2422,12 @@ def audit_rows(
             event_name in TELEGRAM_RAW_EVENTS
             and row.get("has_media") is True
             and not _valid_sha256(row.get("media_sha256"))
+            and not stored_media_rows.get(str(message_revision_id))
+        ):
+            status = "missing_media_evidence"
+        elif (
+            event_name in TELEGRAM_MEDIA_EVIDENCE_EVENTS
+            and not _has_stored_media_evidence(row)
         ):
             status = "missing_media_evidence"
         elif (

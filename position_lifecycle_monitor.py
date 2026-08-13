@@ -526,6 +526,18 @@ def _classify_closures(signal: Signal) -> list[dict]:
                 })
                 continue
 
+            if ticket in getattr(signal, "risk_free_close_tickets", []):
+                out.append({
+                    "ticket": int(ticket),
+                    "exit_price": round(exit_price, 2),
+                    "pnl": round(pnl_total, 2),
+                    "closed_by_tag": "SECURE_BASKET_PARTIAL",
+                    "distance_to_tag": None,
+                    **evidence,
+                    "classification_source": "bot_state",
+                })
+                continue
+
             # SL EFECTIVO de este ticket: si un mensaje de gestión movió su
             # SL (BE, MOVE_SL_TO_PRICE, trailing) usamos el SL real que
             # pending_actions registró en sl_by_ticket al confirmarlo en MT5;

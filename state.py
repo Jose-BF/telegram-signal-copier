@@ -150,6 +150,10 @@ class Signal:
     # en vez de "MANUAL" (no son TPs ni SL, son cierres de gestión).
     close_first_tickets: list = field(default_factory=list)
 
+    # Cierres parciales ordenados para dejar una cesta matematicamente
+    # protegida. El monitor los distingue de TP, SL y cierres manuales.
+    risk_free_close_tickets: list = field(default_factory=list)
+
     # ─── Estrategia C — CLOSE_FIRST rescate BE (canal2) ─────────────────────
     # Cuando llega CLOSE_FIRST SIN profit, en vez de cerrar a mercado en
     # pérdida ponemos TP=BE en todas las posiciones y armamos un time-stop.

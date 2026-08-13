@@ -693,8 +693,14 @@ class PendingQueue:
                 continue
             last_tick_ms = tick.time_msc
 
-            still_pending: list[PendingAction] = []
-            for act in self._actions:
+            # Iterate over a stable snapshot, but remove terminal actions from
+            # the live queue immediately. If another Telegram update arrives
+            # while a later leg awaits MT5, add() must not coalesce into an
+            # earlier leg that has already completed in this same sweep.
+            batch = list(self._actions)
+            for act in batch:
+                if not any(queued is act for queued in self._actions):
+                    continue
                 # MODIFY_SLTP pierde sentido si la señal ya está cerrada: la posición
                 # puede haber sido cerrada por SL/TP, o por una orden de CLOSE_ALL.
                 # CLOSE_POSITION y CANCEL_PENDING, en cambio, son precisamente las
@@ -702,10 +708,18 @@ class PendingQueue:
                 if act.kind == "MODIFY_SLTP" and act.signal.status != "open":
                     print(f"[Pending] Descartado (señal cerrada): {act.label}")
                     self._log_failure(act, reason="signal_closed_during_retry")
+                    self._actions = [
+                        queued for queued in self._actions
+                        if queued is not act
+                    ]
                     continue
                 if act.expired():
                     print(f"[Pending] Descartado (timeout {act.timeout_s}s): {act.label}")
                     self._log_failure(act, reason="timeout")
+                    self._actions = [
+                        queued for queued in self._actions
+                        if queued is not act
+                    ]
                     continue
 
                 # Batch E: wrap _try_once en try/except. Si executor crashea
@@ -796,13 +810,18 @@ class PendingQueue:
                     if (act.kind != "MODIFY_SLTP"
                             or cls_done in ("OK", "POSITION_GONE")):
                         self._log_done(act)
+                    self._actions = [
+                        queued for queued in self._actions
+                        if queued is not act
+                    ]
                 elif result == "DROP":
                     print(f"[Pending] Descartado (error permanente {act.last_retcode}): {act.label}")
                     self._log_failure(act, reason=f"permanent_error_retcode_{act.last_retcode}")
-                else:
-                    still_pending.append(act)
+                    self._actions = [
+                        queued for queued in self._actions
+                        if queued is not act
+                    ]
 
-            self._actions = still_pending
             if self._spool_fingerprint() != spool_before:
                 self._persist_spool()
             await asyncio.sleep(0)

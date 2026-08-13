@@ -97,6 +97,8 @@ BOT_BROKER_CONTRACT_POLL_SEC = _float(
     "BOT_BROKER_CONTRACT_POLL_SEC", 300.0)
 BOT_BROKER_CONTRACT_NOTIFY_FAILURES = int(
     os.getenv("BOT_BROKER_CONTRACT_NOTIFY_FAILURES", "2"))
+BOT_BROKER_CONTRACT_RECOVERY_SUCCESSES = int(
+    os.getenv("BOT_BROKER_CONTRACT_RECOVERY_SUCCESSES", "3"))
 BOT_BROKER_MONEY_CONTRACT_FILE = os.getenv(
     "BOT_BROKER_MONEY_CONTRACT_FILE",
     str(runtime_paths.data_path("broker_money_contract.json")),
@@ -266,6 +268,13 @@ STRATEGY_BE_CLOSE_NEGATIVE_TOLERANCE_USD = _float(
 STRATEGY_BE_CLOSE_RESCUE_TIMEOUT_S = int(os.getenv(
     "STRATEGY_BE_CLOSE_RESCUE_TIMEOUT_S",
     str(STRATEGY_C2_CLOSE_FIRST_BE_TIMEOUT_S)))
+
+# Margen monetario que debe quedar protegido despues de interpretar una orden
+# generica del proveedor para dejar la cesta "risk free". Se expresa siempre
+# en la divisa real de la cuenta y no altera entradas, lotaje, SL ni TP base.
+BOT_RISK_FREE_SAFETY_BUFFER_ACCOUNT = _float(
+    "BOT_RISK_FREE_SAFETY_BUFFER_ACCOUNT", 1.0,
+)
 
 # ─── Double Market: doble entrada inicial con TPs distintos ─────────────────
 #
