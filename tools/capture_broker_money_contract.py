@@ -17,6 +17,7 @@ if str(REPO_DIR) not in sys.path:
     sys.path.insert(0, str(REPO_DIR))
 
 import runtime_paths
+from broker_market_sessions import broker_session_is_open_utc
 
 
 DEFAULT_OUTPUT = (
@@ -239,10 +240,45 @@ def _validated_mql_evidence(
         python_tick_basis, python_tick_advance = valid_tick_bases[0]
     else:
         stalled_tick_delta = python_tick_epoch - last_server_tick
-        if abs(stalled_tick_delta) > 2:
-            raise RuntimeError("MQL5/Python server tick time mismatch")
-        python_tick_basis = "mql_last_server_tick"
-        python_tick_advance = stalled_tick_delta
+        if abs(stalled_tick_delta) <= 2:
+            python_tick_basis = "mql_last_server_tick"
+            python_tick_advance = stalled_tick_delta
+        else:
+            # MT5 keeps separate MQL and Python symbol caches while closed.
+            captured_gmt_dt = datetime.fromtimestamp(
+                captured_gmt,
+                tz=timezone.utc,
+            )
+            market_session_open = broker_session_is_open_utc(
+                captured_gmt_dt,
+                utc_offset_seconds=rounded_offset,
+            )
+            closed_tick_ages = {
+                "utc_epoch_market_closed": captured_gmt - python_tick_epoch,
+                "broker_server_epoch_market_closed": (
+                    captured_server - python_tick_epoch
+                ),
+            }
+            valid_closed_tick_bases = [
+                (basis, age)
+                for basis, age in closed_tick_ages.items()
+                if 0 <= age <= ZERO_MULTIPLIER_BRACKET_MAX_SECONDS
+            ]
+            if (
+                market_session_open
+                or not valid_closed_tick_bases
+            ):
+                raise RuntimeError("MQL5/Python server tick time mismatch")
+            python_tick_basis, python_tick_age = min(
+                valid_closed_tick_bases,
+                key=lambda candidate: candidate[1],
+            )
+            python_tick_advance = -python_tick_age
+
+    market_session_open = broker_session_is_open_utc(
+        datetime.fromtimestamp(captured_gmt, tz=timezone.utc),
+        utc_offset_seconds=rounded_offset,
+    )
 
     cross_checks = {
         "swap_mode": (
@@ -322,6 +358,7 @@ def _validated_mql_evidence(
         "python_tick_epoch": python_tick_epoch,
         "python_tick_time_basis": python_tick_basis,
         "python_tick_advance_seconds": python_tick_advance,
+        "market_session_open": market_session_open,
         "evidence_age_seconds": round(age_seconds, 3),
         "utc_offset_seconds": rounded_offset,
     }

@@ -487,6 +487,94 @@ def test_capture_accepts_matching_stalled_ticks_during_rollover_pause(tmp_path):
     assert time_evidence["mql_tick_fresh"] is False
 
 
+def test_capture_accepts_divergent_stale_caches_while_market_is_closed(
+    tmp_path,
+):
+    from types import SimpleNamespace
+    from tools import capture_broker_money_contract
+
+    native_time = datetime(2026, 8, 16, 15, 39, 21, tzinfo=timezone.utc)
+    captured_server_tick = int(native_time.timestamp()) + 3 * 3600
+    mql_stale_tick = captured_server_tick - 240_966
+    python_stale_tick = int(native_time.timestamp()) - 142_942
+    evidence = tmp_path / "broker_swap_evidence.csv"
+    _write_mql_swap_evidence(
+        evidence,
+        captured_gmt_epoch=int(native_time.timestamp()),
+        last_server_tick_epoch=mql_stale_tick,
+    )
+    instrument = SimpleNamespace(
+        name="XAUUSD",
+        point=0.01,
+        trade_contract_size=100.0,
+        currency_profit="USD",
+        swap_mode=1,
+        swap_long=-75.82,
+        swap_short=27.41,
+        swap_rollover3days=3,
+    )
+    python_tick = datetime.fromtimestamp(
+        python_stale_tick,
+        tz=timezone.utc,
+    )
+
+    snapshot = capture_broker_money_contract.capture_swap_snapshot(
+        _mt5_with_tick(python_tick),
+        instrument,
+        account_server="VantageMarkets-Demo",
+        captured_at=native_time + timedelta(seconds=2),
+        mql_evidence_path=evidence,
+    )
+
+    time_evidence = snapshot["time_evidence"]
+    assert time_evidence["python_tick_time_basis"] == (
+        "utc_epoch_market_closed"
+    )
+    assert time_evidence["python_tick_advance_seconds"] == -142_942
+    assert time_evidence["market_session_open"] is False
+    assert time_evidence["server_tick_lag_seconds"] == 240_966
+    assert time_evidence["mql_tick_fresh"] is False
+
+
+def test_capture_rejects_divergent_stale_caches_while_market_is_open(
+    tmp_path,
+):
+    from types import SimpleNamespace
+    from tools import capture_broker_money_contract
+
+    native_time = datetime(2026, 8, 17, 10, 0, tzinfo=timezone.utc)
+    captured_server_tick = int(native_time.timestamp()) + 3 * 3600
+    evidence = tmp_path / "broker_swap_evidence.csv"
+    _write_mql_swap_evidence(
+        evidence,
+        captured_gmt_epoch=int(native_time.timestamp()),
+        last_server_tick_epoch=captured_server_tick - 3600,
+    )
+    instrument = SimpleNamespace(
+        name="XAUUSD",
+        point=0.01,
+        trade_contract_size=100.0,
+        currency_profit="USD",
+        swap_mode=1,
+        swap_long=-75.82,
+        swap_short=27.41,
+        swap_rollover3days=3,
+    )
+
+    try:
+        capture_broker_money_contract.capture_swap_snapshot(
+            _mt5_with_tick(native_time - timedelta(minutes=30)),
+            instrument,
+            account_server="VantageMarkets-Demo",
+            captured_at=native_time + timedelta(seconds=2),
+            mql_evidence_path=evidence,
+        )
+    except RuntimeError as exc:
+        assert str(exc) == "MQL5/Python server tick time mismatch"
+    else:
+        raise AssertionError("divergent live-session caches must block")
+
+
 def test_capture_fails_closed_when_native_mql_swap_evidence_is_missing(
     tmp_path,
 ):

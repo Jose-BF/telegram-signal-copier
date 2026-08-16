@@ -54,6 +54,33 @@ def broker_session_close_utc(
     )
 
 
+def broker_session_is_open_utc(
+    at_utc: datetime,
+    *,
+    utc_offset_seconds: int | None,
+) -> bool:
+    """Return whether XAUUSD is inside the broker's quoted session."""
+    offset_seconds = _verified_offset_seconds(utc_offset_seconds)
+    if at_utc.tzinfo is None:
+        raise ValueError("at_utc must be timezone-aware")
+
+    server_time = at_utc.astimezone(timezone.utc) + timedelta(
+        seconds=offset_seconds,
+    )
+    weekday = server_time.weekday()
+    second_of_day = (
+        server_time.hour * 60 * 60
+        + server_time.minute * 60
+        + server_time.second
+        + server_time.microsecond / 1_000_000
+    )
+    if weekday <= 3:
+        return _OPEN_SECOND <= second_of_day < _WEEKDAY_CLOSE_SECOND
+    if weekday == 4:
+        return _OPEN_SECOND <= second_of_day < _FRIDAY_CLOSE_SECOND
+    return False
+
+
 def filter_tradable_ticks(
     ticks: pd.DataFrame,
     *,
