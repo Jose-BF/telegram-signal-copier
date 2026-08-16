@@ -1126,6 +1126,76 @@ def test_runtime_direction_and_execution_do_not_invent_provider_signal():
     }
 
 
+def test_explicitly_unknown_canal1_sticker_is_not_a_formal_signal():
+    events = [
+        _raw(
+            "canal1",
+            21415,
+            sticker_id=5996907250214509530,
+            has_document=True,
+            ts="2026-08-14T15:54:36.245+00:00",
+            date_utc="2026-08-14T15:54:36+00:00",
+        ),
+        {
+            "ts": "2026-08-14T15:54:36.247+00:00",
+            "sig": "canal1_21415",
+            "ev": "sticker_unknown",
+            "sticker_id": 5996907250214509530,
+            "configured_buy": 6255969549976339155,
+            "configured_sell": 6256057072819896994,
+        },
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+
+    assert report["summary"]["provider_signals"] == 0
+    record = report["signals"][0]
+    assert record["provider_signal_id"] == "canal1_21415"
+    assert record["record_type"] == "unknown_candidate"
+    assert record["record_type_reason"] == "unknown_sticker"
+    assert record["semantic_status"] == "needs_review"
+    assert record["entry_contract"]["blockers"] == [
+        "missing_direction",
+        "provider_record_not_formal_signal"
+    ]
+
+
+def test_canal2_immediate_market_entry_is_complete_without_a_range():
+    events = [
+        _raw(
+            "canal2",
+            1508,
+            "High Risk\n\nBuy Gold Now",
+            ts="2026-08-13T14:30:18.177+00:00",
+            date_utc="2026-08-13T14:30:18+00:00",
+        ),
+        _raw(
+            "canal2",
+            1508,
+            "High Risk\n\nBuy Gold Now\n\n"
+            "TP1 4363\nTP2 4365\nTP3 4367\nTP4 4369\nSL 4351",
+            update_kind="edit",
+            is_edit=True,
+            ts="2026-08-13T14:30:22.000+00:00",
+            date_utc="2026-08-13T14:30:18+00:00",
+            edit_date_utc="2026-08-13T14:30:21+00:00",
+        ),
+    ]
+
+    signal = provider_signal_catalog.build_catalog_report(events, [
+        {"sig_id": "canal2_1508", "channel": "canal2"},
+    ])["signals"][0]
+
+    assert signal["record_type"] == "formal_signal"
+    assert signal["effective_range"] is None
+    assert signal["effective_tps"] == [4363.0, 4365.0, 4367.0, 4369.0]
+    assert signal["effective_sl"] == 4351.0
+    assert signal["semantic_status"] == "complete"
+    assert signal["semantic_gaps"] == []
+    assert signal["entry_contract"]["status"] == "ready"
+    assert signal["entry_contract"]["trigger_kind"] == "text"
+
+
 def test_text_trigger_wins_before_late_sticker_understanding():
     events = [
         _raw(

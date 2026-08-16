@@ -509,6 +509,8 @@ def _deterministic_management_semantics(text: str) -> dict | None:
 def _record_type_for_root(row: dict, *, formal: bool) -> tuple[str, str]:
     if formal:
         return "formal_signal", "entry_or_execution_evidence"
+    if row.get("sticker_id") is not None:
+        return "unknown_candidate", "unknown_sticker"
     text = str(row.get("text") or "")
     if _parse_zone_plan(text) is not None:
         return "zone_plan", "provider_multi_zone_plan"
@@ -1626,12 +1628,19 @@ def _finalize(signal: dict) -> dict:
 
     gaps: list[str] = []
     root_seen = signal.pop("_root_message_seen")
+    immediate_market_entry = (
+        signal["channel"] == "canal2"
+        and any(
+            is_canal2_entry(revision.get("text") or "")
+            for revision in signal["revisions"]
+        )
+    )
     if signal["record_type"] == "formal_signal":
         if not root_seen:
             gaps.append("missing_root_message")
         if not signal.get("direction"):
             gaps.append("missing_direction")
-        if not signal.get("effective_range"):
+        if not signal.get("effective_range") and not immediate_market_entry:
             gaps.append("missing_entry_range")
         if not signal.get("effective_tps"):
             gaps.append("missing_tps")
@@ -2087,6 +2096,14 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
     for candidates in understood_directions_by_key.values():
         candidates.sort(key=_causal_row_sort_key)
 
+    unknown_sticker_keys = {
+        parsed
+        for row in events
+        if row.get("ev") == "sticker_unknown"
+        and (parsed := _message_id_from_sig(row.get("sig"))) is not None
+        and parsed[0] == "canal1"
+    }
+    paired_canal1_sticker_roots = set(canal1_text_roots.values())
     root_keys: set[tuple[str, int]] = set()
     for row in raw_events:
         channel = str(row.get("channel") or "")
@@ -2102,14 +2119,18 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
             continue
         if canal2_entry:
             root_keys.add((channel, canal2_root(message_id)))
-        elif channel == "canal1" and (
-            row.get("sticker_id") is not None
-            or (
-                message_id not in canal1_text_roots
-                and is_canal1_signal_text(text)
-            )
-        ):
-            root_keys.add((channel, message_id))
+        elif channel == "canal1":
+            if message_id in canal1_text_roots and is_canal1_signal_text(text):
+                root_keys.add((channel, canal1_text_roots[message_id]))
+            elif row.get("sticker_id") is not None:
+                key = (channel, message_id)
+                if (
+                    key not in unknown_sticker_keys
+                    or message_id in paired_canal1_sticker_roots
+                ):
+                    root_keys.add(key)
+            elif is_canal1_signal_text(text):
+                root_keys.add((channel, message_id))
 
     for channel, message_id in root_keys:
         ensure(

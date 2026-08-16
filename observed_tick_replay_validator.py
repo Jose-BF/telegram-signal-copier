@@ -31,6 +31,7 @@ SCHEMA_VERSION = 2
 PRICE_EPSILON = 0.01
 ALIGNMENT_NEAR_SECONDS = 5
 CLOSE_TOUCH_TIME_TOLERANCE_SECONDS = 5
+BROKER_STOP_EXECUTION_DELAY_MAX_SECONDS = 30
 CAUSAL_ORDERING_RACE_TOLERANCE_MS = 100
 CAUSAL_PATH_CONTRACT = "causal_path_v3"
 FILL_PRICE_AUTHORITY = "mt5_deals"
@@ -352,6 +353,48 @@ def _broker_close_time_utc(trade: dict, ticket: dict) -> datetime | None:
         )
     except (TypeError, ValueError, OSError):
         return _parse_dt(ticket.get("close_dt_utc"))
+
+
+def _broker_confirmed_stop_execution_delay(
+    trade: dict,
+    ticket: dict,
+    first_touch: dict,
+    expected_reason: str,
+) -> float | None:
+    """Return a narrow, broker-confirmed SL execution delay in seconds."""
+    if expected_reason not in {"sl", "be"}:
+        return None
+    close_deal = ticket.get("close_deal")
+    if not isinstance(close_deal, dict):
+        return None
+    try:
+        if int(close_deal.get("reason")) != 4:
+            return None
+        if str(close_deal.get("position_id")) != str(ticket.get("ticket")):
+            return None
+        deal_price = float(close_deal.get("price"))
+        close_price = float(ticket.get("close_price"))
+        touch_level = float(first_touch.get("level"))
+    except (TypeError, ValueError):
+        return None
+    if (
+        abs(deal_price - close_price) > PRICE_EPSILON
+        or abs(touch_level - close_price) > PRICE_EPSILON
+    ):
+        return None
+
+    touch_dt = _parse_dt(first_touch.get("time_utc"))
+    close_dt = _broker_close_time_utc(trade, ticket)
+    if touch_dt is None or close_dt is None:
+        return None
+    delay_s = (close_dt - touch_dt).total_seconds()
+    if not (
+        CLOSE_TOUCH_TIME_TOLERANCE_SECONDS
+        < delay_s
+        <= BROKER_STOP_EXECUTION_DELAY_MAX_SECONDS
+    ):
+        return None
+    return delay_s
 
 
 def _near_close_requested_transition(
@@ -869,10 +912,26 @@ def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
             or late_ack_touch is not None
         )
     )
-    if delayed_batch_close:
-        limitations = [
-            f"per_ticket_close_time_unavailable:{label}",
-        ]
+    broker_stop_execution_delay = None
+    if (
+        time_mismatch_blocker is not None
+        and result_blockers == [time_mismatch_blocker]
+    ):
+        broker_stop_execution_delay = _broker_confirmed_stop_execution_delay(
+            trade,
+            ticket,
+            first_touch,
+            expected_reason,
+        )
+    if delayed_batch_close or broker_stop_execution_delay is not None:
+        limitations = []
+        if delayed_batch_close:
+            limitations.append(f"per_ticket_close_time_unavailable:{label}")
+        else:
+            limitations.append(
+                f"broker_stop_execution_delay_observed:{label}:"
+                f"{broker_stop_execution_delay:+.3f}s"
+            )
         if late_ack_touch is not None:
             first_touch = late_ack_touch
             limitations.append(f"level_acknowledgement_delayed:{label}")

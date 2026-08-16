@@ -235,9 +235,14 @@ def _validated_mql_evidence(
         for basis, advance in tick_advances.items()
         if -2 <= advance <= age_seconds + 5
     ]
-    if not valid_tick_bases:
-        raise RuntimeError("MQL5/Python server tick time mismatch")
-    python_tick_basis, python_tick_advance = valid_tick_bases[0]
+    if valid_tick_bases:
+        python_tick_basis, python_tick_advance = valid_tick_bases[0]
+    else:
+        stalled_tick_delta = python_tick_epoch - last_server_tick
+        if abs(stalled_tick_delta) > 2:
+            raise RuntimeError("MQL5/Python server tick time mismatch")
+        python_tick_basis = "mql_last_server_tick"
+        python_tick_advance = stalled_tick_delta
 
     cross_checks = {
         "swap_mode": (

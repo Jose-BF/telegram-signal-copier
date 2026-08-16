@@ -304,6 +304,68 @@ def test_delayed_batch_stop_accepts_late_level_ack_only_when_touch_is_unchanged(
     ]
 
 
+def test_broker_confirmed_stop_execution_lag_is_preserved_as_a_limitation():
+    ticket = _ticket(
+        open_price=4377.48,
+        close_dt_utc="2026-07-06T10:00:07+00:00",
+        close_price=4377.48,
+        close_reason="sl",
+        close_deal={
+            "position_id": 101,
+            "reason": 4,
+            "price": 4377.48,
+            "comment": "[sl 4377.48]",
+        },
+        close_event=None,
+        sl_history=[{
+            "ts": "2026-07-06T09:59:50+00:00",
+            "status": "confirmed",
+            "sl": 4377.48,
+        }],
+        tp_history=[{
+            "ts": "2026-07-06T09:59:50+00:00",
+            "status": "confirmed",
+            "tp": 4368.0,
+        }],
+    )
+    trade = _trade(
+        direction="SELL",
+        open_dt_utc="2026-07-06T09:59:50+00:00",
+        close_dt_utc=ticket["close_dt_utc"],
+    )
+    ticks = _ticks([
+        {
+            "time_utc": "2026-07-06T09:59:50+00:00",
+            "bid": 4377.20,
+            "ask": 4377.30,
+        },
+        {
+            "time_utc": "2026-07-06T10:00:01+00:00",
+            "bid": 4377.80,
+            "ask": 4377.99,
+        },
+        {
+            "time_utc": "2026-07-06T10:00:07+00:00",
+            "bid": 4377.10,
+            "ask": 4377.21,
+        },
+    ])
+
+    result = observed_tick_replay_validator.validate_ticket(
+        trade,
+        ticket,
+        ticks,
+    )
+
+    assert result["status"] == "delayed_close_observation"
+    assert result["blockers"] == []
+    assert result["first_touch"]["time_utc"] == "2026-07-06T10:00:01+00:00"
+    assert result["observed_close_utc"] == "2026-07-06T10:00:07+00:00"
+    assert result["limitations"] == [
+        "broker_stop_execution_delay_observed:101:+6.000s"
+    ]
+
+
 def test_delayed_batch_stop_rejects_late_level_ack_when_touch_time_changes():
     ticket = _ticket(
         open_price=4122.66,
