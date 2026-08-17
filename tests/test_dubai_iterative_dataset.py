@@ -46,6 +46,10 @@ def _trade(signal_id="canal1_1", channel="canal1", direction="BUY"):
                 "volume": 0.01,
                 "open_dt_utc": "2026-07-27T09:00:00+00:00",
                 "open_price": 100.2,
+                "close_dt_utc": "2026-07-27T09:05:00.250+00:00",
+                "close_price": 102.0,
+                "close_reason": "tp",
+                "role": "market_a",
                 "pnl_net": 2.35,
                 "fill_event": {"ts": "2026-07-27T09:00:00.125+00:00"},
                 "tp_history": [
@@ -153,6 +157,15 @@ def test_loader_uses_fill_event_milliseconds_and_executable_quote_side(tmp_path)
     assert path.exit_quotes.tolist() == path.bid.tolist()
     assert path.legs[0].tp_events[0].level == 102.0
     assert path.legs[0].sl_events[0].level == 95.0
+    assert path.legs[0].closed_at.isoformat() == (
+        "2026-07-27T09:05:00.250000+00:00"
+    )
+    assert path.legs[0].close_price == 102.0
+    assert path.legs[0].close_reason == "tp"
+    assert path.legs[0].role == "market_a"
+    assert path.contract_size == 100.0
+    assert path.conversion_orientation == "identity"
+    assert path.currency_digits == 2
 
 
 def test_loader_freezes_paths_and_binds_money_contract(tmp_path):
@@ -215,6 +228,42 @@ def test_loader_preserves_requested_and_confirmed_level_events(tmp_path):
     assert [event.status for event in dataset.paths[0].legs[0].tp_events] == [
         "requested",
         "confirmed",
+    ]
+
+
+def test_provider_events_keep_telegram_actions_and_exclude_bot_execution(tmp_path):
+    trade = _trade()
+    trade["management"] = [
+        {
+            "ts": "2026-07-27T09:01:00.100+00:00",
+            "raw_text": "Close now",
+            "classified": "CLOSE_ALL",
+            "confidence": 0.95,
+        }
+    ]
+    trade["timeline"] = [
+        {
+            "ts": "2026-07-27T09:01:00.200+00:00",
+            "ev": "mt5_close_requested",
+            "ticket": 101,
+        }
+    ]
+    replay = _write_jsonl(tmp_path / "replay.jsonl", [trade])
+    audit = _write_jsonl(
+        tmp_path / "audit.jsonl",
+        [{"sig_id": "canal1_1", "status": "exact", "blockers": []}],
+    )
+
+    dataset = load_dubai_dataset(
+        replay_path=replay,
+        audit_path=audit,
+        market_ticks=FakeTickSource({"2026-07-27": _ticks()}),
+        conversion_ticks=None,
+        money_contract=_money_contract(),
+    )
+
+    assert [event.action for event in dataset.paths[0].provider_events] == [
+        "CLOSE_ALL"
     ]
 
 

@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from research.dubai_iterative.contracts import SearchBudget, StrategyGenome
+from research.dubai_iterative.contracts import (
+    SearchBudget,
+    SearchSpace,
+    StrategyGenome,
+)
 
 
 def test_genome_fingerprint_is_stable_after_round_trip():
@@ -54,13 +58,25 @@ def test_budget_rejects_non_positive_limits():
         SearchBudget(max_generations=0)
 
 
-def test_genome_rejects_more_than_observed_dubai_exposure():
+def test_genome_allows_more_than_observed_dubai_exposure():
     candidate = StrategyGenome.baseline().with_change(
-        leg_count=4,
-        volume_weights=(0.02, 0.01, 0.01, 0.01),
+        leg_count=6,
+        volume_weights=(0.02, 0.02, 0.02, 0.02, 0.02, 0.02),
     )
 
-    assert candidate.validation_errors() == ("planned_volume_exceeds_0.04",)
+    assert candidate.validation_errors() == ()
+
+
+def test_search_space_exposure_bound_is_explicit_and_configurable():
+    candidate = StrategyGenome.baseline().with_change(
+        leg_count=6,
+        volume_weights=(0.05, 0.05, 0.05, 0.05, 0.05, 0.05),
+    )
+
+    assert SearchSpace(max_total_volume=0.20).validation_errors(candidate) == (
+        "outside_search_volume",
+    )
+    assert SearchSpace(max_total_volume=0.50).validation_errors(candidate) == ()
 
 
 def test_genome_rejects_incompatible_profit_lock():

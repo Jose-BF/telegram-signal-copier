@@ -43,9 +43,13 @@ class ProviderEvent:
 @dataclass(frozen=True)
 class DubaiLeg:
     ticket: str
+    role: str
     volume: float
     opened_at: datetime
     open_price: float
+    closed_at: datetime | None
+    close_price: float | None
+    close_reason: str | None
     actual_pnl_eur: Decimal
     tp_events: tuple[LevelEvent, ...]
     sl_events: tuple[LevelEvent, ...]
@@ -69,6 +73,9 @@ class DubaiPath:
     fx_ask: np.ndarray
     fx_age_ms: np.ndarray
     fx_valid: np.ndarray
+    contract_size: float
+    conversion_orientation: str
+    currency_digits: int
     market_evidence: tuple[Mapping[str, Any], ...]
     conversion_evidence: tuple[Mapping[str, Any], ...]
 
@@ -110,6 +117,7 @@ def load_dubai_dataset(
     if max_hold_minutes <= 0:
         raise ValueError("max_hold_minutes must be positive")
     account = money_contract.get("account") or {}
+    instrument = money_contract.get("instrument") or {}
     conversion = money_contract.get("conversion") or {}
     account_currency = str(account.get("currency") or "")
     currency_digits = account.get("currency_digits")
@@ -117,6 +125,9 @@ def load_dubai_dataset(
         raise ValueError("money contract is missing account currency")
     if isinstance(currency_digits, bool) or not isinstance(currency_digits, int):
         raise ValueError("money contract has invalid currency digits")
+    contract_size = _positive_float(instrument.get("contract_size"))
+    if contract_size is None:
+        raise ValueError("money contract has invalid contract size")
     orientation = str(conversion.get("orientation") or "")
     if orientation not in {
         "identity",
@@ -180,6 +191,11 @@ def load_dubai_dataset(
         last_fill_at = max(leg.opened_at for leg in legs)
         path_started_at = min(signal_observed_at, opened_at)
         horizon = last_fill_at + timedelta(minutes=max_hold_minutes)
+        actual_closes = [
+            leg.closed_at for leg in legs if leg.closed_at is not None
+        ]
+        if actual_closes:
+            horizon = max(horizon, max(actual_closes))
         market_frame, market_evidence, blockers = _load_tick_range(
             market_ticks,
             path_started_at,
@@ -259,6 +275,9 @@ def load_dubai_dataset(
             fx_ask=fx_ask,
             fx_age_ms=fx_age_ms,
             fx_valid=fx_valid,
+            contract_size=contract_size,
+            conversion_orientation=orientation,
+            currency_digits=currency_digits,
             market_evidence=tuple(market_evidence),
             conversion_evidence=tuple(conversion_evidence),
         ))
@@ -290,12 +309,19 @@ def _build_legs(trade: Mapping[str, Any]) -> tuple[DubaiLeg, ...]:
         )
         if volume is None or open_price is None or opened_at is None:
             continue
+        closed_at = _parse_datetime(ticket.get("close_dt_utc"))
+        close_price = _positive_float(ticket.get("close_price"))
+        close_reason = str(ticket.get("close_reason") or "") or None
         label = ticket.get("ticket") or ticket.get("position_ticket") or index
         legs.append(DubaiLeg(
             ticket=str(label),
+            role=str(ticket.get("role") or "unknown"),
             volume=volume,
             opened_at=opened_at,
             open_price=open_price,
+            closed_at=closed_at,
+            close_price=close_price,
+            close_reason=close_reason,
             actual_pnl_eur=_decimal(ticket.get("pnl_net")) or Decimal(0),
             tp_events=_level_events(ticket.get("tp_history") or [], "tp"),
             sl_events=_level_events(ticket.get("sl_history") or [], "sl"),
@@ -330,28 +356,31 @@ def _level_events(rows: list[Mapping[str, Any]], key: str) -> tuple[LevelEvent, 
 
 def _build_provider_events(trade: Mapping[str, Any]) -> tuple[ProviderEvent, ...]:
     events: list[ProviderEvent] = []
-    seen: set[tuple[datetime, str]] = set()
-    for collection in (trade.get("management") or [], trade.get("timeline") or []):
-        for row in collection:
-            if not isinstance(row, Mapping):
-                continue
-            observed_at = _parse_datetime(
-                row.get("observed_ts_utc") or row.get("ts") or row.get("timestamp")
-            )
-            action = str(
-                row.get("classified_action")
-                or row.get("action")
-                or row.get("ev")
-                or row.get("event")
-                or ""
-            ).upper()
-            if observed_at is None or not action:
-                continue
-            identity = (observed_at, action)
-            if identity in seen:
-                continue
-            seen.add(identity)
-            events.append(ProviderEvent(observed_at, action, dict(row)))
+    seen: set[tuple[datetime, str, str]] = set()
+    # `timeline` also contains the bot's later MT5 requests/results. Feeding
+    # those back into a counterfactual strategy would leak the original bot's
+    # decisions. `management` is the normalized causal Telegram layer.
+    for row in trade.get("management") or []:
+        if not isinstance(row, Mapping):
+            continue
+        observed_at = _parse_datetime(
+            row.get("observed_ts_utc") or row.get("ts") or row.get("timestamp")
+        )
+        action = str(
+            row.get("classified")
+            or row.get("classified_action")
+            or row.get("action")
+            or ""
+        ).upper()
+        if observed_at is None or not action:
+            continue
+        payload = dict(row)
+        payload_hash = _sha256_json(payload)
+        identity = (observed_at, action, payload_hash)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        events.append(ProviderEvent(observed_at, action, payload))
     return tuple(sorted(events, key=lambda event: (event.observed_at, event.action)))
 
 

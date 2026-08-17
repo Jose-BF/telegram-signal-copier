@@ -71,8 +71,10 @@ blocks. The first catalog covers:
 - entry at the observed signal, after a causal delay, after a pullback, after
   momentum confirmation, or no entry when an explicitly defined causal filter
   rejects it;
-- one to four positions while keeping maximum planned exposure at or below the
-  observed Dubai maximum of 0.04 lots;
+- any finite number of positions and any broker-valid lot allocation inside an
+  explicit per-run search envelope. The observed 0.04 lots is a comparison
+  baseline, never a universal ceiling. The envelope is configurable so a run
+  may test less or substantially more exposure without changing engine code;
 - equal or unequal volume allocation across provider targets;
 - provider targets, close-all at one provider target, fixed basket target,
   partial profit plus runner, and target compression or expansion;
@@ -143,6 +145,11 @@ The archive retains a frontier of profit, drawdown, worst day, stability and
 rule simplicity instead of one headline winner. Novelty quotas prevent the
 population from collapsing into tiny variations of one strategy.
 
+Raw EUR profit is always accompanied by profit per 0.01 lot, return over
+drawdown and worst-case exposure. This prevents the loop from presenting a
+larger bet as a better trading rule while still allowing larger or smaller
+lotage to be explored as a legitimate strategy dimension.
+
 The loop stops when its compute budget is exhausted or no frontier improves
 for a configured number of generations. Repeatedly changing a parameter by an
 insignificant amount does not count as progress.
@@ -175,7 +182,7 @@ formally closed.
 Candidates first pass hard gates:
 
 - complete row accounting and causal evidence;
-- maximum exposure no greater than 0.04 lots;
+- exposure inside the run's recorded and configurable search envelope;
 - no future information in any decision;
 - exact agreement between the fast engine and an independent reference engine;
 - deterministic reruns from the same source hashes and random seed;

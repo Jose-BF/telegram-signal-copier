@@ -9,7 +9,7 @@ import math
 from typing import Any, Mapping
 
 
-MAX_DUBAI_VOLUME = 0.04
+OBSERVED_DUBAI_VOLUME = 0.04
 
 
 @dataclass(frozen=True)
@@ -49,6 +49,52 @@ class SearchBudget:
             (deepest_lineage >= self.max_lineage_depth, "max_lineage_depth"),
         )
         return next((reason for reached, reason in checks if reached), None)
+
+
+@dataclass(frozen=True)
+class SearchSpace:
+    """Explicit, configurable envelope for one finite research run."""
+
+    min_total_volume: float = 0.01
+    max_total_volume: float = 0.20
+    max_legs: int = 12
+    volume_step: float = 0.01
+
+    def __post_init__(self) -> None:
+        for field_name in (
+            "min_total_volume",
+            "max_total_volume",
+            "volume_step",
+        ):
+            if not _positive_finite(getattr(self, field_name)):
+                raise ValueError(f"{field_name} must be positive and finite")
+        if self.max_total_volume < self.min_total_volume:
+            raise ValueError("max_total_volume must be at least min_total_volume")
+        if (
+            isinstance(self.max_legs, bool)
+            or not isinstance(self.max_legs, int)
+            or self.max_legs <= 0
+        ):
+            raise ValueError("max_legs must be a positive integer")
+
+    def validation_errors(self, genome: "StrategyGenome") -> tuple[str, ...]:
+        errors: list[str] = []
+        total = sum(genome.volume_weights)
+        tolerance = max(1e-12, self.volume_step * 1e-9)
+        if not (
+            self.min_total_volume - tolerance
+            <= total
+            <= self.max_total_volume + tolerance
+        ):
+            errors.append("outside_search_volume")
+        if genome.leg_count > self.max_legs:
+            errors.append("outside_search_leg_count")
+        for volume in genome.volume_weights:
+            steps = volume / self.volume_step
+            if abs(steps - round(steps)) > tolerance:
+                errors.append("outside_search_volume_step")
+                break
+        return tuple(errors)
 
 
 @dataclass(frozen=True)
@@ -162,14 +208,12 @@ class StrategyGenome:
 
         if self.schema_version != 1:
             errors.append("unsupported_schema_version")
-        if not 1 <= self.leg_count <= 4:
+        if self.leg_count < 1:
             errors.append("invalid_leg_count")
         if len(self.volume_weights) != self.leg_count:
             errors.append("volume_weight_count_mismatch")
         if any(not _positive_finite(value) for value in self.volume_weights):
             errors.append("invalid_volume_weight")
-        elif sum(self.volume_weights) > MAX_DUBAI_VOLUME + 1e-12:
-            errors.append("planned_volume_exceeds_0.04")
 
         if self.entry_mode != "actual_mt5" and not _positive_finite(self.entry_value):
             errors.append("missing_entry_value")

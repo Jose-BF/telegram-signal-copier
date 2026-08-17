@@ -102,8 +102,9 @@ class SearchBudget:
 `StrategyGenome` must include entry, leg allocation, target, BE, stop, profit-lock,
 time-exit, provider-management and causal-context fields. Its SHA-256 fingerprint
 comes from sorted canonical JSON and excludes parent IDs and human descriptions.
-`validation_errors()` rejects non-finite numbers, invalid state combinations,
-future-dependent features and planned volume above 0.04 lots.
+`validation_errors()` rejects non-finite numbers, invalid state combinations
+and future-dependent features. `SearchSpace` applies the explicit per-run leg,
+volume and broker-step envelope; 0.04 lots remains only the observed baseline.
 
 - [ ] **Step 4: Run tests and verify GREEN**
 
@@ -228,7 +229,9 @@ Expected: import fails because `engine.py` does not exist.
 
 - [ ] **Step 3: Implement deterministic state-machine evaluation**
 
-Precompute directional per-leg and basket price paths once. Evaluate rules in
+Precompute directional per-leg and basket price paths once. Allow both smaller
+and larger exposure than the observed 0.04 lots when the recorded `SearchSpace`
+permits it. Evaluate rules in
 this fixed priority: invalid evidence, emergency basket stop, explicit provider
 close when enabled, effective SL, target/partial close, profit lock, inactivity
 and absolute time limit. Every result records ticket closes, EUR P&L, maximum
