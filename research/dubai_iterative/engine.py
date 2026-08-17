@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 import math
 import re
 from typing import Iterable
@@ -936,29 +936,30 @@ def _money_minor(
     volume: float,
     index: int,
 ) -> tuple[int, bool]:
-    raw = (
-        _direction_sign(path.direction)
-        * (exit_price - entry_price)
-        * path.contract_size
-        * volume
+    raw = Decimal(_direction_sign(path.direction)) * (
+        Decimal(str(exit_price)) - Decimal(str(entry_price))
     )
+    raw *= Decimal(str(path.contract_size)) * Decimal(str(volume))
     orientation = path.conversion_orientation
     exact = orientation == "identity" or bool(path.fx_valid[index])
     if orientation == "account_base_profit_quote":
-        quote = float(path.fx_ask[index] if raw >= 0 else path.fx_bid[index])
+        quote = Decimal(str(
+            path.fx_ask[index] if raw >= 0 else path.fx_bid[index]
+        ))
         raw = raw / quote
     elif orientation == "profit_base_account_quote":
-        quote = float(path.fx_bid[index] if raw >= 0 else path.fx_ask[index])
+        quote = Decimal(str(
+            path.fx_bid[index] if raw >= 0 else path.fx_ask[index]
+        ))
         raw = raw * quote
     elif orientation != "identity":
         return 0, False
     return _round_minor(raw, path.currency_digits), exact
 
 
-def _round_minor(value: float, digits: int) -> int:
-    scale = 10 ** digits
-    scaled = value * scale
-    return math.floor(scaled + 0.5) if scaled >= 0 else math.ceil(scaled - 0.5)
+def _round_minor(value: float | Decimal, digits: int) -> int:
+    scaled = Decimal(str(value)) * (Decimal(10) ** digits)
+    return int(scaled.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
 def _money_value_to_minor(value: float, digits: int) -> int:

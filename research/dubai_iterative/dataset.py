@@ -119,6 +119,7 @@ def load_dubai_dataset(
     account = money_contract.get("account") or {}
     instrument = money_contract.get("instrument") or {}
     conversion = money_contract.get("conversion") or {}
+    costs = money_contract.get("costs") or {}
     account_currency = str(account.get("currency") or "")
     currency_digits = account.get("currency_digits")
     if not account_currency:
@@ -135,6 +136,16 @@ def load_dubai_dataset(
         "profit_base_account_quote",
     }:
         raise ValueError("money contract has unsupported conversion orientation")
+    supported_costs = {
+        "commission_model": "observed_zero_intraday",
+        "fee_model": "observed_zero_intraday",
+        "swap_model": "intraday_only_zero",
+    }
+    if any(costs.get(name) != value for name, value in supported_costs.items()):
+        raise ValueError(
+            "unsupported broker cost contract; commission, fee and swap must "
+            "be explicitly reproducible before strategy research"
+        )
 
     audit_rows = {row.get("sig_id"): row for row in _read_jsonl(audit_path)}
     exclusions: dict[str, list[str]] = defaultdict(list)

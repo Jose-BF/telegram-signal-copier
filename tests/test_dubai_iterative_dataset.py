@@ -6,6 +6,7 @@ import hashlib
 import json
 
 import pandas as pd
+import pytest
 
 from research.dubai_iterative.dataset import load_dubai_dataset
 
@@ -97,6 +98,11 @@ def _money_contract():
         "account": {"currency": "EUR", "currency_digits": 2},
         "instrument": {"symbol": "XAUUSD", "contract_size": 100.0},
         "conversion": {"orientation": "identity", "max_quote_age_ms": 60_000},
+        "costs": {
+            "commission_model": "observed_zero_intraday",
+            "fee_model": "observed_zero_intraday",
+            "swap_model": "intraday_only_zero",
+        },
     }
 
 
@@ -198,6 +204,25 @@ def test_loader_freezes_paths_and_binds_money_contract(tmp_path):
         ).encode("utf-8")
     ).hexdigest()
     assert dataset.source_hashes["money_contract"] == expected
+
+
+def test_loader_refuses_a_cost_model_the_engine_cannot_reproduce(tmp_path):
+    replay = _write_jsonl(tmp_path / "replay.jsonl", [_trade()])
+    audit = _write_jsonl(
+        tmp_path / "audit.jsonl",
+        [{"sig_id": "canal1_1", "status": "exact", "blockers": []}],
+    )
+    contract = _money_contract()
+    contract["costs"]["commission_model"] = "per_lot_round_turn"
+
+    with pytest.raises(ValueError, match="unsupported broker cost contract"):
+        load_dubai_dataset(
+            replay_path=replay,
+            audit_path=audit,
+            market_ticks=FakeTickSource({"2026-07-27": _ticks()}),
+            conversion_ticks=None,
+            money_contract=contract,
+        )
 
 
 def test_loader_preserves_requested_and_confirmed_level_events(tmp_path):
