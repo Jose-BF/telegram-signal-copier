@@ -88,6 +88,7 @@ class SearchReport:
     challenge_evaluations: tuple[CandidateEvaluation, ...]
     checkpoint_path: Path
     stale_generations: int
+    generation_summaries: tuple["GenerationProgress", ...]
 
     @property
     def frontier_fingerprints(self) -> tuple[str, ...]:
@@ -101,6 +102,25 @@ class ChronologicalSearchReport:
     @property
     def total_evaluations(self) -> int:
         return sum(item.evaluations for item in self.fold_reports)
+
+
+@dataclass(frozen=True)
+class GenerationProgress:
+    fold: str
+    generation: int
+    max_generations: int
+    evaluated: int
+    max_evaluations: int
+    frontier_size: int
+    stale_generations: int
+    elapsed_seconds: float
+
+
+ProgressCallback = Callable[[GenerationProgress], None]
+EvaluationCallback = Callable[
+    [ChronologicalFold, int, tuple[CandidateEvaluation, ...]],
+    None,
+]
 
 
 class SearchCheckpointError(ValueError):
@@ -143,6 +163,8 @@ def run_chronological_search(
     seed: int = 20260817,
     population_size: int = 64,
     clock: Clock = time.monotonic,
+    progress_callback: ProgressCallback | None = None,
+    evaluation_callback: EvaluationCallback | None = None,
 ) -> ChronologicalSearchReport:
     """Run each expanding fold independently with its own frozen challenge."""
 
@@ -158,6 +180,8 @@ def run_chronological_search(
             seed=seed,
             population_size=population_size,
             clock=clock,
+            progress_callback=progress_callback,
+            evaluation_callback=evaluation_callback,
         )
         for fold in folds
     )
@@ -177,6 +201,8 @@ def run_search(
     population_size: int = 64,
     resume_from: Path | None = None,
     clock: Clock = time.monotonic,
+    progress_callback: ProgressCallback | None = None,
+    evaluation_callback: EvaluationCallback | None = None,
 ) -> SearchReport:
     """Run one development fold; challenge rows remain invisible until stop."""
 
@@ -202,6 +228,7 @@ def run_search(
     stale_generations = 0
     archive: tuple[CandidateEvaluation, ...] = ()
     seen: set[str] = set()
+    generation_summaries: list[GenerationProgress] = []
 
     if resume_from is not None:
         state = _load_checkpoint(
@@ -228,6 +255,10 @@ def run_search(
             evaluator,
         )
         rng.bit_generator.state = state["numpy_random_state"]
+        generation_summaries = [
+            GenerationProgress(**item)
+            for item in state.get("generation_summaries", ())
+        ]
     else:
         seeds = seed_population(search_space, seed=seed)
         population = tuple(seeds[:population_size])
@@ -263,6 +294,8 @@ def run_search(
                 evaluator,
             )
             evaluations += len(current)
+            if evaluation_callback is not None:
+                evaluation_callback(fold, generation_index + 1, current)
             previous_archive = archive
             archive = pareto_front(_merge_evaluations(archive, current))
             if _material_frontier_improvement(previous_archive, archive):
@@ -284,6 +317,19 @@ def run_search(
                 max_lineage_depth=budget.max_lineage_depth,
             )
             elapsed = _elapsed(clock, start_clock, carried_elapsed)
+            progress = GenerationProgress(
+                fold=fold.name,
+                generation=generation_completed,
+                max_generations=budget.max_generations,
+                evaluated=evaluations,
+                max_evaluations=budget.max_evaluations,
+                frontier_size=len(archive),
+                stale_generations=stale_generations,
+                elapsed_seconds=elapsed,
+            )
+            generation_summaries.append(progress)
+            if progress_callback is not None:
+                progress_callback(progress)
             deepest = _deepest_lineage(archive, next_population)
             stop_reason = budget.stop_reason(
                 generation=generation_completed,
@@ -307,6 +353,7 @@ def run_search(
                 archive=archive,
                 rng=rng,
                 stop_reason=stop_reason,
+                generation_summaries=generation_summaries,
             )
             if stop_reason is not None:
                 break
@@ -331,6 +378,7 @@ def run_search(
         archive=archive,
         rng=rng,
         stop_reason=stop_reason,
+        generation_summaries=generation_summaries,
     )
 
     challenge = _evaluate_population(
@@ -348,6 +396,7 @@ def run_search(
         challenge_evaluations=challenge,
         checkpoint_path=checkpoint_path,
         stale_generations=stale_generations,
+        generation_summaries=tuple(generation_summaries),
     )
 
 
@@ -480,6 +529,7 @@ def _write_checkpoint(
     archive: Sequence[CandidateEvaluation],
     rng: np.random.Generator,
     stop_reason: str | None,
+    generation_summaries: Sequence[GenerationProgress],
 ) -> None:
     payload = {
         "schema_version": CHECKPOINT_SCHEMA_VERSION,
@@ -496,6 +546,7 @@ def _write_checkpoint(
         "archive_genomes": [item.genome.to_dict() for item in archive],
         "numpy_random_state": rng.bit_generator.state,
         "stop_reason": stop_reason,
+        "generation_summaries": [asdict(item) for item in generation_summaries],
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")

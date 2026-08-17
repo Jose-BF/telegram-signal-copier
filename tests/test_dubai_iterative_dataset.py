@@ -8,7 +8,7 @@ import json
 import pandas as pd
 import pytest
 
-from research.dubai_iterative.dataset import load_dubai_dataset
+from research.dubai_iterative.dataset import VerifiedParquetTickSource, load_dubai_dataset
 
 
 class FakeTickSource:
@@ -223,6 +223,67 @@ def test_loader_refuses_a_cost_model_the_engine_cannot_reproduce(tmp_path):
             conversion_ticks=None,
             money_contract=contract,
         )
+
+
+def test_verified_parquet_source_checks_content_and_contract(tmp_path):
+    frame = _ticks()
+    parquet = tmp_path / "2026-07-27.parquet"
+    frame.to_parquet(parquet, index=False)
+    meta = {
+        "tick_time_contract": "mt5_server_epoch_utc_v3",
+        "time_basis": "UTC",
+        "semantic_time_valid": True,
+        "parquet_sha256": hashlib.sha256(parquet.read_bytes()).hexdigest(),
+        "symbol": "XAUUSD",
+        "coverage": {
+            "complete_from_utc": "2026-07-27T00:00:00+00:00",
+            "complete_through_utc": "2026-07-28T00:00:00+00:00",
+        },
+        "source_verification": {"verified": True, "errors": []},
+    }
+    (tmp_path / "2026-07-27.parquet.meta.json").write_text(
+        json.dumps(meta),
+        encoding="utf-8",
+    )
+
+    loaded, evidence, blockers = VerifiedParquetTickSource(
+        tmp_path,
+        expected_symbol="XAUUSD",
+    ).load_day(date(2026, 7, 27))
+
+    assert blockers == []
+    assert len(loaded) == len(frame)
+    assert evidence["parquet_sha256"] == meta["parquet_sha256"]
+
+
+def test_verified_parquet_source_rejects_tampered_bytes(tmp_path):
+    frame = _ticks()
+    parquet = tmp_path / "2026-07-27.parquet"
+    frame.to_parquet(parquet, index=False)
+    (tmp_path / "2026-07-27.parquet.meta.json").write_text(
+        json.dumps({
+            "tick_time_contract": "mt5_server_epoch_utc_v3",
+            "time_basis": "UTC",
+            "semantic_time_valid": True,
+            "parquet_sha256": "0" * 64,
+            "symbol": "XAUUSD",
+            "coverage": {
+                "complete_from_utc": "2026-07-27T00:00:00+00:00",
+                "complete_through_utc": "2026-07-28T00:00:00+00:00",
+            },
+            "source_verification": {"verified": True, "errors": []},
+        }),
+        encoding="utf-8",
+    )
+
+    frame, evidence, blockers = VerifiedParquetTickSource(
+        tmp_path,
+        expected_symbol="XAUUSD",
+    ).load_day(date(2026, 7, 27))
+
+    assert frame.empty
+    assert evidence is None
+    assert blockers == ["tick_cache_hash_mismatch:2026-07-27"]
 
 
 def test_loader_preserves_requested_and_confirmed_level_events(tmp_path):

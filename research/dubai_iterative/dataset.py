@@ -25,6 +25,64 @@ class TickSource(Protocol):
     ) -> tuple[pd.DataFrame, dict[str, Any] | None, list[str]]: ...
 
 
+class VerifiedParquetTickSource:
+    """Read only full-day tick files with a verified UTC sidecar contract."""
+
+    def __init__(self, cache_dir: Path, *, expected_symbol: str) -> None:
+        self.cache_dir = Path(cache_dir)
+        self.expected_symbol = str(expected_symbol).upper()
+        if not self.expected_symbol:
+            raise ValueError("expected_symbol cannot be empty")
+
+    def load_day(
+        self,
+        day: date,
+    ) -> tuple[pd.DataFrame, dict[str, Any] | None, list[str]]:
+        day_text = day.isoformat()
+        parquet = self.cache_dir / f"{day_text}.parquet"
+        sidecar = self.cache_dir / f"{day_text}.parquet.meta.json"
+        if not parquet.is_file() or not sidecar.is_file():
+            return pd.DataFrame(), None, [f"missing_tick_cache:{day_text}"]
+        try:
+            metadata = json.loads(sidecar.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return pd.DataFrame(), None, [f"invalid_tick_cache_contract:{day_text}"]
+        if not isinstance(metadata, dict):
+            return pd.DataFrame(), None, [f"invalid_tick_cache_contract:{day_text}"]
+        expected_hash = str(metadata.get("parquet_sha256") or "")
+        if len(expected_hash) != 64 or _sha256_file(parquet) != expected_hash:
+            return pd.DataFrame(), None, [f"tick_cache_hash_mismatch:{day_text}"]
+        verification = metadata.get("source_verification") or {}
+        coverage = metadata.get("coverage") or {}
+        complete_from = _parse_datetime(coverage.get("complete_from_utc"))
+        complete_through = _parse_datetime(coverage.get("complete_through_utc"))
+        required_from = datetime.combine(day, datetime.min.time(), tzinfo=timezone.utc)
+        required_through = required_from + timedelta(days=1)
+        contract_valid = (
+            metadata.get("tick_time_contract") == "mt5_server_epoch_utc_v3"
+            and metadata.get("time_basis") == "UTC"
+            and metadata.get("semantic_time_valid") is True
+            and str(metadata.get("symbol") or "").upper() == self.expected_symbol
+            and verification.get("verified") is True
+            and not verification.get("errors")
+            and complete_from is not None
+            and complete_through is not None
+            and complete_from <= required_from
+            and complete_through >= required_through
+        )
+        if not contract_valid:
+            return pd.DataFrame(), None, [f"invalid_tick_cache_contract:{day_text}"]
+        try:
+            frame = pd.read_parquet(parquet)
+        except Exception as exc:
+            return pd.DataFrame(), None, [
+                f"tick_cache_read_failed:{day_text}:{type(exc).__name__}"
+            ]
+        evidence = dict(metadata)
+        evidence["cache_path"] = str(parquet)
+        return frame, evidence, []
+
+
 @dataclass(frozen=True)
 class LevelEvent:
     observed_at: datetime
