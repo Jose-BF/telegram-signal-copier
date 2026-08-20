@@ -54,6 +54,71 @@ class TestSlippageSeverity:
         # mejor no alertar en ese caso (probablemente bug del config).
         assert _slippage_severity(slip_pts=5.0, deviation_pts=0) is None
 
+    def test_open_market_converts_price_slippage_to_symbol_points(
+        self,
+        monkeypatch,
+    ):
+        events = []
+        anomalies = []
+        tick = SimpleNamespace(
+            bid=4438.59,
+            ask=4438.81,
+            time=1787155018,
+            time_msc=1787155018328,
+            last=0.0,
+            volume=0,
+            flags=4,
+            volume_real=0.0,
+        )
+        result = SimpleNamespace(
+            retcode=executor.mt5.TRADE_RETCODE_DONE,
+            comment="Request executed",
+            order=1798915563,
+            deal=1484846572,
+            volume=0.01,
+            price=4441.06,
+            bid=0.0,
+            ask=0.0,
+            request_id=3285623718,
+            retcode_external=0,
+        )
+        position = SimpleNamespace(ticket=result.order, price_open=result.price)
+
+        monkeypatch.setattr(executor.mt5, "symbol_info_tick", lambda symbol: tick)
+        monkeypatch.setattr(executor, "_symbol_point_cache", 0.01)
+        monkeypatch.setattr(executor.mt5, "order_send", lambda request: result)
+        monkeypatch.setattr(
+            executor.mt5,
+            "positions_get",
+            lambda ticket=None: [position] if ticket == result.order else [],
+        )
+        monkeypatch.setattr(
+            executor,
+            "_emit_event",
+            lambda sig, ev, **fields: events.append((sig, ev, fields)),
+        )
+        monkeypatch.setattr(
+            executor,
+            "_emit_anomaly",
+            lambda sig, category, severity, detail, **fields: anomalies.append(
+                (sig, category, severity, detail, fields)
+            ),
+        )
+
+        opened = executor.open_market_with_fill(
+            "SELL",
+            0.01,
+            comment="c2_1716",
+            magic=20260422,
+        )
+
+        assert opened == (1798915563, 4441.06)
+        assert len(anomalies) == 1
+        sig, category, severity, _, fields = anomalies[0]
+        assert (sig, category, severity) == ("canal2_1716", "fill", "warning")
+        assert fields["slip_price"] == pytest.approx(2.47)
+        assert fields["slip_points"] == pytest.approx(247.0)
+
 
 class TestClassifyPositionPnlsQuery:
     """positions_get() puede devolver None (MT5 IPC down), [] (sin posiciones

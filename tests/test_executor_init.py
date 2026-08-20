@@ -7,6 +7,12 @@ import pytest
 @pytest.fixture(autouse=True)
 def _isolate_journal(monkeypatch):
     monkeypatch.setattr(executor, "_emit_event", lambda *args, **kwargs: None)
+    monkeypatch.setattr(executor, "_symbol_point_cache", None)
+    monkeypatch.setattr(
+        executor.mt5,
+        "symbol_info",
+        lambda symbol: SimpleNamespace(point=0.01),
+    )
 
 
 def _account(login=1, server="TestServer-Demo"):
@@ -32,6 +38,7 @@ def test_init_skips_login_when_terminal_already_on_target_account(monkeypatch):
 
     assert executor.init() is True
     assert login_calls == []
+    assert executor._symbol_point_cache == 0.01
 
 
 def test_init_logs_in_when_terminal_is_on_different_account(monkeypatch):

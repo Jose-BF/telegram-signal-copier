@@ -209,6 +209,154 @@ def _tp_keeps_sequence(direction: str, previous: float | None,
     return tp < previous
 
 
+def _repair_mixed_market_context(direction: str, parsed: dict,
+                                 reference_price: float | None):
+    """Repair plans where only some provider levels are off by +/-100.
+
+    A complete-plan shift cannot repair inputs such as ``4389 - 4494`` near
+    a 4394 market because one endpoint is already in the right context.  The
+    repair is deliberately narrow: it runs only for an unusable range and
+    accepts companion TP/SL shifts only when their original value is itself
+    unusable.
+    """
+    if reference_price is None or not parsed.get("range"):
+        return parsed, None
+
+    try:
+        raw_range = tuple(_round_price(value) for value in parsed["range"][:2])
+        if len(raw_range) != 2:
+            return parsed, None
+    except (TypeError, ValueError):
+        return parsed, None
+
+    reference = _round_price(reference_price)
+    usable, _ = _range_is_usable(direction, raw_range, reference)
+    if usable:
+        return parsed, None
+
+    offsets = tuple(
+        unit * MARKET_CONTEXT_SHIFT_UNIT_USD
+        for unit in range(-MARKET_CONTEXT_SHIFT_MAX_UNITS,
+                          MARKET_CONTEXT_SHIFT_MAX_UNITS + 1)
+    )
+    candidates = []
+    for low_offset in offsets:
+        for high_offset in offsets:
+            if low_offset == high_offset:
+                continue
+            candidate = (
+                _round_price(raw_range[0] + low_offset),
+                _round_price(raw_range[1] + high_offset),
+            )
+            candidate_usable, _ = _range_is_usable(
+                direction, candidate, reference)
+            if not candidate_usable:
+                continue
+            anchor = expected_entry_from_range(direction, candidate)
+            score = (
+                abs(float(anchor) - reference),
+                abs((candidate[1] - candidate[0]) - FALLBACK_RANGE_WIDTH_USD),
+                int(low_offset != 0.0) + int(high_offset != 0.0),
+                abs(low_offset) + abs(high_offset),
+            )
+            candidates.append((score, candidate, low_offset, high_offset))
+
+    if not candidates:
+        return parsed, None
+
+    _, corrected_range, low_offset, high_offset = min(
+        candidates, key=lambda item: item[0])
+    repaired = deepcopy(parsed)
+    repaired["range"] = corrected_range
+    shifted_fields = []
+    applied_offsets: dict[str, object] = {}
+    if low_offset:
+        shifted_fields.append("range_low")
+        applied_offsets["range_low"] = low_offset
+    if high_offset:
+        shifted_fields.append("range_high")
+        applied_offsets["range_high"] = high_offset
+
+    raw_tps = list(repaired.get("tps") or [])
+    if raw_tps:
+        corrected_tps = []
+        tp_offsets = []
+        previous = None
+        for raw_tp in raw_tps:
+            tp = _round_price(raw_tp)
+            applied = 0.0
+            if not (
+                _tp_is_usable(direction, reference, tp)
+                and _tp_keeps_sequence(direction, previous, tp)
+            ):
+                tp_candidates = []
+                for offset in offsets:
+                    if not offset:
+                        continue
+                    candidate = _round_price(tp + offset)
+                    if (
+                        _tp_is_usable(direction, reference, candidate)
+                        and _tp_keeps_sequence(direction, previous, candidate)
+                    ):
+                        tp_candidates.append((
+                            (abs(offset), abs(candidate - reference)),
+                            candidate,
+                            offset,
+                        ))
+                if tp_candidates:
+                    _, tp, applied = min(tp_candidates, key=lambda item: item[0])
+            corrected_tps.append(tp)
+            tp_offsets.append(applied)
+            if _tp_is_usable(direction, reference, tp):
+                previous = tp
+        repaired["tps"] = corrected_tps
+        if any(tp_offsets):
+            shifted_fields.append("tps")
+            applied_offsets["tps"] = tp_offsets
+
+    if repaired.get("sl") is not None:
+        raw_sl = _round_price(repaired["sl"])
+        validation = levels_consistent_with_direction(
+            direction, reference, tps=None, sl=raw_sl)
+        sl_usable = (
+            validation["sl_ok"]
+            and abs(raw_sl - reference) <= MAX_SL_DISTANCE_USD
+        )
+        if not sl_usable:
+            sl_candidates = []
+            for offset in offsets:
+                if not offset:
+                    continue
+                candidate = _round_price(raw_sl + offset)
+                candidate_validation = levels_consistent_with_direction(
+                    direction, reference, tps=None, sl=candidate)
+                if (
+                    candidate_validation["sl_ok"]
+                    and abs(candidate - reference) <= MAX_SL_DISTANCE_USD
+                ):
+                    sl_candidates.append((
+                        (abs(offset), abs(candidate - reference)),
+                        candidate,
+                        offset,
+                    ))
+            if sl_candidates:
+                _, corrected_sl, sl_offset = min(
+                    sl_candidates, key=lambda item: item[0])
+                repaired["sl"] = corrected_sl
+                shifted_fields.append("sl")
+                applied_offsets["sl"] = sl_offset
+
+    return repaired, {
+        "field": "plan",
+        "kind": "mixed_market_context_shift",
+        "reference_price": reference,
+        "original_range": list(raw_range),
+        "corrected_range": list(corrected_range),
+        "shifted_fields": shifted_fields,
+        "offsets": applied_offsets,
+    }
+
+
 def _fallback_tp(direction: str, entry: float, index: int) -> float:
     offsets = (3, 5, 7, 9, 14, 20)
     off = offsets[index] if index < len(offsets) else offsets[-1] + 5 * (index - len(offsets) + 1)
@@ -251,6 +399,10 @@ def interpret_entry_levels(channel: str, direction: str, parsed: dict,
         direction, normalized, reference_price)
     if context_correction:
         corrections.append(context_correction)
+    normalized, mixed_context_correction = _repair_mixed_market_context(
+        direction, normalized, reference_price)
+    if mixed_context_correction:
+        corrections.append(mixed_context_correction)
     raw_range = normalized.get("range")
     entry = _round_price(reference_price) if reference_price is not None else None
 

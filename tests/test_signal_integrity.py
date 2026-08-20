@@ -76,6 +76,39 @@ async def test_finalize_signal_blocks_when_mt5_still_has_open_position(
     assert issue["open_tickets"] == [1380715690]
 
 
+async def test_finalize_signal_treats_enqueued_close_as_expected_transition(
+        monkeypatch):
+    journal = FakeJournal()
+    monkeypatch.setattr(listener, "journal", journal)
+    monkeypatch.setattr(
+        "MetaTrader5.positions_get",
+        lambda: [
+            SimpleNamespace(
+                ticket=1380715618,
+                magic=20260422,
+                comment="c2_13288",
+                symbol="XAUUSD",
+                volume=0.01,
+                price_open=4568.20,
+                sl=4558.0,
+                tp=4572.0,
+            )
+        ],
+    )
+
+    sig = _signal()
+
+    await listener._finalize_signal(sig, closed_by="CLOSE_ALL")
+
+    assert journal.finalized == []
+    assert sig.status == "open"
+    snapshot = journal.events[0]
+    assert snapshot["ev"] == "signal_integrity_snapshot"
+    assert snapshot["reason"] == "mt5_positions_closing_async"
+    assert snapshot["open_tickets"] == [1380715618]
+    assert not journal.anomalies
+
+
 async def test_finalize_signal_continues_when_mt5_has_no_open_positions(
         monkeypatch):
     journal = FakeJournal()

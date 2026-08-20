@@ -16,6 +16,9 @@ import config
 import mt5_errors
 
 
+_symbol_point_cache: Optional[float] = None
+
+
 @dataclass(frozen=True)
 class ModifySLTPDecision:
     status: str
@@ -528,6 +531,7 @@ def account_evidence(info=None) -> dict:
 
 
 def init() -> bool:
+    global _symbol_point_cache
     if not mt5.initialize():
         print(f"[MT5] initialize() falló: {mt5.last_error()}")
         return False
@@ -551,6 +555,12 @@ def init() -> bool:
     if not mt5.symbol_select(config.MT5_SYMBOL, True):
         print(f"[MT5] No se pudo añadir {config.MT5_SYMBOL} a Market Watch: {mt5.last_error()}")
         return False
+    try:
+        symbol_info = mt5.symbol_info(config.MT5_SYMBOL)
+        point = float(getattr(symbol_info, "point", 0.0) or 0.0)
+        _symbol_point_cache = point if point > 0.0 else None
+    except Exception:
+        _symbol_point_cache = None
     info = info or mt5.account_info()
     _emit_event("bot", "mt5_account_connected", **account_evidence(info))
     print(f"[MT5] Conectado: {info.name} | Balance: {info.balance} {info.currency}")
@@ -878,15 +888,29 @@ def open_market_with_fill(direction: str, lot: float,
     # el bot opera a precios degradados.
     if fill_price and price:
         slip = fill_price - price
-        sev = _slippage_severity(slip, req.get("deviation", 30))
+        point = float(
+            (attempt.symbol_contract or {}).get("point")
+            or _symbol_point_cache
+            or 0.0
+        )
+        slip_points = slip / point if point > 0.0 else None
+        sev = (
+            _slippage_severity(slip_points, req.get("deviation", 30))
+            if slip_points is not None
+            else None
+        )
         if sev:
-            _emit_anomaly("bot", "fill", sev,
+            _emit_anomaly(sig_id, "fill", sev,
                           f"slippage alto en market {direction}: "
                           f"tick={price:.2f} fill={fill_price:.2f} "
-                          f"slip={slip:+.2f} (deviation={req.get('deviation')})",
+                          f"slip={slip:+.2f} ({slip_points:+.1f} puntos, "
+                          f"deviation={req.get('deviation')})",
                           tick_price=round(price, 2),
                           fill_price=round(fill_price, 2),
-                          slip_pts=round(slip, 2),
+                          slip_price=round(slip, 2),
+                          slip_points=round(slip_points, 2),
+                          slip_pts=round(slip_points, 2),
+                          point=point,
                           deviation=req.get("deviation"),
                           ticket=res.order, direction=direction)
 

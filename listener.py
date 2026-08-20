@@ -1054,6 +1054,19 @@ async def _finalize_integrity_allows(signal: Signal, closed_by: str) -> bool:
     if open_positions:
         open_tickets = [p.get("ticket") for p in open_positions]
         signal.status = "open"
+        if closed_by in {"CLOSE_ALL", "CLOSE_PROFIT_OR_BE"}:
+            journal.event(
+                sig_id,
+                "signal_integrity_snapshot",
+                phase="before_finalize",
+                can_finalize=False,
+                reason="mt5_positions_closing_async",
+                closed_by=closed_by,
+                open_tickets=open_tickets,
+                open_positions=open_positions,
+                state_tickets=list(signal.all_filled_tickets),
+            )
+            return False
         journal.event(sig_id, "signal_integrity_snapshot",
                       phase="before_finalize",
                       can_finalize=False,
@@ -2525,6 +2538,16 @@ async def _apply_sl_tp(signal: Signal):
         position_levels = {}
 
     for i, t in enumerate(signal.all_filled_tickets):
+        if position_levels_available and int(t) not in position_levels:
+            journal.event(
+                _sig_id(signal),
+                "closed_ticket_level_update_skipped",
+                ticket=t,
+                position_index=i,
+                reason="ticket_absent_from_open_positions",
+            )
+            continue
+
         # TP segun override o escalonado
         if t in signal.tp_overrides and signal.tps:
             override_idx = signal.tp_overrides[t]

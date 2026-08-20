@@ -629,6 +629,35 @@ def test_scale_out_missing_expected_legs_is_detected_after_grace():
     assert issue["state_tickets"] == [1365772408, 1365772471]
 
 
+def test_scale_out_missing_legs_is_suppressed_while_opening_is_in_progress():
+    journal = FakeJournal()
+    auditor = LiveAuditor(
+        settings=AuditSettings(
+            snapshot_every_s=0,
+            expected_legs_after_s=15,
+        ),
+        journal=journal,
+    )
+    sig = _signal()
+    sig.entry_mode = "scale_out"
+    sig.opening_extra_legs = True
+
+    auditor.audit_cycle(
+        signals=[sig],
+        positions=[
+            _pos(1365772408, sl=4583.0, tp=4572.0),
+            _pos(1365772471, sl=4583.0, tp=4570.0),
+        ],
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 5, 0),
+    )
+
+    assert not [
+        anomaly for anomaly in journal.anomalies
+        if anomaly.get("code") == "scale_out_missing_expected_legs"
+    ]
+
+
 def test_pending_actions_snapshot_is_read_only_and_serializable():
     sig = _signal()
     q = PendingQueue()

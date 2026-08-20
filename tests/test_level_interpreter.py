@@ -152,6 +152,48 @@ class TestInterpretEntryLevels:
         assert result["parsed"]["tps"][:3] == parsed["tps"]
         assert result["parsed"]["sl"] == 4040.0
 
+    def test_mixed_hundred_dollar_typo_repairs_each_bad_level_from_context(self):
+        parsed = {
+            "direction": "BUY",
+            "range": (4389.0, 4494.0),
+            "tps": [4496.5],
+            "sl": 4486.0,
+        }
+
+        result = interpret_entry_levels(
+            "canal2", "BUY", parsed, reference_price=4394.5)
+
+        assert result["parsed"]["range"] == (4389.0, 4394.0)
+        assert result["parsed"]["tps"][:4] == [
+            4396.5,
+            4399.0,
+            4401.0,
+            4403.0,
+        ]
+        assert result["parsed"]["sl"] == 4386.0
+        assert any(
+            correction["kind"] == "mixed_market_context_shift"
+            and correction["shifted_fields"] == ["range_high", "tps", "sl"]
+            for correction in result["corrections"]
+        )
+
+    def test_valid_far_runner_is_not_shifted_toward_market(self):
+        parsed = {
+            "direction": "BUY",
+            "range": (4495.0, 4500.0),
+            "tps": [4503.0, 4505.0, 4508.0, 4510.0, 4546.0],
+            "sl": 4492.0,
+        }
+
+        result = interpret_entry_levels(
+            "canal2", "BUY", parsed, reference_price=4501.65)
+
+        assert result["parsed"]["tps"] == parsed["tps"]
+        assert not any(
+            correction["kind"] == "mixed_market_context_shift"
+            for correction in result["corrections"]
+        )
+
 
 def test_zone_bundle_alignment_shifts_only_supplied_provider_levels():
     parsed = {

@@ -214,3 +214,85 @@ async def test_apply_sl_tp_never_chases_or_closes_when_mt5_levels_are_unreadable
     assert queued == [("sl", ticket, 4385.0)]
     assert not any(ev.startswith("tp_chase_") for ev, _ in events)
     assert any(ev == "position_levels_unavailable_tp_preserved" for ev, _ in events)
+
+
+@pytest.mark.asyncio
+async def test_apply_sl_tp_skips_ticket_that_mt5_reports_as_already_closed(
+    monkeypatch,
+):
+    closed_ticket = 1798506133
+    open_ticket = 1798506231
+    signal = Signal(
+        channel="canal2",
+        message_id=1704,
+        direction="BUY",
+        market_ticket=closed_ticket,
+        market_fill_price=4382.42,
+        tps=[4383.5, 4386.0, 4389.0, 4410.0],
+        sl=4371.0,
+    )
+    signal.extra_market_tickets.append(open_ticket)
+    signal.extra_market_fill_prices.append(4382.36)
+
+    monkeypatch.setattr(
+        listener.executor,
+        "open_position_levels",
+        lambda tickets: {
+            open_ticket: {
+                "sl": 4371.0,
+                "tp": 4386.0,
+                "digits": 2,
+                "point": 0.01,
+            }
+        },
+    )
+
+    async def fake_run(function, *args):
+        if function is listener.executor.open_position_levels:
+            return function(*args)
+        if function.__name__ == "symbol_info_tick":
+            return SimpleNamespace(bid=4383.61, ask=4383.81)
+        if function.__name__ == "symbol_info":
+            return SimpleNamespace(trade_stops_level=30, point=0.01)
+        return function(*args)
+
+    queued = []
+    events = []
+    monkeypatch.setattr(listener, "_run", fake_run)
+    monkeypatch.setattr(
+        listener.pending_actions,
+        "enqueue_modify_sl",
+        lambda sig, item, sl, label="": queued.append(("sl", item, sl)),
+    )
+    monkeypatch.setattr(
+        listener.pending_actions,
+        "enqueue_modify_tp",
+        lambda sig, item, tp, label="": queued.append(("tp", item, tp)),
+    )
+    monkeypatch.setattr(
+        listener.pending_actions,
+        "enqueue_modify_sltp",
+        lambda sig, item, sl, tp, label="": queued.append(
+            ("sltp", item, sl, tp)
+        ),
+    )
+    monkeypatch.setattr(
+        listener.pending_actions,
+        "enqueue_close_position",
+        lambda *args, **kwargs: queued.append(("close",)),
+    )
+    monkeypatch.setattr(
+        listener.journal,
+        "event",
+        lambda sig, ev, **fields: events.append((ev, fields)),
+    )
+
+    await listener._apply_sl_tp(signal)
+
+    assert queued == [("sl", open_ticket, 4371.0)]
+    assert not any(ev.startswith("tp_chase_") for ev, _ in events)
+    assert any(
+        ev == "closed_ticket_level_update_skipped"
+        and fields["ticket"] == closed_ticket
+        for ev, fields in events
+    )

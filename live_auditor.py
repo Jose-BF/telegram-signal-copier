@@ -474,6 +474,7 @@ class LiveAuditor:
         expected_legs = _expected_scale_out_legs(sig)
         if (expected_legs is not None
                 and age_s >= self.settings.expected_legs_after_s
+                and not getattr(sig, "opening_extra_legs", False)
                 and len(state_tickets) < expected_legs):
             key = (sig_id, "scale_out_missing_expected_legs")
             issues.append((
