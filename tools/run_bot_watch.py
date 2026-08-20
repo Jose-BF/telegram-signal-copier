@@ -134,7 +134,11 @@ WATCHER_QUIESCE_TIMEOUT_SEC = float(os.getenv(
     "BOT_HANDLER_QUIESCE_TIMEOUT_SEC", "30"))
 TELEMETRY_PUBLISH_SEC = float(os.getenv(
     "BOT_TELEMETRY_PUBLISH_SEC", "300"))
+TELEMETRY_PROCESS_MAX_SEC = float(os.getenv(
+    "BOT_TELEMETRY_PROCESS_MAX_SEC", "240"))
+TELEMETRY_PROCESS_STOP_TIMEOUT_SEC = 5.0
 _telemetry_publish_process = None
+_telemetry_publish_started_at = None
 
 
 @contextmanager
@@ -301,14 +305,39 @@ def _checkpoint_runtime_data() -> git_sync.SyncResult:
     )
 
 
-def _trigger_telemetry_publication() -> bool:
+def _trigger_telemetry_publication(*, now: float | None = None) -> bool:
     """Launch one isolated publication attempt and return immediately."""
-    global _telemetry_publish_process
+    global _telemetry_publish_process, _telemetry_publish_started_at
+    current_time = time.time() if now is None else float(now)
     if (
         _telemetry_publish_process is not None
         and _telemetry_publish_process.poll() is None
     ):
-        return True
+        if _telemetry_publish_started_at is None:
+            _telemetry_publish_started_at = current_time
+            return True
+        elapsed = current_time - _telemetry_publish_started_at
+        if elapsed <= TELEMETRY_PROCESS_MAX_SEC:
+            return True
+        print(
+            f"[Watch] Publicador de telemetria atascado "
+            f"({elapsed:.0f}s). Lo reemplazo sin detener el bot.",
+            flush=True,
+        )
+        try:
+            _telemetry_publish_process.terminate()
+            _telemetry_publish_process.wait(
+                timeout=TELEMETRY_PROCESS_STOP_TIMEOUT_SEC
+            )
+        except subprocess.TimeoutExpired:
+            _telemetry_publish_process.kill()
+            _telemetry_publish_process.wait(
+                timeout=TELEMETRY_PROCESS_STOP_TIMEOUT_SEC
+            )
+        except OSError:
+            pass
+        _telemetry_publish_process = None
+        _telemetry_publish_started_at = None
     command = [
         sys.executable,
         str(REPO_DIR / "tools" / "runtime_telemetry.py"),
@@ -326,7 +355,10 @@ def _trigger_telemetry_publication() -> bool:
             cwd=REPO_DIR,
             env=environment,
         )
+        _telemetry_publish_started_at = current_time
     except OSError as exc:
+        _telemetry_publish_process = None
+        _telemetry_publish_started_at = None
         print(
             f"[Watch] Telemetria remota pendiente: {exc}. El bot sigue activo.",
             flush=True,

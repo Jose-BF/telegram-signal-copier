@@ -1105,6 +1105,7 @@ def _publish_outbox_locked(
             source_repo,
             "remote",
             "get-url",
+            "--push",
             "origin",
             timeout_sec=timeout_sec,
         )

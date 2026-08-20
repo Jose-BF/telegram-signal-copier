@@ -478,6 +478,38 @@ def test_telemetry_publication_failure_is_nonblocking(monkeypatch):
     assert watch._trigger_telemetry_publication() is False
 
 
+def test_stale_telemetry_publication_is_terminated_and_replaced(monkeypatch):
+    class StaleProcess:
+        def __init__(self):
+            self.terminated = False
+
+        def poll(self):
+            return None
+
+        def terminate(self):
+            self.terminated = True
+
+        def wait(self, timeout):
+            assert timeout == watch.TELEMETRY_PROCESS_STOP_TIMEOUT_SEC
+            return 0
+
+    class FreshProcess:
+        def poll(self):
+            return None
+
+    stale = StaleProcess()
+    fresh = FreshProcess()
+    monkeypatch.setattr(watch, "_telemetry_publish_process", stale)
+    monkeypatch.setattr(watch, "_telemetry_publish_started_at", 100.0)
+    monkeypatch.setattr(watch, "TELEMETRY_PROCESS_MAX_SEC", 30.0)
+    monkeypatch.setattr(watch.subprocess, "Popen", lambda *args, **kwargs: fresh)
+
+    assert watch._trigger_telemetry_publication(now=200.0) is True
+    assert stale.terminated is True
+    assert watch._telemetry_publish_process is fresh
+    assert watch._telemetry_publish_started_at == 200.0
+
+
 def test_unexpected_watcher_failure_stops_child_before_batch_recovery(
     monkeypatch,
 ):

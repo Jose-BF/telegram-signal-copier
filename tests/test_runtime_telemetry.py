@@ -539,6 +539,56 @@ def test_publish_uses_isolated_checkout_and_never_changes_source_repo(tmp_path):
     ).is_file()
 
 
+def test_publish_prefers_configured_origin_push_url(tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    _must_git(source, "init")
+    _must_git(source, "config", "user.name", "Code Owner")
+    _must_git(source, "config", "user.email", "code@example.com")
+    (source / "main.py").write_text("print('safe')\n", encoding="utf-8")
+    _must_git(source, "add", "main.py")
+    _must_git(source, "commit", "-m", "feat: code")
+
+    writable_remote = tmp_path / "writable.git"
+    writable_remote.mkdir()
+    _must_git(writable_remote, "init", "--bare")
+    _must_git(source, "remote", "add", "origin", str(tmp_path / "missing.git"))
+    _must_git(
+        source,
+        "remote",
+        "set-url",
+        "--push",
+        "origin",
+        str(writable_remote),
+    )
+
+    runtime = source / "runtime_data"
+    runtime.mkdir()
+    (runtime / "trade_events.jsonl").write_bytes(b'{"ev":"one"}\n')
+    checkpoint = runtime_telemetry.checkpoint_runtime(
+        runtime,
+        stream_names=("trade_events.jsonl",),
+    )
+    assert checkpoint.ok is True
+
+    result = runtime_telemetry.publish_outbox(
+        source,
+        runtime,
+        checkout_dir=tmp_path / "telemetry-checkout",
+    )
+
+    assert result.ok is True
+    assert result.published_files == 2
+    tree = _must_git(
+        writable_remote,
+        "ls-tree",
+        "-r",
+        "--name-only",
+        "telemetry",
+    )
+    assert ".jsonl.gz" in tree
+
+
 def test_publish_lock_prevents_overlapping_transport(tmp_path):
     source = tmp_path / "source"
     source.mkdir()
