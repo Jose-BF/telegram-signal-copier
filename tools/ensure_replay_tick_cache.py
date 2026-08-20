@@ -58,11 +58,14 @@ def extract_fill_anchors(trades: Iterable[dict]) -> dict[date, list[FillAnchor]]
         signal_id = str(trade.get("sig_id") or "unknown")
         for ticket_row in trade.get("tickets") or []:
             fill_event = ticket_row.get("fill_event") or {}
+            # La hora canonica del deal viene del historial MT5. El timestamp
+            # del evento es cuando termino order_send y puede llegar segundos
+            # despues en sesiones lentas.
             fill_dt = _parse_dt(
-                fill_event.get("ts") or ticket_row.get("open_dt_utc"))
-            raw_price = fill_event.get("price")
+                ticket_row.get("open_dt_utc") or fill_event.get("ts"))
+            raw_price = ticket_row.get("open_price")
             if raw_price is None:
-                raw_price = ticket_row.get("open_price")
+                raw_price = fill_event.get("price")
             try:
                 price = float(raw_price)
             except (TypeError, ValueError):

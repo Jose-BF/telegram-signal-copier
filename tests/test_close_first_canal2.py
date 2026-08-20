@@ -62,6 +62,16 @@ class TestCloseFirstDecision:
             price_vs_entry_pts=-1.1,
         ) == "defer_layer_mismatch"
 
+    def test_threshold_configurable(self):
+        assert _close_first_decision(
+            price_vs_entry_pts=0.7,
+            profit_threshold_pts=1.0,
+        ) == "defer_layer_mismatch"
+        assert _close_first_decision(
+            price_vs_entry_pts=1.5,
+            profit_threshold_pts=1.0,
+        ) == "close_half"
+
 
 @pytest.mark.asyncio
 async def test_close_first_layer_mismatch_preserves_original_trade(
@@ -141,13 +151,58 @@ async def test_close_first_layer_mismatch_preserves_original_trade(
     )
     assert deferred["price_vs_entry"] == pytest.approx(-1.1)
 
-    def test_threshold_configurable(self):
-        # Permitir override del threshold (default 0.5).
-        assert _close_first_decision(price_vs_entry_pts=0.7,
-                                      profit_threshold_pts=1.0) == (
-                                          "defer_layer_mismatch")
-        assert _close_first_decision(price_vs_entry_pts=1.5,
-                                      profit_threshold_pts=1.0) == "close_half"
+
+@pytest.mark.asyncio
+async def test_close_first_preserves_explicit_open_runner(monkeypatch):
+    signal = Signal(
+        channel="canal2",
+        message_id=1314,
+        direction="BUY",
+        market_ticket=820,
+        extra_market_tickets=[821, 822, 823, 824],
+        market_fill_price=4300.0,
+        tps=[4303.0, 4305.0, 4307.0, 4309.0],
+        sl=4291.0,
+        has_open_runner=True,
+    )
+    closes = []
+    events = []
+
+    monkeypatch.setattr(
+        listener.executor,
+        "position_pnls",
+        lambda requested: [(ticket, 1.0) for ticket in requested],
+    )
+    monkeypatch.setattr(
+        listener.executor,
+        "current_tick_safe",
+        lambda: {"bid": 4304.0, "ask": 4304.2},
+    )
+    monkeypatch.setattr(listener.executor, "entry_price", lambda ticket: 4300.0)
+    monkeypatch.setattr(
+        listener.pending_actions,
+        "enqueue_close_position",
+        lambda _signal, ticket, **kwargs: closes.append(ticket),
+    )
+    monkeypatch.setattr(listener.logger, "log_action", lambda *a, **k: None)
+    monkeypatch.setattr(
+        listener.journal,
+        "event",
+        lambda sig_id, ev, **kwargs: events.append({"ev": ev, **kwargs}),
+    )
+
+    outcome = await listener._execute_one_action(
+        signal,
+        {"action": "CLOSE_FIRST", "confidence": 0.99},
+        raw_text="Close your first entries now",
+    )
+
+    assert outcome == "requested"
+    assert 824 not in closes
+    decision = next(
+        event for event in events if event["ev"] == "close_first_executed"
+    )
+    assert 824 in decision["kept_tickets"]
 
 
 class TestSafeTpBe:

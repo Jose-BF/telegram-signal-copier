@@ -260,6 +260,30 @@ class TestModifySLTPPreflight:
         assert decision.effective_sl == 4055.0
         assert decision.deferred_sl == 4060.0
 
+    def test_zero_tp_is_an_explicit_request_to_remove_target(self):
+        position = SimpleNamespace(
+            type=executor.mt5.ORDER_TYPE_BUY,
+            sl=4055.0,
+            tp=4070.0,
+            price_open=4060.0,
+        )
+
+        decision = executor.evaluate_position_sltp(
+            position,
+            SimpleNamespace(bid=4061.0, ask=4061.2),
+            SimpleNamespace(
+                point=0.01,
+                trade_stops_level=0,
+                trade_freeze_level=0,
+            ),
+            new_sl=None,
+            new_tp=0.0,
+        )
+
+        assert decision.status == "ready"
+        assert decision.effective_sl == 4055.0
+        assert decision.effective_tp == 0.0
+
     def test_non_finite_stop_is_permanently_invalid(self):
         decision = executor.evaluate_position_sltp(
             SimpleNamespace(

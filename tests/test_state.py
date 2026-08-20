@@ -89,6 +89,29 @@ class TestTpForPosition:
         assert sig.tp_for_position(0, n_total_open=5) == 2002
         assert sig.tp_for_position(0, n_total_open=None) == 2002
 
+    def test_explicit_open_runner_leaves_only_last_position_without_tp(self):
+        sig = Signal(
+            channel="canal2",
+            message_id=2,
+            direction="BUY",
+            tps=[2002, 2004, 2006],
+            has_open_runner=True,
+        )
+
+        assert sig.tp_for_position(3, n_total_open=5) == 2006
+        assert sig.tp_for_position(4, n_total_open=5) is None
+
+    def test_normal_overflow_still_uses_last_tp_without_open_instruction(self):
+        sig = Signal(
+            channel="canal2",
+            message_id=3,
+            direction="BUY",
+            tps=[2002, 2004, 2006],
+            has_open_runner=False,
+        )
+
+        assert sig.tp_for_position(4, n_total_open=5) == 2006
+
 
 # ─── Signal.be_trigger_price ────────────────────────────────────────────────
 

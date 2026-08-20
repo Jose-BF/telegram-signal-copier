@@ -96,4 +96,71 @@ def test_resync_reconstructs_signal_from_surviving_scale_out_legs(monkeypatch):
     assert signal["market_price"] == 4031.25
     assert signal["market_open_time"] == 1002
     assert signal["extra_market_tickets"] == [2004]
+    assert signal["double_market_tickets"] == []
+    assert signal["scale_out_leg_indexes"] == {2002: 2, 2004: 4}
     assert signal["resync_anchor_role"] == "surviving_scale_out_leg"
+
+
+def test_resync_orders_scale_out_legs_by_original_leg_number(monkeypatch):
+    magic = executor.config.MT5_MAGIC_CANAL2
+    positions = (
+        SimpleNamespace(
+            ticket=3000, comment="c2_3380", magic=magic,
+            type=executor.mt5.ORDER_TYPE_SELL, price_open=4040.0,
+            sl=4050.0, tp=4037.0, time=1000,
+        ),
+        SimpleNamespace(
+            ticket=3004, comment="c2_3380_B4", magic=magic,
+            type=executor.mt5.ORDER_TYPE_SELL, price_open=4040.4,
+            sl=4050.0, tp=4028.0, time=1004,
+        ),
+        SimpleNamespace(
+            ticket=3002, comment="c2_3380_B2", magic=magic,
+            type=executor.mt5.ORDER_TYPE_SELL, price_open=4040.2,
+            sl=4050.0, tp=4033.0, time=1002,
+        ),
+        SimpleNamespace(
+            ticket=3001, comment="c2_3380_B1", magic=magic,
+            type=executor.mt5.ORDER_TYPE_SELL, price_open=4040.1,
+            sl=4050.0, tp=4035.0, time=1001,
+        ),
+    )
+    monkeypatch.setattr(executor.mt5, "positions_get", lambda: positions)
+
+    signal = executor.list_open_positions_grouped()["canal2_3380"]
+
+    assert signal["extra_market_tickets"] == [3001, 3002, 3004]
+    assert signal["double_market_tickets"] == []
+    assert signal["scale_out_leg_indexes"] == {
+        3001: 1,
+        3002: 2,
+        3004: 4,
+    }
+
+
+def test_resync_distinguishes_legacy_market_b_from_scale_out_legs(monkeypatch):
+    magic = executor.config.MT5_MAGIC_CANAL2
+    positions = (
+        SimpleNamespace(
+            ticket=4000, comment="c2_3381", magic=magic,
+            type=executor.mt5.ORDER_TYPE_BUY, price_open=4050.0,
+            sl=4040.0, tp=4053.0, time=1000,
+        ),
+        SimpleNamespace(
+            ticket=4001, comment="c2_3381_B", magic=magic,
+            type=executor.mt5.ORDER_TYPE_BUY, price_open=4050.1,
+            sl=4040.0, tp=4057.0, time=1001,
+        ),
+        SimpleNamespace(
+            ticket=4002, comment="c2_3381_B1", magic=magic,
+            type=executor.mt5.ORDER_TYPE_BUY, price_open=4050.2,
+            sl=4040.0, tp=4055.0, time=1002,
+        ),
+    )
+    monkeypatch.setattr(executor.mt5, "positions_get", lambda: positions)
+
+    signal = executor.list_open_positions_grouped()["canal2_3381"]
+
+    assert signal["extra_market_tickets"] == [4001, 4002]
+    assert signal["double_market_tickets"] == [4001]
+    assert signal["scale_out_leg_indexes"] == {4002: 1}

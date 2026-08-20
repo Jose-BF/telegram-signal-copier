@@ -64,6 +64,18 @@ class Signal:
     tps:  list = field(default_factory=list)
     sl:   Optional[float] = None
 
+    # Procedencia de niveles. El predictor protege la operacion mientras
+    # llegan los datos, pero nunca debe hacerse pasar por el proveedor.
+    range_source: str = "unset"  # unset | provisional | provider
+    tps_source: str = "unset"    # unset | provisional | mixed | provider
+    sl_source: str = "unset"     # unset | provisional | provider
+    provider_tps: list = field(default_factory=list)
+    provider_final_target: Optional[float] = None
+    provider_sl_received: bool = False
+    has_open_runner: bool = False
+    tp_allocation_fingerprint: Optional[tuple] = field(
+        default=None, repr=False, compare=False)
+
     # Tickets MT5
     market_ticket:      Optional[int]   = None  # primera orden a mercado
     market_fill_price:  Optional[float] = None  # precio de fill del market
@@ -287,24 +299,44 @@ class Signal:
             leg 0 → TP1, leg 1 → TP2, leg 2 → TP3, etc.
 
         position_index: 0 = market, 1+ = legs extra.
-        n_total_open: reservado (ya no usado), mantenido por compatibilidad.
+        n_total_open: tamaño original de la cesta; permite identificar el
+            último ticket cuando el proveedor declara un runner OPEN.
         """
+        return self.tp_assignment(position_index, n_total_open)[0]
+
+    def tp_assignment(
+        self,
+        position_index: int,
+        n_total_open: Optional[int] = None,
+    ) -> tuple[Optional[float], str]:
+        """Return the effective target and the reason for that allocation."""
+        if (
+            self.has_open_runner
+            and n_total_open is not None
+            and n_total_open > 0
+            and position_index == n_total_open - 1
+        ):
+            return None, "open_runner"
+
         if not self.tps:
-            return None
+            return None, "no_targets"
 
         # Modo target_tp_index: TP único, ignora contexto
         if self.target_tp_index is not None:
             idx = min(self.target_tp_index, len(self.tps) - 1)
-            return self.tps[idx]
+            return self.tps[idx], "fixed_target"
 
         # Escalonado: pos i → tps[i] con cap opcional
         idx = position_index
         if self.max_tp_index is not None:
-            idx = min(idx, self.max_tp_index)
+            capped = min(idx, self.max_tp_index)
+            if capped != idx:
+                idx = capped
+                return self.tps[min(idx, len(self.tps) - 1)], "max_tp_cap"
 
         if idx >= len(self.tps):
-            return self.tps[-1]
-        return self.tps[idx]
+            return self.tps[-1], "overflow_last_tp"
+        return self.tps[idx], "scaled_target"
 
     def be_trigger_price(self) -> Optional[float]:
         """Precio del TP que dispara el BE move (mover SL a entry).

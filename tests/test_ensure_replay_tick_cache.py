@@ -963,6 +963,29 @@ def test_extract_fill_anchors_uses_direction_quote_side():
     assert anchors[date(2026, 7, 13)][0].price == 4059.37
 
 
+def test_extract_fill_anchors_prefers_canonical_deal_time_over_response_time():
+    trades = [{
+        "sig_id": "canal2_1716",
+        "direction": "BUY",
+        "tickets": [{
+            "ticket": 201,
+            "open_dt_utc": "2026-08-19T12:57:38+00:00",
+            "open_price": 4331.25,
+            "fill_event": {
+                "ts": "2026-08-19T12:57:39.451+00:00",
+                "price": 4331.25,
+            },
+        }],
+    }]
+
+    anchors = ensure_replay_tick_cache.extract_fill_anchors(trades)
+
+    anchor = anchors[date(2026, 8, 19)][0]
+    assert anchor.time_utc == datetime(
+        2026, 8, 19, 12, 57, 38, tzinfo=timezone.utc
+    )
+
+
 def test_intraday_capture_after_broker_close_proves_session_horizon():
     day = date(2026, 7, 16)
     ticks = pd.DataFrame([{

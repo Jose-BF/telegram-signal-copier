@@ -1101,6 +1101,19 @@ def _load_resync_entry_metadata(path, signal_ids) -> dict[str, dict]:
             parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
         return parsed
 
+    def parse_level(value):
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return None
+        return parsed if math.isfinite(parsed) and parsed > 0 else None
+
+    def parse_levels(values):
+        if not isinstance(values, list):
+            return []
+        parsed = [parse_level(value) for value in values]
+        return [value for value in parsed if value is not None]
+
     with source.open("rb") as handle:
         for raw_line in handle:
             try:
@@ -1114,6 +1127,45 @@ def _load_resync_entry_metadata(path, signal_ids) -> dict[str, dict]:
                 continue
 
             event = row.get("ev")
+            if event in {
+                "tp_allocation_decided",
+                "tps_arrived",
+                "tps_updated",
+            }:
+                metadata = recovered.setdefault(sig_id, {})
+                provider_tps = parse_levels(
+                    row.get("provider_tps") or row.get("tps")
+                )
+                effective_tps = parse_levels(row.get("effective_tps"))
+                if provider_tps:
+                    metadata["provider_tps"] = provider_tps
+                if effective_tps:
+                    metadata["effective_tps"] = effective_tps
+                final_target = parse_level(row.get("provider_final_target"))
+                if final_target is not None:
+                    metadata["provider_final_target"] = final_target
+                if row.get("has_open_runner") is True:
+                    metadata["has_open_runner"] = True
+                source = str(row.get("tps_source") or "").strip().lower()
+                if source in {"provisional", "mixed", "provider"}:
+                    metadata["tps_source"] = source
+                elif provider_tps and effective_tps:
+                    metadata["tps_source"] = (
+                        "provider"
+                        if provider_tps == effective_tps else "mixed"
+                    )
+                continue
+
+            if event == "open_runner_declared":
+                recovered.setdefault(sig_id, {})["has_open_runner"] = True
+                continue
+
+            if event in {"sl_arrived", "sl_updated"}:
+                metadata = recovered.setdefault(sig_id, {})
+                if parse_level(row.get("sl")) is not None:
+                    metadata["provider_sl_received"] = True
+                continue
+
             if event == "canal2_duplicate_alias_registered":
                 try:
                     alias_message_id = int(row.get("alias_message_id"))
@@ -1300,6 +1352,14 @@ def _resync_orphan_positions():
         be_at_tp_index = be_idx_cfg if be_idx_cfg >= 0 else None
 
         extra_markets = list(g.get("extra_market_tickets", []))
+        recovered_tps = list(entry_identity.get("effective_tps") or [])
+        if not recovered_tps and g.get("market_tp"):
+            recovered_tps = [g["market_tp"]]
+        provider_tps = list(entry_identity.get("provider_tps") or [])
+        recovered_tps_source = entry_identity.get("tps_source") or (
+            "provider" if provider_tps == recovered_tps and provider_tps
+            else "mixed" if provider_tps else "unset"
+        )
         sig = Signal(
             channel=g["channel"],
             message_id=g["message_id"],
@@ -1308,7 +1368,23 @@ def _resync_orphan_positions():
             market_ticket=g["market_ticket"],
             market_fill_price=g["market_price"],
             sl=g["market_sl"],
-            tps=[g["market_tp"]] if g["market_tp"] else [],
+            tps=recovered_tps,
+            tps_source=recovered_tps_source,
+            sl_source=(
+                "provider"
+                if entry_identity.get("provider_sl_received") else "unset"
+            ),
+            provider_tps=provider_tps,
+            provider_final_target=entry_identity.get(
+                "provider_final_target"
+            ),
+            provider_sl_received=bool(
+                entry_identity.get("provider_sl_received")
+            ),
+            has_open_runner=bool(entry_identity.get("has_open_runner")),
+            levels_predicted=recovered_tps_source in {
+                "provisional", "mixed",
+            },
             dca_tickets=list(g["dca_tickets"]),
             extra_market_tickets=extra_markets,
             time_stop_at=time_stop_at,
@@ -1345,11 +1421,11 @@ def _resync_orphan_positions():
         sig.basket_guard_realized_by_ticket = dict(
             basket_guard_realized.get(sig_id, {})
         )
-        # Reconstruir tp_overrides del Market B (doble market): el Market B
-        # cierra en TP3 (STRATEGY_DOUBLE_MARKET_TP_INDEX). Sin esto, tras el
-        # resync el Market B se quedaba sin override (canal2_12497 lo perdio
-        # entero — fix 2026-05-16).
-        for tk in extra_markets:
+        # Solo el sufijo exacto _B pertenece al doble market legacy. Las legs
+        # _B1.._B4 son scale-out y deben conservar su reparto escalonado.
+        for tk, leg_index in g.get("scale_out_leg_indexes", {}).items():
+            sig.tp_overrides[int(tk)] = int(leg_index)
+        for tk in g.get("double_market_tickets", []):
             sig.tp_overrides[tk] = config.STRATEGY_DOUBLE_MARKET_TP_INDEX
         sig.dca_placed = True  # ya están abiertos, no abrir más
         sig.status = "open"
@@ -1382,6 +1458,17 @@ def _resync_orphan_positions():
                           n_dcas=len(sig.dca_tickets),
                           sl=sig.sl,
                           tp=sig.tps[0] if sig.tps else None,
+                          tps=list(sig.tps),
+                          provider_tps=list(sig.provider_tps),
+                          provider_final_target=sig.provider_final_target,
+                          has_open_runner=sig.has_open_runner,
+                          tps_source=sig.tps_source,
+                          double_market_tickets=list(
+                              g.get("double_market_tickets", [])
+                          ),
+                          scale_out_leg_indexes=dict(
+                              g.get("scale_out_leg_indexes", {})
+                          ),
                           opened_at=opened_at.isoformat(timespec="seconds"),
                           elapsed_min=round(elapsed_min, 1),
                           telegram_alias_message_ids=entry_identity.get(

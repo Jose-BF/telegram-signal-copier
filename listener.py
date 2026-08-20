@@ -208,12 +208,21 @@ async def _apply_interpreted_entry_levels(signal: Signal, parsed: dict,
                                           channel: str,
                                           reference_price=None,
                                           tg_ts: str | None = None) -> dict:
+    provider_fields = {
+        key for key in parsed
+        if key in {"range", "tps", "sl", "final_target", "has_open_runner"}
+    }
     interpreted = interpret_entry_levels(
         channel, signal.direction, parsed, reference_price=reference_price)
     _log_entry_level_interpretation(
         _sig_id(signal), channel, parsed, interpreted, reference_price)
     await _update_signal_from_parsed(
-        signal, interpreted["parsed"], tg_ts=tg_ts)
+        signal,
+        interpreted["parsed"],
+        tg_ts=tg_ts,
+        provider_fields=provider_fields,
+        provider_values=parsed,
+    )
     return interpreted["parsed"]
 
 
@@ -2037,8 +2046,14 @@ async def _process_management_reply_edit(msg, channel: str,
     tg_ts = _msg_ts_iso(msg)
     if channel == "canal2":
         parsed = parse_canal2(text)
-        if parsed.get("tps") or parsed.get("sl"):
-            await _update_signal_from_parsed(sig, parsed, tg_ts=tg_ts)
+        if any(key in parsed for key in _PROVIDER_LEVEL_FIELDS):
+            await _apply_interpreted_entry_levels(
+                sig,
+                parsed,
+                "canal2",
+                reference_price=sig.market_fill_price,
+                tg_ts=tg_ts,
+            )
 
     cl = await classify_async(text, signal=sig)
     await _execute_action(sig, cl, raw_text=text, tg_ts=tg_ts)
@@ -2507,8 +2522,46 @@ async def _apply_sl_tp(signal: Signal):
         (cobra el precio actual, mejor que cualquier TP).
 
     Cada modify va por la cola con reintentos tick-a-tick."""
-    if signal.sl is None and not signal.tps:
+    if signal.sl is None and not signal.tps and not signal.has_open_runner:
         return
+
+    filled_tickets = list(signal.all_filled_tickets)
+    n_total_open = len(filled_tickets)
+    allocation_by_ticket = {}
+    allocations = []
+    for position_index, ticket in enumerate(filled_tickets):
+        tp_i, reason = signal.tp_assignment(position_index, n_total_open)
+        if reason != "open_runner" and ticket in signal.tp_overrides and signal.tps:
+            override_idx = max(
+                0,
+                min(signal.tp_overrides[ticket], len(signal.tps) - 1),
+            )
+            tp_i = signal.tps[override_idx]
+            reason = "ticket_override"
+        allocation_by_ticket[int(ticket)] = (tp_i, reason)
+        allocations.append({
+            "position_index": position_index,
+            "ticket": ticket,
+            "tp": tp_i,
+            "reason": reason,
+        })
+
+    allocation_fingerprint = tuple(
+        (row["ticket"], row["tp"], row["reason"])
+        for row in allocations
+    )
+    if allocation_fingerprint != signal.tp_allocation_fingerprint:
+        signal.tp_allocation_fingerprint = allocation_fingerprint
+        journal.event(
+            _sig_id(signal),
+            "tp_allocation_decided",
+            provider_tps=list(signal.provider_tps),
+            provider_final_target=signal.provider_final_target,
+            effective_tps=list(signal.tps),
+            tps_source=signal.tps_source,
+            has_open_runner=signal.has_open_runner,
+            allocations=allocations,
+        )
 
     # Tick actual + stops_level — para la logica de persecucion de TP.
     tick = None
@@ -2525,19 +2578,19 @@ async def _apply_sl_tp(signal: Signal):
 
     position_levels = await _run(
         executor.open_position_levels,
-        list(signal.all_filled_tickets),
+        filled_tickets,
     )
     position_levels_available = position_levels is not None
     if not position_levels_available:
         journal.event(
             _sig_id(signal),
             "position_levels_unavailable_tp_preserved",
-            tickets=list(signal.all_filled_tickets),
+            tickets=filled_tickets,
             behavior="sl_only_no_tp_chase",
         )
         position_levels = {}
 
-    for i, t in enumerate(signal.all_filled_tickets):
+    for i, t in enumerate(filled_tickets):
         if position_levels_available and int(t) not in position_levels:
             journal.event(
                 _sig_id(signal),
@@ -2548,15 +2601,10 @@ async def _apply_sl_tp(signal: Signal):
             )
             continue
 
-        # TP segun override o escalonado
-        if t in signal.tp_overrides and signal.tps:
-            override_idx = signal.tp_overrides[t]
-            override_idx = max(0, min(override_idx, len(signal.tps) - 1))
-            tp_i = signal.tps[override_idx]
-        else:
-            tp_i = signal.tp_for_position(i)
+        tp_i, tp_reason = allocation_by_ticket[int(t)]
 
         installed = position_levels.get(int(t), {})
+        installed_sl = installed.get("sl")
         installed_tp = installed.get("tp")
         point = float(installed.get("point") or 0.01)
         tp_already_installed = (
@@ -2564,6 +2612,10 @@ async def _apply_sl_tp(signal: Signal):
             and installed_tp not in (None, 0, 0.0)
             and abs(float(installed_tp) - float(tp_i))
             <= max(point / 2.0, 1e-8)
+        )
+        runner_tp_clear_required = (
+            tp_reason == "open_runner"
+            and installed_tp not in (None, 0, 0.0)
         )
         if tp_already_installed:
             journal.event(
@@ -2658,11 +2710,12 @@ async def _apply_sl_tp(signal: Signal):
                         continue  # no encolar el modify normal
 
         # SL: si BE armado, usar entry de este ticket. Si no, signal.sl.
-        tp_to_apply = (
-            None
-            if tp_already_installed or not position_levels_available
-            else tp_i
-        )
+        if not position_levels_available or tp_already_installed:
+            tp_to_apply = None
+        elif runner_tp_clear_required:
+            tp_to_apply = 0.0
+        else:
+            tp_to_apply = tp_i
         if signal.be_armed:
             sl_to_apply = await _run(executor.entry_price, t)
             if sl_to_apply is None:
@@ -2675,6 +2728,16 @@ async def _apply_sl_tp(signal: Signal):
                 continue
         else:
             sl_to_apply = signal.sl
+
+        sl_already_installed = (
+            sl_to_apply is not None
+            and installed_sl not in (None, 0, 0.0)
+            and abs(float(installed_sl) - float(sl_to_apply))
+            <= max(point / 2.0, 1e-8)
+        )
+        if (signal.has_open_runner and sl_already_installed
+                and not runner_tp_clear_required):
+            sl_to_apply = None
 
         if sl_to_apply is not None and tp_to_apply is not None:
             label_suffix = " (BE)" if signal.be_armed else ""
@@ -2896,13 +2959,79 @@ async def _handle_range_arrival_safety(signal: Signal, lo: float, hi: float) -> 
         return True
 
 
-async def _update_signal_from_parsed(signal: Signal, parsed: dict,
-                                     tg_ts: str | None = None):
+_PROVIDER_LEVEL_FIELDS = frozenset({
+    "range", "tps", "sl", "final_target", "has_open_runner",
+})
+
+
+def _tp_extends_sequence(direction: str, previous: float,
+                         candidate: float) -> bool:
+    if str(direction).upper() == "BUY":
+        return float(candidate) > float(previous)
+    return float(candidate) < float(previous)
+
+
+def _merge_provider_tp_wave(direction: str, previous: list,
+                            incoming: list) -> list:
+    """Replace the received prefix while preserving only a valid older tail."""
+    incoming = [float(value) for value in incoming]
+    previous = [float(value) for value in previous]
+    if not previous or len(incoming) >= len(previous):
+        return incoming
+
+    merged = list(incoming)
+    for candidate in previous[len(incoming):]:
+        if not merged or _tp_extends_sequence(direction, merged[-1], candidate):
+            merged.append(candidate)
+        else:
+            break
+    return merged
+
+
+def _append_safe_tp_tail(direction: str, base: list, candidates: list, *,
+                         final_target: float | None = None) -> list:
+    result = [float(value) for value in base]
+    for candidate in candidates:
+        candidate = float(candidate)
+        if result and not _tp_extends_sequence(direction, result[-1], candidate):
+            break
+        if final_target is not None:
+            final_target = float(final_target)
+            if candidate == final_target:
+                break
+            if not _tp_extends_sequence(direction, candidate, final_target):
+                break
+        result.append(candidate)
+    return result
+
+
+async def _update_signal_from_parsed(
+        signal: Signal, parsed: dict, tg_ts: str | None = None, *,
+        provider_fields=None, provider_values: dict | None = None):
+    parsed = dict(parsed or {})
+    if provider_fields is None:
+        provider_fields = _PROVIDER_LEVEL_FIELDS.intersection(parsed)
+    else:
+        provider_fields = set(provider_fields).intersection(
+            _PROVIDER_LEVEL_FIELDS)
+    if provider_values is None:
+        provider_values = {
+            key: parsed.get(key) for key in provider_fields
+        }
+
     sltp_changed = False
     sig_id = _sig_id(signal)
 
-    if "range" in parsed and signal.range_low is None:
+    range_is_provider = "range" in provider_fields
+    should_process_range = (
+        "range" in parsed
+        and (range_is_provider or signal.range_source != "provider")
+    )
+    if should_process_range:
         lo, hi = parsed["range"]
+        lo, hi = float(lo), float(hi)
+        previous_range = (signal.range_low, signal.range_high)
+        range_changed = previous_range != (lo, hi)
 
         # ── VALIDACION RANGE vs ENTRY (anti-typo del canal) ──────────────
         # Caso real canal2_12338 (sesion 2026-05-13): canal mando range
@@ -2932,6 +3061,7 @@ async def _update_signal_from_parsed(signal: Signal, parsed: dict,
                 provisional_sl = predict_sl_from_entry(
                     signal.direction, entry_for_range)
                 signal.sl = provisional_sl
+                signal.sl_source = "provisional"
                 signal.levels_predicted = True
                 journal.event(sig_id, "protective_sl_from_entry",
                               sl=provisional_sl,
@@ -2970,39 +3100,82 @@ async def _update_signal_from_parsed(signal: Signal, parsed: dict,
             # NO continuar con range_arrived ni layered_decision ni predictor
             # Salimos del bloque "range" pero seguimos procesando tps/sl
             # del parsed que vengan en este mismo edit (validador maneja).
-        else:
+        elif range_is_provider:
+            first_provider_range = signal.range_source != "provider"
             signal.range_low, signal.range_high = lo, hi
+            signal.range_source = "provider"
 
-            # ── JOURNAL: range_arrived ──
-            range_arrived_utc = datetime.utcnow()
-            range_delay_sec = (range_arrived_utc - signal.timestamp).total_seconds()
-            journal.event(sig_id, "range_arrived",
-                          range_low=lo, range_high=hi,
-                          delay_sec=round(range_delay_sec, 1),
-                          tg_ts=tg_ts)
-            journal.update_trade(sig_id,
-                                 range_arrived_utc=range_arrived_utc.isoformat(timespec="milliseconds"),
-                                 range_delay_sec=round(range_delay_sec, 1),
-                                 range_low=lo, range_high=hi)
+            if first_provider_range:
+                range_arrived_utc = datetime.utcnow()
+                range_delay_sec = (
+                    range_arrived_utc - signal.timestamp
+                ).total_seconds()
+                journal.event(
+                    sig_id,
+                    "range_arrived",
+                    range_low=lo,
+                    range_high=hi,
+                    delay_sec=round(range_delay_sec, 1),
+                    tg_ts=tg_ts,
+                    replaced_source=(
+                        "provisional"
+                        if previous_range[0] is not None else "unset"
+                    ),
+                )
+                journal.update_trade(
+                    sig_id,
+                    range_arrived_utc=range_arrived_utc.isoformat(
+                        timespec="milliseconds"),
+                    range_delay_sec=round(range_delay_sec, 1),
+                    range_low=lo,
+                    range_high=hi,
+                )
+            elif range_changed:
+                journal.event(
+                    sig_id,
+                    "range_updated",
+                    previous_range=list(previous_range),
+                    range_low=lo,
+                    range_high=hi,
+                    tg_ts=tg_ts,
+                    source="provider",
+                )
 
-            # ── ETAPA 2 layered: decisión al llegar el rango ──
-            closed = await _handle_range_arrival_safety(signal, lo, hi)
-            if closed:
-                await _finalize_signal(signal, closed_by="LAYERED_C_CLOSE",
-                                       notes="adverse_action=close en caso C")
-                return
+            # ── ETAPA 2 layered: decisión al llegar/cambiar el rango ──
+            if first_provider_range or range_changed:
+                closed = await _handle_range_arrival_safety(signal, lo, hi)
+                if closed:
+                    await _finalize_signal(
+                        signal,
+                        closed_by="LAYERED_C_CLOSE",
+                        notes="adverse_action=close en caso C",
+                    )
+                    return
 
             # Sin SL/TPs del canal todavía → aplicamos predicción provisional
             if signal.sl is None and not signal.tps:
                 pred = predict_levels(signal.direction, lo, hi)
                 signal.tps = pred["tps"]
                 signal.sl = pred["sl"]
+                signal.tps_source = "provisional"
+                signal.sl_source = "provisional"
                 signal.levels_predicted = True
                 print(f"[Predictor] {signal.direction} provisional → "
                       f"TPs={pred['tps']} SL={pred['sl']}")
                 journal.event(sig_id, "predictor_levels",
                               tps=pred["tps"], sl=pred["sl"])
                 sltp_changed = True
+        elif signal.range_source != "provider" and (
+                range_changed or signal.range_source == "unset"):
+            signal.range_low, signal.range_high = lo, hi
+            signal.range_source = "provisional"
+            journal.event(
+                sig_id,
+                "provisional_range_created",
+                range_low=lo,
+                range_high=hi,
+                source="level_interpreter",
+            )
 
     # ── VALIDACION COHERENCIA DIRECCIONAL antes de aceptar TPs/SL ──────────
     # Si el canal manda valores incoherentes con la direccion (typo del
@@ -3015,8 +3188,18 @@ async def _update_signal_from_parsed(signal: Signal, parsed: dict,
     #   canal2_12334: canal mando "SL 4796" para BUY @ 4704.84 (typo: 4696)
     #   canal2_12338: canal mando range 4780-4785 para SELL @ 4680.41 (typo: 4680)
     entry_for_validation = signal.market_fill_price
-    new_tps_candidate = parsed.get("tps") if "tps" in parsed else None
-    new_sl_candidate = parsed.get("sl") if "sl" in parsed else None
+    provider_tps_present = "tps" in provider_fields
+    raw_provider_tps = list(provider_values.get("tps") or [])
+    interpreted_tps = list(parsed.get("tps") or [])
+    provider_tp_count = min(len(raw_provider_tps), len(interpreted_tps))
+    new_tps_candidate = (
+        interpreted_tps[:provider_tp_count]
+        if provider_tps_present else interpreted_tps or None
+    )
+    provider_sl_present = "sl" in provider_fields
+    new_sl_candidate = (
+        parsed.get("sl") if provider_sl_present else None
+    )
 
     # ── CORRECCION DE TYPOS en TPs antes de validar ───────────────────────
     # Si el canal manda un TP con typo evidente (magnitud absurda, ej.
@@ -3037,8 +3220,11 @@ async def _update_signal_from_parsed(signal: Signal, parsed: dict,
                           corrected_tps=corrected_tps,
                           entry=entry_for_validation)
             new_tps_candidate = corrected_tps
-            # Reflejar la correccion en parsed para que se aplique abajo
-            parsed["tps"] = corrected_tps
+            if provider_tps_present:
+                interpreted_tps[:provider_tp_count] = corrected_tps
+                parsed["tps"] = interpreted_tps
+            else:
+                parsed["tps"] = corrected_tps
 
     validation = None
     if entry_for_validation is not None and (new_tps_candidate or new_sl_candidate is not None):
@@ -3110,7 +3296,19 @@ async def _update_signal_from_parsed(signal: Signal, parsed: dict,
     # Valores reales del parser siempre ganan. Si estábamos en modo "predicted",
     # lo señalamos en logs para saber que entraron los reales.
     # GUARD: solo aplicamos si no fueron rechazados por el validador.
-    if "tps" in parsed and parsed["tps"] != signal.tps and not tps_rejected:
+    previous_effective_tps = list(signal.tps)
+    previous_provider_tps = list(signal.provider_tps)
+    first_provider_tps = not previous_provider_tps
+    previous_final_target = signal.provider_final_target
+    provider_regular_tps = list(previous_provider_tps)
+    if (
+        previous_final_target is not None
+        and provider_regular_tps
+        and provider_regular_tps[-1] == float(previous_final_target)
+    ):
+        provider_regular_tps.pop()
+
+    if provider_tps_present and not tps_rejected:
         # Validate predictor accuracy: si teníamos predicted TPs y ahora llegan
         # reales, comparar y loguear precisión. Esto permite analizar si el
         # predictor está bien calibrado o necesita reajuste.
@@ -3128,57 +3326,163 @@ async def _update_signal_from_parsed(signal: Signal, parsed: dict,
                           accurate_within_2usd=(max_diff <= 2.0))
             print(f"[Predictor] TPs reales: {parsed['tps']} (sustituyen provisionales) "
                   f"max_diff=${max_diff:.2f}")
-        # Solo registramos como "tps_arrived" la primera vez (cuando aún no había)
-        first_tps = not signal.tps
+        incoming_provider_tps = list(new_tps_candidate or [])
+        provider_regular_tps = _merge_provider_tp_wave(
+            signal.direction,
+            provider_regular_tps,
+            incoming_provider_tps,
+        )
 
-        # ── FUSION anti-encogimiento (fix 2026-05-16, punto 3 capa A) ────
-        # El canal manda los TPs en OLEADAS: primero TP1 solo, luego los
-        # 4-5 completos. Si el canal manda [4529] y ya teniamos 4 TPs
-        # (predictor o edit anterior), reemplazar a secas ENCOGE la lista
-        # a 1 — y el tp_chase cree que "el precio paso todos los TPs".
-        # Caso real canal2_12513 (2026-05-15): cerro 2 markets prematuro.
-        #
-        # FUSION: los TPs del canal sustituyen los primeros N (son los
-        # reales) pero conservamos los TPs extra que ya teniamos como
-        # estimacion hasta que el canal mande la lista completa.
-        new_tps = parsed["tps"]
-        if signal.tps and len(new_tps) < len(signal.tps):
-            fused = list(new_tps) + list(signal.tps[len(new_tps):])
-            print(f"[TPs] {sig_id}: canal manda {len(new_tps)} TPs, fusiono "
-                  f"con los {len(signal.tps)} previos → {fused} "
-                  f"(canal manda en oleadas, no encogemos la lista)")
-            journal.event(sig_id, "tps_fused_partial",
-                          channel_tps=list(new_tps),
-                          previous_tps=list(signal.tps),
-                          fused_tps=fused)
-            signal.tps = fused
+    final_target_present = "final_target" in provider_fields
+    if final_target_present and parsed.get("final_target") is not None:
+        final_target = float(parsed["final_target"])
+        sequence_anchor = (
+            provider_regular_tps[-1]
+            if provider_regular_tps else signal.market_fill_price
+        )
+        target_valid = (
+            sequence_anchor is None
+            or final_target == float(sequence_anchor)
+            or _tp_extends_sequence(
+                signal.direction, float(sequence_anchor), final_target)
+        )
+        if target_valid:
+            signal.provider_final_target = final_target
         else:
-            signal.tps = list(new_tps)
-        sltp_changed = True
-        if first_tps:
+            journal.event(
+                sig_id,
+                "final_target_rejected_non_monotonic",
+                final_target=final_target,
+                provider_tps=list(provider_regular_tps),
+                direction=signal.direction,
+                entry=signal.market_fill_price,
+            )
+
+    combined_provider_tps = list(provider_regular_tps)
+    final_target = signal.provider_final_target
+    if final_target is not None:
+        final_target = float(final_target)
+        final_fits_sequence = (
+            not combined_provider_tps
+            or combined_provider_tps[-1] == final_target
+            or _tp_extends_sequence(
+                signal.direction, combined_provider_tps[-1], final_target)
+        )
+        if final_fits_sequence:
+            if not combined_provider_tps or combined_provider_tps[-1] != final_target:
+                combined_provider_tps.append(final_target)
+        else:
+            journal.event(
+                sig_id,
+                "final_target_conflicts_with_tp_wave",
+                final_target=final_target,
+                provider_tps=list(provider_regular_tps),
+                direction=signal.direction,
+            )
+
+    signal.provider_tps = combined_provider_tps
+    provider_targets_changed = signal.provider_tps != previous_provider_tps
+
+    if provider_targets_changed or provider_tps_present or final_target_present:
+        if provider_tps_present:
+            provisional_tail = interpreted_tps[provider_tp_count:]
+            effective_tps = _append_safe_tp_tail(
+                signal.direction,
+                provider_regular_tps,
+                provisional_tail,
+                final_target=final_target,
+            )
+        elif provider_regular_tps:
+            effective_tps = list(provider_regular_tps)
+        else:
+            effective_tps = list(previous_effective_tps)
+            if (
+                previous_final_target is not None
+                and effective_tps
+                and effective_tps[-1] == float(previous_final_target)
+            ):
+                effective_tps.pop()
+
+        if final_target is not None:
+            effective_tps = _append_safe_tp_tail(
+                signal.direction,
+                effective_tps,
+                [final_target],
+            )
+
+        signal.tps = effective_tps
+        signal.tps_source = (
+            "provider"
+            if effective_tps == signal.provider_tps else "mixed"
+        )
+        sltp_changed = sltp_changed or signal.tps != previous_effective_tps
+        if first_provider_tps and signal.provider_tps:
             tps_arrived_utc = datetime.utcnow()
-            journal.event(sig_id, "tps_arrived", tps=signal.tps, tg_ts=tg_ts)
-            journal.update_trade(sig_id,
-                                 tps_arrived_utc=tps_arrived_utc.isoformat(timespec="milliseconds"),
-                                 tps_initial=list(signal.tps))
-        else:
-            journal.event(sig_id, "tps_updated", tps=signal.tps)
+            journal.event(
+                sig_id,
+                "tps_arrived",
+                tps=list(signal.provider_tps),
+                effective_tps=list(signal.tps),
+                tg_ts=tg_ts,
+            )
+            journal.update_trade(
+                sig_id,
+                tps_arrived_utc=tps_arrived_utc.isoformat(
+                    timespec="milliseconds"),
+                tps_initial=list(signal.provider_tps),
+            )
+        elif provider_targets_changed:
+            journal.event(
+                sig_id,
+                "tps_updated",
+                tps=list(signal.provider_tps),
+                effective_tps=list(signal.tps),
+            )
+    elif (not signal.provider_tps and interpreted_tps
+          and signal.tps_source != "provider"):
+        if interpreted_tps != signal.tps:
+            signal.tps = interpreted_tps
+            sltp_changed = True
+        signal.tps_source = "provisional"
 
-    if "sl" in parsed and parsed["sl"] != signal.sl and not sl_rejected:
-        if signal.levels_predicted:
+    if provider_sl_present and not sl_rejected:
+        if signal.sl_source == "provisional":
             print(f"[Predictor] SL real: {parsed['sl']} (sustituye provisional)")
-        first_sl = signal.sl is None
-        signal.sl = parsed["sl"]
-        sltp_changed = True
+        first_sl = not signal.provider_sl_received
+        previous_sl = signal.sl
+        new_sl = float(parsed["sl"])
+        sltp_changed = sltp_changed or previous_sl != new_sl
+        signal.sl = new_sl
+        signal.sl_source = "provider"
+        signal.provider_sl_received = True
         if first_sl:
             journal.event(sig_id, "sl_arrived", sl=signal.sl)
             journal.update_trade(sig_id, sl_initial=signal.sl)
-        else:
-            journal.event(sig_id, "sl_updated", sl=signal.sl)
+        elif previous_sl != new_sl:
+            journal.event(
+                sig_id,
+                "sl_updated",
+                previous_sl=previous_sl,
+                sl=signal.sl,
+            )
+    elif ("sl" in parsed and not signal.provider_sl_received
+          and signal.sl_source != "provider"):
+        new_sl = float(parsed["sl"])
+        sltp_changed = sltp_changed or signal.sl != new_sl
+        signal.sl = new_sl
+        signal.sl_source = "provisional"
 
-    # Al llegar el SL real, salimos del modo predicted
-    if signal.levels_predicted and "sl" in parsed:
-        signal.levels_predicted = False
+    if ("has_open_runner" in provider_fields
+            and bool(parsed.get("has_open_runner"))
+            and not signal.has_open_runner):
+        signal.has_open_runner = True
+        sltp_changed = True
+        journal.event(
+            sig_id,
+            "open_runner_declared",
+            source="provider",
+            tg_ts=tg_ts,
+        )
 
     # ── Fallback de seguridad: SL sin TPs → evitar TP=0 en MT5 ──────────────
     # Si tras procesar el update tenemos SL pero TPs vacíos, intentamos predecir.
@@ -3189,6 +3493,7 @@ async def _update_signal_from_parsed(signal: Signal, parsed: dict,
         if signal.range_low is not None:
             pred = predict_levels(signal.direction, signal.range_low, signal.range_high)
             signal.tps = pred["tps"]
+            signal.tps_source = "provisional"
             signal.levels_predicted = True
             sltp_changed = True
             print(f"[Predictor] ⚠️ TPs ausentes → fallback desde rango: {signal.tps}")
@@ -3202,6 +3507,7 @@ async def _update_signal_from_parsed(signal: Signal, parsed: dict,
                     round(signal.market_fill_price + mult * dist * r, 2)
                     for r in (0.5, 1.0, 1.5, 2.0)
                 ]
+                signal.tps_source = "provisional"
                 signal.levels_predicted = True
                 sltp_changed = True
                 print(f"[Predictor] ⚠️ TPs ausentes → fallback R:R desde fill "
@@ -3212,6 +3518,11 @@ async def _update_signal_from_parsed(signal: Signal, parsed: dict,
         else:
             print(f"[Predictor] ⚠️ TPs ausentes y sin rango ni fill — TP=0 en MT5. "
                   f"SL={signal.sl} acota la pérdida.")
+
+    signal.levels_predicted = (
+        signal.tps_source in {"provisional", "mixed"}
+        or signal.sl_source == "provisional"
+    )
 
     if sltp_changed:
         await _apply_sl_tp(signal)
@@ -3614,11 +3925,17 @@ async def _maybe_handle_breakeven_close_negative(
         cur_price = ctx.current_price
         entries = []
         pos_info = []
-        for idx, (ticket, pnl) in enumerate(open_positions):
+        all_tickets = list(signal.all_filled_tickets)
+        ticket_indexes = {
+            int(ticket): index for index, ticket in enumerate(all_tickets)
+        }
+        for ticket, pnl in open_positions:
             entry = await _run(executor.entry_price, ticket)
             if entry is not None:
                 entries.append(entry)
-            tp_obj = signal.tp_for_position(idx)
+            position_index = ticket_indexes.get(int(ticket), 0)
+            tp_obj = signal.tp_for_position(
+                position_index, len(all_tickets))
             recorrido = abs(tp_obj - cur_price) if (
                 tp_obj is not None and cur_price is not None) else 0.0
             pos_info.append({"ticket": ticket, "pnl": pnl, "entry": entry,
@@ -4370,17 +4687,23 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
                 continue
             pnl = next((p for tk, p in open_positions if tk == t), 0.0)
             entry = await _run(executor.entry_price, t)
-            if t in signal.tp_overrides and signal.tps:
+            tp_obj, tp_reason = signal.tp_assignment(idx, len(all_tickets))
+            if (tp_reason != "open_runner"
+                    and t in signal.tp_overrides and signal.tps):
                 tp_idx = max(0, min(signal.tp_overrides[t], len(signal.tps) - 1))
                 tp_obj = signal.tps[tp_idx]
-            else:
-                tp_obj = signal.tp_for_position(idx)
             if tp_obj is not None and cur_price is not None:
                 recorrido = abs(tp_obj - cur_price)
             else:
                 recorrido = 0.0
-            pos_info.append({"ticket": t, "pnl": pnl, "entry": entry,
-                             "tp": tp_obj, "recorrido": recorrido})
+            pos_info.append({
+                "ticket": t,
+                "pnl": pnl,
+                "entry": entry,
+                "tp": tp_obj,
+                "tp_reason": tp_reason,
+                "recorrido": recorrido,
+            })
 
         # Gold Signals sometimes says "close first/best entries" after a
         # layered basket has moved into profit. Our copied positions may all
@@ -4436,8 +4759,12 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
             # decision == "close_half" → hay profit real, cae a la lógica
             # clásica de abajo (cerrar mitad a mercado, asegurar parciales).
 
-        # Ordenar por recorrido ASC (menor recorrido = cerrar primero)
-        pos_info.sort(key=lambda p: p["recorrido"])
+        # El runner OPEN es la posición que el proveedor pidió dejar correr:
+        # se mantiene al final aunque no tenga TP y, por tanto, recorrido.
+        pos_info.sort(key=lambda p: (
+            p.get("tp_reason") == "open_runner",
+            p["recorrido"],
+        ))
 
         # n_close = floor(n/2) — mantener MÁS (alineado con "dejar correr"),
         # mínimo 1 (el trader pide cerrar algo).
@@ -4477,8 +4804,10 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
                       n_closed=len(to_close),
                       closed_tickets=[p["ticket"] for p in to_close],
                       closed_recorridos=[round(p["recorrido"], 2) for p in to_close],
+                      closed_tp_reasons=[p.get("tp_reason") for p in to_close],
                       kept_tickets=[p["ticket"] for p in to_keep],
                       kept_recorridos=[round(p["recorrido"], 2) for p in to_keep],
+                      kept_tp_reasons=[p.get("tp_reason") for p in to_keep],
                       current_price=cur_price,
                       mode="contextual_recorrido")
         logger.log_action(signal, action)
@@ -5972,12 +6301,37 @@ async def _handle_canal2_standalone(msg, text: str, sig_id: str) -> None:
         return
 
     open_c2 = state.open_signals("canal2")
+    parsed_levels = parse_canal2(text)
+    has_level_update = any(
+        key in parsed_levels for key in _PROVIDER_LEVEL_FIELDS
+    )
     classification = classify_local(text)
     if not classification and open_c2:
         classification = await classify_async(text, signal=open_c2[0])
     actionable = _canal2_actionable(classification)
     actions = _canal2_action_names(classification)
     preview = text[:240].replace("\n", " | ")
+
+    if len(open_c2) == 1 and has_level_update:
+        target = open_c2[0]
+        journal.event(
+            sig_id,
+            "standalone_levels_attributed",
+            channel="canal2",
+            target=_sig_id(target),
+            parsed_keys=sorted(
+                key for key in parsed_levels if key in _PROVIDER_LEVEL_FIELDS
+            ),
+            attribution="single_open_signal",
+            tg_ts=_msg_ts_iso(msg),
+        )
+        await _apply_interpreted_entry_levels(
+            target,
+            parsed_levels,
+            "canal2",
+            reference_price=target.market_fill_price,
+            tg_ts=_msg_ts_iso(msg),
+        )
 
     if not actionable:
         contextual_target = _recent_tp_announcement_target(open_c2, text)
@@ -6065,6 +6419,7 @@ async def _open_canal2_intent(
     message_id = int(intent.message_id)
     direction = str(intent.direction).upper()
     parsed = dict(intent.parsed)
+    provider_parsed = dict(parsed)
     text = intent.raw_text or ""
     sig_id_pre = f"canal2_{message_id}"
 
@@ -6324,7 +6679,7 @@ async def _open_canal2_intent(
     await _open_extra_legs(sig, message_id)
     parsed = await _apply_interpreted_entry_levels(
         sig,
-        parsed,
+        provider_parsed,
         "canal2",
         reference_price=fill_price,
         tg_ts=(
@@ -6481,9 +6836,19 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True,
                 is_reply=True,
                 reply_to_msg_id=reply_id,
             )
-            if parsed_in_reply.get("tps") or parsed_in_reply.get("sl"):
-                print(f"[{label}] Reply con niveles reales: {[k for k in ('tps','sl') if k in parsed_in_reply]}")
-                await _update_signal_from_parsed(sig, parsed_in_reply, tg_ts=_tg_ts)
+            if any(key in parsed_in_reply for key in _PROVIDER_LEVEL_FIELDS):
+                level_keys = [
+                    key for key in _PROVIDER_LEVEL_FIELDS
+                    if key in parsed_in_reply
+                ]
+                print(f"[{label}] Reply con niveles reales: {level_keys}")
+                await _apply_interpreted_entry_levels(
+                    sig,
+                    parsed_in_reply,
+                    "canal2",
+                    reference_price=sig.market_fill_price,
+                    tg_ts=_tg_ts,
+                )
             # DESPUÉS: pasar por el classifier (con CONTEXTO del trade para
             # que Gemini decida con info en vivo: dirección, P&L, posiciones
             # abiertas, TPs, SL, etc.). El regex local sigue actuando primero.
@@ -6761,7 +7126,7 @@ async def _process_canal2_edit(msg, label: str = "Canal2"):
 
     parsed = parse_canal2(text)
     if not immediate_entry and not any(
-            key in parsed for key in ("range", "tps", "sl")):
+            key in parsed for key in _PROVIDER_LEVEL_FIELDS):
         return
     _tg_edit_ts = msg.edit_date.isoformat(timespec="seconds") if msg.edit_date else None
     _log_telegram_understood(
@@ -9443,10 +9808,18 @@ if config.TEST_CHANNEL_ID:
                 if sig:
                     parsed_in_reply = parse_canal2(text)
                     _tg_ts = msg.date.isoformat(timespec="seconds") if msg.date else None
-                    if parsed_in_reply.get("tps") or parsed_in_reply.get("sl"):
+                    if any(
+                            key in parsed_in_reply
+                            for key in _PROVIDER_LEVEL_FIELDS):
                         print(f"[Test] Reply con niveles reales: "
-                              f"{[k for k in ('tps','sl') if k in parsed_in_reply]}")
-                        await _update_signal_from_parsed(sig, parsed_in_reply, tg_ts=_tg_ts)
+                              f"{[k for k in _PROVIDER_LEVEL_FIELDS if k in parsed_in_reply]}")
+                        await _apply_interpreted_entry_levels(
+                            sig,
+                            parsed_in_reply,
+                            "canal2",
+                            reference_price=sig.market_fill_price,
+                            tg_ts=_tg_ts,
+                        )
                     cl = await classify_async(text, signal=sig)
                     await _execute_action(sig, cl, raw_text=text, tg_ts=_tg_ts)
                 else:

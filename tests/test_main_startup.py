@@ -361,6 +361,14 @@ def test_resync_restores_canal2_reply_entry_identity(monkeypatch, tmp_path):
             "sig": "canal2_585",
             "ev": "canal2_duplicate_alias_registered",
             "alias_message_id": 586,
+        }) + "\n" + json.dumps({
+            "ts": (telegram_ts + timedelta(seconds=9)).isoformat(),
+            "sig": "canal2_585",
+            "ev": "tp_allocation_decided",
+            "provider_tps": [3998.0, 3996.0, 3994.0, 3992.0],
+            "provider_final_target": 3992.0,
+            "effective_tps": [3998.0, 3996.0, 3994.0, 3992.0],
+            "has_open_runner": True,
         }) + "\n",
         encoding="utf-8",
     )
@@ -375,7 +383,15 @@ def test_resync_restores_canal2_reply_entry_identity(monkeypatch, tmp_path):
             "market_sl": 4010.0,
             "market_tp": 3998.0,
             "market_open_time": opened_at,
-            "extra_market_tickets": [],
+            "extra_market_tickets": [1671689002, 1671689003,
+                                     1671689004, 1671689005],
+            "double_market_tickets": [],
+            "scale_out_leg_indexes": {
+                1671689002: 1,
+                1671689003: 2,
+                1671689004: 3,
+                1671689005: 4,
+            },
             "dca_tickets": [],
         }
     }
@@ -415,6 +431,17 @@ def test_resync_restores_canal2_reply_entry_identity(monkeypatch, tmp_path):
     assert signal.telegram_entry_was_reply is True
     assert signal.telegram_entry_reply_to_message_id == 580
     assert signal.telegram_entry_timestamp == telegram_ts.replace(tzinfo=None)
+    assert signal.provider_tps == [3998.0, 3996.0, 3994.0, 3992.0]
+    assert signal.provider_final_target == 3992.0
+    assert signal.tps == [3998.0, 3996.0, 3994.0, 3992.0]
+    assert signal.tps_source == "provider"
+    assert signal.has_open_runner is True
+    assert signal.tp_overrides == {
+        1671689002: 1,
+        1671689003: 2,
+        1671689004: 3,
+        1671689005: 4,
+    }
     assert st.get("canal2", 586) is signal
     assert tick_calls == [main.config.MT5_SYMBOL]
 

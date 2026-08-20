@@ -1008,14 +1008,38 @@ def _terminal_action_matches_root(
                 "preflight_effective_tp",
                 "preflight_deferred_sl",
             }.issubset(terminal)
-            or terminal.get("preflight_status") != "position_gone"
-            or not isinstance(terminal.get("preflight_reason"), str)
-            or not terminal.get("preflight_reason").strip()
-            or terminal.get("preflight_effective_sl") is not None
-            or terminal.get("preflight_effective_tp") is not None
-            or terminal.get("preflight_deferred_sl") is not None
         ):
             return False
+        if attempts == 0:
+            if (
+                terminal.get("preflight_status") != "position_gone"
+                or not isinstance(terminal.get("preflight_reason"), str)
+                or not terminal.get("preflight_reason").strip()
+                or terminal.get("preflight_effective_sl") is not None
+                or terminal.get("preflight_effective_tp") is not None
+                or terminal.get("preflight_deferred_sl") is not None
+            ):
+                return False
+        else:
+            preflight_reason = terminal.get("preflight_reason")
+            effective_sl = terminal.get("preflight_effective_sl")
+            deferred_sl = terminal.get("preflight_deferred_sl")
+            if (
+                terminal.get("preflight_status") != "ready"
+                or (
+                    preflight_reason is not None
+                    and not isinstance(preflight_reason, str)
+                )
+                or not (
+                    _same_level(effective_sl, action_root.get("new_sl"))
+                    or _same_level(deferred_sl, action_root.get("new_sl"))
+                )
+                or not _same_level(
+                    terminal.get("preflight_effective_tp"),
+                    action_root.get("new_tp"),
+                )
+            ):
+                return False
     elif event_name == "mt5_action_failed":
         if (
             terminal.get("kind") != operation

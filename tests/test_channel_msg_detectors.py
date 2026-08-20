@@ -596,7 +596,7 @@ class TestCanal1SignalTextEdits:
         events = []
         anomalies = []
 
-        async def fake_update(signal, parsed_arg, tg_ts=None):
+        async def fake_update(signal, parsed_arg, tg_ts=None, **kwargs):
             updates.append((signal, parsed_arg, tg_ts))
 
         monkeypatch.setattr(listener, "state", st)
@@ -1706,7 +1706,7 @@ class TestCanal2OrphanEditRecovery:
         async def fake_open_extra_legs(sig, msg_id):
             return None
 
-        async def fake_update(sig, parsed, tg_ts=None):
+        async def fake_update(sig, parsed, tg_ts=None, **kwargs):
             return None
 
         def fake_open_market_with_fill(*args, **kwargs):
@@ -1952,7 +1952,7 @@ class TestCanal2OrphanEditRecovery:
         async def fake_run(fn, *args):
             return fn(*args)
 
-        async def fake_update(sig, parsed, tg_ts=None):
+        async def fake_update(sig, parsed, tg_ts=None, **kwargs):
             parsed_updates.append((parsed, tg_ts))
 
         async def fake_open_extra_legs(sig, msg_id):
@@ -2021,7 +2021,7 @@ class TestCanal2OrphanEditRecovery:
         async def fake_run(fn, *args):
             return fn(*args)
 
-        async def fake_update(sig, parsed, tg_ts=None):
+        async def fake_update(sig, parsed, tg_ts=None, **kwargs):
             parsed_updates.append((parsed, tg_ts))
 
         async def fake_open_extra_legs(sig, msg_id):
@@ -2093,7 +2093,7 @@ class TestCanal2OrphanEditRecovery:
         async def fake_run(fn, *args):
             return fn(*args)
 
-        async def fake_update(sig, parsed, tg_ts=None):
+        async def fake_update(sig, parsed, tg_ts=None, **kwargs):
             parsed_updates.append((parsed, tg_ts))
 
         async def fake_open_extra_legs(sig, msg_id):
@@ -2160,8 +2160,8 @@ class TestCanal2OrphanEditRecovery:
         async def fake_run(fn, *args):
             return fn(*args)
 
-        async def fake_update(sig, parsed, tg_ts=None):
-            parsed_updates.append((parsed, tg_ts))
+        async def fake_update(sig, parsed, tg_ts=None, **kwargs):
+            parsed_updates.append((parsed, tg_ts, kwargs))
 
         async def fake_open_extra_legs(sig, msg_id):
             return None
@@ -2225,9 +2225,13 @@ class TestCanal2OrphanEditRecovery:
             "magic": config.magic_for("canal2"),
         }]
         assert any(parsed.get("sl") == 4039.5 and len(parsed.get("tps", [])) == 6
-                   for parsed, _ in parsed_updates)
-        assert any(parsed.get("sl") == 4038.5 and parsed.get("tps") == [4027.5]
-                   for parsed, _ in parsed_updates)
+                   for parsed, _, _ in parsed_updates)
+        assert any(
+            parsed.get("sl") == 4038.5
+            and parsed.get("tps", [None])[0] == 4027.5
+            and kwargs.get("provider_values", {}).get("tps") == [4027.5]
+            for parsed, _, kwargs in parsed_updates
+        )
         assert any(ev == "entry_levels_interpreted"
                    for _, ev, _ in events)
 
@@ -2248,7 +2252,7 @@ class TestCanal2OrphanEditRecovery:
         async def fake_open_extra_legs(sig, msg_id):
             return None
 
-        async def fake_update(sig, parsed, tg_ts=None):
+        async def fake_update(sig, parsed, tg_ts=None, **kwargs):
             return None
 
         monkeypatch.setattr(listener, "state", st)
@@ -2461,7 +2465,7 @@ class TestGlobalEntryLevelInterpretation:
         async def fake_run(fn, *args):
             return fn(*args)
 
-        async def fake_update(sig, parsed, tg_ts=None):
+        async def fake_update(sig, parsed, tg_ts=None, **kwargs):
             parsed_updates.append((parsed, tg_ts))
 
         async def fake_open_extra_legs(sig, msg_id):

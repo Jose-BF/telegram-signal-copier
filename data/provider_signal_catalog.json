@@ -63076,7 +63076,7 @@
       "risk_label": "standard",
       "effective_range": [
         4030.0,
-        4030.0
+        4035.0
       ],
       "effective_tps": [
         4026.0,
@@ -63124,17 +63124,17 @@
           "media_extraction_status": null,
           "parsed": {
             "direction": "SELL",
+            "range": [
+              4030.0,
+              4035.0
+            ],
             "tps": [
               4026.0,
               4022.0,
               4018.0,
               4014.0
             ],
-            "sl": 4045.0,
-            "range": [
-              4030.0,
-              4030.0
-            ]
+            "sl": 4045.0
           }
         }
       ],
@@ -63144,11 +63144,11 @@
           "observed_ts_utc": "2026-07-01T11:47:29.218+00:00",
           "range": [
             4030.0,
-            4030.0
+            4035.0
           ],
           "raw_range": [
             4030.0,
-            4030.0
+            4035.0
           ],
           "source_message_id": 20666,
           "source_kind": "revision",
@@ -63364,37 +63364,37 @@
           "sig_id": "canal1_20665",
           "canonical_range": [
             4030.0,
-            4030.0
+            4035.0
           ],
           "runtime_entry_quality": null,
           "tickets": [
             {
               "ticket": 1523774301,
               "open_price": 4032.37,
-              "inside_final_provider_range": false,
-              "distance_outside": 2.37
+              "inside_final_provider_range": true,
+              "distance_outside": 0.0
             },
             {
               "ticket": 1523774636,
               "open_price": 4032.06,
-              "inside_final_provider_range": false,
-              "distance_outside": 2.06
+              "inside_final_provider_range": true,
+              "distance_outside": 0.0
             },
             {
               "ticket": 1523774726,
               "open_price": 4032.02,
-              "inside_final_provider_range": false,
-              "distance_outside": 2.02
+              "inside_final_provider_range": true,
+              "distance_outside": 0.0
             },
             {
               "ticket": 1523774791,
               "open_price": 4032.02,
-              "inside_final_provider_range": false,
-              "distance_outside": 2.02
+              "inside_final_provider_range": true,
+              "distance_outside": 0.0
             }
           ],
-          "all_entries_inside": false,
-          "max_distance_outside": 2.37
+          "all_entries_inside": true,
+          "max_distance_outside": 0.0
         }
       ],
       "execution_count": 1,
@@ -77310,7 +77310,8 @@
               4121.5,
               4119.5,
               4117.0
-            ]
+            ],
+            "has_open_runner": true
           }
         },
         {
@@ -77339,6 +77340,7 @@
               4119.5,
               4117.0
             ],
+            "has_open_runner": true,
             "sl": 4131.5
           }
         },
@@ -77368,6 +77370,7 @@
               4119.5,
               4117.0
             ],
+            "has_open_runner": true,
             "sl": 4131.5
           }
         }
@@ -77775,7 +77778,8 @@
               4117.0,
               4115.0,
               4113.0
-            ]
+            ],
+            "has_open_runner": true
           }
         },
         {
@@ -77804,6 +77808,7 @@
               4115.0,
               4113.0
             ],
+            "has_open_runner": true,
             "sl": 4127.0
           }
         }
@@ -78200,7 +78205,8 @@
               4116.5,
               4114.5,
               4112.0
-            ]
+            ],
+            "has_open_runner": true
           }
         },
         {
@@ -78229,6 +78235,7 @@
               4114.5,
               4112.0
             ],
+            "has_open_runner": true,
             "sl": 4126.5
           }
         }
@@ -78772,7 +78779,8 @@
               4079.0,
               4077.0,
               4075.0
-            ]
+            ],
+            "has_open_runner": true
           }
         },
         {
@@ -78801,6 +78809,7 @@
               4077.0,
               4075.0
             ],
+            "has_open_runner": true,
             "sl": 4089.0
           }
         }
@@ -79338,6 +79347,7 @@
               4060.5,
               4063.0
             ],
+            "has_open_runner": true,
             "sl": 4048.0
           }
         }
@@ -79744,6 +79754,7 @@
               4057.0,
               4060.0
             ],
+            "has_open_runner": true,
             "sl": 4045.0
           }
         }
@@ -80197,7 +80208,8 @@
               4043.5,
               4041.5,
               4039.5
-            ]
+            ],
+            "has_open_runner": true
           }
         },
         {
@@ -80226,6 +80238,7 @@
               4041.5,
               4039.5
             ],
+            "has_open_runner": true,
             "sl": 4054.5
           }
         },
@@ -80255,6 +80268,7 @@
               4041.5,
               4039.5
             ],
+            "has_open_runner": true,
             "sl": 4054.5
           }
         }
@@ -80660,7 +80674,8 @@
               4042.0,
               4040.0,
               4038.0
-            ]
+            ],
+            "has_open_runner": true
           }
         },
         {
@@ -80689,6 +80704,7 @@
               4040.0,
               4038.0
             ],
+            "has_open_runner": true,
             "sl": 4052.0
           }
         },
@@ -81096,6 +81112,7 @@
               4046.5,
               4044.0
             ],
+            "has_open_runner": true,
             "sl": 4057.0
           }
         }
@@ -81492,6 +81509,7 @@
               4061.0,
               4063.0
             ],
+            "has_open_runner": true,
             "sl": 4049.0
           }
         }
@@ -84314,7 +84332,8 @@
               4069.5,
               4071.5,
               4073.0
-            ]
+            ],
+            "has_open_runner": true
           }
         },
         {
@@ -84343,6 +84362,7 @@
               4071.5,
               4073.0
             ],
+            "has_open_runner": true,
             "sl": 4059.0
           }
         }
@@ -85171,6 +85191,7 @@
               4063.5,
               4066.0
             ],
+            "has_open_runner": true,
             "sl": 4051.5
           }
         }
@@ -85706,7 +85727,8 @@
               4063.0,
               4065.0,
               4067.0
-            ]
+            ],
+            "has_open_runner": true
           }
         },
         {
@@ -85735,6 +85757,7 @@
               4065.0,
               4067.0
             ],
+            "has_open_runner": true,
             "sl": 4053.0
           }
         }
@@ -86207,6 +86230,7 @@
               4049.0,
               4057.0
             ],
+            "has_open_runner": true,
             "sl": 4034.0
           }
         }
@@ -86723,6 +86747,7 @@
               4040.5,
               4043.0
             ],
+            "has_open_runner": true,
             "sl": 4028.0
           }
         }
@@ -88829,7 +88854,8 @@
               4101.5,
               4103.5,
               4106.0
-            ]
+            ],
+            "has_open_runner": true
           }
         },
         {
@@ -88858,6 +88884,7 @@
               4103.5,
               4106.0
             ],
+            "has_open_runner": true,
             "sl": 4090.5
           }
         }
@@ -93574,6 +93601,7 @@
               4123.5,
               4126.0
             ],
+            "has_open_runner": true,
             "sl": 4110.5
           }
         },
@@ -93603,6 +93631,7 @@
               4123.5,
               4126.0
             ],
+            "has_open_runner": true,
             "sl": 4110.0
           }
         },
@@ -98937,7 +98966,8 @@
               4098.0,
               4096.0,
               4094.0
-            ]
+            ],
+            "has_open_runner": true
           }
         },
         {
@@ -98967,6 +98997,7 @@
               4096.0,
               4094.0
             ],
+            "has_open_runner": true,
             "sl": 4111.0
           }
         },
@@ -100442,6 +100473,7 @@
               4097.0,
               4095.0
             ],
+            "has_open_runner": true,
             "sl": 4112.5
           }
         }
@@ -101371,6 +101403,7 @@
               4098.0,
               4094.0
             ],
+            "has_open_runner": true,
             "sl": 4112.0
           }
         },
@@ -101402,6 +101435,7 @@
               4096.0,
               4094.0
             ],
+            "has_open_runner": true,
             "sl": 4112.0
           }
         }
@@ -102305,6 +102339,7 @@
               4097.0,
               4099.0
             ],
+            "has_open_runner": true,
             "sl": 4080.0
           }
         }
@@ -106719,6 +106754,7 @@
               4075.0,
               4078.0
             ],
+            "has_open_runner": true,
             "sl": 4055.0
           }
         },
@@ -117512,6 +117548,7 @@
               4090.0,
               4100.0
             ],
+            "final_target": 4121.0,
             "sl": 4069.0
           }
         }

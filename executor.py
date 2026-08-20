@@ -41,6 +41,16 @@ def _finite_level(value: Optional[float]) -> Optional[float]:
     return parsed if math.isfinite(parsed) and parsed > 0 else None
 
 
+def _is_explicit_level_clear(value: Optional[float]) -> bool:
+    """MT5 uses zero to remove an existing SL/TP."""
+    if value is None:
+        return False
+    try:
+        return float(value) == 0.0
+    except (TypeError, ValueError):
+        return False
+
+
 def evaluate_position_sltp(
     position,
     tick,
@@ -57,14 +67,19 @@ def evaluate_position_sltp(
             "invalid_request", current_sl, current_tp,
             reason="invalid_sl_value",
         )
-    if new_tp is not None and _finite_level(new_tp) is None:
+    clear_tp = _is_explicit_level_clear(new_tp)
+    if new_tp is not None and _finite_level(new_tp) is None and not clear_tp:
         return ModifySLTPDecision(
             "invalid_request", current_sl, current_tp,
             reason="invalid_tp_value",
         )
 
     requested_sl = _finite_level(new_sl)
-    requested_tp = _finite_level(new_tp) if new_tp is not None else current_tp
+    requested_tp = (
+        0.0 if clear_tp
+        else _finite_level(new_tp) if new_tp is not None
+        else current_tp
+    )
     if requested_sl is None:
         return ModifySLTPDecision("ready", current_sl, requested_tp)
 
@@ -1096,7 +1111,9 @@ def preflight_modify_sltp(
         return ModifySLTPDecision(
             "ready",
             _finite_level(new_sl) if new_sl is not None else _finite_level(order.sl),
-            _finite_level(new_tp) if new_tp is not None else _finite_level(order.tp),
+            (0.0 if _is_explicit_level_clear(new_tp)
+             else _finite_level(new_tp) if new_tp is not None
+             else _finite_level(order.tp)),
         )
     return ModifySLTPDecision(
         "position_gone", None, None, reason="ticket_not_found")
@@ -1687,8 +1704,7 @@ def _parse_signal_id_from_comment(comment: str) -> Optional[tuple[str, int]]:
 
 
 def list_open_positions_grouped() -> dict[str, dict]:
-    """Devuelve dict {signal_id: {market_ticket, market_price, market_sl,
-    market_tp, dca_tickets, direction, magic, channel, message_id}}.
+    """Agrupa posiciones MT5 del bot conservando el rol y orden de cada leg.
 
     Para resync on startup: encuentra TODAS las posiciones abiertas con
     nuestros magic numbers, agrupa por signal_id (parseando comments),
@@ -1726,8 +1742,13 @@ def list_open_positions_grouped() -> dict[str, dict]:
         sig_id = f"{channel}_{message_id}"
 
         comment = p.comment or ""
-        # _B (doble market) o _B1.._B4 (legs del scale_out) → posicion extra
-        is_market_b = bool(_re_resync.search(r"_B\d*$", comment))
+        # _B es el doble market legacy; _B1.._B4 son legs scale-out. Ambos
+        # son posiciones extra, pero solo _B debe recuperar el override TP3.
+        market_b_match = _re_resync.search(r"_B(\d*)$", comment)
+        is_market_b = bool(market_b_match)
+        is_legacy_market_b = bool(
+            market_b_match and market_b_match.group(1) == ""
+        )
         is_rescue = "_rescue" in comment
         is_market = (bool(_RX_MARKET.match(comment))
                      and not is_rescue and not is_market_b)
@@ -1744,10 +1765,13 @@ def list_open_positions_grouped() -> dict[str, dict]:
                 "market_sl": None,
                 "market_tp": None,
                 "market_open_time": None,  # epoch UTC (MT5 position.time)
-                "extra_market_tickets": [],   # Market B del doble market
+                "extra_market_tickets": [],
+                "double_market_tickets": [],
+                "scale_out_leg_indexes": {},
                 "dca_tickets": [],
                 "resync_anchor_role": None,
                 "_surviving_market_candidates": [],
+                "_extra_market_sort_keys": {},
             }
 
         if is_market:
@@ -1761,9 +1785,20 @@ def list_open_positions_grouped() -> dict[str, dict]:
             groups[sig_id]["market_open_time"] = int(p.time) if p.time else None
             groups[sig_id]["resync_anchor_role"] = "original_market"
         elif is_market_b:
-            # Market B del doble market — antes se ignoraba (no matcheaba
-            # ningun regex). canal2_12497 perdio +$6.05 por esto.
             groups[sig_id]["extra_market_tickets"].append(p.ticket)
+            if is_legacy_market_b:
+                groups[sig_id]["double_market_tickets"].append(p.ticket)
+            leg_number = (
+                int(market_b_match.group(1))
+                if market_b_match and market_b_match.group(1) else 0
+            )
+            if leg_number > 0:
+                groups[sig_id]["scale_out_leg_indexes"][p.ticket] = leg_number
+            groups[sig_id]["_extra_market_sort_keys"][p.ticket] = (
+                leg_number,
+                int(p.time or 0),
+                int(p.ticket),
+            )
             groups[sig_id]["_surviving_market_candidates"].append(p)
         elif is_rescue or is_dca:
             groups[sig_id]["dca_tickets"].append(p.ticket)
@@ -1803,6 +1838,15 @@ def list_open_positions_grouped() -> dict[str, dict]:
     result = {}
     for sid, group in groups.items():
         group.pop("_surviving_market_candidates", None)
+        sort_keys = group.pop("_extra_market_sort_keys", {})
+        group["extra_market_tickets"].sort(
+            key=lambda ticket: sort_keys.get(
+                ticket, (10_000, 0, int(ticket)))
+        )
+        group["double_market_tickets"].sort(
+            key=lambda ticket: sort_keys.get(
+                ticket, (10_000, 0, int(ticket)))
+        )
         if group["market_ticket"]:
             result[sid] = group
     return result

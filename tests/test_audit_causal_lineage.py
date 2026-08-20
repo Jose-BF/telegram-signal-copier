@@ -2142,6 +2142,39 @@ def test_position_gone_preflight_can_finish_without_executor_attempt():
     assert report["summary"]["blocked"] == 0
 
 
+def test_position_gone_after_linked_modify_attempt_is_terminal_evidence():
+    rows = _operation_chain("MODIFY_SLTP")
+    rows[4] = _row(
+        "mt5_modify_skipped_position_gone",
+        "event_terminal",
+        message_revision_id=_MSGREV_1,
+        decision_id="decision_1",
+        action_id="action_1",
+        attempt_id="attempt_1",
+        ticket=101,
+        attempts=1,
+        retcode=10036,
+        label="BE #101",
+        new_sl=4056.53,
+        new_tp=4059.53,
+        expected_magic=20260422,
+        preflight_status="ready",
+        preflight_reason=None,
+        preflight_effective_sl=4056.53,
+        preflight_effective_tp=4059.53,
+        preflight_deferred_sl=None,
+        action_revision=0,
+        monotonic_ns=140,
+    )
+
+    report = audit_causal_lineage.audit_rows(
+        rows,
+        source_sha256="1" * 64,
+    )
+
+    assert report["summary"]["blocked"] == 0
+
+
 def _invalid_magic_preflight_rows():
     complete = _complete_chain()
     rows = [complete[0], complete[1]]

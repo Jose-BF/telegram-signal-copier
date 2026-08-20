@@ -31,8 +31,10 @@ def _parse_abbreviated_range(raw: str) -> Optional[tuple[float, float]]:
         b_str = parts[1].strip()
         b = float(b_str)
 
-        # Si b parece abreviado (≤2 dígitos enteros, sin punto)
-        if b < 100 and "." not in b_str:
+        # Si b parece abreviado (hasta 2 digitos enteros), conserva tambien
+        # sus decimales: "4488-95.00" significa 4488-4495, no 95 dolares.
+        b_integer_digits = len(b_str.lstrip("+-").split(".", 1)[0])
+        if b < 100 and b_integer_digits <= 2:
             base = int(a / 100) * 100
             b_full = base + b
             # Ajusta si la diferencia sería > 50 (signo equivocado de centena)
@@ -99,6 +101,8 @@ def _extract_tps(text: str) -> list[float]:
         if not line:
             continue
         upper = line.upper()
+        if re.search(r"\bFINAL\s+TARGET\b", upper):
+            continue
         if re.search(r"\bTARGETS?\b", upper):
             in_targets_block = True
             after_label = re.split(
@@ -121,6 +125,23 @@ def _extract_tps(text: str) -> list[float]:
             except ValueError:
                 pass
     return results
+
+
+def _extract_final_target(text: str) -> Optional[float]:
+    """Extrae un objetivo final sin confundirlo con un TP aislado."""
+    match = re.search(
+        r"\bFINAL\s+TARGET(?:\s+FOR\s+THIS)?\s*"
+        r"(?:(?:IS|AT)\s*)?(?:[:=]\s*)?"
+        r"(\d{3,5}(?:\.\d{1,3})?)\b",
+        text or "",
+        re.IGNORECASE,
+    )
+    if not match:
+        return None
+    try:
+        return float(match.group(1))
+    except ValueError:
+        return None
 
 
 def _extract_sl(text: str) -> Optional[float]:
@@ -375,6 +396,16 @@ def parse_canal2(text: str) -> dict:
     tps = _extract_tps(text)
     if tps:
         result["tps"] = tps
+
+    final_target = _extract_final_target(text)
+    if final_target is not None:
+        result["final_target"] = final_target
+
+    if re.search(
+        r"(?mi)^\s*OPEN(?:\s+(?:RUNNER|TRADE))?\s*$",
+        text or "",
+    ):
+        result["has_open_runner"] = True
 
     sl = _extract_sl(text)
     if sl:

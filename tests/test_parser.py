@@ -381,6 +381,10 @@ class TestParseAbbreviatedRange:
         assert lo == 4795.0
         assert hi in (4805.0,)
 
+    def test_abbreviated_decimal_suffix_keeps_left_price_context(self):
+        # REAL C1: "4488-95.00" means 4488-4495, not 95 dollars.
+        assert _parse_abbreviated_range("4488-95.00") == (4488.0, 4495.0)
+
     def test_slash_separator(self):
         # "4745/50" — usar / como separador
         assert _parse_abbreviated_range("4745/50") == (4745.0, 4750.0)
@@ -456,6 +460,30 @@ class TestExtractTps:
     def test_new_canal2_singular_target_block(self):
         text = "Buy Gold Now\n\n4061 - 4055\n\nTarget\n\n4063\n4065\n4067\nOpen"
         assert _extract_tps(text) == [4063.0, 4065.0, 4067.0]
+
+    def test_parse_canal2_preserves_explicit_open_runner(self):
+        parsed = parse_canal2(
+            "Buy Gold Now\n\n4061 - 4055\n\n"
+            "Target\n4063\n4065\n4067\nOpen\n\nSL 4051"
+        )
+
+        assert parsed["tps"] == [4063.0, 4065.0, 4067.0]
+        assert parsed["has_open_runner"] is True
+
+    def test_parse_canal2_keeps_final_target_semantics_separate(self):
+        parsed = parse_canal2("Final target for this is 4436")
+
+        assert parsed == {"final_target": 4436.0}
+
+    def test_parse_canal2_full_signal_adds_final_target_after_numbered_tps(self):
+        parsed = parse_canal2(
+            "Sell Gold Now\n4477 - 4482\n"
+            "TP1 4472\nTP2 4469\nTP3 4465\n"
+            "Final target 4436\nSL 4487"
+        )
+
+        assert parsed["tps"] == [4472.0, 4469.0, 4465.0]
+        assert parsed["final_target"] == 4436.0
 
     def test_no_tps(self):
         assert _extract_tps("Move SL to BE") == []
