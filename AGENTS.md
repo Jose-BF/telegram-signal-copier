@@ -74,6 +74,38 @@ report and run archive.
   `tools/install_broker_money_snapshot_service.py`.
 - `recursive_log_learning.py`: offline, deterministic whole-corpus learner. It normalizes recurring reliability patterns, prioritizes candidates and detects covered-pattern regressions. It must never be imported by a live order module.
 
+## Iterative Dubai Research
+
+- `research/dubai_iterative/contracts.py`: immutable strategy grammar, explicit
+  volume/time search envelope and finite stopping budgets. The observed `0.04`
+  lots is a baseline only; it is never a hard-coded maximum.
+- `research/dubai_iterative/dataset.py`: fail-closed loader for the certified
+  Dubai replay, broker tick paths, conversion ticks and money contract.
+- `research/dubai_iterative/fast_engine.py`: Numba fixed-point search engine.
+  `research/dubai_iterative/oracle.py` is its independent scalar verifier and
+  must not import either simulation engine.
+- `research/dubai_iterative/evolution.py` and `search.py`: structured failure
+  diagnosis, deterministic mutation/crossover/scouts, normalized Pareto
+  ranking, chronological folds, checkpoints and hard anti-loop limits.
+- `research/dubai_iterative/refinement.py`, `robustness.py` and `statistics.py`:
+  dense one-block sensitivity, observational-equivalence collapse and complete
+  trading-day stability checks. Chronological blocks reused during discovery
+  are retrospective robustness evidence, never untouched OOS evidence.
+- `research/dubai_iterative/risk.py` and `portfolio.py`: prospective configured
+  loss for concurrent signals and exact joint-equity reconstruction over one
+  canonical market/conversion tape.
+- `research/dubai_iterative/certification.py`: chronological finalist selection,
+  cent-exact oracle replay, six-world latency/slippage/spread certification and
+  mandatory complete portfolio reconstruction.
+- `research/dubai_iterative/__main__.py`: research CLI and immutable artifacts
+  under ignored `runtime_data/dubai_strategy_runs/`.
+- No module in `research/dubai_iterative/` may import live order/runtime modules,
+  change bot configuration, publish to the VM or promote a candidate. Adoption
+  is a separate reviewed live change after untouched forward evidence.
+- Imported winners are research seeds whose history has already been seen. A
+  seeded run must label them `research_seed_only_full_sample_origin_not_oos`;
+  it cannot reset or improve the confidence class by itself.
+
 ## Recursive Reliability Evidence
 
 - Logs may propose patterns; they never modify runtime rules or promote themselves.

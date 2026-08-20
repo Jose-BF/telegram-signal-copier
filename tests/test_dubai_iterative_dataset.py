@@ -12,9 +12,10 @@ from research.dubai_iterative.dataset import VerifiedParquetTickSource, load_dub
 
 
 class FakeTickSource:
-    def __init__(self, frames=None, blockers=None):
+    def __init__(self, frames=None, blockers=None, parquet_hash=None):
         self.frames = frames or {}
         self.blockers = blockers or {}
+        self.parquet_hash = parquet_hash or "a" * 64
         self.loaded = []
 
     def load_day(self, day: date):
@@ -23,7 +24,7 @@ class FakeTickSource:
         if key in self.blockers:
             return pd.DataFrame(), None, list(self.blockers[key])
         frame = self.frames[key].copy()
-        return frame, {"day": key, "parquet_sha256": "a" * 64}, []
+        return frame, {"day": key, "parquet_sha256": self.parquet_hash}, []
 
 
 def _write_jsonl(path, rows):
@@ -204,6 +205,87 @@ def test_loader_freezes_paths_and_binds_money_contract(tmp_path):
         ).encode("utf-8")
     ).hexdigest()
     assert dataset.source_hashes["money_contract"] == expected
+
+
+def test_dataset_identity_binds_tick_bytes_and_loaded_horizon(tmp_path):
+    replay = _write_jsonl(tmp_path / "replay.jsonl", [_trade()])
+    audit = _write_jsonl(
+        tmp_path / "audit.jsonl",
+        [{"sig_id": "canal1_1", "status": "exact", "blockers": []}],
+    )
+
+    first = load_dubai_dataset(
+        replay_path=replay,
+        audit_path=audit,
+        market_ticks=FakeTickSource(
+            {"2026-07-27": _ticks()},
+            parquet_hash="a" * 64,
+        ),
+        conversion_ticks=None,
+        money_contract=_money_contract(),
+        max_hold_minutes=240,
+    )
+    changed_ticks = load_dubai_dataset(
+        replay_path=replay,
+        audit_path=audit,
+        market_ticks=FakeTickSource(
+            {"2026-07-27": _ticks()},
+            parquet_hash="b" * 64,
+        ),
+        conversion_ticks=None,
+        money_contract=_money_contract(),
+        max_hold_minutes=240,
+    )
+    changed_horizon = load_dubai_dataset(
+        replay_path=replay,
+        audit_path=audit,
+        market_ticks=FakeTickSource(
+            {"2026-07-27": _ticks()},
+            parquet_hash="a" * 64,
+        ),
+        conversion_ticks=None,
+        money_contract=_money_contract(),
+        max_hold_minutes=300,
+    )
+
+    assert first.source_hashes["market_ticks"] != changed_ticks.source_hashes["market_ticks"]
+    assert first.source_hashes["dataset_contract"] != changed_horizon.source_hashes["dataset_contract"]
+    assert first.max_hold_minutes == 240
+    assert changed_horizon.max_hold_minutes == 300
+
+
+def test_dataset_keeps_the_full_exact_universe_visible_when_ticks_are_missing(tmp_path):
+    first = _trade("canal1_1")
+    second = _trade("canal1_2")
+    second["signal_dt_utc"] = "2026-07-28T09:00:00+00:00"
+    second["pnl_real_mt5"] = "-1.15"
+    second["tickets"][0]["open_dt_utc"] = "2026-07-28T09:00:00+00:00"
+    second["tickets"][0]["fill_event"]["ts"] = "2026-07-28T09:00:00.125+00:00"
+    replay = _write_jsonl(tmp_path / "replay.jsonl", [first, second])
+    audit = _write_jsonl(
+        tmp_path / "audit.jsonl",
+        [
+            {"sig_id": "canal1_1", "status": "exact", "blockers": []},
+            {"sig_id": "canal1_2", "status": "exact", "blockers": []},
+        ],
+    )
+
+    dataset = load_dubai_dataset(
+        replay_path=replay,
+        audit_path=audit,
+        market_ticks=FakeTickSource(
+            frames={"2026-07-27": _ticks()},
+            blockers={"2026-07-28": ["missing_tick_cache:2026-07-28"]},
+        ),
+        conversion_ticks=None,
+        money_contract=_money_contract(),
+    )
+
+    assert dataset.eligible_signal_ids == ("canal1_1", "canal1_2")
+    assert [path.signal_id for path in dataset.paths] == ["canal1_1"]
+    assert dataset.coverage_complete is False
+    assert dataset.actual_pnl_eur == Decimal("1.20")
+    assert dataset.loaded_actual_pnl_eur == Decimal("2.35")
 
 
 def test_loader_refuses_a_cost_model_the_engine_cannot_reproduce(tmp_path):

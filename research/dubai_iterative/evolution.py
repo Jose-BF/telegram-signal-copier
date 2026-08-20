@@ -39,9 +39,27 @@ class CandidateEvaluation:
     profit_factor: float | None
     positive_day_concentration: float | None
     normalized_net_per_001: Decimal | None
+    normalized_max_drawdown_per_001: Decimal | None
+    normalized_worst_day_per_001: Decimal | None
     max_signal_exposure: float
     complexity: int
     blockers: tuple[str, ...]
+
+    @property
+    def total_signal_count(self) -> int:
+        return len(self.results)
+
+    @property
+    def filled_signal_count(self) -> int:
+        return sum(not result.unfilled for _day, result in self.results)
+
+    @property
+    def participation_rate(self) -> float:
+        return (
+            self.filled_signal_count / self.total_signal_count
+            if self.total_signal_count
+            else 0.0
+        )
 
     @classmethod
     def from_results(
@@ -84,11 +102,9 @@ class CandidateEvaluation:
         peak = Decimal("0")
         day_totals: dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
         floating_drawdown = Decimal("0")
-        total_volume = Decimal("0")
         max_exposure = 0.0
         for day, result in results:
             max_exposure = max(max_exposure, result.filled_volume)
-            total_volume += Decimal(str(result.filled_volume))
             if result.max_floating_drawdown_eur is not None:
                 floating_drawdown = max(
                     floating_drawdown,
@@ -115,11 +131,21 @@ class CandidateEvaluation:
             if total_positive_days > 0
             else 0.0
         ) if money_complete else None
-        normalized = None
-        if net is not None and total_volume > 0:
-            normalized = (net / total_volume * Decimal("0.01")).quantize(
-                Decimal("0.01")
-            )
+        planned_exposure = Decimal(str(sum(genome.volume_weights)))
+        normalization_scale = (
+            Decimal("0.01") / planned_exposure
+            if planned_exposure > 0
+            else None
+        )
+        normalized = _normalized_money(net, normalization_scale)
+        normalized_drawdown = _normalized_money(
+            max_drawdown,
+            normalization_scale,
+        )
+        normalized_worst_day = _normalized_money(
+            worst_day,
+            normalization_scale,
+        )
         return cls(
             genome=genome,
             results=results,
@@ -131,6 +157,8 @@ class CandidateEvaluation:
             profit_factor=profit_factor,
             positive_day_concentration=concentration,
             normalized_net_per_001=normalized,
+            normalized_max_drawdown_per_001=normalized_drawdown,
+            normalized_worst_day_per_001=normalized_worst_day,
             max_signal_exposure=max_exposure,
             complexity=_genome_complexity(genome),
             blockers=blockers,
@@ -426,7 +454,14 @@ def mutate_from_diagnosis(
         propose("provider_management_helpful", provider_management_mode="exact")
     if "deep_recovery" in labels:
         propose("deep_recovery", stop_mode="none", stop_value=None)
-        propose("deep_recovery", entry_mode="pullback", entry_value=1.0)
+        alternative_exit = _counterfactual_time_exit(parent, search_space)
+        if alternative_exit is not None:
+            propose(
+                "deep_recovery",
+                entry_mode="pullback",
+                entry_value=1.0,
+                time_exit_min=alternative_exit,
+            )
     if "entry_timing_cost" in labels:
         propose("entry_timing_cost", entry_mode="actual_mt5", entry_value=None)
         if parent.entry_value is not None:
@@ -443,7 +478,14 @@ def mutate_from_diagnosis(
             propose("marginal_leg_damage", **reduced)
     if "no_dominant_failure" in labels:
         novelty = rng.choice(("delay", "pullback", "momentum"))
-        propose("novel_entry_probe", entry_mode=novelty, entry_value=1.0)
+        alternative_exit = _counterfactual_time_exit(parent, search_space)
+        if alternative_exit is not None:
+            propose(
+                "novel_entry_probe",
+                entry_mode=novelty,
+                entry_value=1.0,
+                time_exit_min=alternative_exit,
+            )
 
     return deduplicate(proposals)
 
@@ -460,7 +502,13 @@ def crossover(
     if left.fingerprint == right.fingerprint:
         return ()
     blocks = (
-        ("entry_mode", "entry_value", "entry_expiry_min"),
+        (
+            "entry_mode",
+            "entry_value",
+            "entry_expiry_min",
+            "entry_ladder_mode",
+            "entry_ladder_step",
+        ),
         ("leg_count", "volume_weights"),
         ("target_mode", "target_value", "partial_fraction", "runner_target"),
         (
@@ -547,21 +595,37 @@ def seed_population(
 
     base_weights = min(
         volume_plans,
-        key=lambda weights: abs(sum(weights) - 0.04),
+        key=lambda weights: (
+            abs(sum(weights) - 0.04),
+            abs(len(weights) - 4),
+        ),
     )
     base = StrategyGenome.baseline().with_change(
         leg_count=len(base_weights),
         volume_weights=base_weights,
     )
+    alternative_exit = _counterfactual_time_exit(base, search_space)
     for mode, values in {
         "delay": (0.25, 1.0, 5.0, 15.0, 30.0),
         "pullback": (0.25, 0.5, 1.0, 2.0, 4.0),
         "momentum": (0.25, 0.5, 1.0, 2.0, 4.0),
     }.items():
         for value in values:
-            add(base.with_change(entry_mode=mode, entry_value=value))
+            if alternative_exit is not None:
+                add(base.with_change(
+                    entry_mode=mode,
+                    entry_value=value,
+                    time_exit_min=alternative_exit,
+                ))
     for expiry in (1, 3, 5, 10, 15, 30, 60, 120):
         add(base.with_change(entry_expiry_min=expiry))
+    if base.leg_count >= 2:
+        for ladder_mode in ("adverse", "favourable"):
+            for step in (0.25, 0.5, 1.0, 2.0, 4.0, 8.0):
+                add(base.with_change(
+                    entry_ladder_mode=ladder_mode,
+                    entry_ladder_step=step,
+                ))
     for target_index in (1.0, 2.0, 3.0, 4.0, 5.0):
         add(base.with_change(
             target_mode="provider_target_all",
@@ -569,14 +633,33 @@ def seed_population(
         ))
     for target in (2.0, 5.0, 10.0, 15.0, 20.0, 30.0):
         add(base.with_change(target_mode="fixed_basket", target_value=target))
+    for move in (0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 12.0):
+        add(base.with_change(target_mode="fixed_move", target_value=move))
+    partial_weights = min(
+        (
+            weights
+            for weights in volume_plans
+            if _executable_partial_fractions(weights, search_space)
+        ),
+        key=lambda weights: (
+            abs(sum(weights) - 0.04),
+            abs(len(weights) - 2),
+        ),
+        default=(),
+    )
+    partial_base = base.with_change(
+        leg_count=len(partial_weights),
+        volume_weights=partial_weights,
+    ) if partial_weights else None
     for target, runner in ((2.0, 6.0), (5.0, 12.0), (10.0, 25.0)):
         for fraction in (0.25, 0.5, 0.75):
-            add(base.with_change(
-                target_mode="partial_runner",
-                target_value=target,
-                partial_fraction=fraction,
-                runner_target=runner,
-            ))
+            if partial_base is not None:
+                add(partial_base.with_change(
+                    target_mode="partial_runner",
+                    target_value=target,
+                    partial_fraction=fraction,
+                    runner_target=runner,
+                ))
     for be_trigger in (0.5, 1.0, 2.0, 4.0, 8.0):
         add(base.with_change(be_mode="price", be_trigger=be_trigger))
         add(base.with_change(be_mode="partial", be_trigger=be_trigger))
@@ -633,6 +716,145 @@ def seed_population(
     return deduplicate(population)
 
 
+def sample_diverse_population(
+    search_space: SearchSpace,
+    *,
+    seed: int,
+    count: int,
+) -> tuple[StrategyGenome, ...]:
+    """Create distant, coherent scouts instead of only local mutations."""
+
+    if count < 0:
+        raise ValueError("count must be non-negative")
+    if count == 0:
+        return ()
+    rng = random.Random(seed)
+    unique: dict[str, StrategyGenome] = {}
+    attempts = 0
+    while len(unique) < count and attempts < max(1_000, count * 200):
+        attempts += 1
+        weights = _random_volume_plan(search_space, rng)
+        entry_mode = rng.choice(("actual_mt5", "delay", "pullback", "momentum"))
+        entry_value = None
+        if entry_mode == "delay":
+            entry_value = rng.choice((0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 60.0))
+        elif entry_mode in {"pullback", "momentum"}:
+            entry_value = rng.choice((0.1, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0, 10.0))
+
+        entry_ladder_mode = (
+            rng.choice(("simultaneous", "simultaneous", "adverse", "favourable"))
+            if len(weights) >= 2
+            else "simultaneous"
+        )
+        entry_ladder_step = (
+            rng.choice((0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0))
+            if entry_ladder_mode != "simultaneous"
+            else None
+        )
+
+        target_mode = rng.choice((
+            "provider_per_leg",
+            "provider_target_all",
+            "fixed_basket",
+            "fixed_move",
+            "partial_runner",
+            "none",
+        ))
+        target_value = None
+        partial_fraction = 0.0
+        runner_target = None
+        if target_mode == "provider_target_all":
+            target_value = float(rng.choice((1, 2, 3, 4, 5)))
+        elif target_mode == "fixed_basket":
+            target_value = rng.choice((1.0, 2.0, 3.0, 5.0, 8.0, 10.0, 15.0, 20.0, 30.0, 50.0, 80.0, 120.0))
+        elif target_mode == "fixed_move":
+            target_value = rng.choice((0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0, 20.0))
+        elif target_mode == "partial_runner":
+            fractions = _executable_partial_fractions(weights, search_space)
+            if not fractions:
+                target_mode = "fixed_basket"
+                target_value = rng.choice((2.0, 5.0, 10.0, 20.0))
+            else:
+                partial_fraction = rng.choice(fractions)
+                target_value = rng.choice((1.0, 2.0, 3.0, 5.0, 8.0, 10.0, 15.0, 20.0))
+                runner_target = target_value + rng.choice((1.0, 2.0, 5.0, 10.0, 20.0, 40.0, 80.0))
+
+        be_mode = rng.choice(("provider", "none", "price", "delayed", "partial"))
+        if be_mode in {"price", "partial"}:
+            be_trigger = rng.choice((0.25, 0.5, 1.0, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0, 20.0))
+        elif be_mode == "delayed":
+            be_trigger = rng.choice((0.5, 1.0, 2.0, 3.0, 5.0, 10.0, 15.0, 30.0, 60.0, 120.0))
+        else:
+            be_trigger = None
+
+        stop_mode = rng.choice(("provider", "fixed_move", "basket_money", "none"))
+        stop_value = None
+        if stop_mode == "fixed_move":
+            stop_value = rng.choice((0.5, 1.0, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0, 20.0, 30.0))
+        elif stop_mode == "basket_money":
+            stop_value = rng.choice((2.0, 3.0, 5.0, 8.0, 10.0, 15.0, 20.0, 30.0, 50.0, 80.0, 120.0))
+
+        if rng.random() < 0.55:
+            profit_lock_arm = rng.choice((2.0, 3.0, 5.0, 8.0, 10.0, 15.0, 20.0, 30.0, 50.0, 80.0))
+            profit_lock_giveback = rng.choice((0.5, 1.0, 2.0, 3.0, 5.0, 8.0, 10.0, 15.0, 20.0))
+        else:
+            profit_lock_arm = None
+            profit_lock_giveback = None
+
+        context_mode = rng.choice((
+            "none", "none", "none",
+            "max_spread", "time_window", "max_volatility", "min_reward_risk",
+        ))
+        if context_mode == "max_spread":
+            context_value = rng.choice((0.10, 0.15, 0.20, 0.30, 0.50, 0.80, 1.20))
+        elif context_mode == "time_window":
+            context_value = rng.choice((8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 23.5))
+        elif context_mode == "max_volatility":
+            context_value = rng.choice((0.5, 1.0, 2.0, 3.0, 5.0, 8.0, 12.0, 20.0))
+        elif context_mode == "min_reward_risk":
+            context_value = rng.choice((0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 5.0))
+        else:
+            context_value = None
+
+        genome = StrategyGenome(
+            entry_mode=entry_mode,
+            entry_value=entry_value,
+            entry_expiry_min=rng.choice(_bounded_minutes(
+                (1, 2, 3, 5, 10, 15, 30, 60, 120, 240),
+                search_space.max_entry_expiry_min,
+            )),
+            entry_ladder_mode=entry_ladder_mode,
+            entry_ladder_step=entry_ladder_step,
+            leg_count=len(weights),
+            volume_weights=weights,
+            target_mode=target_mode,
+            target_value=target_value,
+            partial_fraction=partial_fraction,
+            runner_target=runner_target,
+            be_mode=be_mode,
+            be_trigger=be_trigger,
+            stop_mode=stop_mode,
+            stop_value=stop_value,
+            profit_lock_arm=profit_lock_arm,
+            profit_lock_giveback=profit_lock_giveback,
+            time_exit_min=rng.choice(_bounded_minutes(
+                (1, 2, 3, 5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 360, 480, 720),
+                search_space.max_time_exit_min,
+            )),
+            provider_management_mode=rng.choice(("exact", "close_only", "ignore")),
+            context_filter_mode=context_mode,
+            context_filter_value=context_value,
+        )
+        if genome.validation_errors() or search_space.validation_errors(genome):
+            continue
+        unique.setdefault(genome.fingerprint, genome)
+    if len(unique) < count:
+        raise ValueError(
+            f"could only construct {len(unique)} unique strategies out of {count}"
+        )
+    return tuple(unique.values())
+
+
 def deduplicate(genomes: Iterable[StrategyGenome]) -> tuple[StrategyGenome, ...]:
     unique: dict[str, StrategyGenome] = {}
     for genome in genomes:
@@ -649,6 +871,9 @@ def pareto_front(
         if item.net_eur is not None
         and item.max_drawdown_eur is not None
         and item.worst_day_eur is not None
+        and item.normalized_net_per_001 is not None
+        and item.normalized_max_drawdown_per_001 is not None
+        and item.normalized_worst_day_per_001 is not None
         and not item.blockers
     ]
     frontier: list[CandidateEvaluation] = []
@@ -662,8 +887,9 @@ def pareto_front(
     return tuple(sorted(
         frontier,
         key=lambda item: (
-            -(item.net_eur or Decimal("0")),
-            item.max_drawdown_eur or Decimal("Infinity"),
+            -item.normalized_net_per_001,
+            item.normalized_max_drawdown_per_001,
+            item.max_signal_exposure,
             item.complexity,
             item.genome.fingerprint,
         ),
@@ -672,22 +898,33 @@ def pareto_front(
 
 def _dominates(left: CandidateEvaluation, right: CandidateEvaluation) -> bool:
     left_values = (
-        left.net_eur,
-        -(left.max_drawdown_eur or Decimal("Infinity")),
-        left.worst_day_eur,
+        left.normalized_net_per_001,
+        -left.normalized_max_drawdown_per_001,
+        left.normalized_worst_day_per_001,
         Decimal(str(-(left.positive_day_concentration or 0.0))),
         Decimal(-left.complexity),
+        Decimal(str(-left.max_signal_exposure)),
     )
     right_values = (
-        right.net_eur,
-        -(right.max_drawdown_eur or Decimal("Infinity")),
-        right.worst_day_eur,
+        right.normalized_net_per_001,
+        -right.normalized_max_drawdown_per_001,
+        right.normalized_worst_day_per_001,
         Decimal(str(-(right.positive_day_concentration or 0.0))),
         Decimal(-right.complexity),
+        Decimal(str(-right.max_signal_exposure)),
     )
     return all(a >= b for a, b in zip(left_values, right_values, strict=True)) and any(
         a > b for a, b in zip(left_values, right_values, strict=True)
     )
+
+
+def _normalized_money(
+    value: Decimal | None,
+    scale: Decimal | None,
+) -> Decimal | None:
+    if value is None or scale is None:
+        return None
+    return (value * scale).quantize(Decimal("0.01"))
 
 
 def _volume_plans(search_space: SearchSpace) -> tuple[tuple[float, ...], ...]:
@@ -714,6 +951,68 @@ def _volume_plans(search_space: SearchSpace) -> tuple[tuple[float, ...], ...]:
                 continue
             plans.append(tuple(round(count * step, 10) for count in counts))
     return tuple(dict.fromkeys(plans))
+
+
+def _random_volume_plan(
+    search_space: SearchSpace,
+    rng: random.Random,
+) -> tuple[float, ...]:
+    step = search_space.volume_step
+    minimum = max(1, math.ceil(search_space.min_total_volume / step - 1e-9))
+    maximum = max(minimum, math.floor(search_space.max_total_volume / step + 1e-9))
+    total = rng.randint(minimum, maximum)
+    legs = rng.randint(1, min(search_space.max_legs, total))
+    if legs == 1:
+        counts = [total]
+    else:
+        cuts = sorted(rng.sample(range(1, total), legs - 1))
+        counts = [
+            right - left
+            for left, right in zip((0, *cuts), (*cuts, total), strict=True)
+        ]
+        if rng.random() < 0.5:
+            counts.reverse()
+        elif rng.random() < 0.5:
+            rng.shuffle(counts)
+    return tuple(round(value * step, 10) for value in counts)
+
+
+def _executable_partial_fractions(
+    weights: tuple[float, ...],
+    search_space: SearchSpace,
+) -> tuple[float, ...]:
+    valid: list[float] = []
+    tolerance = max(1e-12, search_space.volume_step * 1e-9)
+    for fraction in (0.25, 0.5, 0.75):
+        executable = True
+        for volume in weights:
+            for amount in (volume * fraction, volume * (1.0 - fraction)):
+                steps = amount / search_space.volume_step
+                if (
+                    amount < search_space.volume_step - tolerance
+                    or abs(steps - round(steps)) > tolerance
+                ):
+                    executable = False
+                    break
+            if not executable:
+                break
+        if executable:
+            valid.append(fraction)
+    return tuple(valid)
+
+
+def _bounded_minutes(values: tuple[int, ...], maximum: int) -> tuple[int, ...]:
+    return tuple(sorted({maximum, *(value for value in values if value <= maximum)}))
+
+
+def _counterfactual_time_exit(
+    genome: StrategyGenome,
+    search_space: SearchSpace,
+) -> int | None:
+    available = search_space.max_path_horizon_min - genome.entry_expiry_min
+    if available <= 0:
+        return None
+    return min(genome.time_exit_min, search_space.max_time_exit_min, available)
 
 
 def _reduce_exposure(

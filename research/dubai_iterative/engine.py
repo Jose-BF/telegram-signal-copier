@@ -107,6 +107,7 @@ def simulate(
     """Replay one signal without reading any tick after the final decision."""
 
     execution = execution or ExecutionAssumptions()
+    observation_latency_ns = execution.latency_ms * 1_000_000
     blockers = list(genome.validation_errors())
     path_blockers = _path_contract_blockers(path)
     blockers.extend(path_blockers)
@@ -250,7 +251,9 @@ def simulate(
         provider_due: list[ProviderEvent] = []
         while (
             provider_cursor < len(provider_events)
-            and _datetime_ns(provider_events[provider_cursor].observed_at) <= now_ns
+            and _datetime_ns(provider_events[provider_cursor].observed_at)
+            + observation_latency_ns
+            <= now_ns
         ):
             provider_due.append(provider_events[provider_cursor])
             provider_cursor += 1
@@ -283,6 +286,7 @@ def simulate(
                 genome,
                 now_ns,
                 path.direction,
+                observation_latency_ns,
             )
             if stop_level is None or not _level_hit(
                 path.direction,
@@ -319,7 +323,12 @@ def simulate(
         # 4. Targets and partial exits.
         if genome.target_mode == "provider_per_leg":
             for position in list(positions):
-                target = _latest_level(position.tp_events, now_ns, include_be=True)
+                target = _latest_level(
+                    position.tp_events,
+                    now_ns,
+                    include_be=True,
+                    observation_latency_ns=observation_latency_ns,
+                )
                 if target is None or not _level_hit(
                     path.direction,
                     raw_exit,
@@ -342,7 +351,12 @@ def simulate(
                 )
                 exit_reason = "provider_tp"
         elif genome.target_mode == "provider_target_all":
-            target = _selected_provider_target(path, genome, now_ns)
+            target = _selected_provider_target(
+                path,
+                genome,
+                now_ns,
+                observation_latency_ns,
+            )
             if target is not None and _level_hit(
                 path.direction,
                 raw_exit,
@@ -382,6 +396,25 @@ def simulate(
             elif not floating_exact and total_minor >= threshold:
                 blockers.append("stale_conversion_at_basket_target")
                 money_unknown = True
+        elif genome.target_mode == "fixed_move":
+            if _fixed_move_target_reached(
+                path.direction,
+                raw_exit,
+                positions,
+                float(genome.target_value),
+            ):
+                realized_minor, money_unknown = _close_all(
+                    path,
+                    positions,
+                    exits,
+                    index,
+                    "fixed_move_target",
+                    execution,
+                    realized_minor,
+                    money_unknown,
+                    blockers,
+                )
+                exit_reason = "fixed_move_target"
         elif genome.target_mode == "partial_runner":
             first_target = _money_value_to_minor(
                 float(genome.target_value),
@@ -544,7 +577,20 @@ def _prepare_entries(
     genome: StrategyGenome,
     execution: ExecutionAssumptions,
 ) -> tuple[list[_ScheduledEntry], str, list[str]]:
+    if genome.entry_ladder_mode != "simultaneous":
+        return _prepare_ladder_entries(path, genome, execution)
+
     if genome.entry_mode == "actual_mt5":
+        first_opened_ns = min(_datetime_ns(leg.opened_at) for leg in path.legs)
+        context_index = int(np.searchsorted(
+            path.times_ns,
+            first_opened_ns,
+            side="left",
+        ))
+        if context_index >= len(path.times_ns):
+            return [], "counterfactual_entry", ["missing_tick_for_context_filter"]
+        if not _context_allows(path, genome, context_index, execution):
+            return [], "counterfactual_entry", []
         scheduled: list[_ScheduledEntry] = []
         exact_shape = genome.leg_count == len(path.legs)
         exact_volume = exact_shape and all(
@@ -599,11 +645,21 @@ def _prepare_entries(
     entry_index = _causal_entry_index(path, genome, execution)
     if entry_index is None:
         return [], "counterfactual_entry", []
-    if not _context_allows(path, genome, entry_index):
+    if not _context_allows(path, genome, entry_index, execution):
         return [], "counterfactual_entry", []
     entry_ns = int(path.times_ns[entry_index])
     base_price = _entry_quote(path, entry_index)
     entry_price = _adverse_entry_price(path.direction, base_price, execution)
+    if (
+        genome.stop_mode == "provider"
+        and _provider_stop_invalidated_before_entry(
+            path,
+            path.legs[0].sl_events,
+            entry_index,
+            execution.latency_ms * 1_000_000,
+        )
+    ):
+        return [], "counterfactual_entry", []
     scheduled = []
     for index, volume in enumerate(genome.volume_weights):
         template = path.legs[min(index, len(path.legs) - 1)]
@@ -617,6 +673,131 @@ def _prepare_entries(
                 entry_price=entry_price,
                 opened_ns=entry_ns,
                 opened_index=entry_index,
+                tp_events=template.tp_events,
+                sl_events=template.sl_events,
+            ),
+        ))
+    return scheduled, "counterfactual_entry", []
+
+
+def _prepare_ladder_entries(
+    path: DubaiPath,
+    genome: StrategyGenome,
+    execution: ExecutionAssumptions,
+) -> tuple[list[_ScheduledEntry], str, list[str]]:
+    if genome.entry_mode == "actual_mt5":
+        template = path.legs[0]
+        base_index = int(np.searchsorted(
+            path.times_ns,
+            _datetime_ns(template.opened_at),
+            side="left",
+        ))
+        if base_index >= len(path.times_ns):
+            return [], "counterfactual_entry", [
+                f"missing_tick_for_entry:{template.ticket}"
+            ]
+        if not _context_allows(path, genome, base_index, execution):
+            return [], "counterfactual_entry", []
+        base_ns = _datetime_ns(template.opened_at)
+        reference_price = template.open_price
+        first_price = _adverse_entry_price(
+            path.direction,
+            template.open_price,
+            execution,
+        )
+        first_ticket = template.ticket
+        first_source = "observed_mt5_fill"
+        expiry_ns = base_ns + genome.entry_expiry_min * 60 * 1_000_000_000
+    else:
+        base_index = _causal_entry_index(path, genome, execution)
+        if base_index is None or not _context_allows(
+            path,
+            genome,
+            base_index,
+            execution,
+        ):
+            return [], "counterfactual_entry", []
+        base_ns = int(path.times_ns[base_index])
+        reference_price = _entry_quote(path, base_index)
+        first_price = _adverse_entry_price(
+            path.direction,
+            reference_price,
+            execution,
+        )
+        first_ticket = "sim_1"
+        first_source = f"causal_{genome.entry_mode}"
+        expiry_ns = (
+            _datetime_ns(path.signal_observed_at)
+            + genome.entry_expiry_min * 60 * 1_000_000_000
+        )
+        if (
+            genome.stop_mode == "provider"
+            and _provider_stop_invalidated_before_entry(
+                path,
+                path.legs[0].sl_events,
+                base_index,
+                execution.latency_ms * 1_000_000,
+            )
+        ):
+            return [], "counterfactual_entry", []
+
+    first_template = path.legs[0]
+    scheduled = [_ScheduledEntry(
+        tick_index=base_index,
+        source=first_source,
+        position=_Position(
+            ticket=first_ticket,
+            role=first_template.role,
+            volume=float(genome.volume_weights[0]),
+            entry_price=first_price,
+            opened_ns=base_ns,
+            opened_index=base_index,
+            tp_events=first_template.tp_events,
+            sl_events=first_template.sl_events,
+        ),
+    )]
+    direction = _direction_sign(path.direction)
+    ladder_sign = -1.0 if genome.entry_ladder_mode == "adverse" else 1.0
+    step = float(genome.entry_ladder_step)
+    cursor = base_index
+    end_index = int(np.searchsorted(path.times_ns, expiry_ns, side="right"))
+    quotes = path.ask if path.direction == "BUY" else path.bid
+    for leg_index in range(1, genome.leg_count):
+        usable = _usable_tick_mask(path, cursor, end_index)
+        distance = direction * (
+            quotes[cursor:end_index] - reference_price
+        ) * ladder_sign
+        matches = np.flatnonzero(usable & (distance >= step * leg_index))
+        if not len(matches):
+            break
+        matched_index = cursor + int(matches[0])
+        cursor = matched_index
+        template = path.legs[min(leg_index, len(path.legs) - 1)]
+        if (
+            genome.stop_mode == "provider"
+            and _provider_stop_invalidated_before_entry(
+                path,
+                template.sl_events,
+                matched_index,
+                execution.latency_ms * 1_000_000,
+            )
+        ):
+            break
+        opened_ns = int(path.times_ns[matched_index])
+        scheduled.append(_ScheduledEntry(
+            tick_index=matched_index,
+            source=f"counterfactual_{genome.entry_ladder_mode}_ladder",
+            position=_Position(
+                ticket=f"sim_ladder_{leg_index + 1}",
+                role=template.role,
+                volume=float(genome.volume_weights[leg_index]),
+                entry_price=_adverse_entry_price(
+                    path.direction,
+                    _entry_quote(path, matched_index),
+                    execution,
+                ),
+                opened_ns=opened_ns,
+                opened_index=matched_index,
                 tp_events=template.tp_events,
                 sl_events=template.sl_events,
             ),
@@ -646,32 +827,31 @@ def _causal_entry_index(
         return None
     reference = _entry_quote(path, start_index)
     distance = float(genome.entry_value)
-    for index in range(start_index, len(path.times_ns)):
-        if int(path.times_ns[index]) > expiry_ns:
-            break
-        if not _tick_is_usable(path, index):
-            continue
-        quote = _entry_quote(path, index)
-        if genome.entry_mode == "pullback":
-            matched = (
-                quote <= reference - distance
-                if path.direction == "BUY"
-                else quote >= reference + distance
-            )
-        elif genome.entry_mode == "momentum":
-            matched = (
-                quote >= reference + distance
-                if path.direction == "BUY"
-                else quote <= reference - distance
-            )
-        else:
-            return None
-        if matched:
-            return index
-    return None
+    end_index = int(np.searchsorted(path.times_ns, expiry_ns, side="right"))
+    quotes = path.ask[start_index:end_index] if path.direction == "BUY" else path.bid[start_index:end_index]
+    usable = _usable_tick_mask(path, start_index, end_index)
+    if genome.entry_mode == "pullback":
+        matched = quotes <= reference - distance if path.direction == "BUY" else quotes >= reference + distance
+    elif genome.entry_mode == "momentum":
+        matched = quotes >= reference + distance if path.direction == "BUY" else quotes <= reference - distance
+    else:
+        return None
+    candidates = np.flatnonzero(usable & matched)
+    return start_index + int(candidates[0]) if len(candidates) else None
 
 
-def _context_allows(path: DubaiPath, genome: StrategyGenome, index: int) -> bool:
+def _usable_tick_mask(path: DubaiPath, start: int, end: int) -> np.ndarray:
+    bid = path.bid[start:end]
+    ask = path.ask[start:end]
+    return np.isfinite(bid) & np.isfinite(ask) & (bid > 0) & (ask >= bid)
+
+
+def _context_allows(
+    path: DubaiPath,
+    genome: StrategyGenome,
+    index: int,
+    execution: ExecutionAssumptions,
+) -> bool:
     mode = genome.context_filter_mode
     if mode == "none":
         return True
@@ -690,8 +870,19 @@ def _context_allows(path: DubaiPath, genome: StrategyGenome, index: int) -> bool
     if mode == "min_reward_risk":
         leg = path.legs[0]
         now_ns = int(path.times_ns[index])
-        target = _latest_level(leg.tp_events, now_ns, include_be=True)
-        stop = _latest_level(leg.sl_events, now_ns, include_be=False)
+        observation_latency_ns = execution.latency_ms * 1_000_000
+        target = _latest_level(
+            leg.tp_events,
+            now_ns,
+            include_be=True,
+            observation_latency_ns=observation_latency_ns,
+        )
+        stop = _latest_level(
+            leg.sl_events,
+            now_ns,
+            include_be=False,
+            observation_latency_ns=observation_latency_ns,
+        )
         if target is None or stop is None:
             return False
         entry = _entry_quote(path, index)
@@ -726,6 +917,7 @@ def _effective_stop(
     genome: StrategyGenome,
     now_ns: int,
     direction: str,
+    observation_latency_ns: int,
 ) -> tuple[float | None, str]:
     base: float | None = None
     reason = "provider_sl"
@@ -734,6 +926,7 @@ def _effective_stop(
             position.sl_events,
             now_ns,
             include_be=genome.be_mode == "provider",
+            observation_latency_ns=observation_latency_ns,
         )
     elif genome.stop_mode == "fixed_move":
         base = position.entry_price - _direction_sign(direction) * float(
@@ -759,6 +952,7 @@ def _latest_level(
     now_ns: int,
     *,
     include_be: bool,
+    observation_latency_ns: int = 0,
 ) -> float | None:
     latest: LevelEvent | None = None
     for event in events:
@@ -766,22 +960,76 @@ def _latest_level(
             continue
         if not include_be and _looks_like_be(event.source):
             continue
-        if _datetime_ns(event.observed_at) <= now_ns:
+        if _datetime_ns(event.observed_at) + observation_latency_ns <= now_ns:
             latest = event
         else:
             break
     return None if latest is None else latest.level
 
 
+def _provider_stop_invalidated_before_entry(
+    path: DubaiPath,
+    events: Iterable[LevelEvent],
+    entry_index: int,
+    observation_latency_ns: int = 0,
+) -> bool:
+    """Return true when the provider thesis stopped out before a delayed fill."""
+
+    entry_ns = int(path.times_ns[entry_index])
+    signal_ns = _datetime_ns(path.signal_observed_at) + observation_latency_ns
+    eligible = tuple(
+        event
+        for event in events
+        if event.status in {"confirmed", "snapshot"}
+        and not _looks_like_be(event.source)
+        and _datetime_ns(event.observed_at) + observation_latency_ns <= entry_ns
+    )
+    for offset, event in enumerate(eligible):
+        event_ns = _datetime_ns(event.observed_at) + observation_latency_ns
+        active_from = max(signal_ns, event_ns)
+        active_until = (
+            min(
+                entry_ns,
+                _datetime_ns(eligible[offset + 1].observed_at)
+                + observation_latency_ns,
+            )
+            if offset + 1 < len(eligible)
+            else entry_ns
+        )
+        start = int(np.searchsorted(path.times_ns, active_from, side="left"))
+        end = int(np.searchsorted(path.times_ns, active_until, side="left"))
+        if offset + 1 >= len(eligible):
+            end = entry_index + 1
+        end = min(end, entry_index + 1)
+        if start >= end:
+            continue
+        quotes = path.exit_quotes[start:end]
+        if path.direction == "BUY":
+            touched = bool(np.any(quotes <= float(event.level)))
+        else:
+            touched = bool(np.any(quotes >= float(event.level)))
+        if touched:
+            return True
+    return False
+
+
 def _selected_provider_target(
     path: DubaiPath,
     genome: StrategyGenome,
     now_ns: int,
+    observation_latency_ns: int = 0,
 ) -> float | None:
     targets = [
         value
         for leg in path.legs
-        if (value := _latest_level(leg.tp_events, now_ns, include_be=True))
+        if (
+            value := _latest_level(
+                leg.tp_events,
+                now_ns,
+                include_be=True,
+                observation_latency_ns=observation_latency_ns,
+            )
+        )
         is not None
     ]
     if not targets:
@@ -955,6 +1203,27 @@ def _money_minor(
     elif orientation != "identity":
         return 0, False
     return _round_minor(raw, path.currency_digits), exact
+
+
+def _fixed_move_target_reached(direction, raw_exit, positions, target):
+    total_volume = sum(
+        (Decimal(str(position.volume)) for position in positions),
+        start=Decimal("0"),
+    )
+    if total_volume <= 0:
+        return False
+    weighted_entry = sum(
+        (
+            Decimal(str(position.entry_price))
+            * Decimal(str(position.volume))
+            for position in positions
+        ),
+        start=Decimal("0"),
+    )
+    move_numerator = Decimal(_direction_sign(direction)) * (
+        Decimal(str(raw_exit)) * total_volume - weighted_entry
+    )
+    return move_numerator >= Decimal(str(target)) * total_volume
 
 
 def _round_minor(value: float | Decimal, digits: int) -> int:

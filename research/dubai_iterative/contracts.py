@@ -56,9 +56,12 @@ class SearchSpace:
     """Explicit, configurable envelope for one finite research run."""
 
     min_total_volume: float = 0.01
-    max_total_volume: float = 0.20
+    max_total_volume: float = 1.00
     max_legs: int = 12
     volume_step: float = 0.01
+    max_entry_expiry_min: int = 240
+    max_time_exit_min: int = 240
+    max_path_horizon_min: int = 240
 
     def __post_init__(self) -> None:
         for field_name in (
@@ -76,6 +79,14 @@ class SearchSpace:
             or self.max_legs <= 0
         ):
             raise ValueError("max_legs must be a positive integer")
+        for field_name in (
+            "max_entry_expiry_min",
+            "max_time_exit_min",
+            "max_path_horizon_min",
+        ):
+            value = getattr(self, field_name)
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise ValueError(f"{field_name} must be a positive integer")
 
     def validation_errors(self, genome: "StrategyGenome") -> tuple[str, ...]:
         errors: list[str] = []
@@ -89,11 +100,34 @@ class SearchSpace:
             errors.append("outside_search_volume")
         if genome.leg_count > self.max_legs:
             errors.append("outside_search_leg_count")
+        if genome.entry_expiry_min > self.max_entry_expiry_min:
+            errors.append("outside_search_entry_expiry")
+        if genome.time_exit_min > self.max_time_exit_min:
+            errors.append("outside_search_time_exit")
+        required_horizon = genome.time_exit_min
+        if genome.entry_mode != "actual_mt5":
+            required_horizon += genome.entry_expiry_min
+        if required_horizon > self.max_path_horizon_min:
+            errors.append("outside_loaded_path_horizon")
         for volume in genome.volume_weights:
             steps = volume / self.volume_step
             if abs(steps - round(steps)) > tolerance:
                 errors.append("outside_search_volume_step")
                 break
+        if genome.target_mode == "partial_runner":
+            for volume in genome.volume_weights:
+                closed = volume * genome.partial_fraction
+                remaining = volume - closed
+                closed_steps = closed / self.volume_step
+                remaining_steps = remaining / self.volume_step
+                if (
+                    closed < self.volume_step - tolerance
+                    or remaining < self.volume_step - tolerance
+                    or abs(closed_steps - round(closed_steps)) > tolerance
+                    or abs(remaining_steps - round(remaining_steps)) > tolerance
+                ):
+                    errors.append("unexecutable_partial_volume")
+                    break
         return tuple(errors)
 
 
@@ -103,6 +137,8 @@ class StrategyGenome:
     entry_mode: str = "actual_mt5"
     entry_value: float | None = None
     entry_expiry_min: int = 15
+    entry_ladder_mode: str = "simultaneous"
+    entry_ladder_step: float | None = None
     leg_count: int = 4
     volume_weights: tuple[float, ...] = (0.01, 0.01, 0.01, 0.01)
     target_mode: str = "provider_per_leg"
@@ -184,10 +220,12 @@ class StrategyGenome:
         errors: list[str] = []
         allowed = {
             "entry_mode": {"actual_mt5", "delay", "pullback", "momentum"},
+            "entry_ladder_mode": {"simultaneous", "adverse", "favourable"},
             "target_mode": {
                 "provider_per_leg",
                 "provider_target_all",
                 "fixed_basket",
+                "fixed_move",
                 "partial_runner",
                 "none",
             },
@@ -219,7 +257,19 @@ class StrategyGenome:
             errors.append("missing_entry_value")
         if self.entry_expiry_min <= 0:
             errors.append("invalid_entry_expiry")
-        if self.target_mode in {"fixed_basket", "provider_target_all"}:
+        if self.entry_ladder_mode == "simultaneous":
+            if self.entry_ladder_step is not None:
+                errors.append("unexpected_entry_ladder_step")
+        else:
+            if not _positive_finite(self.entry_ladder_step):
+                errors.append("missing_entry_ladder_step")
+            if self.leg_count < 2:
+                errors.append("entry_ladder_requires_multiple_legs")
+        if self.target_mode in {
+            "fixed_basket",
+            "fixed_move",
+            "provider_target_all",
+        }:
             if not _positive_finite(self.target_value):
                 errors.append("missing_target_value")
         if self.target_mode == "partial_runner":
@@ -242,6 +292,12 @@ class StrategyGenome:
                 errors.append("invalid_profit_lock_arm")
             if not _positive_finite(self.profit_lock_giveback):
                 errors.append("invalid_profit_lock_giveback")
+            if (
+                self.target_mode == "fixed_basket"
+                and _positive_finite(self.target_value)
+                and float(self.profit_lock_arm) >= float(self.target_value)
+            ):
+                errors.append("unreachable_profit_lock")
         if self.time_exit_min <= 0:
             errors.append("invalid_time_exit")
         if self.context_filter_mode != "none" and not _positive_finite(

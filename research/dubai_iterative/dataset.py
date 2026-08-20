@@ -145,18 +145,29 @@ class DubaiPath:
 @dataclass(frozen=True)
 class DubaiDataset:
     paths: tuple[DubaiPath, ...]
+    eligible_signal_ids: tuple[str, ...]
+    eligible_actual_pnl_eur: Decimal
     exclusions: Mapping[str, tuple[str, ...]]
     source_hashes: Mapping[str, str]
     account_currency: str
     currency_digits: int
+    max_hold_minutes: int
 
     @property
     def actual_pnl_eur(self) -> Decimal:
+        return self.eligible_actual_pnl_eur
+
+    @property
+    def loaded_actual_pnl_eur(self) -> Decimal:
         quantum = Decimal(1).scaleb(-self.currency_digits)
         return sum(
             (path.actual_pnl_eur for path in self.paths),
             start=Decimal(0),
         ).quantize(quantum)
+
+    @property
+    def coverage_complete(self) -> bool:
+        return tuple(path.signal_id for path in self.paths) == self.eligible_signal_ids
 
 
 def load_dubai_dataset(
@@ -240,13 +251,25 @@ def load_dubai_dataset(
             continue
         selected.append(trade)
 
+    selected = sorted(
+        selected,
+        key=lambda item: (
+            _parse_datetime(item.get("signal_dt_utc"))
+            or datetime.min.replace(tzinfo=timezone.utc),
+            str(item.get("sig_id")),
+        ),
+    )
+    eligible_signal_ids = tuple(str(item["sig_id"]) for item in selected)
+    quantum = Decimal(1).scaleb(-currency_digits)
+    eligible_actual_pnl = sum(
+        (_trade_actual_pnl(item) for item in selected),
+        start=Decimal(0),
+    ).quantize(quantum)
+
     paths: list[DubaiPath] = []
     market_cache: dict[date, tuple[pd.DataFrame, Mapping[str, Any]]] = {}
     conversion_cache: dict[date, tuple[pd.DataFrame, Mapping[str, Any]]] = {}
-    for trade in sorted(
-        selected,
-        key=lambda item: (_parse_datetime(item.get("signal_dt_utc")) or datetime.min.replace(tzinfo=timezone.utc), str(item.get("sig_id"))),
-    ):
+    for trade in selected:
         signal_id = str(trade["sig_id"])
         legs = _build_legs(trade)
         if not legs:
@@ -353,6 +376,8 @@ def load_dubai_dataset(
 
     return DubaiDataset(
         paths=tuple(paths),
+        eligible_signal_ids=eligible_signal_ids,
+        eligible_actual_pnl_eur=eligible_actual_pnl,
         exclusions={
             reason: tuple(sorted(set(signal_ids)))
             for reason, signal_ids in sorted(exclusions.items())
@@ -361,9 +386,31 @@ def load_dubai_dataset(
             "replay": _sha256_file(replay_path),
             "audit": _sha256_file(audit_path),
             "money_contract": _sha256_json(money_contract),
+            "market_ticks": _sha256_json({
+                "evidence": _tick_evidence_identity(
+                    item
+                    for path in paths
+                    for item in path.market_evidence
+                ),
+            }),
+            "conversion_ticks": _sha256_json({
+                "evidence": _tick_evidence_identity(
+                    item
+                    for path in paths
+                    for item in path.conversion_evidence
+                ),
+            }),
+            "dataset_contract": _sha256_json({
+                "channel": "canal1",
+                "audit_status": EXACT_AUDIT_STATUS,
+                "from_date": from_date,
+                "to_date": to_date,
+                "max_hold_minutes": max_hold_minutes,
+            }),
         },
         account_currency=account_currency,
         currency_digits=currency_digits,
+        max_hold_minutes=max_hold_minutes,
     )
 
 
@@ -396,6 +443,19 @@ def _build_legs(trade: Mapping[str, Any]) -> tuple[DubaiLeg, ...]:
             sl_events=_level_events(ticket.get("sl_history") or [], "sl"),
         ))
     return tuple(sorted(legs, key=lambda leg: (leg.opened_at, leg.ticket)))
+
+
+def _trade_actual_pnl(trade: Mapping[str, Any]) -> Decimal:
+    actual = _decimal(trade.get("pnl_real_mt5"))
+    if actual is not None:
+        return actual
+    return sum(
+        (
+            _decimal(ticket.get("pnl_net")) or Decimal(0)
+            for ticket in trade.get("tickets") or []
+        ),
+        start=Decimal(0),
+    )
 
 
 def _level_events(rows: list[Mapping[str, Any]], key: str) -> tuple[LevelEvent, ...]:
@@ -607,7 +667,25 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _sha256_json(payload: Mapping[str, Any]) -> str:
+def _tick_evidence_identity(evidence: Any) -> list[Mapping[str, Any]]:
+    unique: dict[str, Mapping[str, Any]] = {}
+    for item in evidence:
+        stable = {
+            key: value
+            for key, value in dict(item).items()
+            if key != "cache_path"
+        }
+        encoded = json.dumps(
+            stable,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+        unique.setdefault(encoded, stable)
+    return [unique[key] for key in sorted(unique)]
+
+
+def _sha256_json(payload: object) -> str:
     encoded = json.dumps(
         payload,
         sort_keys=True,

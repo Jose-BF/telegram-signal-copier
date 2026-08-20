@@ -139,6 +139,7 @@ def oracle_simulate(
     execution: ExecutionScenario | None = None,
 ) -> OracleResult:
     execution = execution or ExecutionScenario()
+    observation_latency_ns = execution.latency_ms * 1_000_000
     blockers = list(genome.validation_errors())
     blockers.extend(_path_errors(path))
     if blockers:
@@ -224,7 +225,12 @@ def oracle_simulate(
                 unknown_money = True
 
         due: list[ProviderEvent] = []
-        while provider_cursor < len(provider_events) and _to_ns(provider_events[provider_cursor].observed_at) <= now_ns:
+        while (
+            provider_cursor < len(provider_events)
+            and _to_ns(provider_events[provider_cursor].observed_at)
+            + observation_latency_ns
+            <= now_ns
+        ):
             due.append(provider_events[provider_cursor])
             provider_cursor += 1
         if genome.be_mode == "provider":
@@ -238,7 +244,13 @@ def oracle_simulate(
             break
 
         for position in tuple(active):
-            level, stop_reason = _stop_level(position, genome, now_ns, path.direction)
+            level, stop_reason = _stop_level(
+                position,
+                genome,
+                now_ns,
+                path.direction,
+                observation_latency_ns,
+            )
             if level is None or not _hit(path.direction, raw_exit, level, target=False):
                 continue
             realized_minor, unknown_money = _close_one(
@@ -254,7 +266,12 @@ def oracle_simulate(
 
         if genome.target_mode == "provider_per_leg":
             for position in tuple(active):
-                target = _latest_level(position.tp_events, now_ns, include_be=True)
+                target = _latest_level(
+                    position.tp_events,
+                    now_ns,
+                    include_be=True,
+                    observation_latency_ns=observation_latency_ns,
+                )
                 if target is None or not _hit(path.direction, raw_exit, target, target=True):
                     continue
                 realized_minor, unknown_money = _close_one(
@@ -263,7 +280,12 @@ def oracle_simulate(
                 )
                 reason = "provider_tp"
         elif genome.target_mode == "provider_target_all":
-            target = _provider_target(path, genome, now_ns)
+            target = _provider_target(
+                path,
+                genome,
+                now_ns,
+                observation_latency_ns,
+            )
             if target is not None and _hit(path.direction, raw_exit, target, target=True):
                 realized_minor, unknown_money = _close_all(
                     path, active, exits, index, "provider_target_all", execution,
@@ -281,6 +303,18 @@ def oracle_simulate(
             elif not exact and total_minor >= target_minor:
                 blockers.append("stale_conversion_at_basket_target")
                 unknown_money = True
+        elif genome.target_mode == "fixed_move":
+            if _fixed_move_target_reached(
+                path.direction,
+                raw_exit,
+                active,
+                float(genome.target_value),
+            ):
+                realized_minor, unknown_money = _close_all(
+                    path, active, exits, index, "fixed_move_target", execution,
+                    realized_minor, unknown_money, blockers,
+                )
+                reason = "fixed_move_target"
         elif genome.target_mode == "partial_runner":
             first_minor = _amount_to_minor(float(genome.target_value), path.currency_digits)
             runner_minor = _amount_to_minor(float(genome.runner_target), path.currency_digits)
@@ -364,9 +398,14 @@ def certify_candidate(
     paths: Sequence[DubaiPath],
     genome: StrategyGenome,
     fast_results: Sequence[object],
+    *,
+    execution: ExecutionScenario | None = None,
 ) -> OracleCertificate:
     fast_by_signal = {str(item.signal_id): item for item in fast_results}
-    independent = tuple(oracle_simulate(path, genome) for path in paths)
+    independent = tuple(
+        oracle_simulate(path, genome, execution=execution)
+        for path in paths
+    )
     mismatches: list[OracleMismatch] = []
     for result in independent:
         fast = fast_by_signal.get(result.signal_id)
@@ -377,12 +416,21 @@ def certify_candidate(
     oracle_ids = {item.signal_id for item in independent}
     for signal_id in sorted(set(fast_by_signal) - oracle_ids):
         mismatches.append(OracleMismatch(signal_id, "missing_oracle_path", "present", None))
-    status = "pass" if not mismatches else "blocked"
+    evidence_complete = all(
+        result.pnl_eur is not None and not result.blockers
+        for result in independent
+    )
+    if mismatches:
+        status = "blocked"
+    elif not evidence_complete:
+        status = "blocked_evidence"
+    else:
+        status = "pass"
     return OracleCertificate(
         status=status,
         mismatches=tuple(mismatches),
         oracle_results=independent,
-        promotion_eligible=not mismatches,
+        promotion_eligible=not mismatches and evidence_complete,
     )
 
 
@@ -419,8 +467,17 @@ def _schedule_entries(
     genome: StrategyGenome,
     execution: ExecutionScenario,
 ) -> tuple[tuple[_Scheduled, ...], str, tuple[str, ...]]:
+    if genome.entry_ladder_mode != "simultaneous":
+        return _schedule_ladder_entries(path, genome, execution)
+
     times = [int(item) for item in path.times_ns]
     if genome.entry_mode == "actual_mt5":
+        first_opened_ns = min(_to_ns(leg.opened_at) for leg in path.legs)
+        context_index = bisect_left(times, first_opened_ns)
+        if context_index >= len(times):
+            return (), "counterfactual_entry", ("missing_tick_for_context_filter",)
+        if not _context_allowed(path, genome, context_index, execution):
+            return (), "counterfactual_entry", ()
         exact_shape = genome.leg_count == len(path.legs)
         exact_volume = exact_shape and all(
             math.isclose(weight, leg.volume, abs_tol=1e-12)
@@ -461,10 +518,25 @@ def _schedule_entries(
         return tuple(scheduled), confidence, ()
 
     entry_index = _causal_index(path, genome, execution)
-    if entry_index is None or not _context_allowed(path, genome, entry_index):
+    if entry_index is None or not _context_allowed(
+        path,
+        genome,
+        entry_index,
+        execution,
+    ):
         return (), "counterfactual_entry", ()
     entry_ns = int(path.times_ns[entry_index])
     price = _entry_with_cost(path.direction, _entry_quote(path, entry_index), execution)
+    if (
+        genome.stop_mode == "provider"
+        and _provider_stop_invalidated_before_entry(
+            path,
+            path.legs[0].sl_events,
+            entry_index,
+            execution.latency_ms * 1_000_000,
+        )
+    ):
+        return (), "counterfactual_entry", ()
     scheduled = tuple(
         _Scheduled(
             entry_index,
@@ -482,6 +554,132 @@ def _schedule_entries(
         for index, volume in enumerate(genome.volume_weights)
     )
     return scheduled, "counterfactual_entry", ()
+
+
+def _schedule_ladder_entries(
+    path: DubaiPath,
+    genome: StrategyGenome,
+    execution: ExecutionScenario,
+) -> tuple[tuple[_Scheduled, ...], str, tuple[str, ...]]:
+    times = [int(item) for item in path.times_ns]
+    if genome.entry_mode == "actual_mt5":
+        template = path.legs[0]
+        base_ns = _to_ns(template.opened_at)
+        base_index = bisect_left(times, base_ns)
+        if base_index >= len(times):
+            return (), "counterfactual_entry", (
+                f"missing_tick_for_entry:{template.ticket}",
+            )
+        if not _context_allowed(path, genome, base_index, execution):
+            return (), "counterfactual_entry", ()
+        reference_price = template.open_price
+        first_price = _entry_with_cost(
+            path.direction,
+            template.open_price,
+            execution,
+        )
+        first_ticket = template.ticket
+        first_source = "observed_mt5_fill"
+        expiry_ns = base_ns + genome.entry_expiry_min * 60 * 1_000_000_000
+    else:
+        base_index = _causal_index(path, genome, execution)
+        if base_index is None or not _context_allowed(
+            path,
+            genome,
+            base_index,
+            execution,
+        ):
+            return (), "counterfactual_entry", ()
+        base_ns = times[base_index]
+        reference_price = _entry_quote(path, base_index)
+        first_price = _entry_with_cost(
+            path.direction,
+            reference_price,
+            execution,
+        )
+        first_ticket = "sim_1"
+        first_source = f"causal_{genome.entry_mode}"
+        expiry_ns = (
+            _to_ns(path.signal_observed_at)
+            + genome.entry_expiry_min * 60 * 1_000_000_000
+        )
+        if (
+            genome.stop_mode == "provider"
+            and _provider_stop_invalidated_before_entry(
+                path,
+                path.legs[0].sl_events,
+                base_index,
+                execution.latency_ms * 1_000_000,
+            )
+        ):
+            return (), "counterfactual_entry", ()
+
+    first_template = path.legs[0]
+    scheduled = [_Scheduled(
+        base_index,
+        first_source,
+        _Position(
+            ticket=first_ticket,
+            role=first_template.role,
+            volume=float(genome.volume_weights[0]),
+            entry_price=first_price,
+            opened_ns=base_ns,
+            tp_events=first_template.tp_events,
+            sl_events=first_template.sl_events,
+        ),
+    )]
+    direction = _sign(path.direction)
+    ladder_sign = -1.0 if genome.entry_ladder_mode == "adverse" else 1.0
+    step = float(genome.entry_ladder_step)
+    cursor = base_index
+    for leg_index in range(1, genome.leg_count):
+        matched_index = None
+        for index in range(cursor, len(times)):
+            if times[index] > expiry_ns:
+                break
+            if not _usable_tick(path, index):
+                continue
+            quote = _entry_quote(path, index)
+            if (
+                direction
+                * (quote - reference_price)
+                * ladder_sign
+                >= step * leg_index
+            ):
+                matched_index = index
+                break
+        if matched_index is None:
+            break
+        cursor = matched_index
+        template = path.legs[min(leg_index, len(path.legs) - 1)]
+        if (
+            genome.stop_mode == "provider"
+            and _provider_stop_invalidated_before_entry(
+                path,
+                template.sl_events,
+                matched_index,
+                execution.latency_ms * 1_000_000,
+            )
+        ):
+            break
+        scheduled.append(_Scheduled(
+            matched_index,
+            f"counterfactual_{genome.entry_ladder_mode}_ladder",
+            _Position(
+                ticket=f"sim_ladder_{leg_index + 1}",
+                role=template.role,
+                volume=float(genome.volume_weights[leg_index]),
+                entry_price=_entry_with_cost(
+                    path.direction,
+                    _entry_quote(path, matched_index),
+                    execution,
+                ),
+                opened_ns=times[matched_index],
+                tp_events=template.tp_events,
+                sl_events=template.sl_events,
+            ),
+        ))
+    return tuple(scheduled), "counterfactual_entry", ()
 
 
 def _causal_index(path: DubaiPath, genome: StrategyGenome, execution: ExecutionScenario) -> int | None:
@@ -517,7 +715,12 @@ def _causal_index(path: DubaiPath, genome: StrategyGenome, execution: ExecutionS
     return None
 
 
-def _context_allowed(path: DubaiPath, genome: StrategyGenome, index: int) -> bool:
+def _context_allowed(
+    path: DubaiPath,
+    genome: StrategyGenome,
+    index: int,
+    execution: ExecutionScenario,
+) -> bool:
     mode = genome.context_filter_mode
     if mode == "none":
         return True
@@ -538,8 +741,19 @@ def _context_allowed(path: DubaiPath, genome: StrategyGenome, index: int) -> boo
         return bool(midpoints) and max(midpoints) - min(midpoints) <= value
     if mode == "min_reward_risk":
         now_ns = int(path.times_ns[index])
-        target = _latest_level(path.legs[0].tp_events, now_ns, include_be=True)
-        stop = _latest_level(path.legs[0].sl_events, now_ns, include_be=False)
+        observation_latency_ns = execution.latency_ms * 1_000_000
+        target = _latest_level(
+            path.legs[0].tp_events,
+            now_ns,
+            include_be=True,
+            observation_latency_ns=observation_latency_ns,
+        )
+        stop = _latest_level(
+            path.legs[0].sl_events,
+            now_ns,
+            include_be=False,
+            observation_latency_ns=observation_latency_ns,
+        )
         if target is None or stop is None:
             return False
         entry = _entry_quote(path, index)
@@ -558,11 +772,22 @@ def _custom_be(position: _Position, genome: StrategyGenome, move: float, now_ns:
         position.be_stop = position.entry_price
 
 
-def _stop_level(position: _Position, genome: StrategyGenome, now_ns: int, direction: str) -> tuple[float | None, str]:
+def _stop_level(
+    position: _Position,
+    genome: StrategyGenome,
+    now_ns: int,
+    direction: str,
+    observation_latency_ns: int,
+) -> tuple[float | None, str]:
     base = None
     reason = "provider_sl"
     if genome.stop_mode == "provider":
-        base = _latest_level(position.sl_events, now_ns, include_be=genome.be_mode == "provider")
+        base = _latest_level(
+            position.sl_events,
+            now_ns,
+            include_be=genome.be_mode == "provider",
+            observation_latency_ns=observation_latency_ns,
+        )
     elif genome.stop_mode == "fixed_move":
         base = position.entry_price - _sign(direction) * float(genome.stop_value)
         reason = "fixed_sl"
@@ -574,24 +799,80 @@ def _stop_level(position: _Position, genome: StrategyGenome, now_ns: int, direct
     return (tighter, position.be_reason) if math.isclose(tighter, position.be_stop, abs_tol=1e-12) else (tighter, reason)
 
 
-def _latest_level(events: Iterable[LevelEvent], now_ns: int, *, include_be: bool) -> float | None:
+def _latest_level(
+    events: Iterable[LevelEvent],
+    now_ns: int,
+    *,
+    include_be: bool,
+    observation_latency_ns: int = 0,
+) -> float | None:
     latest = None
     for event in events:
         if event.status not in {"confirmed", "snapshot"}:
             continue
         if not include_be and _be_source(event.source):
             continue
-        if _to_ns(event.observed_at) <= now_ns:
+        if _to_ns(event.observed_at) + observation_latency_ns <= now_ns:
             latest = event.level
         else:
             break
     return latest
 
 
-def _provider_target(path: DubaiPath, genome: StrategyGenome, now_ns: int) -> float | None:
+def _provider_stop_invalidated_before_entry(
+    path: DubaiPath,
+    events: Iterable[LevelEvent],
+    entry_index: int,
+    observation_latency_ns: int = 0,
+) -> bool:
+    times = [int(item) for item in path.times_ns]
+    entry_ns = times[entry_index]
+    signal_ns = _to_ns(path.signal_observed_at) + observation_latency_ns
+    eligible = tuple(
+        event
+        for event in events
+        if event.status in {"confirmed", "snapshot"}
+        and not _be_source(event.source)
+        and _to_ns(event.observed_at) + observation_latency_ns <= entry_ns
+    )
+    for offset, event in enumerate(eligible):
+        event_ns = _to_ns(event.observed_at) + observation_latency_ns
+        active_from = max(signal_ns, event_ns)
+        active_until = (
+            min(
+                entry_ns,
+                _to_ns(eligible[offset + 1].observed_at)
+                + observation_latency_ns,
+            )
+            if offset + 1 < len(eligible)
+            else entry_ns
+        )
+        start = bisect_left(times, active_from)
+        end = bisect_left(times, active_until)
+        if offset + 1 >= len(eligible):
+            end = entry_index + 1
+        end = min(end, entry_index + 1)
+        for index in range(start, end):
+            quote = float(path.exit_quotes[index])
+            if _hit(path.direction, quote, float(event.level), target=False):
+                return True
+    return False
+
+
+def _provider_target(
+    path: DubaiPath,
+    genome: StrategyGenome,
+    now_ns: int,
+    observation_latency_ns: int = 0,
+) -> float | None:
     targets = []
     for leg in path.legs:
-        value = _latest_level(leg.tp_events, now_ns, include_be=True)
+        value = _latest_level(
+            leg.tp_events,
+            now_ns,
+            include_be=True,
+            observation_latency_ns=observation_latency_ns,
+        )
         if value is not None:
             targets.append(value)
     if not targets:
@@ -699,6 +980,27 @@ def _money_minor(path: DubaiPath, entry: float, exit_price: float, volume: float
     scale = Decimal(10) ** path.currency_digits
     minor = int((raw * scale).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
     return minor, exact
+
+
+def _fixed_move_target_reached(direction, raw_exit, positions, target):
+    total_volume = sum(
+        (Decimal(str(position.volume)) for position in positions),
+        start=Decimal("0"),
+    )
+    if total_volume <= 0:
+        return False
+    weighted_entry = sum(
+        (
+            Decimal(str(position.entry_price))
+            * Decimal(str(position.volume))
+            for position in positions
+        ),
+        start=Decimal("0"),
+    )
+    move_numerator = Decimal(_sign(direction)) * (
+        Decimal(str(raw_exit)) * total_volume - weighted_entry
+    )
+    return move_numerator >= Decimal(str(target)) * total_volume
 
 
 def _compare_result(fast: object, oracle: OracleResult) -> list[OracleMismatch]:

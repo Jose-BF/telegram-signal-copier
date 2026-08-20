@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from decimal import Decimal
 import json
@@ -21,11 +22,19 @@ from .evolution import (
     deduplicate,
     evolve_generation,
     pareto_front,
+    sample_diverse_population,
     seed_population,
+)
+from .refinement import parameter_neighborhood
+from .robustness import (
+    ExecutionRobustnessAssessment,
+    ScenarioEvaluation,
+    assess_execution_robustness,
+    rank_robust_candidates,
 )
 
 
-CHECKPOINT_SCHEMA_VERSION = 1
+CHECKPOINT_SCHEMA_VERSION = 2
 
 
 class SearchDataset(Protocol):
@@ -105,6 +114,17 @@ class ChronologicalSearchReport:
 
 
 @dataclass(frozen=True)
+class CrossFoldCandidateValidation:
+    assessments: tuple[ExecutionRobustnessAssessment, ...]
+    eligible: tuple[ExecutionRobustnessAssessment, ...]
+    rejected: tuple[ExecutionRobustnessAssessment, ...]
+
+    @property
+    def considered_count(self) -> int:
+        return len(self.assessments)
+
+
+@dataclass(frozen=True)
 class GenerationProgress:
     fold: str
     generation: int
@@ -117,10 +137,54 @@ class GenerationProgress:
 
 
 ProgressCallback = Callable[[GenerationProgress], None]
+CandidateProgressCallback = Callable[[int, int], None]
 EvaluationCallback = Callable[
     [ChronologicalFold, int, tuple[CandidateEvaluation, ...]],
     None,
 ]
+
+
+def cross_validate_frontier_candidates(
+    dataset: SearchDataset,
+    report: ChronologicalSearchReport,
+    *,
+    evaluator: Evaluator = simulate,
+    minimum_participation: float = 0.50,
+    workers: int = 1,
+    progress_callback: CandidateProgressCallback | None = None,
+) -> CrossFoldCandidateValidation:
+    """Freeze every discovered frontier rule and retest all later folds."""
+
+    folds = tuple(item.fold for item in report.fold_reports)
+    genomes = deduplicate(
+        item.genome
+        for fold_report in report.fold_reports
+        for item in fold_report.frontier
+    )
+    evaluations = _evaluate_population(
+        genomes,
+        tuple(dataset.paths),
+        evaluator,
+        workers=workers,
+        progress_callback=progress_callback,
+    )
+    assessments = tuple(
+        assess_execution_robustness(
+            (ScenarioEvaluation("full_window", evaluation),),
+            minimum_participation=minimum_participation,
+            folds=folds,
+            minimum_positive_challenge_ratio=1.0,
+        )
+        for evaluation in evaluations
+    )
+    ranked = rank_robust_candidates(assessments)
+    eligible = tuple(item for item in ranked if item.robustness_eligible)
+    rejected = tuple(item for item in ranked if not item.robustness_eligible)
+    return CrossFoldCandidateValidation(
+        assessments=ranked,
+        eligible=eligible,
+        rejected=rejected,
+    )
 
 
 class SearchCheckpointError(ValueError):
@@ -165,6 +229,9 @@ def run_chronological_search(
     clock: Clock = time.monotonic,
     progress_callback: ProgressCallback | None = None,
     evaluation_callback: EvaluationCallback | None = None,
+    experiment_context: Mapping[str, object] | None = None,
+    workers: int = 1,
+    initial_genomes: Sequence[StrategyGenome] = (),
 ) -> ChronologicalSearchReport:
     """Run each expanding fold independently with its own frozen challenge."""
 
@@ -182,6 +249,9 @@ def run_chronological_search(
             clock=clock,
             progress_callback=progress_callback,
             evaluation_callback=evaluation_callback,
+            experiment_context=experiment_context,
+            workers=workers,
+            initial_genomes=initial_genomes,
         )
         for fold in folds
     )
@@ -203,11 +273,32 @@ def run_search(
     clock: Clock = time.monotonic,
     progress_callback: ProgressCallback | None = None,
     evaluation_callback: EvaluationCallback | None = None,
+    experiment_context: Mapping[str, object] | None = None,
+    workers: int = 1,
+    initial_genomes: Sequence[StrategyGenome] = (),
 ) -> SearchReport:
     """Run one development fold; challenge rows remain invisible until stop."""
 
     if population_size <= 0:
         raise ValueError("population_size must be positive")
+    if isinstance(workers, bool) or not isinstance(workers, int) or workers <= 0:
+        raise ValueError("workers must be a positive integer")
+    initial_genomes = deduplicate(initial_genomes)
+    if len(initial_genomes) > population_size:
+        raise ValueError("initial_genomes cannot exceed population_size")
+    for genome in initial_genomes:
+        errors = (*genome.validation_errors(), *search_space.validation_errors(genome))
+        if errors:
+            raise ValueError(
+                "invalid initial genome "
+                f"{genome.fingerprint[:12]}: {','.join(sorted(set(errors)))}"
+            )
+    context = dict(experiment_context or {})
+    if initial_genomes:
+        context["initial_genome_fingerprints"] = sorted(
+            item.fingerprint for item in initial_genomes
+        )
+    experiment_context = _normalize_experiment_context(context)
     development_paths = tuple(
         path for path in dataset.paths if fold.development_contains(str(path.day))
     )
@@ -237,6 +328,7 @@ def run_search(
             fold=fold,
             search_space=search_space,
             seed=seed,
+            experiment_context=experiment_context,
         )
         generation_completed = int(state["generations_completed"])
         evaluations = int(state["evaluations"])
@@ -253,6 +345,7 @@ def run_search(
             archive_genomes,
             development_paths,
             evaluator,
+            workers=workers,
         )
         rng.bit_generator.state = state["numpy_random_state"]
         generation_summaries = [
@@ -261,7 +354,30 @@ def run_search(
         ]
     else:
         seeds = seed_population(search_space, seed=seed)
-        population = tuple(seeds[:population_size])
+        baseline = StrategyGenome.baseline()
+        scout_slots = min(
+            max(1, population_size // 3),
+            max(0, population_size - 1),
+        )
+        scout_pool = sample_diverse_population(
+            search_space,
+            seed=seed + 91_337,
+            count=max(scout_slots, scout_slots * 3),
+        )
+        scouts = tuple(sorted(
+            scout_pool,
+            key=lambda item: (-_distance_from_baseline(item), item.fingerprint),
+        )[:scout_slots])
+        population = deduplicate((
+            *initial_genomes,
+            baseline,
+            *tuple(
+                item
+                for item in seeds
+                if item.fingerprint != baseline.fingerprint
+            )[: max(0, population_size - len(scouts) - 1)],
+            *scouts,
+        ))[:population_size]
         seen.update(item.fingerprint for item in population)
 
     stop_reason: str | None = None
@@ -292,6 +408,7 @@ def run_search(
                 current_population,
                 development_paths,
                 evaluator,
+                workers=workers,
             )
             evaluations += len(current)
             if evaluation_callback is not None:
@@ -344,6 +461,7 @@ def run_search(
                 fold=fold,
                 search_space=search_space,
                 seed=seed,
+                experiment_context=experiment_context,
                 generations_completed=generation_completed,
                 evaluations=evaluations,
                 stale_generations=stale_generations,
@@ -369,6 +487,7 @@ def run_search(
         fold=fold,
         search_space=search_space,
         seed=seed,
+        experiment_context=experiment_context,
         generations_completed=generation_completed,
         evaluations=evaluations,
         stale_generations=stale_generations,
@@ -385,6 +504,7 @@ def run_search(
         tuple(item.genome for item in archive),
         challenge_paths,
         evaluator,
+        workers=workers,
     ) if challenge_paths else ()
     return SearchReport(
         fold=fold,
@@ -404,17 +524,35 @@ def _evaluate_population(
     genomes: Sequence[StrategyGenome],
     paths: Sequence[object],
     evaluator: Evaluator,
+    *,
+    workers: int,
+    progress_callback: CandidateProgressCallback | None = None,
 ) -> tuple[CandidateEvaluation, ...]:
-    return tuple(
-        CandidateEvaluation.from_results(
+    def evaluate(genome: StrategyGenome) -> CandidateEvaluation:
+        return CandidateEvaluation.from_results(
             genome,
             (
                 (str(path.day), evaluator(path, genome))
                 for path in paths
             ),
         )
-        for genome in genomes
-    )
+
+    if workers == 1 or len(genomes) < 2:
+        results = []
+        for index, genome in enumerate(genomes, start=1):
+            results.append(evaluate(genome))
+            if progress_callback is not None:
+                progress_callback(index, len(genomes))
+        return tuple(results)
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        results = []
+        for index, evaluation in enumerate(
+            pool.map(evaluate, genomes), start=1
+        ):
+            results.append(evaluation)
+            if progress_callback is not None:
+                progress_callback(index, len(genomes))
+        return tuple(results)
 
 
 def _next_population(
@@ -432,6 +570,24 @@ def _next_population(
 ) -> tuple[StrategyGenome, ...]:
     proposals: list[StrategyGenome] = []
     parents = tuple(archive[: min(8, len(archive))]) or tuple(current[:1])
+    for parent in parents:
+        neighborhood = parameter_neighborhood(parent.genome, search_space)
+        exposure = sorted(
+            (
+                item for item in neighborhood
+                if item.mutation_reason == "exposure_plan"
+            ),
+            key=lambda item: (sum(item.volume_weights), item.fingerprint),
+        )
+        if exposure:
+            proposals.append(exposure[0])
+            if exposure[-1].fingerprint != exposure[0].fingerprint:
+                proposals.append(exposure[-1])
+        proposals.extend(
+            item for item in neighborhood
+            if item.mutation_reason != "exposure_plan"
+        )
+        proposals.extend(exposure[1:-1])
     batch = evolve_generation(
         parents,
         critic=critic,
@@ -453,9 +609,16 @@ def _next_population(
             ))
     proposals.extend(seeds)
 
+    scout_slots = max(1, population_size // 3)
+    scouts = sample_diverse_population(
+        search_space,
+        seed=seed + 91_337,
+        count=max(scout_slots, scout_slots * 4),
+    )
+
     accepted: list[StrategyGenome] = []
     for genome in deduplicate(proposals):
-        if len(accepted) >= population_size:
+        if len(accepted) >= max(0, population_size - scout_slots):
             break
         if genome.fingerprint in seen:
             continue
@@ -465,7 +628,44 @@ def _next_population(
             continue
         accepted.append(genome)
         seen.add(genome.fingerprint)
+    for genome in sorted(
+        scouts,
+        key=lambda item: (-_distance_from_baseline(item), item.fingerprint),
+    ):
+        if len(accepted) >= population_size:
+            break
+        if genome.fingerprint in seen:
+            continue
+        if genome.validation_errors() or search_space.validation_errors(genome):
+            continue
+        accepted.append(genome)
+        seen.add(genome.fingerprint)
     return tuple(accepted)
+
+
+def _distance_from_baseline(genome: StrategyGenome) -> int:
+    baseline = StrategyGenome.baseline()
+    blocks = (
+        (
+            "entry_mode",
+            "entry_value",
+            "entry_expiry_min",
+            "entry_ladder_mode",
+            "entry_ladder_step",
+        ),
+        ("leg_count", "volume_weights"),
+        ("target_mode", "target_value", "partial_fraction", "runner_target"),
+        ("be_mode", "be_trigger"),
+        ("stop_mode", "stop_value"),
+        ("profit_lock_arm", "profit_lock_giveback"),
+        ("time_exit_min",),
+        ("provider_management_mode",),
+        ("context_filter_mode", "context_filter_value"),
+    )
+    return sum(
+        any(getattr(genome, name) != getattr(baseline, name) for name in block)
+        for block in blocks
+    )
 
 
 def _merge_evaluations(
@@ -492,11 +692,12 @@ def _material_frontier_improvement(
 
 def _objective_vector(item: CandidateEvaluation) -> tuple[object, ...]:
     return (
-        item.net_eur,
-        item.max_drawdown_eur,
-        item.worst_day_eur,
+        item.normalized_net_per_001,
+        item.normalized_max_drawdown_per_001,
+        item.normalized_worst_day_per_001,
         None if item.positive_day_concentration is None else round(item.positive_day_concentration, 6),
         item.complexity,
+        round(item.max_signal_exposure, 10),
     )
 
 
@@ -520,6 +721,7 @@ def _write_checkpoint(
     fold: ChronologicalFold,
     search_space: SearchSpace,
     seed: int,
+    experiment_context: Mapping[str, object],
     generations_completed: int,
     evaluations: int,
     stale_generations: int,
@@ -537,6 +739,7 @@ def _write_checkpoint(
         "fold": asdict(fold),
         "search_space": asdict(search_space),
         "seed": seed,
+        "experiment_context": experiment_context,
         "generations_completed": generations_completed,
         "evaluations": evaluations,
         "stale_generations": stale_generations,
@@ -549,12 +752,32 @@ def _write_checkpoint(
         "generation_summaries": [asdict(item) for item in generation_summaries],
     }
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary = path.with_name(f"{path.name}.tmp-{os.getpid()}")
     temporary.write_text(
         json.dumps(payload, sort_keys=True, indent=2, allow_nan=False),
         encoding="utf-8",
     )
-    os.replace(temporary, path)
+    _replace_checkpoint(temporary, path)
+
+
+def _replace_checkpoint(
+    temporary: Path,
+    destination: Path,
+    *,
+    attempts: int = 6,
+) -> None:
+    """Survive short antivirus/OneDrive locks without hiding a real failure."""
+
+    if attempts <= 0:
+        raise ValueError("attempts must be positive")
+    for attempt in range(attempts):
+        try:
+            os.replace(temporary, destination)
+            return
+        except PermissionError:
+            if attempt + 1 >= attempts:
+                raise
+            time.sleep(0.05 * (2 ** attempt))
 
 
 def _load_checkpoint(
@@ -564,6 +787,7 @@ def _load_checkpoint(
     fold: ChronologicalFold,
     search_space: SearchSpace,
     seed: int,
+    experiment_context: Mapping[str, object],
 ) -> dict:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -579,4 +803,17 @@ def _load_checkpoint(
         raise SearchCheckpointError("checkpoint search space does not match")
     if payload.get("seed") != seed:
         raise SearchCheckpointError("checkpoint seed does not match")
+    if payload.get("experiment_context") != experiment_context:
+        raise SearchCheckpointError("checkpoint experiment context does not match")
     return payload
+
+
+def _normalize_experiment_context(
+    context: Mapping[str, object] | None,
+) -> dict[str, object]:
+    return json.loads(json.dumps(
+        dict(context or {}),
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ))

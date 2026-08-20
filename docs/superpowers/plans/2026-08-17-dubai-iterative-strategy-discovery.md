@@ -8,6 +8,26 @@
 
 **Tech Stack:** Python 3.14, NumPy, pandas, PyArrow, matplotlib, pytest, existing replay/tick/money contracts.
 
+## Verified checkpoint - 2026-08-18
+
+- Exact research window: 42 Dubai Investing signals from 2026-07-27 through
+  2026-08-14. Three excluded rows remain named and outside the denominator.
+- The grammar spans 0.01-1.00 total lots, 1-12 legs, causal entry families,
+  adverse/favourable ladders, provider and independent exits, stops, BE,
+  profit locks, provider management, context filters and 1-240 minute exits.
+- The latest bounded feedback cycle evaluated 6,197 unique candidates and
+  collapsed 925 robust variants into 647 executable behaviour groups; 428
+  groups also respected the EUR 125 configured loss envelope for three
+  concurrent signals on EUR 500 capital.
+- Six finalists passed the scalar oracle and exact joint-portfolio replay in
+  all six execution worlds with zero cent mismatches and no evidence blockers.
+- Three families are frozen in
+  `runtime_data/dubai_forward_shortlist_20260818.json`. This file is research
+  state, not live configuration. Evidence after the freeze is the first honest
+  forward test; all pre-freeze folds remain retrospective and data-mined.
+- Live bot code, VM state and demo order behaviour were not changed by this
+  research work.
+
 ---
 
 ## File Map
@@ -36,7 +56,7 @@
 - [ ] **Step 1: Write failing contract tests**
 
 ```python
-from research.dubai_iterative.contracts import SearchBudget, StrategyGenome
+from research.dubai_iterative.contracts import SearchBudget, SearchSpace, StrategyGenome
 
 
 def test_genome_fingerprint_is_order_independent_and_stable():
@@ -61,10 +81,14 @@ def test_budget_stops_on_first_reached_limit():
                               stale_generations=0, deepest_lineage=12) == "max_lineage_depth"
 
 
-def test_genome_rejects_more_than_observed_dubai_exposure():
+def test_search_envelope_not_observed_baseline_controls_exposure():
     candidate = StrategyGenome.baseline().with_change(
-        leg_count=4, volume_weights=(0.02, 0.01, 0.01, 0.01))
-    assert candidate.validation_errors() == ["planned_volume_exceeds_0.04"]
+        leg_count=4, volume_weights=(0.10, 0.10, 0.10, 0.10))
+    assert candidate.validation_errors() == ()
+    assert SearchSpace(max_total_volume=0.20).validation_errors(candidate) == (
+        "outside_search_volume",
+    )
+    assert SearchSpace(max_total_volume=1.00).validation_errors(candidate) == ()
 ```
 
 - [ ] **Step 2: Run the contract tests and verify RED**

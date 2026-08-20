@@ -33,6 +33,7 @@ def _leg(
     tp=None,
     sl=None,
     level_at=BASE,
+    role="market_a",
 ):
     tp_events = () if tp is None else (
         LevelEvent(level_at, float(tp), "confirmed", "provider"),
@@ -42,7 +43,7 @@ def _leg(
     )
     return DubaiLeg(
         ticket=str(ticket),
-        role="market_a",
+        role=role,
         volume=float(volume),
         opened_at=opened_at,
         open_price=float(open_price),
@@ -138,6 +139,126 @@ def test_buy_and_sell_use_executable_quote_side():
     assert sell.exits[0].exit_price == 99.0
 
 
+def test_fixed_move_target_closes_from_volume_weighted_entry_price():
+    path = _path(
+        [100.0, 99.0, 98.0, 99.8, 99.9],
+        [100.2, 99.2, 98.2, 100.0, 100.1],
+        interval_seconds=60,
+    )
+    genome = _genome(
+        leg_count=3,
+        volume_weights=(0.01, 0.02, 0.03),
+        entry_ladder_mode="adverse",
+        entry_ladder_step=1.0,
+        entry_expiry_min=2,
+        target_mode="fixed_move",
+        target_value=1.0,
+        time_exit_min=4,
+    )
+
+    result = simulate(path, genome)
+
+    assert [entry.entry_price for entry in result.entries] == [100.2, 99.2, 98.2]
+    assert result.exit_reason == "fixed_move_target"
+    assert result.exits[0].tick_index == 4
+    assert result.pnl_eur == Decimal("6.20")
+
+
+def test_fixed_move_target_hits_exact_decimal_boundary():
+    path = _path(
+        [4403.99, 4404.00],
+        [4404.20, 4404.21],
+        legs=(
+            _leg("1", open_price=4403.75),
+            _leg("2", open_price=4403.49),
+            _leg("3", open_price=4403.23),
+        ),
+    )
+    genome = _genome(
+        leg_count=3,
+        volume_weights=(0.01, 0.01, 0.01),
+        target_mode="fixed_move",
+        target_value=0.5,
+    )
+
+    result = simulate(path, genome)
+
+    assert result.exit_reason == "fixed_move_target"
+    assert result.exits[0].tick_index == 0
+
+
+def test_adverse_entry_ladder_fills_each_leg_only_after_its_price_level():
+    path = _path(
+        [100.0, 99.0, 98.0, 102.0],
+        [100.2, 99.2, 98.2, 102.2],
+        interval_seconds=60,
+    )
+    genome = _genome(
+        leg_count=3,
+        volume_weights=(0.01, 0.01, 0.01),
+        entry_ladder_mode="adverse",
+        entry_ladder_step=1.0,
+        entry_expiry_min=2,
+        time_exit_min=3,
+    )
+
+    result = simulate(path, genome)
+
+    assert [entry.tick_index for entry in result.entries] == [0, 1, 2]
+    assert [entry.entry_price for entry in result.entries] == [100.2, 99.2, 98.2]
+    assert result.filled_volume == 0.03
+    assert result.pnl_eur == Decimal("8.40")
+    assert result.confidence_layer == "counterfactual_entry"
+
+
+def test_counterfactual_entry_is_cancelled_after_provider_stop_was_hit():
+    path = _path(
+        [100.0, 89.0, 100.0, 101.0, 102.0],
+        [100.2, 89.2, 100.2, 101.2, 102.2],
+        legs=(_leg(open_price=100.2, sl=90.0),),
+        interval_seconds=60,
+    )
+    genome = _genome(
+        entry_mode="momentum",
+        entry_value=1.0,
+        entry_expiry_min=5,
+        target_mode="fixed_basket",
+        target_value=0.5,
+        stop_mode="provider",
+        time_exit_min=5,
+    )
+
+    result = simulate(path, genome)
+
+    assert result.unfilled is True
+    assert result.entries == ()
+    assert result.pnl_eur == Decimal("0.00")
+
+
+def test_adverse_ladder_does_not_add_a_leg_beyond_provider_stop():
+    path = _path(
+        [100.0, 99.0, 98.0],
+        [100.2, 99.2, 98.2],
+        legs=(_leg(open_price=100.2, sl=100.0),),
+        interval_seconds=60,
+    )
+    genome = _genome(
+        leg_count=3,
+        volume_weights=(0.01, 0.01, 0.01),
+        entry_ladder_mode="adverse",
+        entry_ladder_step=1.0,
+        entry_expiry_min=2,
+        stop_mode="provider",
+        time_exit_min=2,
+    )
+
+    result = simulate(path, genome)
+
+    assert len(result.entries) == 1
+    assert result.entries[0].entry_price == 100.2
+    assert result.exit_reason == "provider_sl"
+
+
 def test_provider_targets_respect_each_leg_fill_and_level():
     path = _path(
         [100.0, 101.0, 102.0],
@@ -194,6 +315,32 @@ def test_price_be_closes_reversal_at_entry():
     assert result.exit_reason == "break_even"
     assert result.exits[0].exit_price == 100.2
     assert result.pnl_eur == Decimal("0.00")
+
+
+def test_partial_be_triggers_on_exact_decimal_sell_move():
+    path = _path(
+        [4017.99, 4017.49, 4017.99],
+        [4018.19, 4017.69, 4018.19],
+        direction="SELL",
+        interval_seconds=60,
+        legs=(
+            _leg("first", open_price=4018.19, role="market_a"),
+            _leg("runner", open_price=4018.19, role="scale_out_leg"),
+        ),
+    )
+    genome = _genome(
+        leg_count=2,
+        volume_weights=(0.01, 0.01),
+        be_mode="partial",
+        be_trigger=0.5,
+        time_exit_min=2,
+    )
+
+    result = simulate(path, genome)
+
+    runner = next(item for item in result.exits if item.ticket == "runner")
+    assert runner.reason == "break_even"
+    assert runner.tick_index == 2
 
 
 def test_profit_lock_closes_after_measured_giveback():
@@ -265,6 +412,80 @@ def test_explicit_provider_close_is_causal():
     assert result.pnl_eur == Decimal("0.50")
 
 
+def test_execution_latency_delays_provider_close_instruction():
+    close = ProviderEvent(BASE + timedelta(seconds=1), "CLOSE_ALL", {})
+    path = _path(
+        [100.2, 100.7, 101.2, 101.7],
+        [100.4, 100.9, 101.4, 101.9],
+        provider_events=(close,),
+    )
+    genome = _genome(provider_management_mode="exact")
+
+    immediate = simulate(path, genome)
+    delayed = simulate(
+        path,
+        genome,
+        execution=ExecutionAssumptions(latency_ms=2_000),
+    )
+
+    assert immediate.last_tick_index == 1
+    assert immediate.pnl_eur == Decimal("0.50")
+    assert delayed.last_tick_index == 3
+    assert delayed.pnl_eur == Decimal("1.50")
+
+
+def test_execution_latency_delays_provider_tp_visibility():
+    path = _path(
+        [100.2, 101.2, 100.7, 100.8, 101.1],
+        [100.4, 101.4, 100.9, 101.0, 101.3],
+        legs=(
+            _leg(
+                open_price=100.2,
+                tp=101.0,
+                level_at=BASE + timedelta(seconds=1),
+            ),
+        ),
+    )
+    genome = _genome(target_mode="provider_per_leg")
+
+    immediate = simulate(path, genome)
+    delayed = simulate(
+        path,
+        genome,
+        execution=ExecutionAssumptions(latency_ms=2_000),
+    )
+
+    assert immediate.last_tick_index == 1
+    assert delayed.last_tick_index == 4
+    assert delayed.pnl_eur == Decimal("0.90")
+
+
+def test_execution_latency_delays_provider_sl_visibility():
+    path = _path(
+        [100.2, 99.0, 100.0, 100.1, 98.9],
+        [100.4, 99.2, 100.2, 100.3, 99.1],
+        legs=(
+            _leg(
+                open_price=100.2,
+                sl=99.5,
+                level_at=BASE + timedelta(seconds=1),
+            ),
+        ),
+    )
+    genome = _genome(stop_mode="provider")
+
+    immediate = simulate(path, genome)
+    delayed = simulate(
+        path,
+        genome,
+        execution=ExecutionAssumptions(latency_ms=2_000),
+    )
+
+    assert immediate.last_tick_index == 1
+    assert delayed.last_tick_index == 4
+    assert delayed.pnl_eur == Decimal("-1.30")
+
+
 def test_adverse_exit_slippage_is_applied_before_money():
     path = _path([100.2, 100.7], [100.4, 100.9])
 
@@ -311,6 +532,24 @@ def test_unfilled_causal_entry_remains_visible_as_zero_exposure():
     assert result.pnl_eur == Decimal("0.00")
     assert result.exits == ()
     assert result.blockers == ()
+
+
+def test_context_filter_can_reject_an_observed_mt5_entry_causally():
+    path = _path(
+        [100.0, 101.0],
+        [100.2, 101.2],
+    )
+    genome = _genome(
+        entry_mode="actual_mt5",
+        context_filter_mode="max_spread",
+        context_filter_value=0.10,
+    )
+
+    result = simulate(path, genome)
+
+    assert result.unfilled is True
+    assert result.entries == ()
+    assert result.pnl_eur == Decimal("0.00")
 
 
 def test_exposure_above_observed_baseline_is_really_simulated():

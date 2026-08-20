@@ -15,6 +15,7 @@ from research.dubai_iterative.evolution import (
     evolve_generation,
     mutate_from_diagnosis,
     pareto_front,
+    sample_diverse_population,
     seed_population,
 )
 
@@ -29,6 +30,7 @@ def _result(
     floating_drawdown="0.00",
     exit_reason="provider_tp",
     filled_volume=0.04,
+    unfilled=False,
     blockers=(),
 ):
     result = SimulationResult(
@@ -46,7 +48,7 @@ def _result(
         max_adverse_move=0.0,
         blockers=tuple(blockers),
         last_tick_index=1,
-        unfilled=False,
+        unfilled=unfilled,
         filled_volume=filled_volume,
     )
     return day, result
@@ -57,6 +59,19 @@ def _evaluation(genome=None, *rows):
         genome or StrategyGenome.baseline(),
         rows or (_result(),),
     )
+
+
+def test_candidate_evaluation_reports_real_participation_in_signals():
+    evaluation = _evaluation(
+        StrategyGenome.baseline(),
+        _result("filled_1", pnl="2.00"),
+        _result("skipped", pnl="0.00", exit_reason="not_filled", unfilled=True, filled_volume=0.0),
+        _result("filled_2", pnl="-1.00"),
+    )
+
+    assert evaluation.total_signal_count == 3
+    assert evaluation.filled_signal_count == 2
+    assert evaluation.participation_rate == 2 / 3
 
 
 def test_giveback_diagnosis_generates_profit_protection_children():
@@ -199,6 +214,84 @@ def test_pareto_front_keeps_real_profit_drawdown_tradeoff():
     }
 
 
+def test_pareto_does_not_call_uniformly_larger_lotage_a_better_rule():
+    small = StrategyGenome.baseline().with_change(
+        leg_count=1,
+        volume_weights=(0.01,),
+    )
+    large = StrategyGenome.baseline().with_change(
+        leg_count=1,
+        volume_weights=(0.10,),
+    )
+    small_evaluation = _evaluation(
+        small,
+        _result(
+            pnl="2.00",
+            max_favourable="3.00",
+            max_adverse="-1.00",
+            floating_drawdown="1.00",
+            filled_volume=0.01,
+        ),
+    )
+    large_evaluation = _evaluation(
+        large,
+        _result(
+            pnl="20.00",
+            max_favourable="30.00",
+            max_adverse="-10.00",
+            floating_drawdown="10.00",
+            filled_volume=0.10,
+        ),
+    )
+
+    frontier = pareto_front((small_evaluation, large_evaluation))
+
+    assert small_evaluation.normalized_net_per_001 == Decimal("2.00")
+    assert large_evaluation.normalized_net_per_001 == Decimal("2.00")
+    assert small_evaluation.normalized_max_drawdown_per_001 == Decimal("1.00")
+    assert large_evaluation.normalized_max_drawdown_per_001 == Decimal("1.00")
+    assert [item.genome.fingerprint for item in frontier] == [small.fingerprint]
+
+
+def test_pareto_treats_zero_drawdown_as_real_zero_not_missing_data():
+    zero_drawdown = _evaluation(
+        StrategyGenome.baseline().with_change(time_exit_min=30),
+        _result(
+            pnl="5.00",
+            max_favourable="5.00",
+            floating_drawdown="0.00",
+        ),
+    )
+    positive_drawdown = _evaluation(
+        StrategyGenome.baseline().with_change(time_exit_min=60),
+        _result(
+            pnl="5.00",
+            max_favourable="5.00",
+            floating_drawdown="1.00",
+        ),
+    )
+
+    frontier = pareto_front((zero_drawdown, positive_drawdown))
+
+    assert [item.genome.fingerprint for item in frontier] == [
+        zero_drawdown.genome.fingerprint
+    ]
+
+
+def test_normalized_result_penalizes_signals_that_were_not_filled():
+    genome = StrategyGenome.baseline().with_change(
+        leg_count=1,
+        volume_weights=(0.02,),
+    )
+    evaluation = _evaluation(
+        genome,
+        _result("filled", pnl="4.00", filled_volume=0.02),
+        _result("skipped", day="2026-07-28", pnl="0.00", filled_volume=0.0),
+    )
+
+    assert evaluation.normalized_net_per_001 == Decimal("2.00")
+
+
 def test_crossover_copies_whole_compatible_blocks_and_records_both_parents():
     left = StrategyGenome.baseline().with_change(
         entry_mode="pullback",
@@ -209,6 +302,7 @@ def test_crossover_copies_whole_compatible_blocks_and_records_both_parents():
         target_mode="fixed_basket",
         target_value=8.0,
         be_mode="none",
+        time_exit_min=180,
     )
     right = StrategyGenome.baseline().with_change(
         entry_mode="momentum",
@@ -222,6 +316,7 @@ def test_crossover_copies_whole_compatible_blocks_and_records_both_parents():
         runner_target=15.0,
         stop_mode="basket_money",
         stop_value=12.0,
+        time_exit_min=180,
     )
 
     children = crossover(
@@ -320,6 +415,7 @@ def test_seed_population_exposes_every_supported_strategy_family():
         "provider_per_leg",
         "provider_target_all",
         "fixed_basket",
+        "fixed_move",
         "partial_runner",
         "none",
     }
@@ -343,3 +439,59 @@ def test_seed_population_exposes_every_supported_strategy_family():
         "max_volatility",
         "min_reward_risk",
     }
+    assert {item.entry_ladder_mode for item in population} == {
+        "simultaneous",
+        "adverse",
+        "favourable",
+    }
+
+
+def test_seed_population_reaches_the_explicit_one_lot_research_boundary():
+    population = seed_population(SearchSpace(max_total_volume=1.0), seed=21)
+    totals = {round(sum(item.volume_weights), 10) for item in population}
+
+    assert min(totals) == 0.01
+    assert 0.04 in totals
+    assert max(totals) == 1.0
+    assert any(
+        round(sum(item.volume_weights), 10) == 1.0 and item.leg_count > 1
+        for item in population
+    )
+
+
+def test_diverse_scouts_are_deterministic_valid_and_radically_combined():
+    space = SearchSpace(max_total_volume=0.50, max_legs=12)
+
+    first = sample_diverse_population(space, seed=44, count=256)
+    second = sample_diverse_population(space, seed=44, count=256)
+
+    assert [item.fingerprint for item in first] == [
+        item.fingerprint for item in second
+    ]
+    assert len(first) == 256
+    assert all(not item.validation_errors() for item in first)
+    assert all(not space.validation_errors(item) for item in first)
+    assert min(sum(item.volume_weights) for item in first) < 0.04
+    assert max(sum(item.volume_weights) for item in first) > 0.20
+    assert any(
+        item.entry_mode != "actual_mt5"
+        and item.target_mode not in {"provider_per_leg", "provider_target_all"}
+        and item.be_mode != "provider"
+        and item.stop_mode != "provider"
+        and item.provider_management_mode != "exact"
+        for item in first
+    )
+    assert max(item.entry_expiry_min for item in first) <= space.max_entry_expiry_min
+    assert max(item.time_exit_min for item in first) <= space.max_time_exit_min
+
+
+def test_diverse_partial_scouts_only_use_broker_executable_volumes():
+    space = SearchSpace(max_total_volume=0.50, max_legs=12)
+    population = sample_diverse_population(space, seed=91, count=512)
+    partials = [item for item in population if item.target_mode == "partial_runner"]
+
+    assert partials
+    assert all(
+        "unexecutable_partial_volume" not in space.validation_errors(item)
+        for item in partials
+    )

@@ -95,6 +95,61 @@ Replay and simulation foundation:
   tester-only MQL5 EA. Its `observed_close` baseline must reproduce the
   official account history to the cent before TP2 alternatives are reported.
 
+Offline iterative Dubai research:
+
+- `research/dubai_iterative/` explores causal combinations of entry timing,
+  simultaneous or adverse/favourable entry ladders, broker-valid lot
+  allocations, provider or independent exits, BE, stops, profit protection,
+  time exits, provider management and observable context filters.
+- `0.04` lots is the observed comparison baseline, not a search ceiling. Each
+  run records an explicit `--min-total-volume`, `--max-total-volume`,
+  `--max-legs` and broker `--volume-step` envelope in its immutable run card.
+- Rule quality is ranked per `0.01` planned lot before raw exposure, so merely
+  multiplying an otherwise identical bet cannot become a better strategy.
+- The fast fixed-point engine must agree to the cent with an independent
+  scalar oracle. Finalists are also replayed under latency, slippage and wider
+  spread stress. Any mismatch, missing signal or incomplete money evidence is
+  visible and blocks a reliability claim.
+- Results under `runtime_data/dubai_strategy_runs/` are research artifacts.
+  The package cannot import live execution modules, change runtime settings,
+  restart the bot or deploy a candidate.
+
+Example bounded run over the current robust retrospective window:
+
+```powershell
+python -m research.dubai_iterative `
+  --from 2026-07-27 --to 2026-08-14 `
+  --max-total-volume 1.00 --max-legs 12 `
+  --max-generations 8 --population-size 64 `
+  --max-evaluations 800 --max-wall-seconds 1800 `
+  --oracle-finalists 3 --progress
+```
+
+The search is iterative but never recursive: generations, evaluations, wall
+time, stale generations and lineage depth are all hard stopping conditions.
+A retrospective result remains unvalidated until it survives untouched
+forward/OOS evidence with the project sample-size and significance gates.
+
+Current frozen Dubai research checkpoint (2026-08-18):
+
+- The certified retrospective universe is `2026-07-27..2026-08-14`: 42 exact
+  signals, with every excluded signal named rather than removed silently.
+- The latest feedback cycle evaluated 6,197 unique variants. The full-window
+  and four-period gate retained 1,376, six execution worlds retained 925 rule
+  variants, and the EUR 500 / 25% prospective-risk envelope retained 663
+  variants representing 428 distinct executable behaviours.
+- Six finalists were independently replayed in six worlds against the
+  9,143,576-tick canonical portfolio tape. All six matched the scalar oracle
+  to the cent and had complete conversion evidence.
+- Three distinct families are frozen in ignored research artifact
+  `runtime_data/dubai_forward_shortlist_20260818.json`. They are offline
+  hypotheses only; only signals observed after the freeze may supply forward
+  evidence. None is approved for automatic live deployment.
+- The `0.04` observed baseline did not constrain discovery. Certified
+  shortlisted families use `0.06` or `0.07` total lots; larger exposure was
+  also tested and is rejected only when its configured concurrent loss exceeds
+  the recorded EUR 500 account envelope.
+
 `runtime_data/provider_signal_catalog.json` is a canonical, versioned farm input. It
 must travel with `runtime_data/strategy_farm.json` and the corresponding run card; it
 is not a disposable intermediate report.
