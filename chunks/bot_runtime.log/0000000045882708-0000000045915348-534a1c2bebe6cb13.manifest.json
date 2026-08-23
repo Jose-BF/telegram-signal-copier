@@ -1,0 +1,14 @@
+{
+  "byte_end": 45915348,
+  "byte_start": 45882708,
+  "code_commit": "86bf99064d4ecea91683086b31ed8fc8e669e037",
+  "compressed_bytes": 866,
+  "compressed_sha256": "8343481beba9786578da4dc1e9911c699f1e6cc183873dff1a7c07830c480550",
+  "compression": "gzip",
+  "created_at": "2026-08-23T20:28:45+00:00",
+  "payload_file": "0000000045882708-0000000045915348-534a1c2bebe6cb13.log.gz",
+  "schema_version": 1,
+  "sha256": "534a1c2bebe6cb138c640248bc54553ba3e715b45918d5bd8ccb7e4760682cad",
+  "stream": "bot_runtime.log",
+  "uncompressed_bytes": 32640
+}
