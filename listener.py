@@ -27,6 +27,7 @@ from telethon import TelegramClient, events
 import causal_trace
 import config
 import alert_graphics
+import dubai_live_candidate
 import executor
 import journal
 import logger
@@ -104,6 +105,125 @@ class _Canal2EntryIntent:
 def _sig_id(signal: Signal) -> str:
     """Identificador único para journal. Mismo formato que state._key()."""
     return f"{signal.channel}_{signal.message_id}"
+
+
+def _initial_market_lot(channel: str) -> float:
+    if (
+        channel == "canal1"
+        and config.STRATEGY_C1_BALANCED_V1_ENABLED
+    ):
+        return dubai_live_candidate.DubaiLivePolicy().volume_weights[0]
+    return float(config.LOT_SIZE)
+
+
+def _market_comment(channel: str, message_id: int) -> str:
+    prefix = "c1" if channel == "canal1" else "c2"
+    if (
+        channel == "canal1"
+        and config.STRATEGY_C1_BALANCED_V1_ENABLED
+    ):
+        return f"{prefix}_{int(message_id)}_dv1"
+    return f"{prefix}_{int(message_id)}"
+
+
+def _attach_dubai_live_candidate(
+    signal: Signal,
+    first_fill_at: datetime,
+    *,
+    observed_at: datetime | None = None,
+) -> bool:
+    if (
+        signal.channel != "canal1"
+        or not config.STRATEGY_C1_BALANCED_V1_ENABLED
+    ):
+        return False
+    if signal.market_fill_price is None:
+        raise ValueError("Dubai candidate requires the real first fill")
+
+    policy = dubai_live_candidate.DubaiLivePolicy()
+    plan_started_at = observed_at or first_fill_at
+    legs = policy.entry_plan(
+        direction=signal.direction,
+        anchor_price=signal.market_fill_price,
+        opened_at=plan_started_at,
+    )
+    signal.live_strategy_id = dubai_live_candidate.CANDIDATE_ID
+    signal.live_strategy_fingerprint = policy.fingerprint
+    signal.candidate_entry_anchor = float(signal.market_fill_price)
+    signal.candidate_first_fill_at = first_fill_at
+    signal.candidate_entry_expires_at = legs[0].expires_at
+    signal.candidate_entry_legs = [
+        {
+            "index": leg.index,
+            "volume": leg.volume,
+            "trigger_price": leg.trigger_price,
+        }
+        for leg in legs
+    ]
+    signal.candidate_filled_leg_indexes = list(
+        range(1, 1 + len(signal.dca_tickets))
+    )
+    signal.entry_mode = "adverse_ladder"
+    signal.target_tp_index = None
+    signal.be_at_tp_index = None
+    signal.time_stop_at = None
+    return True
+
+
+def _journal_dubai_candidate_plan(signal: Signal) -> None:
+    if signal.live_strategy_id != dubai_live_candidate.CANDIDATE_ID:
+        return
+    journal.event(
+        _sig_id(signal),
+        "dubai_live_candidate_attached",
+        strategy_id=signal.live_strategy_id,
+        strategy_fingerprint=signal.live_strategy_fingerprint,
+        entry_anchor=signal.candidate_entry_anchor,
+        first_fill_at=(
+            signal.candidate_first_fill_at.isoformat(timespec="milliseconds")
+            if signal.candidate_first_fill_at else None
+        ),
+        entry_expires_at=(
+            signal.candidate_entry_expires_at.isoformat(timespec="milliseconds")
+            if signal.candidate_entry_expires_at else None
+        ),
+        entry_legs=list(signal.candidate_entry_legs),
+        filled_leg_indexes=list(signal.candidate_filled_leg_indexes),
+        target_mode="none",
+        be_mode="none",
+        money_source="realized_plus_floating_account_currency",
+    )
+
+
+def _configure_canal1_signal_runtime(signal: Signal) -> None:
+    """Apply live routing without mutating a signal's frozen policy."""
+    if signal.live_strategy_id == dubai_live_candidate.CANDIDATE_ID:
+        signal.entry_mode = "adverse_ladder"
+        signal.target_tp_index = None
+        signal.be_at_tp_index = None
+        signal.time_stop_at = None
+        return
+    signal.target_tp_index = (
+        config.STRATEGY_C1_TARGET_TP_INDEX
+        if config.STRATEGY_C1_TARGET_TP_INDEX >= 0 else None
+    )
+    signal.entry_mode = config.STRATEGY_C1_ENTRY_MODE
+    signal.be_at_tp_index = (
+        config.STRATEGY_C1_BE_TP_INDEX
+        if config.STRATEGY_C1_BE_TP_INDEX >= 0 else None
+    )
+    if config.STRATEGY_C1_TIME_STOP_MIN > 0:
+        signal.time_stop_at = signal.timestamp + timedelta(
+            minutes=config.STRATEGY_C1_TIME_STOP_MIN
+        )
+
+
+def _should_report_canal1_naked(signal: Signal) -> bool:
+    return bool(
+        signal.live_strategy_id != dubai_live_candidate.CANDIDATE_ID
+        and not signal.tps
+        and not signal.sl
+    )
 
 
 _NON_REQUIRED_MANAGEMENT_REASONS = {
@@ -479,6 +599,32 @@ def _log_strategy_snapshot(signal: Signal, *, num_entries: int | None = None,
                            time_stop_min: int | None = None):
     """Registra la config efectiva de la senal para analisis posterior."""
     try:
+        candidate_fields = {}
+        if signal.live_strategy_id == dubai_live_candidate.CANDIDATE_ID:
+            policy = dubai_live_candidate.DubaiLivePolicy()
+            num_entries = policy.leg_count
+            time_stop_min = policy.time_exit_min
+            candidate_fields = {
+                "live_strategy_id": signal.live_strategy_id,
+                "live_strategy_fingerprint": (
+                    signal.live_strategy_fingerprint
+                ),
+                "entry_expiry_min": policy.entry_expiry_min,
+                "entry_ladder_mode": policy.entry_ladder_mode,
+                "entry_ladder_step": policy.entry_ladder_step,
+                "volume_weights": list(policy.volume_weights),
+                "target_mode": policy.target_mode,
+                "be_mode": policy.be_mode,
+                "basket_stop_eur": -float(policy.stop_value),
+                "profit_lock_arm_eur": float(policy.profit_lock_arm),
+                "profit_lock_giveback_eur": float(
+                    policy.profit_lock_giveback
+                ),
+                "time_exit_mode": policy.time_exit_mode,
+                "provider_management_mode": (
+                    policy.provider_management_mode
+                ),
+            }
         journal.event(
             _sig_id(signal), "strategy_snapshot",
             entry_mode=signal.entry_mode,
@@ -490,6 +636,7 @@ def _log_strategy_snapshot(signal: Signal, *, num_entries: int | None = None,
             adverse_action=signal.adverse_action,
             effective_lot=signal.effective_lot,
             magic=signal.magic,
+            **candidate_fields,
         )
     except Exception:
         pass
@@ -2353,6 +2500,10 @@ async def _place_dca(signal: Signal):
         return
     signal.dca_placed = True
 
+    candidate_active = (
+        signal.live_strategy_id == dubai_live_candidate.CANDIDATE_ID
+    )
+
     needs_monitor_anyway = (
         signal.time_stop_at is not None
         or signal.be_at_tp_index is not None
@@ -2360,6 +2511,7 @@ async def _place_dca(signal: Signal):
             signal.channel == "canal1"
             and config.STRATEGY_C1_BASKET_GUARD_ENABLED
         )
+        or candidate_active
     )
     if not needs_monitor_anyway:
         print(
@@ -2370,14 +2522,24 @@ async def _place_dca(signal: Signal):
 
     guard_active = bool(
         signal.channel == "canal1"
-        and config.STRATEGY_C1_BASKET_GUARD_ENABLED
+        and (
+            config.STRATEGY_C1_BASKET_GUARD_ENABLED
+            or candidate_active
+        )
     )
     print(
         f"[Trade Monitor] Activo para BE/time-stop/proteccion "
         f"(be@idx={signal.be_at_tp_index}, ts={signal.time_stop_at}, "
         f"basket_guard={guard_active})"
     )
-    position_lifecycle_monitor.start(signal, [])
+    levels = []
+    if candidate_active:
+        levels = [
+            float(leg["trigger_price"])
+            for leg in signal.candidate_entry_legs
+            if leg.get("trigger_price") is not None
+        ]
+    position_lifecycle_monitor.start(signal, levels)
     return
 
 async def _open_extra_legs(sig: Signal, msg_id: int) -> None:
@@ -2409,6 +2571,12 @@ async def _open_extra_legs_impl(sig: Signal, msg_id: int) -> None:
     entry_mode aun no esta fijado en este punto del flujo.
     """
     channel = sig.channel
+    if sig.live_strategy_id == dubai_live_candidate.CANDIDATE_ID:
+        print(
+            f"[{channel}] {dubai_live_candidate.CANDIDATE_ID}: "
+            "scale-out inmediato omitido; escalera adversa activa"
+        )
+        return
     entry_mode = (config.STRATEGY_C1_ENTRY_MODE if channel == "canal1"
                   else config.STRATEGY_C2_ENTRY_MODE)
     magic = config.magic_for(channel)
@@ -2522,6 +2690,21 @@ async def _apply_sl_tp(signal: Signal):
         (cobra el precio actual, mejor que cualquier TP).
 
     Cada modify va por la cola con reintentos tick-a-tick."""
+    if signal.live_strategy_id == dubai_live_candidate.CANDIDATE_ID:
+        journal.event(
+            _sig_id(signal),
+            "dubai_provider_levels_observed_not_applied",
+            strategy_id=signal.live_strategy_id,
+            strategy_fingerprint=signal.live_strategy_fingerprint,
+            provider_tps=list(signal.provider_tps),
+            effective_tps=list(signal.tps),
+            provider_sl=(signal.sl if signal.provider_sl_received else None),
+            effective_sl=signal.sl,
+            has_open_runner=bool(signal.has_open_runner),
+            reason="frozen_candidate_target_and_be_modes_are_none",
+        )
+        return
+
     if signal.sl is None and not signal.tps and not signal.has_open_runner:
         return
 
@@ -2780,6 +2963,20 @@ async def _handle_range_arrival_safety(signal: Signal, lo: float, hi: float) -> 
         - hold_no_limits     → mantener market sin limits. SL del proveedor.
         - hold_sl_to_extreme → mantener market con SL movido al extremo
     """
+    if signal.live_strategy_id == dubai_live_candidate.CANDIDATE_ID:
+        if not signal.range_safety_applied:
+            signal.range_safety_applied = True
+            journal.event(
+                _sig_id(signal),
+                "dubai_provider_range_observed_not_applied",
+                strategy_id=signal.live_strategy_id,
+                strategy_fingerprint=signal.live_strategy_fingerprint,
+                range_low=float(lo),
+                range_high=float(hi),
+                reason="frozen_candidate_uses_its_own_adverse_ladder",
+            )
+        return False
+
     if signal.range_safety_applied:
         return False  # ya decidido en un edit anterior
     signal.range_safety_applied = True
@@ -4440,6 +4637,52 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
     action = classification.get("action", "INFORMATIONAL")
     price  = classification.get("price")
     conf   = classification.get("confidence", 0)
+
+    if signal.live_strategy_id == dubai_live_candidate.CANDIDATE_ID:
+        if dubai_live_candidate.is_provider_close_action(action):
+            signal.requested_close_reason = "PROVIDER_CLOSE"
+            for ticket in signal.all_filled_tickets:
+                pending_actions.enqueue_close_position(
+                    signal,
+                    ticket,
+                    label=f"PROVIDER_CLOSE_{action} #{ticket}",
+                )
+            for ticket in signal.pending_tickets:
+                pending_actions.enqueue_cancel_pending(
+                    signal,
+                    ticket,
+                    label=f"PROVIDER_CLOSE_{action} pend #{ticket}",
+                )
+            journal.event(
+                _sig_id(signal),
+                "dubai_provider_close_requested",
+                strategy_id=signal.live_strategy_id,
+                strategy_fingerprint=signal.live_strategy_fingerprint,
+                classified_action=action,
+                price=price,
+                confidence=conf,
+                tickets=list(signal.all_filled_tickets),
+                pending_tickets=list(signal.pending_tickets),
+                raw_snippet=(raw_text or "")[:200],
+            )
+            logger.log_action(signal, "PROVIDER_CLOSE")
+            return "requested"
+
+        journal.event(
+            _sig_id(signal),
+            "dubai_provider_action_observed_not_applied",
+            strategy_id=signal.live_strategy_id,
+            strategy_fingerprint=signal.live_strategy_fingerprint,
+            action=action,
+            price=price,
+            provider_stated_be_price=classification.get(
+                "provider_stated_be_price"
+            ),
+            confidence=conf,
+            raw_snippet=(raw_text or "")[:200],
+            reason="frozen_candidate_uses_provider_close_only",
+        )
+        return "ignored"
 
     if action == "MOVE_SL_TO_PRICE" and price is not None:
         price = _normalize_management_sl_price(signal, price, raw_text)
@@ -8024,10 +8267,10 @@ async def _handle_canal1_sticker(msg):
         result = await _run(
             executor.open_market_with_fill,
             direction,
-            config.LOT_SIZE,
+            _initial_market_lot("canal1"),
             None,
             None,
-            f"c1_{msg.id}",
+            _market_comment("canal1", msg.id),
             magic,
         )
     except Exception:
@@ -8065,6 +8308,11 @@ async def _handle_canal1_sticker(msg):
         entry_mode=config.STRATEGY_C1_ENTRY_MODE,
         adverse_action=config.STRATEGY_C1_ADVERSE_ACTION,
     )
+    _attach_dubai_live_candidate(
+        sig,
+        market_filled_utc,
+        observed_at=signal_received_utc,
+    )
     state.add(sig)
     journal.begin_trade(
         _sig_id(sig),
@@ -8075,7 +8323,10 @@ async def _handle_canal1_sticker(msg):
         fill_latency_ms=fill_latency_ms,
         market_entry_price=fill_price,
         adverse_action=config.STRATEGY_C1_ADVERSE_ACTION,
+        live_strategy_id=sig.live_strategy_id,
+        live_strategy_fingerprint=sig.live_strategy_fingerprint,
     )
+    _journal_dubai_candidate_plan(sig)
     _log_strategy_snapshot(
         sig,
         num_entries=config.STRATEGY_C1_NUM_ENTRIES,
@@ -8083,6 +8334,7 @@ async def _handle_canal1_sticker(msg):
     )
     # Abre posiciones market extra (modo scale_out, o doble market legacy).
     await _open_extra_legs(sig, msg.id)
+    await _place_dca(sig)
     await _apply_interpreted_entry_levels(
         sig, {"direction": direction}, "canal1", reference_price=fill_price)
     print(f"[Canal1] Mercado abierto con niveles provisionales, "
@@ -8230,10 +8482,10 @@ async def _open_canal1_from_text(msg, parsed: dict):
         result = await _run(
             executor.open_market_with_fill,
             direction,
-            config.LOT_SIZE,
+            _initial_market_lot("canal1"),
             None,
             None,
-            f"c1_{msg.id}",
+            _market_comment("canal1", msg.id),
             magic,
         )
     except Exception:
@@ -8271,6 +8523,11 @@ async def _open_canal1_from_text(msg, parsed: dict):
         entry_mode=config.STRATEGY_C1_ENTRY_MODE,
         adverse_action=config.STRATEGY_C1_ADVERSE_ACTION,
     )
+    _attach_dubai_live_candidate(
+        sig,
+        market_filled_utc,
+        observed_at=signal_received_utc,
+    )
     state.add(sig)
     journal.begin_trade(
         _sig_id(sig),
@@ -8282,7 +8539,10 @@ async def _open_canal1_from_text(msg, parsed: dict):
         market_entry_price=fill_price,
         adverse_action=config.STRATEGY_C1_ADVERSE_ACTION,
         trigger="text_only",
+        live_strategy_id=sig.live_strategy_id,
+        live_strategy_fingerprint=sig.live_strategy_fingerprint,
     )
+    _journal_dubai_candidate_plan(sig)
     _log_strategy_snapshot(
         sig,
         num_entries=config.STRATEGY_C1_NUM_ENTRIES,
@@ -8290,6 +8550,7 @@ async def _open_canal1_from_text(msg, parsed: dict):
     )
     # Abre posiciones market extra (modo scale_out, o doble market legacy).
     await _open_extra_legs(sig, msg.id)
+    await _place_dca(sig)
     print(f"[Canal1] Mercado abierto desde texto-only (sin sticker), aplicando TPs/SL...")
 
     # Notificar al usuario para que sepa que ocurrio esto (puede indicar un
@@ -8396,17 +8657,10 @@ async def _handle_canal1_text(msg, text: str):
                       text_preview=text[:300].replace("\n", " | "))
 
     # ── Routing Canal 1 ──────────────────────────────────────────────────
-    sig.target_tp_index = (config.STRATEGY_C1_TARGET_TP_INDEX
-                           if config.STRATEGY_C1_TARGET_TP_INDEX >= 0 else None)
-    # El modo describe lo que abrimos en MT5, no el formato del mensaje.
-    # Una entrada a precio exacto tambien abre todas las legs scale-out.
-    sig.entry_mode = config.STRATEGY_C1_ENTRY_MODE
-    sig.be_at_tp_index = (config.STRATEGY_C1_BE_TP_INDEX
-                          if config.STRATEGY_C1_BE_TP_INDEX >= 0 else None)
-    if config.STRATEGY_C1_TIME_STOP_MIN > 0:
-        sig.time_stop_at = sig.timestamp + timedelta(
-            minutes=config.STRATEGY_C1_TIME_STOP_MIN
-        )
+    # La candidata live queda congelada al abrirse. Los mensajes posteriores
+    # aportan evidencia del proveedor, pero no pueden reactivar la gestion
+    # legacy que no formaba parte de la simulacion seleccionada.
+    _configure_canal1_signal_runtime(sig)
 
     print(f"[Canal1] Texto señal {sig.message_id}: {list(parsed.keys())} | "
           f"entry_mode={sig.entry_mode} target_tp_idx={sig.target_tp_index} "
@@ -8431,7 +8685,7 @@ async def _handle_canal1_text(msg, text: str):
     # esta NAKED en MT5 sin proteccion. Bug critico — notify URGENT al
     # usuario para accion manual inmediata. Sesion 2026-05-07: canal1_19484
     # y canal1_19498 quedaron asi sin que el bot avisara.
-    if not sig.tps and not sig.sl:
+    if _should_report_canal1_naked(sig):
         print(f"[Canal1] 🚨 NAKED tras procesar texto — signal {sig_id} "
               f"sin TPs ni SL, ticket={sig.market_ticket}")
         journal.event(sig_id, "canal1_text_processed_but_naked",

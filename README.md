@@ -35,19 +35,27 @@ Gold Signals zone execution:
 
 Current demo forward policy:
 
-- Dubai Investing keeps provider entries, TP/SL, management and scale-out.
-  A per-signal MT5 basket guard closes at `-50` account-currency units, arms
-  at `+30`, and secures the basket if it returns to `+20`.
+- Dubai Investing runs the frozen `dubai_balanced_v1` demo candidate. It opens
+  `0.01` lots immediately, then `0.04` after an adverse XAUUSD move of `$4`
+  and another `0.04` after `$8`; the two delayed legs expire after 15 minutes.
+  It installs no per-ticket TP, SL or BE. The aggregate EUR basket closes at
+  `-25`, arms a dynamic lock at `+10`, closes after a `2` EUR giveback, and
+  closes at 40 minutes only when its total P/L is not positive. Explicit
+  provider closes are honoured; other provider management remains evidence.
 - Gold Signals immediate entries are unchanged. Zone plans open only after an
   explicit provider activation; first touch remains observation-only.
-- Position volume is unchanged: `0.01` per leg. The runtime enforces
-  `STRATEGY_MAX_PLANNED_LOTS_PER_SIGNAL=0.05` across initial and rescue legs,
-  so a late rescue cannot silently create a sixth position.
+- Dubai candidate exposure is frozen at `0.09` lots per signal. Legacy Dubai
+  and Gold paths retain `STRATEGY_MAX_PLANNED_LOTS_PER_SIGNAL=0.05`.
 - Startup publishes a `live_strategy_contract` event and one readable console
-  line containing the exact active switches and thresholds.
+  line containing the candidate ID, exact fingerprint and thresholds. Startup
+  refuses the candidate on a real, unverifiable or non-EUR MT5 account.
 - This is a forward demo trial calibrated on retained history, not evidence of
-  guaranteed profitability. Set `STRATEGY_C1_BASKET_GUARD_ENABLED=0` or
-  `STRATEGY_C2_ZONE_FIRST_TOUCH_EXECUTION_ENABLED=1` to roll back each change.
+  guaranteed profitability. Set `STRATEGY_C1_BALANCED_V1_ENABLED=0` to restore
+  the previous Dubai path. Gold Signals needs no rollback because this trial
+  does not alter it.
+- The candidate basket guard samples every fresh broker tick. Because its
+  protection is process-side and intentionally installs no broker SL, this
+  trial must remain on demo: a stopped bot, terminal or VM cannot close it.
 
 The compact daily log pass is incremental and reports armed zones, confirmed
 entries, trigger types and failures without rescanning the retained corpus:
@@ -130,25 +138,23 @@ time, stale generations and lineage depth are all hard stopping conditions.
 A retrospective result remains unvalidated until it survives untouched
 forward/OOS evidence with the project sample-size and significance gates.
 
-Current frozen Dubai research checkpoint (2026-08-18):
+Current frozen Dubai research checkpoint (2026-08-22):
 
-- The certified retrospective universe is `2026-07-27..2026-08-14`: 42 exact
-  signals, with every excluded signal named rather than removed silently.
-- The latest feedback cycle evaluated 6,197 unique variants. The full-window
-  and four-period gate retained 1,376, six execution worlds retained 925 rule
-  variants, and the EUR 500 / 25% prospective-risk envelope retained 663
-  variants representing 428 distinct executable behaviours.
-- Six finalists were independently replayed in six worlds against the
-  9,143,576-tick canonical portfolio tape. All six matched the scalar oracle
-  to the cent and had complete conversion evidence.
-- Three distinct families are frozen in ignored research artifact
-  `runtime_data/dubai_forward_shortlist_20260818.json`. They are offline
-  hypotheses only; only signals observed after the freeze may supply forward
-  evidence. None is approved for automatic live deployment.
-- The `0.04` observed baseline did not constrain discovery. Certified
-  shortlisted families use `0.06` or `0.07` total lots; larger exposure was
-  also tested and is rejected only when its configured concurrent loss exceeds
-  the recorded EUR 500 account envelope.
+- The retrospective universe is `2026-07-27..2026-08-14`: 45 exact signals
+  across 15 sessions. The observed bot result was `-219.00 EUR`.
+- The search screened 100,000 broad full-rule candidates, 100,000 management
+  candidates and two local refinement passes. In total it executed more than
+  ten million signal replays rather than ranking a small hand-picked list.
+- `dubai_balanced_v1` produced `+269.99 EUR` retrospectively, with `47.12 EUR`
+  maximum drawdown and positive results in each of the three calendar weeks.
+  The scalar oracle agreed to the cent and the rule remained positive in six
+  predefined latency, slippage and spread worlds; the weakest world returned
+  `+161.52 EUR` with `69.88 EUR` maximum drawdown.
+- Those figures selected a hypothesis on already-seen data; they are not an
+  untouched validation set. Fingerprint
+  `32cb5c0fe8205ad00a0c655bacd5446c6cc219d1ad7338967212c71781860631`
+  is frozen for the demo forward trial. Results are reviewed after 15, 45 and
+  100 new signals without changing the rule between checkpoints.
 
 `runtime_data/provider_signal_catalog.json` is a canonical, versioned farm input. It
 must travel with `runtime_data/strategy_farm.json` and the corresponding run card; it

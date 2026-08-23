@@ -15,7 +15,8 @@ The strategy identity is
 For every new Dubai Investing signal:
 
 - open 0.01 lots immediately at market;
-- for 15 minutes, open 0.04 lots after an adverse move of 4 XAUUSD dollars;
+- for 15 minutes from the bot-observed Telegram signal, open 0.04 lots after
+  an adverse move of 4 XAUUSD dollars;
 - during the same window, open another 0.04 lots after an adverse move of
   8 XAUUSD dollars from the first fill;
 - install no initial ticket TP, SL or automatic break-even;
@@ -30,7 +31,9 @@ For every new Dubai Investing signal:
 
 The first fill and both ladder levels use the broker side appropriate to the
 direction: Ask for BUY and Bid for SELL. The live executor records the actual
-broker fill rather than treating the trigger quote as the fill.
+broker fill rather than treating the trigger quote as the fill. Entry and
+aggregate-exit decisions are evaluated on every fresh MT5 broker tick; periodic
+journal snapshots never control the decision cadence.
 
 ## Runtime Boundary
 
@@ -63,7 +66,9 @@ retry path and cannot duplicate a filled leg.
 This is a demo forward experiment. The retrospective +269.99 EUR result is a
 hypothesis selected on already-seen data. It is not evidence of future profit.
 The rule remains frozen while collecting the first 15, 45 and 100 untouched
-Dubai signals.
+Dubai signals. Its aggregate protection is process-side and deliberately does
+not install a broker SL. If the bot, MT5 terminal or VM stops, the candidate
+cannot enforce its loss cap; this is another reason it cannot run outside demo.
 
 ## Verification
 

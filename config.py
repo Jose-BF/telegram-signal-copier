@@ -81,6 +81,13 @@ STRATEGY_MAX_PLANNED_LOTS_PER_SIGNAL = _float(
     "STRATEGY_MAX_PLANNED_LOTS_PER_SIGNAL", 0.05,
 )
 
+# Frozen Dubai Investing candidate. This switch is deliberately coarse: the
+# policy values live in dubai_live_candidate.py so production cannot silently
+# drift away from the certified replay fingerprint through environment edits.
+STRATEGY_C1_BALANCED_V1_ENABLED = (
+    os.getenv("STRATEGY_C1_BALANCED_V1_ENABLED", "1") == "1"
+)
+
 # Heartbeat de runtime para el watcher externo. Si el proceso queda vivo pero
 # congelado, tools/run_bot_watch.py reinicia el bot al ver este fichero viejo.
 BOT_RUNTIME_HEARTBEAT_SEC = _float("BOT_RUNTIME_HEARTBEAT_SEC", 15.0)

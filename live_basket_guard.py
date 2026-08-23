@@ -136,7 +136,11 @@ def load_guard_states(
             if signal_id not in wanted:
                 continue
             event = row.get("ev")
-            if event not in {"basket_guard_armed", "basket_guard_triggered"}:
+            if event not in {
+                "basket_guard_armed",
+                "basket_guard_peak_advanced",
+                "basket_guard_triggered",
+            }:
                 continue
 
             previous = states.get(signal_id, GuardState())
@@ -152,6 +156,12 @@ def load_guard_states(
                 except (TypeError, ValueError):
                     pass
             if event == "basket_guard_armed":
+                states[signal_id] = replace(
+                    previous,
+                    armed=True,
+                    peak_pl=peak,
+                )
+            elif event == "basket_guard_peak_advanced":
                 states[signal_id] = replace(
                     previous,
                     armed=True,

@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "created_on": "2026-08-22",
+  "provider": "dubai_investing",
+  "channel": "canal1",
+  "status": "retrospective_candidate_not_live",
+  "live_bot_changed": false,
+  "claim": "hypothesis_only_not_validated_edge",
+  "evidence": {
+    "from_date": "2026-07-27",
+    "to_date": "2026-08-14",
+    "signal_count": 45,
+    "day_count": 15,
+    "actual_pnl_eur": "-219.00",
+    "permanent_holdout_loaded": false,
+    "broad_full_candidates": 100000,
+    "broad_management_candidates": 100000,
+    "local_full_candidates": 21172,
+    "local_management_candidates": 1708,
+    "exact_candidate_signal_replays_before_certification": 10029600,
+    "source_campaign_identity": "f8325c53615a915bdf14180831e52ecb052955e469978416eaf4f36fe9ddddaa",
+    "source_campaign_sha256": "a5bd1c2315d8162547c786cc6faf6104f02993500cf426f7d6de038b882bd805",
+    "local_report_sha256": "58cfe2041e035d102c04820daca2b566092873786021bfed7b94c36e66f40f5b",
+    "balanced_certification_sha256": "24d3a5f26baadfe234f843a3c56c241519872acd8ad0648156ca9c72f4268822",
+    "simplified_certification_sha256": "c1c36d72a18f583b8197ecb02fb197e1d102c0cda1eb55eebb603d4993a5b8ef"
+  },
+  "primary_full_candidate": {
+    "fingerprint": "32cb5c0fe8205ad00a0c655bacd5446c6cc219d1ad7338967212c71781860631",
+    "rule": {
+      "entry_mode": "signal_market",
+      "entry_expiry_min": 15,
+      "entry_ladder_mode": "adverse",
+      "entry_ladder_step": 4.0,
+      "leg_count": 3,
+      "volume_weights": [
+        0.01,
+        0.04,
+        0.04
+      ],
+      "target_mode": "none",
+      "be_mode": "none",
+      "stop_mode": "basket_money",
+      "stop_value": 25.0,
+      "profit_lock_arm": 10.0,
+      "profit_lock_giveback": 2.0,
+      "time_exit_min": 40,
+      "time_exit_mode": "loss_only",
+      "provider_management_mode": "exact",
+      "context_filter_mode": "none"
+    },
+    "retrospective_result": {
+      "net_eur": "269.99",
+      "max_drawdown_eur": "47.12",
+      "worst_day_eur": "-13.99",
+      "profit_factor": "3.8722",
+      "profitable_days": 12,
+      "losing_days": 3,
+      "profitable_signals": 32,
+      "losing_signals": 11,
+      "max_signal_volume": 0.09,
+      "max_concurrent_portfolio_volume": 0.10,
+      "week_pnl_eur": [
+        "59.58",
+        "100.55",
+        "109.86"
+      ]
+    },
+    "execution_stress": {
+      "world_count": 6,
+      "all_exact": true,
+      "all_positive": true,
+      "worst_world_net_eur": "161.52",
+      "maximum_world_drawdown_eur": "69.88",
+      "worst_world_day_eur": "-31.00"
+    }
+  },
+  "management_only_control": {
+    "fingerprint": "db03da0d1e324d31de3fbccd8bb59ce42a045535c3f702302275d103094bd357",
+    "rule": {
+      "target_mode": "provider_target_all",
+      "target_value": 4.0,
+      "be_mode": "price",
+      "be_trigger": 1.0,
+      "stop_mode": "fixed_move",
+      "stop_value": 8.0,
+      "time_exit_min": 10,
+      "time_exit_mode": "loss_only",
+      "provider_management_mode": "close_only"
+    },
+    "retrospective_result": {
+      "net_eur": "219.45",
+      "max_drawdown_eur": "88.74",
+      "profitable_days": 6,
+      "losing_days": 9,
+      "max_signal_volume": 0.04
+    },
+    "execution_stress": {
+      "world_count": 6,
+      "all_exact": true,
+      "all_positive": true,
+      "worst_world_net_eur": "90.92",
+      "maximum_world_drawdown_eur": "131.45",
+      "worst_world_day_eur": "-46.77"
+    }
+  },
+  "forward_contract": {
+    "freeze_candidate_fingerprints": true,
+    "include_every_future_canal1_now_signal": true,
+    "report_incomplete_evidence_separately_instead_of_silently_dropping": true,
+    "sanity_review_min_signals": 15,
+    "provisional_comparison_min_signals": 45,
+    "edge_claim_min_untouched_signals": 100,
+    "do_not_tune_on_forward_observations": true,
+    "do_not_enable_live_money_from_this_file": true
+  }
+}

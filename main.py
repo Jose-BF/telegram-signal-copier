@@ -48,6 +48,7 @@ builtins.print = _timestamped_print
 import causal_trace
 import broker_money
 import config
+import dubai_live_candidate
 import executor
 import journal
 import live_basket_guard
@@ -559,9 +560,19 @@ async def _notify_broker_contract_status(text: str) -> bool:
         return False
 
 
+def _is_intentionally_unprotected_candidate(sig) -> bool:
+    return bool(
+        sig.channel == "canal1"
+        and sig.live_strategy_id == dubai_live_candidate.CANDIDATE_ID
+        and sig.live_strategy_fingerprint
+        == dubai_live_candidate.CANDIDATE_FINGERPRINT
+    )
+
+
 def _should_apply_naked_protective_sl(sig) -> bool:
     return (
         config.STRATEGY_NAKED_PROTECTIVE_SL_ENABLED
+        and not _is_intentionally_unprotected_candidate(sig)
         and sig.status == "open"
         and not sig.tps
         and sig.sl is None
@@ -641,6 +652,8 @@ async def _naked_signal_watchdog(check_interval_s: int = 60,
             now = datetime.utcnow()
             for sig_id, sig in list(state._signals.items()):
                 if sig.status != "open":
+                    continue
+                if _is_intentionally_unprotected_candidate(sig):
                     continue
                 if sig.tps or sig.sl:
                     continue
@@ -1230,6 +1243,226 @@ def _load_resync_entry_metadata(path, signal_ids) -> dict[str, dict]:
     return recovered
 
 
+def _load_dubai_candidate_metadata(path, signal_ids) -> dict[str, dict]:
+    """Recover only explicitly journaled instances of the frozen candidate."""
+    from datetime import timedelta, timezone
+
+    targets = {
+        str(signal_id) for signal_id in signal_ids
+        if str(signal_id).startswith("canal1_")
+    }
+    source = Path(path)
+    if not targets or not source.exists():
+        return {}
+
+    def parse_datetime(value):
+        if not value:
+            return None
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            return None
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+        return parsed
+
+    recovered: dict[str, dict] = {}
+    with source.open("rb") as handle:
+        for raw_line in handle:
+            try:
+                row = json.loads(raw_line.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                continue
+            if not isinstance(row, dict):
+                continue
+            signal_id = str(row.get("sig") or "")
+            if signal_id not in targets:
+                continue
+            event = row.get("ev")
+            if event == "dubai_live_candidate_attached":
+                if row.get("strategy_id") != dubai_live_candidate.CANDIDATE_ID:
+                    continue
+                metadata = recovered.setdefault(signal_id, {})
+                metadata.update({
+                    "strategy_id": row.get("strategy_id"),
+                    "strategy_fingerprint": row.get(
+                        "strategy_fingerprint"
+                    ),
+                    "entry_anchor": row.get("entry_anchor"),
+                    "first_fill_at": parse_datetime(row.get("first_fill_at")),
+                    "entry_expires_at": parse_datetime(
+                        row.get("entry_expires_at")
+                    ),
+                    "entry_legs": row.get("entry_legs"),
+                })
+                continue
+            if signal_id not in recovered:
+                continue
+            if event == "dca_filled" and row.get(
+                "strategy_id"
+            ) == dubai_live_candidate.CANDIDATE_ID:
+                try:
+                    leg_index = int(row.get("candidate_leg_index"))
+                except (TypeError, ValueError):
+                    continue
+                filled = recovered[signal_id].setdefault(
+                    "filled_leg_indexes", [],
+                )
+                if leg_index not in filled:
+                    filled.append(leg_index)
+            elif event == "dubai_provider_close_requested":
+                recovered[signal_id]["provider_close_requested"] = True
+
+    policy = dubai_live_candidate.DubaiLivePolicy()
+    for signal_id, metadata in recovered.items():
+        errors = []
+        if metadata.get("strategy_fingerprint") != policy.fingerprint:
+            errors.append("strategy_fingerprint_mismatch")
+        try:
+            anchor = float(metadata.get("entry_anchor"))
+            if not math.isfinite(anchor) or anchor <= 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            anchor = None
+            errors.append("invalid_entry_anchor")
+        expires_at = metadata.get("entry_expires_at")
+        if expires_at is None:
+            errors.append("invalid_entry_expiry")
+        if anchor is not None and expires_at is not None:
+            plan_started_at = expires_at - timedelta(
+                minutes=policy.entry_expiry_min,
+            )
+            expected = [
+                {
+                    "index": leg.index,
+                    "volume": leg.volume,
+                    "trigger_price": leg.trigger_price,
+                }
+                for leg in policy.entry_plan(
+                    direction=(
+                        "BUY" if signal_id.startswith("canal1_") else "SELL"
+                    ),
+                    anchor_price=anchor,
+                    opened_at=plan_started_at,
+                )
+            ]
+            # Direction is validated against MT5 during reconstruction below;
+            # here only shape, weights and expiry evidence are durable.
+            actual = metadata.get("entry_legs")
+            if not isinstance(actual, list) or len(actual) != len(expected):
+                errors.append("invalid_entry_legs")
+            else:
+                expected_shape = [
+                    (leg["index"], leg["volume"])
+                    for leg in expected
+                ]
+                try:
+                    actual_shape = [
+                        (int(leg["index"]), float(leg["volume"]))
+                        for leg in actual
+                    ]
+                except (KeyError, TypeError, ValueError):
+                    actual_shape = []
+                if actual_shape != expected_shape:
+                    errors.append("invalid_entry_leg_shape")
+        metadata["validation_errors"] = errors
+    return recovered
+
+
+def _restore_dubai_candidate_signal(
+    signal,
+    group: dict,
+    metadata: dict,
+    opened_at: datetime,
+) -> tuple[list[float], list[str]]:
+    """Attach durable candidate identity and return still-missing levels."""
+    from datetime import timedelta
+
+    policy = dubai_live_candidate.DubaiLivePolicy()
+    errors = list(metadata.get("validation_errors") or [])
+    fingerprint = metadata.get("strategy_fingerprint")
+    try:
+        anchor = float(metadata.get("entry_anchor"))
+        if not math.isfinite(anchor) or anchor <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        anchor = float(group["market_price"])
+        errors.append("entry_anchor_recovered_from_mt5_survivor")
+
+    first_fill_at = metadata.get("first_fill_at") or opened_at
+    expires_at = metadata.get("entry_expires_at")
+    if expires_at is None:
+        expires_at = opened_at
+        errors.append("entry_expiry_forced_closed_on_recovery")
+    plan_started_at = expires_at - timedelta(
+        minutes=policy.entry_expiry_min,
+    )
+    expected_legs = [
+        {
+            "index": leg.index,
+            "volume": leg.volume,
+            "trigger_price": leg.trigger_price,
+        }
+        for leg in policy.entry_plan(
+            direction=signal.direction,
+            anchor_price=anchor,
+            opened_at=plan_started_at,
+        )
+    ]
+    persisted_legs = metadata.get("entry_legs")
+    if persisted_legs != expected_legs:
+        errors.append("entry_plan_mismatch")
+
+    group_filled_indexes = list(
+        (group.get("dca_leg_indexes") or {}).values()
+    )
+    filled_indexes = sorted(set(
+        int(index)
+        for index in (
+            list(metadata.get("filled_leg_indexes") or [])
+            + group_filled_indexes
+        )
+    ))
+    if not filled_indexes and group.get("dca_tickets"):
+        filled_indexes = list(
+            range(1, 1 + len(group.get("dca_tickets") or []))
+        )
+    if filled_indexes and filled_indexes != list(
+        range(1, max(filled_indexes) + 1)
+    ):
+        errors.append("filled_leg_sequence_mismatch")
+    if len(filled_indexes) > policy.leg_count - 1:
+        errors.append("candidate_exposure_exceeds_plan")
+
+    signal.live_strategy_id = dubai_live_candidate.CANDIDATE_ID
+    signal.live_strategy_fingerprint = fingerprint
+    signal.candidate_entry_anchor = anchor
+    signal.candidate_first_fill_at = first_fill_at
+    signal.candidate_entry_legs = expected_legs
+    signal.candidate_filled_leg_indexes = filled_indexes
+    signal.entry_mode = "adverse_ladder"
+    signal.target_tp_index = None
+    signal.be_at_tp_index = None
+    signal.time_stop_at = None
+    if errors:
+        # Keep aggregate risk management alive but never add exposure when
+        # recovery evidence does not reproduce the frozen entry plan.
+        signal.candidate_entry_expires_at = min(expires_at, datetime.utcnow())
+    else:
+        signal.candidate_entry_expires_at = expires_at
+    if metadata.get("provider_close_requested"):
+        signal.requested_close_reason = "PROVIDER_CLOSE"
+
+    missing_levels = [
+        float(leg["trigger_price"])
+        for leg in expected_legs[1 + len(filled_indexes):]
+        if leg["trigger_price"] is not None
+    ]
+    if errors or metadata.get("provider_close_requested"):
+        missing_levels = []
+    return missing_levels, sorted(set(errors))
+
+
 def _resync_orphan_positions():
     """Recupera posiciones huérfanas en MT5 al arrancar el bot.
 
@@ -1259,6 +1492,10 @@ def _resync_orphan_positions():
         return
 
     entry_metadata = _load_resync_entry_metadata(
+        journal.EVENTS_FILE,
+        groups.keys(),
+    )
+    candidate_metadata = _load_dubai_candidate_metadata(
         journal.EVENTS_FILE,
         groups.keys(),
     )
@@ -1321,6 +1558,7 @@ def _resync_orphan_positions():
     for sig_id, g in groups.items():
         causal_origin = causal_origins.get(sig_id, {})
         entry_identity = entry_metadata.get(sig_id, {})
+        candidate_identity = candidate_metadata.get(sig_id, {})
         # Reconstruir timestamp real de apertura desde MT5 (no datetime.utcnow,
         # que reseteaba el reloj y rompía el time-stop). Sin esto, una posición
         # abierta hace 2h se quedaba con timestamp=ahora y nunca disparaba el
@@ -1338,6 +1576,43 @@ def _resync_orphan_positions():
                 opened_at = datetime.utcnow()
         else:
             opened_at = datetime.utcnow()
+
+        if (
+            not candidate_identity
+            and g.get("live_strategy_marker")
+            == dubai_live_candidate.CANDIDATE_ID
+        ):
+            policy = dubai_live_candidate.DubaiLivePolicy()
+            marker_plan = policy.entry_plan(
+                direction=g["direction"],
+                anchor_price=float(g["market_price"]),
+                opened_at=(
+                    opened_at
+                    - timedelta(minutes=policy.entry_expiry_min)
+                ),
+            )
+            candidate_identity = {
+                "strategy_id": dubai_live_candidate.CANDIDATE_ID,
+                "strategy_fingerprint": policy.fingerprint,
+                "entry_anchor": float(g["market_price"]),
+                "first_fill_at": opened_at,
+                "entry_expires_at": opened_at,
+                "entry_legs": [
+                    {
+                        "index": leg.index,
+                        "volume": leg.volume,
+                        "trigger_price": leg.trigger_price,
+                    }
+                    for leg in marker_plan
+                ],
+                "filled_leg_indexes": sorted(
+                    int(index)
+                    for index in (g.get("dca_leg_indexes") or {}).values()
+                ),
+                "validation_errors": [
+                    "candidate_attach_event_missing_after_mt5_fill"
+                ],
+            }
 
         # Re-aplicar defensas según canal: time-stop notify y BE auto.
         # Sin esto, las posiciones huérfanas quedaban sin time-stop ni BE
@@ -1406,6 +1681,30 @@ def _resync_orphan_positions():
                 "telegram_entry_timestamp"
             ),
         )
+        monitor_levels: list[float] = []
+        candidate_recovery_errors: list[str] = []
+        if candidate_identity:
+            monitor_levels, candidate_recovery_errors = (
+                _restore_dubai_candidate_signal(
+                    sig,
+                    g,
+                    candidate_identity,
+                    opened_at,
+                )
+            )
+            time_stop_at = None
+            be_at_tp_index = None
+            if candidate_recovery_errors:
+                journal.anomaly(
+                    sig_id,
+                    "mt5",
+                    "critical",
+                    "La cesta Dubai se recupero sin reabrir entradas porque "
+                    "su plan durable no coincide exactamente",
+                    strategy_id=sig.live_strategy_id,
+                    strategy_fingerprint=sig.live_strategy_fingerprint,
+                    recovery_errors=candidate_recovery_errors,
+                )
         recovered_guard = basket_guard_states.get(sig_id)
         if recovered_guard is not None:
             sig.basket_guard_armed = recovered_guard.armed
@@ -1445,7 +1744,7 @@ def _resync_orphan_positions():
         # Arranca monitor solo para que auto-finalize detecte cuando MT5 cierre
         # las posiciones. Sin niveles DCA pendientes (ya están todos abiertos).
         try:
-            position_lifecycle_monitor.start(sig, [])
+            position_lifecycle_monitor.start(sig, monitor_levels)
         except Exception as e:
             print(f"  ! error arrancando monitor para {sig_id}: {e}")
 
@@ -1478,6 +1777,23 @@ def _resync_orphan_positions():
                           time_stop_at=time_stop_at.isoformat(timespec="seconds")
                           if time_stop_at else None,
                           be_at_tp_index=be_at_tp_index,
+                          live_strategy_id=sig.live_strategy_id,
+                          live_strategy_fingerprint=(
+                              sig.live_strategy_fingerprint
+                          ),
+                          candidate_entry_anchor=(
+                              sig.candidate_entry_anchor
+                          ),
+                          candidate_entry_expires_at=(
+                              sig.candidate_entry_expires_at.isoformat(
+                                  timespec="milliseconds"
+                              )
+                              if sig.candidate_entry_expires_at else None
+                          ),
+                          candidate_missing_levels=monitor_levels,
+                          candidate_recovery_errors=(
+                              candidate_recovery_errors
+                          ),
                           causal_origin_status=(
                               "conflict"
                               if sig_id in causal_conflicts
@@ -1897,6 +2213,68 @@ def _terminate_legacy_watcher_parent(parent=None) -> bool:
         return False
 
 
+def _assert_dubai_candidate_demo_account(evidence=None) -> None:
+    """Refuse the retrospective candidate outside a verified demo account."""
+    if not config.STRATEGY_C1_BALANCED_V1_ENABLED:
+        return
+    evidence = executor.account_evidence() if evidence is None else evidence
+    trade_mode = evidence.get("trade_mode") if evidence else None
+    trade_mode_name = str(
+        (evidence or {}).get("trade_mode_name") or ""
+    ).lower()
+    demo_mode = int(getattr(executor.mt5, "ACCOUNT_TRADE_MODE_DEMO", 0))
+    if trade_mode is None or trade_mode_name in {"", "unknown"}:
+        raise ValueError(
+            "no se puede verificar que la cuenta MT5 sea demo"
+        )
+    if trade_mode_name != "demo" or trade_mode != demo_mode:
+        raise ValueError(
+            "dubai_balanced_v1 solo puede ejecutarse en una cuenta demo"
+        )
+    currency = str((evidence or {}).get("currency") or "").upper()
+    if not currency:
+        raise ValueError(
+            "no se puede verificar la divisa de la cuenta MT5 demo"
+        )
+    if currency != "EUR":
+        raise ValueError(
+            "dubai_balanced_v1 exige cuenta demo en EUR; "
+            f"MT5 informa {currency}"
+        )
+
+
+def _assert_dubai_candidate_broker_volume(symbol_info=None) -> None:
+    """Verify that MT5 can represent every frozen candidate order volume."""
+    from decimal import Decimal, InvalidOperation
+
+    if not config.STRATEGY_C1_BALANCED_V1_ENABLED:
+        return
+    if symbol_info is None:
+        symbol_info = executor.mt5.symbol_info(config.MT5_SYMBOL)
+    if symbol_info is None:
+        raise ValueError(
+            "no se puede verificar el contrato de volumen de MT5"
+        )
+    try:
+        minimum = Decimal(str(symbol_info.volume_min))
+        maximum = Decimal(str(symbol_info.volume_max))
+        step = Decimal(str(symbol_info.volume_step))
+    except (AttributeError, InvalidOperation, TypeError, ValueError) as exc:
+        raise ValueError(
+            "no se puede verificar el contrato de volumen de MT5"
+        ) from exc
+    if minimum <= 0 or maximum < minimum or step <= 0:
+        raise ValueError("contrato de volumen MT5 invalido")
+    for raw_volume in dubai_live_candidate.DubaiLivePolicy().volume_weights:
+        volume = Decimal(str(raw_volume))
+        aligned = ((volume - minimum) / step) % 1 == 0
+        if volume < minimum or volume > maximum or not aligned:
+            raise ValueError(
+                f"volumen candidato {volume} incompatible con MT5 "
+                f"(min={minimum}, max={maximum}, step={step})"
+            )
+
+
 def _live_strategy_contract() -> dict:
     """Return the exact live policy deployed by this process."""
     guard = live_basket_guard.GuardPolicy(
@@ -1914,10 +2292,46 @@ def _live_strategy_contract() -> dict:
         raise ValueError(
             "STRATEGY_MAX_PLANNED_LOTS_PER_SIGNAL no permite ni una posicion"
         )
-    return {
-        "contract_schema_version": 1,
-        "evidence_status": "forward_trial",
-        "dubai": {
+    poll_seconds = min(
+        0.1,
+        max(0.01, float(config.STRATEGY_C1_BASKET_GUARD_POLL_S)),
+    )
+    if config.STRATEGY_C1_BALANCED_V1_ENABLED:
+        policy = dubai_live_candidate.DubaiLivePolicy()
+        dubai = {
+            "strategy_id": dubai_live_candidate.CANDIDATE_ID,
+            "strategy_fingerprint": policy.fingerprint,
+            "enabled": True,
+            "entry": {
+                "mode": policy.entry_mode,
+                "expiry_min": policy.entry_expiry_min,
+                "ladder_mode": policy.entry_ladder_mode,
+                "ladder_step": policy.entry_ladder_step,
+                "volume_weights": list(policy.volume_weights),
+            },
+            "target_mode": policy.target_mode,
+            "be_mode": policy.be_mode,
+            "provider_management_mode": policy.provider_management_mode,
+            "basket_guard": {
+                "enabled": True,
+                "loss_cap": -float(policy.stop_value),
+                "profit_arm": float(policy.profit_lock_arm),
+                "profit_giveback": float(policy.profit_lock_giveback),
+                "time_exit_min": int(policy.time_exit_min),
+                "time_exit_mode": policy.time_exit_mode,
+                "poll_mode": "every_new_tick",
+                "poll_seconds": None,
+                "money_source": (
+                    "realized_plus_floating_account_currency"
+                ),
+            },
+        }
+        effective_max_lots = policy.max_signal_volume
+    else:
+        dubai = {
+            "strategy_id": "legacy_dubai",
+            "strategy_fingerprint": None,
+            "enabled": True,
             "entry_mode": config.STRATEGY_C1_ENTRY_MODE,
             "num_entries": int(config.STRATEGY_C1_NUM_ENTRIES),
             "basket_guard": {
@@ -1925,18 +2339,18 @@ def _live_strategy_contract() -> dict:
                 "loss_cap": float(guard.loss_cap),
                 "profit_arm": float(guard.profit_arm),
                 "profit_lock": float(guard.profit_lock),
-                "poll_seconds": min(
-                    0.1,
-                    max(
-                        0.01,
-                        float(config.STRATEGY_C1_BASKET_GUARD_POLL_S),
-                    ),
-                ),
+                "poll_seconds": poll_seconds,
                 "money_source": (
                     "realized_plus_floating_account_currency"
                 ),
             },
-        },
+        }
+        effective_max_lots = max_lots
+
+    return {
+        "contract_schema_version": 1,
+        "evidence_status": "forward_trial",
+        "dubai": dubai,
         "gold": {
             "immediate_entry_mode": config.STRATEGY_C2_ENTRY_MODE,
             "num_entries": int(config.STRATEGY_C2_NUM_ENTRIES),
@@ -1947,9 +2361,15 @@ def _live_strategy_contract() -> dict:
         },
         "risk": {
             "lot_per_position": float(config.LOT_SIZE),
-            "max_planned_lots_per_signal": round(max_lots, 8),
+            "max_planned_lots_per_signal": round(
+                effective_max_lots, 8,
+            ),
+            "legacy_max_planned_lots_per_signal": round(max_lots, 8),
             "exposure_cap_enforced": True,
-            "volume_increased_by_trial": False,
+            "volume_increased_by_trial": bool(
+                config.STRATEGY_C1_BALANCED_V1_ENABLED
+                and effective_max_lots > max_lots
+            ),
         },
     }
 
@@ -1958,19 +2378,26 @@ def _live_strategy_summary(contract: dict) -> str:
     guard = contract["dubai"]["basket_guard"]
     gold = contract["gold"]
     risk = contract["risk"]
-    guard_text = (
-        f"ON <= {guard['loss_cap']:.2f}; arma +{guard['profit_arm']:.2f}; "
-        f"asegura +{guard['profit_lock']:.2f}"
-        if guard["enabled"]
-        else "OFF"
-    )
+    if not guard["enabled"]:
+        guard_text = "OFF"
+    elif "profit_giveback" in guard:
+        guard_text = (
+            f"ON <= {guard['loss_cap']:.2f}; arma +{guard['profit_arm']:.2f}; "
+            f"retroceso {guard['profit_giveback']:.2f}"
+        )
+    else:
+        guard_text = (
+            f"ON <= {guard['loss_cap']:.2f}; arma +{guard['profit_arm']:.2f}; "
+            f"asegura +{guard['profit_lock']:.2f}"
+        )
     zone_text = (
         "primer toque ejecuta"
         if gold["zone_first_touch_execution"]
         else "primer toque observa; solo Active ejecuta"
     )
     return (
-        f"[Strategy] Dubai guard {guard_text} EUR | Gold zonas: "
+        f"[Strategy] Dubai {contract['dubai']['strategy_id']} guard "
+        f"{guard_text} EUR | Gold zonas: "
         f"{zone_text} | max {risk['max_planned_lots_per_signal']:.2f} lot"
     )
 
@@ -2022,6 +2449,8 @@ def _startup_status_message(
         f"Dubai Investing: {config.CANAL_1_ID}",
         f"Gold Signals: {config.CANAL_2_ID}",
     ])
+    if config.STRATEGY_C1_BALANCED_V1_ENABLED:
+        lines.append("Dubai estrategia: balanced v1 (solo demo)")
     if money_capture_ready is True:
         lines.append("Registro simulacion: activo")
     elif money_capture_ready is False:
@@ -2075,18 +2504,6 @@ async def main():
     # lo cubre → cada fila del ledger carga su `bot_version`.
     journal.event("bot", "session_started", **git_info,
                   started_utc=datetime.utcnow().isoformat(timespec="seconds"))
-    try:
-        _publish_live_strategy_contract()
-    except ValueError as exc:
-        print(f"[Startup] ARRANQUE BLOQUEADO: estrategia invalida: {exc}")
-        journal.event(
-            "bot",
-            "startup_blocked_invalid_strategy",
-            error=str(exc),
-        )
-        journal.flush_events(timeout=10.0)
-        raise SystemExit(78) from exc
-
     # Validar configuración mínima
     if not config.CANAL1_BUY_STICKER_ID or not config.CANAL1_SELL_STICKER_ID:
         print("\n⚠  AVISO: IDs de stickers de Canal 1 no configurados.")
@@ -2097,6 +2514,23 @@ async def main():
     if not executor.init():
         print("[ERROR] No se puede conectar a MT5. Asegúrate de que el terminal está abierto.")
         sys.exit(1)
+
+    try:
+        account_evidence = executor.account_evidence()
+        _assert_dubai_candidate_demo_account(account_evidence)
+        _assert_dubai_candidate_broker_volume()
+        _publish_live_strategy_contract()
+    except ValueError as exc:
+        print(f"[Startup] ARRANQUE BLOQUEADO: estrategia invalida: {exc}")
+        journal.event(
+            "bot",
+            "startup_blocked_invalid_strategy",
+            error=str(exc),
+            account_evidence=account_evidence,
+        )
+        journal.flush_events(timeout=10.0)
+        executor.shutdown()
+        raise SystemExit(78) from exc
 
     # Resync posiciones huérfanas: si el bot reinició dejando posiciones
     # abiertas en MT5, las recoge para que auto-finalize las trackee.

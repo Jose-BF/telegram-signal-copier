@@ -535,7 +535,7 @@ def account_evidence(info=None) -> dict:
         value = getattr(info, name, None)
         return str(value) if value is not None else None
 
-    return {
+    evidence = {
         "login": _number("login", int),
         "server": _text("server"),
         "name": _text("name"),
@@ -543,6 +543,18 @@ def account_evidence(info=None) -> dict:
         "balance": _number("balance", float),
         "equity": _number("equity", float),
     }
+    trade_mode = _number("trade_mode", int)
+    if trade_mode is not None:
+        trade_mode_names = {
+            int(getattr(mt5, "ACCOUNT_TRADE_MODE_DEMO", 0)): "demo",
+            int(getattr(mt5, "ACCOUNT_TRADE_MODE_CONTEST", 1)): "contest",
+            int(getattr(mt5, "ACCOUNT_TRADE_MODE_REAL", 2)): "real",
+        }
+        evidence["trade_mode"] = trade_mode
+        evidence["trade_mode_name"] = trade_mode_names.get(
+            trade_mode, "unknown",
+        )
+    return evidence
 
 
 def init() -> bool:
@@ -1677,13 +1689,17 @@ import re as _re_resync
 #   "c2_12015_rescue"        → rescue market canal 2 signal 12015
 #   "c2_12015_B"             → Market B del doble market (commit 2026-05-14)
 #   "c2_12015_B1".."_B4"     → legs extra del modo scale_out (2026-05-17)
+#   "c1_19236_dv1"           → market Dubai candidate (crash-safe marker)
 #   "DCA_c1_19236_4593.5"    → DCA nuevo (con signal_id) — formato actual
 #   "DCA_4593.5"             → DCA viejo (sin signal_id) — backward compat
 # _RX_MARKET acepta sufijo _rescue o _B/_BN. Sin _B el resync ignoraba el
 # Market B del doble market (canal2_12497 perdio +$6.05); _BN cubre las
 # legs del modo scale_out (una posicion market por TP).
-_RX_MARKET = _re_resync.compile(r"^c([12])_(\d+)(?:_rescue|_B\d*)?$")
+_RX_MARKET = _re_resync.compile(
+    r"^c([12])_(\d+)(?:_rescue|_B\d*|_dv1)?$"
+)
 _RX_DCA_NEW = _re_resync.compile(r"^DCA_c([12])_(\d+)_")
+_RX_CANDIDATE_DCA = _re_resync.compile(r"^DCA_c1_(\d+)_D([12])$")
 _RX_DCA_OLD = _re_resync.compile(r"^DCA_[\d.]+$")
 
 
@@ -1769,8 +1785,11 @@ def list_open_positions_grouped() -> dict[str, dict]:
                 "double_market_tickets": [],
                 "scale_out_leg_indexes": {},
                 "dca_tickets": [],
+                "dca_leg_indexes": {},
+                "live_strategy_marker": None,
                 "resync_anchor_role": None,
                 "_surviving_market_candidates": [],
+                "_surviving_candidate_legs": [],
                 "_extra_market_sort_keys": {},
             }
 
@@ -1784,6 +1803,10 @@ def list_open_positions_grouped() -> dict[str, dict]:
             # y que el time-stop dispare al cabo del tiempo correcto.
             groups[sig_id]["market_open_time"] = int(p.time) if p.time else None
             groups[sig_id]["resync_anchor_role"] = "original_market"
+            if comment.endswith("_dv1"):
+                groups[sig_id]["live_strategy_marker"] = (
+                    "dubai_balanced_v1"
+                )
         elif is_market_b:
             groups[sig_id]["extra_market_tickets"].append(p.ticket)
             if is_legacy_market_b:
@@ -1802,25 +1825,46 @@ def list_open_positions_grouped() -> dict[str, dict]:
             groups[sig_id]["_surviving_market_candidates"].append(p)
         elif is_rescue or is_dca:
             groups[sig_id]["dca_tickets"].append(p.ticket)
+            candidate_dca = _RX_CANDIDATE_DCA.match(comment)
+            if candidate_dca:
+                groups[sig_id]["dca_leg_indexes"][p.ticket] = int(
+                    candidate_dca.group(2)
+                )
+                groups[sig_id]["_surviving_candidate_legs"].append(p)
+                groups[sig_id]["live_strategy_marker"] = (
+                    "dubai_balanced_v1"
+                )
 
     # Step 2: asociar DCAs viejos al market más cercano del mismo magic
     # abierto antes que el DCA. Heurística simple pero suficiente.
     # The original leg can close before a restart while later scale-out legs
     # remain open. Use the earliest survivor as a stable reconstruction anchor.
     for group in groups.values():
-        if group["market_ticket"] or not group["_surviving_market_candidates"]:
+        if group["market_ticket"]:
             continue
-        anchor = min(
-            group["_surviving_market_candidates"],
-            key=lambda p: (int(p.time or 0), int(p.ticket)),
-        )
+        scale_out_survivors = group["_surviving_market_candidates"]
+        candidate_survivors = group["_surviving_candidate_legs"]
+        if scale_out_survivors:
+            anchor = min(
+                scale_out_survivors,
+                key=lambda p: (int(p.time or 0), int(p.ticket)),
+            )
+            group["extra_market_tickets"].remove(anchor.ticket)
+            group["resync_anchor_role"] = "surviving_scale_out_leg"
+        elif candidate_survivors:
+            anchor = min(
+                candidate_survivors,
+                key=lambda p: (int(p.time or 0), int(p.ticket)),
+            )
+            group["dca_tickets"].remove(anchor.ticket)
+            group["resync_anchor_role"] = "surviving_candidate_leg"
+        else:
+            continue
         group["market_ticket"] = anchor.ticket
         group["market_price"] = anchor.price_open
         group["market_sl"] = anchor.sl if anchor.sl > 0 else None
         group["market_tp"] = anchor.tp if anchor.tp > 0 else None
         group["market_open_time"] = int(anchor.time) if anchor.time else None
-        group["extra_market_tickets"].remove(anchor.ticket)
-        group["resync_anchor_role"] = "surviving_scale_out_leg"
 
     for dca in dcas_old_format:
         candidate_groups = [
@@ -1838,6 +1882,7 @@ def list_open_positions_grouped() -> dict[str, dict]:
     result = {}
     for sid, group in groups.items():
         group.pop("_surviving_market_candidates", None)
+        group.pop("_surviving_candidate_legs", None)
         sort_keys = group.pop("_extra_market_sort_keys", {})
         group["extra_market_tickets"].sort(
             key=lambda ticket: sort_keys.get(

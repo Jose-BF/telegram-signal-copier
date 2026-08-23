@@ -121,6 +121,19 @@ class Signal:
     # Valores legacy ("extremes", "intra_dca") se normalizan en config.
     entry_mode: Optional[str] = None
 
+    # Frozen live-policy identity and adverse entry plan. These fields are
+    # intentionally stored on the signal so a restart can rebuild the exact
+    # candidate instead of falling back to the legacy scale-out behavior.
+    live_strategy_id: Optional[str] = None
+    live_strategy_fingerprint: Optional[str] = None
+    candidate_entry_anchor: Optional[float] = None
+    candidate_first_fill_at: Optional[datetime] = None
+    candidate_entry_expires_at: Optional[datetime] = None
+    candidate_entry_legs: list = field(default_factory=list)
+    candidate_filled_leg_indexes: list[int] = field(default_factory=list)
+    candidate_entry_expiry_logged: bool = False
+    candidate_entry_plan_error_alerted: bool = False
+
     # Índice (0-based) del TP que cierra TODAS las posiciones (TP único por canal).
     # None = comportamiento escalonado legacy (pos i → tps[i]).
     # Canal 1: TP3 (idx=2) | Canal 2: TP4 (idx=3)

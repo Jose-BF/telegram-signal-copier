@@ -25,6 +25,11 @@ class TestParseSignalIdFromComment:
     def test_market_canal1(self):
         assert _parse_signal_id_from_comment("c1_19236") == ("canal1", 19236)
 
+    def test_dubai_candidate_market_marker(self):
+        assert _parse_signal_id_from_comment("c1_19236_dv1") == (
+            "canal1", 19236,
+        )
+
     # ── Doble market legacy ──
     def test_market_b_doble_market(self):
         assert _parse_signal_id_from_comment("c2_12015_B") == ("canal2", 12015)
@@ -164,3 +169,50 @@ def test_resync_distinguishes_legacy_market_b_from_scale_out_legs(monkeypatch):
     assert signal["extra_market_tickets"] == [4001, 4002]
     assert signal["double_market_tickets"] == [4001]
     assert signal["scale_out_leg_indexes"] == {4002: 1}
+
+
+def test_resync_preserves_candidate_marker_and_dca_leg_indexes(monkeypatch):
+    magic = executor.config.MT5_MAGIC_CANAL1
+    positions = (
+        SimpleNamespace(
+            ticket=5000, comment="c1_26001_dv1", magic=magic,
+            type=executor.mt5.ORDER_TYPE_BUY, price_open=4200.0,
+            sl=0.0, tp=0.0, time=1000,
+        ),
+        SimpleNamespace(
+            ticket=5001, comment="DCA_c1_26001_D1", magic=magic,
+            type=executor.mt5.ORDER_TYPE_BUY, price_open=4196.0,
+            sl=0.0, tp=0.0, time=1001,
+        ),
+    )
+    monkeypatch.setattr(executor.mt5, "positions_get", lambda: positions)
+
+    signal = executor.list_open_positions_grouped()["canal1_26001"]
+
+    assert signal["live_strategy_marker"] == "dubai_balanced_v1"
+    assert signal["dca_leg_indexes"] == {5001: 1}
+
+
+def test_resync_recovers_candidate_when_only_ladder_legs_survive(monkeypatch):
+    magic = executor.config.MT5_MAGIC_CANAL1
+    positions = (
+        SimpleNamespace(
+            ticket=5101, comment="DCA_c1_26002_D1", magic=magic,
+            type=executor.mt5.ORDER_TYPE_SELL, price_open=4204.1,
+            sl=0.0, tp=0.0, time=1001,
+        ),
+        SimpleNamespace(
+            ticket=5102, comment="DCA_c1_26002_D2", magic=magic,
+            type=executor.mt5.ORDER_TYPE_SELL, price_open=4208.2,
+            sl=0.0, tp=0.0, time=1002,
+        ),
+    )
+    monkeypatch.setattr(executor.mt5, "positions_get", lambda: positions)
+
+    signal = executor.list_open_positions_grouped()["canal1_26002"]
+
+    assert signal["market_ticket"] == 5101
+    assert signal["dca_tickets"] == [5102]
+    assert signal["dca_leg_indexes"] == {5101: 1, 5102: 2}
+    assert signal["resync_anchor_role"] == "surviving_candidate_leg"
+    assert signal["live_strategy_marker"] == "dubai_balanced_v1"

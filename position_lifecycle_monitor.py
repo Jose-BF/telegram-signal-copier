@@ -28,12 +28,13 @@ Implementa estos mecanismos defensivos:
 
 import asyncio
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import MetaTrader5 as mt5
 
 import causal_trace
 import config
+import dubai_live_candidate
 import executor
 import live_basket_guard
 import pending_actions
@@ -60,8 +61,25 @@ def _basket_guard_policy() -> live_basket_guard.GuardPolicy:
 
 def _basket_guard_enabled_for(signal: Signal) -> bool:
     return bool(
-        config.STRATEGY_C1_BASKET_GUARD_ENABLED
-        and signal.channel == "canal1"
+        signal.channel == "canal1"
+        and (
+            config.STRATEGY_C1_BASKET_GUARD_ENABLED
+            or signal.live_strategy_id == dubai_live_candidate.CANDIDATE_ID
+        )
+    )
+
+
+def _basket_guard_sample_due(
+    *,
+    candidate_active: bool,
+    now_monotonic: float,
+    last_sample_monotonic: float,
+    interval_s: float,
+) -> bool:
+    """Mirror tick replay cadence for the candidate; throttle legacy guards."""
+    return bool(
+        candidate_active
+        or now_monotonic - last_sample_monotonic >= interval_s
     )
 
 
@@ -91,10 +109,162 @@ def _store_guard_state(
     signal.basket_guard_recovery_pending = state.recovery_pending
 
 
+def _apply_candidate_basket_guard(
+    signal: Signal,
+    summary: dict,
+    *,
+    now: datetime | None = None,
+) -> dubai_live_candidate.DubaiGuardDecision:
+    if summary.get("positions_complete", True) is False:
+        raise RuntimeError("MT5 positions_get unavailable for basket guard")
+
+    policy = dubai_live_candidate.DubaiLivePolicy()
+    floating_pl = float(summary.get("floating_pl", summary.get("pl")) or 0.0)
+    realized_pl = float(summary.get("realized_pl") or 0.0)
+    realized_complete = bool(summary.get("realized_complete", True))
+    total_pl = summary.get("total_pl")
+    if total_pl is None and realized_complete:
+        total_pl = summary.get("pl", floating_pl + realized_pl)
+    observed_pl = float(total_pl) if total_pl is not None else floating_pl
+    signal_id = f"{signal.channel}_{signal.message_id}"
+
+    if not realized_complete and not signal.basket_guard_realized_degraded_logged:
+        signal.basket_guard_realized_degraded_logged = True
+        _journal_event(
+            signal_id,
+            "basket_guard_total_pl_degraded",
+            strategy_id=signal.live_strategy_id,
+            floating_pl=round(floating_pl, 2),
+            realized_pl=round(realized_pl, 2),
+            total_pl=None,
+            missing_realized_tickets=list(
+                summary.get("missing_realized_tickets") or []
+            ),
+        )
+    elif realized_complete and signal.basket_guard_realized_degraded_logged:
+        signal.basket_guard_realized_degraded_logged = False
+        _journal_event(
+            signal_id,
+            "basket_guard_total_pl_recovered",
+            strategy_id=signal.live_strategy_id,
+            floating_pl=round(floating_pl, 2),
+            realized_pl=round(realized_pl, 2),
+            total_pl=round(float(total_pl), 2),
+        )
+
+    now = datetime.utcnow() if now is None else now
+    first_fill_at = signal.candidate_first_fill_at or signal.timestamp
+    elapsed_min = max(0.0, (now - first_fill_at).total_seconds() / 60.0)
+    previous_peak = signal.basket_guard_peak_pl
+    previous_armed = bool(signal.basket_guard_armed)
+    decision = dubai_live_candidate.evaluate_guard(
+        policy=policy,
+        state=dubai_live_candidate.DubaiGuardState(
+            armed=bool(signal.basket_guard_armed),
+            triggered=bool(signal.basket_guard_triggered),
+            peak_pl=signal.basket_guard_peak_pl,
+            trigger_reason=signal.basket_guard_trigger_reason,
+            recovery_pending=bool(signal.basket_guard_recovery_pending),
+        ),
+        total_pl=observed_pl,
+        n_open=int(summary.get("n_open") or 0),
+        elapsed_min=elapsed_min,
+        money_evidence_complete=realized_complete,
+    )
+    signal.basket_guard_armed = decision.state.armed
+    signal.basket_guard_triggered = decision.state.triggered
+    signal.basket_guard_peak_pl = decision.state.peak_pl
+    signal.basket_guard_trigger_reason = decision.state.trigger_reason
+    signal.basket_guard_recovery_pending = decision.state.recovery_pending
+
+    peak_pl = decision.state.peak_pl
+    common = {
+        "channel": signal.channel,
+        "strategy_id": signal.live_strategy_id,
+        "strategy_fingerprint": signal.live_strategy_fingerprint,
+        "observed_pl": round(decision.observed_pl, 2),
+        "floating_pl": round(floating_pl, 2),
+        "realized_pl": round(realized_pl, 2),
+        "total_pl": (
+            round(float(total_pl), 2) if total_pl is not None else None
+        ),
+        "realized_complete": realized_complete,
+        "peak_pl": round(float(peak_pl), 2) if peak_pl is not None else None,
+        "dynamic_lock_level": (
+            round(float(peak_pl) - policy.profit_lock_giveback, 2)
+            if decision.state.armed and peak_pl is not None else None
+        ),
+        "elapsed_min": round(elapsed_min, 4),
+        "n_open": int(summary.get("n_open") or 0),
+        "open_tickets": [
+            int(ticket) for ticket in summary.get("open_tickets") or []
+        ],
+        "loss_cap": -float(policy.stop_value),
+        "profit_arm": float(policy.profit_lock_arm),
+        "profit_giveback": float(policy.profit_lock_giveback),
+        "time_exit_min": int(policy.time_exit_min),
+        "time_exit_mode": policy.time_exit_mode,
+        "money_source": "realized_plus_floating_account_currency",
+    }
+
+    if decision.action == "arm":
+        _journal_event(signal_id, "basket_guard_armed", **common)
+        return decision
+    if (
+        decision.action == "none"
+        and previous_armed
+        and peak_pl is not None
+        and (previous_peak is None or peak_pl > previous_peak)
+    ):
+        _journal_event(signal_id, "basket_guard_peak_advanced", **common)
+    if decision.action != "close":
+        return decision
+
+    tickets = common["open_tickets"]
+    try:
+        for ticket in tickets:
+            if ticket not in signal.basket_guard_close_tickets:
+                signal.basket_guard_close_tickets.append(ticket)
+            pending_actions.enqueue_close_position(
+                signal,
+                ticket,
+                label=f"BASKET_GUARD_{decision.reason.upper()} #{ticket}",
+            )
+        for ticket in signal.pending_tickets:
+            pending_actions.enqueue_cancel_pending(
+                signal,
+                ticket,
+                label=(
+                    f"BASKET_GUARD_{decision.reason.upper()} pend #{ticket}"
+                ),
+            )
+    except Exception:
+        signal.basket_guard_recovery_pending = True
+        raise
+    signal.basket_guard_recovery_pending = False
+    event = (
+        "basket_guard_close_recovered"
+        if decision.reason == "recovery"
+        else "basket_guard_triggered"
+    )
+    _journal_event(
+        signal_id,
+        event,
+        reason=decision.reason,
+        queued_close_count=len(tickets),
+        **common,
+    )
+    return decision
+
+
 def _apply_live_basket_guard(
     signal: Signal,
     summary: dict,
-) -> live_basket_guard.GuardDecision:
+    *,
+    now: datetime | None = None,
+):
+    if signal.live_strategy_id == dubai_live_candidate.CANDIDATE_ID:
+        return _apply_candidate_basket_guard(signal, summary, now=now)
     if summary.get("positions_complete", True) is False:
         raise RuntimeError("MT5 positions_get unavailable for basket guard")
 
@@ -300,6 +470,219 @@ async def _open_market_internal(
                 )
             except Exception:
                 pass
+
+
+def _candidate_entry_plan(signal: Signal) -> tuple[dict, ...]:
+    """Return the live plan only when it still matches the frozen policy."""
+    if signal.live_strategy_id != dubai_live_candidate.CANDIDATE_ID:
+        return ()
+    policy = dubai_live_candidate.DubaiLivePolicy()
+    if signal.live_strategy_fingerprint != policy.fingerprint:
+        raise RuntimeError("Dubai frozen entry plan fingerprint mismatch")
+    if signal.candidate_entry_anchor is None:
+        raise RuntimeError("Dubai frozen entry plan has no anchor")
+    if signal.candidate_entry_expires_at is None:
+        raise RuntimeError("Dubai frozen entry plan has no expiry")
+    plan_started_at = signal.candidate_entry_expires_at - timedelta(
+        minutes=policy.entry_expiry_min,
+    )
+    expected = policy.entry_plan(
+        direction=signal.direction,
+        anchor_price=signal.candidate_entry_anchor,
+        opened_at=plan_started_at,
+    )
+    expected_rows = tuple({
+        "index": leg.index,
+        "volume": leg.volume,
+        "trigger_price": leg.trigger_price,
+    } for leg in expected)
+    actual_rows = tuple(dict(row) for row in signal.candidate_entry_legs)
+    if actual_rows != expected_rows:
+        raise RuntimeError("Dubai frozen entry plan was mutated")
+    if round(sum(row["volume"] for row in actual_rows), 8) > (
+        policy.max_signal_volume + 1e-9
+    ):
+        raise RuntimeError("Dubai frozen entry plan exceeds exposure cap")
+    filled_indexes = _candidate_filled_indexes(signal)
+    if len(filled_indexes) > len(actual_rows) - 1:
+        raise RuntimeError("Dubai frozen entry plan has duplicate filled legs")
+    return actual_rows
+
+
+def _candidate_filled_indexes(signal: Signal) -> list[int]:
+    indexes = sorted(set(
+        int(index)
+        for index in signal.candidate_filled_leg_indexes
+    ))
+    if not indexes and signal.dca_tickets:
+        indexes = list(range(1, 1 + len(signal.dca_tickets)))
+    if indexes and indexes != list(range(1, max(indexes) + 1)):
+        raise RuntimeError("Dubai frozen entry legs are not sequential")
+    return indexes
+
+
+async def _open_candidate_leg(
+    signal: Signal,
+    leg: dict,
+    observed_price: float,
+) -> tuple[int, float] | None:
+    """Open one delayed candidate leg and retain MT5's real fill price."""
+    level = float(leg["trigger_price"])
+    leg_index = int(leg["index"])
+    with causal_trace.bind_internal_decision(
+        message_revision_id=signal.source_message_revision_id,
+        parent_decision_id=signal.source_decision_id,
+        reason="dubai_balanced_adverse_leg",
+    ) as decision:
+        try:
+            _journal_event(
+                f"{signal.channel}_{signal.message_id}",
+                "bot_internal_decision_started",
+                decision_id=decision.decision_id,
+                message_revision_id=decision.message_revision_id,
+                parent_decision_id=decision.parent_decision_id,
+                decision_reason=decision.decision_reason,
+                decision_level=level,
+                candidate_leg_index=leg_index,
+            )
+        except Exception:
+            pass
+        try:
+            return await asyncio.to_thread(
+                executor.open_market_with_fill,
+                signal.direction,
+                float(leg["volume"]),
+                sl=None,
+                tp=None,
+                comment=(
+                    f"DCA_c1_{signal.message_id}_D{leg_index}"
+                ),
+                magic=signal.magic,
+            )
+        finally:
+            try:
+                action_ids = causal_trace.declared_action_ids(decision)
+                _journal_event(
+                    f"{signal.channel}_{signal.message_id}",
+                    "bot_internal_decision",
+                    decision_id=decision.decision_id,
+                    message_revision_id=decision.message_revision_id,
+                    parent_decision_id=decision.parent_decision_id,
+                    decision_reason=decision.decision_reason,
+                    decision_level=level,
+                    candidate_leg_index=leg_index,
+                    observed_price=float(observed_price),
+                    declared_action_ids=action_ids,
+                    declared_action_count=len(action_ids),
+                )
+            except Exception:
+                pass
+
+
+async def _process_candidate_entry_tick(
+    signal: Signal,
+    tick,
+    *,
+    now: datetime | None = None,
+) -> int:
+    """Fill every sequential adverse leg crossed by this broker tick."""
+    plan = _candidate_entry_plan(signal)
+    if not plan:
+        return 0
+    if signal.requested_close_reason or signal.basket_guard_triggered:
+        return 0
+    now = datetime.utcnow() if now is None else now
+    expires_at = signal.candidate_entry_expires_at
+    if now > expires_at:
+        if not signal.candidate_entry_expiry_logged:
+            signal.candidate_entry_expiry_logged = True
+            _journal_event(
+                f"{signal.channel}_{signal.message_id}",
+                "dubai_entry_plan_expired",
+                strategy_id=signal.live_strategy_id,
+                strategy_fingerprint=signal.live_strategy_fingerprint,
+                expires_at=expires_at.isoformat(timespec="milliseconds"),
+                filled_leg_count=1 + len(
+                    _candidate_filled_indexes(signal)
+                ),
+                unfilled_leg_indexes=list(
+                    range(
+                        1 + len(_candidate_filled_indexes(signal)),
+                        len(plan),
+                    )
+                ),
+            )
+        return 0
+
+    opened = 0
+    filled_indexes = _candidate_filled_indexes(signal)
+    while 1 + len(filled_indexes) < len(plan):
+        leg_index = 1 + len(filled_indexes)
+        leg = plan[leg_index]
+        level = float(leg["trigger_price"])
+        observed_price = (
+            float(tick.ask) if signal.direction == "BUY" else float(tick.bid)
+        )
+        hit = (
+            observed_price <= level
+            if signal.direction == "BUY"
+            else observed_price >= level
+        )
+        if not hit:
+            break
+
+        result = await _open_candidate_leg(signal, leg, observed_price)
+        if not result:
+            _journal_event(
+                f"{signal.channel}_{signal.message_id}",
+                "dubai_candidate_leg_fill_failed",
+                leg_index=leg_index,
+                level=level,
+                volume=float(leg["volume"]),
+                observed_price=observed_price,
+                retry_pending=True,
+                expires_at=expires_at.isoformat(timespec="milliseconds"),
+            )
+            break
+
+        ticket, fill_price = int(result[0]), float(result[1])
+        signal.dca_tickets.append(ticket)
+        filled_indexes.append(leg_index)
+        signal.candidate_filled_leg_indexes = list(filled_indexes)
+        favorable_slippage = (
+            level - fill_price
+            if signal.direction == "BUY"
+            else fill_price - level
+        )
+        _journal_event(
+            f"{signal.channel}_{signal.message_id}",
+            "dca_filled",
+            strategy_id=signal.live_strategy_id,
+            strategy_fingerprint=signal.live_strategy_fingerprint,
+            candidate_leg_index=leg_index,
+            ticket=ticket,
+            level=level,
+            observed_price=observed_price,
+            fill_price=fill_price,
+            position_index=leg_index,
+            lot=float(leg["volume"]),
+            tp=None,
+            sl=None,
+            slippage_favorable_usd=round(favorable_slippage, 8),
+            bid=round(float(tick.bid), 8),
+            ask=round(float(tick.ask), 8),
+            spread=round(float(tick.ask) - float(tick.bid), 8),
+            expires_at=expires_at.isoformat(timespec="milliseconds"),
+        )
+        try:
+            import journal
+            journal.increment_dca_filled(
+                f"{signal.channel}_{signal.message_id}"
+            )
+        except Exception:
+            pass
+        opened += 1
+    return opened
 
 
 def _close_all_positions(signal: Signal, reason: str):
@@ -955,7 +1338,10 @@ async def run(signal: Signal, levels: list[float]):
     ):
         return
 
-    pending = list(levels)
+    candidate_active = (
+        signal.live_strategy_id == dubai_live_candidate.CANDIDATE_ID
+    )
+    pending = [] if candidate_active else list(levels)
     direction = signal.direction
     symbol = config.MT5_SYMBOL
     be_trigger = signal.be_trigger_price()
@@ -1087,12 +1473,40 @@ async def run(signal: Signal, levels: list[float]):
 
         last_tick_ms = tick.time_msc
 
+        if candidate_active:
+            try:
+                await _process_candidate_entry_tick(signal, tick)
+                signal.candidate_entry_plan_error_alerted = False
+            except Exception as exc:
+                if not signal.candidate_entry_plan_error_alerted:
+                    signal.candidate_entry_plan_error_alerted = True
+                    try:
+                        import journal as _j_candidate
+                        _j_candidate.anomaly(
+                            f"{signal.channel}_{signal.message_id}",
+                            "strategy",
+                            "critical",
+                            "Dubai candidate entry plan blocked",
+                            exc_type=type(exc).__name__,
+                            exc_msg=str(exc)[:300],
+                            strategy_id=signal.live_strategy_id,
+                            strategy_fingerprint=(
+                                signal.live_strategy_fingerprint
+                            ),
+                        )
+                    except Exception:
+                        pass
+
         guard_summary = None
         now_monotonic = time.monotonic()
         if (
             _basket_guard_enabled_for(signal)
-            and now_monotonic - last_basket_guard_ts
-            >= basket_guard_interval_s
+            and _basket_guard_sample_due(
+                candidate_active=candidate_active,
+                now_monotonic=now_monotonic,
+                last_sample_monotonic=last_basket_guard_ts,
+                interval_s=basket_guard_interval_s,
+            )
         ):
             last_basket_guard_ts = now_monotonic
             try:

@@ -222,6 +222,12 @@ def test_guard_state_is_recovered_from_journal(tmp_path):
         },
         {
             "sig": "canal1_100",
+            "ev": "basket_guard_peak_advanced",
+            "observed_pl": 36.7,
+            "peak_pl": 36.7,
+        },
+        {
+            "sig": "canal1_100",
             "ev": "basket_guard_triggered",
             "reason": "profit_lock",
             "observed_pl": 19.8,
@@ -244,7 +250,7 @@ def test_guard_state_is_recovered_from_journal(tmp_path):
         "canal1_100": GuardState(
             armed=True,
             triggered=True,
-            peak_pl=31.2,
+            peak_pl=36.7,
             trigger_reason="profit_lock",
             recovery_pending=True,
         )

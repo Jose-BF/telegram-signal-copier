@@ -30,6 +30,7 @@ def test_startup_status_message_confirms_active_production_version():
     assert "MT5: conectado" in text
     assert "Telegram: canales 1 y 2 activos" in text
     assert "Dubai Investing:" in text
+    assert "Dubai estrategia: balanced v1 (solo demo)" in text
     assert "Gold Signals:" in text
     assert "Registro simulacion: activo" in text
 
@@ -77,6 +78,9 @@ def test_publish_live_strategy_contract_records_exact_runtime_policy(
     events = []
     monkeypatch.setattr(main.config, "LOT_SIZE", 0.01)
     monkeypatch.setattr(
+        main.config, "STRATEGY_C1_BALANCED_V1_ENABLED", True,
+    )
+    monkeypatch.setattr(
         main.config, "STRATEGY_MAX_PLANNED_LOTS_PER_SIGNAL", 0.05,
     )
     monkeypatch.setattr(main.config, "STRATEGY_C1_NUM_ENTRIES", 4)
@@ -104,17 +108,33 @@ def test_publish_live_strategy_contract_records_exact_runtime_policy(
     contract = main._publish_live_strategy_contract()
 
     assert events == [("bot", "live_strategy_contract", contract)]
+    assert contract["dubai"]["strategy_id"] == "dubai_balanced_v1"
+    assert contract["dubai"]["strategy_fingerprint"] == (
+        "32cb5c0fe8205ad00a0c655bacd5446c6cc219d1ad7338967212c71781860631"
+    )
+    assert contract["dubai"]["entry"] == {
+        "mode": "signal_market",
+        "expiry_min": 15,
+        "ladder_mode": "adverse",
+        "ladder_step": 4.0,
+        "volume_weights": [0.01, 0.04, 0.04],
+    }
     assert contract["dubai"]["basket_guard"] == {
         "enabled": True,
-        "loss_cap": -50.0,
-        "profit_arm": 30.0,
-        "profit_lock": 20.0,
-        "poll_seconds": 0.1,
+        "loss_cap": -25.0,
+        "profit_arm": 10.0,
+        "profit_giveback": 2.0,
+        "time_exit_min": 40,
+        "time_exit_mode": "loss_only",
+        "poll_mode": "every_new_tick",
+        "poll_seconds": None,
         "money_source": "realized_plus_floating_account_currency",
     }
     assert contract["gold"]["zone_first_touch_execution"] is False
     assert contract["gold"]["zone_explicit_activation"] is True
-    assert contract["risk"]["max_planned_lots_per_signal"] == 0.05
+    assert contract["risk"]["max_planned_lots_per_signal"] == 0.09
+    assert contract["risk"]["legacy_max_planned_lots_per_signal"] == 0.05
+    assert contract["risk"]["volume_increased_by_trial"] is True
     assert contract["risk"]["exposure_cap_enforced"] is True
     assert contract["contract_schema_version"] == 1
     assert "schema_version" not in contract
@@ -123,6 +143,9 @@ def test_publish_live_strategy_contract_records_exact_runtime_policy(
 
 def test_live_strategy_contract_reports_effective_guard_poll_interval(
         monkeypatch):
+    monkeypatch.setattr(
+        main.config, "STRATEGY_C1_BALANCED_V1_ENABLED", False,
+    )
     monkeypatch.setattr(main.config, "STRATEGY_C1_BASKET_GUARD_POLL_S", 0.01)
 
     contract = main._live_strategy_contract()

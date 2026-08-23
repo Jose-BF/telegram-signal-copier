@@ -2473,6 +2473,9 @@ class TestGlobalEntryLevelInterpretation:
 
         monkeypatch.setattr(listener, "state", st)
         monkeypatch.setattr(config, "CANAL1_BUY_STICKER_ID", 999)
+        monkeypatch.setattr(
+            config, "STRATEGY_C1_BALANCED_V1_ENABLED", False,
+        )
         monkeypatch.setattr(config, "STRATEGY_C1_ENTRY_MODE", "scale_out")
         monkeypatch.setattr(listener, "_run", fake_run)
         monkeypatch.setattr(listener, "compute_market_context",
@@ -2783,6 +2786,9 @@ class TestCanal1DuplicateSticker:
             return None
 
         monkeypatch.setattr(listener, "state", st)
+        monkeypatch.setattr(
+            config, "STRATEGY_C1_BALANCED_V1_ENABLED", False,
+        )
         monkeypatch.setattr(config, "CANAL1_BUY_STICKER_ID", buy_sticker_id,
                             raising=False)
         monkeypatch.setattr(config, "CANAL1_SELL_STICKER_ID", 778,

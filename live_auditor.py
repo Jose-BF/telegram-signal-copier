@@ -17,6 +17,7 @@ from typing import Callable, Iterable
 import MetaTrader5 as mt5
 
 import config
+import dubai_live_candidate
 import executor
 import journal as default_journal
 import pending_actions
@@ -471,6 +472,12 @@ class LiveAuditor:
         )
 
         issues: list[tuple] = []
+        intentionally_unprotected = (
+            sig.channel == "canal1"
+            and sig.live_strategy_id == dubai_live_candidate.CANDIDATE_ID
+            and sig.live_strategy_fingerprint
+            == dubai_live_candidate.CANDIDATE_FINGERPRINT
+        )
         expected_legs = _expected_scale_out_legs(sig)
         if (expected_legs is not None
                 and age_s >= self.settings.expected_legs_after_s
@@ -512,7 +519,8 @@ class LiveAuditor:
             (now - levels_seen_at).total_seconds()
             if levels_seen_at is not None else None
         )
-        if (has_state_levels and mt5_open_tickets
+        if (not intentionally_unprotected
+                and has_state_levels and mt5_open_tickets
                 and levels_age_s is not None
                 and levels_age_s >= self.settings.level_apply_grace_s
                 and (tickets_without_sl or tickets_without_tp)):
@@ -533,7 +541,9 @@ class LiveAuditor:
             ))
 
         naked_tickets = sorted(set(tickets_without_sl) & set(tickets_without_tp))
-        if mt5_open_tickets and naked_tickets and age_s >= self.settings.naked_after_s:
+        if (not intentionally_unprotected
+                and mt5_open_tickets and naked_tickets
+                and age_s >= self.settings.naked_after_s):
             key = (sig_id, "mt5_position_naked")
             issues.append((
                 key, sig_id, "naked", "critical",
