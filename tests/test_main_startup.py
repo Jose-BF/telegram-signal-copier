@@ -11,6 +11,7 @@ import pytest
 import listener
 import main
 import position_lifecycle_monitor
+import gold_live_candidate
 import state as state_module
 from state import StateManager
 
@@ -100,6 +101,11 @@ def test_publish_live_strategy_contract_records_exact_runtime_policy(
         False,
     )
     monkeypatch.setattr(
+        main.config,
+        "STRATEGY_C2_GOLD_NOW_C490_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
         main.journal,
         "event",
         lambda sig, ev, **fields: events.append((sig, ev, fields)),
@@ -129,6 +135,43 @@ def test_publish_live_strategy_contract_records_exact_runtime_policy(
         "poll_mode": "every_new_tick",
         "poll_seconds": None,
         "money_source": "realized_plus_floating_account_currency",
+    }
+    assert contract["gold"]["strategy_id"] == "gold_now_c490_v1"
+    assert contract["gold"]["strategy_fingerprint"] == (
+        "c4900550abae98de1500bf5b849072956175fdecda102fad69be9f7975cbf8d6"
+    )
+    assert contract["gold"]["scope"] == "telegram_now_only"
+    assert contract["gold"]["entry"] == {
+        "mode": "immediate_market_basket",
+        "leg_count": 5,
+        "volume_per_leg": 0.01,
+    }
+    assert contract["gold"]["target_mode"] == "none"
+    assert contract["gold"]["partial_fraction"] == 0.0
+    assert contract["gold"]["be"] == {
+        "mode": "price",
+        "favourable_price_move": 12.0,
+        "per_leg_exact_entry": True,
+        "persistent_retry": True,
+    }
+    assert contract["gold"]["basket_guard"] == {
+        "enabled": True,
+        "loss_cap": -100.0,
+        "profit_arm": 10.0,
+        "profit_giveback": 8.0,
+        "time_exit_min": 40,
+        "time_exit_mode": "loss_only",
+        "poll_mode": "every_new_tick",
+        "money_source": "realized_plus_floating_account_currency",
+    }
+    assert contract["gold"]["broker_sl"] == {
+        "required": True,
+        "loss_budget_per_leg": 20.0,
+        "valuation": "mt5_order_calc_profit_account_currency",
+        "installed_on_open": True,
+        "recalculated_from_real_fill": True,
+        "persistent_retry": True,
+        "close_on_install_failure": False,
     }
     assert contract["gold"]["zone_first_touch_execution"] is False
     assert contract["gold"]["zone_explicit_activation"] is True
@@ -553,3 +596,169 @@ def test_resync_restores_armed_dubai_basket_guard(monkeypatch, tmp_path):
     assert signal.basket_guard_known_tickets == [1671689009]
     assert signal.basket_guard_realized_by_ticket == {1671689009: 7.30}
     assert started == [(signal, [])]
+
+
+def test_resync_restores_gold_live_candidate_from_mt5_marker(
+        monkeypatch, tmp_path):
+    opened_at = int(datetime.now(timezone.utc).timestamp()) - 5
+    events_file = tmp_path / "trade_events.jsonl"
+    events_file.write_text("", encoding="utf-8")
+    st = StateManager()
+    groups = {
+        "canal2_2054": {
+            "channel": "canal2",
+            "message_id": 2054,
+            "direction": "SELL",
+            "market_ticket": 1770000001,
+            "market_price": 4620.0,
+            "market_sl": 4642.0,
+            "market_tp": None,
+            "market_open_time": opened_at,
+            "extra_market_tickets": [1770000002],
+            "double_market_tickets": [],
+            "scale_out_leg_indexes": {1770000002: 1},
+            "dca_tickets": [],
+            "live_strategy_marker": gold_live_candidate.CANDIDATE_ID,
+            "position_entries": {
+                1770000001: 4620.0,
+                1770000002: 4620.2,
+            },
+            "position_volumes": {
+                1770000001: 0.01,
+                1770000002: 0.01,
+            },
+            "position_stops": {
+                1770000001: 4642.0,
+                1770000002: 4642.2,
+            },
+        }
+    }
+    started = []
+
+    monkeypatch.setattr(
+        main.config,
+        "STRATEGY_C2_GOLD_NOW_C490_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        main,
+        "_assert_dubai_candidate_demo_account",
+        lambda evidence=None, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        main.executor,
+        "list_open_positions_grouped",
+        lambda: groups,
+    )
+    monkeypatch.setattr(
+        main.causal_trace,
+        "load_signal_origin_index",
+        lambda _path: ({}, {}, []),
+    )
+    monkeypatch.setattr(main.journal, "EVENTS_FILE", events_file)
+    monkeypatch.setattr(main.journal, "event", lambda *args, **kwargs: None)
+    monkeypatch.setattr(state_module, "state", st)
+    monkeypatch.setattr(
+        position_lifecycle_monitor,
+        "start",
+        lambda signal, levels: started.append((signal, levels)),
+    )
+    monkeypatch.setattr(
+        main.executor,
+        "mt5",
+        SimpleNamespace(symbol_info_tick=lambda _symbol: None),
+    )
+
+    main._resync_orphan_positions()
+
+    signal = st.get("canal2", 2054)
+    assert signal is not None
+    assert signal.live_strategy_id == gold_live_candidate.CANDIDATE_ID
+    assert signal.live_strategy_fingerprint == (
+        gold_live_candidate.CANDIDATE_FINGERPRINT
+    )
+    assert signal.entry_mode == "scale_out"
+    assert signal.target_tp_index is None
+    assert signal.be_at_tp_index is None
+    assert signal.time_stop_at is None
+    assert signal.candidate_entry_prices_by_ticket == {
+        1770000001: 4620.0,
+        1770000002: 4620.2,
+    }
+    assert signal.candidate_hard_stops == {
+        1770000001: 4642.0,
+        1770000002: 4642.2,
+    }
+    assert started == [(signal, [])]
+
+
+def test_resync_keeps_existing_gold_candidate_when_new_entries_are_disabled(
+        monkeypatch, tmp_path):
+    opened_at = int(datetime.now(timezone.utc).timestamp()) - 5
+    events_file = tmp_path / "trade_events.jsonl"
+    events_file.write_text("", encoding="utf-8")
+    st = StateManager()
+    groups = {
+        "canal2_2056": {
+            "channel": "canal2",
+            "message_id": 2056,
+            "direction": "BUY",
+            "market_ticket": 1770000003,
+            "market_price": 4200.0,
+            "market_sl": 4180.0,
+            "market_tp": None,
+            "market_open_time": opened_at,
+            "extra_market_tickets": [],
+            "double_market_tickets": [],
+            "scale_out_leg_indexes": {},
+            "dca_tickets": [],
+            "live_strategy_marker": gold_live_candidate.CANDIDATE_ID,
+            "position_entries": {1770000003: 4200.0},
+            "position_volumes": {1770000003: 0.01},
+            "position_stops": {1770000003: 4180.0},
+        }
+    }
+    started = []
+    account_checks = []
+
+    monkeypatch.setattr(
+        main.config,
+        "STRATEGY_C2_GOLD_NOW_C490_ENABLED",
+        False,
+    )
+    monkeypatch.setattr(
+        main.executor,
+        "list_open_positions_grouped",
+        lambda: groups,
+    )
+    monkeypatch.setattr(
+        main,
+        "_assert_dubai_candidate_demo_account",
+        lambda evidence=None, **kwargs: account_checks.append(kwargs),
+    )
+    monkeypatch.setattr(
+        main.causal_trace,
+        "load_signal_origin_index",
+        lambda _path: ({}, {}, []),
+    )
+    monkeypatch.setattr(main.journal, "EVENTS_FILE", events_file)
+    monkeypatch.setattr(main.journal, "event", lambda *args, **kwargs: None)
+    monkeypatch.setattr(state_module, "state", st)
+    monkeypatch.setattr(
+        position_lifecycle_monitor,
+        "start",
+        lambda signal, levels: started.append((signal, levels)),
+    )
+    monkeypatch.setattr(
+        main.executor,
+        "mt5",
+        SimpleNamespace(symbol_info_tick=lambda _symbol: None),
+    )
+
+    main._resync_orphan_positions()
+
+    signal = st.get("canal2", 2056)
+    assert signal is not None
+    assert signal.live_strategy_id == gold_live_candidate.CANDIDATE_ID
+    assert started == [(signal, [])]
+    assert account_checks == [{"required": True}]

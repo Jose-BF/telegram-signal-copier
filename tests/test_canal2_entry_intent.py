@@ -70,6 +70,11 @@ def _patch_opening_runtime(monkeypatch, *, pause_first_await=False):
         return parsed
 
     monkeypatch.setattr(listener, "state", state)
+    monkeypatch.setattr(
+        config,
+        "STRATEGY_C2_GOLD_NOW_C490_ENABLED",
+        False,
+    )
     monkeypatch.setattr(listener, "_run", fake_run)
     monkeypatch.setattr(listener, "compute_market_context", lambda _symbol: None)
     monkeypatch.setattr(
@@ -82,6 +87,15 @@ def _patch_opening_runtime(monkeypatch, *, pause_first_await=False):
             "spread": 0.20,
             "time": 1785920400,
             "time_msc": 1785920400123,
+        },
+    )
+    monkeypatch.setattr(
+        listener.executor,
+        "account_evidence",
+        lambda: {
+            "trade_mode": 0,
+            "trade_mode_name": "demo",
+            "currency": "EUR",
         },
     )
     monkeypatch.setattr(
@@ -174,4 +188,180 @@ async def test_same_intent_identity_cannot_open_twice_concurrently(monkeypatch):
     assert any(
         ev == "canal2_entry_open_already_claimed"
         for _, ev, _ in events
+    )
+
+
+@pytest.mark.asyncio
+async def test_gold_now_candidate_opens_with_broker_sl_and_no_tp(monkeypatch):
+    state, orders, events, _, _ = _patch_opening_runtime(monkeypatch)
+    monkeypatch.setattr(
+        config,
+        "STRATEGY_C2_GOLD_NOW_C490_ENABLED",
+        True,
+    )
+    hard_stop_checks = []
+    monitor_starts = []
+
+    monkeypatch.setattr(
+        listener.executor,
+        "loss_stop_price",
+        lambda direction, volume, entry, budget, symbol=None: 4036.3,
+    )
+
+    async def fake_ensure(signal, *, force=False):
+        hard_stop_checks.append((signal, force))
+        return 1
+
+    async def fake_place_monitor(signal):
+        monitor_starts.append(signal)
+
+    monkeypatch.setattr(
+        listener,
+        "_ensure_gold_candidate_hard_stops",
+        fake_ensure,
+    )
+    monkeypatch.setattr(listener, "_place_dca", fake_place_monitor)
+
+    signal = await listener._open_canal2_intent(
+        _intent(804, "telegram_now"),
+        label="Canal2",
+    )
+
+    assert signal is state.get("canal2", 804)
+    assert signal.live_strategy_id == "gold_now_c490_v1"
+    assert signal.candidate_provisional_sl == 4036.3
+    assert orders == [{
+        "direction": "BUY",
+        "lot": 0.01,
+        "sl": 4036.3,
+        "tp": None,
+        "comment": "c2_804_gv1",
+        "magic": config.magic_for("canal2"),
+    }]
+    assert hard_stop_checks == [(signal, True)]
+    assert monitor_starts == [signal]
+    received = [
+        payload for sig, ev, payload in events
+        if sig == "canal2_804" and ev == "signal_received"
+    ][0]
+    assert received["effective_lot"] == 0.01
+
+
+@pytest.mark.asyncio
+async def test_gold_now_refuses_account_drift_before_submitting_order(
+        monkeypatch):
+    _state, orders, _events, _, _ = _patch_opening_runtime(monkeypatch)
+    monkeypatch.setattr(
+        config,
+        "STRATEGY_C2_GOLD_NOW_C490_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        listener.executor,
+        "account_evidence",
+        lambda: {
+            "trade_mode": 2,
+            "trade_mode_name": "real",
+            "currency": "EUR",
+        },
+    )
+
+    with pytest.raises(RuntimeError, match="demo EUR"):
+        await listener._open_canal2_intent(
+            _intent(805, "telegram_now"),
+            label="Canal2",
+        )
+
+    assert orders == []
+
+
+@pytest.mark.asyncio
+async def test_gold_monitor_starts_before_extra_leg_setup_can_fail(monkeypatch):
+    state, _orders, _events, _, _ = _patch_opening_runtime(monkeypatch)
+    monkeypatch.setattr(
+        config,
+        "STRATEGY_C2_GOLD_NOW_C490_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        listener.executor,
+        "loss_stop_price",
+        lambda direction, volume, entry, budget, symbol=None: 4036.3,
+    )
+    monitor_starts = []
+
+    async def fake_place_monitor(signal):
+        monitor_starts.append(signal)
+
+    async def fail_extra_legs(*_args, **_kwargs):
+        raise RuntimeError("extra-leg setup failed")
+
+    monkeypatch.setattr(listener, "_place_dca", fake_place_monitor)
+    monkeypatch.setattr(listener, "_open_extra_legs", fail_extra_legs)
+
+    with pytest.raises(RuntimeError, match="extra-leg setup failed"):
+        await listener._open_canal2_intent(
+            _intent(806, "telegram_now"),
+            label="Canal2",
+        )
+
+    signal = state.get("canal2", 806)
+    assert signal is not None
+    assert monitor_starts == [signal]
+
+
+@pytest.mark.asyncio
+async def test_gold_post_fill_tick_telemetry_failure_keeps_protection_alive(
+        monkeypatch):
+    state, _orders, events, _, _ = _patch_opening_runtime(monkeypatch)
+    monkeypatch.setattr(
+        config,
+        "STRATEGY_C2_GOLD_NOW_C490_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        listener.executor,
+        "loss_stop_price",
+        lambda direction, volume, entry, budget, symbol=None: 4036.3,
+    )
+    tick_calls = 0
+
+    def flaky_tick():
+        nonlocal tick_calls
+        tick_calls += 1
+        if tick_calls == 1:
+            return {
+                "bid": 4056.10,
+                "ask": 4056.30,
+                "mid": 4056.20,
+                "spread": 0.20,
+            }
+        raise RuntimeError("post-fill tick unavailable")
+
+    monitor_starts = []
+
+    async def fake_place_monitor(signal):
+        monitor_starts.append(signal)
+
+    async def fake_ensure(_signal, *, force=False):
+        return 0
+
+    monkeypatch.setattr(listener.executor, "current_tick_safe", flaky_tick)
+    monkeypatch.setattr(listener, "_place_dca", fake_place_monitor)
+    monkeypatch.setattr(
+        listener,
+        "_ensure_gold_candidate_hard_stops",
+        fake_ensure,
+    )
+
+    signal = await listener._open_canal2_intent(
+        _intent(807, "telegram_now"),
+        label="Canal2",
+    )
+
+    assert signal is state.get("canal2", 807)
+    assert monitor_starts == [signal]
+    assert any(
+        ev == "post_fill_tick_unavailable"
+        for _sig, ev, _fields in events
     )

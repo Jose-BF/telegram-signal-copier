@@ -133,6 +133,14 @@ class Signal:
     candidate_filled_leg_indexes: list[int] = field(default_factory=list)
     candidate_entry_expiry_logged: bool = False
     candidate_entry_plan_error_alerted: bool = False
+    candidate_provisional_sl: Optional[float] = None
+    candidate_hard_stops: dict = field(default_factory=dict)
+    candidate_hard_stop_requested_at: dict = field(default_factory=dict)
+    candidate_sl_requested_levels: dict = field(default_factory=dict)
+    candidate_entry_prices_by_ticket: dict = field(default_factory=dict)
+    candidate_be_tickets: list = field(default_factory=list)
+    candidate_sl_confirmed_tickets: list = field(default_factory=list)
+    candidate_sl_install_alerted: bool = False
 
     # Índice (0-based) del TP que cierra TODAS las posiciones (TP único por canal).
     # None = comportamiento escalonado legacy (pos i → tps[i]).

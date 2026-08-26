@@ -35,6 +35,7 @@ import MetaTrader5 as mt5
 import causal_trace
 import config
 import dubai_live_candidate
+import gold_live_candidate
 import executor
 import live_basket_guard
 import pending_actions
@@ -61,11 +62,15 @@ def _basket_guard_policy() -> live_basket_guard.GuardPolicy:
 
 def _basket_guard_enabled_for(signal: Signal) -> bool:
     return bool(
-        signal.channel == "canal1"
-        and (
-            config.STRATEGY_C1_BASKET_GUARD_ENABLED
-            or signal.live_strategy_id == dubai_live_candidate.CANDIDATE_ID
+        (
+            signal.channel == "canal1"
+            and (
+                config.STRATEGY_C1_BASKET_GUARD_ENABLED
+                or signal.live_strategy_id
+                == dubai_live_candidate.CANDIDATE_ID
+            )
         )
+        or signal.live_strategy_id == gold_live_candidate.CANDIDATE_ID
     )
 
 
@@ -229,6 +234,7 @@ def _apply_candidate_basket_guard(
                 signal,
                 ticket,
                 label=f"BASKET_GUARD_{decision.reason.upper()} #{ticket}",
+                persist_until_signal_close=True,
             )
         for ticket in signal.pending_tickets:
             pending_actions.enqueue_cancel_pending(
@@ -265,6 +271,8 @@ def _apply_live_basket_guard(
 ):
     if signal.live_strategy_id == dubai_live_candidate.CANDIDATE_ID:
         return _apply_candidate_basket_guard(signal, summary, now=now)
+    if signal.live_strategy_id == gold_live_candidate.CANDIDATE_ID:
+        return _apply_gold_candidate_basket_guard(signal, summary, now=now)
     if summary.get("positions_complete", True) is False:
         raise RuntimeError("MT5 positions_get unavailable for basket guard")
 
@@ -374,6 +382,211 @@ def _apply_live_basket_guard(
         **common,
     )
     return decision
+
+
+def _apply_gold_candidate_basket_guard(
+    signal: Signal,
+    summary: dict,
+    *,
+    now: datetime | None = None,
+) -> gold_live_candidate.GoldGuardDecision:
+    if summary.get("positions_complete", True) is False:
+        raise RuntimeError("MT5 positions_get unavailable for Gold guard")
+    policy = gold_live_candidate.GoldLivePolicy()
+    if signal.live_strategy_fingerprint != policy.fingerprint:
+        raise RuntimeError("Gold frozen guard fingerprint mismatch")
+
+    floating_pl = float(summary.get("floating_pl", summary.get("pl")) or 0.0)
+    realized_pl = float(summary.get("realized_pl") or 0.0)
+    realized_complete = bool(summary.get("realized_complete", True))
+    total_pl = summary.get("total_pl")
+    if total_pl is None and realized_complete:
+        total_pl = summary.get("pl", floating_pl + realized_pl)
+    observed_pl = float(total_pl) if total_pl is not None else floating_pl
+    signal_id = f"{signal.channel}_{signal.message_id}"
+
+    if not realized_complete and not signal.basket_guard_realized_degraded_logged:
+        signal.basket_guard_realized_degraded_logged = True
+        _journal_event(
+            signal_id,
+            "basket_guard_total_pl_degraded",
+            strategy_id=signal.live_strategy_id,
+            floating_pl=round(floating_pl, 2),
+            realized_pl=round(realized_pl, 2),
+            total_pl=None,
+            missing_realized_tickets=list(
+                summary.get("missing_realized_tickets") or []
+            ),
+        )
+    elif realized_complete and signal.basket_guard_realized_degraded_logged:
+        signal.basket_guard_realized_degraded_logged = False
+        _journal_event(
+            signal_id,
+            "basket_guard_total_pl_recovered",
+            strategy_id=signal.live_strategy_id,
+            floating_pl=round(floating_pl, 2),
+            realized_pl=round(realized_pl, 2),
+            total_pl=round(float(total_pl), 2),
+        )
+
+    now = datetime.utcnow() if now is None else now
+    first_fill_at = signal.candidate_first_fill_at or signal.timestamp
+    elapsed_min = max(0.0, (now - first_fill_at).total_seconds() / 60.0)
+    previous_peak = signal.basket_guard_peak_pl
+    previous_armed = bool(signal.basket_guard_armed)
+    decision = gold_live_candidate.evaluate_guard(
+        policy=policy,
+        state=gold_live_candidate.GoldGuardState(
+            armed=bool(signal.basket_guard_armed),
+            triggered=bool(signal.basket_guard_triggered),
+            peak_pl=signal.basket_guard_peak_pl,
+            trigger_reason=signal.basket_guard_trigger_reason,
+            recovery_pending=bool(signal.basket_guard_recovery_pending),
+        ),
+        total_pl=observed_pl,
+        n_open=int(summary.get("n_open") or 0),
+        elapsed_min=elapsed_min,
+        money_evidence_complete=realized_complete,
+    )
+    signal.basket_guard_armed = decision.state.armed
+    signal.basket_guard_triggered = decision.state.triggered
+    signal.basket_guard_peak_pl = decision.state.peak_pl
+    signal.basket_guard_trigger_reason = decision.state.trigger_reason
+    signal.basket_guard_recovery_pending = decision.state.recovery_pending
+
+    peak_pl = decision.state.peak_pl
+    common = {
+        "channel": signal.channel,
+        "strategy_id": signal.live_strategy_id,
+        "strategy_fingerprint": signal.live_strategy_fingerprint,
+        "observed_pl": round(decision.observed_pl, 2),
+        "floating_pl": round(floating_pl, 2),
+        "realized_pl": round(realized_pl, 2),
+        "total_pl": round(float(total_pl), 2) if total_pl is not None else None,
+        "realized_complete": realized_complete,
+        "peak_pl": round(float(peak_pl), 2) if peak_pl is not None else None,
+        "dynamic_lock_level": (
+            round(float(peak_pl) - policy.profit_lock_giveback, 2)
+            if decision.state.armed and peak_pl is not None else None
+        ),
+        "elapsed_min": round(elapsed_min, 4),
+        "n_open": int(summary.get("n_open") or 0),
+        "open_tickets": [
+            int(ticket) for ticket in summary.get("open_tickets") or []
+        ],
+        "loss_cap": -float(policy.stop_value),
+        "profit_arm": float(policy.profit_lock_arm),
+        "profit_giveback": float(policy.profit_lock_giveback),
+        "time_exit_min": int(policy.time_exit_min),
+        "time_exit_mode": policy.time_exit_mode,
+        "money_source": "realized_plus_floating_account_currency",
+    }
+    if decision.action == "arm":
+        _journal_event(signal_id, "basket_guard_armed", **common)
+        return decision
+    if (
+        decision.action == "none"
+        and previous_armed
+        and peak_pl is not None
+        and (previous_peak is None or peak_pl > previous_peak)
+    ):
+        _journal_event(signal_id, "basket_guard_peak_advanced", **common)
+    if decision.action != "close":
+        return decision
+
+    tickets = common["open_tickets"]
+    try:
+        for ticket in tickets:
+            if ticket not in signal.basket_guard_close_tickets:
+                signal.basket_guard_close_tickets.append(ticket)
+            pending_actions.enqueue_close_position(
+                signal,
+                ticket,
+                label=f"GOLD_GUARD_{decision.reason.upper()} #{ticket}",
+                persist_until_signal_close=True,
+            )
+        for ticket in signal.pending_tickets:
+            pending_actions.enqueue_cancel_pending(
+                signal,
+                ticket,
+                label=f"GOLD_GUARD_{decision.reason.upper()} pend #{ticket}",
+            )
+    except Exception:
+        signal.basket_guard_recovery_pending = True
+        raise
+    signal.basket_guard_recovery_pending = False
+    _journal_event(
+        signal_id,
+        (
+            "basket_guard_close_recovered"
+            if decision.reason == "recovery"
+            else "basket_guard_triggered"
+        ),
+        reason=decision.reason,
+        queued_close_count=len(tickets),
+        **common,
+    )
+    return decision
+
+
+async def _apply_gold_price_be(signal: Signal, tick) -> int:
+    """Persistently move each eligible Gold leg to its exact MT5 entry."""
+    if signal.live_strategy_id != gold_live_candidate.CANDIDATE_ID:
+        return 0
+    policy = gold_live_candidate.GoldLivePolicy()
+    if signal.live_strategy_fingerprint != policy.fingerprint:
+        raise RuntimeError("Gold frozen BE fingerprint mismatch")
+
+    tickets = list(signal.all_filled_tickets)
+    entries = dict(signal.candidate_entry_prices_by_ticket)
+    missing = [ticket for ticket in tickets if int(ticket) not in entries]
+    if missing:
+        fetched = await asyncio.to_thread(executor.open_entry_prices, tickets)
+        if fetched is None:
+            return 0
+        entries.update({int(ticket): float(price) for ticket, price in fetched.items()})
+        signal.candidate_entry_prices_by_ticket = dict(entries)
+
+    exit_price = float(tick.bid if signal.direction == "BUY" else tick.ask)
+    moved = 0
+    for ticket in tickets:
+        ticket = int(ticket)
+        if ticket in signal.candidate_be_tickets:
+            continue
+        entry = entries.get(ticket)
+        if entry is None:
+            continue
+        move = gold_live_candidate.favourable_move(
+            signal.direction,
+            entry,
+            exit_price,
+        )
+        if move + 1e-9 < policy.be_trigger:
+            continue
+        pending_actions.enqueue_modify_sl(
+            signal,
+            ticket,
+            entry,
+            label=f"GOLD BE +{policy.be_trigger:.0f} #{ticket} -> {entry:.2f}",
+            persist_until_signal_close=True,
+        )
+        signal.candidate_be_tickets.append(ticket)
+        moved += 1
+        _journal_event(
+            f"{signal.channel}_{signal.message_id}",
+            "gold_price_be_requested",
+            strategy_id=signal.live_strategy_id,
+            strategy_fingerprint=signal.live_strategy_fingerprint,
+            ticket=ticket,
+            entry=entry,
+            observed_exit_price=exit_price,
+            favourable_move=round(move, 8),
+            trigger=policy.be_trigger,
+            persist_until_signal_close=True,
+        )
+    if moved:
+        signal.be_armed = True
+    return moved
 
 
 def _should_alert_null_tick_streak(streak: int, already_alerted: bool,
@@ -1085,6 +1298,23 @@ def _signal_pl_summary(signal: Signal) -> dict:
     return summary
 
 
+def _extremes_observation(summary: dict) -> tuple[float, str]:
+    """Choose the economically complete P/L used for basket MFE and MAE."""
+    total_pl = summary.get("total_pl")
+    realized_complete = bool(summary.get("realized_complete", True))
+    if realized_complete and total_pl is not None:
+        return (
+            float(total_pl),
+            "realized_plus_floating_account_currency",
+        )
+    basis = (
+        "open_floating_account_currency_degraded"
+        if not realized_complete
+        else "open_floating_account_currency"
+    )
+    return float(summary.get("floating_pl", summary.get("pl")) or 0.0), basis
+
+
 def _next_tp_for_signal(signal: Signal) -> float | None:
     """Devuelve el siguiente TP relevante: el del próximo ticket en orden
     escalonado, o el target_tp_index si está fijo.
@@ -1338,9 +1568,13 @@ async def run(signal: Signal, levels: list[float]):
     ):
         return
 
-    candidate_active = (
+    dubai_candidate_active = (
         signal.live_strategy_id == dubai_live_candidate.CANDIDATE_ID
     )
+    gold_candidate_active = (
+        signal.live_strategy_id == gold_live_candidate.CANDIDATE_ID
+    )
+    candidate_active = dubai_candidate_active or gold_candidate_active
     pending = [] if candidate_active else list(levels)
     direction = signal.direction
     symbol = config.MT5_SYMBOL
@@ -1365,6 +1599,14 @@ async def run(signal: Signal, levels: list[float]):
         max(0.01, float(config.STRATEGY_C1_BASKET_GUARD_POLL_S)),
     )
     basket_guard_error_alerted = False
+
+    # The broker SL is a durable second line of defence. Recheck it every
+    # five seconds and keep its pending action alive until MT5 confirms it or
+    # the position closes. This never closes a basket merely because an SL
+    # installation attempt was temporarily rejected.
+    last_gold_sl_check_ts = 0.0
+    gold_sl_check_interval_s = 5.0
+    gold_sl_check_error_alerted = False
 
     # Batch E: track null-tick streak para detectar broker/MT5 down dentro
     # del monitor. Antes giraba en silencio.
@@ -1473,7 +1715,7 @@ async def run(signal: Signal, levels: list[float]):
 
         last_tick_ms = tick.time_msc
 
-        if candidate_active:
+        if dubai_candidate_active:
             try:
                 await _process_candidate_entry_tick(signal, tick)
                 signal.candidate_entry_plan_error_alerted = False
@@ -1497,6 +1739,52 @@ async def run(signal: Signal, levels: list[float]):
                     except Exception:
                         pass
 
+        if gold_candidate_active:
+            try:
+                await _apply_gold_price_be(signal, tick)
+            except Exception as exc:
+                try:
+                    import journal as _j_gold_be
+                    _j_gold_be.anomaly(
+                        f"{signal.channel}_{signal.message_id}",
+                        "sl_be",
+                        "critical",
+                        "Gold candidate no pudo evaluar el BE por precio",
+                        exc_type=type(exc).__name__,
+                        exc_msg=str(exc)[:300],
+                        strategy_id=signal.live_strategy_id,
+                    )
+                except Exception:
+                    pass
+
+            gold_sl_now = time.monotonic()
+            if (
+                gold_sl_now - last_gold_sl_check_ts
+                >= gold_sl_check_interval_s
+            ):
+                last_gold_sl_check_ts = gold_sl_now
+                try:
+                    from listener import _ensure_gold_candidate_hard_stops
+                    await _ensure_gold_candidate_hard_stops(signal)
+                    gold_sl_check_error_alerted = False
+                except Exception as exc:
+                    if not gold_sl_check_error_alerted:
+                        gold_sl_check_error_alerted = True
+                        try:
+                            import journal as _j_gold_sl
+                            _j_gold_sl.anomaly(
+                                f"{signal.channel}_{signal.message_id}",
+                                "sl_be",
+                                "critical",
+                                "Gold candidate no pudo verificar sus SL; "
+                                "el monitor seguira reintentando",
+                                exc_type=type(exc).__name__,
+                                exc_msg=str(exc)[:300],
+                                strategy_id=signal.live_strategy_id,
+                            )
+                        except Exception:
+                            pass
+
         guard_summary = None
         now_monotonic = time.monotonic()
         if (
@@ -1515,21 +1803,30 @@ async def run(signal: Signal, levels: list[float]):
                     signal,
                 )
                 decision = _apply_live_basket_guard(signal, guard_summary)
+                provider_name = (
+                    "Gold"
+                    if gold_candidate_active else "Dubai"
+                )
                 if decision.action == "arm":
                     print(
-                        f"[Basket Guard] Dubai {signal.message_id}: "
+                        f"[Basket Guard] {provider_name} {signal.message_id}: "
                         f"proteccion armada en {decision.observed_pl:.2f}"
                     )
                 elif decision.action == "close":
                     print(
-                        f"[Basket Guard] Dubai {signal.message_id}: "
+                        f"[Basket Guard] {provider_name} {signal.message_id}: "
                         f"cierre {decision.reason} en "
                         f"{decision.observed_pl:.2f}"
                     )
                 basket_guard_error_alerted = False
             except Exception as exc:
+                provider_name = (
+                    "Gold"
+                    if gold_candidate_active else "Dubai"
+                )
                 print(
-                    f"[Basket Guard] error Dubai {signal.message_id}: "
+                    f"[Basket Guard] error {provider_name} "
+                    f"{signal.message_id}: "
                     f"{type(exc).__name__}: {exc}"
                 )
                 if not basket_guard_error_alerted:
@@ -1539,7 +1836,8 @@ async def run(signal: Signal, levels: list[float]):
                             f"{signal.channel}_{signal.message_id}",
                             "mt5",
                             "critical",
-                            "proteccion de cesta Dubai sin lectura valida",
+                            f"proteccion de cesta {provider_name} sin "
+                            "lectura valida",
                             exc_type=type(exc).__name__,
                             exc_msg=str(exc)[:300],
                         )
@@ -1555,13 +1853,16 @@ async def run(signal: Signal, levels: list[float]):
                 summary = guard_summary
                 if summary is None:
                     summary = await asyncio.to_thread(
-                        _floating_pl_summary,
+                        _signal_pl_summary,
                         signal,
                     )
                 if summary["n_open"] > 0:
                     import journal as _j
                     sig_id = f"{signal.channel}_{signal.message_id}"
-                    _j.update_extremes(sig_id, summary["pl"])
+                    extremes_pl, extremes_basis = _extremes_observation(
+                        summary
+                    )
+                    _j.update_extremes(sig_id, extremes_pl)
 
                     # ── Floating P&L snapshot cada 30s ──
                     # Para reconstruir la curva del trade tick-a-tick y
@@ -1573,6 +1874,26 @@ async def run(signal: Signal, levels: list[float]):
                         last_pl_snapshot_ts = now_ts
                         _j.event(sig_id, "floating_pl_snapshot",
                                  pl=round(summary["pl"], 2),
+                                 floating_pl=round(
+                                     float(summary.get(
+                                         "floating_pl", summary["pl"]
+                                     ) or 0.0),
+                                     2,
+                                 ),
+                                 realized_pl=round(
+                                     float(summary.get("realized_pl") or 0.0),
+                                     2,
+                                 ),
+                                 total_pl=(
+                                     round(float(summary["total_pl"]), 2)
+                                     if summary.get("total_pl") is not None
+                                     else None
+                                 ),
+                                 realized_complete=bool(summary.get(
+                                     "realized_complete", True
+                                 )),
+                                 extremes_observed_pl=round(extremes_pl, 2),
+                                 extremes_basis=extremes_basis,
                                  n_open=summary["n_open"],
                                  current_price=summary.get("current_price"),
                                  avg_entry=round(summary["avg_entry"], 2)

@@ -49,7 +49,9 @@ def test_candidate_guard_tracks_dynamic_peak_and_closes_after_two_euro_giveback(
     monkeypatch.setattr(
         monitor.pending_actions,
         "enqueue_close_position",
-        lambda sig, ticket, label: closes.append((ticket, label)),
+        lambda sig, ticket, label, **kwargs: closes.append(
+            (ticket, label, kwargs.get("persist_until_signal_close"))
+        ),
     )
 
     armed = monitor._apply_live_basket_guard(
@@ -67,7 +69,11 @@ def test_candidate_guard_tracks_dynamic_peak_and_closes_after_two_euro_giveback(
     assert signal.basket_guard_peak_pl == 17.25
     assert closed.action == "close"
     assert closed.reason == "profit_lock"
-    assert closes == [(7001, "BASKET_GUARD_PROFIT_LOCK #7001")]
+    assert closes == [(
+        7001,
+        "BASKET_GUARD_PROFIT_LOCK #7001",
+        True,
+    )]
     assert [ev for _, ev, _ in events] == [
         "basket_guard_armed",
         "basket_guard_peak_advanced",
@@ -82,7 +88,9 @@ def test_candidate_guard_closes_at_minus_twenty_five(monkeypatch):
     monkeypatch.setattr(
         monitor.pending_actions,
         "enqueue_close_position",
-        lambda sig, ticket, label: closes.append(ticket),
+        lambda sig, ticket, label, **kwargs: closes.append(
+            (ticket, kwargs.get("persist_until_signal_close"))
+        ),
     )
 
     decision = monitor._apply_live_basket_guard(
@@ -90,7 +98,7 @@ def test_candidate_guard_closes_at_minus_twenty_five(monkeypatch):
     )
 
     assert decision.reason == "basket_stop"
-    assert closes == [7001]
+    assert closes == [(7001, True)]
 
 
 def test_candidate_time_exit_only_closes_non_positive_basket(monkeypatch):
@@ -102,7 +110,13 @@ def test_candidate_time_exit_only_closes_non_positive_basket(monkeypatch):
     monkeypatch.setattr(
         monitor.pending_actions,
         "enqueue_close_position",
-        lambda sig, ticket, label: closes.append((sig.message_id, ticket)),
+        lambda sig, ticket, label, **kwargs: closes.append(
+            (
+                sig.message_id,
+                ticket,
+                kwargs.get("persist_until_signal_close"),
+            )
+        ),
     )
 
     loss_decision = monitor._apply_live_basket_guard(
@@ -114,7 +128,7 @@ def test_candidate_time_exit_only_closes_non_positive_basket(monkeypatch):
 
     assert loss_decision.reason == "loss_time_exit"
     assert positive_decision.action == "none"
-    assert closes == [(24001, 7001)]
+    assert closes == [(24001, 7001, True)]
 
 
 def test_candidate_does_not_make_profit_decisions_on_incomplete_money(

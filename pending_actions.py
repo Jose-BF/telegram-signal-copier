@@ -1484,11 +1484,18 @@ def enqueue_modify_sltp(signal: Signal, ticket: int, new_sl: float, new_tp: floa
     ))
 
 
-def enqueue_close_position(signal: Signal, ticket: int, label: str = ""):
+def enqueue_close_position(
+    signal: Signal,
+    ticket: int,
+    label: str = "",
+    *,
+    persist_until_signal_close: bool = False,
+):
     queue.add(PendingAction(
         kind="CLOSE_POSITION",
         ticket=ticket,
         signal=signal,
+        persist_until_signal_close=persist_until_signal_close,
         label=label or "close position",
     ))
 

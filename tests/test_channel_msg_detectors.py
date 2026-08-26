@@ -1687,6 +1687,18 @@ class TestCanal2SemanticRouting:
 
 
 class TestCanal2OrphanEditRecovery:
+    @pytest.fixture(autouse=True)
+    def _verified_demo_account(self, monkeypatch):
+        monkeypatch.setattr(
+            listener.executor,
+            "account_evidence",
+            lambda: {
+                "trade_mode": 0,
+                "trade_mode_name": "demo",
+                "currency": "EUR",
+            },
+        )
+
     @pytest.mark.asyncio
     async def test_recovered_edit_then_new_delivery_opens_only_once(
             self, monkeypatch):
@@ -2013,6 +2025,9 @@ class TestCanal2OrphanEditRecovery:
     @pytest.mark.asyncio
     async def test_invalid_initial_sl_opens_with_interpreted_sl(
             self, monkeypatch):
+        monkeypatch.setattr(
+            config, "STRATEGY_C2_GOLD_NOW_C490_ENABLED", False,
+        )
         st = StateManager()
         events = []
         orders = []
@@ -2085,6 +2100,9 @@ class TestCanal2OrphanEditRecovery:
     @pytest.mark.asyncio
     async def test_new_canal2_gold_format_opens_with_targets_block(
             self, monkeypatch):
+        monkeypatch.setattr(
+            config, "STRATEGY_C2_GOLD_NOW_C490_ENABLED", False,
+        )
         st = StateManager()
         events = []
         orders = []
@@ -2152,6 +2170,9 @@ class TestCanal2OrphanEditRecovery:
     @pytest.mark.asyncio
     async def test_invalid_sl_reply_updates_provisional_levels(
             self, monkeypatch):
+        monkeypatch.setattr(
+            config, "STRATEGY_C2_GOLD_NOW_C490_ENABLED", False,
+        )
         st = StateManager()
         events = []
         orders = []

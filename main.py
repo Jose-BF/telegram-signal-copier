@@ -49,6 +49,7 @@ import causal_trace
 import broker_money
 import config
 import dubai_live_candidate
+import gold_live_candidate
 import executor
 import journal
 import live_basket_guard
@@ -1614,6 +1615,13 @@ def _resync_orphan_positions():
                 ],
             }
 
+        # Existing exposure is owned by its MT5 marker. Disabling new Gold
+        # entries must not strip protection from a basket after a restart.
+        gold_marker_active = bool(
+            g.get("live_strategy_marker")
+            == gold_live_candidate.CANDIDATE_ID
+        )
+
         # Re-aplicar defensas según canal: time-stop notify y BE auto.
         # Sin esto, las posiciones huérfanas quedaban sin time-stop ni BE
         # tras un restart, expuestas indefinidamente.
@@ -1680,6 +1688,12 @@ def _resync_orphan_positions():
             telegram_entry_timestamp=entry_identity.get(
                 "telegram_entry_timestamp"
             ),
+            entry_source_kind=(
+                "telegram_now"
+                if gold_marker_active
+                else entry_identity.get("entry_source_kind")
+                or "telegram_now"
+            ),
         )
         monitor_levels: list[float] = []
         candidate_recovery_errors: list[str] = []
@@ -1705,6 +1719,33 @@ def _resync_orphan_positions():
                     strategy_fingerprint=sig.live_strategy_fingerprint,
                     recovery_errors=candidate_recovery_errors,
                 )
+        elif gold_marker_active:
+            _assert_dubai_candidate_demo_account(required=True)
+            policy = gold_live_candidate.GoldLivePolicy()
+            sig.live_strategy_id = gold_live_candidate.CANDIDATE_ID
+            sig.live_strategy_fingerprint = policy.fingerprint
+            sig.candidate_first_fill_at = opened_at
+            sig.candidate_provisional_sl = g.get("market_sl")
+            sig.candidate_entry_prices_by_ticket = {
+                int(ticket): float(price)
+                for ticket, price in (
+                    g.get("position_entries") or {}
+                ).items()
+                if price is not None
+            }
+            sig.candidate_hard_stops = {
+                int(ticket): float(stop)
+                for ticket, stop in (
+                    g.get("position_stops") or {}
+                ).items()
+                if stop is not None and float(stop) > 0.0
+            }
+            sig.entry_mode = "scale_out"
+            sig.target_tp_index = None
+            sig.be_at_tp_index = None
+            sig.time_stop_at = None
+            time_stop_at = None
+            be_at_tp_index = None
         recovered_guard = basket_guard_states.get(sig_id)
         if recovered_guard is not None:
             sig.basket_guard_armed = recovered_guard.armed
@@ -1722,10 +1763,11 @@ def _resync_orphan_positions():
         )
         # Solo el sufijo exacto _B pertenece al doble market legacy. Las legs
         # _B1.._B4 son scale-out y deben conservar su reparto escalonado.
-        for tk, leg_index in g.get("scale_out_leg_indexes", {}).items():
-            sig.tp_overrides[int(tk)] = int(leg_index)
-        for tk in g.get("double_market_tickets", []):
-            sig.tp_overrides[tk] = config.STRATEGY_DOUBLE_MARKET_TP_INDEX
+        if not gold_marker_active:
+            for tk, leg_index in g.get("scale_out_leg_indexes", {}).items():
+                sig.tp_overrides[int(tk)] = int(leg_index)
+            for tk in g.get("double_market_tickets", []):
+                sig.tp_overrides[tk] = config.STRATEGY_DOUBLE_MARKET_TP_INDEX
         sig.dca_placed = True  # ya están abiertos, no abrir más
         sig.status = "open"
         state.add(sig)
@@ -2213,9 +2255,16 @@ def _terminate_legacy_watcher_parent(parent=None) -> bool:
         return False
 
 
-def _assert_dubai_candidate_demo_account(evidence=None) -> None:
-    """Refuse the retrospective candidate outside a verified demo account."""
-    if not config.STRATEGY_C1_BALANCED_V1_ENABLED:
+def _assert_dubai_candidate_demo_account(
+    evidence=None,
+    *,
+    required: bool = False,
+) -> None:
+    """Refuse either forward-trial candidate outside a verified demo account."""
+    if not required and not (
+        config.STRATEGY_C1_BALANCED_V1_ENABLED
+        or config.STRATEGY_C2_GOLD_NOW_C490_ENABLED
+    ):
         return
     evidence = executor.account_evidence() if evidence is None else evidence
     trade_mode = evidence.get("trade_mode") if evidence else None
@@ -2229,7 +2278,7 @@ def _assert_dubai_candidate_demo_account(evidence=None) -> None:
         )
     if trade_mode_name != "demo" or trade_mode != demo_mode:
         raise ValueError(
-            "dubai_balanced_v1 solo puede ejecutarse en una cuenta demo"
+            "las estrategias candidatas solo pueden ejecutarse en demo"
         )
     currency = str((evidence or {}).get("currency") or "").upper()
     if not currency:
@@ -2238,7 +2287,7 @@ def _assert_dubai_candidate_demo_account(evidence=None) -> None:
         )
     if currency != "EUR":
         raise ValueError(
-            "dubai_balanced_v1 exige cuenta demo en EUR; "
+            "las estrategias candidatas exigen cuenta demo en EUR; "
             f"MT5 informa {currency}"
         )
 
@@ -2247,7 +2296,10 @@ def _assert_dubai_candidate_broker_volume(symbol_info=None) -> None:
     """Verify that MT5 can represent every frozen candidate order volume."""
     from decimal import Decimal, InvalidOperation
 
-    if not config.STRATEGY_C1_BALANCED_V1_ENABLED:
+    if not (
+        config.STRATEGY_C1_BALANCED_V1_ENABLED
+        or config.STRATEGY_C2_GOLD_NOW_C490_ENABLED
+    ):
         return
     if symbol_info is None:
         symbol_info = executor.mt5.symbol_info(config.MT5_SYMBOL)
@@ -2265,7 +2317,16 @@ def _assert_dubai_candidate_broker_volume(symbol_info=None) -> None:
         ) from exc
     if minimum <= 0 or maximum < minimum or step <= 0:
         raise ValueError("contrato de volumen MT5 invalido")
-    for raw_volume in dubai_live_candidate.DubaiLivePolicy().volume_weights:
+    raw_volumes = []
+    if config.STRATEGY_C1_BALANCED_V1_ENABLED:
+        raw_volumes.extend(
+            dubai_live_candidate.DubaiLivePolicy().volume_weights
+        )
+    if config.STRATEGY_C2_GOLD_NOW_C490_ENABLED:
+        raw_volumes.append(
+            gold_live_candidate.GoldLivePolicy().live_volume_per_leg
+        )
+    for raw_volume in raw_volumes:
         volume = Decimal(str(raw_volume))
         aligned = ((volume - minimum) / step) % 1 == 0
         if volume < minimum or volume > maximum or not aligned:
@@ -2347,18 +2408,86 @@ def _live_strategy_contract() -> dict:
         }
         effective_max_lots = max_lots
 
-    return {
-        "contract_schema_version": 1,
-        "evidence_status": "forward_trial",
-        "dubai": dubai,
-        "gold": {
+    if config.STRATEGY_C2_GOLD_NOW_C490_ENABLED:
+        gold_policy = gold_live_candidate.GoldLivePolicy()
+        if max_lots + 1e-9 < gold_policy.max_signal_volume:
+            raise ValueError(
+                "STRATEGY_MAX_PLANNED_LOTS_PER_SIGNAL no permite la "
+                "cesta Gold congelada"
+            )
+        gold = {
+            "strategy_id": gold_live_candidate.CANDIDATE_ID,
+            "strategy_fingerprint": gold_policy.fingerprint,
+            "enabled": True,
+            "scope": "telegram_now_only",
+            "entry": {
+                "mode": "immediate_market_basket",
+                "leg_count": gold_policy.live_leg_count,
+                "volume_per_leg": gold_policy.live_volume_per_leg,
+            },
+            "target_mode": gold_policy.target_mode,
+            "partial_fraction": gold_policy.partial_fraction,
+            "be": {
+                "mode": gold_policy.be_mode,
+                "favourable_price_move": gold_policy.be_trigger,
+                "per_leg_exact_entry": True,
+                "persistent_retry": True,
+            },
+            "provider_management_mode": (
+                gold_policy.provider_management_mode
+            ),
+            "basket_guard": {
+                "enabled": True,
+                "loss_cap": -float(gold_policy.stop_value),
+                "profit_arm": float(gold_policy.profit_lock_arm),
+                "profit_giveback": float(
+                    gold_policy.profit_lock_giveback
+                ),
+                "time_exit_min": int(gold_policy.time_exit_min),
+                "time_exit_mode": gold_policy.time_exit_mode,
+                "poll_mode": "every_new_tick",
+                "money_source": (
+                    "realized_plus_floating_account_currency"
+                ),
+            },
+            "broker_sl": {
+                "required": True,
+                "loss_budget_per_leg": (
+                    gold_policy.broker_loss_budget_per_leg
+                ),
+                "valuation": "mt5_order_calc_profit_account_currency",
+                "installed_on_open": True,
+                "recalculated_from_real_fill": True,
+                "persistent_retry": True,
+                "close_on_install_failure": False,
+            },
+            "zone_first_touch_execution": bool(
+                config.STRATEGY_C2_ZONE_FIRST_TOUCH_EXECUTION_ENABLED
+            ),
+            "zone_explicit_activation": True,
+        }
+        effective_max_lots = max(
+            effective_max_lots,
+            gold_policy.max_signal_volume,
+        )
+    else:
+        gold = {
+            "strategy_id": "legacy_gold",
+            "strategy_fingerprint": None,
+            "enabled": True,
             "immediate_entry_mode": config.STRATEGY_C2_ENTRY_MODE,
             "num_entries": int(config.STRATEGY_C2_NUM_ENTRIES),
             "zone_first_touch_execution": bool(
                 config.STRATEGY_C2_ZONE_FIRST_TOUCH_EXECUTION_ENABLED
             ),
             "zone_explicit_activation": True,
-        },
+        }
+
+    return {
+        "contract_schema_version": 1,
+        "evidence_status": "forward_trial",
+        "dubai": dubai,
+        "gold": gold,
         "risk": {
             "lot_per_position": float(config.LOT_SIZE),
             "max_planned_lots_per_signal": round(
@@ -2367,8 +2496,7 @@ def _live_strategy_contract() -> dict:
             "legacy_max_planned_lots_per_signal": round(max_lots, 8),
             "exposure_cap_enforced": True,
             "volume_increased_by_trial": bool(
-                config.STRATEGY_C1_BALANCED_V1_ENABLED
-                and effective_max_lots > max_lots
+                effective_max_lots > max_lots
             ),
         },
     }
@@ -2395,9 +2523,14 @@ def _live_strategy_summary(contract: dict) -> str:
         if gold["zone_first_touch_execution"]
         else "primer toque observa; solo Active ejecuta"
     )
+    gold_text = (
+        f"{gold['strategy_id']}"
+        if gold.get("strategy_fingerprint")
+        else "legacy_gold"
+    )
     return (
         f"[Strategy] Dubai {contract['dubai']['strategy_id']} guard "
-        f"{guard_text} EUR | Gold zonas: "
+        f"{guard_text} EUR | Gold {gold_text}; zonas: "
         f"{zone_text} | max {risk['max_planned_lots_per_signal']:.2f} lot"
     )
 
@@ -2451,6 +2584,8 @@ def _startup_status_message(
     ])
     if config.STRATEGY_C1_BALANCED_V1_ENABLED:
         lines.append("Dubai estrategia: balanced v1 (solo demo)")
+    if config.STRATEGY_C2_GOLD_NOW_C490_ENABLED:
+        lines.append("Gold estrategia: NOW c490 v1 (solo demo)")
     if money_capture_ready is True:
         lines.append("Registro simulacion: activo")
     elif money_capture_ready is False:

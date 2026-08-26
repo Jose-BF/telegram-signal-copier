@@ -42,20 +42,37 @@ Current demo forward policy:
   `-25`, arms a dynamic lock at `+10`, closes after a `2` EUR giveback, and
   closes at 40 minutes only when its total P/L is not positive. Explicit
   provider closes are honoured; other provider management remains evidence.
-- Gold Signals immediate entries are unchanged. Zone plans open only after an
-  explicit provider activation; first touch remains observation-only.
-- Dubai candidate exposure is frozen at `0.09` lots per signal. Legacy Dubai
-  and Gold paths retain `STRATEGY_MAX_PLANNED_LOTS_PER_SIGNAL=0.05`.
+- Gold Signals explicit `BUY/SELL NOW` messages run the frozen
+  `gold_now_c490_v1` demo candidate. It opens five immediate `0.01` positions,
+  installs no TP and does not execute provider management. The aggregate EUR
+  basket closes at `-100`, arms profit protection at `+10`, closes after an
+  `8` EUR giveback, and closes at 40 minutes only when total P/L is not
+  positive. Each leg moves its own broker SL to its exact fill after a
+  favorable `$12` XAUUSD move.
+- Every Gold NOW leg opens with a real provisional broker SL. The bot then
+  recalculates it from the actual MT5 fill with a `20 EUR` per-leg loss budget,
+  verifies all five SLs every five seconds and retries persistently while the
+  signal remains open. A failed install raises one actionable alert but does
+  not close the basket solely because of that failure.
+- The active MT5 account is revalidated as EUR demo immediately before each
+  Gold NOW basket. Supervision starts as soon as the first ticket is known,
+  guard closes remain queued until MT5 confirms them, and `_gv1` positions
+  recover the same policy after restart even when new candidate entries have
+  been disabled.
+- Gold zone plans remain independent: they open only after an explicit
+  provider activation; first touch remains observation-only.
+- Dubai candidate exposure is frozen at `0.09` lots per signal. Gold NOW and
+  legacy paths retain a `0.05`-lot maximum per signal.
 - Startup publishes a `live_strategy_contract` event and one readable console
   line containing the candidate ID, exact fingerprint and thresholds. Startup
   refuses the candidate on a real, unverifiable or non-EUR MT5 account.
-- This is a forward demo trial calibrated on retained history, not evidence of
-  guaranteed profitability. Set `STRATEGY_C1_BALANCED_V1_ENABLED=0` to restore
-  the previous Dubai path. Gold Signals needs no rollback because this trial
-  does not alter it.
-- The candidate basket guard samples every fresh broker tick. Because its
-  protection is process-side and intentionally installs no broker SL, this
-  trial must remain on demo: a stopped bot, terminal or VM cannot close it.
+- These are forward demo trials calibrated on retained history, not evidence
+  of guaranteed profitability. Set `STRATEGY_C1_BALANCED_V1_ENABLED=0` for the
+  previous Dubai path or `STRATEGY_C2_GOLD_NOW_C490_ENABLED=0` for the previous
+  Gold NOW path.
+- Both candidate basket guards sample every fresh broker tick. Dubai remains
+  process-protected; Gold NOW also has a broker-side catastrophe SL on every
+  leg so a stopped Python process does not leave those positions naked.
 
 The compact daily log pass is incremental and reports armed zones, confirmed
 entries, trigger types and failures without rescanning the retained corpus:

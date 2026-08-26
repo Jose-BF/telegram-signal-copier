@@ -242,6 +242,12 @@ STRATEGY_C2_TARGET_TP_INDEX = int(os.getenv("STRATEGY_C2_TARGET_TP_INDEX", "-1")
 STRATEGY_C2_BE_TP_INDEX     = int(os.getenv("STRATEGY_C2_BE_TP_INDEX", "0"))       # 0 = BE en TP1
 STRATEGY_C2_TIME_STOP_MIN   = int(os.getenv("STRATEGY_C2_TIME_STOP_MIN", "60"))    # notify only
 
+# Frozen Gold Signals NOW management candidate. It applies only to explicit
+# BUY/SELL NOW entries; zone-plan execution keeps its independent policy.
+STRATEGY_C2_GOLD_NOW_C490_ENABLED = (
+    os.getenv("STRATEGY_C2_GOLD_NOW_C490_ENABLED", "1") == "1"
+)
+
 # Gold Signals zone plans are observed on first touch, but only an explicit
 # provider activation opens exposure by default. Set to 1 to restore the
 # previous first-touch execution policy without changing code.

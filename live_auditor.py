@@ -19,6 +19,7 @@ import MetaTrader5 as mt5
 import config
 import dubai_live_candidate
 import executor
+import gold_live_candidate
 import journal as default_journal
 import pending_actions
 from state import Signal, state
@@ -478,6 +479,11 @@ class LiveAuditor:
             and sig.live_strategy_fingerprint
             == dubai_live_candidate.CANDIDATE_FINGERPRINT
         )
+        gold_tp_intentionally_absent = bool(
+            sig.live_strategy_id == gold_live_candidate.CANDIDATE_ID
+            and sig.live_strategy_fingerprint
+            == gold_live_candidate.CANDIDATE_FINGERPRINT
+        )
         expected_legs = _expected_scale_out_legs(sig)
         if (expected_legs is not None
                 and age_s >= self.settings.expected_legs_after_s
@@ -519,11 +525,18 @@ class LiveAuditor:
             (now - levels_seen_at).total_seconds()
             if levels_seen_at is not None else None
         )
+        required_levels_missing = bool(
+            tickets_without_sl
+            or (
+                tickets_without_tp
+                and not gold_tp_intentionally_absent
+            )
+        )
         if (not intentionally_unprotected
                 and has_state_levels and mt5_open_tickets
                 and levels_age_s is not None
                 and levels_age_s >= self.settings.level_apply_grace_s
-                and (tickets_without_sl or tickets_without_tp)):
+                and required_levels_missing):
             key = (sig_id, "levels_not_applied")
             issues.append((
                 key, sig_id, "levels", "warning",
@@ -532,6 +545,7 @@ class LiveAuditor:
                     "code": "levels_not_applied",
                     "tickets_without_sl": tickets_without_sl,
                     "tickets_without_tp": tickets_without_tp,
+                    "tp_required": not gold_tp_intentionally_absent,
                     "mt5_open_tickets": mt5_open_tickets,
                     "age_s": round(age_s, 1),
                     "levels_age_s": round(levels_age_s, 1),

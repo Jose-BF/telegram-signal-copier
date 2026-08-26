@@ -28,6 +28,7 @@ import causal_trace
 import config
 import alert_graphics
 import dubai_live_candidate
+import gold_live_candidate
 import executor
 import journal
 import logger
@@ -168,6 +169,237 @@ def _attach_dubai_live_candidate(
     signal.be_at_tp_index = None
     signal.time_stop_at = None
     return True
+
+
+def _attach_gold_live_candidate(
+    signal: Signal,
+    first_fill_at: datetime,
+    *,
+    provisional_sl: float | None,
+) -> bool:
+    if (
+        signal.channel != "canal2"
+        or signal.entry_source_kind != "telegram_now"
+        or not config.STRATEGY_C2_GOLD_NOW_C490_ENABLED
+    ):
+        return False
+    policy = gold_live_candidate.GoldLivePolicy()
+    signal.live_strategy_id = gold_live_candidate.CANDIDATE_ID
+    signal.live_strategy_fingerprint = policy.fingerprint
+    signal.candidate_first_fill_at = first_fill_at
+    signal.candidate_provisional_sl = provisional_sl
+    if signal.market_ticket and signal.market_fill_price is not None:
+        signal.candidate_entry_prices_by_ticket[int(signal.market_ticket)] = (
+            float(signal.market_fill_price)
+        )
+    signal.entry_mode = "scale_out"
+    signal.target_tp_index = None
+    signal.be_at_tp_index = None
+    signal.time_stop_at = None
+    return True
+
+
+def _journal_gold_candidate_plan(signal: Signal) -> None:
+    if signal.live_strategy_id != gold_live_candidate.CANDIDATE_ID:
+        return
+    policy = gold_live_candidate.GoldLivePolicy()
+    journal.event(
+        _sig_id(signal),
+        "gold_live_candidate_attached",
+        strategy_id=signal.live_strategy_id,
+        strategy_fingerprint=signal.live_strategy_fingerprint,
+        scope="telegram_now_only",
+        leg_count=policy.live_leg_count,
+        volume_per_leg=policy.live_volume_per_leg,
+        provisional_sl=signal.candidate_provisional_sl,
+        broker_loss_budget_per_leg_eur=(
+            policy.broker_loss_budget_per_leg
+        ),
+        target_mode=policy.target_mode,
+        be_mode=policy.be_mode,
+        be_trigger=policy.be_trigger,
+        basket_stop_eur=-float(policy.stop_value),
+        profit_lock_arm_eur=policy.profit_lock_arm,
+        profit_lock_giveback_eur=policy.profit_lock_giveback,
+        time_exit_min=policy.time_exit_min,
+        time_exit_mode=policy.time_exit_mode,
+        provider_management_mode=policy.provider_management_mode,
+        sl_install_policy="open_then_recalculate_and_retry_persistently",
+    )
+
+
+async def _ensure_gold_candidate_hard_stops(
+    signal: Signal,
+    *,
+    force: bool = False,
+) -> int:
+    """Persistently request a real broker SL for every open Gold leg."""
+    if signal.live_strategy_id != gold_live_candidate.CANDIDATE_ID:
+        return 0
+    policy = gold_live_candidate.GoldLivePolicy()
+    if signal.live_strategy_fingerprint != policy.fingerprint:
+        raise RuntimeError("Gold frozen strategy fingerprint mismatch")
+
+    tickets = list(signal.all_filled_tickets)
+    specs = await _run(executor.open_position_specs, tickets)
+    if specs is None:
+        if not signal.candidate_sl_install_alerted:
+            signal.candidate_sl_install_alerted = True
+            journal.anomaly(
+                _sig_id(signal),
+                "mt5",
+                "critical",
+                "Gold candidate cannot verify broker SLs; retry remains active",
+                tickets=tickets,
+                strategy_id=signal.live_strategy_id,
+            )
+        return 0
+
+    requested = 0
+    hard_unresolved = []
+    be_unresolved = []
+    be_requested_now = []
+    now = time.time()
+    for ticket, spec in specs.items():
+        ticket = int(ticket)
+        hard_target = await _run(
+            executor.loss_stop_price,
+            signal.direction,
+            float(spec["volume"]),
+            float(spec["entry"]),
+            policy.broker_loss_budget_per_leg,
+            spec.get("symbol"),
+        )
+        if hard_target is None:
+            hard_unresolved.append(ticket)
+            continue
+        hard_target = float(hard_target)
+        signal.candidate_hard_stops[ticket] = hard_target
+        installed = float(spec.get("sl") or 0.0)
+        point = max(float(spec.get("point") or 0.01), 1e-8)
+        hard_protected = bool(
+            installed > 0
+            and (
+                installed >= hard_target - point / 2
+                if signal.direction == "BUY"
+                else installed <= hard_target + point / 2
+            )
+        )
+        be_requested = ticket in signal.candidate_be_tickets
+        be_target = float(spec["entry"])
+        be_protected = bool(
+            installed > 0
+            and (
+                installed >= be_target - point / 2
+                if signal.direction == "BUY"
+                else installed <= be_target + point / 2
+            )
+        )
+
+        if hard_protected:
+            if ticket not in signal.candidate_sl_confirmed_tickets:
+                signal.candidate_sl_confirmed_tickets.append(ticket)
+                journal.event(
+                    _sig_id(signal),
+                    "gold_broker_sl_confirmed",
+                    strategy_id=signal.live_strategy_id,
+                    ticket=ticket,
+                    installed_sl=installed,
+                    required_hard_stop=hard_target,
+                    protected_by=(
+                        "break_even_or_better"
+                        if be_protected
+                        else "hard_stop"
+                    ),
+                )
+
+        if be_requested and be_protected:
+            continue
+        if not be_requested and hard_protected:
+            continue
+
+        if hard_protected:
+            be_unresolved.append(ticket)
+            requested_target = be_target
+            label = f"GOLD BE #{ticket} -> {be_target:.2f}"
+        else:
+            hard_unresolved.append(ticket)
+            requested_target = hard_target
+            label = f"GOLD HARD SL #{ticket} -> {hard_target:.2f}"
+
+        last_request = float(
+            signal.candidate_hard_stop_requested_at.get(ticket, 0.0)
+        )
+        last_level = signal.candidate_sl_requested_levels.get(ticket)
+        same_level = bool(
+            last_level is not None
+            and abs(float(last_level) - requested_target) <= point / 2
+        )
+        if not force and same_level and now - last_request < 5.0:
+            continue
+        pending_actions.enqueue_modify_sl(
+            signal,
+            ticket,
+            requested_target,
+            label=label,
+            persist_until_signal_close=True,
+        )
+        signal.candidate_hard_stop_requested_at[ticket] = now
+        signal.candidate_sl_requested_levels[ticket] = requested_target
+        if hard_protected:
+            be_requested_now.append(ticket)
+        requested += 1
+
+    if hard_unresolved and not signal.candidate_sl_install_alerted:
+        signal.candidate_sl_install_alerted = True
+        journal.anomaly(
+            _sig_id(signal),
+            "sl_be",
+            "critical",
+            "Gold candidate broker SL is not yet confirmed; persistent retry active",
+            unresolved_tickets=hard_unresolved,
+            strategy_id=signal.live_strategy_id,
+            close_on_install_failure=False,
+        )
+        _schedule_detached(notify(
+            f"⚠️ {provider_display_name(signal.channel)}\n"
+            f"SL AUN SIN CONFIRMAR\n\n"
+            f"La cesta sigue abierta y el bot continuará intentando instalar "
+            f"el SL en {len(hard_unresolved)} posición(es). No se ha cerrado la "
+            f"operación por este fallo."
+        ))
+    elif not hard_unresolved and signal.candidate_sl_install_alerted:
+        signal.candidate_sl_install_alerted = False
+        journal.event(
+            _sig_id(signal),
+            "gold_broker_sl_recovered",
+            strategy_id=signal.live_strategy_id,
+            tickets=sorted(specs),
+        )
+
+    if be_requested_now:
+        journal.event(
+            _sig_id(signal),
+            "gold_be_pending",
+            strategy_id=signal.live_strategy_id,
+            tickets=be_requested_now,
+            unresolved_tickets=be_unresolved,
+            hard_stop_confirmed=True,
+            persist_until_signal_close=True,
+        )
+
+    if requested:
+        journal.event(
+            _sig_id(signal),
+            "gold_broker_sl_requested",
+            strategy_id=signal.live_strategy_id,
+            strategy_fingerprint=signal.live_strategy_fingerprint,
+            requested_count=requested,
+            hard_stops=dict(signal.candidate_hard_stops),
+            persist_until_signal_close=True,
+            close_on_install_failure=False,
+        )
+    return requested
 
 
 def _journal_dubai_candidate_plan(signal: Signal) -> None:
@@ -625,6 +857,35 @@ def _log_strategy_snapshot(signal: Signal, *, num_entries: int | None = None,
                     policy.provider_management_mode
                 ),
             }
+        elif signal.live_strategy_id == gold_live_candidate.CANDIDATE_ID:
+            policy = gold_live_candidate.GoldLivePolicy()
+            num_entries = policy.live_leg_count
+            time_stop_min = policy.time_exit_min
+            candidate_fields = {
+                "live_strategy_id": signal.live_strategy_id,
+                "live_strategy_fingerprint": (
+                    signal.live_strategy_fingerprint
+                ),
+                "volume_weights": [
+                    policy.live_volume_per_leg
+                ] * policy.live_leg_count,
+                "target_mode": policy.target_mode,
+                "be_mode": policy.be_mode,
+                "be_trigger": policy.be_trigger,
+                "basket_stop_eur": -float(policy.stop_value),
+                "profit_lock_arm_eur": float(policy.profit_lock_arm),
+                "profit_lock_giveback_eur": float(
+                    policy.profit_lock_giveback
+                ),
+                "time_exit_mode": policy.time_exit_mode,
+                "provider_management_mode": (
+                    policy.provider_management_mode
+                ),
+                "broker_sl_mode": "per_leg_persistent",
+                "broker_loss_budget_per_leg_eur": (
+                    policy.broker_loss_budget_per_leg
+                ),
+            }
         journal.event(
             _sig_id(signal), "strategy_snapshot",
             entry_mode=signal.entry_mode,
@@ -876,6 +1137,21 @@ async def _handle_explicit_signal_retraction(msg, channel: str) -> bool:
             f"Mensaje: {text[:180]}\n"
             "El bot no cambió ninguna operación. Revisa MT5."
         ))
+        return True
+
+    if candidate.live_strategy_id == gold_live_candidate.CANDIDATE_ID:
+        journal.event(
+            _sig_id(candidate),
+            "gold_provider_retraction_observed_not_applied",
+            strategy_id=candidate.live_strategy_id,
+            strategy_fingerprint=candidate.live_strategy_fingerprint,
+            retraction_message_id=getattr(msg, "id", None),
+            retracted_signal_id=_sig_id(candidate),
+            original_signal_id=_sig_id(original),
+            age_s=round(float(result.get("age_s", 0.0)), 3),
+            raw_text=text[:240],
+            reason="frozen_candidate_provider_management_mode_ignore",
+        )
         return True
 
     candidate.requested_close_reason = "PROVIDER_RETRACTED"
@@ -2472,7 +2748,11 @@ def _num_entries_for_channel(channel: str) -> int:
 def _rescue_market_capacity(signal: Signal) -> dict:
     """Return whether one more same-sized market leg fits the live cap."""
     current_positions = len(signal.all_filled_tickets)
-    lot = float(signal.effective_lot)
+    lot = (
+        gold_live_candidate.GoldLivePolicy().live_volume_per_leg
+        if signal.live_strategy_id == gold_live_candidate.CANDIDATE_ID
+        else float(signal.effective_lot)
+    )
     current_lots = round(current_positions * lot, 8)
     projected_lots = round(current_lots + lot, 8)
     max_lots = round(
@@ -2498,10 +2778,13 @@ async def _place_dca(signal: Signal):
     """
     if signal.dca_placed:
         return
-    signal.dca_placed = True
 
-    candidate_active = (
+    dubai_candidate_active = (
         signal.live_strategy_id == dubai_live_candidate.CANDIDATE_ID
+    )
+    candidate_active = bool(
+        dubai_candidate_active
+        or signal.live_strategy_id == gold_live_candidate.CANDIDATE_ID
     )
 
     needs_monitor_anyway = (
@@ -2518,13 +2801,14 @@ async def _place_dca(signal: Signal):
             "[Trade Monitor] Sin BE/time-stop/proteccion de cesta; "
             "monitor omitido."
         )
+        signal.dca_placed = True
         return
 
     guard_active = bool(
-        signal.channel == "canal1"
-        and (
-            config.STRATEGY_C1_BASKET_GUARD_ENABLED
-            or candidate_active
+        candidate_active
+        or (
+            signal.channel == "canal1"
+            and config.STRATEGY_C1_BASKET_GUARD_ENABLED
         )
     )
     print(
@@ -2533,13 +2817,14 @@ async def _place_dca(signal: Signal):
         f"basket_guard={guard_active})"
     )
     levels = []
-    if candidate_active:
+    if dubai_candidate_active:
         levels = [
             float(leg["trigger_price"])
             for leg in signal.candidate_entry_legs
             if leg.get("trigger_price") is not None
         ]
     position_lifecycle_monitor.start(signal, levels)
+    signal.dca_placed = True
     return
 
 async def _open_extra_legs(sig: Signal, msg_id: int) -> None:
@@ -2577,6 +2862,9 @@ async def _open_extra_legs_impl(sig: Signal, msg_id: int) -> None:
             "scale-out inmediato omitido; escalera adversa activa"
         )
         return
+    gold_candidate = (
+        sig.live_strategy_id == gold_live_candidate.CANDIDATE_ID
+    )
     entry_mode = (config.STRATEGY_C1_ENTRY_MODE if channel == "canal1"
                   else config.STRATEGY_C2_ENTRY_MODE)
     magic = config.magic_for(channel)
@@ -2584,8 +2872,14 @@ async def _open_extra_legs_impl(sig: Signal, msg_id: int) -> None:
     sig_id = _sig_id(sig)
 
     # ── Modo scale_out: N-1 legs market, escalonado natural (sin override) ──
-    if entry_mode == "scale_out":
-        n_legs = _num_entries_for_channel(channel)
+    if gold_candidate or entry_mode == "scale_out":
+        if gold_candidate:
+            policy = gold_live_candidate.GoldLivePolicy()
+            n_legs = policy.live_leg_count
+            leg_lot = policy.live_volume_per_leg
+        else:
+            n_legs = _num_entries_for_channel(channel)
+            leg_lot = config.LOT_SIZE
         opened = 0
         n_attempted = max(0, n_legs - 1)
         for n in range(1, n_legs):   # n = 1..N-1 (la leg 0 es el market inicial)
@@ -2603,9 +2897,19 @@ async def _open_extra_legs_impl(sig: Signal, msg_id: int) -> None:
                     f"{capacity['max_lots']:.2f} lot por senal"
                 )
                 break
-            result = await _run(executor.open_market_with_fill, sig.direction,
-                                config.LOT_SIZE, None, None,
-                                f"{cprefix}_{msg_id}_B{n}", magic)
+            comment = (
+                gold_live_candidate.market_comment(msg_id, n)
+                if gold_candidate else f"{cprefix}_{msg_id}_B{n}"
+            )
+            result = await _run(
+                executor.open_market_with_fill,
+                sig.direction,
+                leg_lot,
+                sig.candidate_provisional_sl if gold_candidate else None,
+                None,
+                comment,
+                magic,
+            )
             if not result:
                 journal.event(sig_id, "scale_out_leg_fill_failed", leg=n)
                 print(f"[{channel}] Scale-out leg B{n} FALLO")
@@ -2613,12 +2917,20 @@ async def _open_extra_legs_impl(sig: Signal, msg_id: int) -> None:
             ticket_l, fill_l = result
             sig.extra_market_tickets.append(ticket_l)
             sig.extra_market_fill_prices.append(fill_l)
+            if gold_candidate:
+                sig.candidate_entry_prices_by_ticket[int(ticket_l)] = float(
+                    fill_l
+                )
             opened += 1
             journal.event(sig_id, "scale_out_leg_filled",
                           ticket=ticket_l, price=fill_l, leg=n,
                           fill_a=sig.market_fill_price)
+        management_label = (
+            "gestion Gold congelada, sin TP fijo"
+            if gold_candidate else "TPs escalonados"
+        )
         print(f"[{channel}] Scale-out: {opened + 1}/{n_legs} posiciones market "
-              f"abiertas (1 inicial + {opened} legs), TPs escalonados")
+              f"abiertas (1 inicial + {opened} legs), {management_label}")
 
         # C1 (Batch C): si faltaron legs por fallo de fill, emitir anomaly
         # según severidad. Antes solo se logueaban los `*_fill_failed` por
@@ -2702,6 +3014,19 @@ async def _apply_sl_tp(signal: Signal):
             effective_sl=signal.sl,
             has_open_runner=bool(signal.has_open_runner),
             reason="frozen_candidate_target_and_be_modes_are_none",
+        )
+        return
+    if signal.live_strategy_id == gold_live_candidate.CANDIDATE_ID:
+        journal.event(
+            _sig_id(signal),
+            "gold_provider_levels_observed_not_applied",
+            strategy_id=signal.live_strategy_id,
+            strategy_fingerprint=signal.live_strategy_fingerprint,
+            provider_tps=list(signal.provider_tps),
+            provider_sl=(signal.sl if signal.provider_sl_received else None),
+            effective_tps=[],
+            broker_hard_stops=dict(signal.candidate_hard_stops),
+            reason="frozen_candidate_owns_exit_management",
         )
         return
 
@@ -2974,6 +3299,19 @@ async def _handle_range_arrival_safety(signal: Signal, lo: float, hi: float) -> 
                 range_low=float(lo),
                 range_high=float(hi),
                 reason="frozen_candidate_uses_its_own_adverse_ladder",
+            )
+        return False
+    if signal.live_strategy_id == gold_live_candidate.CANDIDATE_ID:
+        if not signal.range_safety_applied:
+            signal.range_safety_applied = True
+            journal.event(
+                _sig_id(signal),
+                "gold_provider_range_observed_not_applied",
+                strategy_id=signal.live_strategy_id,
+                strategy_fingerprint=signal.live_strategy_fingerprint,
+                range_low=float(lo),
+                range_high=float(hi),
+                reason="frozen_candidate_retains_observed_market_basket",
             )
         return False
 
@@ -4637,6 +4975,23 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
     action = classification.get("action", "INFORMATIONAL")
     price  = classification.get("price")
     conf   = classification.get("confidence", 0)
+
+    if signal.live_strategy_id == gold_live_candidate.CANDIDATE_ID:
+        journal.event(
+            _sig_id(signal),
+            "gold_provider_action_observed_not_applied",
+            strategy_id=signal.live_strategy_id,
+            strategy_fingerprint=signal.live_strategy_fingerprint,
+            action=action,
+            price=price,
+            provider_stated_be_price=classification.get(
+                "provider_stated_be_price"
+            ),
+            confidence=conf,
+            raw_snippet=(raw_text or "")[:200],
+            reason="frozen_candidate_provider_management_mode_ignore",
+        )
+        return "ignored"
 
     if signal.live_strategy_id == dubai_live_candidate.CANDIDATE_ID:
         if dubai_live_candidate.is_provider_close_action(action):
@@ -6699,9 +7054,19 @@ async def _open_canal2_intent(
                 f"(message_id={message_id}). Posible reconexion Telethon."
             )
 
-    effective_lot = max(
-        0.01,
-        round(config.LOT_SIZE * float(intent.lot_multiplier), 2),
+    gold_policy = None
+    if (
+        intent.source_kind == "telegram_now"
+        and config.STRATEGY_C2_GOLD_NOW_C490_ENABLED
+    ):
+        gold_policy = gold_live_candidate.GoldLivePolicy()
+    effective_lot = (
+        gold_policy.live_volume_per_leg
+        if gold_policy is not None
+        else max(
+            0.01,
+            round(config.LOT_SIZE * float(intent.lot_multiplier), 2),
+        )
     )
     trigger = intent.trigger or {}
     print(
@@ -6749,6 +7114,14 @@ async def _open_canal2_intent(
         ),
         zone_trigger_clock_residual_ms=trigger.get("clock_residual_ms"),
         zone_trigger_clock_basis=trigger.get("clock_basis"),
+        live_strategy_id=(
+            gold_live_candidate.CANDIDATE_ID
+            if gold_policy is not None else None
+        ),
+        live_strategy_fingerprint=(
+            gold_policy.fingerprint
+            if gold_policy is not None else None
+        ),
     )
 
     if not _canal2_open_claim(message_id):
@@ -6766,6 +7139,24 @@ async def _open_canal2_intent(
         return None
 
     try:
+        if gold_policy is not None:
+            account_evidence = await _run(executor.account_evidence)
+            gold_live_candidate.assert_demo_eur_account(
+                account_evidence,
+                demo_trade_mode=int(
+                    getattr(executor.mt5, "ACCOUNT_TRADE_MODE_DEMO", 0)
+                ),
+            )
+            journal.event(
+                sig_id_pre,
+                "gold_preopen_account_verified",
+                strategy_id=gold_live_candidate.CANDIDATE_ID,
+                strategy_fingerprint=gold_policy.fingerprint,
+                account_login=account_evidence.get("login"),
+                account_server=account_evidence.get("server"),
+                trade_mode=account_evidence.get("trade_mode_name"),
+                currency=account_evidence.get("currency"),
+            )
         ctx = await _run(compute_market_context, config.MT5_SYMBOL)
         if ctx:
             journal.event(sig_id_pre, "market_context", **ctx)
@@ -6779,13 +7170,63 @@ async def _open_canal2_intent(
             sig_id_pre, "canal2", parsed, interpreted, reference_price
         )
         parsed = interpreted["parsed"]
+        provisional_sl = parsed.get("sl")
+        first_tp = parsed["tps"][0] if parsed.get("tps") else None
+        order_comment = f"c2_{message_id}"
+        if gold_policy is not None:
+            calculated_sl = None
+            if reference_price is not None:
+                calculated_sl = await _run(
+                    executor.loss_stop_price,
+                    direction,
+                    gold_policy.live_volume_per_leg,
+                    reference_price,
+                    gold_policy.broker_loss_budget_per_leg,
+                    config.MT5_SYMBOL,
+                )
+            if calculated_sl is not None:
+                provisional_sl = float(calculated_sl)
+            elif provisional_sl is None and reference_price is not None:
+                provisional_sl = predict_sl_from_entry(
+                    direction,
+                    reference_price,
+                )
+            first_tp = None
+            order_comment = gold_live_candidate.market_comment(message_id)
+            journal.event(
+                sig_id_pre,
+                "gold_preopen_broker_sl_prepared",
+                strategy_id=gold_live_candidate.CANDIDATE_ID,
+                strategy_fingerprint=gold_policy.fingerprint,
+                reference_price=reference_price,
+                provisional_sl=provisional_sl,
+                monetary_sl_available=calculated_sl is not None,
+                fallback_source=(
+                    None
+                    if calculated_sl is not None
+                    else "interpreted_protective_sl"
+                ),
+                loss_budget_per_leg=(
+                    gold_policy.broker_loss_budget_per_leg
+                ),
+            )
+            if provisional_sl is None:
+                journal.anomaly(
+                    sig_id_pre,
+                    "sl_be",
+                    "critical",
+                    "Gold NOW no pudo calcular SL antes del fill; "
+                    "se reintentara inmediatamente tras conocer el ticket",
+                    strategy_id=gold_live_candidate.CANDIDATE_ID,
+                    open_without_sl=True,
+                )
         result = await _run(
             executor.open_market_with_fill,
             direction,
             effective_lot,
-            parsed.get("sl"),
-            parsed["tps"][0] if parsed.get("tps") else None,
-            f"c2_{message_id}",
+            provisional_sl,
+            first_tp,
+            order_comment,
             config.magic_for("canal2"),
         )
     except Exception:
@@ -6817,7 +7258,24 @@ async def _open_canal2_intent(
     fill_latency_ms = int(
         (market_filled_utc - signal_received_utc).total_seconds() * 1000
     )
-    tick_ctx = await _run(executor.current_tick_safe)
+    try:
+        tick_ctx = await _run(executor.current_tick_safe)
+    except Exception as exc:
+        # The order already exists. Losing optional post-fill telemetry must
+        # never abort registration and supervision of that live exposure.
+        tick_ctx = pre_open_tick
+        journal.event(
+            sig_id_pre,
+            "post_fill_tick_unavailable",
+            exc_type=type(exc).__name__,
+            exc_msg=str(exc)[:240],
+            fallback="pre_open_tick",
+            ticket=ticket,
+            live_strategy_id=(
+                gold_live_candidate.CANDIDATE_ID
+                if gold_policy is not None else None
+            ),
+        )
     journal.event(
         sig_id_pre,
         "market_filled",
@@ -6847,6 +7305,14 @@ async def _open_canal2_intent(
             "broker_utc_offset_s"
         ),
         zone_trigger_clock_basis=trigger.get("clock_basis"),
+        live_strategy_id=(
+            gold_live_candidate.CANDIDATE_ID
+            if gold_policy is not None else None
+        ),
+        live_strategy_fingerprint=(
+            gold_policy.fingerprint
+            if gold_policy is not None else None
+        ),
     )
 
     c2_be_idx = (
@@ -6888,7 +7354,17 @@ async def _open_canal2_intent(
         zone_trigger_time_msc=trigger.get("time_msc"),
         zone_entry_generation=intent.zone_entry_generation,
     )
+    if gold_policy is not None:
+        _attach_gold_live_candidate(
+            sig,
+            market_filled_utc,
+            provisional_sl=provisional_sl,
+        )
     state.add(sig)
+    if gold_policy is not None:
+        # Arm supervision as soon as the first ticket has durable state.
+        # Later setup failures must not leave that live ticket unmonitored.
+        await _place_dca(sig)
     _emit_same_direction_overlap_anomaly(sig)
     journal.begin_trade(
         _sig_id(sig),
@@ -6913,13 +7389,26 @@ async def _open_canal2_intent(
         ),
         zone_trigger_clock_basis=trigger.get("clock_basis"),
         zone_entry_generation=intent.zone_entry_generation,
+        live_strategy_id=sig.live_strategy_id,
+        live_strategy_fingerprint=sig.live_strategy_fingerprint,
     )
+    _journal_gold_candidate_plan(sig)
     _log_strategy_snapshot(
         sig,
-        num_entries=config.STRATEGY_C2_NUM_ENTRIES,
-        time_stop_min=config.STRATEGY_C2_TIME_STOP_MIN,
+        num_entries=(
+            gold_policy.live_leg_count
+            if gold_policy is not None
+            else config.STRATEGY_C2_NUM_ENTRIES
+        ),
+        time_stop_min=(
+            gold_policy.time_exit_min
+            if gold_policy is not None
+            else config.STRATEGY_C2_TIME_STOP_MIN
+        ),
     )
     await _open_extra_legs(sig, message_id)
+    if gold_policy is not None:
+        await _ensure_gold_candidate_hard_stops(sig, force=True)
     parsed = await _apply_interpreted_entry_levels(
         sig,
         provider_parsed,

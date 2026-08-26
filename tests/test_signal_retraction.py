@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import gold_live_candidate
 import listener
 import position_lifecycle_monitor
 from state import Signal, StateManager
@@ -129,6 +130,52 @@ async def test_explicit_retraction_closes_only_proven_newest_duplicate(monkeypat
     applied = next(fields for _, ev, fields in events if ev == "provider_duplicate_retraction_applied")
     assert applied["original_signal_id"] == "canal2_1358"
     assert applied["retracted_signal_id"] == "canal2_1359"
+
+
+@pytest.mark.asyncio
+async def test_gold_candidate_retraction_is_evidence_only(monkeypatch):
+    now = datetime(2026, 8, 26, 9, 15)
+    original = _signal(2053, now - timedelta(minutes=20), ticket=101)
+    duplicate = _signal(2054, now - timedelta(seconds=25), ticket=201)
+    duplicate.live_strategy_id = gold_live_candidate.CANDIDATE_ID
+    duplicate.live_strategy_fingerprint = (
+        gold_live_candidate.CANDIDATE_FINGERPRINT
+    )
+    local_state = StateManager()
+    local_state.add(original)
+    local_state.add(duplicate)
+    events = []
+
+    monkeypatch.setattr(listener, "state", local_state)
+    monkeypatch.setattr(
+        listener.pending_actions,
+        "enqueue_close_position",
+        lambda *_args, **_kwargs: pytest.fail(
+            "the frozen Gold policy must not execute provider retractions"
+        ),
+    )
+    monkeypatch.setattr(
+        listener.journal,
+        "event",
+        lambda sig, ev, **fields: events.append((sig, ev, fields)),
+    )
+    monkeypatch.setattr(listener, "_schedule_detached", lambda awaitable: awaitable.close())
+
+    msg = SimpleNamespace(
+        id=2055,
+        text="This is not a new signal",
+        message="This is not a new signal",
+        date=now.replace(tzinfo=timezone.utc),
+    )
+
+    assert await listener._handle_explicit_signal_retraction(msg, "canal2") is True
+    assert duplicate.requested_close_reason is None
+    observed = next(
+        fields for _, ev, fields in events
+        if ev == "gold_provider_retraction_observed_not_applied"
+    )
+    assert observed["retracted_signal_id"] == "canal2_2054"
+    assert observed["original_signal_id"] == "canal2_2053"
 
 
 def test_retracted_signal_finalizes_with_provider_reason():

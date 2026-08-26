@@ -713,6 +713,111 @@ def open_market(direction: str, lot: float,
     return result[0] if result else None
 
 
+def loss_stop_price(
+    direction: str,
+    volume: float,
+    entry_price: float,
+    loss_budget: float,
+    symbol: Optional[str] = None,
+) -> Optional[float]:
+    """Return a broker SL whose MT5-valued loss does not exceed a budget.
+
+    The account currency conversion is delegated to ``order_calc_profit``;
+    no XAUUSD contract-size or FX assumption is duplicated in Python. ``None``
+    means MT5 could not establish a trustworthy monetary price.
+    """
+    import math
+
+    direction = str(direction).upper()
+    if direction not in {"BUY", "SELL"}:
+        raise ValueError("direction must be BUY or SELL")
+    volume = float(volume)
+    entry_price = float(entry_price)
+    loss_budget = float(loss_budget)
+    if any(
+        not math.isfinite(value) or value <= 0
+        for value in (volume, entry_price, loss_budget)
+    ):
+        raise ValueError("volume, entry and loss budget must be positive")
+
+    symbol = symbol or config.MT5_SYMBOL
+    info = mt5.symbol_info(symbol)
+    if info is None:
+        return None
+    point = float(getattr(info, "point", 0.0) or 0.0)
+    digits = int(getattr(info, "digits", 2) or 2)
+    if not math.isfinite(point) or point <= 0:
+        return None
+    order_type = (
+        mt5.ORDER_TYPE_BUY if direction == "BUY" else mt5.ORDER_TYPE_SELL
+    )
+
+    def projected(price: float) -> Optional[float]:
+        value = mt5.order_calc_profit(
+            order_type,
+            symbol,
+            volume,
+            entry_price,
+            float(price),
+        )
+        if value is None:
+            return None
+        value = float(value)
+        return value if math.isfinite(value) else None
+
+    if projected(entry_price) is None:
+        return None
+    target = -loss_budget
+    safe = entry_price
+    step = max(1.0, point)
+    adverse = entry_price - step if direction == "BUY" else entry_price + step
+    adverse_pl = projected(adverse)
+    for _ in range(64):
+        if adverse_pl is None:
+            return None
+        if adverse_pl <= target:
+            break
+        step *= 2.0
+        adverse = (
+            entry_price - step if direction == "BUY" else entry_price + step
+        )
+        if adverse <= point:
+            adverse = point
+        adverse_pl = projected(adverse)
+    else:
+        return None
+    if adverse_pl is None or adverse_pl > target:
+        return None
+
+    for _ in range(80):
+        midpoint = (safe + adverse) / 2.0
+        value = projected(midpoint)
+        if value is None:
+            return None
+        if value < target:
+            adverse = midpoint
+        else:
+            safe = midpoint
+
+    units = safe / point
+    safe_units = math.ceil(units - 1e-10) if direction == "BUY" else math.floor(units + 1e-10)
+    result = round(safe_units * point, digits)
+    result_pl = projected(result)
+    if result_pl is None:
+        return None
+    # Floating arithmetic around one point must never make the returned stop
+    # more lossy than the requested monetary envelope.
+    while result_pl < target - 1e-8:
+        result = round(
+            result + point if direction == "BUY" else result - point,
+            digits,
+        )
+        result_pl = projected(result)
+        if result_pl is None or result <= 0:
+            return None
+    return result
+
+
 def open_market_with_fill(direction: str, lot: float,
                           sl: Optional[float] = None,
                           tp: Optional[float] = None,
@@ -1524,6 +1629,36 @@ def open_position_levels(tickets: list[int]) -> Optional[dict[int, dict]]:
     return levels
 
 
+def open_position_specs(tickets: list[int]) -> Optional[dict[int, dict]]:
+    """Return actual entry, volume and installed levels for open tickets."""
+    if not tickets:
+        return {}
+    all_open = mt5.positions_get()
+    if all_open is None:
+        return None
+    wanted = set(int(ticket) for ticket in tickets)
+    symbol_specs = {}
+    result = {}
+    for position in all_open:
+        ticket = int(position.ticket)
+        if ticket not in wanted:
+            continue
+        symbol = str(getattr(position, "symbol", config.MT5_SYMBOL))
+        if symbol not in symbol_specs:
+            symbol_specs[symbol] = mt5.symbol_info(symbol)
+        info = symbol_specs[symbol]
+        result[ticket] = {
+            "symbol": symbol,
+            "entry": float(position.price_open),
+            "volume": float(position.volume),
+            "sl": float(getattr(position, "sl", 0.0) or 0.0),
+            "tp": float(getattr(position, "tp", 0.0) or 0.0),
+            "digits": int(getattr(info, "digits", 2) if info else 2),
+            "point": float(getattr(info, "point", 0.01) if info else 0.01),
+        }
+    return result
+
+
 def risk_free_basket_snapshot(tickets: list[int]) -> Optional[dict]:
     """Capture the account-currency evidence needed to secure a basket.
 
@@ -1690,13 +1825,15 @@ import re as _re_resync
 #   "c2_12015_B"             → Market B del doble market (commit 2026-05-14)
 #   "c2_12015_B1".."_B4"     → legs extra del modo scale_out (2026-05-17)
 #   "c1_19236_dv1"           → market Dubai candidate (crash-safe marker)
+#   "c2_2054_gv1"            → market Gold NOW candidate (crash-safe marker)
+#   "c2_2054_B1_gv1"         → extra Gold NOW candidate leg
 #   "DCA_c1_19236_4593.5"    → DCA nuevo (con signal_id) — formato actual
 #   "DCA_4593.5"             → DCA viejo (sin signal_id) — backward compat
 # _RX_MARKET acepta sufijo _rescue o _B/_BN. Sin _B el resync ignoraba el
 # Market B del doble market (canal2_12497 perdio +$6.05); _BN cubre las
 # legs del modo scale_out (una posicion market por TP).
 _RX_MARKET = _re_resync.compile(
-    r"^c([12])_(\d+)(?:_rescue|_B\d*|_dv1)?$"
+    r"^c([12])_(\d+)(?:_rescue|_B\d*)?(?:_dv1|_gv1)?$"
 )
 _RX_DCA_NEW = _re_resync.compile(r"^DCA_c([12])_(\d+)_")
 _RX_CANDIDATE_DCA = _re_resync.compile(r"^DCA_c1_(\d+)_D([12])$")
@@ -1760,7 +1897,10 @@ def list_open_positions_grouped() -> dict[str, dict]:
         comment = p.comment or ""
         # _B es el doble market legacy; _B1.._B4 son legs scale-out. Ambos
         # son posiciones extra, pero solo _B debe recuperar el override TP3.
-        market_b_match = _re_resync.search(r"_B(\d*)$", comment)
+        market_b_match = _re_resync.search(
+            r"_B(\d*)(?:_gv1)?$",
+            comment,
+        )
         is_market_b = bool(market_b_match)
         is_legacy_market_b = bool(
             market_b_match and market_b_match.group(1) == ""
@@ -1788,10 +1928,23 @@ def list_open_positions_grouped() -> dict[str, dict]:
                 "dca_leg_indexes": {},
                 "live_strategy_marker": None,
                 "resync_anchor_role": None,
+                "position_entries": {},
+                "position_volumes": {},
+                "position_stops": {},
                 "_surviving_market_candidates": [],
                 "_surviving_candidate_legs": [],
                 "_extra_market_sort_keys": {},
             }
+
+        groups[sig_id]["position_entries"][int(p.ticket)] = float(
+            p.price_open
+        )
+        groups[sig_id]["position_volumes"][int(p.ticket)] = float(
+            getattr(p, "volume", 0.0) or 0.0
+        )
+        groups[sig_id]["position_stops"][int(p.ticket)] = (
+            float(p.sl) if p.sl > 0 else None
+        )
 
         if is_market:
             groups[sig_id]["market_ticket"] = p.ticket
@@ -1806,6 +1959,10 @@ def list_open_positions_grouped() -> dict[str, dict]:
             if comment.endswith("_dv1"):
                 groups[sig_id]["live_strategy_marker"] = (
                     "dubai_balanced_v1"
+                )
+            elif comment.endswith("_gv1"):
+                groups[sig_id]["live_strategy_marker"] = (
+                    "gold_now_c490_v1"
                 )
         elif is_market_b:
             groups[sig_id]["extra_market_tickets"].append(p.ticket)
@@ -1823,6 +1980,10 @@ def list_open_positions_grouped() -> dict[str, dict]:
                 int(p.ticket),
             )
             groups[sig_id]["_surviving_market_candidates"].append(p)
+            if comment.endswith("_gv1"):
+                groups[sig_id]["live_strategy_marker"] = (
+                    "gold_now_c490_v1"
+                )
         elif is_rescue or is_dca:
             groups[sig_id]["dca_tickets"].append(p.ticket)
             candidate_dca = _RX_CANDIDATE_DCA.match(comment)
