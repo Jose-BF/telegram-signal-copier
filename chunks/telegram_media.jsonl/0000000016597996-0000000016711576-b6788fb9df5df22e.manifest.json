@@ -1,0 +1,14 @@
+{
+  "byte_end": 16711576,
+  "byte_start": 16597996,
+  "code_commit": "86bf99064d4ecea91683086b31ed8fc8e669e037",
+  "compressed_bytes": 61945,
+  "compressed_sha256": "6638f67645d3c08922c21bdcbaf1653e6fbc6560192a61ca1802b0e31ccebc98",
+  "compression": "gzip",
+  "created_at": "2026-08-26T11:33:59+00:00",
+  "payload_file": "0000000016597996-0000000016711576-b6788fb9df5df22e.jsonl.gz",
+  "schema_version": 1,
+  "sha256": "b6788fb9df5df22efa132094badcdc642eaee3dc68f296b9a3535e6b1940db42",
+  "stream": "telegram_media.jsonl",
+  "uncompressed_bytes": 113580
+}
