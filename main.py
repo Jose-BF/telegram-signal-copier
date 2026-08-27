@@ -3750,26 +3750,39 @@ async def _strategy_shadow_loop(interval_s: float = 0.25) -> None:
             )
             if not history.complete:
                 continuity_failures += 1
-                if continuity_failures >= 3:
-                    strategy_shadow_runtime.install_runtime(None)
+                if continuity_failures == 3:
                     try:
                         journal.event(
                             "bot",
-                            "strategy_shadow_runtime_disabled",
-                            operation="tick_continuity",
-                            error_type="TickContinuityError",
-                            error="broker tick history cursor could not be proven",
+                            "strategy_shadow_tick_continuity_waiting",
+                            consecutive_failures=continuity_failures,
                             evidence_id=history.evidence_id,
                         )
                     except Exception:
                         pass
                     print(
-                        "[Shadow] observacion desactivada: no se pudo "
-                        "demostrar continuidad completa de ticks; "
-                        "el bot live continua"
+                        "[Shadow] continuidad pendiente; no se procesa "
+                        "ningun tick hasta que MT5 permita demostrarla"
                     )
-                await asyncio.sleep(max(0.1, float(interval_s)))
+                await asyncio.sleep(max(
+                    1.0 if continuity_failures >= 3 else 0.1,
+                    float(interval_s),
+                ))
                 continue
+            if continuity_failures >= 3:
+                try:
+                    journal.event(
+                        "bot",
+                        "strategy_shadow_tick_continuity_resumed",
+                        consecutive_failures=continuity_failures,
+                        evidence_id=history.evidence_id,
+                    )
+                except Exception:
+                    pass
+                print(
+                    "[Shadow] continuidad de ticks demostrada; "
+                    "observacion reanudada"
+                )
             continuity_failures = 0
             for observed in history.ticks:
                 # Yield so Telegram and live-order work already scheduled for

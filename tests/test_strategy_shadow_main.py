@@ -603,6 +603,144 @@ async def test_unexpected_shadow_tick_failure_disables_only_shadow_runtime(
 
 
 @pytest.mark.asyncio
+async def test_tick_continuity_pause_keeps_shadow_runtime_installed(
+    monkeypatch,
+):
+    events = []
+    calls = 0
+    cursor = (20_000, 4300.0, 4300.2, 4300.1, 6, 1.0)
+    latest = main._shadow_tick_from_values(
+        time_msc=20_001,
+        bid=4300.5,
+        ask=4300.7,
+        last=4300.6,
+        flags=6,
+        volume_real=2.0,
+        factors={"positive": 100.0, "negative": 100.0},
+        money_evidence_id="money-latest",
+    )
+
+    class Runtime:
+        def earliest_active_tick_identity(self):
+            return cursor
+
+    runtime = Runtime()
+    strategy_shadow_runtime.install_runtime(runtime)
+    monkeypatch.setattr(main.config, "STRATEGY_SHADOW_ENABLED", True)
+    monkeypatch.setattr(main, "_shadow_tick_snapshot", lambda: latest)
+    monkeypatch.setattr(
+        main.journal,
+        "event",
+        lambda signal_id, event, **fields: events.append(
+            (signal_id, event, fields)
+        ),
+    )
+
+    def incomplete_batch(_cursor, _latest):
+        nonlocal calls
+        calls += 1
+        if calls == 3:
+            monkeypatch.setattr(
+                main.config,
+                "STRATEGY_SHADOW_ENABLED",
+                False,
+            )
+        return strategy_shadow_runtime.ShadowTickHistory(
+            ticks=(),
+            complete=False,
+            evidence_id=f"missing-{calls}",
+        )
+
+    monkeypatch.setattr(main, "_shadow_live_tick_batch", incomplete_batch)
+
+    await main._strategy_shadow_loop(interval_s=0.01)
+
+    assert calls == 3
+    assert strategy_shadow_runtime.installed_runtime() is runtime
+    assert events == [(
+        "bot",
+        "strategy_shadow_tick_continuity_waiting",
+        {
+            "consecutive_failures": 3,
+            "evidence_id": "missing-3",
+        },
+    )]
+
+
+@pytest.mark.asyncio
+async def test_tick_continuity_resumes_from_same_cursor(monkeypatch):
+    events = []
+    processed = []
+    calls = 0
+    cursor = (20_000, 4300.0, 4300.2, 4300.1, 6, 1.0)
+    latest = main._shadow_tick_from_values(
+        time_msc=20_001,
+        bid=4300.5,
+        ask=4300.7,
+        last=4300.6,
+        flags=6,
+        volume_real=2.0,
+        factors={"positive": 100.0, "negative": 100.0},
+        money_evidence_id="money-latest",
+    )
+
+    class Runtime:
+        def earliest_active_tick_identity(self):
+            return cursor
+
+        async def process_tick(self, tick):
+            processed.append(tick.identity)
+            monkeypatch.setattr(
+                main.config,
+                "STRATEGY_SHADOW_ENABLED",
+                False,
+            )
+
+    runtime = Runtime()
+    strategy_shadow_runtime.install_runtime(runtime)
+    monkeypatch.setattr(main.config, "STRATEGY_SHADOW_ENABLED", True)
+    monkeypatch.setattr(main, "_shadow_tick_snapshot", lambda: latest)
+    monkeypatch.setattr(
+        main.journal,
+        "event",
+        lambda signal_id, event, **fields: events.append(
+            (signal_id, event, fields)
+        ),
+    )
+
+    def recovering_batch(_cursor, _latest):
+        nonlocal calls
+        calls += 1
+        if calls <= 3:
+            return strategy_shadow_runtime.ShadowTickHistory(
+                ticks=(),
+                complete=False,
+                evidence_id=f"missing-{calls}",
+            )
+        return strategy_shadow_runtime.ShadowTickHistory(
+            ticks=(latest,),
+            complete=True,
+            evidence_id="recovered-4",
+        )
+
+    monkeypatch.setattr(main, "_shadow_live_tick_batch", recovering_batch)
+
+    await main._strategy_shadow_loop(interval_s=0.01)
+
+    assert calls == 4
+    assert processed == [latest.identity]
+    assert strategy_shadow_runtime.installed_runtime() is runtime
+    assert [event for _, event, _ in events] == [
+        "strategy_shadow_tick_continuity_waiting",
+        "strategy_shadow_tick_continuity_resumed",
+    ]
+    assert events[-1][2] == {
+        "consecutive_failures": 3,
+        "evidence_id": "recovered-4",
+    }
+
+
+@pytest.mark.asyncio
 async def test_invalid_shadow_configuration_disables_only_shadows(
     monkeypatch,
     tmp_path,
