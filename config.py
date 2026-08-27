@@ -20,6 +20,7 @@ def _float(key: str, default: float) -> float:
 
 SUPPORTED_ENTRY_MODES = {"scale_out", "market_only"}
 DEPRECATED_ENTRY_MODES = {"intra_dca", "extremes"}
+SUPPORTED_GOLD_NOW_POLICIES = {"c490", "555", "legacy"}
 
 
 def normalize_entry_mode(value: str | None, default: str = "scale_out") -> str:
@@ -31,6 +32,23 @@ def normalize_entry_mode(value: str | None, default: str = "scale_out") -> str:
     if mode in DEPRECATED_ENTRY_MODES:
         return fallback
     return fallback
+
+
+def normalize_gold_now_policy(
+    value: str | None,
+    default: str = "c490",
+) -> str:
+    """Return an explicit immutable policy identity for Canal 2 NOW signals."""
+    fallback = str(default).strip().lower()
+    if fallback not in SUPPORTED_GOLD_NOW_POLICIES:
+        raise ValueError("default GOLD_NOW_LIVE_POLICY is unsupported")
+    policy = str(value or "").strip().lower() or fallback
+    if policy not in SUPPORTED_GOLD_NOW_POLICIES:
+        supported = ", ".join(sorted(SUPPORTED_GOLD_NOW_POLICIES))
+        raise ValueError(
+            f"GOLD_NOW_LIVE_POLICY={policy!r} no soportada; usa {supported}"
+        )
+    return policy
 
 # Telegram
 TELEGRAM_API_ID   = _int("TELEGRAM_API_ID")
@@ -242,11 +260,18 @@ STRATEGY_C2_TARGET_TP_INDEX = int(os.getenv("STRATEGY_C2_TARGET_TP_INDEX", "-1")
 STRATEGY_C2_BE_TP_INDEX     = int(os.getenv("STRATEGY_C2_BE_TP_INDEX", "0"))       # 0 = BE en TP1
 STRATEGY_C2_TIME_STOP_MIN   = int(os.getenv("STRATEGY_C2_TIME_STOP_MIN", "60"))    # notify only
 
-# Frozen Gold Signals NOW management candidate. It applies only to explicit
-# BUY/SELL NOW entries; zone-plan execution keeps its independent policy.
-STRATEGY_C2_GOLD_NOW_C490_ENABLED = (
+# Frozen Gold Signals NOW policy. It applies only to explicit BUY/SELL NOW
+# entries; zone-plan execution keeps its independent policy. The old boolean
+# remains a compatibility input when GOLD_NOW_LIVE_POLICY is absent.
+_GOLD_C490_COMPAT_ENABLED = (
     os.getenv("STRATEGY_C2_GOLD_NOW_C490_ENABLED", "1") == "1"
 )
+GOLD_NOW_LIVE_POLICY = normalize_gold_now_policy(
+    os.getenv("GOLD_NOW_LIVE_POLICY"),
+    default="c490" if _GOLD_C490_COMPAT_ENABLED else "legacy",
+)
+STRATEGY_C2_GOLD_NOW_C490_ENABLED = GOLD_NOW_LIVE_POLICY == "c490"
+STRATEGY_C2_GOLD_NOW_555_ENABLED = GOLD_NOW_LIVE_POLICY == "555"
 
 # Gold Signals zone plans are observed on first touch, but only an explicit
 # provider activation opens exposure by default. Set to 1 to restore the

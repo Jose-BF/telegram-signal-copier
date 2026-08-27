@@ -68,8 +68,8 @@ Current demo forward policy:
   refuses the candidate on a real, unverifiable or non-EUR MT5 account.
 - These are forward demo trials calibrated on retained history, not evidence
   of guaranteed profitability. Set `STRATEGY_C1_BALANCED_V1_ENABLED=0` for the
-  previous Dubai path or `STRATEGY_C2_GOLD_NOW_C490_ENABLED=0` for the previous
-  Gold NOW path.
+  previous Dubai path, or select `GOLD_NOW_LIVE_POLICY=c490`, `555` or `legacy`
+  for new Gold NOW baskets. Existing baskets retain their recorded policy.
 - Both candidate basket guards sample every fresh broker tick. Dubai remains
   process-protected; Gold NOW also has a broker-side catastrophe SL on every
   leg so a stopped Python process does not leave those positions naked.
