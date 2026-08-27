@@ -67,7 +67,16 @@ async def test_listener_registers_gold_now_but_excludes_zone_plans(monkeypatch):
     strategy_shadow_runtime.install_runtime(runtime)
     monkeypatch.setattr(listener.config, "STRATEGY_SHADOW_ENABLED", True)
     observed = datetime(2026, 8, 27, 8, 0, tzinfo=timezone.utc)
-    broker_tick = {"time_msc": 1234, "bid": 4300.0, "ask": 4300.2}
+    monkeypatch.setattr(
+        listener.broker_tick_clock,
+        "utc_now",
+        lambda: observed,
+    )
+    broker_tick = {
+        "time_msc": int(observed.timestamp() * 1000) + 10_800_000,
+        "bid": 4300.0,
+        "ask": 4300.2,
+    }
 
     excluded = await listener._shadow_register_accepted_entry(
         channel="canal2",
@@ -91,7 +100,9 @@ async def test_listener_registers_gold_now_but_excludes_zone_plans(monkeypatch):
     assert excluded == ()
     assert included
     assert [row["source_message_id"] for row in runtime.registrations] == [380]
-    assert runtime.registrations[0]["registered_tick_msc"] == 1234
+    assert runtime.registrations[0]["registered_tick_msc"] == int(
+        observed.timestamp() * 1000
+    )
 
 
 @pytest.mark.asyncio

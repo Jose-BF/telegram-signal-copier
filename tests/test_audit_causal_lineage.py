@@ -2094,6 +2094,52 @@ def test_explicit_pre_attempt_failure_can_close_action_with_evidence():
     assert report["summary"]["blocked"] == 0
 
 
+def test_signal_closed_cancellation_is_a_complete_non_failure_terminal():
+    complete = _complete_chain()
+    rows = [complete[0], complete[1]]
+    rows.append(_row(
+        "mt5_modify_requested",
+        "event_request",
+        monotonic_ns=120,
+        message_revision_id=_MSGREV_1,
+        decision_id="decision_1",
+        action_id="action_1",
+        ticket=101,
+        new_sl=4056.53,
+        new_tp=4059.53,
+        expected_magic=20260422,
+        action_revision=0,
+    ))
+    rows.append(_row(
+        "mt5_modify_cancelled_signal_closed",
+        "event_terminal",
+        message_revision_id=_MSGREV_1,
+        decision_id="decision_1",
+        action_id="action_1",
+        attempt_id=None,
+        kind="MODIFY_SLTP",
+        ticket=101,
+        attempts=0,
+        last_retcode=None,
+        reason="signal_closed_during_retry",
+        label="TP #101",
+        new_sl=4056.53,
+        new_tp=4059.53,
+        age_seconds=0.2,
+        expected_magic=20260422,
+        action_revision=0,
+        monotonic_ns=130,
+    ))
+    rows.append(complete[5])
+
+    report = audit_causal_lineage.audit_rows(
+        rows,
+        source_sha256="1" * 64,
+    )
+
+    assert report["summary"]["blocked"] == 0
+
+
 def test_position_gone_preflight_can_finish_without_executor_attempt():
     complete = _complete_chain()
     rows = [complete[0], complete[1]]

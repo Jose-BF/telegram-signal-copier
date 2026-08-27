@@ -48,6 +48,7 @@ builtins.print = _timestamped_print
 
 import causal_trace
 import broker_money
+import broker_tick_clock
 import config
 import dubai_live_candidate
 import gold_555_live_candidate
@@ -82,7 +83,7 @@ _TELEGRAM_RUN_BACKOFF_MAX_S = 120.0
 _last_broker_contract_error: str | None = None
 _broker_contract_ready: bool | None = None
 _shadow_money_contract_cache: dict | None = None
-_shadow_conversion_tick_cache: dict[str, list[dict]] = {}
+_shadow_conversion_tick_cache: dict[tuple[str, int], list[dict]] = {}
 
 
 def _should_alert_sustained_disconnect(connected: bool,
@@ -380,6 +381,7 @@ def _capture_broker_money_contract_snapshot(
     events_path: Path | None = None,
     force: bool = False,
 ) -> str | None:
+    global _shadow_money_contract_cache
     output = path or Path(config.BOT_BROKER_MONEY_CONTRACT_FILE)
     contract = broker_contract.build_contract(
         executor.mt5,
@@ -443,6 +445,7 @@ def _capture_broker_money_contract_snapshot(
             or broker_money.validate_contract_metadata(existing)
         ):
             broker_contract.write_contract(contract, output)
+        _shadow_money_contract_cache = dict(contract)
         return None
 
     contract["swap_snapshots"] = broker_contract.merge_swap_snapshots(
@@ -463,6 +466,7 @@ def _capture_broker_money_contract_snapshot(
     if not journal.confirm_event(receipt, timeout=10.0):
         raise RuntimeError("broker money snapshot journal write failed")
     broker_contract.write_contract(contract, output)
+    _shadow_money_contract_cache = dict(contract)
     return reason
 
 
@@ -578,19 +582,28 @@ def _is_intentionally_unprotected_candidate(sig) -> bool:
     )
 
 
-def _should_apply_naked_protective_sl(sig) -> bool:
-    gold_555_owns_protection = bool(
+def _candidate_owns_protection(sig) -> bool:
+    return bool(
         sig.live_strategy_id == gold_555_live_candidate.CANDIDATE_ID
         and sig.live_strategy_fingerprint
         == gold_555_live_candidate.CANDIDATE_FINGERPRINT
     )
-    return (
-        config.STRATEGY_NAKED_PROTECTIVE_SL_ENABLED
+
+
+def _is_naked_watchdog_candidate(sig) -> bool:
+    return bool(
+        sig.status == "open"
         and not _is_intentionally_unprotected_candidate(sig)
-        and not gold_555_owns_protection
-        and sig.status == "open"
+        and not _candidate_owns_protection(sig)
         and not sig.tps
         and sig.sl is None
+    )
+
+
+def _should_apply_naked_protective_sl(sig) -> bool:
+    return (
+        config.STRATEGY_NAKED_PROTECTIVE_SL_ENABLED
+        and _is_naked_watchdog_candidate(sig)
         and sig.market_fill_price is not None
         and bool(sig.all_filled_tickets)
         and not getattr(sig, "_naked_protective_sl_applied", False)
@@ -666,11 +679,7 @@ async def _naked_signal_watchdog(check_interval_s: int = 60,
         try:
             now = datetime.utcnow()
             for sig_id, sig in list(state._signals.items()):
-                if sig.status != "open":
-                    continue
-                if _is_intentionally_unprotected_candidate(sig):
-                    continue
-                if sig.tps or sig.sl:
+                if not _is_naked_watchdog_candidate(sig):
                     continue
                 # Edad desde apertura
                 elapsed = (now - sig.timestamp).total_seconds()
@@ -3064,9 +3073,29 @@ def _shadow_row_value(row, name: str, default=0):
         return getattr(row, name, default)
 
 
+def _shadow_normalized_tick_row(row, utc_offset_seconds: int) -> dict:
+    raw_time_msc = int(_shadow_row_value(row, "time_msc", 0) or 0)
+    if raw_time_msc <= 0:
+        raise ValueError("invalid broker tick time")
+    return {
+        "time_msc": broker_tick_clock.normalize_server_msc(
+            raw_time_msc,
+            utc_offset_seconds,
+        ),
+        "bid": float(_shadow_row_value(row, "bid", 0.0) or 0.0),
+        "ask": float(_shadow_row_value(row, "ask", 0.0) or 0.0),
+        "last": float(_shadow_row_value(row, "last", 0.0) or 0.0),
+        "flags": int(_shadow_row_value(row, "flags", 0) or 0),
+        "volume_real": float(
+            _shadow_row_value(row, "volume_real", 0.0) or 0.0
+        ),
+    }
+
+
 def _shadow_money_evidence_id(
     contract: dict,
     *,
+    utc_offset_seconds: int,
     conversion_time_msc: int | None,
     conversion_bid: float | None,
     conversion_ask: float | None,
@@ -3075,6 +3104,7 @@ def _shadow_money_evidence_id(
         "contract_captured_at_utc": contract.get("captured_at_utc"),
         "instrument": contract.get("instrument"),
         "conversion": contract.get("conversion"),
+        "utc_offset_seconds": int(utc_offset_seconds),
         "conversion_time_msc": conversion_time_msc,
         "conversion_bid": conversion_bid,
         "conversion_ask": conversion_ask,
@@ -3116,20 +3146,34 @@ def _shadow_tick_from_values(
 
 
 def _shadow_tick_snapshot() -> ShadowTick | None:
+    observed_now = broker_tick_clock.utc_now()
     try:
         raw = executor.mt5.symbol_info_tick(config.MT5_SYMBOL)
         if raw is None:
             return None
-        time_msc = int(getattr(raw, "time_msc", 0) or 0)
-        if time_msc <= 0:
+        raw_time_msc = int(getattr(raw, "time_msc", 0) or 0)
+        if raw_time_msc <= 0:
             return None
     except Exception:
+        return None
+
+    contract = _load_shadow_money_contract()
+    try:
+        utc_offset_seconds = broker_tick_clock.resolve_utc_offset_seconds(
+            contract=contract,
+            raw_server_msc=raw_time_msc,
+            observed_utc=observed_now,
+        )
+        time_msc = broker_tick_clock.normalize_server_msc(
+            raw_time_msc,
+            utc_offset_seconds,
+        )
+    except (TypeError, ValueError, OSError, OverflowError):
         return None
 
     factors = None
     evidence_id = None
     try:
-        contract = _load_shadow_money_contract()
         if contract is not None:
             conversion = contract.get("conversion") or {}
             orientation = str(conversion.get("orientation") or "")
@@ -3140,6 +3184,7 @@ def _shadow_tick_snapshot() -> ShadowTick | None:
                     symbol,
                     at_msc=time_msc,
                     contract=contract,
+                    utc_offset_seconds=utc_offset_seconds,
                 )
                 if resolved is None:
                     raise ValueError("causal conversion tick unavailable")
@@ -3153,6 +3198,7 @@ def _shadow_tick_snapshot() -> ShadowTick | None:
                 )
                 evidence_id = _shadow_money_evidence_id(
                     contract,
+                    utc_offset_seconds=utc_offset_seconds,
                     conversion_time_msc=conversion_time_msc,
                     conversion_bid=None,
                     conversion_ask=None,
@@ -3181,6 +3227,8 @@ def _shadow_conversion_quote_at(
     times: list[int],
     at_msc: int,
     contract: dict,
+    *,
+    utc_offset_seconds: int,
 ) -> tuple[dict[str, float], str] | None:
     conversion = contract.get("conversion") or {}
     if str(conversion.get("orientation") or "") == "identity":
@@ -3191,6 +3239,7 @@ def _shadow_conversion_quote_at(
         )
         evidence = _shadow_money_evidence_id(
             contract,
+            utc_offset_seconds=utc_offset_seconds,
             conversion_time_msc=at_msc,
             conversion_bid=None,
             conversion_ask=None,
@@ -3230,6 +3279,7 @@ def _shadow_conversion_quote_at(
         return None
     evidence = _shadow_money_evidence_id(
         contract,
+        utc_offset_seconds=utc_offset_seconds,
         conversion_time_msc=quote_msc,
         conversion_bid=bid,
         conversion_ask=ask,
@@ -3237,8 +3287,14 @@ def _shadow_conversion_quote_at(
     return factors, evidence
 
 
-def _shadow_cache_conversion_rows(symbol: str, rows) -> list[dict]:
-    cached = _shadow_conversion_tick_cache.setdefault(str(symbol), [])
+def _shadow_cache_conversion_rows(
+    symbol: str,
+    rows,
+    *,
+    utc_offset_seconds: int = 0,
+) -> list[dict]:
+    cache_key = (str(symbol), int(utc_offset_seconds))
+    cached = _shadow_conversion_tick_cache.setdefault(cache_key, [])
     known = {
         (row["time_msc"], row["bid"], row["ask"])
         for row in cached
@@ -3246,10 +3302,14 @@ def _shadow_cache_conversion_rows(symbol: str, rows) -> list[dict]:
     iterable = () if rows is None else rows
     for raw in iterable:
         try:
+            normalized = _shadow_normalized_tick_row(
+                raw,
+                utc_offset_seconds,
+            )
             row = {
-                "time_msc": int(_shadow_row_value(raw, "time_msc", 0) or 0),
-                "bid": float(_shadow_row_value(raw, "bid", 0.0) or 0.0),
-                "ask": float(_shadow_row_value(raw, "ask", 0.0) or 0.0),
+                "time_msc": normalized["time_msc"],
+                "bid": normalized["bid"],
+                "ask": normalized["ask"],
             }
         except (TypeError, ValueError):
             continue
@@ -3274,16 +3334,24 @@ def _shadow_live_conversion_quote(
     *,
     at_msc: int,
     contract: dict,
+    utc_offset_seconds: int,
 ) -> tuple[dict[str, float], str, dict] | None:
     latest = executor.mt5.symbol_info_tick(symbol)
     rows = _shadow_cache_conversion_rows(
         symbol,
         () if latest is None else (latest,),
+        utc_offset_seconds=utc_offset_seconds,
     )
 
     def resolve():
         times = [int(row["time_msc"]) for row in rows]
-        quote = _shadow_conversion_quote_at(rows, times, at_msc, contract)
+        quote = _shadow_conversion_quote_at(
+            rows,
+            times,
+            at_msc,
+            contract,
+            utc_offset_seconds=utc_offset_seconds,
+        )
         if quote is None:
             return None
         index = bisect_right(times, int(at_msc)) - 1
@@ -3303,21 +3371,25 @@ def _shadow_live_conversion_quote(
             conversion.get("max_quote_age_ms", 5000),
         )
     )
-    from_dt = datetime.fromtimestamp(
-        max(0, int(at_msc) - max_interval_ms) / 1000.0,
-        tz=timezone.utc,
+    from_dt = broker_tick_clock.server_query_datetime(
+        max(0, int(at_msc) - max_interval_ms),
+        utc_offset_seconds,
     )
-    until_dt = datetime.fromtimestamp(
-        int(at_msc) / 1000.0,
-        tz=timezone.utc,
-    ) + timedelta(milliseconds=1)
+    until_dt = broker_tick_clock.server_query_datetime(
+        int(at_msc) + 1,
+        utc_offset_seconds,
+    )
     history = executor.mt5.copy_ticks_range(
         symbol,
         from_dt,
         until_dt,
         executor.mt5.COPY_TICKS_ALL,
     )
-    rows = _shadow_cache_conversion_rows(symbol, history)
+    rows = _shadow_cache_conversion_rows(
+        symbol,
+        history,
+        utc_offset_seconds=utc_offset_seconds,
+    )
     return resolve()
 
 
@@ -3343,22 +3415,27 @@ def _shadow_tick_history(
         contract = _load_shadow_money_contract()
         if contract is None:
             raise ValueError("broker money contract unavailable")
+        utc_offset_seconds = broker_tick_clock.contract_utc_offset_seconds(
+            contract,
+            at_utc=broker_tick_clock.utc_now(),
+        )
+        evidence_seed["utc_offset_seconds"] = utc_offset_seconds
         conversion = contract.get("conversion") or {}
         max_interval_ms = int(
             conversion.get("max_quote_interval_ms", 60000)
         )
-        conversion_from_dt = datetime.fromtimestamp(
-            max(0, int(from_msc) - max_interval_ms) / 1000.0,
-            tz=timezone.utc,
+        conversion_from_dt = broker_tick_clock.server_query_datetime(
+            max(0, int(from_msc) - max_interval_ms),
+            utc_offset_seconds,
         )
-        xau_from_dt = datetime.fromtimestamp(
-            max(0, int(from_msc) - 1) / 1000.0,
-            tz=timezone.utc,
+        xau_from_dt = broker_tick_clock.server_query_datetime(
+            max(0, int(from_msc) - 1),
+            utc_offset_seconds,
         )
-        until_dt = datetime.fromtimestamp(
-            until_msc / 1000.0,
-            tz=timezone.utc,
-        ) + timedelta(milliseconds=1)
+        until_dt = broker_tick_clock.server_query_datetime(
+            until_msc + 1,
+            utc_offset_seconds,
+        )
         flags = executor.mt5.COPY_TICKS_ALL
         xau_rows = executor.mt5.copy_ticks_range(
             config.MT5_SYMBOL,
@@ -3368,8 +3445,17 @@ def _shadow_tick_history(
         )
         if xau_rows is None:
             raise ValueError("XAUUSD history unavailable")
+        normalized_xau_rows = []
+        for row in xau_rows:
+            try:
+                normalized_xau_rows.append(_shadow_normalized_tick_row(
+                    row,
+                    utc_offset_seconds,
+                ))
+            except (TypeError, ValueError, OSError, OverflowError):
+                continue
         xau_rows = [
-            row for row in xau_rows
+            row for row in normalized_xau_rows
             if (
                 int(_shadow_row_value(row, "time_msc", 0) or 0)
                 >= int(from_msc)
@@ -3392,12 +3478,16 @@ def _shadow_tick_history(
             )
             if raw_conversion is None:
                 raise ValueError("conversion history unavailable")
-            conversion_rows = sorted(
-                list(raw_conversion),
-                key=lambda row: int(
-                    _shadow_row_value(row, "time_msc", 0) or 0
-                ),
-            )
+            conversion_rows = []
+            for row in raw_conversion:
+                try:
+                    conversion_rows.append(_shadow_normalized_tick_row(
+                        row,
+                        utc_offset_seconds,
+                    ))
+                except (TypeError, ValueError, OSError, OverflowError):
+                    continue
+            conversion_rows.sort(key=lambda row: int(row["time_msc"]))
             conversion_times = [
                 int(_shadow_row_value(row, "time_msc", 0) or 0)
                 for row in conversion_rows
@@ -3416,6 +3506,7 @@ def _shadow_tick_history(
                 conversion_times,
                 time_msc,
                 contract,
+                utc_offset_seconds=utc_offset_seconds,
             )
             if quote is None:
                 raise ValueError("historical conversion evidence is stale")

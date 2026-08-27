@@ -177,6 +177,7 @@ def test_generic_naked_watchdog_cannot_overwrite_gold_555_protection(
     signal.candidate_hard_stops = {1000: 4270.0}
 
     assert main._should_apply_naked_protective_sl(signal) is False
+    assert main._is_naked_watchdog_candidate(signal) is False
 
 
 def test_resync_restores_exact_gold_555_ladder_without_reopening_closed_legs(

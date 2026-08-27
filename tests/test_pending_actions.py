@@ -161,6 +161,53 @@ def test_pending_spool_is_rewritten_when_action_leaves_queue(tmp_path, monkeypat
     assert payload["actions"] == []
 
 
+@pytest.mark.asyncio
+async def test_closed_signal_cancels_pending_modify_without_false_failure(
+    monkeypatch,
+):
+    events = []
+    anomalies = []
+    signal = Signal(
+        channel="canal2",
+        message_id=2110,
+        direction="BUY",
+        status="closed",
+    )
+    action = PendingAction(
+        kind="MODIFY_SLTP",
+        ticket=1644451068,
+        signal=signal,
+        new_sl=4580.0,
+        new_tp=4585.0,
+        label="TP ya alcanzado",
+    )
+    queue = PendingQueue()
+    queue._actions.append(action)
+
+    monkeypatch.setattr(
+        pending_actions.mt5,
+        "symbol_info_tick",
+        lambda _symbol: SimpleNamespace(time_msc=1),
+    )
+    monkeypatch.setattr(
+        "journal.event",
+        lambda sig, ev, **fields: events.append((sig, ev, fields)),
+    )
+    monkeypatch.setattr(
+        "journal.anomaly",
+        lambda *args, **fields: anomalies.append((args, fields)),
+    )
+
+    await queue._run()
+
+    assert queue._actions == []
+    assert [event for _, event, _ in events] == [
+        "mt5_modify_cancelled_signal_closed"
+    ]
+    assert events[0][2]["reason"] == "signal_closed_during_retry"
+    assert anomalies == []
+
+
 # ─── PendingAction.expired ──────────────────────────────────────────────────
 
 class TestPendingActionExpired:

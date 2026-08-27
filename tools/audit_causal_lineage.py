@@ -55,6 +55,7 @@ BROKER_RESULT_EVENTS = {
 }
 ACTION_LIFECYCLE_EVENTS = {
     "mt5_action_failed",
+    "mt5_modify_cancelled_signal_closed",
     "mt5_modify_skipped_position_gone",
     "mt5_modify_waiting_precondition",
     "mt5_modify_precondition_satisfied",
@@ -63,6 +64,7 @@ ACTION_LIFECYCLE_EVENTS = {
 }
 ACTION_TERMINAL_EVENTS = {
     "mt5_action_failed",
+    "mt5_modify_cancelled_signal_closed",
     "mt5_modify_skipped_position_gone",
 }
 RELEVANT_EVENTS = (
@@ -1040,7 +1042,10 @@ def _terminal_action_matches_root(
                 )
             ):
                 return False
-    elif event_name == "mt5_action_failed":
+    elif event_name in {
+        "mt5_action_failed",
+        "mt5_modify_cancelled_signal_closed",
+    }:
         if (
             terminal.get("kind") != operation
             or not isinstance(terminal.get("reason"), str)
@@ -1048,6 +1053,11 @@ def _terminal_action_matches_root(
             or not _valid_nonnegative_number(
                 terminal.get("age_seconds")
             )
+        ):
+            return False
+        if event_name == "mt5_modify_cancelled_signal_closed" and (
+            operation != "MODIFY_SLTP"
+            or terminal.get("reason") != "signal_closed_during_retry"
         ):
             return False
         last_retcode = terminal.get("last_retcode")

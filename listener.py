@@ -25,6 +25,7 @@ from types import SimpleNamespace
 from telethon import TelegramClient, events
 
 import causal_trace
+import broker_tick_clock
 import config
 import alert_graphics
 import dubai_live_candidate
@@ -129,6 +130,33 @@ def _shadow_observed_at_utc(value: datetime | None) -> datetime:
     return observed.astimezone(timezone.utc)
 
 
+def _shadow_registered_tick_msc(
+    tick: dict | None,
+    *,
+    observed_at_utc: datetime,
+) -> int:
+    raw_tick_msc = (tick or {}).get("time_msc")
+    if raw_tick_msc in (None, ""):
+        return int(observed_at_utc.timestamp() * 1000)
+    raw_tick_msc = int(raw_tick_msc)
+    contract = None
+    try:
+        contract = json.loads(
+            Path(config.BOT_BROKER_MONEY_CONTRACT_FILE).read_text(
+                encoding="utf-8"
+            )
+        )
+    except (OSError, json.JSONDecodeError):
+        contract = None
+    clock_observed_at = broker_tick_clock.utc_now()
+    offset = broker_tick_clock.resolve_utc_offset_seconds(
+        contract=contract,
+        raw_server_msc=raw_tick_msc,
+        observed_utc=clock_observed_at,
+    )
+    return broker_tick_clock.normalize_server_msc(raw_tick_msc, offset)
+
+
 async def _shadow_register_accepted_entry(
     *,
     channel: str,
@@ -148,13 +176,20 @@ async def _shadow_register_accepted_entry(
     if runtime is None:
         return ()
     observed = _shadow_observed_at_utc(observed_at)
-    raw_tick_msc = (tick or {}).get("time_msc")
     try:
-        tick_msc = int(raw_tick_msc)
-        if tick_msc <= 0:
-            raise ValueError
-    except (TypeError, ValueError):
-        tick_msc = int(observed.timestamp() * 1000)
+        tick_msc = _shadow_registered_tick_msc(
+            tick,
+            observed_at_utc=observed,
+        )
+    except (TypeError, ValueError, OSError, OverflowError) as exc:
+        journal.event(
+            f"{channel}_{int(message_id)}",
+            "strategy_shadow_bridge_error",
+            operation="register_entry_clock",
+            error_type=type(exc).__name__,
+            error=str(exc)[:300],
+        )
+        return ()
     try:
         return await runtime.register_signal(
             channel=channel,

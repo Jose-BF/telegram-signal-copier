@@ -707,7 +707,7 @@ class PendingQueue:
                 # acciones que cierran la señal → siguen válidas aunque esté "closed".
                 if act.kind == "MODIFY_SLTP" and act.signal.status != "open":
                     print(f"[Pending] Descartado (señal cerrada): {act.label}")
-                    self._log_failure(act, reason="signal_closed_during_retry")
+                    self._log_signal_closed_cancellation(act)
                     self._actions = [
                         queued for queued in self._actions
                         if queued is not act
@@ -932,6 +932,31 @@ class PendingQueue:
             await notify(self._format_structural_notification(actions))
         except Exception as exc:
             print(f"[Pending] structural incident notify error: {exc}")
+
+    def _log_signal_closed_cancellation(self, act: PendingAction) -> None:
+        """Close a now-irrelevant modify action without reporting a failure."""
+        try:
+            import journal
+            sig_id = f"{act.signal.channel}_{act.signal.message_id}"
+            journal.event(
+                sig_id,
+                "mt5_modify_cancelled_signal_closed",
+                kind=act.kind,
+                ticket=act.ticket,
+                attempts=act.attempts,
+                last_retcode=act.last_retcode,
+                reason="signal_closed_during_retry",
+                label=act.label,
+                new_sl=act.new_sl,
+                new_tp=_effective_action_tp(act),
+                expected_magic=act.signal.magic,
+                **_preflight_fields(act),
+                attempt_id=act.last_attempt_id,
+                age_seconds=round(time.time() - act.created_at, 1),
+                **_lineage_fields(act),
+            )
+        except Exception as exc:
+            print(f"[Pending] cancellation log error: {exc}")
 
     def _log_failure(self, act: PendingAction, reason: str):
         """Loguea fallo definitivo de una pending action al journal.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -16,7 +17,11 @@ def clear_shadow_conversion_cache():
     main._shadow_conversion_tick_cache.clear()
 
 
-def money_contract(orientation="account_base_profit_quote"):
+def money_contract(
+    orientation="account_base_profit_quote",
+    *,
+    utc_offset_seconds=0,
+):
     return {
         "captured_at_utc": "2026-08-27T07:59:00+00:00",
         "account": {"currency": "EUR", "currency_digits": 2},
@@ -36,6 +41,12 @@ def money_contract(orientation="account_base_profit_quote"):
             "fee_model": "observed_zero_intraday",
             "swap_model": "intraday_only_zero",
         },
+        "swap_snapshots": [{
+            "captured_at_utc": "2026-08-27T07:59:00+00:00",
+            "time_evidence": {
+                "utc_offset_seconds": utc_offset_seconds,
+            },
+        }],
         "schema_version": 1,
     }
 
@@ -91,6 +102,81 @@ def test_current_shadow_tick_contains_exact_primitive_evidence(monkeypatch):
     assert observed.money_evidence_id
     assert observed.money_factor("BUY", favourable=True) == pytest.approx(
         100.0 / 1.15
+    )
+
+
+def test_current_shadow_tick_normalizes_verified_broker_clock(monkeypatch):
+    observed_utc = datetime(2026, 8, 27, 8, 0, tzinfo=timezone.utc)
+    server_msc = int(
+        (observed_utc + timedelta(hours=3)).timestamp() * 1000
+    )
+    xau_tick = SimpleNamespace(
+        time_msc=server_msc,
+        bid=4300.0,
+        ask=4300.2,
+        last=4300.1,
+        flags=6,
+        volume_real=2.0,
+    )
+    fake_mt5 = SimpleNamespace(
+        symbol_info_tick=lambda _symbol: xau_tick,
+    )
+    monkeypatch.setattr(main.executor, "mt5", fake_mt5)
+    monkeypatch.setattr(
+        main.broker_tick_clock,
+        "utc_now",
+        lambda: observed_utc,
+    )
+    monkeypatch.setattr(
+        main,
+        "_load_shadow_money_contract",
+        lambda: money_contract("identity", utc_offset_seconds=10_800),
+    )
+
+    observed = main._shadow_tick_snapshot()
+
+    assert observed is not None
+    assert observed.time_msc == int(observed_utc.timestamp() * 1000)
+    assert observed.observed_at_utc == observed_utc.isoformat()
+
+
+def test_shadow_history_queries_server_clock_and_returns_utc_ticks(monkeypatch):
+    start_utc = datetime(2026, 8, 27, 8, 0, tzinfo=timezone.utc)
+    end_utc = start_utc + timedelta(seconds=2)
+    start_msc = int(start_utc.timestamp() * 1000)
+    end_msc = int(end_utc.timestamp() * 1000)
+    offset = 10_800
+    raw_tick_msc = start_msc + offset * 1000 + 1000
+    queries = []
+
+    def copy_ticks(symbol, from_dt, until_dt, flags):
+        queries.append((symbol, from_dt, until_dt, flags))
+        return [{
+            "time_msc": raw_tick_msc,
+            "bid": 4300.0,
+            "ask": 4300.2,
+            "last": 4300.1,
+            "flags": 6,
+            "volume_real": 1.0,
+        }]
+
+    fake_mt5 = SimpleNamespace(COPY_TICKS_ALL=0, copy_ticks_range=copy_ticks)
+    monkeypatch.setattr(main.executor, "mt5", fake_mt5)
+    monkeypatch.setattr(
+        main,
+        "_load_shadow_money_contract",
+        lambda: money_contract("identity", utc_offset_seconds=offset),
+    )
+
+    history = main._shadow_tick_history(start_msc, until_msc=end_msc)
+
+    assert history.complete is True
+    assert [tick.time_msc for tick in history.ticks] == [start_msc + 1000]
+    assert queries[0][1] == (
+        start_utc + timedelta(seconds=offset, milliseconds=-1)
+    )
+    assert queries[0][2] == (
+        end_utc + timedelta(seconds=offset, milliseconds=1)
     )
 
 
