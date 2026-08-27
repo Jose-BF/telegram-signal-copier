@@ -28,6 +28,8 @@ import causal_trace
 import config
 import alert_graphics
 import dubai_live_candidate
+import gold_555_entry_watch
+import gold_555_live_candidate
 import gold_live_candidate
 import executor
 import journal
@@ -101,6 +103,16 @@ class _Canal2EntryIntent:
     zone_plan_message_id: int | None = None
     zone_thread_root_message_id: int | None = None
     zone_entry_generation: int = 0
+
+
+@dataclass
+class _Gold555PendingEntry:
+    intent: _Canal2EntryIntent
+    watch: gold_555_entry_watch.EntryWatch
+    label: str = "Canal2"
+    order_started: bool = False
+    provider_close_requested: bool = False
+    provider_close_action: str | None = None
 
 
 def _sig_id(signal: Signal) -> str:
@@ -886,6 +898,32 @@ def _log_strategy_snapshot(signal: Signal, *, num_entries: int | None = None,
                     policy.broker_loss_budget_per_leg
                 ),
             }
+        elif signal.live_strategy_id == gold_555_live_candidate.CANDIDATE_ID:
+            policy = gold_555_live_candidate.Gold555Policy()
+            num_entries = len(policy.entry_volumes)
+            time_stop_min = policy.non_negative_exit_minutes
+            candidate_fields = {
+                "live_strategy_id": signal.live_strategy_id,
+                "live_strategy_fingerprint": (
+                    signal.live_strategy_fingerprint
+                ),
+                "entry_expiry_min": policy.entry_expiry_minutes,
+                "entry_confirmation": {
+                    "adverse": policy.entry_adverse,
+                    "reversal": policy.entry_reversal,
+                },
+                "volume_weights": list(policy.entry_volumes),
+                "entry_ladder_step": policy.ladder_step,
+                "target_steps": list(policy.target_steps),
+                "be_mode": "none",
+                "trailing_distance": policy.trailing_distance,
+                "profit_lock_arm_eur": policy.profit_arm_eur,
+                "profit_lock_giveback_eur": policy.profit_giveback_eur,
+                "time_exit_mode": "non_negative_only",
+                "provider_management_mode": (
+                    policy.provider_management_mode
+                ),
+            }
         journal.event(
             _sig_id(signal), "strategy_snapshot",
             entry_mode=signal.entry_mode,
@@ -1137,6 +1175,36 @@ async def _handle_explicit_signal_retraction(msg, channel: str) -> bool:
             f"Mensaje: {text[:180]}\n"
             "El bot no cambió ninguna operación. Revisa MT5."
         ))
+        return True
+
+    if candidate.live_strategy_id == gold_555_live_candidate.CANDIDATE_ID:
+        candidate.requested_close_reason = "PROVIDER_RETRACTED"
+        for ticket in candidate.all_filled_tickets:
+            pending_actions.enqueue_close_position(
+                candidate,
+                ticket,
+                label=f"GOLD_555_PROVIDER_RETRACTED #{ticket}",
+                persist_until_signal_close=True,
+            )
+        for ticket in candidate.pending_tickets:
+            pending_actions.enqueue_cancel_pending(
+                candidate,
+                ticket,
+                label=f"GOLD_555_PROVIDER_RETRACTED pending #{ticket}",
+            )
+        journal.event(
+            _sig_id(candidate),
+            "gold_555_provider_retraction_close_requested",
+            strategy_id=candidate.live_strategy_id,
+            strategy_fingerprint=candidate.live_strategy_fingerprint,
+            retraction_message_id=getattr(msg, "id", None),
+            retracted_signal_id=_sig_id(candidate),
+            original_signal_id=_sig_id(original),
+            age_s=round(float(result.get("age_s", 0.0)), 3),
+            closed_tickets=list(candidate.all_filled_tickets),
+            cancelled_tickets=list(candidate.pending_tickets),
+            raw_text=text[:240],
+        )
         return True
 
     if candidate.live_strategy_id == gold_live_candidate.CANDIDATE_ID:
@@ -2211,6 +2279,7 @@ _entry_serial_locks: dict[str, tuple[object, asyncio.Lock]] = {}
 _canal2_opening_msg_ids: set[int] = set()
 _deferred_canal2_entry_edits: dict[int, dict] = {}
 _canal2_zone_plans: dict[int, dict] = {}
+_gold_555_entry_watches: dict[int, _Gold555PendingEntry] = {}
 _CANAL2_ZONE_PLAN_MAX = 200
 
 
@@ -2446,6 +2515,35 @@ async def _process_management_reply_edit(msg, channel: str,
     if not reply_id:
         return False
 
+    text = _msg_text(msg)
+    if (
+        channel == "canal2"
+        and text
+        and int(reply_id) in _gold_555_entry_watches
+    ):
+        pending_classification = await classify_async(text)
+        if any(
+            isinstance(row, dict)
+            and gold_555_live_candidate.is_provider_close_action(
+                row.get("action")
+            )
+            for row in (
+                pending_classification
+                if isinstance(pending_classification, list)
+                else [pending_classification]
+            )
+        ):
+            if _edit_already_seen(channel, msg):
+                return True
+            if _handle_gold_555_pending_management(
+                int(reply_id),
+                pending_classification,
+                raw_text=text,
+                source_message_id=int(getattr(msg, "id", 0) or 0),
+                tg_ts=_msg_ts_iso(msg),
+            ):
+                return True
+
     sig, route = await _resolve_management_reply_target_with_ancestry(
         msg,
         channel,
@@ -2456,7 +2554,6 @@ async def _process_management_reply_edit(msg, channel: str,
         _log_unresolved_management_reply(msg, channel, reply_id, route)
         return True
 
-    text = _msg_text(msg)
     if not text:
         return True
 
@@ -2785,6 +2882,7 @@ async def _place_dca(signal: Signal):
     candidate_active = bool(
         dubai_candidate_active
         or signal.live_strategy_id == gold_live_candidate.CANDIDATE_ID
+        or signal.live_strategy_id == gold_555_live_candidate.CANDIDATE_ID
     )
 
     needs_monitor_anyway = (
@@ -2823,6 +2921,12 @@ async def _place_dca(signal: Signal):
             for leg in signal.candidate_entry_legs
             if leg.get("trigger_price") is not None
         ]
+    elif signal.live_strategy_id == gold_555_live_candidate.CANDIDATE_ID:
+        levels = [
+            float(leg["trigger_price"])
+            for leg in signal.candidate_entry_legs[1:]
+            if leg.get("trigger_price") is not None
+        ]
     position_lifecycle_monitor.start(signal, levels)
     signal.dca_placed = True
     return
@@ -2859,6 +2963,12 @@ async def _open_extra_legs_impl(sig: Signal, msg_id: int) -> None:
     if sig.live_strategy_id == dubai_live_candidate.CANDIDATE_ID:
         print(
             f"[{channel}] {dubai_live_candidate.CANDIDATE_ID}: "
+            "scale-out inmediato omitido; escalera adversa activa"
+        )
+        return
+    if sig.live_strategy_id == gold_555_live_candidate.CANDIDATE_ID:
+        print(
+            f"[{channel}] {gold_555_live_candidate.CANDIDATE_ID}: "
             "scale-out inmediato omitido; escalera adversa activa"
         )
         return
@@ -3027,6 +3137,19 @@ async def _apply_sl_tp(signal: Signal):
             effective_tps=[],
             broker_hard_stops=dict(signal.candidate_hard_stops),
             reason="frozen_candidate_owns_exit_management",
+        )
+        return
+    if signal.live_strategy_id == gold_555_live_candidate.CANDIDATE_ID:
+        journal.event(
+            _sig_id(signal),
+            "gold_555_provider_levels_observed_not_applied",
+            strategy_id=signal.live_strategy_id,
+            strategy_fingerprint=signal.live_strategy_fingerprint,
+            provider_tps=list(signal.provider_tps),
+            provider_sl=(signal.sl if signal.provider_sl_received else None),
+            effective_targets_by_ticket=dict(signal.tp_by_ticket),
+            effective_stops_by_ticket=dict(signal.candidate_hard_stops),
+            reason="gold_555_owns_level_management",
         )
         return
 
@@ -3312,6 +3435,19 @@ async def _handle_range_arrival_safety(signal: Signal, lo: float, hi: float) -> 
                 range_low=float(lo),
                 range_high=float(hi),
                 reason="frozen_candidate_retains_observed_market_basket",
+            )
+        return False
+    if signal.live_strategy_id == gold_555_live_candidate.CANDIDATE_ID:
+        if not signal.range_safety_applied:
+            signal.range_safety_applied = True
+            journal.event(
+                _sig_id(signal),
+                "gold_555_provider_range_observed_not_applied",
+                strategy_id=signal.live_strategy_id,
+                strategy_fingerprint=signal.live_strategy_fingerprint,
+                range_low=float(lo),
+                range_high=float(hi),
+                reason="gold_555_uses_its_own_adverse_ladder",
             )
         return False
 
@@ -4975,6 +5111,51 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
     action = classification.get("action", "INFORMATIONAL")
     price  = classification.get("price")
     conf   = classification.get("confidence", 0)
+
+    if signal.live_strategy_id == gold_555_live_candidate.CANDIDATE_ID:
+        if gold_555_live_candidate.is_provider_close_action(action):
+            signal.requested_close_reason = "PROVIDER_CLOSE"
+            for ticket in signal.all_filled_tickets:
+                pending_actions.enqueue_close_position(
+                    signal,
+                    ticket,
+                    label=f"GOLD_555_PROVIDER_{action} #{ticket}",
+                    persist_until_signal_close=True,
+                )
+            for ticket in signal.pending_tickets:
+                pending_actions.enqueue_cancel_pending(
+                    signal,
+                    ticket,
+                    label=f"GOLD_555_PROVIDER_{action} pend #{ticket}",
+                )
+            journal.event(
+                _sig_id(signal),
+                "gold_555_provider_close_requested",
+                strategy_id=signal.live_strategy_id,
+                strategy_fingerprint=signal.live_strategy_fingerprint,
+                classified_action=action,
+                price=price,
+                confidence=conf,
+                tickets=list(signal.all_filled_tickets),
+                pending_tickets=list(signal.pending_tickets),
+                raw_snippet=(raw_text or "")[:200],
+            )
+            return "closed"
+        journal.event(
+            _sig_id(signal),
+            "gold_555_provider_action_observed_not_applied",
+            strategy_id=signal.live_strategy_id,
+            strategy_fingerprint=signal.live_strategy_fingerprint,
+            action=action,
+            price=price,
+            provider_stated_be_price=classification.get(
+                "provider_stated_be_price"
+            ),
+            confidence=conf,
+            raw_snippet=(raw_text or "")[:200],
+            reason="gold_555_owns_level_management",
+        )
+        return "ignored"
 
     if signal.live_strategy_id == gold_live_candidate.CANDIDATE_ID:
         journal.event(
@@ -7008,12 +7189,718 @@ async def _handle_canal2_standalone(msg, text: str, sig_id: str) -> None:
     ))
 
 
+def _gold_555_intent_payload(intent: _Canal2EntryIntent) -> dict:
+    return {
+        "message_id": int(intent.message_id),
+        "direction": str(intent.direction).upper(),
+        "parsed": dict(intent.parsed),
+        "raw_text": str(intent.raw_text or "")[:2000],
+        "entry_timestamp": intent.entry_timestamp.isoformat(),
+        "telegram_timestamp": (
+            intent.telegram_timestamp.isoformat()
+            if intent.telegram_timestamp is not None else None
+        ),
+        "reply_to_message_id": intent.reply_to_message_id,
+        "source_kind": intent.source_kind,
+        "trigger": dict(intent.trigger or {}),
+        "lot_multiplier": float(intent.lot_multiplier),
+        "lot_reason": intent.lot_reason,
+        "max_tp_index": intent.max_tp_index,
+        "command_key": intent.command_key,
+        "is_high_risk": bool(intent.is_high_risk),
+    }
+
+
+def _gold_555_intent_from_payload(payload: dict) -> _Canal2EntryIntent:
+    entry_timestamp = _as_utc_datetime(payload.get("entry_timestamp"))
+    if entry_timestamp is None:
+        raise ValueError("Gold 555 intent has no entry timestamp")
+    telegram_timestamp = _as_utc_datetime(
+        payload.get("telegram_timestamp")
+    )
+    return _Canal2EntryIntent(
+        message_id=int(payload["message_id"]),
+        direction=str(payload["direction"]).upper(),
+        parsed=dict(payload.get("parsed") or {}),
+        raw_text=str(payload.get("raw_text") or ""),
+        entry_timestamp=entry_timestamp.replace(tzinfo=None),
+        telegram_timestamp=telegram_timestamp,
+        reply_to_message_id=payload.get("reply_to_message_id"),
+        source_kind=str(payload.get("source_kind") or "telegram_now"),
+        trigger=dict(payload.get("trigger") or {}),
+        lot_multiplier=float(payload.get("lot_multiplier", 1.0)),
+        lot_reason=payload.get("lot_reason"),
+        max_tp_index=payload.get("max_tp_index"),
+        command_key=payload.get("command_key"),
+        is_high_risk=bool(payload.get("is_high_risk", False)),
+    )
+
+
+def restore_gold_555_entry_watches_from_journal(
+    path,
+    *,
+    now: datetime | None = None,
+) -> int:
+    """Restore only current, unfilled Gold 555 pre-entry watches."""
+    source = Path(path)
+    _gold_555_entry_watches.clear()
+    if not source.is_file():
+        return 0
+    latest: dict[int, dict] = {}
+    terminal: set[int] = set()
+    snapshot_events = {
+        "gold_555_entry_watch_started",
+        "gold_555_entry_watch_state",
+        "gold_555_entry_watch_confirmed",
+    }
+    terminal_events = {
+        "gold_555_first_leg_filled",
+        "gold_555_entry_watch_expired",
+        "gold_555_entry_watch_cancelled",
+        "gold_555_entry_watch_aborted",
+        "gold_555_provider_close_during_open",
+    }
+    with source.open("r", encoding="utf-8", errors="replace") as handle:
+        for raw_line in handle:
+            try:
+                row = json.loads(raw_line)
+                sig = str(row.get("sig") or "")
+                if not sig.startswith("canal2_"):
+                    continue
+                message_id = int(sig.rsplit("_", 1)[1])
+            except (TypeError, ValueError, json.JSONDecodeError):
+                continue
+            event_name = row.get("ev")
+            if event_name in terminal_events:
+                terminal.add(message_id)
+                latest.pop(message_id, None)
+            elif event_name in snapshot_events:
+                latest[message_id] = row
+
+    observed_now = now or datetime.now(timezone.utc)
+    if observed_now.tzinfo is None:
+        observed_now = observed_now.replace(tzinfo=timezone.utc)
+    else:
+        observed_now = observed_now.astimezone(timezone.utc)
+    restored = 0
+    for message_id, row in sorted(latest.items()):
+        if message_id in terminal:
+            continue
+        if state.get("canal2", message_id) is not None:
+            _canal2_open_committed(message_id)
+            continue
+        try:
+            intent = _gold_555_intent_from_payload(row["intent"])
+            watch = gold_555_entry_watch.EntryWatch.from_dict(row["watch"])
+        except (KeyError, TypeError, ValueError) as exc:
+            journal.anomaly(
+                f"canal2_{message_id}",
+                "mt5",
+                "critical",
+                "Gold 555 watch no pudo reconstruirse",
+                exc_type=type(exc).__name__,
+                exc_msg=str(exc)[:300],
+            )
+            continue
+        if watch.expires_at <= observed_now:
+            continue
+        if not _canal2_open_claim(message_id):
+            continue
+        _gold_555_entry_watches[message_id] = _Gold555PendingEntry(
+            intent=intent,
+            watch=watch,
+            label="Canal2_recovery",
+        )
+        journal.event(
+            f"canal2_{message_id}",
+            "gold_555_entry_watch_restored",
+            strategy_id=gold_555_live_candidate.CANDIDATE_ID,
+            strategy_fingerprint=(
+                gold_555_live_candidate.CANDIDATE_FINGERPRINT
+            ),
+            watch=watch.to_dict(),
+            intent=_gold_555_intent_payload(intent),
+        )
+        restored += 1
+    return restored
+
+
+def _gold_555_tick_value(tick, name: str):
+    if isinstance(tick, dict):
+        return tick.get(name)
+    return getattr(tick, name, None)
+
+
+def _handle_gold_555_pending_management(
+    message_id: int,
+    classifications,
+    *,
+    raw_text: str,
+    source_message_id: int | None,
+    tg_ts: str | None,
+) -> bool:
+    """Cancel a pending 555 entry, or remember a close racing its order."""
+    root_message_id = int(message_id)
+    record = _gold_555_entry_watches.get(root_message_id)
+    if record is None:
+        return False
+    rows = classifications if isinstance(classifications, list) else [classifications]
+    close_row = next(
+        (
+            row for row in rows
+            if isinstance(row, dict)
+            and gold_555_live_candidate.is_provider_close_action(
+                row.get("action")
+            )
+        ),
+        None,
+    )
+    if close_row is None:
+        return False
+
+    action = str(close_row.get("action") or "CLOSE").upper()
+    common = {
+        "strategy_id": gold_555_live_candidate.CANDIDATE_ID,
+        "strategy_fingerprint": (
+            gold_555_live_candidate.CANDIDATE_FINGERPRINT
+        ),
+        "classified_action": action,
+        "confidence": close_row.get("confidence"),
+        "source_message_id": source_message_id,
+        "tg_ts": tg_ts,
+        "raw_snippet": str(raw_text or "")[:200],
+        "watch": record.watch.to_dict(),
+    }
+    if not record.order_started:
+        record.watch.status = "cancelled"
+        _gold_555_entry_watches.pop(root_message_id, None)
+        _canal2_open_finished(root_message_id)
+        journal.event(
+            f"canal2_{root_message_id}",
+            "gold_555_entry_watch_cancelled",
+            reason="provider_close_before_fill",
+            **common,
+        )
+        return True
+
+    record.provider_close_requested = True
+    record.provider_close_action = action
+    journal.event(
+        f"canal2_{root_message_id}",
+        "gold_555_provider_close_during_open",
+        reason="provider_close_while_market_order_in_flight",
+        **common,
+    )
+    return True
+
+
+async def _register_gold_555_entry_watch(
+    intent: _Canal2EntryIntent,
+    *,
+    label: str,
+) -> None:
+    """Claim one NOW identity and persist its no-order pre-entry state."""
+    message_id = int(intent.message_id)
+    sig_id = f"canal2_{message_id}"
+    if state.get("canal2", message_id) is not None:
+        _canal2_open_committed(message_id)
+        return None
+    if message_id in _gold_555_entry_watches:
+        journal.event(
+            sig_id,
+            "canal2_entry_open_already_claimed",
+            reason="gold_555_watch_already_active",
+            entry_source_kind=intent.source_kind,
+        )
+        return None
+    if not _canal2_open_claim(message_id):
+        journal.event(
+            sig_id,
+            "canal2_entry_open_already_claimed",
+            reason="entry_identity_already_claimed",
+            entry_source_kind=intent.source_kind,
+        )
+        return None
+
+    policy = gold_555_live_candidate.Gold555Policy()
+    try:
+        account_evidence = await _run(executor.account_evidence)
+        gold_555_live_candidate.assert_demo_eur_account(
+            account_evidence,
+            demo_trade_mode=int(
+                getattr(executor.mt5, "ACCOUNT_TRADE_MODE_DEMO", 0)
+            ),
+        )
+        tick = await _run(executor.current_tick_safe)
+        reference = _entry_reference_from_tick(intent.direction, tick)
+        if reference is None:
+            raise RuntimeError("Gold 555 no pudo obtener precio de referencia")
+        observed_at = (
+            intent.telegram_timestamp
+            or intent.entry_timestamp
+            or datetime.now(timezone.utc)
+        )
+        watch = gold_555_entry_watch.EntryWatch.new(
+            intent.direction,
+            reference=float(reference),
+            observed_at=observed_at,
+            policy=policy,
+        )
+        record = _Gold555PendingEntry(intent=intent, watch=watch, label=label)
+        _gold_555_entry_watches[message_id] = record
+        telegram_ts = intent.telegram_timestamp
+        journal.event(
+            sig_id,
+            "signal_received",
+            channel="canal2",
+            direction=watch.direction,
+            raw_text=str(intent.raw_text or "")[:500],
+            effective_lot=policy.entry_volumes[0],
+            tg_ts=(telegram_ts.isoformat() if telegram_ts else None),
+            telegram_entry_command_key=intent.command_key,
+            telegram_entry_was_reply=(
+                intent.reply_to_message_id is not None
+            ),
+            telegram_entry_reply_to_message_id=intent.reply_to_message_id,
+            entry_source_kind=intent.source_kind,
+            live_strategy_id=gold_555_live_candidate.CANDIDATE_ID,
+            live_strategy_fingerprint=(
+                gold_555_live_candidate.CANDIDATE_FINGERPRINT
+            ),
+            execution_state="waiting_for_adverse_reversal",
+        )
+        journal.event(
+            sig_id,
+            "gold_555_entry_watch_started",
+            strategy_id=gold_555_live_candidate.CANDIDATE_ID,
+            strategy_fingerprint=(
+                gold_555_live_candidate.CANDIDATE_FINGERPRINT
+            ),
+            reference_price=float(reference),
+            reference_bid=tick.get("bid"),
+            reference_ask=tick.get("ask"),
+            reference_tick_time_msc=tick.get("time_msc"),
+            expires_at=watch.expires_at.isoformat(),
+            entry_adverse=policy.entry_adverse,
+            entry_reversal=policy.entry_reversal,
+            account_login=account_evidence.get("login"),
+            account_server=account_evidence.get("server"),
+            trade_mode=account_evidence.get("trade_mode_name"),
+            currency=account_evidence.get("currency"),
+            intent=_gold_555_intent_payload(intent),
+            watch=watch.to_dict(),
+        )
+        print(
+            f"[{label}] Gold 555 msg={message_id}: esperando retroceso "
+            f"{policy.entry_adverse:.2f} y rebote "
+            f"{policy.entry_reversal:.2f} (ref={reference:.2f})"
+        )
+    except Exception:
+        _gold_555_entry_watches.pop(message_id, None)
+        _canal2_open_finished(message_id)
+        raise
+    return None
+
+
+async def _open_gold_555_confirmed_intent(
+    record: _Gold555PendingEntry,
+) -> Signal | None:
+    intent = record.intent
+    watch = record.watch
+    message_id = int(intent.message_id)
+    sig_id = f"canal2_{message_id}"
+    policy = gold_555_live_candidate.Gold555Policy()
+    if watch.status != "confirmed" or watch.confirmed_quote is None:
+        raise RuntimeError("Gold 555 entry watch is not confirmed")
+    if policy.max_signal_volume > (
+        float(config.GOLD_555_MAX_PLANNED_LOTS_PER_SIGNAL) + 1e-9
+    ):
+        raise RuntimeError(
+            "Gold 555 max volume exceeds "
+            "GOLD_555_MAX_PLANNED_LOTS_PER_SIGNAL"
+        )
+    try:
+        account_evidence = await _run(executor.account_evidence)
+        gold_555_live_candidate.assert_demo_eur_account(
+            account_evidence,
+            demo_trade_mode=int(
+                getattr(executor.mt5, "ACCOUNT_TRADE_MODE_DEMO", 0)
+            ),
+        )
+        if watch.status == "cancelled":
+            return None
+        confirmed_quote = float(watch.confirmed_quote)
+        provisional_sl = policy.initial_stop(
+            intent.direction,
+            confirmed_quote,
+        )
+        provisional_tp = policy.target_price(
+            intent.direction,
+            confirmed_quote,
+            0,
+        )
+        journal.event(
+            sig_id,
+            "gold_555_preopen_account_verified",
+            strategy_id=gold_555_live_candidate.CANDIDATE_ID,
+            strategy_fingerprint=(
+                gold_555_live_candidate.CANDIDATE_FINGERPRINT
+            ),
+            account_login=account_evidence.get("login"),
+            account_server=account_evidence.get("server"),
+            trade_mode=account_evidence.get("trade_mode_name"),
+            currency=account_evidence.get("currency"),
+            confirmed_quote=confirmed_quote,
+            confirmed_tick_time_msc=watch.last_tick_msc,
+            confirmed_at=(
+                watch.confirmed_at.isoformat()
+                if watch.confirmed_at is not None else None
+            ),
+            provisional_sl=provisional_sl,
+            provisional_tp=provisional_tp,
+        )
+        record.order_started = True
+        result = await _run(
+            executor.open_market_with_fill,
+            str(intent.direction).upper(),
+            policy.entry_volumes[0],
+            provisional_sl,
+            provisional_tp,
+            gold_555_live_candidate.market_comment(message_id),
+            config.magic_for("canal2"),
+        )
+    except Exception:
+        _canal2_open_finished(message_id)
+        raise
+
+    if not result:
+        _canal2_open_finished(message_id)
+        journal.event(
+            sig_id,
+            "market_fill_failed",
+            reason="Gold 555 first leg returned no fill",
+            strategy_id=gold_555_live_candidate.CANDIDATE_ID,
+        )
+        return None
+
+    ticket, fill_price = int(result[0]), float(result[1])
+    _canal2_open_committed(message_id)
+    market_filled_utc = datetime.utcnow()
+    entry_ts = intent.entry_timestamp
+    if entry_ts.tzinfo is not None:
+        entry_ts = entry_ts.astimezone(timezone.utc).replace(tzinfo=None)
+    expires_at = watch.expires_at.astimezone(timezone.utc).replace(tzinfo=None)
+    levels = policy.entry_levels(intent.direction, fill_price)
+    exact_sl = policy.initial_stop(intent.direction, fill_price)
+    exact_tp = policy.target_price(intent.direction, fill_price, 0)
+    sig = Signal(
+        channel="canal2",
+        message_id=message_id,
+        direction=str(intent.direction).upper(),
+        timestamp=entry_ts,
+        telegram_entry_command_key=intent.command_key,
+        telegram_entry_was_reply=intent.reply_to_message_id is not None,
+        telegram_entry_reply_to_message_id=intent.reply_to_message_id,
+        telegram_entry_timestamp=(intent.telegram_timestamp or entry_ts),
+        market_ticket=ticket,
+        market_fill_price=fill_price,
+        lot_multiplier=float(intent.lot_multiplier),
+        max_tp_index=None,
+        is_high_risk=bool(intent.is_high_risk),
+        time_stop_at=None,
+        entry_mode="adverse_ladder",
+        target_tp_index=None,
+        be_at_tp_index=None,
+        adverse_action=config.STRATEGY_C2_ADVERSE_ACTION,
+        entry_source_kind=intent.source_kind,
+    )
+    sig.live_strategy_id = gold_555_live_candidate.CANDIDATE_ID
+    sig.live_strategy_fingerprint = (
+        gold_555_live_candidate.CANDIDATE_FINGERPRINT
+    )
+    sig.candidate_entry_anchor = fill_price
+    sig.candidate_first_fill_at = market_filled_utc
+    sig.candidate_entry_expires_at = expires_at
+    sig.candidate_entry_legs = [
+        {
+            "index": index,
+            "volume": policy.entry_volumes[index],
+            "trigger_price": levels[index],
+            "target_step": policy.target_steps[index],
+        }
+        for index in range(len(levels))
+    ]
+    sig.candidate_filled_leg_indexes = []
+    sig.candidate_provisional_sl = provisional_sl
+    sig.candidate_entry_prices_by_ticket[ticket] = fill_price
+    sig.candidate_hard_stops[ticket] = exact_sl
+
+    provider = dict(intent.parsed or {})
+    if provider.get("range"):
+        sig.range_low, sig.range_high = provider["range"]
+        sig.range_source = "provider"
+    if provider.get("tps"):
+        sig.provider_tps = list(provider["tps"])
+        sig.tps = list(provider["tps"])
+        sig.tps_source = "provider"
+    if provider.get("sl") is not None:
+        sig.sl = float(provider["sl"])
+        sig.provider_sl_received = True
+        sig.sl_source = "provider"
+
+    close_raced_fill = bool(record.provider_close_requested)
+    if close_raced_fill:
+        sig.requested_close_reason = "PROVIDER_CLOSE"
+    state.add(sig)
+    await _place_dca(sig)
+    if close_raced_fill:
+        pending_actions.enqueue_close_position(
+            sig,
+            ticket,
+            label=f"GOLD_555_PROVIDER_CLOSE_RACE #{ticket}",
+            persist_until_signal_close=True,
+        )
+    else:
+        pending_actions.enqueue_modify_sl(
+            sig,
+            ticket,
+            exact_sl,
+            label=f"GOLD 555 SL[0] #{ticket} -> {exact_sl:.2f}",
+            persist_until_signal_close=True,
+        )
+        pending_actions.enqueue_modify_tp(
+            sig,
+            ticket,
+            exact_tp,
+            label=f"GOLD 555 TP[0] #{ticket} -> {exact_tp:.2f}",
+            persist_until_signal_close=True,
+        )
+    journal.begin_trade(
+        sig_id,
+        channel="canal2",
+        direction=sig.direction,
+        signal_received_utc=watch.observed_at.isoformat(),
+        market_filled_utc=market_filled_utc.isoformat(timespec="milliseconds"),
+        market_entry_price=fill_price,
+        entry_source_kind=intent.source_kind,
+        live_strategy_id=sig.live_strategy_id,
+        live_strategy_fingerprint=sig.live_strategy_fingerprint,
+    )
+    journal.event(
+        sig_id,
+        "gold_555_first_leg_filled",
+        strategy_id=sig.live_strategy_id,
+        strategy_fingerprint=sig.live_strategy_fingerprint,
+        ticket=ticket,
+        volume=policy.entry_volumes[0],
+        confirmed_quote=confirmed_quote,
+        confirmed_tick_time_msc=watch.last_tick_msc,
+        confirmed_at=(
+            watch.confirmed_at.isoformat()
+            if watch.confirmed_at is not None else None
+        ),
+        requested_sl=provisional_sl,
+        requested_tp=provisional_tp,
+        fill_price=fill_price,
+        exact_sl=exact_sl,
+        exact_tp=exact_tp,
+        entry_levels=list(levels),
+        expires_at=expires_at.isoformat(timespec="milliseconds"),
+    )
+    if close_raced_fill:
+        journal.event(
+            sig_id,
+            "gold_555_provider_close_requested",
+            strategy_id=sig.live_strategy_id,
+            strategy_fingerprint=sig.live_strategy_fingerprint,
+            classified_action=record.provider_close_action or "CLOSE",
+            tickets=[ticket],
+            pending_tickets=[],
+            reason="provider_close_raced_first_fill",
+        )
+    _emit_same_direction_overlap_anomaly(sig)
+    _log_strategy_snapshot(
+        sig,
+        num_entries=len(policy.entry_volumes),
+        time_stop_min=policy.non_negative_exit_minutes,
+    )
+    logger.log_signal(sig, provider)
+    return sig
+
+
+async def process_gold_555_entry_tick(
+    tick,
+    *,
+    now: datetime | None = None,
+) -> int:
+    """Advance all pending 555 watches once for one unique broker tick."""
+    now = now or datetime.now(timezone.utc)
+    opened = 0
+    for message_id, record in list(_gold_555_entry_watches.items()):
+        if record.watch.status == "confirmed":
+            journal.event(
+                f"canal2_{message_id}",
+                "gold_555_confirmed_watch_resumed",
+                strategy_id=gold_555_live_candidate.CANDIDATE_ID,
+                strategy_fingerprint=(
+                    gold_555_live_candidate.CANDIDATE_FINGERPRINT
+                ),
+                confirmed_quote=record.watch.confirmed_quote,
+                confirmed_at=(
+                    record.watch.confirmed_at.isoformat()
+                    if record.watch.confirmed_at else None
+                ),
+            )
+            try:
+                signal = await _open_gold_555_confirmed_intent(record)
+            except Exception as exc:
+                _canal2_open_finished(message_id)
+                journal.event(
+                    f"canal2_{message_id}",
+                    "gold_555_entry_watch_aborted",
+                    strategy_id=gold_555_live_candidate.CANDIDATE_ID,
+                    strategy_fingerprint=(
+                        gold_555_live_candidate.CANDIDATE_FINGERPRINT
+                    ),
+                    reason="confirmed_watch_open_failed",
+                    exc_type=type(exc).__name__,
+                    exc_msg=str(exc)[:300],
+                )
+                raise
+            finally:
+                _gold_555_entry_watches.pop(message_id, None)
+            if signal is not None:
+                opened += 1
+            continue
+        result = record.watch.on_quote(
+            bid=float(_gold_555_tick_value(tick, "bid")),
+            ask=float(_gold_555_tick_value(tick, "ask")),
+            now=now,
+            tick_msc=_gold_555_tick_value(tick, "time_msc"),
+        )
+        if result.state_changed:
+            journal.event(
+                f"canal2_{message_id}",
+                "gold_555_entry_watch_state",
+                strategy_id=gold_555_live_candidate.CANDIDATE_ID,
+                strategy_fingerprint=(
+                    gold_555_live_candidate.CANDIDATE_FINGERPRINT
+                ),
+                action=result.action,
+                bid=float(_gold_555_tick_value(tick, "bid")),
+                ask=float(_gold_555_tick_value(tick, "ask")),
+                tick_time_msc=_gold_555_tick_value(tick, "time_msc"),
+                watch=record.watch.to_dict(),
+                intent=_gold_555_intent_payload(record.intent),
+            )
+        if result.action == "expire":
+            _gold_555_entry_watches.pop(message_id, None)
+            _canal2_open_finished(message_id)
+            journal.event(
+                f"canal2_{message_id}",
+                "gold_555_entry_watch_expired",
+                strategy_id=gold_555_live_candidate.CANDIDATE_ID,
+                strategy_fingerprint=(
+                    gold_555_live_candidate.CANDIDATE_FINGERPRINT
+                ),
+                reference_price=record.watch.reference,
+                adverse_extreme=record.watch.adverse_extreme,
+                expires_at=record.watch.expires_at.isoformat(),
+                outcome="unfilled",
+            )
+        elif result.action == "confirm":
+            journal.event(
+                f"canal2_{message_id}",
+                "gold_555_entry_watch_confirmed",
+                strategy_id=gold_555_live_candidate.CANDIDATE_ID,
+                strategy_fingerprint=(
+                    gold_555_live_candidate.CANDIDATE_FINGERPRINT
+                ),
+                confirmed_quote=record.watch.confirmed_quote,
+                confirmed_at=(
+                    record.watch.confirmed_at.isoformat()
+                    if record.watch.confirmed_at else None
+                ),
+                adverse_extreme=record.watch.adverse_extreme,
+                watch=record.watch.to_dict(),
+                intent=_gold_555_intent_payload(record.intent),
+            )
+            try:
+                signal = await _open_gold_555_confirmed_intent(record)
+            except Exception as exc:
+                _canal2_open_finished(message_id)
+                journal.event(
+                    f"canal2_{message_id}",
+                    "gold_555_entry_watch_aborted",
+                    strategy_id=gold_555_live_candidate.CANDIDATE_ID,
+                    strategy_fingerprint=(
+                        gold_555_live_candidate.CANDIDATE_FINGERPRINT
+                    ),
+                    reason="confirmed_watch_open_failed",
+                    exc_type=type(exc).__name__,
+                    exc_msg=str(exc)[:300],
+                )
+                raise
+            finally:
+                _gold_555_entry_watches.pop(message_id, None)
+            if signal is not None:
+                opened += 1
+    return opened
+
+
+async def gold_555_entry_watch_loop(interval_s: float = 0.01) -> None:
+    journal.event(
+        "bot",
+        "gold_555_entry_watch_loop_started",
+        interval_s=float(interval_s),
+        strategy_id=gold_555_live_candidate.CANDIDATE_ID,
+        strategy_fingerprint=gold_555_live_candidate.CANDIDATE_FINGERPRINT,
+    )
+    last_tick_msc = None
+    while True:
+        if not _gold_555_entry_watches:
+            await asyncio.sleep(max(0.01, float(interval_s)))
+            continue
+        tick = await asyncio.to_thread(
+            executor.mt5.symbol_info_tick,
+            config.MT5_SYMBOL,
+        )
+        if tick is None:
+            await asyncio.sleep(max(0.01, float(interval_s)))
+            continue
+        tick_msc = _gold_555_tick_value(tick, "time_msc")
+        if tick_msc == last_tick_msc:
+            await asyncio.sleep(max(0.01, float(interval_s)))
+            continue
+        last_tick_msc = tick_msc
+        try:
+            await process_gold_555_entry_tick(tick)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            journal.anomaly(
+                "bot",
+                "fill",
+                "critical",
+                "Gold 555 entry watch loop error; watches remain durable",
+                exc_type=type(exc).__name__,
+                exc_msg=str(exc)[:300],
+            )
+        await asyncio.sleep(max(0.01, float(interval_s)))
+
+
 async def _open_canal2_intent(
     intent: _Canal2EntryIntent,
     *,
     label: str = "Canal2",
 ) -> Signal | None:
     """Open one normalized Canal 2 intent through the established MT5 path."""
+    if (
+        intent.source_kind == "telegram_now"
+        and config.STRATEGY_C2_GOLD_NOW_555_ENABLED
+    ):
+        return await _register_gold_555_entry_watch(intent, label=label)
+
     message_id = int(intent.message_id)
     direction = str(intent.direction).upper()
     parsed = dict(intent.parsed)
@@ -7541,6 +8428,18 @@ async def _process_canal2_new(msg, label: str = "Canal2", dedup: bool = True,
                 thread_root_message_id=int(reply_id),
             )
             return
+
+        pending_555 = _gold_555_entry_watches.get(int(reply_id))
+        if pending_555 is not None:
+            pending_classification = await classify_async(text)
+            if _handle_gold_555_pending_management(
+                int(reply_id),
+                pending_classification,
+                raw_text=text,
+                source_message_id=int(msg.id),
+                tg_ts=_msg_ts_iso(msg),
+            ):
+                return
 
         sig, route = await _resolve_management_reply_target_with_ancestry(
             msg,

@@ -2,6 +2,7 @@ from datetime import datetime
 from types import SimpleNamespace
 
 import gold_live_candidate
+import gold_555_live_candidate
 from state import Signal
 from live_auditor import AuditSettings, LiveAuditor
 from pending_actions import PendingAction, PendingQueue, snapshot
@@ -123,6 +124,42 @@ def test_gold_candidate_requires_sl_but_intentionally_has_no_tp():
     codes = {issue["code"] for issue in journal.anomalies}
     assert "levels_not_applied" not in codes
     assert "mt5_position_naked" not in codes
+
+
+def test_gold_555_requires_exact_sl_and_tp_even_without_provider_levels():
+    journal = FakeJournal()
+    auditor = LiveAuditor(
+        settings=AuditSettings(
+            level_apply_grace_s=0,
+            naked_after_s=999,
+            snapshot_every_s=0,
+        ),
+        journal=journal,
+    )
+    signal = _signal()
+    signal.tps = []
+    signal.sl = None
+    signal.live_strategy_id = gold_555_live_candidate.CANDIDATE_ID
+    signal.live_strategy_fingerprint = (
+        gold_555_live_candidate.CANDIDATE_FINGERPRINT
+    )
+    signal.sl_by_ticket = {1365772408: 4605.36}
+    signal.tp_by_ticket = {1365772408: 4574.86}
+
+    auditor.audit_cycle(
+        signals=[signal],
+        positions=[_pos(1365772408, sl=4605.36, tp=0.0, comment="c2_13111_g55")],
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 5, 0),
+    )
+
+    issue = next(
+        item for item in journal.anomalies
+        if item["code"] == "levels_not_applied"
+    )
+    assert issue["tickets_without_sl"] == []
+    assert issue["tickets_without_tp"] == [1365772408]
+    assert issue["tp_required"] is True
 
 
 def test_orphan_mt5_position_with_bot_magic_is_detected():

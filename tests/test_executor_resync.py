@@ -40,6 +40,16 @@ class TestParseSignalIdFromComment:
             "canal2", 2054,
         )
 
+    def test_gold_555_market_marker(self):
+        assert _parse_signal_id_from_comment("c2_380_g55") == (
+            "canal2", 380,
+        )
+
+    def test_gold_555_ladder_marker(self):
+        assert _parse_signal_id_from_comment("c2_380_B4_g55") == (
+            "canal2", 380,
+        )
+
     # ── Doble market legacy ──
     def test_market_b_doble_market(self):
         assert _parse_signal_id_from_comment("c2_12015_B") == ("canal2", 12015)
@@ -275,3 +285,56 @@ def test_resync_recovers_gold_when_only_extra_legs_survive(monkeypatch):
     assert signal["resync_anchor_role"] == "surviving_scale_out_leg"
     assert signal["market_ticket"] == 5302
     assert signal["extra_market_tickets"] == [5304]
+
+
+def test_resync_preserves_gold_555_marker_and_broker_levels(monkeypatch):
+    magic = executor.config.MT5_MAGIC_CANAL2
+    positions = (
+        SimpleNamespace(
+            ticket=5400, comment="c2_380_g55", magic=magic,
+            type=executor.mt5.ORDER_TYPE_BUY, price_open=4056.53,
+            volume=0.04, sl=4026.53, tp=4057.03, time=1000,
+        ),
+        SimpleNamespace(
+            ticket=5402, comment="c2_380_B2_g55", magic=magic,
+            type=executor.mt5.ORDER_TYPE_BUY, price_open=4053.50,
+            volume=0.03, sl=4023.50, tp=4055.00, time=1002,
+        ),
+    )
+    monkeypatch.setattr(executor.mt5, "positions_get", lambda: positions)
+
+    signal = executor.list_open_positions_grouped()["canal2_380"]
+
+    assert signal["live_strategy_marker"] == "gold_now_555_v1"
+    assert signal["market_ticket"] == 5400
+    assert signal["extra_market_tickets"] == [5402]
+    assert signal["scale_out_leg_indexes"] == {5402: 2}
+    assert signal["position_entries"] == {5400: 4056.53, 5402: 4053.50}
+    assert signal["position_volumes"] == {5400: 0.04, 5402: 0.03}
+    assert signal["position_stops"] == {5400: 4026.53, 5402: 4023.50}
+    assert signal["position_targets"] == {5400: 4057.03, 5402: 4055.00}
+
+
+def test_resync_recovers_gold_555_when_only_later_legs_survive(monkeypatch):
+    magic = executor.config.MT5_MAGIC_CANAL2
+    positions = (
+        SimpleNamespace(
+            ticket=5503, comment="c2_381_B3_g55", magic=magic,
+            type=executor.mt5.ORDER_TYPE_SELL, price_open=4061.0,
+            volume=0.03, sl=4091.0, tp=4059.0, time=1003,
+        ),
+        SimpleNamespace(
+            ticket=5504, comment="c2_381_B4_g55", magic=magic,
+            type=executor.mt5.ORDER_TYPE_SELL, price_open=4062.5,
+            volume=0.03, sl=4092.5, tp=4060.0, time=1004,
+        ),
+    )
+    monkeypatch.setattr(executor.mt5, "positions_get", lambda: positions)
+
+    signal = executor.list_open_positions_grouped()["canal2_381"]
+
+    assert signal["live_strategy_marker"] == "gold_now_555_v1"
+    assert signal["resync_anchor_role"] == "surviving_scale_out_leg"
+    assert signal["market_ticket"] == 5503
+    assert signal["extra_market_tickets"] == [5504]
+    assert signal["scale_out_leg_indexes"] == {5503: 3, 5504: 4}

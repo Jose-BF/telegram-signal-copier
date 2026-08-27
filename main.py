@@ -49,6 +49,7 @@ import causal_trace
 import broker_money
 import config
 import dubai_live_candidate
+import gold_555_live_candidate
 import gold_live_candidate
 import executor
 import journal
@@ -61,8 +62,10 @@ from listener import (
     canal2_zone_touch_loop,
     client,
     drain_media_capture_tasks,
+    gold_555_entry_watch_loop,
     notify,
     poll_loop_supervised,
+    restore_gold_555_entry_watches_from_journal,
     schedule_pending_media_recovery,
     restore_canal2_zone_plans_from_journal,
 )
@@ -571,9 +574,15 @@ def _is_intentionally_unprotected_candidate(sig) -> bool:
 
 
 def _should_apply_naked_protective_sl(sig) -> bool:
+    gold_555_owns_protection = bool(
+        sig.live_strategy_id == gold_555_live_candidate.CANDIDATE_ID
+        and sig.live_strategy_fingerprint
+        == gold_555_live_candidate.CANDIDATE_FINGERPRINT
+    )
     return (
         config.STRATEGY_NAKED_PROTECTIVE_SL_ENABLED
         and not _is_intentionally_unprotected_candidate(sig)
+        and not gold_555_owns_protection
         and sig.status == "open"
         and not sig.tps
         and sig.sl is None
@@ -1370,6 +1379,225 @@ def _load_dubai_candidate_metadata(path, signal_ids) -> dict[str, dict]:
     return recovered
 
 
+def _load_gold_555_candidate_metadata(path, signal_ids) -> dict[str, dict]:
+    """Recover the frozen 555 identity and every leg ever filled."""
+    from datetime import timezone
+
+    targets = {
+        str(signal_id) for signal_id in signal_ids
+        if str(signal_id).startswith("canal2_")
+    }
+    source = Path(path)
+    if not targets or not source.exists():
+        return {}
+
+    def parse_datetime(value):
+        if not value:
+            return None
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            return None
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+        return parsed
+
+    def parse_price(value):
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return None
+        return parsed if math.isfinite(parsed) and parsed > 0 else None
+
+    recovered: dict[str, dict] = {}
+    with source.open("rb") as handle:
+        for raw_line in handle:
+            try:
+                row = json.loads(raw_line.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                continue
+            if not isinstance(row, dict):
+                continue
+            signal_id = str(row.get("sig") or "")
+            if signal_id not in targets:
+                continue
+            event = row.get("ev")
+            if event in {
+                "gold_555_provider_close_during_open",
+                "gold_555_provider_close_requested",
+                "gold_555_provider_retraction_close_requested",
+            }:
+                metadata = recovered.setdefault(signal_id, {})
+                metadata["provider_close_requested"] = True
+                metadata["requested_close_reason"] = (
+                    "PROVIDER_RETRACTED"
+                    if event == "gold_555_provider_retraction_close_requested"
+                    else "PROVIDER_CLOSE"
+                )
+                continue
+            if event == "gold_555_first_leg_filled":
+                if row.get("strategy_id") != gold_555_live_candidate.CANDIDATE_ID:
+                    continue
+                metadata = recovered.setdefault(signal_id, {})
+                metadata.update({
+                    "strategy_id": row.get("strategy_id"),
+                    "strategy_fingerprint": row.get("strategy_fingerprint"),
+                    "entry_anchor": parse_price(row.get("fill_price")),
+                    "first_fill_at": parse_datetime(row.get("ts")),
+                    "entry_expires_at": parse_datetime(row.get("expires_at")),
+                    "entry_levels": [
+                        price for price in (
+                            parse_price(value)
+                            for value in (row.get("entry_levels") or [])
+                        )
+                        if price is not None
+                    ],
+                })
+                continue
+            if signal_id not in recovered:
+                continue
+            if (
+                event == "dca_filled"
+                and row.get("strategy_id")
+                == gold_555_live_candidate.CANDIDATE_ID
+            ):
+                try:
+                    leg_index = int(row.get("candidate_leg_index"))
+                except (TypeError, ValueError):
+                    continue
+                filled = recovered[signal_id].setdefault(
+                    "filled_leg_indexes", [],
+                )
+                if leg_index not in filled:
+                    filled.append(leg_index)
+            elif event == "gold_555_prolonged_exposure_alerted":
+                recovered[signal_id]["prolonged_exposure_alerted"] = True
+    return recovered
+
+
+def _restore_gold_555_candidate_signal(
+    signal,
+    group: dict,
+    metadata: dict,
+    opened_at: datetime,
+) -> list[str]:
+    """Restore 555 from durable fills; degrade by blocking new exposure."""
+    policy = gold_555_live_candidate.Gold555Policy()
+    errors: list[str] = []
+    fingerprint = metadata.get("strategy_fingerprint")
+    if fingerprint != gold_555_live_candidate.CANDIDATE_FINGERPRINT:
+        errors.append("strategy_fingerprint_missing_or_mismatch")
+
+    try:
+        anchor = float(metadata.get("entry_anchor"))
+        if not math.isfinite(anchor) or anchor <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        anchor = float(group["market_price"])
+        errors.append("entry_anchor_recovered_from_mt5_survivor")
+
+    expected_levels = list(policy.entry_levels(signal.direction, anchor))
+    logged_levels = list(metadata.get("entry_levels") or [])
+    if logged_levels and logged_levels != expected_levels:
+        errors.append("entry_levels_mismatch")
+    expires_at = metadata.get("entry_expires_at")
+    if expires_at is None:
+        expires_at = opened_at
+        errors.append("entry_expiry_missing")
+
+    observed_indexes = [
+        int(index)
+        for index in (group.get("scale_out_leg_indexes") or {}).values()
+    ]
+    filled_indexes = sorted(set(
+        int(index)
+        for index in (
+            list(metadata.get("filled_leg_indexes") or [])
+            + observed_indexes
+        )
+        if int(index) > 0
+    ))
+    if filled_indexes:
+        highest = max(filled_indexes)
+        if highest >= len(policy.entry_volumes):
+            errors.append("candidate_exposure_exceeds_plan")
+            highest = len(policy.entry_volumes) - 1
+        sequential = list(range(1, highest + 1))
+        if filled_indexes != sequential:
+            errors.append("filled_leg_history_gap")
+        filled_indexes = sequential
+
+    position_volumes = group.get("position_volumes") or {}
+    ticket_indexes = {int(group["market_ticket"]): 0}
+    ticket_indexes.update({
+        int(ticket): int(index)
+        for ticket, index in (
+            group.get("scale_out_leg_indexes") or {}
+        ).items()
+    })
+    for ticket, index in ticket_indexes.items():
+        actual_volume = position_volumes.get(ticket)
+        if actual_volume is None:
+            errors.append(f"position_volume_missing:{ticket}")
+            continue
+        expected_volume = policy.entry_volumes[index]
+        if abs(float(actual_volume) - float(expected_volume)) > 1e-9:
+            errors.append(f"position_volume_mismatch:{ticket}")
+
+    signal.live_strategy_id = gold_555_live_candidate.CANDIDATE_ID
+    signal.live_strategy_fingerprint = (
+        gold_555_live_candidate.CANDIDATE_FINGERPRINT
+    )
+    signal.candidate_entry_anchor = anchor
+    signal.candidate_first_fill_at = metadata.get("first_fill_at") or opened_at
+    signal.candidate_entry_expires_at = (
+        min(expires_at, datetime.utcnow()) if errors else expires_at
+    )
+    signal.candidate_entry_legs = [
+        {
+            "index": index,
+            "volume": policy.entry_volumes[index],
+            "trigger_price": expected_levels[index],
+            "target_step": policy.target_steps[index],
+        }
+        for index in range(len(expected_levels))
+    ]
+    signal.candidate_filled_leg_indexes = filled_indexes
+    signal.candidate_provisional_sl = group.get("market_sl")
+    signal.candidate_entry_prices_by_ticket = {
+        int(ticket): float(price)
+        for ticket, price in (group.get("position_entries") or {}).items()
+        if price is not None
+    }
+    signal.candidate_hard_stops = {
+        int(ticket): float(stop)
+        for ticket, stop in (group.get("position_stops") or {}).items()
+        if stop is not None and float(stop) > 0.0
+    }
+    signal.sl_by_ticket = dict(signal.candidate_hard_stops)
+    signal.tp_by_ticket = {
+        int(ticket): float(target)
+        for ticket, target in (group.get("position_targets") or {}).items()
+        if target is not None and float(target) > 0.0
+    }
+    signal.candidate_prolonged_exposure_alerted = bool(
+        metadata.get("prolonged_exposure_alerted", False)
+    )
+    signal.entry_mode = "adverse_ladder"
+    signal.target_tp_index = None
+    signal.be_at_tp_index = None
+    signal.time_stop_at = None
+    if metadata.get("provider_close_requested"):
+        signal.requested_close_reason = str(
+            metadata.get("requested_close_reason") or "PROVIDER_CLOSE"
+        )
+        signal.candidate_entry_expires_at = min(
+            signal.candidate_entry_expires_at,
+            datetime.utcnow(),
+        )
+    return sorted(set(errors))
+
+
 def _restore_dubai_candidate_signal(
     signal,
     group: dict,
@@ -1464,6 +1692,64 @@ def _restore_dubai_candidate_signal(
     return missing_levels, sorted(set(errors))
 
 
+def _recover_requested_candidate_closes() -> int:
+    """Recreate durable provider closes missing from the pending spool."""
+    from state import state as runtime_state
+
+    active_closes = {
+        (str(row.get("sig_id") or ""), int(row["ticket"]))
+        for row in pending_actions.snapshot()
+        if (
+            row.get("kind") == "CLOSE_POSITION"
+            and row.get("state") != "confirmed_recent"
+            and row.get("ticket") is not None
+        )
+    }
+    recovered = 0
+    candidate_ids = {
+        dubai_live_candidate.CANDIDATE_ID,
+        gold_555_live_candidate.CANDIDATE_ID,
+    }
+    for channel in ("canal1", "canal2"):
+        for signal in runtime_state.open_signals(channel):
+            if (
+                signal.live_strategy_id not in candidate_ids
+                or not signal.requested_close_reason
+            ):
+                continue
+            signal_id = f"{signal.channel}_{signal.message_id}"
+            already_queued = sorted(
+                int(ticket)
+                for queued_signal_id, ticket in active_closes
+                if queued_signal_id == signal_id
+            )
+            missing = [
+                int(ticket)
+                for ticket in signal.all_filled_tickets
+                if (signal_id, int(ticket)) not in active_closes
+            ]
+            for ticket in missing:
+                pending_actions.enqueue_close_position(
+                    signal,
+                    ticket,
+                    label=f"RECOVER_PROVIDER_CLOSE #{ticket}",
+                    persist_until_signal_close=True,
+                )
+                active_closes.add((signal_id, ticket))
+                recovered += 1
+            if missing:
+                journal.event(
+                    signal_id,
+                    "provider_close_requeued_after_restart",
+                    strategy_id=signal.live_strategy_id,
+                    strategy_fingerprint=signal.live_strategy_fingerprint,
+                    requested_close_reason=signal.requested_close_reason,
+                    missing_close_tickets=missing,
+                    already_queued_tickets=already_queued,
+                )
+    return recovered
+
+
 def _resync_orphan_positions():
     """Recupera posiciones huérfanas en MT5 al arrancar el bot.
 
@@ -1497,6 +1783,10 @@ def _resync_orphan_positions():
         groups.keys(),
     )
     candidate_metadata = _load_dubai_candidate_metadata(
+        journal.EVENTS_FILE,
+        groups.keys(),
+    )
+    gold_555_candidate_metadata = _load_gold_555_candidate_metadata(
         journal.EVENTS_FILE,
         groups.keys(),
     )
@@ -1560,6 +1850,7 @@ def _resync_orphan_positions():
         causal_origin = causal_origins.get(sig_id, {})
         entry_identity = entry_metadata.get(sig_id, {})
         candidate_identity = candidate_metadata.get(sig_id, {})
+        gold_555_identity = gold_555_candidate_metadata.get(sig_id, {})
         # Reconstruir timestamp real de apertura desde MT5 (no datetime.utcnow,
         # que reseteaba el reloj y rompía el time-stop). Sin esto, una posición
         # abierta hace 2h se quedaba con timestamp=ahora y nunca disparaba el
@@ -1617,9 +1908,16 @@ def _resync_orphan_positions():
 
         # Existing exposure is owned by its MT5 marker. Disabling new Gold
         # entries must not strip protection from a basket after a restart.
-        gold_marker_active = bool(
+        gold_c490_marker_active = bool(
             g.get("live_strategy_marker")
             == gold_live_candidate.CANDIDATE_ID
+        )
+        gold_555_marker_active = bool(
+            g.get("live_strategy_marker")
+            == gold_555_live_candidate.CANDIDATE_ID
+        )
+        gold_marker_active = (
+            gold_c490_marker_active or gold_555_marker_active
         )
 
         # Re-aplicar defensas según canal: time-stop notify y BE auto.
@@ -1719,7 +2017,33 @@ def _resync_orphan_positions():
                     strategy_fingerprint=sig.live_strategy_fingerprint,
                     recovery_errors=candidate_recovery_errors,
                 )
-        elif gold_marker_active:
+        elif gold_555_marker_active:
+            _assert_dubai_candidate_demo_account(required=True)
+            candidate_recovery_errors = _restore_gold_555_candidate_signal(
+                sig,
+                g,
+                gold_555_identity,
+                opened_at,
+            )
+            sig.extra_market_fill_prices = [
+                sig.candidate_entry_prices_by_ticket[int(ticket)]
+                for ticket in extra_markets
+                if int(ticket) in sig.candidate_entry_prices_by_ticket
+            ]
+            time_stop_at = None
+            be_at_tp_index = None
+            if candidate_recovery_errors:
+                journal.anomaly(
+                    sig_id,
+                    "mt5",
+                    "critical",
+                    "La cesta Gold 555 se recupero sin permitir nuevas "
+                    "entradas porque falta evidencia durable exacta",
+                    strategy_id=sig.live_strategy_id,
+                    strategy_fingerprint=sig.live_strategy_fingerprint,
+                    recovery_errors=candidate_recovery_errors,
+                )
+        elif gold_c490_marker_active:
             _assert_dubai_candidate_demo_account(required=True)
             policy = gold_live_candidate.GoldLivePolicy()
             sig.live_strategy_id = gold_live_candidate.CANDIDATE_ID
@@ -2264,6 +2588,7 @@ def _assert_dubai_candidate_demo_account(
     if not required and not (
         config.STRATEGY_C1_BALANCED_V1_ENABLED
         or config.STRATEGY_C2_GOLD_NOW_C490_ENABLED
+        or config.STRATEGY_C2_GOLD_NOW_555_ENABLED
     ):
         return
     evidence = executor.account_evidence() if evidence is None else evidence
@@ -2299,6 +2624,7 @@ def _assert_dubai_candidate_broker_volume(symbol_info=None) -> None:
     if not (
         config.STRATEGY_C1_BALANCED_V1_ENABLED
         or config.STRATEGY_C2_GOLD_NOW_C490_ENABLED
+        or config.STRATEGY_C2_GOLD_NOW_555_ENABLED
     ):
         return
     if symbol_info is None:
@@ -2325,6 +2651,10 @@ def _assert_dubai_candidate_broker_volume(symbol_info=None) -> None:
     if config.STRATEGY_C2_GOLD_NOW_C490_ENABLED:
         raw_volumes.append(
             gold_live_candidate.GoldLivePolicy().live_volume_per_leg
+        )
+    if config.STRATEGY_C2_GOLD_NOW_555_ENABLED:
+        raw_volumes.extend(
+            gold_555_live_candidate.Gold555Policy().entry_volumes
         )
     for raw_volume in raw_volumes:
         volume = Decimal(str(raw_volume))
@@ -2408,7 +2738,75 @@ def _live_strategy_contract() -> dict:
         }
         effective_max_lots = max_lots
 
-    if config.STRATEGY_C2_GOLD_NOW_C490_ENABLED:
+    if config.STRATEGY_C2_GOLD_NOW_555_ENABLED:
+        gold_policy = gold_555_live_candidate.Gold555Policy()
+        gold_555_max_lots = float(
+            config.GOLD_555_MAX_PLANNED_LOTS_PER_SIGNAL
+        )
+        if (
+            not math.isfinite(gold_555_max_lots)
+            or gold_555_max_lots + 1e-9
+            < gold_policy.max_signal_volume
+        ):
+            raise ValueError(
+                "GOLD_555_MAX_PLANNED_LOTS_PER_SIGNAL no permite la "
+                "cesta Gold 555 congelada"
+            )
+        gold = {
+            "strategy_id": gold_555_live_candidate.CANDIDATE_ID,
+            "strategy_fingerprint": (
+                gold_555_live_candidate.CANDIDATE_FINGERPRINT
+            ),
+            "selector": config.GOLD_NOW_LIVE_POLICY,
+            "enabled": True,
+            "scope": "telegram_now_only",
+            "evidence_status": "in_sample_candidate_forward_trial",
+            "independent_forward_validation": False,
+            "account_gate": {
+                "trade_mode": "demo",
+                "currency": "EUR",
+                "revalidated_before_first_fill": True,
+            },
+            "entry": {
+                "mode": "adverse_then_reversal",
+                "entry_adverse": gold_policy.entry_adverse,
+                "entry_reversal": gold_policy.entry_reversal,
+                "expiry_min": gold_policy.entry_expiry_minutes,
+                "volumes": list(gold_policy.entry_volumes),
+                "ladder_step": gold_policy.ladder_step,
+            },
+            "target_steps": list(gold_policy.target_steps),
+            "broker_sl": {
+                "mode": "trailing_price_distance",
+                "distance": gold_policy.trailing_distance,
+                "per_leg_from_real_fill": True,
+                "persistent_retry": True,
+            },
+            "basket_guard": {
+                "enabled": True,
+                "profit_arm": gold_policy.profit_arm_eur,
+                "profit_giveback": gold_policy.profit_giveback_eur,
+                "non_negative_exit_min": (
+                    gold_policy.non_negative_exit_minutes
+                ),
+                "poll_mode": "every_new_tick",
+                "money_source": (
+                    "realized_plus_floating_account_currency"
+                ),
+            },
+            "provider_management_mode": (
+                gold_policy.provider_management_mode
+            ),
+            "zone_first_touch_execution": bool(
+                config.STRATEGY_C2_ZONE_FIRST_TOUCH_EXECUTION_ENABLED
+            ),
+            "zone_explicit_activation": True,
+        }
+        effective_max_lots = max(
+            effective_max_lots,
+            gold_policy.max_signal_volume,
+        )
+    elif config.STRATEGY_C2_GOLD_NOW_C490_ENABLED:
         gold_policy = gold_live_candidate.GoldLivePolicy()
         if max_lots + 1e-9 < gold_policy.max_signal_volume:
             raise ValueError(
@@ -2494,6 +2892,9 @@ def _live_strategy_contract() -> dict:
                 effective_max_lots, 8,
             ),
             "legacy_max_planned_lots_per_signal": round(max_lots, 8),
+            "gold_555_max_planned_lots_per_signal": round(
+                float(config.GOLD_555_MAX_PLANNED_LOTS_PER_SIGNAL), 8,
+            ),
             "exposure_cap_enforced": True,
             "volume_increased_by_trial": bool(
                 effective_max_lots > max_lots
@@ -2586,6 +2987,8 @@ def _startup_status_message(
         lines.append("Dubai estrategia: balanced v1 (solo demo)")
     if config.STRATEGY_C2_GOLD_NOW_C490_ENABLED:
         lines.append("Gold estrategia: NOW c490 v1 (solo demo)")
+    if config.STRATEGY_C2_GOLD_NOW_555_ENABLED:
+        lines.append("Gold estrategia: 555 v1 (solo demo)")
     if money_capture_ready is True:
         lines.append("Registro simulacion: activo")
     elif money_capture_ready is False:
@@ -2594,6 +2997,22 @@ def _startup_status_message(
             "El bot sigue operando; revisa el registro antes de simular.",
         ])
     return "\n".join(lines)
+
+
+def _restore_live_candidate_runtime(path) -> int:
+    if not config.STRATEGY_C2_GOLD_NOW_555_ENABLED:
+        return 0
+    restored = restore_gold_555_entry_watches_from_journal(path)
+    print(
+        f"[Resync] esperas de entrada Gold 555 recuperadas: {restored}"
+    )
+    return restored
+
+
+def _candidate_background_loops() -> list:
+    if config.STRATEGY_C2_GOLD_NOW_555_ENABLED:
+        return [gold_555_entry_watch_loop]
+    return []
 
 
 async def main():
@@ -2671,6 +3090,13 @@ async def main():
     # abiertas en MT5, las recoge para que auto-finalize las trackee.
     _resync_orphan_positions()
     pending_actions.queue.restore_from_spool(state)
+    recovered_closes = _recover_requested_candidate_closes()
+    if recovered_closes:
+        print(
+            f"[Resync] cierres de proveedor recuperados: "
+            f"{recovered_closes}"
+        )
+    _restore_live_candidate_runtime(journal.EVENTS_FILE)
     restored_zone_plans = restore_canal2_zone_plans_from_journal(
         journal.EVENTS_FILE
     )
@@ -2732,6 +3158,8 @@ async def main():
     asyncio.ensure_future(_naked_signal_watchdog())
     asyncio.ensure_future(_pending_correction_watchdog())
     asyncio.ensure_future(_position_reconciler())
+    for loop_factory in _candidate_background_loops():
+        asyncio.ensure_future(loop_factory())
     live_auditor.start()
     asyncio.ensure_future(canal2_zone_touch_loop())
     # Poller activo: bypass del updateChannelTooLong de Telethon.

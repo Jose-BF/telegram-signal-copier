@@ -98,6 +98,11 @@ LOT_SIZE = _float("LOT_SIZE", 0.01)
 STRATEGY_MAX_PLANNED_LOTS_PER_SIGNAL = _float(
     "STRATEGY_MAX_PLANNED_LOTS_PER_SIGNAL", 0.05,
 )
+# Separate opt-in for the larger frozen Gold 555 demo basket. Keeping this
+# independent prevents the trial from relaxing legacy, zone or rescue caps.
+GOLD_555_MAX_PLANNED_LOTS_PER_SIGNAL = _float(
+    "GOLD_555_MAX_PLANNED_LOTS_PER_SIGNAL", 0.05,
+)
 
 # Frozen Dubai Investing candidate. This switch is deliberately coarse: the
 # policy values live in dubai_live_candidate.py so production cannot silently

@@ -24,6 +24,34 @@ def test_buy_waits_for_adverse_move_then_reversal() -> None:
     assert watch.confirmed_quote == 4300.4
 
 
+def test_routine_ticks_do_not_claim_a_durable_state_transition() -> None:
+    watch = EntryWatch.new("BUY", reference=4300.0, observed_at=NOW)
+
+    before_arming = watch.on_quote(
+        bid=4299.4,
+        ask=4299.6,
+        now=NOW,
+        tick_msc=1,
+    )
+    watch.on_quote(
+        bid=4298.7,
+        ask=4298.9,
+        now=NOW,
+        tick_msc=2,
+    )
+    after_arming = watch.on_quote(
+        bid=4298.8,
+        ask=4299.0,
+        now=NOW,
+        tick_msc=3,
+    )
+
+    assert before_arming.action == "wait"
+    assert before_arming.state_changed is False
+    assert after_arming.action == "wait"
+    assert after_arming.state_changed is False
+
+
 def test_sell_tracks_new_adverse_extreme_before_confirming() -> None:
     watch = EntryWatch.new("SELL", reference=4300.0, observed_at=NOW)
 

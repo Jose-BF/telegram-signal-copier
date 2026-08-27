@@ -1827,13 +1827,15 @@ import re as _re_resync
 #   "c1_19236_dv1"           → market Dubai candidate (crash-safe marker)
 #   "c2_2054_gv1"            → market Gold NOW candidate (crash-safe marker)
 #   "c2_2054_B1_gv1"         → extra Gold NOW candidate leg
+#   "c2_380_g55"             → market Gold 555 demo candidate
+#   "c2_380_B1_g55"          → extra Gold 555 ladder leg
 #   "DCA_c1_19236_4593.5"    → DCA nuevo (con signal_id) — formato actual
 #   "DCA_4593.5"             → DCA viejo (sin signal_id) — backward compat
 # _RX_MARKET acepta sufijo _rescue o _B/_BN. Sin _B el resync ignoraba el
 # Market B del doble market (canal2_12497 perdio +$6.05); _BN cubre las
 # legs del modo scale_out (una posicion market por TP).
 _RX_MARKET = _re_resync.compile(
-    r"^c([12])_(\d+)(?:_rescue|_B\d*)?(?:_dv1|_gv1)?$"
+    r"^c([12])_(\d+)(?:_rescue|_B\d*)?(?:_dv1|_gv1|_g55)?$"
 )
 _RX_DCA_NEW = _re_resync.compile(r"^DCA_c([12])_(\d+)_")
 _RX_CANDIDATE_DCA = _re_resync.compile(r"^DCA_c1_(\d+)_D([12])$")
@@ -1898,7 +1900,7 @@ def list_open_positions_grouped() -> dict[str, dict]:
         # _B es el doble market legacy; _B1.._B4 son legs scale-out. Ambos
         # son posiciones extra, pero solo _B debe recuperar el override TP3.
         market_b_match = _re_resync.search(
-            r"_B(\d*)(?:_gv1)?$",
+            r"_B(\d*)(?:_gv1|_g55)?$",
             comment,
         )
         is_market_b = bool(market_b_match)
@@ -1931,6 +1933,7 @@ def list_open_positions_grouped() -> dict[str, dict]:
                 "position_entries": {},
                 "position_volumes": {},
                 "position_stops": {},
+                "position_targets": {},
                 "_surviving_market_candidates": [],
                 "_surviving_candidate_legs": [],
                 "_extra_market_sort_keys": {},
@@ -1944,6 +1947,9 @@ def list_open_positions_grouped() -> dict[str, dict]:
         )
         groups[sig_id]["position_stops"][int(p.ticket)] = (
             float(p.sl) if p.sl > 0 else None
+        )
+        groups[sig_id]["position_targets"][int(p.ticket)] = (
+            float(p.tp) if p.tp > 0 else None
         )
 
         if is_market:
@@ -1964,6 +1970,10 @@ def list_open_positions_grouped() -> dict[str, dict]:
                 groups[sig_id]["live_strategy_marker"] = (
                     "gold_now_c490_v1"
                 )
+            elif comment.endswith("_g55"):
+                groups[sig_id]["live_strategy_marker"] = (
+                    "gold_now_555_v1"
+                )
         elif is_market_b:
             groups[sig_id]["extra_market_tickets"].append(p.ticket)
             if is_legacy_market_b:
@@ -1983,6 +1993,10 @@ def list_open_positions_grouped() -> dict[str, dict]:
             if comment.endswith("_gv1"):
                 groups[sig_id]["live_strategy_marker"] = (
                     "gold_now_c490_v1"
+                )
+            elif comment.endswith("_g55"):
+                groups[sig_id]["live_strategy_marker"] = (
+                    "gold_now_555_v1"
                 )
         elif is_rescue or is_dca:
             groups[sig_id]["dca_tickets"].append(p.ticket)

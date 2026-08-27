@@ -61,8 +61,11 @@ Current demo forward policy:
   been disabled.
 - Gold zone plans remain independent: they open only after an explicit
   provider activation; first touch remains observation-only.
-- Dubai candidate exposure is frozen at `0.09` lots per signal. Gold NOW and
-  legacy paths retain a `0.05`-lot maximum per signal.
+- Dubai candidate exposure is frozen at `0.09` lots per signal. Gold c490 and
+  legacy retain a `0.05`-lot maximum. The separately identified Gold 555 demo
+  trial can reach `0.16` lots and therefore requires the explicit matching
+  `GOLD_555_MAX_PLANNED_LOTS_PER_SIGNAL=0.16` gate; that permission cannot
+  increase the cap used by c490, zones, legacy scale-out or rescue entries.
 - Startup publishes a `live_strategy_contract` event and one readable console
   line containing the candidate ID, exact fingerprint and thresholds. Startup
   refuses the candidate on a real, unverifiable or non-EUR MT5 account.
@@ -70,6 +73,10 @@ Current demo forward policy:
   of guaranteed profitability. Set `STRATEGY_C1_BALANCED_V1_ENABLED=0` for the
   previous Dubai path, or select `GOLD_NOW_LIVE_POLICY=c490`, `555` or `legacy`
   for new Gold NOW baskets. Existing baskets retain their recorded policy.
+- The Gold 555 selector is an in-sample candidate under prospective forward
+  testing, not an independently validated winner. It logs every entry-watch
+  transition and broker-tick decision, and emits one alert if a negative
+  basket remains open after its three-hour non-negative exit threshold.
 - Both candidate basket guards sample every fresh broker tick. Dubai remains
   process-protected; Gold NOW also has a broker-side catastrophe SL on every
   leg so a stopped Python process does not leave those positions naked.

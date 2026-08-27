@@ -231,3 +231,9 @@ def market_comment(message_id: int, leg_index: int | None = None) -> str:
     if index <= 0:
         raise ValueError("leg_index must be positive")
     return f"c2_{message_id}_B{index}_g55"
+
+
+def is_provider_close_action(action: str) -> bool:
+    """Match the exact close predicate used by the frozen replay."""
+    normalized = str(action or "").upper()
+    return "CLOSE" in normalized or normalized in {"EXIT", "CERRAR"}

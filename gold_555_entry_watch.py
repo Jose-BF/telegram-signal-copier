@@ -111,7 +111,7 @@ class EntryWatch:
                 else quote >= self.reference + active_policy.entry_adverse
             )
             if not crossed:
-                return EntryWatchResult("wait", quote, parsed_tick is not None)
+                return EntryWatchResult("wait", quote, False)
             self.armed = True
             self.adverse_extreme = quote
             return EntryWatchResult("armed", quote, True)
@@ -136,7 +136,7 @@ class EntryWatch:
             return EntryWatchResult("confirm", quote, True)
         if self.adverse_extreme != previous_extreme:
             return EntryWatchResult("track", quote, True)
-        return EntryWatchResult("wait", quote, parsed_tick is not None)
+        return EntryWatchResult("wait", quote, False)
 
     def to_dict(self) -> dict:
         return {

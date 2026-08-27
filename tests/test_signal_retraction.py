@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import gold_555_live_candidate
 import gold_live_candidate
 import listener
 import position_lifecycle_monitor
@@ -176,6 +177,58 @@ async def test_gold_candidate_retraction_is_evidence_only(monkeypatch):
     )
     assert observed["retracted_signal_id"] == "canal2_2054"
     assert observed["original_signal_id"] == "canal2_2053"
+
+
+@pytest.mark.asyncio
+async def test_gold_555_retraction_closes_only_the_proven_duplicate(
+    monkeypatch,
+) -> None:
+    now = datetime(2026, 8, 27, 9, 15)
+    original = _signal(380, now - timedelta(minutes=20), ticket=101)
+    duplicate = _signal(381, now - timedelta(seconds=25), ticket=201)
+    duplicate.extra_market_tickets = [202]
+    duplicate.live_strategy_id = gold_555_live_candidate.CANDIDATE_ID
+    duplicate.live_strategy_fingerprint = (
+        gold_555_live_candidate.CANDIDATE_FINGERPRINT
+    )
+    local_state = StateManager()
+    local_state.add(original)
+    local_state.add(duplicate)
+    closes = []
+
+    monkeypatch.setattr(listener, "state", local_state)
+    monkeypatch.setattr(
+        listener.pending_actions,
+        "enqueue_close_position",
+        lambda signal, ticket, **kwargs: closes.append(
+            (signal, ticket, kwargs)
+        ),
+    )
+    monkeypatch.setattr(listener.journal, "event", lambda *a, **k: None)
+    monkeypatch.setattr(
+        listener,
+        "_schedule_detached",
+        lambda awaitable: awaitable.close(),
+    )
+    msg = SimpleNamespace(
+        id=382,
+        text="This is not a new signal",
+        message="This is not a new signal",
+        date=now.replace(tzinfo=timezone.utc),
+    )
+
+    assert await listener._handle_explicit_signal_retraction(
+        msg,
+        "canal2",
+    ) is True
+
+    assert [row[1] for row in closes] == [201, 202]
+    assert all(
+        row[2]["persist_until_signal_close"] is True
+        for row in closes
+    )
+    assert duplicate.requested_close_reason == "PROVIDER_RETRACTED"
+    assert original.requested_close_reason is None
 
 
 def test_retracted_signal_finalizes_with_provider_reason():

@@ -1463,12 +1463,20 @@ def enqueue_modify_sl(
     ))
 
 
-def enqueue_modify_tp(signal: Signal, ticket: int, new_tp: float, label: str = ""):
+def enqueue_modify_tp(
+    signal: Signal,
+    ticket: int,
+    new_tp: float,
+    label: str = "",
+    *,
+    persist_until_signal_close: bool = False,
+):
     queue.add(PendingAction(
         kind="MODIFY_SLTP",
         ticket=ticket,
         signal=signal,
         new_tp=new_tp,
+        persist_until_signal_close=persist_until_signal_close,
         label=label or f"modify TP→{new_tp}",
     ))
 

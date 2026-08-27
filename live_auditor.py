@@ -19,6 +19,7 @@ import MetaTrader5 as mt5
 import config
 import dubai_live_candidate
 import executor
+import gold_555_live_candidate
 import gold_live_candidate
 import journal as default_journal
 import pending_actions
@@ -430,7 +431,18 @@ class LiveAuditor:
             now,
         )
 
-        has_state_levels = bool(sig.tps) or sig.sl is not None
+        gold_555_exact_policy = bool(
+            sig.live_strategy_id == gold_555_live_candidate.CANDIDATE_ID
+            and sig.live_strategy_fingerprint
+            == gold_555_live_candidate.CANDIDATE_FINGERPRINT
+        )
+        has_state_levels = bool(
+            sig.tps
+            or sig.sl is not None
+            or sig.sl_by_ticket
+            or sig.tp_by_ticket
+            or gold_555_exact_policy
+        )
         if has_state_levels and sig_id not in self._levels_seen_at:
             self._levels_seen_at[sig_id] = now
         if mt5_open_tickets:

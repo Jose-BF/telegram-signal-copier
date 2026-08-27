@@ -10,6 +10,7 @@ from gold_555_live_candidate import (
     Gold555Policy,
     assert_demo_eur_account,
     evaluate_guard,
+    is_provider_close_action,
     market_comment,
 )
 
@@ -184,3 +185,16 @@ def test_invalid_direction_or_leg_is_rejected() -> None:
         policy.entry_levels("HOLD", 4300.0)
     with pytest.raises(IndexError):
         policy.target_price("BUY", 4300.0, 5)
+
+
+@pytest.mark.parametrize(
+    "action",
+    ["CLOSE_ALL", "CLOSE_FIRST", "CLOSE_AT_TP", "CLOSE_PARTIAL", "EXIT"],
+)
+def test_exact_provider_close_actions_are_recognized(action: str) -> None:
+    assert is_provider_close_action(action) is True
+
+
+@pytest.mark.parametrize("action", ["MOVE_SL_TO_BE", "MOVE_SL_TO_PRICE", "INFORMATIONAL"])
+def test_provider_level_actions_are_not_close_actions(action: str) -> None:
+    assert is_provider_close_action(action) is False
