@@ -47,6 +47,10 @@ class ShadowTick:
     positive_eur_per_move_lot: float | None
     negative_eur_per_move_lot: float | None
     money_evidence_id: str | None
+    buy_positive_eur_per_move_lot: float | None = None
+    buy_negative_eur_per_move_lot: float | None = None
+    sell_positive_eur_per_move_lot: float | None = None
+    sell_negative_eur_per_move_lot: float | None = None
     last: float = 0.0
     flags: int = 0
     volume_real: float = 0.0
@@ -61,6 +65,10 @@ class ShadowTick:
         for label, value in (
             ("positive_eur_per_move_lot", self.positive_eur_per_move_lot),
             ("negative_eur_per_move_lot", self.negative_eur_per_move_lot),
+            ("buy_positive_eur_per_move_lot", self.buy_positive_eur_per_move_lot),
+            ("buy_negative_eur_per_move_lot", self.buy_negative_eur_per_move_lot),
+            ("sell_positive_eur_per_move_lot", self.sell_positive_eur_per_move_lot),
+            ("sell_negative_eur_per_move_lot", self.sell_negative_eur_per_move_lot),
         ):
             if value is not None:
                 _positive_finite(value, label)
@@ -81,6 +89,22 @@ class ShadowTick:
         if entry:
             return float(self.ask if normalized == "BUY" else self.bid)
         return float(self.bid if normalized == "BUY" else self.ask)
+
+    def money_factor(self, direction: str, *, favourable: bool) -> float | None:
+        normalized = normalize_direction(direction)
+        specific = {
+            ("BUY", True): self.buy_positive_eur_per_move_lot,
+            ("BUY", False): self.buy_negative_eur_per_move_lot,
+            ("SELL", True): self.sell_positive_eur_per_move_lot,
+            ("SELL", False): self.sell_negative_eur_per_move_lot,
+        }[(normalized, bool(favourable))]
+        if specific is not None:
+            return float(specific)
+        fallback = (
+            self.positive_eur_per_move_lot
+            if favourable else self.negative_eur_per_move_lot
+        )
+        return None if fallback is None else float(fallback)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -115,6 +139,7 @@ class ShadowPosition:
     volume: float
     entry_price: float
     opened_tick_msc: int
+    opened_at_utc: str | None = None
     target_price: float | None = None
     stop_price: float | None = None
     break_even_applied: bool = False
@@ -168,6 +193,7 @@ class ShadowPolicy:
     time_exit_minutes: int | None = None
     time_exit_mode: str = "none"
     provider_management_mode: str = "explicit_close_only"
+    provider_protection_mode: str = "none"
     schema_version: int = 1
     fill_rule: str = "first_subsequent_tick"
     money_rounding: str = "leg_cent_then_sum"
@@ -219,6 +245,8 @@ class ShadowPolicy:
             "exact", "explicit_close_only", "ignore",
         }:
             raise ValueError("unsupported provider_management_mode")
+        if self.provider_protection_mode not in {"none", "exact"}:
+            raise ValueError("unsupported provider_protection_mode")
         if (
             self.profit_giveback_eur is not None
             and self.profit_arm_eur is None
@@ -237,6 +265,7 @@ class ShadowPolicy:
         payload["target_steps"] = list(self.target_steps)
         payload["entry_quote"] = "ask_buy_bid_sell"
         payload["exit_quote"] = "bid_buy_ask_sell"
+        payload["money_factor_model"] = "directional_order_calc_profit_v1"
         return payload
 
     @property
@@ -358,4 +387,3 @@ class ShadowTransition:
 class ShadowAdvance:
     state: ShadowSignalState
     transitions: tuple[ShadowTransition, ...] = ()
-

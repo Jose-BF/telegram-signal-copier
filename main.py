@@ -10,6 +10,7 @@ Primera vez (sin sticker IDs de Canal 1):
 """
 
 import asyncio
+from bisect import bisect_right
 import builtins
 import faulthandler
 import io
@@ -17,7 +18,7 @@ import json
 import math
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 # Reconfigura stdout/stderr a UTF-8 en Windows para que los acentos y
@@ -56,6 +57,8 @@ import journal
 import live_basket_guard
 import live_auditor
 import pending_actions
+import strategy_shadow_runtime
+from strategy_shadow_contracts import ShadowTick, canonical_hash
 from tools import capture_broker_money_contract as broker_contract
 from listener import (
     _is_transient_telegram_history_error,
@@ -78,6 +81,8 @@ _TELEGRAM_RUN_BACKOFF_BASE_S = 15.0
 _TELEGRAM_RUN_BACKOFF_MAX_S = 120.0
 _last_broker_contract_error: str | None = None
 _broker_contract_ready: bool | None = None
+_shadow_money_contract_cache: dict | None = None
+_shadow_conversion_tick_cache: dict[str, list[dict]] = {}
 
 
 def _should_alert_sustained_disconnect(connected: bool,
@@ -2999,6 +3004,687 @@ def _startup_status_message(
     return "\n".join(lines)
 
 
+def _load_shadow_money_contract() -> dict | None:
+    global _shadow_money_contract_cache
+    if _shadow_money_contract_cache is not None:
+        return dict(_shadow_money_contract_cache)
+    path = Path(config.BOT_BROKER_MONEY_CONTRACT_FILE)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if broker_money.validate_contract_metadata(payload):
+        return None
+    _shadow_money_contract_cache = dict(payload)
+    return dict(payload)
+
+
+def _shadow_conversion_factors(
+    contract: dict,
+    *,
+    conversion_bid: float | None,
+    conversion_ask: float | None,
+) -> dict[str, float]:
+    instrument = contract.get("instrument") or {}
+    conversion = contract.get("conversion") or {}
+    contract_size = float(instrument.get("contract_size") or 0.0)
+    if not math.isfinite(contract_size) or contract_size <= 0.0:
+        raise ValueError("invalid broker contract size")
+    orientation = str(conversion.get("orientation") or "")
+    if orientation == "identity":
+        return {"positive": contract_size, "negative": contract_size}
+    bid = float(conversion_bid or 0.0)
+    ask = float(conversion_ask or 0.0)
+    if (
+        not math.isfinite(bid)
+        or not math.isfinite(ask)
+        or bid <= 0.0
+        or ask < bid
+    ):
+        raise ValueError("invalid conversion quote")
+    if orientation == "account_base_profit_quote":
+        return {
+            "positive": contract_size / ask,
+            "negative": contract_size / bid,
+        }
+    if orientation == "profit_base_account_quote":
+        return {
+            "positive": contract_size * bid,
+            "negative": contract_size * ask,
+        }
+    raise ValueError("unsupported broker conversion orientation")
+
+
+def _shadow_row_value(row, name: str, default=0):
+    if isinstance(row, dict):
+        return row.get(name, default)
+    try:
+        return row[name]
+    except (KeyError, IndexError, TypeError, ValueError):
+        return getattr(row, name, default)
+
+
+def _shadow_money_evidence_id(
+    contract: dict,
+    *,
+    conversion_time_msc: int | None,
+    conversion_bid: float | None,
+    conversion_ask: float | None,
+) -> str:
+    return canonical_hash({
+        "contract_captured_at_utc": contract.get("captured_at_utc"),
+        "instrument": contract.get("instrument"),
+        "conversion": contract.get("conversion"),
+        "conversion_time_msc": conversion_time_msc,
+        "conversion_bid": conversion_bid,
+        "conversion_ask": conversion_ask,
+    })
+
+
+def _shadow_tick_from_values(
+    *,
+    time_msc: int,
+    bid: float,
+    ask: float,
+    last: float,
+    flags: int,
+    volume_real: float,
+    factors: dict[str, float] | None,
+    money_evidence_id: str | None,
+) -> ShadowTick:
+    positive = None if factors is None else float(factors["positive"])
+    negative = None if factors is None else float(factors["negative"])
+    return ShadowTick(
+        time_msc=int(time_msc),
+        bid=float(bid),
+        ask=float(ask),
+        observed_at_utc=datetime.fromtimestamp(
+            int(time_msc) / 1000.0,
+            tz=timezone.utc,
+        ).isoformat(),
+        positive_eur_per_move_lot=positive,
+        negative_eur_per_move_lot=negative,
+        money_evidence_id=money_evidence_id,
+        buy_positive_eur_per_move_lot=positive,
+        buy_negative_eur_per_move_lot=negative,
+        sell_positive_eur_per_move_lot=positive,
+        sell_negative_eur_per_move_lot=negative,
+        last=float(last or 0.0),
+        flags=int(flags or 0),
+        volume_real=float(volume_real or 0.0),
+    )
+
+
+def _shadow_tick_snapshot() -> ShadowTick | None:
+    try:
+        raw = executor.mt5.symbol_info_tick(config.MT5_SYMBOL)
+        if raw is None:
+            return None
+        time_msc = int(getattr(raw, "time_msc", 0) or 0)
+        if time_msc <= 0:
+            return None
+    except Exception:
+        return None
+
+    factors = None
+    evidence_id = None
+    try:
+        contract = _load_shadow_money_contract()
+        if contract is not None:
+            conversion = contract.get("conversion") or {}
+            orientation = str(conversion.get("orientation") or "")
+            conversion_time_msc = time_msc
+            if orientation != "identity":
+                symbol = str(conversion.get("symbol") or "")
+                resolved = _shadow_live_conversion_quote(
+                    symbol,
+                    at_msc=time_msc,
+                    contract=contract,
+                )
+                if resolved is None:
+                    raise ValueError("causal conversion tick unavailable")
+                factors, evidence_id, conversion_row = resolved
+                conversion_time_msc = int(conversion_row["time_msc"])
+            else:
+                factors = _shadow_conversion_factors(
+                    contract,
+                    conversion_bid=None,
+                    conversion_ask=None,
+                )
+                evidence_id = _shadow_money_evidence_id(
+                    contract,
+                    conversion_time_msc=conversion_time_msc,
+                    conversion_bid=None,
+                    conversion_ask=None,
+                )
+    except Exception:
+        factors = None
+        evidence_id = None
+
+    try:
+        return _shadow_tick_from_values(
+            time_msc=time_msc,
+            bid=float(raw.bid),
+            ask=float(raw.ask),
+            last=float(getattr(raw, "last", 0.0) or 0.0),
+            flags=int(getattr(raw, "flags", 0) or 0),
+            volume_real=float(getattr(raw, "volume_real", 0.0) or 0.0),
+            factors=factors,
+            money_evidence_id=evidence_id,
+        )
+    except Exception:
+        return None
+
+
+def _shadow_conversion_quote_at(
+    rows: list,
+    times: list[int],
+    at_msc: int,
+    contract: dict,
+) -> tuple[dict[str, float], str] | None:
+    conversion = contract.get("conversion") or {}
+    if str(conversion.get("orientation") or "") == "identity":
+        factors = _shadow_conversion_factors(
+            contract,
+            conversion_bid=None,
+            conversion_ask=None,
+        )
+        evidence = _shadow_money_evidence_id(
+            contract,
+            conversion_time_msc=at_msc,
+            conversion_bid=None,
+            conversion_ask=None,
+        )
+        return factors, evidence
+    index = bisect_right(times, int(at_msc)) - 1
+    if index < 0:
+        return None
+    row = rows[index]
+    quote_msc = times[index]
+    age_ms = int(at_msc) - quote_msc
+    max_age = int(conversion.get("max_quote_age_ms", 5000))
+    if age_ms < 0:
+        return None
+    if age_ms > max_age:
+        next_index = index + 1
+        if next_index >= len(rows):
+            return None
+        next_msc = times[next_index]
+        max_interval = int(
+            conversion.get("max_quote_interval_ms", max_age)
+        )
+        if (
+            next_msc <= int(at_msc)
+            or next_msc - quote_msc > max_interval
+        ):
+            return None
+    bid = float(_shadow_row_value(row, "bid", 0.0) or 0.0)
+    ask = float(_shadow_row_value(row, "ask", 0.0) or 0.0)
+    try:
+        factors = _shadow_conversion_factors(
+            contract,
+            conversion_bid=bid,
+            conversion_ask=ask,
+        )
+    except ValueError:
+        return None
+    evidence = _shadow_money_evidence_id(
+        contract,
+        conversion_time_msc=quote_msc,
+        conversion_bid=bid,
+        conversion_ask=ask,
+    )
+    return factors, evidence
+
+
+def _shadow_cache_conversion_rows(symbol: str, rows) -> list[dict]:
+    cached = _shadow_conversion_tick_cache.setdefault(str(symbol), [])
+    known = {
+        (row["time_msc"], row["bid"], row["ask"])
+        for row in cached
+    }
+    iterable = () if rows is None else rows
+    for raw in iterable:
+        try:
+            row = {
+                "time_msc": int(_shadow_row_value(raw, "time_msc", 0) or 0),
+                "bid": float(_shadow_row_value(raw, "bid", 0.0) or 0.0),
+                "ask": float(_shadow_row_value(raw, "ask", 0.0) or 0.0),
+            }
+        except (TypeError, ValueError):
+            continue
+        identity = (row["time_msc"], row["bid"], row["ask"])
+        if (
+            row["time_msc"] <= 0
+            or row["bid"] <= 0.0
+            or row["ask"] < row["bid"]
+            or identity in known
+        ):
+            continue
+        cached.append(row)
+        known.add(identity)
+    cached.sort(key=lambda row: int(row["time_msc"]))
+    if len(cached) > 4096:
+        del cached[:-4096]
+    return cached
+
+
+def _shadow_live_conversion_quote(
+    symbol: str,
+    *,
+    at_msc: int,
+    contract: dict,
+) -> tuple[dict[str, float], str, dict] | None:
+    latest = executor.mt5.symbol_info_tick(symbol)
+    rows = _shadow_cache_conversion_rows(
+        symbol,
+        () if latest is None else (latest,),
+    )
+
+    def resolve():
+        times = [int(row["time_msc"]) for row in rows]
+        quote = _shadow_conversion_quote_at(rows, times, at_msc, contract)
+        if quote is None:
+            return None
+        index = bisect_right(times, int(at_msc)) - 1
+        if index < 0:
+            return None
+        factors, evidence_id = quote
+        return factors, evidence_id, rows[index]
+
+    resolved = resolve()
+    if resolved is not None:
+        return resolved
+
+    conversion = contract.get("conversion") or {}
+    max_interval_ms = int(
+        conversion.get(
+            "max_quote_interval_ms",
+            conversion.get("max_quote_age_ms", 5000),
+        )
+    )
+    from_dt = datetime.fromtimestamp(
+        max(0, int(at_msc) - max_interval_ms) / 1000.0,
+        tz=timezone.utc,
+    )
+    until_dt = datetime.fromtimestamp(
+        int(at_msc) / 1000.0,
+        tz=timezone.utc,
+    ) + timedelta(milliseconds=1)
+    history = executor.mt5.copy_ticks_range(
+        symbol,
+        from_dt,
+        until_dt,
+        executor.mt5.COPY_TICKS_ALL,
+    )
+    rows = _shadow_cache_conversion_rows(symbol, history)
+    return resolve()
+
+
+def _shadow_tick_history(
+    from_msc: int,
+    *,
+    until_msc: int | None = None,
+    after_identity: tuple[int, float, float, float, int, float] | None = None,
+) -> strategy_shadow_runtime.ShadowTickHistory:
+    until_msc = int(
+        until_msc
+        if until_msc is not None
+        else datetime.now(timezone.utc).timestamp() * 1000
+    )
+    evidence_seed = {
+        "from_msc": int(from_msc),
+        "until_msc": until_msc,
+        "after_identity": (
+            None if after_identity is None else list(after_identity)
+        ),
+    }
+    try:
+        contract = _load_shadow_money_contract()
+        if contract is None:
+            raise ValueError("broker money contract unavailable")
+        conversion = contract.get("conversion") or {}
+        max_interval_ms = int(
+            conversion.get("max_quote_interval_ms", 60000)
+        )
+        conversion_from_dt = datetime.fromtimestamp(
+            max(0, int(from_msc) - max_interval_ms) / 1000.0,
+            tz=timezone.utc,
+        )
+        xau_from_dt = datetime.fromtimestamp(
+            max(0, int(from_msc) - 1) / 1000.0,
+            tz=timezone.utc,
+        )
+        until_dt = datetime.fromtimestamp(
+            until_msc / 1000.0,
+            tz=timezone.utc,
+        ) + timedelta(milliseconds=1)
+        flags = executor.mt5.COPY_TICKS_ALL
+        xau_rows = executor.mt5.copy_ticks_range(
+            config.MT5_SYMBOL,
+            xau_from_dt,
+            until_dt,
+            flags,
+        )
+        if xau_rows is None:
+            raise ValueError("XAUUSD history unavailable")
+        xau_rows = [
+            row for row in xau_rows
+            if (
+                int(_shadow_row_value(row, "time_msc", 0) or 0)
+                >= int(from_msc)
+                if after_identity is not None
+                else int(_shadow_row_value(row, "time_msc", 0) or 0)
+                > int(from_msc)
+            )
+            and int(_shadow_row_value(row, "time_msc", 0) or 0) <= until_msc
+        ]
+        orientation = str(conversion.get("orientation") or "")
+        conversion_rows: list = []
+        conversion_times: list[int] = []
+        if orientation != "identity":
+            symbol = str(conversion.get("symbol") or "")
+            raw_conversion = executor.mt5.copy_ticks_range(
+                symbol,
+                conversion_from_dt,
+                until_dt,
+                flags,
+            )
+            if raw_conversion is None:
+                raise ValueError("conversion history unavailable")
+            conversion_rows = sorted(
+                list(raw_conversion),
+                key=lambda row: int(
+                    _shadow_row_value(row, "time_msc", 0) or 0
+                ),
+            )
+            conversion_times = [
+                int(_shadow_row_value(row, "time_msc", 0) or 0)
+                for row in conversion_rows
+            ]
+
+        ticks: list[ShadowTick] = []
+        for row in sorted(
+            xau_rows,
+            key=lambda item: int(
+                _shadow_row_value(item, "time_msc", 0) or 0
+            ),
+        ):
+            time_msc = int(_shadow_row_value(row, "time_msc", 0) or 0)
+            quote = _shadow_conversion_quote_at(
+                conversion_rows,
+                conversion_times,
+                time_msc,
+                contract,
+            )
+            if quote is None:
+                raise ValueError("historical conversion evidence is stale")
+            factors, evidence_id = quote
+            ticks.append(_shadow_tick_from_values(
+                time_msc=time_msc,
+                bid=float(_shadow_row_value(row, "bid", 0.0) or 0.0),
+                ask=float(_shadow_row_value(row, "ask", 0.0) or 0.0),
+                last=float(_shadow_row_value(row, "last", 0.0) or 0.0),
+                flags=int(_shadow_row_value(row, "flags", 0) or 0),
+                volume_real=float(
+                    _shadow_row_value(row, "volume_real", 0.0) or 0.0
+                ),
+                factors=factors,
+                money_evidence_id=evidence_id,
+            ))
+        if after_identity is not None:
+            cursor_indexes = [
+                index
+                for index, observed in enumerate(ticks)
+                if observed.identity == tuple(after_identity)
+            ]
+            if not cursor_indexes:
+                raise ValueError("historical tick cursor unavailable")
+            ticks = ticks[cursor_indexes[-1] + 1:]
+        evidence_id = canonical_hash({
+            **evidence_seed,
+            "contract": contract,
+            "tick_count": len(ticks),
+            "last_identity": ticks[-1].identity if ticks else None,
+        })
+        return strategy_shadow_runtime.ShadowTickHistory(
+            ticks=tuple(ticks),
+            complete=True,
+            evidence_id=evidence_id,
+        )
+    except Exception as exc:
+        return strategy_shadow_runtime.ShadowTickHistory(
+            ticks=(),
+            complete=False,
+            evidence_id=canonical_hash({
+                **evidence_seed,
+                "error_type": type(exc).__name__,
+                "error": str(exc)[:300],
+            }),
+        )
+
+
+def _shadow_live_tick_batch(
+    last_identity: tuple[int, float, float, float, int, float] | None,
+    latest: ShadowTick,
+) -> strategy_shadow_runtime.ShadowTickHistory:
+    if last_identity is None:
+        return strategy_shadow_runtime.ShadowTickHistory(
+            ticks=(latest,),
+            complete=True,
+            evidence_id=canonical_hash({
+                "mode": "live_cursor_start",
+                "latest_identity": list(latest.identity),
+            }),
+        )
+    if latest.identity == tuple(last_identity):
+        return strategy_shadow_runtime.ShadowTickHistory(
+            ticks=(),
+            complete=True,
+            evidence_id=canonical_hash({
+                "mode": "live_cursor_unchanged",
+                "latest_identity": list(latest.identity),
+            }),
+        )
+    if latest.time_msc < int(last_identity[0]):
+        return strategy_shadow_runtime.ShadowTickHistory(
+            ticks=(),
+            complete=False,
+            evidence_id=canonical_hash({
+                "mode": "live_cursor_regressed",
+                "last_identity": list(last_identity),
+                "latest_identity": list(latest.identity),
+            }),
+        )
+    history = _shadow_tick_history(
+        int(last_identity[0]),
+        until_msc=latest.time_msc,
+        after_identity=tuple(last_identity),
+    )
+    if not history.complete:
+        return history
+    if latest.identity not in {tick.identity for tick in history.ticks}:
+        return strategy_shadow_runtime.ShadowTickHistory(
+            ticks=(),
+            complete=False,
+            evidence_id=canonical_hash({
+                "mode": "live_latest_tick_missing",
+                "last_identity": list(last_identity),
+                "latest_identity": list(latest.identity),
+                "history_evidence_id": history.evidence_id,
+            }),
+        )
+    return history
+
+
+def _load_shadow_journal_records(path: Path) -> list[dict]:
+    try:
+        handle = Path(path).open("r", encoding="utf-8")
+    except OSError:
+        return []
+    records: list[dict] = []
+    with handle:
+        for line in handle:
+            if "strategy_shadow_" not in line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if str(record.get("ev") or "").startswith("strategy_shadow_"):
+                records.append(record)
+    return records
+
+
+def _configured_shadow_live_controls() -> dict[str, str]:
+    if not config.STRATEGY_C1_BALANCED_V1_ENABLED:
+        raise ValueError("Dubai live control is outside the shadow catalog")
+    gold_controls = {
+        "555": "gold_now_555_v1",
+        "c490": "gold_now_c490_v1",
+    }
+    gold_policy = str(config.GOLD_NOW_LIVE_POLICY or "").strip().lower()
+    if gold_policy not in gold_controls:
+        raise ValueError("Gold live control is outside the shadow catalog")
+    return {
+        "canal1": "dubai_balanced_v1",
+        "canal2": gold_controls[gold_policy],
+    }
+
+
+async def _initialize_strategy_shadows(path: Path) -> int:
+    if not config.STRATEGY_SHADOW_ENABLED:
+        strategy_shadow_runtime.install_runtime(None)
+        return 0
+    try:
+        controls = _configured_shadow_live_controls()
+        catalog = strategy_shadow_runtime.build_shadow_catalog(
+            live_controls=controls,
+        )
+        runtime = strategy_shadow_runtime.ShadowRuntime(
+            catalog=catalog,
+            journal_sink=journal.event,
+            checkpoint_seconds=config.STRATEGY_SHADOW_CHECKPOINT_SECONDS,
+            slowdown_threshold_ms=(
+                config.STRATEGY_SHADOW_SLOWDOWN_THRESHOLD_MS
+            ),
+        )
+        strategy_shadow_runtime.install_runtime(runtime)
+        records = await asyncio.to_thread(
+            _load_shadow_journal_records, Path(path)
+        )
+
+        async def history_reader(from_msc: int):
+            return await asyncio.to_thread(_shadow_tick_history, from_msc)
+
+        restored = await runtime.recover(
+            records,
+            history_reader=history_reader,
+        )
+    except Exception as exc:
+        strategy_shadow_runtime.install_runtime(None)
+        journal.event(
+            "bot",
+            "strategy_shadow_startup_disabled",
+            error_type=type(exc).__name__,
+            error=str(exc)[:300],
+        )
+        return 0
+    journal.event(
+        "bot",
+        "strategy_shadow_runtime_started",
+        recovered_states=len(restored),
+        candidates={
+            channel: [policy.candidate_id for policy in policies]
+            for channel, policies in catalog.items()
+        },
+        controls=controls,
+    )
+    print(
+        "[Shadow] 3 estrategias Dubai + 3 Gold activas "
+        f"({len(restored)} estados recuperados; sin ordenes MT5)"
+    )
+    return len(restored)
+
+
+async def _process_strategy_shadow_tick(runtime, observed: ShadowTick) -> bool:
+    try:
+        await runtime.process_tick(observed)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        strategy_shadow_runtime.install_runtime(None)
+        try:
+            journal.event(
+                "bot",
+                "strategy_shadow_runtime_disabled",
+                operation="process_tick",
+                error_type=type(exc).__name__,
+                error=str(exc)[:300],
+            )
+        except Exception:
+            pass
+        print(
+            "[Shadow] observacion desactivada tras un fallo aislado; "
+            "el bot live continua"
+        )
+        return False
+    return True
+
+
+async def _strategy_shadow_loop(interval_s: float = 0.25) -> None:
+    last_identity = None
+    continuity_failures = 0
+    while config.STRATEGY_SHADOW_ENABLED:
+        runtime = strategy_shadow_runtime.installed_runtime()
+        if runtime is None:
+            await asyncio.sleep(max(0.1, float(interval_s)))
+            continue
+        if last_identity is None:
+            last_identity = runtime.earliest_active_tick_identity()
+        latest = await asyncio.to_thread(_shadow_tick_snapshot)
+        if latest is None:
+            await asyncio.sleep(max(0.1, float(interval_s)))
+            continue
+        if latest.identity != last_identity:
+            history = await asyncio.to_thread(
+                _shadow_live_tick_batch,
+                last_identity,
+                latest,
+            )
+            if not history.complete:
+                continuity_failures += 1
+                if continuity_failures >= 3:
+                    strategy_shadow_runtime.install_runtime(None)
+                    try:
+                        journal.event(
+                            "bot",
+                            "strategy_shadow_runtime_disabled",
+                            operation="tick_continuity",
+                            error_type="TickContinuityError",
+                            error="broker tick history cursor could not be proven",
+                            evidence_id=history.evidence_id,
+                        )
+                    except Exception:
+                        pass
+                    print(
+                        "[Shadow] observacion desactivada: no se pudo "
+                        "demostrar continuidad completa de ticks; "
+                        "el bot live continua"
+                    )
+                await asyncio.sleep(max(0.1, float(interval_s)))
+                continue
+            continuity_failures = 0
+            for observed in history.ticks:
+                # Yield so Telegram and live-order work already scheduled for
+                # this event-loop turn keeps priority over observation.
+                await asyncio.sleep(0)
+                if not await _process_strategy_shadow_tick(runtime, observed):
+                    break
+                last_identity = observed.identity
+        await asyncio.sleep(max(0.01, float(interval_s)))
+
+
 def _restore_live_candidate_runtime(path) -> int:
     if not config.STRATEGY_C2_GOLD_NOW_555_ENABLED:
         return 0
@@ -3010,9 +3696,12 @@ def _restore_live_candidate_runtime(path) -> int:
 
 
 def _candidate_background_loops() -> list:
+    loops = []
     if config.STRATEGY_C2_GOLD_NOW_555_ENABLED:
-        return [gold_555_entry_watch_loop]
-    return []
+        loops.append(gold_555_entry_watch_loop)
+    if config.STRATEGY_SHADOW_ENABLED:
+        loops.append(_strategy_shadow_loop)
+    return loops
 
 
 async def main():
@@ -3097,6 +3786,7 @@ async def main():
             f"{recovered_closes}"
         )
     _restore_live_candidate_runtime(journal.EVENTS_FILE)
+    await _initialize_strategy_shadows(journal.EVENTS_FILE)
     restored_zone_plans = restore_canal2_zone_plans_from_journal(
         journal.EVENTS_FILE
     )
@@ -3179,6 +3869,7 @@ async def main():
         if not journal.flush_events(timeout=10.0):
             print("[journal] ERROR: eventos pendientes al cerrar")
         journal.set_notify_loop(None)
+        strategy_shadow_runtime.install_runtime(None)
         executor.shutdown()
         print("\nBot detenido.")
 

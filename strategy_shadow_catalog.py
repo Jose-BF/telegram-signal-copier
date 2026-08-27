@@ -27,14 +27,33 @@ GOLD_C490_FINGERPRINT = (
     "c4900550abae98de1500bf5b849072956175fdecda102fad69be9f7975cbf8d6"
 )
 
+DEFAULT_LIVE_CONTROLS = MappingProxyType({
+    "canal1": "dubai_balanced_v1",
+    "canal2": "gold_now_555_v1",
+})
 
-def build_shadow_catalog() -> Mapping[str, tuple[ShadowPolicy, ...]]:
+
+def build_shadow_catalog(
+    *,
+    live_controls: Mapping[str, str] | None = None,
+) -> Mapping[str, tuple[ShadowPolicy, ...]]:
+    controls = dict(DEFAULT_LIVE_CONTROLS if live_controls is None else live_controls)
+    if set(controls) != {"canal1", "canal2"}:
+        raise ValueError("live controls must define canal1 and canal2")
+
+    def role(channel: str, candidate_id: str) -> str:
+        return (
+            "live_control"
+            if controls[channel] == candidate_id
+            else "candidate"
+        )
+
     catalog = {
         "canal1": (
             ShadowPolicy(
                 candidate_id="dubai_balanced_v1",
                 channel="canal1",
-                role="live_control",
+                role=role("canal1", "dubai_balanced_v1"),
                 strategy_fingerprint=DUBAI_BALANCED_FINGERPRINT,
                 entry_mode="market_ladder",
                 entry_volumes=(0.01, 0.04, 0.04),
@@ -50,7 +69,7 @@ def build_shadow_catalog() -> Mapping[str, tuple[ShadowPolicy, ...]]:
             ShadowPolicy(
                 candidate_id="dubai_frontloaded_30m_v1",
                 channel="canal1",
-                role="candidate",
+                role=role("canal1", "dubai_frontloaded_30m_v1"),
                 strategy_fingerprint=DUBAI_FRONTLOADED_30M_FINGERPRINT,
                 entry_mode="market_ladder",
                 entry_volumes=(0.01, 0.05, 0.01, 0.02, 0.01, 0.02),
@@ -66,7 +85,7 @@ def build_shadow_catalog() -> Mapping[str, tuple[ShadowPolicy, ...]]:
             ShadowPolicy(
                 candidate_id="dubai_frontloaded_40m_v1",
                 channel="canal1",
-                role="candidate",
+                role=role("canal1", "dubai_frontloaded_40m_v1"),
                 strategy_fingerprint=DUBAI_FRONTLOADED_40M_FINGERPRINT,
                 entry_mode="market_ladder",
                 entry_volumes=(0.01, 0.05, 0.01, 0.02, 0.01, 0.02),
@@ -84,7 +103,7 @@ def build_shadow_catalog() -> Mapping[str, tuple[ShadowPolicy, ...]]:
             ShadowPolicy(
                 candidate_id="gold_now_555_v1",
                 channel="canal2",
-                role="live_control",
+                role=role("canal2", "gold_now_555_v1"),
                 strategy_fingerprint=GOLD_555_FINGERPRINT,
                 entry_mode="adverse_reversal",
                 entry_volumes=(0.04, 0.03, 0.03, 0.03, 0.03),
@@ -103,7 +122,7 @@ def build_shadow_catalog() -> Mapping[str, tuple[ShadowPolicy, ...]]:
             ShadowPolicy(
                 candidate_id="gold_now_b210_v1",
                 channel="canal2",
-                role="candidate",
+                role=role("canal2", "gold_now_b210_v1"),
                 strategy_fingerprint=GOLD_B210_FINGERPRINT,
                 entry_mode="market_ladder",
                 entry_volumes=(0.01, 0.01, 0.01, 0.01, 0.01, 0.01),
@@ -119,7 +138,7 @@ def build_shadow_catalog() -> Mapping[str, tuple[ShadowPolicy, ...]]:
             ShadowPolicy(
                 candidate_id="gold_now_c490_v1",
                 channel="canal2",
-                role="candidate",
+                role=role("canal2", "gold_now_c490_v1"),
                 strategy_fingerprint=GOLD_C490_FINGERPRINT,
                 entry_mode="immediate_multi",
                 entry_volumes=(0.01, 0.01, 0.01, 0.01, 0.01),
@@ -164,4 +183,3 @@ def policy_by_id(candidate_id: str) -> ShadowPolicy:
             if policy.candidate_id == candidate_id:
                 return policy
     raise KeyError(candidate_id)
-

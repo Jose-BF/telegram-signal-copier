@@ -40,6 +40,8 @@ import runtime_control
 import strategies
 import telegram_notifications
 import telegram_media_evidence
+import strategy_shadow_runtime
+from strategy_shadow_contracts import ShadowManagementEvent
 from risk_free_basket import BasketLeg, plan_risk_free_basket
 from canal2_zone_lifecycle import (
     LIFECYCLE_SCHEMA_VERSION,
@@ -118,6 +120,150 @@ class _Gold555PendingEntry:
 def _sig_id(signal: Signal) -> str:
     """Identificador único para journal. Mismo formato que state._key()."""
     return f"{signal.channel}_{signal.message_id}"
+
+
+def _shadow_observed_at_utc(value: datetime | None) -> datetime:
+    observed = value or datetime.now(timezone.utc)
+    if observed.tzinfo is None:
+        return observed.replace(tzinfo=timezone.utc)
+    return observed.astimezone(timezone.utc)
+
+
+async def _shadow_register_accepted_entry(
+    *,
+    channel: str,
+    message_id: int,
+    direction: str,
+    observed_at: datetime | None,
+    source_kind: str,
+    tick: dict | None,
+    reference_price: float | None = None,
+) -> tuple:
+    """Register prospective shadows without affecting the live order path."""
+    if not getattr(config, "STRATEGY_SHADOW_ENABLED", False):
+        return ()
+    if channel == "canal2" and source_kind != "telegram_now":
+        return ()
+    runtime = strategy_shadow_runtime.installed_runtime()
+    if runtime is None:
+        return ()
+    observed = _shadow_observed_at_utc(observed_at)
+    raw_tick_msc = (tick or {}).get("time_msc")
+    try:
+        tick_msc = int(raw_tick_msc)
+        if tick_msc <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        tick_msc = int(observed.timestamp() * 1000)
+    try:
+        return await runtime.register_signal(
+            channel=channel,
+            signal_id=f"{channel}_{int(message_id)}",
+            source_message_id=int(message_id),
+            direction=str(direction).upper(),
+            registered_at_utc=observed.isoformat(),
+            registered_tick_msc=tick_msc,
+            reference_price=reference_price,
+        )
+    except Exception as exc:
+        journal.event(
+            f"{channel}_{int(message_id)}",
+            "strategy_shadow_bridge_error",
+            operation="register_entry",
+            error_type=type(exc).__name__,
+            error=str(exc)[:300],
+        )
+        return ()
+
+
+async def _shadow_observe_resolved_management(
+    signal,
+    classification: dict,
+    *,
+    raw_text: str,
+    tg_ts: str | None,
+) -> tuple:
+    """Fan one accepted interpretation into shadows as observation only."""
+    if not getattr(config, "STRATEGY_SHADOW_ENABLED", False):
+        return ()
+    runtime = strategy_shadow_runtime.installed_runtime()
+    if runtime is None:
+        return ()
+    action = str(classification.get("action") or "INFORMATIONAL").upper()
+    if action == "INFORMATIONAL":
+        return ()
+    signal_id = f"{signal.channel}_{int(signal.message_id)}"
+    raw_hash = hashlib.sha256(str(raw_text or "").encode("utf-8")).hexdigest()
+    identity = {
+        "signal_id": signal_id,
+        "action": action,
+        "price": classification.get("price"),
+        "tg_ts": tg_ts,
+        "raw_hash": raw_hash,
+    }
+    event_id = hashlib.sha256(
+        json.dumps(
+            identity,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+        ).encode("ascii")
+    ).hexdigest()
+    try:
+        event = ShadowManagementEvent(
+            event_id=event_id,
+            signal_id=signal_id,
+            action=action,
+            observed_at_utc=datetime.now(timezone.utc).isoformat(),
+            price=classification.get("price"),
+            raw_hash=raw_hash,
+        )
+        return await runtime.process_management(event)
+    except Exception as exc:
+        journal.event(
+            signal_id,
+            "strategy_shadow_bridge_error",
+            operation="management",
+            action=action,
+            error_type=type(exc).__name__,
+            error=str(exc)[:300],
+        )
+        return ()
+
+
+async def _shadow_observe_unresolved_management(
+    *,
+    channel: str,
+    reply_id: int,
+    classifications,
+    raw_text: str,
+    tg_ts: str | None,
+) -> tuple:
+    """Preserve management for a shadow after its live Signal disappeared."""
+    if isinstance(classifications, dict):
+        classifications = [classifications]
+    observed = []
+    synthetic_signal = SimpleNamespace(
+        channel=str(channel),
+        message_id=int(reply_id),
+    )
+    for classification in normalize_classifier_outputs(classifications):
+        action = str(classification.get("action") or "INFORMATIONAL").upper()
+        confidence = float(classification.get("confidence") or 0.0)
+        if (
+            action == "INFORMATIONAL"
+            or confidence < 0.8
+            or classification.get("_gemini_failed")
+        ):
+            continue
+        changed = await _shadow_observe_resolved_management(
+            synthetic_signal,
+            classification,
+            raw_text=raw_text,
+            tg_ts=tg_ts,
+        )
+        observed.extend(changed)
+    return tuple(observed)
 
 
 def _initial_market_lot(channel: str) -> float:
@@ -2551,6 +2697,28 @@ async def _process_management_reply_edit(msg, channel: str,
         allow_single_open_fallback=(channel == "canal1"),
     )
     if sig is None:
+        if (
+            text
+            and getattr(config, "STRATEGY_SHADOW_ENABLED", False)
+            and not _edit_already_seen(channel, msg)
+        ):
+            try:
+                unresolved_classifications = await classify_async(text)
+                await _shadow_observe_unresolved_management(
+                    channel=channel,
+                    reply_id=int(reply_id),
+                    classifications=unresolved_classifications,
+                    raw_text=text,
+                    tg_ts=_msg_ts_iso(msg),
+                )
+            except Exception as exc:
+                journal.event(
+                    f"{channel}_{int(reply_id)}",
+                    "strategy_shadow_bridge_error",
+                    operation="unresolved_management",
+                    error_type=type(exc).__name__,
+                    error=str(exc)[:300],
+                )
         _log_unresolved_management_reply(msg, channel, reply_id, route)
         return True
 
@@ -4977,6 +5145,12 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
                       required_execution=required_execution,
                       raw_snippet=raw_text[:120],
                       tg_ts=tg_ts)
+        await _shadow_observe_resolved_management(
+            signal,
+            cl,
+            raw_text=raw_text,
+            tg_ts=tg_ts,
+        )
         if not will_apply:
             _record_management_action_outcome(
                 sig_id,
@@ -7448,6 +7622,15 @@ async def _register_gold_555_entry_watch(
         )
         record = _Gold555PendingEntry(intent=intent, watch=watch, label=label)
         _gold_555_entry_watches[message_id] = record
+        await _shadow_register_accepted_entry(
+            channel="canal2",
+            message_id=message_id,
+            direction=watch.direction,
+            observed_at=observed_at,
+            source_kind=intent.source_kind,
+            tick=tick,
+            reference_price=float(reference),
+        )
         telegram_ts = intent.telegram_timestamp
         journal.event(
             sig_id,
@@ -8044,12 +8227,21 @@ async def _open_canal2_intent(
                 trade_mode=account_evidence.get("trade_mode_name"),
                 currency=account_evidence.get("currency"),
             )
+        pre_open_tick = await _run(executor.current_tick_safe)
+        reference_price = _entry_reference_from_tick(direction, pre_open_tick)
+        await _shadow_register_accepted_entry(
+            channel="canal2",
+            message_id=message_id,
+            direction=direction,
+            observed_at=signal_received_utc,
+            source_kind=intent.source_kind,
+            tick=pre_open_tick,
+            reference_price=reference_price,
+        )
         ctx = await _run(compute_market_context, config.MT5_SYMBOL)
         if ctx:
             journal.event(sig_id_pre, "market_context", **ctx)
 
-        pre_open_tick = await _run(executor.current_tick_safe)
-        reference_price = _entry_reference_from_tick(direction, pre_open_tick)
         interpreted = interpret_entry_levels(
             "canal2", direction, parsed, reference_price=reference_price
         )
@@ -9644,6 +9836,15 @@ async def _handle_canal1_sticker(msg):
         )
         return
 
+    await _shadow_register_accepted_entry(
+        channel="canal1",
+        message_id=msg.id,
+        direction=direction,
+        observed_at=signal_received_utc,
+        source_kind="telegram_sticker",
+        tick=None,
+    )
+
     # Contexto de mercado al entrar — ver comentario en canal2_new.
     try:
         ctx = await _run(compute_market_context, config.MT5_SYMBOL)
@@ -9859,6 +10060,15 @@ async def _open_canal1_from_text(msg, parsed: dict):
             trigger="text_only",
         )
         return state.get("canal1", msg.id)
+
+    await _shadow_register_accepted_entry(
+        channel="canal1",
+        message_id=msg.id,
+        direction=direction,
+        observed_at=signal_received_utc,
+        source_kind="telegram_text",
+        tick=None,
+    )
 
     # Contexto de mercado al entrar — ver comentario en canal2_new.
     try:

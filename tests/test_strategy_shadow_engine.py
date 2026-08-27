@@ -185,6 +185,45 @@ def test_c490_missing_money_factor_marks_incomplete_and_does_not_guess_stop():
     assert result.state.complete is False
 
 
+def test_realized_money_uses_broker_half_up_rounding_per_leg():
+    policy = replace(
+        policy_by_id("gold_now_c490_v1"),
+        provider_management_mode="explicit_close_only",
+    )
+    state = register_signal(
+        policy,
+        signal_id="canal2_rounding",
+        source_message_id=124,
+        direction="BUY",
+        registered_at_utc=iso(),
+        registered_tick_msc=100,
+    )
+    opened = advance_tick(
+        policy,
+        state,
+        tick(101, bid=99.8, ask=100.0),
+    ).state
+    pending = apply_management(
+        policy,
+        opened,
+        ShadowManagementEvent(
+            event_id="close-half-cent",
+            signal_id=opened.signal_id,
+            action="CLOSE_ALL",
+            observed_at_utc=iso(1),
+        ),
+    ).state
+
+    closed = advance_tick(
+        policy,
+        pending,
+        tick(102, bid=102.675, ask=102.875, minutes=1),
+    ).state
+
+    assert [position.realized_eur for position in closed.positions] == [2.68] * 5
+    assert closed.realized_eur == 13.40
+
+
 def test_c490_applies_break_even_after_favourable_twelve_xau():
     policy, state = new_state("gold_now_c490_v1")
     state = advance_tick(policy, state, tick(101, bid=4300.0, ask=4300.2)).state
@@ -286,7 +325,7 @@ def test_provider_close_is_pending_until_next_unique_tick_and_deduplicated():
     assert closed.state.exit_reason == "provider_close"
 
 
-def test_provider_close_before_555_entry_cancels_watch():
+def test_provider_close_before_555_entry_waits_for_next_unique_tick():
     policy, state = new_state("gold_now_555_v1", reference=4300.0)
     event = ShadowManagementEvent(
         event_id="m1",
@@ -295,10 +334,46 @@ def test_provider_close_before_555_entry_cancels_watch():
         observed_at_utc=iso(1),
     )
 
-    cancelled = apply_management(policy, state, event)
+    pending = apply_management(policy, state, event)
+    cancelled = advance_tick(
+        policy,
+        pending.state,
+        tick(101, bid=4300.0, ask=4300.2, minutes=1.1),
+    )
 
+    assert pending.state.pending_provider_close is True
+    assert pending.state.status == "waiting"
     assert cancelled.state.status == "cancelled"
     assert cancelled.state.exit_reason == "provider_close_before_entry"
+
+
+def test_555_non_negative_timer_starts_at_first_fill_not_signal_arrival():
+    policy, state = new_state("gold_now_555_v1", reference=4300.0)
+    state = advance_tick(
+        policy,
+        state,
+        tick(101, bid=4298.7, ask=4298.9, minutes=19),
+    ).state
+    state = advance_tick(
+        policy,
+        state,
+        tick(102, bid=4300.2, ask=4300.4, minutes=20),
+    ).state
+
+    before_due = advance_tick(
+        policy,
+        state,
+        tick(103, bid=4300.4, ask=4300.6, minutes=180),
+    ).state
+    due = advance_tick(
+        policy,
+        before_due,
+        tick(104, bid=4300.4, ask=4300.6, minutes=200),
+    ).state
+
+    assert before_due.status == "open"
+    assert due.status == "closed"
+    assert due.exit_reason == "non_negative_time_exit"
 
 
 def test_c490_ignores_provider_management():
@@ -317,6 +392,23 @@ def test_c490_ignores_provider_management():
     assert result.transitions[0].event == "provider_action_ignored"
 
 
+def test_dubai_control_observes_provider_be_without_changing_its_positions():
+    policy, state = new_state("dubai_balanced_v1")
+    state = advance_tick(policy, state, tick(101, bid=4300.0, ask=4300.2)).state
+    event = ShadowManagementEvent(
+        event_id="m-MOVE_SL_TO_BE",
+        signal_id=state.signal_id,
+        action="MOVE_SL_TO_BE",
+        observed_at_utc=iso(1),
+        observed_tick_msc=101,
+    )
+
+    result = apply_management(policy, state, event)
+
+    assert result.state.positions[0].stop_price is None
+    assert result.transitions[0].event == "provider_action_observed"
+
+
 @pytest.mark.parametrize(
     "action, price, expected_stop",
     [
@@ -324,12 +416,21 @@ def test_c490_ignores_provider_management():
         ("MOVE_SL_TO_PRICE", 4298.5, 4298.5),
     ],
 )
-def test_exact_provider_protection_updates_open_dubai_positions(
+def test_explicit_provider_protection_policy_updates_open_positions(
     action,
     price,
     expected_stop,
 ):
-    policy, state = new_state("dubai_balanced_v1")
+    policy, _state = new_state("dubai_balanced_v1")
+    policy = replace(policy, provider_protection_mode="exact")
+    state = register_signal(
+        policy,
+        signal_id="canal1_123",
+        source_message_id=123,
+        direction="BUY",
+        registered_at_utc=iso(),
+        registered_tick_msc=100,
+    )
     state = advance_tick(policy, state, tick(101, bid=4300.0, ask=4300.2)).state
     event = ShadowManagementEvent(
         event_id=f"m-{action}",

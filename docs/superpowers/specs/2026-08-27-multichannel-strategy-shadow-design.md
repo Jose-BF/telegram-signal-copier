@@ -69,7 +69,9 @@ either fingerprint changes.
    `cdee2bdfc53aff748d0b87e1d57301793eeb620a4287916c4494cb6681a070b0`.
    It is identical to candidate 2 except for a 40-minute loss-only exit.
 
-All three use exact resolved provider management. The candidates were selected
+All three consume the exact resolved provider timeline. Their frozen contract
+honours explicit provider closes but has no provider-driven BE/SL mode, matching
+the deployed Dubai policy and the research engine. The candidates were selected
 because they were exact over the 45-signal research set, remained positive in
 all six recorded execution-stress worlds, and represented the three strongest
 fully certified results. Those retrospective results are selection evidence,
@@ -79,7 +81,7 @@ not forward profit claims.
 
 1. `gold_now_555_v1`, fingerprint
    `555124a24b534aa2abda53ddaaa2ee35fd3afd07e61d05937eb14c80ad0676f0`.
-   This is the live control. It waits for a 1.0 adverse move and a 1.5 reversal,
+   This is the live control when `GOLD_NOW_LIVE_POLICY=555`. It waits for a 1.0 adverse move and a 1.5 reversal,
    then uses `0.04/0.03/0.03/0.03/0.03` adverse-ladder legs, per-fill targets,
    an initial stop 30 XAUUSD from each fill that trails monotonically at the
    same distance, a `+30/-1 EUR` profit lock, a 180-minute non-negative exit
@@ -101,7 +103,10 @@ not forward profit claims.
    entry and broker-protection definition distinct from its management-only
    research fingerprint.
 
-These three were selected before observing the new forward cohort. The 555
+When `GOLD_NOW_LIVE_POLICY=c490`, c490 is recorded as the control and 555 as a
+candidate without changing either execution fingerprint. A legacy live policy,
+which is not one of the frozen three, disables only shadow evaluation. These
+three were selected before observing the new forward cohort. The 555
 candidate had the strongest retrospective raw result but lower participation
 and greater adverse exposure; b210 had full participation and the strongest
 normalized result; c490 is the previously deployed benchmark.
@@ -135,6 +140,10 @@ Virtual P/L uses the existing verified broker money contract and account
 currency conversion. Missing or stale contract evidence marks the candidate
 result incomplete; it never substitutes a price-distance estimate.
 
+Entry expiry is measured from prospective signal registration. Strategy time
+exits are measured from the first virtual fill, so a delayed 555 confirmation
+does not consume its holding window while it is still waiting to enter.
+
 ### Runtime coordinator
 
 The listener registers all candidates after one formal signal has passed the
@@ -148,6 +157,11 @@ escape into Telegram polling, MT5 supervision or live order handling. It
 measures processing time and emits a single degradation event when a candidate
 cannot keep up. No Telegram human-review alert is generated for normal shadow
 differences.
+
+An unexpected coordinator or journal failure disables the installed shadow
+runtime and records one diagnostic event. The independent live loops continue;
+the bot never keeps producing apparently complete shadow evidence after its
+durable observation path has failed.
 
 ### Journal and recovery
 
@@ -224,9 +238,9 @@ signals that remain part of that candidate's forward test.
    dependency.
 2. Unit tests cover every entry, ladder, management, guard and exit transition
    for all six frozen candidates.
-3. Golden parity fixtures feed identical historical ticks into the incremental
-   engine and the existing offline oracle; entries, exits, reason and money
-   must match exactly.
+3. Golden parity fixtures cross-check the incremental engine against the
+   independent deployed Dubai, Gold 555 and Gold c490 policy oracles; frozen
+   parameters, entry levels, protection and guard decisions must agree.
 4. Integration tests prove one Telegram signal creates three shadows only in
    its own channel and never calls an MT5 order function.
 5. Recovery tests interrupt shadows before entry, during an open basket and

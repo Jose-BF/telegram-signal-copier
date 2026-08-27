@@ -111,6 +111,17 @@ STRATEGY_C1_BALANCED_V1_ENABLED = (
     os.getenv("STRATEGY_C1_BALANCED_V1_ENABLED", "1") == "1"
 )
 
+# Prospective policy comparison. It observes accepted signals and broker ticks
+# but has no route to the MT5 execution queue. Keep disabled until explicitly
+# enabled on the demo VM after deployment verification.
+STRATEGY_SHADOW_ENABLED = os.getenv("STRATEGY_SHADOW_ENABLED", "0") == "1"
+STRATEGY_SHADOW_CHECKPOINT_SECONDS = int(
+    os.getenv("STRATEGY_SHADOW_CHECKPOINT_SECONDS", "300")
+)
+STRATEGY_SHADOW_SLOWDOWN_THRESHOLD_MS = _float(
+    "STRATEGY_SHADOW_SLOWDOWN_THRESHOLD_MS", 20.0,
+)
+
 # Heartbeat de runtime para el watcher externo. Si el proceso queda vivo pero
 # congelado, tools/run_bot_watch.py reinicia el bot al ver este fichero viejo.
 BOT_RUNTIME_HEARTBEAT_SEC = _float("BOT_RUNTIME_HEARTBEAT_SEC", 15.0)

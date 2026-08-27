@@ -33,6 +33,33 @@ def test_catalog_contains_three_frozen_candidates_per_channel():
     assert catalog["canal2"][0].role == "live_control"
 
 
+def test_catalog_marks_the_configured_candidate_as_live_control():
+    catalog = build_shadow_catalog(live_controls={
+        "canal1": "dubai_balanced_v1",
+        "canal2": "gold_now_c490_v1",
+    })
+
+    assert [
+        policy.candidate_id
+        for policy in catalog["canal2"]
+        if policy.role == "live_control"
+    ] == ["gold_now_c490_v1"]
+    assert next(
+        policy for policy in catalog["canal2"]
+        if policy.candidate_id == "gold_now_555_v1"
+    ).role == "candidate"
+
+
+def test_current_candidates_do_not_invent_provider_be_or_sl_management():
+    catalog = build_shadow_catalog()
+
+    assert all(
+        policy.provider_protection_mode == "none"
+        for policies in catalog.values()
+        for policy in policies
+    )
+
+
 def test_catalog_matches_approved_strategy_fingerprints_and_parameters():
     catalog = build_shadow_catalog()
     policies = {
@@ -113,6 +140,27 @@ def test_tick_uses_broker_executable_quote_side():
     assert tick.executable_price("BUY", entry=False) == 4300.0
     assert tick.executable_price("SELL", entry=True) == 4300.0
     assert tick.executable_price("SELL", entry=False) == 4300.2
+
+
+def test_tick_supports_direction_specific_broker_money_factors():
+    tick = ShadowTick(
+        time_msc=100,
+        bid=4300.0,
+        ask=4300.2,
+        observed_at_utc="2026-08-27T08:00:00+00:00",
+        positive_eur_per_move_lot=100.0,
+        negative_eur_per_move_lot=101.0,
+        money_evidence_id="money-1",
+        buy_positive_eur_per_move_lot=102.0,
+        buy_negative_eur_per_move_lot=103.0,
+        sell_positive_eur_per_move_lot=104.0,
+        sell_negative_eur_per_move_lot=105.0,
+    )
+
+    assert tick.money_factor("BUY", favourable=True) == 102.0
+    assert tick.money_factor("BUY", favourable=False) == 103.0
+    assert tick.money_factor("SELL", favourable=True) == 104.0
+    assert tick.money_factor("SELL", favourable=False) == 105.0
 
 
 def test_shadow_policy_type_is_immutable():

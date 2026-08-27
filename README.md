@@ -81,6 +81,29 @@ Current demo forward policy:
   process-protected; Gold NOW also has a broker-side catastrophe SL on every
   leg so a stopped Python process does not leave those positions naked.
 
+Prospective strategy shadows:
+
+- `STRATEGY_SHADOW_ENABLED=1` observes every accepted Dubai signal and every
+  Gold `BUY/SELL NOW` signal with three frozen candidates per channel. Gold
+  zone plans are deliberately excluded from this first cohort.
+- Shadows consume normalized Telegram events and fresh broker ticks, but their
+  modules cannot import the MT5 order path. They never open, modify or close a
+  real position and normal differences do not generate human-review alerts.
+- Transition-only checkpoints preserve causal recovery across a restart.
+  Missing ticks, Telegram lineage, verified EUR conversion, prospective
+  registration or live-control parity block the ranking instead of estimating
+  the missing result.
+- Entry windows start when Telegram is accepted; holding-time exits start at
+  the first virtual fill. An unexpected shadow-runtime failure disables only
+  observation and leaves the live bot running.
+- Reviews are labelled diagnostic at 15 untouched signals per channel,
+  provisional at 45 and evidence at 100. A ranking never promotes or changes
+  the live policy automatically; candidate parameters remain frozen throughout
+  their forward cohort.
+- The rollback is immediate and isolated: set
+  `STRATEGY_SHADOW_ENABLED=false`. This changes only observation and leaves the
+  active Dubai/Gold execution policies untouched.
+
 The compact daily log pass is incremental and reports armed zones, confirmed
 entries, trigger types and failures without rescanning the retained corpus:
 

@@ -85,6 +85,17 @@ async def test_runtime_registers_only_the_signal_channel_and_is_idempotent():
 
 
 @pytest.mark.asyncio
+async def test_runtime_exposes_earliest_active_tick_cursor_for_live_resume():
+    runtime = ShadowRuntime()
+    await register_dubai(runtime)
+    observed = tick(101, 4300.0, 4300.2, 1)
+
+    await runtime.process_tick(observed)
+
+    assert runtime.earliest_active_tick_identity() == observed.identity
+
+
+@pytest.mark.asyncio
 async def test_candidate_exception_is_isolated_and_siblings_continue():
     journal = JournalCapture()
 
@@ -167,8 +178,8 @@ async def test_management_routes_to_all_candidates_of_one_signal():
     changed = await runtime.process_management(event)
 
     assert {state.candidate_id for state in changed} == DUBAI_IDS
-    assert all(state.positions[0].stop_price == state.positions[0].entry_price
-               for state in changed)
+    assert all(state.positions[0].stop_price is None for state in changed)
+    assert all(state.processed_management_ids == ("mgmt-1",) for state in changed)
 
 
 @pytest.mark.asyncio

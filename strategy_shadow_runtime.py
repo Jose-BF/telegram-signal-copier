@@ -24,6 +24,18 @@ JournalSink = Callable[..., object]
 HistoryReader = Callable[[int], "ShadowTickHistory | Awaitable[ShadowTickHistory]"]
 
 
+_installed_runtime: "ShadowRuntime | None" = None
+
+
+def install_runtime(runtime: "ShadowRuntime | None") -> None:
+    global _installed_runtime
+    _installed_runtime = runtime
+
+
+def installed_runtime() -> "ShadowRuntime | None":
+    return _installed_runtime
+
+
 @dataclass(frozen=True)
 class ShadowTickHistory:
     ticks: tuple[ShadowTick, ...]
@@ -94,6 +106,19 @@ class ShadowRuntime:
             for state in self._states.values()
             if state.status not in {"closed", "cancelled", "incomplete"}
         }
+
+    def earliest_active_tick_identity(
+        self,
+    ) -> tuple[int, float, float, float, int, float] | None:
+        identities = [
+            state.last_tick_identity
+            for state in self._states.values()
+            if (
+                state.status not in {"closed", "cancelled", "incomplete"}
+                and state.last_tick_identity is not None
+            )
+        ]
+        return None if not identities else min(identities)
 
     def status(self, candidate_id: str) -> str:
         return (
@@ -452,4 +477,3 @@ class ShadowRuntime:
                     state=state.to_dict(),
                 )
         return tuple(self._states.values())
-

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import datetime
+from decimal import Decimal, ROUND_HALF_UP
 import math
 from typing import Iterable
 
@@ -20,6 +21,12 @@ from strategy_shadow_contracts import (
 
 
 TERMINAL_STATUSES = {"closed", "cancelled", "incomplete"}
+_MONEY_QUANTUM = Decimal("0.01")
+
+
+def _money_sum(values: Iterable[float]) -> float:
+    total = sum((Decimal(str(value)) for value in values), Decimal("0"))
+    return float(total.quantize(_MONEY_QUANTUM, rounding=ROUND_HALF_UP))
 
 
 def _parse_utc(value: str) -> datetime:
@@ -33,6 +40,21 @@ def _elapsed_minutes(state: ShadowSignalState, observed_at_utc: str) -> float:
     seconds = (
         _parse_utc(observed_at_utc) - _parse_utc(state.registered_at_utc)
     ).total_seconds()
+    return max(0.0, seconds / 60.0)
+
+
+def _elapsed_open_minutes(
+    state: ShadowSignalState,
+    observed_at_utc: str,
+) -> float:
+    opened_at = [
+        _parse_utc(position.opened_at_utc)
+        for position in state.positions
+        if position.opened_at_utc is not None
+    ]
+    if not opened_at:
+        return _elapsed_minutes(state, observed_at_utc)
+    seconds = (_parse_utc(observed_at_utc) - min(opened_at)).total_seconds()
     return max(0.0, seconds / 60.0)
 
 
@@ -109,15 +131,21 @@ def _position_money(
     exit_price: float,
     tick: ShadowTick,
 ) -> tuple[float, bool]:
-    move = _directional_move(state.direction, position.entry_price, exit_price)
-    factor = (
-        tick.positive_eur_per_move_lot
-        if move >= 0.0
-        else tick.negative_eur_per_move_lot
+    entry = Decimal(str(position.entry_price))
+    exit_value = Decimal(str(exit_price))
+    move = exit_value - entry if state.direction == "BUY" else entry - exit_value
+    factor = tick.money_factor(
+        state.direction,
+        favourable=move >= 0.0,
     )
     if factor is None or not tick.money_evidence_id:
         return 0.0, False
-    return round(move * position.volume * float(factor), 2), True
+    amount = (
+        move
+        * Decimal(str(position.volume))
+        * Decimal(str(factor))
+    ).quantize(_MONEY_QUANTUM, rounding=ROUND_HALF_UP)
+    return float(amount), True
 
 
 def _basket_money(
@@ -131,9 +159,9 @@ def _basket_money(
         if position.status != "open":
             continue
         amount, amount_exact = _position_money(state, position, exit_price, tick)
-        floating = round(floating + amount, 2)
+        floating = _money_sum((floating, amount))
         exact = exact and amount_exact
-    return floating, round(state.realized_eur + floating, 2), exact
+    return floating, _money_sum((state.realized_eur, floating)), exact
 
 
 def _close_positions(
@@ -167,8 +195,8 @@ def _close_positions(
             realized_eur=realized,
         ))
         closed_indexes.append(position.leg_index)
-    realized_total = round(
-        sum(item.realized_eur for item in updated_positions), 2,
+    realized_total = _money_sum(
+        item.realized_eur for item in updated_positions
     )
     updated = replace(
         state,
@@ -213,7 +241,7 @@ def _new_position(
             entry_price - sign * float(policy.trailing_distance), 8,
         )
     elif policy.hard_stop_eur_per_leg is not None:
-        factor = tick.negative_eur_per_move_lot
+        factor = tick.money_factor(state.direction, favourable=False)
         if factor is None or not tick.money_evidence_id:
             money_complete = False
         else:
@@ -227,6 +255,7 @@ def _new_position(
         volume=float(policy.entry_volumes[leg_index]),
         entry_price=entry_price,
         opened_tick_msc=tick.time_msc,
+        opened_at_utc=tick.observed_at_utc,
         target_price=target_price,
         stop_price=stop_price,
     ), money_complete
@@ -614,7 +643,7 @@ def _process_guard(
                     updated, tick, transitions, "profit_giveback",
                 )
 
-    if policy.time_exit_minutes is not None and _elapsed_minutes(
+    if policy.time_exit_minutes is not None and _elapsed_open_minutes(
         updated, tick.observed_at_utc,
     ) >= float(policy.time_exit_minutes):
         reason = None
@@ -773,29 +802,19 @@ def apply_management(
         return ShadowAdvance(updated, tuple(transitions))
 
     if _is_close_action(action):
-        if not any(item.status == "open" for item in updated.positions):
-            updated = replace(
-                updated,
-                status="cancelled",
-                exit_reason="provider_close_before_entry",
-            )
-            transitions.append(_transition(
-                updated,
-                "entry_cancelled",
-                tick_msc=event.observed_tick_msc,
-                reason="provider_close_before_entry",
-            ))
-        else:
-            updated = replace(updated, pending_provider_close=True)
-            transitions.append(_transition(
-                updated,
-                "provider_close_pending",
-                tick_msc=event.observed_tick_msc,
-                reason=action,
-            ))
+        updated = replace(updated, pending_provider_close=True)
+        transitions.append(_transition(
+            updated,
+            "provider_close_pending",
+            tick_msc=event.observed_tick_msc,
+            reason=action,
+        ))
         return ShadowAdvance(updated, tuple(transitions))
 
-    if policy.provider_management_mode == "exact":
+    if (
+        policy.provider_management_mode == "exact"
+        and policy.provider_protection_mode == "exact"
+    ):
         positions: list[ShadowPosition] = []
         changed: list[int] = []
         for position in updated.positions:

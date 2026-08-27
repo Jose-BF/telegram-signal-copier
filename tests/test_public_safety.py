@@ -75,3 +75,21 @@ def test_setup_env_renders_env_file_without_template_secrets():
     assert "MT5_PASSWORD=mt5_password" in rendered
     assert "GOOGLE_API_KEY=google_key" in rendered
     assert rendered.endswith("\n")
+
+
+def test_strategy_shadow_modules_cannot_reach_live_order_execution():
+    shadow_modules = (
+        "strategy_shadow_contracts.py",
+        "strategy_shadow_catalog.py",
+        "strategy_shadow_engine.py",
+        "strategy_shadow_runtime.py",
+        "strategy_shadow_report.py",
+    )
+    forbidden_import = re.compile(
+        r"(?m)^\s*(?:from|import)\s+(?:executor|pending_actions|MetaTrader5)\b"
+    )
+
+    for path in shadow_modules:
+        text = _read_repo_file(path)
+        assert forbidden_import.search(text) is None, path
+        assert "order_send" not in text, path
