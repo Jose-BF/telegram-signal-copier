@@ -172,6 +172,67 @@ def test_market_open_records_one_correlated_attempt_without_extra_ipc(
     assert requested["message_revision_id"] == "msgrev_fixed"
 
 
+def test_market_open_installs_money_valued_sl_in_the_initial_request(
+        monkeypatch):
+    requests = []
+    events = []
+
+    monkeypatch.setattr(
+        executor.mt5,
+        "symbol_info_tick",
+        lambda _symbol: _tick(),
+    )
+    monkeypatch.setattr(
+        executor.mt5,
+        "symbol_info",
+        lambda _symbol: _symbol_info(),
+    )
+    monkeypatch.setattr(
+        executor.mt5,
+        "order_calc_profit",
+        lambda order_type, _symbol, volume, entry, exit_price: (
+            (1.0 if order_type == executor.mt5.ORDER_TYPE_BUY else -1.0)
+            * (exit_price - entry)
+            * volume
+            * 100.0
+            * 0.9
+        ),
+    )
+    monkeypatch.setattr(
+        executor.mt5,
+        "order_send",
+        lambda request: requests.append(dict(request)) or _trade_result(),
+    )
+    monkeypatch.setattr(
+        executor.mt5,
+        "positions_get",
+        lambda ticket=None: [_position(ticket or 8001)],
+    )
+    monkeypatch.setattr(
+        executor,
+        "_emit_event",
+        lambda sig, ev, **fields: events.append((sig, ev, fields)),
+    )
+
+    opened = executor.open_market_with_fill(
+        "BUY",
+        0.01,
+        comment="c1_21754",
+        magic=20260421,
+        loss_budget=25.0,
+    )
+
+    assert opened == (8001, 4056.53)
+    assert len(requests) == 1
+    assert requests[0]["sl"] == 4028.76
+    requested = next(
+        fields for _, event, fields in events
+        if event == "mt5_order_requested"
+    )
+    assert requested["requested_loss_budget"] == 25.0
+    assert requested["sl"] == 4028.76
+
+
 def test_market_open_with_unparseable_comment_is_still_observable(
         monkeypatch):
     events = []

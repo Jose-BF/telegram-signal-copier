@@ -164,6 +164,16 @@ def test_publish_live_strategy_contract_records_exact_runtime_policy(
         "poll_mode": "every_new_tick",
         "money_source": "realized_plus_floating_account_currency",
     }
+    assert contract["dubai"]["broker_sl"] == {
+        "required": True,
+        "loss_budget_per_basket": 25.0,
+        "valuation": "mt5_order_calc_profit_account_currency",
+        "common_price_for_open_legs": True,
+        "installed_on_initial_open": True,
+        "recalculated_after_each_fill": True,
+        "persistent_retry": True,
+        "close_on_install_failure": False,
+    }
     assert contract["gold"]["broker_sl"] == {
         "required": True,
         "loss_budget_per_leg": 20.0,

@@ -417,7 +417,9 @@ def _journal_gold_candidate_plan(signal: Signal) -> None:
         time_exit_min=policy.time_exit_min,
         time_exit_mode=policy.time_exit_mode,
         provider_management_mode=policy.provider_management_mode,
-        sl_install_policy="open_then_recalculate_and_retry_persistently",
+        sl_install_policy=(
+            "provisional_on_open_then_recalculate_and_retry_persistently"
+        ),
     )
 
 
@@ -595,6 +597,159 @@ async def _ensure_gold_candidate_hard_stops(
     return requested
 
 
+async def _ensure_dubai_candidate_hard_stops(
+    signal: Signal,
+    *,
+    force: bool = False,
+    tickets_override: list[int] | None = None,
+) -> int:
+    """Keep one MT5-valued broker SL on every open Dubai basket leg."""
+    if signal.live_strategy_id != dubai_live_candidate.CANDIDATE_ID:
+        return 0
+    policy = dubai_live_candidate.DubaiLivePolicy()
+    if signal.live_strategy_fingerprint != policy.fingerprint:
+        raise RuntimeError("Dubai frozen strategy fingerprint mismatch")
+
+    tickets = list(dict.fromkeys(
+        int(ticket)
+        for ticket in (tickets_override or signal.all_filled_tickets)
+    ))
+    specs = await _run(executor.open_position_specs, tickets)
+    if specs is None:
+        if not signal.candidate_sl_install_alerted:
+            signal.candidate_sl_install_alerted = True
+            journal.anomaly(
+                _sig_id(signal),
+                "mt5",
+                "critical",
+                "Dubai cannot verify its broker basket SL; retry remains active",
+                tickets=tickets,
+                strategy_id=signal.live_strategy_id,
+            )
+        return 0
+    if not specs:
+        return 0
+
+    common_stop = await _run(
+        executor.basket_loss_stop_price,
+        signal.direction,
+        list(specs.values()),
+        float(policy.stop_value),
+    )
+    open_tickets = sorted(int(ticket) for ticket in specs)
+    had_prior_request = any(
+        ticket in signal.candidate_hard_stop_requested_at
+        for ticket in open_tickets
+    )
+    if common_stop is None:
+        unresolved = open_tickets
+    else:
+        common_stop = float(common_stop)
+        unresolved = []
+
+    requested = 0
+    now = time.time()
+    for ticket in open_tickets:
+        spec = specs[ticket]
+        if common_stop is None:
+            continue
+        signal.candidate_hard_stops[ticket] = common_stop
+        installed = float(spec.get("sl") or 0.0)
+        point = max(float(spec.get("point") or 0.01), 1e-8)
+        protected = bool(
+            installed > 0
+            and (
+                installed >= common_stop - point / 2
+                if signal.direction == "BUY"
+                else installed <= common_stop + point / 2
+            )
+        )
+        if protected:
+            signal.sl_by_ticket[ticket] = installed
+            if ticket not in signal.candidate_sl_confirmed_tickets:
+                signal.candidate_sl_confirmed_tickets.append(ticket)
+                journal.event(
+                    _sig_id(signal),
+                    "dubai_broker_sl_confirmed",
+                    strategy_id=signal.live_strategy_id,
+                    ticket=ticket,
+                    installed_sl=installed,
+                    required_common_stop=common_stop,
+                    basket_loss_budget_eur=float(policy.stop_value),
+                )
+            continue
+
+        unresolved.append(ticket)
+        last_request = float(
+            signal.candidate_hard_stop_requested_at.get(ticket, 0.0)
+        )
+        last_level = signal.candidate_sl_requested_levels.get(ticket)
+        same_level = bool(
+            last_level is not None
+            and abs(float(last_level) - common_stop) <= point / 2
+        )
+        if not force and same_level and now - last_request < 5.0:
+            continue
+        pending_actions.enqueue_modify_sl(
+            signal,
+            ticket,
+            common_stop,
+            label=f"DUBAI BASKET SL #{ticket} -> {common_stop:.2f}",
+            persist_until_signal_close=True,
+        )
+        signal.candidate_hard_stop_requested_at[ticket] = now
+        signal.candidate_sl_requested_levels[ticket] = common_stop
+        requested += 1
+
+    unresolved = sorted(set(unresolved))
+    should_alert = bool(
+        unresolved
+        and (common_stop is None or had_prior_request)
+    )
+    if should_alert and not signal.candidate_sl_install_alerted:
+        signal.candidate_sl_install_alerted = True
+        journal.anomaly(
+            _sig_id(signal),
+            "sl_be",
+            "critical",
+            "Dubai broker basket SL is not yet confirmed; persistent retry active",
+            unresolved_tickets=unresolved,
+            strategy_id=signal.live_strategy_id,
+            basket_loss_budget_eur=float(policy.stop_value),
+            close_on_install_failure=False,
+        )
+        _schedule_detached(notify(
+            f"⚠️ {provider_display_name(signal.channel)}\n"
+            f"SL AUN SIN CONFIRMAR\n\n"
+            f"El bot seguirá intentando instalar la protección de la cesta "
+            f"en {len(unresolved)} posición(es)."
+        ))
+    elif not unresolved and signal.candidate_sl_install_alerted:
+        signal.candidate_sl_install_alerted = False
+        journal.event(
+            _sig_id(signal),
+            "dubai_broker_sl_recovered",
+            strategy_id=signal.live_strategy_id,
+            tickets=open_tickets,
+            common_stop=common_stop,
+        )
+
+    if requested:
+        journal.event(
+            _sig_id(signal),
+            "dubai_broker_sl_requested",
+            strategy_id=signal.live_strategy_id,
+            strategy_fingerprint=signal.live_strategy_fingerprint,
+            requested_count=requested,
+            open_tickets=open_tickets,
+            common_stop=common_stop,
+            basket_loss_budget_eur=float(policy.stop_value),
+            persist_until_signal_close=True,
+            close_on_install_failure=False,
+        )
+    return requested
+
+
 def _journal_dubai_candidate_plan(signal: Signal) -> None:
     if signal.live_strategy_id != dubai_live_candidate.CANDIDATE_ID:
         return
@@ -617,6 +772,11 @@ def _journal_dubai_candidate_plan(signal: Signal) -> None:
         target_mode="none",
         be_mode="none",
         money_source="realized_plus_floating_account_currency",
+        broker_sl_mode="aggregate_money_common_price",
+        broker_sl_budget_eur=(
+            dubai_live_candidate.DubaiLivePolicy().stop_value
+        ),
+        sl_install_policy="open_then_recalculate_and_retry_persistently",
     )
 
 
@@ -9888,6 +10048,11 @@ async def _handle_canal1_sticker(msg):
 
         magic = config.magic_for("canal1")
         # 1 sola llamada MT5 que devuelve (ticket, fill_price) — ahorra round-trip extra
+        open_kwargs = {}
+        if config.STRATEGY_C1_BALANCED_V1_ENABLED:
+            open_kwargs["loss_budget"] = (
+                dubai_live_candidate.DubaiLivePolicy().stop_value
+            )
         result = await _run(
             executor.open_market_with_fill,
             direction,
@@ -9896,6 +10061,7 @@ async def _handle_canal1_sticker(msg):
             None,
             _market_comment("canal1", msg.id),
             magic,
+            **open_kwargs,
         )
     except Exception:
         _entry_open_finished("canal1", msg.id)
@@ -9956,6 +10122,18 @@ async def _handle_canal1_sticker(msg):
         num_entries=config.STRATEGY_C1_NUM_ENTRIES,
         time_stop_min=config.STRATEGY_C1_TIME_STOP_MIN,
     )
+    try:
+        await _ensure_dubai_candidate_hard_stops(sig, force=True)
+    except Exception as exc:
+        journal.anomaly(
+            _sig_id(sig),
+            "sl_be",
+            "critical",
+            "Dubai initial broker SL verification failed; monitor will retry",
+            exc_type=type(exc).__name__,
+            exc_msg=str(exc)[:300],
+            strategy_id=sig.live_strategy_id,
+        )
     # Abre posiciones market extra (modo scale_out, o doble market legacy).
     await _open_extra_legs(sig, msg.id)
     await _place_dca(sig)
@@ -10112,6 +10290,11 @@ async def _open_canal1_from_text(msg, parsed: dict):
             journal.event(sig_id_pre, "market_context", **ctx)
 
         magic = config.magic_for("canal1")
+        open_kwargs = {}
+        if config.STRATEGY_C1_BALANCED_V1_ENABLED:
+            open_kwargs["loss_budget"] = (
+                dubai_live_candidate.DubaiLivePolicy().stop_value
+            )
         result = await _run(
             executor.open_market_with_fill,
             direction,
@@ -10120,6 +10303,7 @@ async def _open_canal1_from_text(msg, parsed: dict):
             None,
             _market_comment("canal1", msg.id),
             magic,
+            **open_kwargs,
         )
     except Exception:
         _entry_open_finished("canal1", msg.id)
@@ -10181,6 +10365,18 @@ async def _open_canal1_from_text(msg, parsed: dict):
         num_entries=config.STRATEGY_C1_NUM_ENTRIES,
         time_stop_min=config.STRATEGY_C1_TIME_STOP_MIN,
     )
+    try:
+        await _ensure_dubai_candidate_hard_stops(sig, force=True)
+    except Exception as exc:
+        journal.anomaly(
+            _sig_id(sig),
+            "sl_be",
+            "critical",
+            "Dubai initial broker SL verification failed; monitor will retry",
+            exc_type=type(exc).__name__,
+            exc_msg=str(exc)[:300],
+            strategy_id=sig.live_strategy_id,
+        )
     # Abre posiciones market extra (modo scale_out, o doble market legacy).
     await _open_extra_legs(sig, msg.id)
     await _place_dca(sig)

@@ -169,7 +169,7 @@ async def test_expired_ladder_never_opens_and_logs_only_once(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_candidate_leg_uses_exact_executor_fill_without_sl_or_tp(
+async def test_candidate_leg_uses_exact_fill_with_a_provisional_broker_sl(
     monkeypatch,
 ):
     signal, _ = _candidate_signal("BUY")
@@ -183,8 +183,34 @@ async def test_candidate_leg_uses_exact_executor_fill_without_sl_or_tp(
         return func(*args, **kwargs)
 
     monkeypatch.setattr(monitor.executor, "open_market_with_fill", fake_open)
+    monkeypatch.setattr(
+        monitor.executor,
+        "open_position_specs",
+        lambda _tickets: {
+            6001: {
+                "entry": 4200.0,
+                "volume": 0.01,
+                "symbol": "XAUUSD",
+                "sl": 0.0,
+                "point": 0.01,
+            },
+        },
+    )
+    monkeypatch.setattr(
+        monitor.executor,
+        "basket_loss_stop_price",
+        lambda *_args, **_kwargs: 4191.25,
+    )
     monkeypatch.setattr(monitor.asyncio, "to_thread", immediate)
     monkeypatch.setattr(journal, "event", lambda *args, **kwargs: None)
+    async def fake_ensure_dubai_stops(*_args, **_kwargs):
+        return 0
+
+    monkeypatch.setattr(
+        listener,
+        "_ensure_dubai_candidate_hard_stops",
+        fake_ensure_dubai_stops,
+    )
 
     result = await monitor._open_candidate_leg(
         signal,
@@ -195,7 +221,7 @@ async def test_candidate_leg_uses_exact_executor_fill_without_sl_or_tp(
     assert result == (6301, 4195.73)
     args, kwargs = calls[0]
     assert args[:2] == ("BUY", 0.04)
-    assert kwargs["sl"] is None
+    assert kwargs["sl"] == 4191.25
     assert kwargs["tp"] is None
     assert kwargs["magic"] == config.magic_for("canal1")
 

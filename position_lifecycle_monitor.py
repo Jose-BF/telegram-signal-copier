@@ -992,6 +992,50 @@ def _candidate_filled_indexes(signal: Signal) -> list[int]:
     return indexes
 
 
+async def _dubai_provisional_basket_stop(
+    signal: Signal,
+    *,
+    new_volume: float,
+    observed_price: float,
+) -> float | None:
+    """Value the post-fill basket before opening a delayed Dubai leg."""
+    policy = dubai_live_candidate.DubaiLivePolicy()
+    current_tickets = [int(ticket) for ticket in signal.all_filled_tickets]
+    specs = await asyncio.to_thread(
+        executor.open_position_specs,
+        current_tickets,
+    )
+    rows = []
+    if specs is not None and set(specs) == set(current_tickets):
+        rows.extend(dict(spec) for spec in specs.values())
+    symbol = (
+        str(rows[0].get("symbol"))
+        if rows and rows[0].get("symbol")
+        else config.MT5_SYMBOL
+    )
+    rows.append({
+        "entry": float(observed_price),
+        "volume": float(new_volume),
+        "symbol": symbol,
+    })
+    common_stop = await asyncio.to_thread(
+        executor.basket_loss_stop_price,
+        signal.direction,
+        rows,
+        float(policy.stop_value),
+    )
+    if common_stop is not None:
+        return float(common_stop)
+    return await asyncio.to_thread(
+        executor.loss_stop_price,
+        signal.direction,
+        float(new_volume),
+        float(observed_price),
+        float(policy.stop_value),
+        symbol,
+    )
+
+
 async def _open_candidate_leg(
     signal: Signal,
     leg: dict,
@@ -1030,7 +1074,11 @@ async def _open_candidate_leg(
             leg_index,
         )
     else:
-        provisional_sl = None
+        provisional_sl = await _dubai_provisional_basket_stop(
+            signal,
+            new_volume=float(leg["volume"]),
+            observed_price=float(observed_price),
+        )
         provisional_tp = None
         decision_reason = "dubai_balanced_adverse_leg"
         comment = f"DCA_c1_{signal.message_id}_D{leg_index}"
@@ -1057,7 +1105,7 @@ async def _open_candidate_leg(
         except Exception:
             pass
         try:
-            return await asyncio.to_thread(
+            result = await asyncio.to_thread(
                 executor.open_market_with_fill,
                 signal.direction,
                 float(leg["volume"]),
@@ -1084,6 +1132,29 @@ async def _open_candidate_leg(
                 )
             except Exception:
                 pass
+    if result and not gold_555:
+        ticket = int(result[0])
+        try:
+            from listener import _ensure_dubai_candidate_hard_stops
+            await _ensure_dubai_candidate_hard_stops(
+                signal,
+                force=True,
+                tickets_override=list(signal.all_filled_tickets) + [ticket],
+            )
+        except Exception as exc:
+            _journal_anomaly(
+                f"{signal.channel}_{signal.message_id}",
+                "sl_be",
+                "critical",
+                "Dubai delayed leg filled but exact basket SL recalculation "
+                "failed; provisional SL remains active and retry continues",
+                ticket=ticket,
+                provisional_sl=provisional_sl,
+                exc_type=type(exc).__name__,
+                exc_msg=str(exc)[:300],
+                strategy_id=signal.live_strategy_id,
+            )
+    return result
 
 
 def _queue_gold_555_leg_protection(
@@ -2008,6 +2079,9 @@ async def run(signal: Signal, levels: list[float]):
     last_gold_sl_check_ts = 0.0
     gold_sl_check_interval_s = 5.0
     gold_sl_check_error_alerted = False
+    last_dubai_sl_check_ts = 0.0
+    dubai_sl_check_interval_s = 5.0
+    dubai_sl_check_error_alerted = False
 
     # Batch E: track null-tick streak para detectar broker/MT5 down dentro
     # del monitor. Antes giraba en silencio.
@@ -2213,6 +2287,31 @@ async def run(signal: Signal, levels: list[float]):
                             )
                         except Exception:
                             pass
+
+        if dubai_candidate_active:
+            dubai_sl_now = time.monotonic()
+            if (
+                dubai_sl_now - last_dubai_sl_check_ts
+                >= dubai_sl_check_interval_s
+            ):
+                last_dubai_sl_check_ts = dubai_sl_now
+                try:
+                    from listener import _ensure_dubai_candidate_hard_stops
+                    await _ensure_dubai_candidate_hard_stops(signal)
+                    dubai_sl_check_error_alerted = False
+                except Exception as exc:
+                    if not dubai_sl_check_error_alerted:
+                        dubai_sl_check_error_alerted = True
+                        _journal_anomaly(
+                            f"{signal.channel}_{signal.message_id}",
+                            "sl_be",
+                            "critical",
+                            "Dubai could not verify its broker basket SL; "
+                            "the monitor will keep retrying",
+                            exc_type=type(exc).__name__,
+                            exc_msg=str(exc)[:300],
+                            strategy_id=signal.live_strategy_id,
+                        )
 
         guard_summary = None
         now_monotonic = time.monotonic()

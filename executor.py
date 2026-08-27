@@ -818,11 +818,143 @@ def loss_stop_price(
     return result
 
 
+def basket_loss_stop_price(
+    direction: str,
+    positions,
+    loss_budget: float,
+    symbol: Optional[str] = None,
+) -> Optional[float]:
+    """Return one broker SL whose combined MT5 value stays inside a budget.
+
+    Every open leg receives the same stop price. Valuation remains delegated
+    to MT5 so account-currency conversion and the broker contract are not
+    approximated in application code.
+    """
+    import math
+
+    direction = str(direction).upper()
+    if direction not in {"BUY", "SELL"}:
+        raise ValueError("direction must be BUY or SELL")
+    loss_budget = float(loss_budget)
+    if not math.isfinite(loss_budget) or loss_budget <= 0:
+        raise ValueError("loss budget must be positive")
+
+    rows = [dict(row) for row in positions]
+    if not rows:
+        raise ValueError("positions must not be empty")
+    symbols = {
+        str(row.get("symbol") or symbol or config.MT5_SYMBOL)
+        for row in rows
+    }
+    if len(symbols) != 1:
+        raise ValueError("all basket positions must use the same symbol")
+    basket_symbol = symbols.pop()
+    if symbol is not None and basket_symbol != str(symbol):
+        raise ValueError("all basket positions must use the same symbol")
+
+    parsed = []
+    for row in rows:
+        volume = float(row.get("volume") or 0.0)
+        entry = float(row.get("entry") or 0.0)
+        if any(
+            not math.isfinite(value) or value <= 0
+            for value in (volume, entry)
+        ):
+            raise ValueError("basket entries and volumes must be positive")
+        parsed.append((volume, entry))
+
+    info = mt5.symbol_info(basket_symbol)
+    if info is None:
+        return None
+    point = float(getattr(info, "point", 0.0) or 0.0)
+    digits = int(getattr(info, "digits", 2) or 2)
+    if not math.isfinite(point) or point <= 0:
+        return None
+    order_type = (
+        mt5.ORDER_TYPE_BUY if direction == "BUY" else mt5.ORDER_TYPE_SELL
+    )
+
+    def projected(price: float) -> Optional[float]:
+        total = 0.0
+        for volume, entry in parsed:
+            value = mt5.order_calc_profit(
+                order_type,
+                basket_symbol,
+                volume,
+                entry,
+                float(price),
+            )
+            if value is None:
+                return None
+            value = float(value)
+            if not math.isfinite(value):
+                return None
+            total += value
+        return total
+
+    total_volume = sum(volume for volume, _entry in parsed)
+    safe = sum(volume * entry for volume, entry in parsed) / total_volume
+    safe_pl = projected(safe)
+    target = -loss_budget
+    if safe_pl is None or safe_pl < target:
+        return None
+
+    step = max(1.0, point)
+    adverse = safe - step if direction == "BUY" else safe + step
+    adverse_pl = projected(adverse)
+    for _ in range(64):
+        if adverse_pl is None:
+            return None
+        if adverse_pl <= target:
+            break
+        step *= 2.0
+        adverse = safe - step if direction == "BUY" else safe + step
+        if adverse <= point:
+            adverse = point
+        adverse_pl = projected(adverse)
+    else:
+        return None
+    if adverse_pl is None or adverse_pl > target:
+        return None
+
+    for _ in range(80):
+        midpoint = (safe + adverse) / 2.0
+        value = projected(midpoint)
+        if value is None:
+            return None
+        if value < target:
+            adverse = midpoint
+        else:
+            safe = midpoint
+
+    units = safe / point
+    safe_units = (
+        math.ceil(units - 1e-10)
+        if direction == "BUY"
+        else math.floor(units + 1e-10)
+    )
+    result = round(safe_units * point, digits)
+    result_pl = projected(result)
+    if result_pl is None:
+        return None
+    while result_pl < target - 1e-8:
+        result = round(
+            result + point if direction == "BUY" else result - point,
+            digits,
+        )
+        result_pl = projected(result)
+        if result_pl is None or result <= 0:
+            return None
+    return result
+
+
 def open_market_with_fill(direction: str, lot: float,
                           sl: Optional[float] = None,
                           tp: Optional[float] = None,
                           comment: str = "",
-                          magic: Optional[int] = None
+                          magic: Optional[int] = None,
+                          *,
+                          loss_budget: Optional[float] = None,
                           ) -> Optional[tuple[int, float]]:
     """Como open_market pero devuelve (ticket, fill_price) en una sola llamada.
 
@@ -853,6 +985,7 @@ def open_market_with_fill(direction: str, lot: float,
             lot=lot,
             requested_price=None,
             sl=requested_sl,
+            requested_loss_budget=loss_budget,
             tp=tp,
             magic=magic if magic is not None else config.MT5_MAGIC,
             comment=comment[:31],
@@ -873,6 +1006,7 @@ def open_market_with_fill(direction: str, lot: float,
             lot=lot,
             requested_price=None,
             sl=requested_sl,
+            requested_loss_budget=loss_budget,
             tp=tp,
             magic=magic if magic is not None else config.MT5_MAGIC,
             comment=comment[:31],
@@ -882,6 +1016,25 @@ def open_market_with_fill(direction: str, lot: float,
         )
         attempt.finish(exception=exc)
         raise
+
+    if sl is None and loss_budget is not None:
+        sl = loss_stop_price(
+            direction,
+            volume=lot,
+            entry_price=price,
+            loss_budget=loss_budget,
+        )
+        if sl is None:
+            _emit_anomaly(
+                sig_id,
+                "sl_be",
+                "critical",
+                "MT5 no pudo calcular el SL monetario antes de abrir; "
+                "la supervision persistente lo reintentara tras el fill",
+                direction=direction,
+                lot=lot,
+                loss_budget=loss_budget,
+            )
 
     # Si el SL queda dentro del stops_level del broker, lo ajustamos al mínimo legal
     # para que la orden no sea rechazada con "invalid stops".
@@ -896,6 +1049,7 @@ def open_market_with_fill(direction: str, lot: float,
             lot=lot,
             requested_price=price,
             sl=requested_sl,
+            requested_loss_budget=loss_budget,
             tp=tp,
             magic=magic if magic is not None else config.MT5_MAGIC,
             comment=comment[:31],
@@ -929,6 +1083,7 @@ def open_market_with_fill(direction: str, lot: float,
                 lot=lot,
                 requested_price=price,
                 requested_sl_original=requested_sl,
+                requested_loss_budget=loss_budget,
                 sl=req.get("sl"),
                 tp=req.get("tp"),
                 magic=req.get("magic"),

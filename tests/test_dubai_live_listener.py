@@ -184,3 +184,116 @@ def test_canal1_text_routing_cannot_reenable_legacy_candidate_management():
     assert signal.be_at_tp_index is None
     assert signal.time_stop_at is None
     assert listener._should_report_canal1_naked(signal) is False
+
+
+@pytest.mark.asyncio
+async def test_dubai_hard_stop_protects_the_whole_open_basket(monkeypatch):
+    signal = Signal(
+        channel="canal1",
+        message_id=22007,
+        direction="BUY",
+        market_ticket=5007,
+        market_fill_price=4200.0,
+        dca_tickets=[5008],
+    )
+    listener._attach_dubai_live_candidate(
+        signal, datetime(2026, 8, 23, 10, 0, 0),
+    )
+    specs = {
+        5007: {
+            "entry": 4200.0,
+            "volume": 0.01,
+            "symbol": "XAUUSD",
+            "sl": 0.0,
+            "point": 0.01,
+        },
+        5008: {
+            "entry": 4196.0,
+            "volume": 0.04,
+            "symbol": "XAUUSD",
+            "sl": 0.0,
+            "point": 0.01,
+        },
+    }
+    requests = []
+
+    async def fake_run(function, *args, **kwargs):
+        if function is listener.executor.open_position_specs:
+            return specs
+        if function is listener.executor.basket_loss_stop_price:
+            assert args[0] == "BUY"
+            assert args[2] == 25.0
+            return 4191.25
+        raise AssertionError(function)
+
+    monkeypatch.setattr(listener, "_run", fake_run)
+    monkeypatch.setattr(journal, "event", lambda *args, **kwargs: None)
+    monkeypatch.setattr(journal, "anomaly", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        listener.pending_actions,
+        "enqueue_modify_sl",
+        lambda signal, ticket, new_sl, label="", **kwargs: requests.append(
+            (ticket, new_sl, kwargs.get("persist_until_signal_close"))
+        ),
+    )
+
+    requested = await listener._ensure_dubai_candidate_hard_stops(
+        signal,
+        force=True,
+    )
+
+    assert requested == 2
+    assert requests == [(5007, 4191.25, True), (5008, 4191.25, True)]
+    assert signal.candidate_hard_stops == {
+        5007: 4191.25,
+        5008: 4191.25,
+    }
+
+
+@pytest.mark.asyncio
+async def test_dubai_hard_stop_does_not_loosen_a_stronger_installed_sl(
+    monkeypatch,
+):
+    signal = Signal(
+        channel="canal1",
+        message_id=22008,
+        direction="SELL",
+        market_ticket=5009,
+        market_fill_price=4200.0,
+    )
+    listener._attach_dubai_live_candidate(
+        signal, datetime(2026, 8, 23, 10, 0, 0),
+    )
+
+    async def fake_run(function, *args, **kwargs):
+        if function is listener.executor.open_position_specs:
+            return {
+                5009: {
+                    "entry": 4200.0,
+                    "volume": 0.01,
+                    "symbol": "XAUUSD",
+                    "sl": 4210.0,
+                    "point": 0.01,
+                },
+            }
+        if function is listener.executor.basket_loss_stop_price:
+            return 4228.0
+        raise AssertionError(function)
+
+    monkeypatch.setattr(listener, "_run", fake_run)
+    monkeypatch.setattr(journal, "event", lambda *args, **kwargs: None)
+    monkeypatch.setattr(journal, "anomaly", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        listener.pending_actions,
+        "enqueue_modify_sl",
+        lambda *_args, **_kwargs: pytest.fail("must not loosen broker SL"),
+    )
+
+    requested = await listener._ensure_dubai_candidate_hard_stops(
+        signal,
+        force=True,
+    )
+
+    assert requested == 0
+    assert signal.candidate_sl_confirmed_tickets == [5009]
+    assert signal.sl_by_ticket == {5009: 4210.0}

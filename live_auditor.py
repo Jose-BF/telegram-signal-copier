@@ -436,12 +436,19 @@ class LiveAuditor:
             and sig.live_strategy_fingerprint
             == gold_555_live_candidate.CANDIDATE_FINGERPRINT
         )
+        dubai_exact_policy = bool(
+            sig.channel == "canal1"
+            and sig.live_strategy_id == dubai_live_candidate.CANDIDATE_ID
+            and sig.live_strategy_fingerprint
+            == dubai_live_candidate.CANDIDATE_FINGERPRINT
+        )
         has_state_levels = bool(
             sig.tps
             or sig.sl is not None
             or sig.sl_by_ticket
             or sig.tp_by_ticket
             or gold_555_exact_policy
+            or dubai_exact_policy
         )
         if has_state_levels and sig_id not in self._levels_seen_at:
             self._levels_seen_at[sig_id] = now
@@ -485,16 +492,14 @@ class LiveAuditor:
         )
 
         issues: list[tuple] = []
-        intentionally_unprotected = (
-            sig.channel == "canal1"
-            and sig.live_strategy_id == dubai_live_candidate.CANDIDATE_ID
-            and sig.live_strategy_fingerprint
-            == dubai_live_candidate.CANDIDATE_FINGERPRINT
-        )
-        gold_tp_intentionally_absent = bool(
-            sig.live_strategy_id == gold_live_candidate.CANDIDATE_ID
-            and sig.live_strategy_fingerprint
-            == gold_live_candidate.CANDIDATE_FINGERPRINT
+        intentionally_unprotected = False
+        tp_intentionally_absent = bool(
+            dubai_exact_policy
+            or (
+                sig.live_strategy_id == gold_live_candidate.CANDIDATE_ID
+                and sig.live_strategy_fingerprint
+                == gold_live_candidate.CANDIDATE_FINGERPRINT
+            )
         )
         expected_legs = _expected_scale_out_legs(sig)
         if (expected_legs is not None
@@ -541,7 +546,7 @@ class LiveAuditor:
             tickets_without_sl
             or (
                 tickets_without_tp
-                and not gold_tp_intentionally_absent
+                and not tp_intentionally_absent
             )
         )
         if (not intentionally_unprotected
@@ -557,7 +562,7 @@ class LiveAuditor:
                     "code": "levels_not_applied",
                     "tickets_without_sl": tickets_without_sl,
                     "tickets_without_tp": tickets_without_tp,
-                    "tp_required": not gold_tp_intentionally_absent,
+                    "tp_required": not tp_intentionally_absent,
                     "mt5_open_tickets": mt5_open_tickets,
                     "age_s": round(age_s, 1),
                     "levels_age_s": round(levels_age_s, 1),

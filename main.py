@@ -574,20 +574,22 @@ async def _notify_broker_contract_status(text: str) -> bool:
 
 
 def _is_intentionally_unprotected_candidate(sig) -> bool:
-    return bool(
+    return False
+
+
+def _candidate_owns_protection(sig) -> bool:
+    gold_owns_protection = bool(
+        sig.live_strategy_id == gold_555_live_candidate.CANDIDATE_ID
+        and sig.live_strategy_fingerprint
+        == gold_555_live_candidate.CANDIDATE_FINGERPRINT
+    )
+    dubai_owns_protection = bool(
         sig.channel == "canal1"
         and sig.live_strategy_id == dubai_live_candidate.CANDIDATE_ID
         and sig.live_strategy_fingerprint
         == dubai_live_candidate.CANDIDATE_FINGERPRINT
     )
-
-
-def _candidate_owns_protection(sig) -> bool:
-    return bool(
-        sig.live_strategy_id == gold_555_live_candidate.CANDIDATE_ID
-        and sig.live_strategy_fingerprint
-        == gold_555_live_candidate.CANDIDATE_FINGERPRINT
-    )
+    return gold_owns_protection or dubai_owns_protection
 
 
 def _is_naked_watchdog_candidate(sig) -> bool:
@@ -1683,6 +1685,17 @@ def _restore_dubai_candidate_signal(
     signal.candidate_first_fill_at = first_fill_at
     signal.candidate_entry_legs = expected_legs
     signal.candidate_filled_leg_indexes = filled_indexes
+    signal.candidate_entry_prices_by_ticket = {
+        int(ticket): float(price)
+        for ticket, price in (group.get("position_entries") or {}).items()
+        if price is not None
+    }
+    signal.candidate_hard_stops = {
+        int(ticket): float(stop)
+        for ticket, stop in (group.get("position_stops") or {}).items()
+        if stop is not None and float(stop) > 0.0
+    }
+    signal.sl_by_ticket = dict(signal.candidate_hard_stops)
     signal.entry_mode = "adverse_ladder"
     signal.target_tp_index = None
     signal.be_at_tp_index = None
@@ -2717,6 +2730,16 @@ def _live_strategy_contract() -> dict:
             "target_mode": policy.target_mode,
             "be_mode": policy.be_mode,
             "provider_management_mode": policy.provider_management_mode,
+            "broker_sl": {
+                "required": True,
+                "loss_budget_per_basket": float(policy.stop_value),
+                "valuation": "mt5_order_calc_profit_account_currency",
+                "common_price_for_open_legs": True,
+                "installed_on_initial_open": True,
+                "recalculated_after_each_fill": True,
+                "persistent_retry": True,
+                "close_on_install_failure": False,
+            },
             "basket_guard": {
                 "enabled": True,
                 "loss_cap": -float(policy.stop_value),

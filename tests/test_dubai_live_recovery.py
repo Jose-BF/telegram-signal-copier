@@ -143,6 +143,8 @@ def test_resync_restores_candidate_and_only_the_missing_unexpired_leg(
             "market_price": 4200.0,
             "market_sl": 0.0,
             "market_tp": 0.0,
+            "position_entries": {9001: 4200.0, 9002: 4196.0},
+            "position_stops": {9001: 4191.25, 9002: 4191.25},
             "market_open_time": int(first_fill_at.replace(
                 tzinfo=timezone.utc
             ).timestamp()),
@@ -189,6 +191,15 @@ def test_resync_restores_candidate_and_only_the_missing_unexpired_leg(
         microsecond=(first_fill_at.microsecond // 1000) * 1000,
     )
     assert signal.dca_tickets == [9002]
+    assert signal.candidate_entry_prices_by_ticket == {
+        9001: 4200.0,
+        9002: 4196.0,
+    }
+    assert signal.candidate_hard_stops == {
+        9001: 4191.25,
+        9002: 4191.25,
+    }
+    assert signal.sl_by_ticket == signal.candidate_hard_stops
     assert signal.time_stop_at is None
     assert signal.be_at_tp_index is None
     assert started == [(signal, [4192.0])]
@@ -279,7 +290,14 @@ class _AuditJournal:
         })
 
 
-def test_auditor_knows_candidate_positions_are_intentionally_without_sl_tp():
+@pytest.mark.parametrize(
+    ("installed_sl", "expects_missing_sl"),
+    [(4170.0, False), (0.0, True)],
+)
+def test_auditor_requires_dubai_sl_but_not_a_tp(
+    installed_sl,
+    expects_missing_sl,
+):
     opened_at = datetime(2026, 8, 23, 9, 30, 0)
     signal = Signal(
         channel="canal1",
@@ -304,7 +322,7 @@ def test_auditor_knows_candidate_positions_are_intentionally_without_sl_tp():
     position = SimpleNamespace(
         ticket=9101,
         magic=config.MT5_MAGIC_CANAL1,
-        sl=0.0,
+        sl=installed_sl,
         tp=0.0,
         comment="c1_26002",
         price_open=4200.0,
@@ -318,11 +336,11 @@ def test_auditor_knows_candidate_positions_are_intentionally_without_sl_tp():
     )
 
     codes = {row.get("code") for row in audit_journal.anomalies}
-    assert "levels_not_applied" not in codes
-    assert "mt5_position_naked" not in codes
+    assert ("levels_not_applied" in codes) is expects_missing_sl
+    assert ("mt5_position_naked" in codes) is expects_missing_sl
 
 
-def test_global_naked_watchdog_never_mutates_the_frozen_candidate():
+def test_global_naked_watchdog_defers_to_dubai_owned_broker_protection():
     signal = Signal(
         channel="canal1",
         message_id=26004,
@@ -334,5 +352,6 @@ def test_global_naked_watchdog_never_mutates_the_frozen_candidate():
         signal, datetime(2026, 8, 23, 9, 30, 0),
     )
 
-    assert main._is_intentionally_unprotected_candidate(signal) is True
+    assert main._is_intentionally_unprotected_candidate(signal) is False
+    assert main._candidate_owns_protection(signal) is True
     assert main._should_apply_naked_protective_sl(signal) is False
