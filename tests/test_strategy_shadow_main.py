@@ -443,6 +443,96 @@ def test_live_shadow_batch_contains_every_intermediate_broker_tick(monkeypatch):
     assert [tick.time_msc for tick in batch.ticks] == [20_001, 20_002]
 
 
+def test_live_shadow_batch_accepts_proven_prefix_while_latest_is_pending(
+    monkeypatch,
+):
+    xau_rows = [
+        {
+            "time_msc": 20_000,
+            "bid": 4300.0,
+            "ask": 4300.2,
+            "last": 4300.1,
+            "flags": 6,
+            "volume_real": 1.0,
+        },
+        {
+            "time_msc": 20_001,
+            "bid": 4299.5,
+            "ask": 4299.7,
+            "last": 4299.6,
+            "flags": 6,
+            "volume_real": 2.0,
+        },
+    ]
+    fake_mt5 = SimpleNamespace(
+        COPY_TICKS_ALL=0,
+        copy_ticks_range=lambda *_args: xau_rows,
+    )
+    monkeypatch.setattr(main.executor, "mt5", fake_mt5)
+    monkeypatch.setattr(
+        main,
+        "_load_shadow_money_contract",
+        lambda: money_contract("identity"),
+    )
+    latest = main._shadow_tick_from_values(
+        time_msc=20_002,
+        bid=4300.5,
+        ask=4300.7,
+        last=4300.6,
+        flags=6,
+        volume_real=3.0,
+        factors={"positive": 100.0, "negative": 100.0},
+        money_evidence_id="money-latest",
+    )
+
+    batch = main._shadow_live_tick_batch(
+        (20_000, 4300.0, 4300.2, 4300.1, 6, 1.0),
+        latest,
+    )
+
+    assert batch.complete is True
+    assert [tick.time_msc for tick in batch.ticks] == [20_001]
+
+
+def test_live_shadow_batch_waits_when_only_cursor_is_archived(monkeypatch):
+    xau_rows = [{
+        "time_msc": 20_000,
+        "bid": 4300.0,
+        "ask": 4300.2,
+        "last": 4300.1,
+        "flags": 6,
+        "volume_real": 1.0,
+    }]
+    fake_mt5 = SimpleNamespace(
+        COPY_TICKS_ALL=0,
+        copy_ticks_range=lambda *_args: xau_rows,
+    )
+    monkeypatch.setattr(main.executor, "mt5", fake_mt5)
+    monkeypatch.setattr(
+        main,
+        "_load_shadow_money_contract",
+        lambda: money_contract("identity"),
+    )
+    latest = main._shadow_tick_from_values(
+        time_msc=20_001,
+        bid=4300.5,
+        ask=4300.7,
+        last=4300.6,
+        flags=6,
+        volume_real=3.0,
+        factors={"positive": 100.0, "negative": 100.0},
+        money_evidence_id="money-latest",
+    )
+
+    batch = main._shadow_live_tick_batch(
+        (20_000, 4300.0, 4300.2, 4300.1, 6, 1.0),
+        latest,
+    )
+
+    assert batch.complete is True
+    assert batch.ticks == ()
+
+
 def test_shadow_journal_loader_ignores_unrelated_events(tmp_path):
     path = tmp_path / "events.jsonl"
     path.write_text(

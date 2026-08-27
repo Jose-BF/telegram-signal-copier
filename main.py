@@ -3596,12 +3596,17 @@ def _shadow_live_tick_batch(
         return history
     if latest.identity not in {tick.identity for tick in history.ticks}:
         return strategy_shadow_runtime.ShadowTickHistory(
-            ticks=(),
-            complete=False,
+            ticks=history.ticks,
+            complete=True,
             evidence_id=canonical_hash({
-                "mode": "live_latest_tick_missing",
+                "mode": "live_archive_tail_pending",
                 "last_identity": list(last_identity),
                 "latest_identity": list(latest.identity),
+                "last_archived_identity": (
+                    list(history.ticks[-1].identity)
+                    if history.ticks
+                    else list(last_identity)
+                ),
                 "history_evidence_id": history.evidence_id,
             }),
         )
