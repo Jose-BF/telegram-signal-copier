@@ -86,6 +86,9 @@ STRATEGY_FARM_FILE = RUNTIME_DATA_DIR / "strategy_farm.json"
 STRATEGY_SHADOW_REPORT_FILE = (
     RUNTIME_DATA_DIR / "strategy_shadow_report.json"
 )
+STRATEGY_SHADOW_TICK_CACHE_STATUS_FILE = (
+    RUNTIME_DATA_DIR / "strategy_shadow_tick_cache_status.json"
+)
 LOG_LEARNING_REPORT_FILE = RUNTIME_DATA_DIR / "log_learning_report.json"
 LOG_PATTERN_REGISTRY_FILE = RUNTIME_DATA_DIR / "log_pattern_registry.json"
 LOG_LEARNING_STATUS_FILE = RUNTIME_DATA_DIR / "log_learning_status.json"
@@ -1272,6 +1275,7 @@ def _clear_mutable_offline_outputs() -> None:
     PROVIDER_SIGNAL_CATALOG_FILE.unlink(missing_ok=True)
     STRATEGY_FARM_FILE.unlink(missing_ok=True)
     STRATEGY_SHADOW_REPORT_FILE.unlink(missing_ok=True)
+    STRATEGY_SHADOW_TICK_CACHE_STATUS_FILE.unlink(missing_ok=True)
     LOG_LEARNING_REPORT_FILE.unlink(missing_ok=True)
     LOG_PATTERN_REGISTRY_FILE.unlink(missing_ok=True)
     LOG_LEARNING_STATUS_FILE.unlink(missing_ok=True)
@@ -1661,6 +1665,70 @@ def _strategy_shadow_until_date(now: datetime | None = None) -> str:
     ).isoformat()
 
 
+def _regenerate_strategy_shadow_tick_cache_status(
+    *,
+    since_value: str,
+    until_value: str,
+) -> bool:
+    """Verify only the tick window consumed by the shadow comparison."""
+    STRATEGY_SHADOW_TICK_CACHE_STATUS_FILE.unlink(missing_ok=True)
+    try:
+        since = datetime.strptime(since_value, "%Y-%m-%d").date()
+        until = datetime.strptime(until_value, "%Y-%m-%d").date()
+        if until < since:
+            raise ValueError("strategy shadow tick window ends before it starts")
+        if not PROVIDER_SIGNAL_CATALOG_FILE.is_file():
+            raise FileNotFoundError("provider signal catalog is missing")
+        command = [
+            sys.executable,
+            "tools/ensure_replay_tick_cache.py",
+            "--ensure",
+            "--input", str(RUNTIME_DATA_DIR / "replay_trades.jsonl"),
+            "--cache-dir", str(RUNTIME_DATA_DIR / "ticks_cache"),
+            "--status", str(STRATEGY_SHADOW_TICK_CACHE_STATUS_FILE),
+            "--since", since.isoformat(),
+            "--until", until.isoformat(),
+            "--catalog", str(PROVIDER_SIGNAL_CATALOG_FILE),
+            "--provider-since", since.isoformat(),
+            "--provider-until", until.isoformat(),
+            "--quiet",
+        ]
+        rec = subprocess.run(
+            command,
+            cwd=REPO_DIR,
+            capture_output=True,
+            text=True,
+            timeout=900,
+        )
+        try:
+            status = json.loads(
+                STRATEGY_SHADOW_TICK_CACHE_STATUS_FILE.read_text(
+                    encoding="utf-8",
+                )
+            )
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            status = {}
+        if rec.returncode == 0 and status.get("ok") is True:
+            print("[Watch] ticks de comparativa en sombra verificados.",
+                  flush=True)
+            return True
+        print(
+            "[Watch] ticks de comparativa en sombra no verificados "
+            f"(rc={rec.returncode}): "
+            f"{(rec.stderr or rec.stdout or '')[:1000]}",
+            flush=True,
+        )
+        return False
+    except BaseException as exc:
+        print(
+            f"[Watch] error verificando ticks de comparativa en sombra: {exc}",
+            flush=True,
+        )
+        if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+            raise
+        return False
+
+
 def _strategy_shadow_publication_valid(
     path: Path,
     *,
@@ -1766,6 +1834,11 @@ def _regenerate_strategy_shadow_report() -> bool:
         until = datetime.strptime(until_value, "%Y-%m-%d").date()
         if until < since:
             raise ValueError("strategy shadow window ends before it starts")
+        if not _regenerate_strategy_shadow_tick_cache_status(
+            since_value=since.isoformat(),
+            until_value=until.isoformat(),
+        ):
+            return False
         command = [
             sys.executable,
             "tools/build_strategy_shadow_report.py",
@@ -1816,6 +1889,7 @@ def _mutable_offline_output_paths() -> tuple[Path, ...]:
         PROVIDER_SIGNAL_CATALOG_FILE,
         STRATEGY_FARM_FILE,
         STRATEGY_SHADOW_REPORT_FILE,
+        STRATEGY_SHADOW_TICK_CACHE_STATUS_FILE,
         LOG_LEARNING_REPORT_FILE,
         LOG_PATTERN_REGISTRY_FILE,
         LOG_LEARNING_STATUS_FILE,
@@ -1943,7 +2017,6 @@ def _regenerate_session_outputs(
         enabled=(
             builder_results["ledger"]
             and builder_results["provider_catalog"]
-            and builder_results["tick_cache"]
             and builder_results["money_contract"]
             and builder_results["money_ticks"]
         ),

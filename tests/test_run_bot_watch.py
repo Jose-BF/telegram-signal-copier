@@ -971,6 +971,50 @@ def test_failed_tick_cache_refresh_does_not_accept_stale_status(
     assert not tick_status.exists()
 
 
+def test_strategy_shadow_tick_cache_uses_only_its_own_window(
+        tmp_path, monkeypatch):
+    data_dir = tmp_path / "runtime"
+    data_dir.mkdir()
+    status = data_dir / "strategy_shadow_tick_cache_status.json"
+    catalog = data_dir / "provider_signal_catalog.json"
+    catalog.write_text('{"signals": []}\n', encoding="utf-8")
+
+    monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
+    monkeypatch.setattr(watch, "RUNTIME_DATA_DIR", data_dir)
+    monkeypatch.setattr(
+        watch, "STRATEGY_SHADOW_TICK_CACHE_STATUS_FILE", status,
+    )
+    monkeypatch.setattr(watch, "PROVIDER_SIGNAL_CATALOG_FILE", catalog)
+
+    def fake_run(*args, **kwargs):
+        assert args[0] == [
+            watch.sys.executable,
+            "tools/ensure_replay_tick_cache.py",
+            "--ensure",
+            "--input", str(data_dir / "replay_trades.jsonl"),
+            "--cache-dir", str(data_dir / "ticks_cache"),
+            "--status", str(status),
+            "--since", "2026-08-27",
+            "--until", "2026-08-29",
+            "--catalog", str(catalog),
+            "--provider-since", "2026-08-27",
+            "--provider-until", "2026-08-29",
+            "--quiet",
+        ]
+        assert kwargs["timeout"] == 900
+        status.write_text('{"ok": true}\n', encoding="utf-8")
+        return subprocess.CompletedProcess(
+            args=args[0], returncode=0, stdout="", stderr="",
+        )
+
+    monkeypatch.setattr(watch.subprocess, "run", fake_run)
+
+    assert watch._regenerate_strategy_shadow_tick_cache_status(
+        since_value="2026-08-27",
+        until_value="2026-08-29",
+    ) is True
+
+
 def test_simulation_scope_override_has_precedence(monkeypatch):
     monkeypatch.setattr(watch, "SIMULATION_FROM_DATE", "2026-07-13")
     monkeypatch.setattr(watch, "STRATEGY_FARM_FROM_DATE", "2026-07-06")
@@ -1201,6 +1245,12 @@ def test_regenerate_strategy_shadow_report_uses_complete_offline_inputs(
     monkeypatch.setattr(
         watch, "_strategy_shadow_until_date", lambda: "2026-08-28",
     )
+    shadow_tick_scopes = []
+    monkeypatch.setattr(
+        watch,
+        "_regenerate_strategy_shadow_tick_cache_status",
+        lambda **scope: shadow_tick_scopes.append(scope) or True,
+    )
 
     def fake_run(*args, **kwargs):
         assert args[0] == [
@@ -1228,6 +1278,10 @@ def test_regenerate_strategy_shadow_report_uses_complete_offline_inputs(
     monkeypatch.setattr(watch.subprocess, "run", fake_run)
 
     assert watch._regenerate_strategy_shadow_report() is True
+    assert shadow_tick_scopes == [{
+        "since_value": "2026-08-27",
+        "until_value": "2026-08-28",
+    }]
 
 
 def test_strategy_shadow_automatic_cutoff_uses_last_closed_utc_day():
@@ -1653,6 +1707,60 @@ def test_push_pipeline_runs_learning_after_all_causal_builders(monkeypatch):
         "readiness", "farm", "learning",
     ]
     assert all(learning_dependencies[0].values())
+
+
+def test_shadow_report_ignores_unrelated_global_tick_cache_failure(
+        monkeypatch):
+    calls = []
+    monkeypatch.setattr(watch, "_clear_mutable_offline_outputs", lambda: None)
+
+    def step(name, result=True):
+        def run():
+            calls.append(name)
+            return result
+        return run
+
+    monkeypatch.setattr(watch, "_regenerate_ledger", step("ledger"))
+    monkeypatch.setattr(watch, "_regenerate_replay_trades", step("replay"))
+    monkeypatch.setattr(
+        watch, "_regenerate_accounting_replay_audit", step("accounting"),
+    )
+    monkeypatch.setattr(
+        watch, "_regenerate_provider_signal_catalog", step("provider"),
+    )
+    monkeypatch.setattr(
+        watch, "_regenerate_replay_tick_cache_status",
+        step("global_ticks", False),
+    )
+    monkeypatch.setattr(
+        watch, "_regenerate_broker_money_contract", step("money_contract"),
+    )
+    monkeypatch.setattr(
+        watch, "_regenerate_money_tick_cache_status", step("money_ticks"),
+    )
+    monkeypatch.setattr(
+        watch, "_regenerate_strategy_shadow_report", step("shadow"),
+    )
+    monkeypatch.setattr(
+        watch, "_regenerate_observed_tick_replay_audit", step("observed"),
+    )
+    monkeypatch.setattr(
+        watch, "_regenerate_replay_readiness_report", step("readiness"),
+    )
+    monkeypatch.setattr(
+        watch, "_regenerate_strategy_farm", step("farm"),
+    )
+    monkeypatch.setattr(
+        watch,
+        "_regenerate_recursive_learning_outputs",
+        lambda dependencies: calls.append("learning") or True,
+    )
+
+    results = watch._regenerate_session_outputs()
+
+    assert results["tick_cache"] is False
+    assert results["strategy_shadow"] is True
+    assert "shadow" in calls
 
 
 def test_session_pipeline_reports_every_stage_in_causal_order(monkeypatch):
