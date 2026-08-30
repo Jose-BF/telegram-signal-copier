@@ -27,7 +27,7 @@ import subprocess
 import sys
 import time
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 # Forzar UTF-8 en stdout/stderr para no crashear con caracteres no-ASCII
@@ -43,6 +43,7 @@ if str(REPO_DIR) not in sys.path:
 
 import runtime_paths
 import replay_source_contract
+from strategy_shadow_contracts import canonical_hash
 
 RUNTIME_DATA_DIR = Path(os.getenv(
     "BOT_RUNTIME_DATA_DIR",
@@ -82,11 +83,17 @@ OBSERVED_TICK_REPLAY_AUDIT_FILE = RUNTIME_DATA_DIR / "observed_tick_replay_audit
 OBSERVED_TICK_REPLAY_STATUS_FILE = RUNTIME_DATA_DIR / "observed_tick_replay_status.json"
 PROVIDER_SIGNAL_CATALOG_FILE = RUNTIME_DATA_DIR / "provider_signal_catalog.json"
 STRATEGY_FARM_FILE = RUNTIME_DATA_DIR / "strategy_farm.json"
+STRATEGY_SHADOW_REPORT_FILE = (
+    RUNTIME_DATA_DIR / "strategy_shadow_report.json"
+)
 LOG_LEARNING_REPORT_FILE = RUNTIME_DATA_DIR / "log_learning_report.json"
 LOG_PATTERN_REGISTRY_FILE = RUNTIME_DATA_DIR / "log_pattern_registry.json"
 LOG_LEARNING_STATUS_FILE = RUNTIME_DATA_DIR / "log_learning_status.json"
 LOG_PATTERN_REVIEWS_FILE = RUNTIME_DATA_DIR / "log_pattern_reviews.json"
 STRATEGY_FARM_FROM_DATE = os.getenv("STRATEGY_FARM_FROM_DATE", "2026-07-06")
+STRATEGY_SHADOW_FROM_DATE = os.getenv(
+    "STRATEGY_SHADOW_FROM_DATE", "2026-08-27",
+)
 SIMULATION_FROM_DATE = os.getenv("SIMULATION_FROM_DATE")
 STRATEGY_FARM_LATENCY_MS = os.getenv("STRATEGY_FARM_LATENCY_MS", "0")
 STRATEGY_FARM_VOLUME_PER_LEG = os.getenv(
@@ -1160,8 +1167,15 @@ def _regenerate_replay_tick_cache_status() -> bool:
             "tools/ensure_replay_tick_cache.py",
             "--ensure",
             *_simulation_scope_args(),
-            "--quiet",
         ]
+        if PROVIDER_SIGNAL_CATALOG_FILE.is_file():
+            command.extend([
+                "--catalog",
+                str(PROVIDER_SIGNAL_CATALOG_FILE),
+                "--provider-until",
+                _strategy_shadow_until_date(),
+            ])
+        command.append("--quiet")
         rec = subprocess.run(
             command,
             cwd=REPO_DIR, capture_output=True, text=True, timeout=900,
@@ -1257,6 +1271,7 @@ def _clear_mutable_offline_outputs() -> None:
     """Prevent skipped/failed builders from leaving reports that look current."""
     PROVIDER_SIGNAL_CATALOG_FILE.unlink(missing_ok=True)
     STRATEGY_FARM_FILE.unlink(missing_ok=True)
+    STRATEGY_SHADOW_REPORT_FILE.unlink(missing_ok=True)
     LOG_LEARNING_REPORT_FILE.unlink(missing_ok=True)
     LOG_PATTERN_REGISTRY_FILE.unlink(missing_ok=True)
     LOG_LEARNING_STATUS_FILE.unlink(missing_ok=True)
@@ -1636,10 +1651,171 @@ def _regenerate_money_tick_cache_status() -> bool:
         return False
 
 
+def _strategy_shadow_until_date(now: datetime | None = None) -> str:
+    """Return the last UTC day whose complete price path can be certified."""
+    observed = now or datetime.now(timezone.utc)
+    if observed.tzinfo is None or observed.utcoffset() is None:
+        raise ValueError("strategy shadow cutoff must be timezone-aware")
+    return (
+        observed.astimezone(timezone.utc).date() - timedelta(days=1)
+    ).isoformat()
+
+
+def _strategy_shadow_publication_valid(
+    path: Path,
+    *,
+    expected_since: str | None = None,
+    expected_until: str | None = None,
+) -> bool:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return False
+    if not isinstance(payload, dict):
+        return False
+    settlement_hash = payload.get("settlement_hash")
+    evidence = {
+        key: value
+        for key, value in payload.items()
+        if key != "settlement_hash"
+    }
+    if not isinstance(settlement_hash, str):
+        return False
+    try:
+        if settlement_hash != canonical_hash(evidence):
+            return False
+    except (TypeError, ValueError):
+        return False
+
+    candidate_rows = payload.get("candidate_rows")
+    actual_rows = payload.get("actual_rows")
+    tick_evidence = payload.get("tick_evidence")
+    report = payload.get("report")
+    if (
+        payload.get("schema_version") != 1
+        or (
+            expected_since is not None
+            and payload.get("since") != expected_since
+        )
+        or (
+            expected_until is not None
+            and payload.get("until") != expected_until
+        )
+        or not isinstance(candidate_rows, list)
+        or not isinstance(actual_rows, list)
+        or not isinstance(tick_evidence, dict)
+        or not isinstance(report, dict)
+        or not isinstance(report.get("comparison_allowed"), bool)
+    ):
+        return False
+    matrix = report.get("matrix")
+    if not isinstance(matrix, dict) or set(matrix) != {"canal1", "canal2"}:
+        return False
+
+    observed_by_channel = {"canal1": 0, "canal2": 0}
+    for row in candidate_rows:
+        if not isinstance(row, dict):
+            return False
+        channel = str(row.get("channel") or "")
+        if channel not in observed_by_channel:
+            return False
+        observed_by_channel[channel] += 1
+    for channel, observed in observed_by_channel.items():
+        values = matrix.get(channel)
+        if not isinstance(values, dict):
+            return False
+        try:
+            eligible = int(values["eligible_signals"])
+            expected = int(values["expected_rows"])
+            reported_observed = int(values["observed_rows"])
+            settled = int(values["settled_rows"])
+            blocked = int(values["blocked_rows"])
+            open_rows = int(values["open_rows"])
+        except (KeyError, TypeError, ValueError):
+            return False
+        if (
+            min(eligible, expected, reported_observed, settled, blocked, open_rows)
+            < 0
+            or expected != eligible * 3
+            or reported_observed != observed
+            or settled + blocked + open_rows != expected
+            or values.get("complete") is not (
+                observed == expected and settled == expected
+            )
+        ):
+            return False
+    if (
+        not any(
+            int(matrix[channel]["eligible_signals"])
+            for channel in ("canal1", "canal2")
+        )
+        and report.get("comparison_allowed") is not False
+    ):
+        return False
+    return True
+
+
+def _regenerate_strategy_shadow_report() -> bool:
+    """Settle the frozen three-candidate matrix without touching live orders."""
+    STRATEGY_SHADOW_REPORT_FILE.unlink(missing_ok=True)
+    try:
+        since = datetime.strptime(
+            STRATEGY_SHADOW_FROM_DATE, "%Y-%m-%d",
+        ).date()
+        until_value = _strategy_shadow_until_date()
+        until = datetime.strptime(until_value, "%Y-%m-%d").date()
+        if until < since:
+            raise ValueError("strategy shadow window ends before it starts")
+        command = [
+            sys.executable,
+            "tools/build_strategy_shadow_report.py",
+            "--since", since.isoformat(),
+            "--until", until.isoformat(),
+            "--events", str(RUNTIME_DATA_DIR / "trade_events.jsonl"),
+            "--ledger", str(RUNTIME_DATA_DIR / "ledger.jsonl"),
+            "--ticks-cache", str(RUNTIME_DATA_DIR / "ticks_cache"),
+            "--money-ticks-cache", str(MONEY_TICK_CACHE_DIR),
+            "--money-contract", str(BROKER_MONEY_CONTRACT_FILE),
+            "--provider-catalog", str(PROVIDER_SIGNAL_CATALOG_FILE),
+            "--output", str(STRATEGY_SHADOW_REPORT_FILE),
+        ]
+        rec = subprocess.run(
+            command,
+            cwd=REPO_DIR,
+            capture_output=False,
+            text=True,
+            timeout=900,
+        )
+        if (
+            rec.returncode == 0
+            and STRATEGY_SHADOW_REPORT_FILE.is_file()
+            and _strategy_shadow_publication_valid(
+                STRATEGY_SHADOW_REPORT_FILE,
+                expected_since=since.isoformat(),
+                expected_until=until.isoformat(),
+            )
+        ):
+            print("[Watch] comparativa en sombra verificada.", flush=True)
+            return True
+        STRATEGY_SHADOW_REPORT_FILE.unlink(missing_ok=True)
+        print(
+            f"[Watch] comparativa en sombra no publicada (rc={rec.returncode}).",
+            flush=True,
+        )
+        return False
+    except BaseException as exc:
+        STRATEGY_SHADOW_REPORT_FILE.unlink(missing_ok=True)
+        print(f"[Watch] error en comparativa en sombra: {exc}", flush=True)
+        if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+            raise
+        return False
+
+
 def _mutable_offline_output_paths() -> tuple[Path, ...]:
     return (
         PROVIDER_SIGNAL_CATALOG_FILE,
         STRATEGY_FARM_FILE,
+        STRATEGY_SHADOW_REPORT_FILE,
         LOG_LEARNING_REPORT_FILE,
         LOG_PATTERN_REGISTRY_FILE,
         LOG_LEARNING_STATUS_FILE,
@@ -1675,7 +1851,7 @@ def _regenerate_session_outputs(
         min_interval_s=0.0,
         width=24,
     )
-    stage_total = 11
+    stage_total = 12
     stage_current = 0
     builder_results = {
         "accounting": False,
@@ -1685,6 +1861,7 @@ def _regenerate_session_outputs(
         "readiness": False,
         "replay": False,
         "strategy_farm": False,
+        "strategy_shadow": False,
         "tick_cache": False,
         "money_contract": False,
         "money_ticks": False,
@@ -1736,6 +1913,12 @@ def _regenerate_session_outputs(
     )
     accounting_ok = builder_results["accounting"]
     run_stage(
+        "provider_catalog",
+        "Catalogo de senales",
+        _regenerate_provider_signal_catalog,
+        enabled=accounting_ok,
+    )
+    run_stage(
         "tick_cache",
         "Ticks XAUUSD",
         _regenerate_replay_tick_cache_status,
@@ -1754,6 +1937,18 @@ def _regenerate_session_outputs(
         enabled=accounting_ok,
     )
     run_stage(
+        "strategy_shadow",
+        "Comparativa en sombra",
+        _regenerate_strategy_shadow_report,
+        enabled=(
+            builder_results["ledger"]
+            and builder_results["provider_catalog"]
+            and builder_results["tick_cache"]
+            and builder_results["money_contract"]
+            and builder_results["money_ticks"]
+        ),
+    )
+    run_stage(
         "observed_ticks",
         "Replay tick a tick",
         _regenerate_observed_tick_replay_audit,
@@ -1763,12 +1958,6 @@ def _regenerate_session_outputs(
         "readiness",
         "Preparacion de replay",
         _regenerate_replay_readiness_report,
-        enabled=accounting_ok,
-    )
-    run_stage(
-        "provider_catalog",
-        "Catalogo de senales",
-        _regenerate_provider_signal_catalog,
         enabled=accounting_ok,
     )
     run_stage(

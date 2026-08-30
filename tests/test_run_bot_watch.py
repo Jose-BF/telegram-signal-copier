@@ -1,12 +1,14 @@
 import json
 import socket
 import subprocess
+from datetime import datetime, timezone
 from hashlib import sha256
 from types import SimpleNamespace
 
 import pytest
 
 import replay_source_contract
+from strategy_shadow_contracts import canonical_hash
 import tools.run_bot_watch as watch
 from tools import git_sync, runtime_recovery
 
@@ -916,9 +918,15 @@ def test_regenerate_replay_tick_cache_status_runs_ensure_tool(tmp_path, monkeypa
     data_dir = tmp_path / "data"
     data_dir.mkdir()
     tick_status = data_dir / "replay_tick_cache_status.json"
+    catalog = data_dir / "provider_signal_catalog.json"
+    catalog.write_text('{"signals": []}\n', encoding="utf-8")
 
     monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
     monkeypatch.setattr(watch, "REPLAY_TICK_CACHE_STATUS_FILE", tick_status)
+    monkeypatch.setattr(watch, "PROVIDER_SIGNAL_CATALOG_FILE", catalog)
+    monkeypatch.setattr(
+        watch, "_strategy_shadow_until_date", lambda: "2026-08-29",
+    )
 
     def fake_run(*args, **kwargs):
         assert args[0] == [
@@ -927,6 +935,10 @@ def test_regenerate_replay_tick_cache_status_runs_ensure_tool(tmp_path, monkeypa
             "--ensure",
             "--since",
             "2026-07-06",
+            "--catalog",
+            str(catalog),
+            "--provider-until",
+            "2026-08-29",
             "--quiet",
         ]
         assert kwargs["timeout"] == 900
@@ -1139,6 +1151,113 @@ def _valid_strategy_farm_publication(root):
             ),
         },
     }
+
+
+def _valid_strategy_shadow_publication():
+    payload = {
+        "schema_version": 1,
+        "since": "2026-08-27",
+        "until": "2026-08-28",
+        "candidate_rows": [],
+        "actual_rows": [],
+        "tick_evidence": {},
+        "report": {
+            "comparison_allowed": False,
+            "matrix": {
+                channel: {
+                    "eligible_signals": 0,
+                    "expected_rows": 0,
+                    "observed_rows": 0,
+                    "settled_rows": 0,
+                    "blocked_rows": 0,
+                    "open_rows": 0,
+                    "complete": True,
+                }
+                for channel in ("canal1", "canal2")
+            },
+        },
+    }
+    return {**payload, "settlement_hash": canonical_hash(payload)}
+
+
+def test_regenerate_strategy_shadow_report_uses_complete_offline_inputs(
+        tmp_path, monkeypatch):
+    data_dir = tmp_path / "runtime"
+    data_dir.mkdir()
+    output = data_dir / "strategy_shadow_report.json"
+    monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
+    monkeypatch.setattr(watch, "RUNTIME_DATA_DIR", data_dir)
+    monkeypatch.setattr(watch, "STRATEGY_SHADOW_REPORT_FILE", output)
+    monkeypatch.setattr(
+        watch,
+        "PROVIDER_SIGNAL_CATALOG_FILE",
+        data_dir / "provider_signal_catalog.json",
+    )
+    monkeypatch.setattr(watch, "BROKER_MONEY_CONTRACT_FILE",
+                        data_dir / "broker_money_contract.json")
+    monkeypatch.setattr(watch, "MONEY_TICK_CACHE_DIR",
+                        data_dir / "money_ticks_cache")
+    monkeypatch.setattr(watch, "STRATEGY_SHADOW_FROM_DATE", "2026-08-27")
+    monkeypatch.setattr(
+        watch, "_strategy_shadow_until_date", lambda: "2026-08-28",
+    )
+
+    def fake_run(*args, **kwargs):
+        assert args[0] == [
+            watch.sys.executable,
+            "tools/build_strategy_shadow_report.py",
+            "--since", "2026-08-27",
+            "--until", "2026-08-28",
+            "--events", str(data_dir / "trade_events.jsonl"),
+            "--ledger", str(data_dir / "ledger.jsonl"),
+            "--ticks-cache", str(data_dir / "ticks_cache"),
+            "--money-ticks-cache", str(data_dir / "money_ticks_cache"),
+            "--money-contract", str(data_dir / "broker_money_contract.json"),
+            "--provider-catalog", str(data_dir / "provider_signal_catalog.json"),
+            "--output", str(output),
+        ]
+        assert kwargs["capture_output"] is False
+        output.write_text(
+            json.dumps(_valid_strategy_shadow_publication()),
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(
+            args=args[0], returncode=0, stdout="", stderr="",
+        )
+
+    monkeypatch.setattr(watch.subprocess, "run", fake_run)
+
+    assert watch._regenerate_strategy_shadow_report() is True
+
+
+def test_strategy_shadow_automatic_cutoff_uses_last_closed_utc_day():
+    assert watch._strategy_shadow_until_date(
+        datetime(2026, 8, 30, 0, 1, tzinfo=timezone.utc)
+    ) == "2026-08-29"
+
+
+def test_strategy_shadow_automatic_cutoff_rejects_naive_clock():
+    with pytest.raises(ValueError, match="timezone-aware"):
+        watch._strategy_shadow_until_date(datetime(2026, 8, 30, 12, 0))
+
+
+def test_regenerate_strategy_shadow_report_rejects_tampered_output(
+        tmp_path, monkeypatch):
+    output = tmp_path / "strategy_shadow_report.json"
+    monkeypatch.setattr(watch, "STRATEGY_SHADOW_REPORT_FILE", output)
+
+    def fake_run(*args, **kwargs):
+        payload = _valid_strategy_shadow_publication()
+        payload["report"]["matrix"]["canal1"]["expected_rows"] = 3
+        output.write_text(json.dumps(payload), encoding="utf-8")
+        return subprocess.CompletedProcess(
+            args=args[0], returncode=0, stdout="", stderr="",
+        )
+
+    monkeypatch.setattr(watch.subprocess, "run", fake_run)
+
+    assert watch._regenerate_strategy_shadow_report() is False
+    assert not output.exists()
 
 
 def test_regenerate_strategy_farm_accepts_complete_diagnostic_publication(
@@ -1449,6 +1568,7 @@ def test_interrupted_pipeline_restores_previous_mutable_reports(
     paths = [
         data_dir / "provider_signal_catalog.json",
         data_dir / "strategy_farm.json",
+        data_dir / "strategy_shadow_report.json",
         data_dir / "log_learning_report.json",
         data_dir / "log_pattern_registry.json",
         data_dir / "log_learning_status.json",
@@ -1458,9 +1578,10 @@ def test_interrupted_pipeline_restores_previous_mutable_reports(
 
     monkeypatch.setattr(watch, "PROVIDER_SIGNAL_CATALOG_FILE", paths[0])
     monkeypatch.setattr(watch, "STRATEGY_FARM_FILE", paths[1])
-    monkeypatch.setattr(watch, "LOG_LEARNING_REPORT_FILE", paths[2])
-    monkeypatch.setattr(watch, "LOG_PATTERN_REGISTRY_FILE", paths[3])
-    monkeypatch.setattr(watch, "LOG_LEARNING_STATUS_FILE", paths[4])
+    monkeypatch.setattr(watch, "STRATEGY_SHADOW_REPORT_FILE", paths[2])
+    monkeypatch.setattr(watch, "LOG_LEARNING_REPORT_FILE", paths[3])
+    monkeypatch.setattr(watch, "LOG_PATTERN_REGISTRY_FILE", paths[4])
+    monkeypatch.setattr(watch, "LOG_LEARNING_STATUS_FILE", paths[5])
     monkeypatch.setattr(
         watch,
         "_regenerate_ledger",
@@ -1496,6 +1617,8 @@ def test_push_pipeline_runs_learning_after_all_causal_builders(monkeypatch):
     monkeypatch.setattr(
         watch, "_regenerate_money_tick_cache_status", step("money_ticks"))
     monkeypatch.setattr(
+        watch, "_regenerate_strategy_shadow_report", step("shadow"))
+    monkeypatch.setattr(
         watch, "_regenerate_replay_readiness_report", step("readiness"))
     monkeypatch.setattr(
         watch, "_regenerate_observed_tick_replay_audit", step("observed"))
@@ -1525,9 +1648,9 @@ def test_push_pipeline_runs_learning_after_all_causal_builders(monkeypatch):
     watch._push_session_data()
 
     assert calls == [
-        "ledger", "replay", "accounting", "tick_cache", "money_contract",
-        "money_ticks", "observed",
-        "readiness", "provider", "farm", "learning",
+        "ledger", "replay", "accounting", "provider", "tick_cache",
+        "money_contract", "money_ticks", "shadow", "observed",
+        "readiness", "farm", "learning",
     ]
     assert all(learning_dependencies[0].values())
 
@@ -1538,12 +1661,13 @@ def test_session_pipeline_reports_every_stage_in_causal_order(monkeypatch):
         ("_regenerate_ledger", "Ledger"),
         ("_regenerate_replay_trades", "Replay"),
         ("_regenerate_accounting_replay_audit", "Auditoria contable"),
+        ("_regenerate_provider_signal_catalog", "Catalogo de senales"),
         ("_regenerate_replay_tick_cache_status", "Ticks XAUUSD"),
         ("_regenerate_broker_money_contract", "Contrato monetario"),
         ("_regenerate_money_tick_cache_status", "Ticks de conversion"),
+        ("_regenerate_strategy_shadow_report", "Comparativa en sombra"),
         ("_regenerate_observed_tick_replay_audit", "Replay tick a tick"),
         ("_regenerate_replay_readiness_report", "Preparacion de replay"),
-        ("_regenerate_provider_signal_catalog", "Catalogo de senales"),
         ("_regenerate_strategy_farm", "Granja de estrategias"),
     ]
     for function_name, _ in stages:
@@ -1570,7 +1694,7 @@ def test_session_pipeline_reports_every_stage_in_causal_order(monkeypatch):
         if label.endswith(" OK")
     ]
     assert completed == [
-        (index, 11, f"{label} OK")
+        (index, 12, f"{label} OK")
         for index, (_, label) in enumerate(
             [*stages, ("learning", "Aprendizaje recursivo")],
             start=1,
@@ -1607,6 +1731,7 @@ def test_push_pipeline_runs_learning_after_upstream_failure(monkeypatch):
         "readiness": False,
         "replay": False,
         "strategy_farm": False,
+        "strategy_shadow": False,
         "tick_cache": False,
         "money_contract": False,
         "money_ticks": False,
@@ -1620,16 +1745,19 @@ def test_push_session_data_clears_stale_farm_when_pipeline_stops_early(
     data_dir.mkdir()
     catalog = data_dir / "provider_signal_catalog.json"
     farm = data_dir / "strategy_farm.json"
+    shadow = data_dir / "strategy_shadow_report.json"
     learning_report = data_dir / "log_learning_report.json"
     pattern_registry = data_dir / "log_pattern_registry.json"
     learning_status = data_dir / "log_learning_status.json"
     catalog.write_text('{"generated_at":"old"}\n', encoding="utf-8")
     farm.write_text('{"generated_at":"old"}\n', encoding="utf-8")
+    shadow.write_text('{"generated_at":"old"}\n', encoding="utf-8")
     learning_report.write_text('{"old":true}\n', encoding="utf-8")
     pattern_registry.write_text('{"old":true}\n', encoding="utf-8")
     learning_status.write_text('{"old":true}\n', encoding="utf-8")
     monkeypatch.setattr(watch, "PROVIDER_SIGNAL_CATALOG_FILE", catalog)
     monkeypatch.setattr(watch, "STRATEGY_FARM_FILE", farm)
+    monkeypatch.setattr(watch, "STRATEGY_SHADOW_REPORT_FILE", shadow)
     monkeypatch.setattr(watch, "LOG_LEARNING_REPORT_FILE", learning_report)
     monkeypatch.setattr(watch, "LOG_PATTERN_REGISTRY_FILE", pattern_registry)
     monkeypatch.setattr(watch, "LOG_LEARNING_STATUS_FILE", learning_status)
@@ -1654,6 +1782,7 @@ def test_push_session_data_clears_stale_farm_when_pipeline_stops_early(
 
     assert not catalog.exists()
     assert not farm.exists()
+    assert not shadow.exists()
     assert not learning_report.exists()
     assert not pattern_registry.exists()
     assert not learning_status.exists()

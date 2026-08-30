@@ -949,6 +949,8 @@ def build_status(
     error: str | None = None,
     expected_symbol: str | None = None,
     additional_required_days: Iterable[date] = (),
+    provider_since: datetime | None = None,
+    provider_until: datetime | None = None,
 ) -> dict:
     scoped_trades = selected_trades(
         trades,
@@ -1040,6 +1042,16 @@ def build_status(
         "scope": {
             "since": since.isoformat() if since else None,
             "until": until.isoformat() if until else None,
+            **(
+                {"provider_since": provider_since.isoformat()}
+                if provider_since is not None
+                else {}
+            ),
+            **(
+                {"provider_until": provider_until.isoformat()}
+                if provider_until is not None
+                else {}
+            ),
             "input_trades": len(trades),
             "selected_trades": len(scoped_trades),
             **(
@@ -1422,6 +1434,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE_DIR)
     parser.add_argument("--since")
     parser.add_argument("--until")
+    parser.add_argument(
+        "--provider-since",
+        help=(
+            "Optional lower date bound for provider-catalog signals; "
+            "defaults to --since"
+        ),
+    )
+    parser.add_argument(
+        "--provider-until",
+        help=(
+            "Optional upper date bound for provider-catalog signals; "
+            "defaults to --until"
+        ),
+    )
     parser.add_argument("--pad-minutes", type=int, default=5)
     parser.add_argument("--symbol", default="XAUUSD")
     parser.add_argument(
@@ -1446,6 +1472,22 @@ def main(argv: list[str] | None = None) -> int:
     trades = load_jsonl(args.input)
     since = _parse_dt(args.since)
     until = _parse_dt(args.until)
+    provider_since = (
+        _parse_dt(args.provider_since)
+        if args.provider_since is not None
+        else since
+    )
+    provider_until = (
+        _parse_dt(args.provider_until)
+        if args.provider_until is not None
+        else until
+    )
+    if (
+        provider_since is not None
+        and provider_until is not None
+        and provider_until < provider_since
+    ):
+        parser.error("provider scope ends before it starts")
     latency_scenarios_ms = tuple(args.provider_latency_scenarios_ms or [0])
     args.cache_dir.mkdir(parents=True, exist_ok=True)
     catalog = {}
@@ -1461,8 +1503,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     additional_required_days = required_provider_dates(
         catalog,
-        since=since,
-        until=until,
+        since=provider_since,
+        until=provider_until,
         latency_scenarios_ms=latency_scenarios_ms,
         offset_candidates_seconds=(
             verified_offsets or DEFAULT_OFFSET_CANDIDATES_SECONDS
@@ -1488,6 +1530,8 @@ def main(argv: list[str] | None = None) -> int:
         refresh_removed_days=refresh_removed_days,
         expected_symbol=args.symbol,
         additional_required_days=additional_required_days,
+        provider_since=provider_since,
+        provider_until=provider_until,
     )
 
     if args.ensure and not args.dry_run and (
@@ -1547,6 +1591,8 @@ def main(argv: list[str] | None = None) -> int:
                 refresh_removed_days=refresh_removed_days,
                 expected_symbol=args.symbol,
                 additional_required_days=additional_required_days,
+                provider_since=provider_since,
+                provider_until=provider_until,
             )
         except Exception as exc:
             status = build_status(
@@ -1562,6 +1608,8 @@ def main(argv: list[str] | None = None) -> int:
                 error=f"{type(exc).__name__}: {str(exc)[:300]}",
                 expected_symbol=args.symbol,
                 additional_required_days=additional_required_days,
+                provider_since=provider_since,
+                provider_until=provider_until,
             )
 
     write_status(status, args.status)

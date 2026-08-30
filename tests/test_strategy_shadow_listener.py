@@ -163,6 +163,9 @@ async def test_resolved_management_is_fanned_out_with_stable_identity(monkeypatc
     assert first.signal_id == "canal1_20700"
     assert first.event_id == second.event_id
     assert first.price == 4298.5
+    assert first.observed_tick_msc == int(
+        datetime.fromisoformat(first.observed_at_utc).timestamp() * 1000
+    )
 
 
 @pytest.mark.asyncio

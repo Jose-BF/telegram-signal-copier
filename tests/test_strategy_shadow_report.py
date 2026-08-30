@@ -28,6 +28,7 @@ def _complete_rows(*, signals_per_channel: int = 15):
                     "net_eur": 1.0,
                     "control_mirror_match": True,
                     "telegram_lineage_complete": True,
+                    "mt5_reconciled": True,
                 }
             )
             for rank, policy in enumerate(catalog[channel]):
@@ -39,6 +40,7 @@ def _complete_rows(*, signals_per_channel: int = 15):
                         "role": policy.role,
                         "strategy_fingerprint": policy.strategy_fingerprint,
                         "execution_fingerprint": policy.execution_fingerprint,
+                        "registration_source": "observed_runtime",
                         "registered_at_utc": registered.isoformat(),
                         "outcome_at_utc": outcome.isoformat(),
                         "day": registered.date().isoformat(),
@@ -91,12 +93,24 @@ def test_report_refuses_to_rank_when_required_evidence_is_blocked(blocker):
     assert blocker in report["blockers"]
 
 
+def test_invalid_candidate_role_blocks_comparison_without_crashing():
+    candidate_rows, actual_rows = _complete_rows(signals_per_channel=1)
+    candidate_rows[0]["role"] = "unexpected_role"
+
+    report = build_report(candidate_rows, actual_rows)
+
+    assert report["comparison_allowed"] is False
+    assert report["shadow_leader"] is None
+    assert "invalid_candidate_role" in report["comparison_blockers"]
+
+
 def test_report_summarizes_signals_days_candidates_and_nine_pairings():
     candidate_rows, actual_rows = _complete_rows()
 
     report = build_report(candidate_rows, actual_rows)
 
     assert report["ranking_allowed"] is True
+    assert report["comparison_allowed"] is True
     assert report["checkpoint"]["label"] == "diagnostic"
     assert report["checkpoint"]["untouched_signals"] == 30
     assert len(report["signals"]) == 30
@@ -111,6 +125,71 @@ def test_report_summarizes_signals_days_candidates_and_nine_pairings():
     assert report["candidate_totals"]["dubai_balanced_v1"]["net_eur"] == 45.0
     assert report["candidate_totals"]["gold_now_555_v1"]["net_eur"] == 45.0
     assert report["pairings"][0]["net_eur"] == 90.0
+    assert report["matrix"]["canal1"]["complete"] is True
+    assert report["matrix"]["canal2"]["complete"] is True
+    assert next(iter(report["signals"]))["candidates"][
+        "dubai_balanced_v1"
+    ]["registration_source"] == "observed_runtime"
+
+
+def test_complete_virtual_matrix_can_be_compared_before_actual_calibration():
+    candidate_rows, _actual_rows = _complete_rows(signals_per_channel=1)
+
+    report = build_report(candidate_rows, [])
+
+    assert report["ranking_allowed"] is False
+    assert report["comparison_allowed"] is True
+    assert report["shadow_leader"] == {
+        "canal1": "dubai_balanced_v1",
+        "canal2": "gold_now_555_v1",
+        "pairing": "dubai_balanced_v1+gold_now_555_v1",
+    }
+    assert "actual_evidence_missing" in report["blockers"]
+    assert "actual_evidence_missing" not in report["comparison_blockers"]
+
+
+def test_empty_matrix_never_claims_that_a_comparison_is_ready():
+    report = build_report([], [])
+
+    assert report["comparison_allowed"] is False
+    assert report["shadow_leader"] is None
+    assert "no_eligible_signals" in report["comparison_blockers"]
+
+
+def test_actual_calibration_blocker_does_not_mark_complete_candidates_blocked():
+    candidate_rows, actual_rows = _complete_rows(signals_per_channel=1)
+    actual_rows[0]["control_mirror_match"] = False
+
+    report = build_report(candidate_rows, actual_rows)
+
+    signal = next(
+        row for row in report["signals"]
+        if row["channel"] == actual_rows[0]["channel"]
+        and row["signal_id"] == actual_rows[0]["signal_id"]
+    )
+    assert "control_mirror_mismatch" in signal["blockers"]
+    assert all(
+        candidate["blockers"] == []
+        for candidate in signal["candidates"].values()
+    )
+
+
+def test_unreconciled_mt5_result_is_visible_but_not_called_complete():
+    candidate_rows, actual_rows = _complete_rows(signals_per_channel=1)
+    actual_rows[0]["mt5_reconciled"] = False
+
+    report = build_report(candidate_rows, actual_rows)
+
+    signal = next(
+        row for row in report["signals"]
+        if row["channel"] == actual_rows[0]["channel"]
+        and row["signal_id"] == actual_rows[0]["signal_id"]
+    )
+    assert "mt5_reconciliation_incomplete" in report["blockers"]
+    assert signal["actual"]["net_eur"] == 1.0
+    assert signal["actual"]["complete"] is False
+    assert report["days"][0]["actual"]["complete"] is False
+    assert report["days"][0]["actual"]["net_eur"] is None
 
 
 @pytest.mark.parametrize(
@@ -185,6 +264,29 @@ def test_open_candidate_is_visible_but_cannot_enter_a_ranking():
     assert "candidate_not_terminal" in report["blockers"]
 
 
+def test_incomplete_candidate_is_never_presented_as_zero_profit():
+    candidate_rows, actual_rows = _complete_rows(signals_per_channel=1)
+    target = candidate_rows[0]
+    target.update({
+        "status": "incomplete",
+        "complete": False,
+        "net_eur": None,
+        "mfe_eur": None,
+        "mae_eur": None,
+        "evidence_blockers": ["signal_registration_missing"],
+    })
+
+    report = build_report(candidate_rows, actual_rows)
+
+    candidate = report["signals"][0]["candidates"][target["candidate_id"]]
+    total = report["candidate_totals"][target["candidate_id"]]
+    assert candidate["net_eur"] is None
+    assert total["net_eur"] is None
+    assert total["settled_net_eur"] == 0.0
+    assert report["pairings"][0]["net_eur"] is not None
+    assert any(row["net_eur"] is None for row in report["pairings"])
+
+
 def test_report_uses_the_prospectively_recorded_control_identity():
     candidate_rows, actual_rows = _complete_rows()
     target_signal = "canal2_1000"
@@ -221,3 +323,9 @@ def test_invalid_money_is_never_silently_converted_to_zero_for_ranking():
     assert report["winner"] is None
     assert "invalid_candidate_result" in report["blockers"]
     assert "invalid_actual_result" in report["blockers"]
+    affected = next(
+        row for row in report["signals"]
+        if row["signal_id"] == actual_rows[1]["signal_id"]
+        and row["channel"] == actual_rows[1]["channel"]
+    )
+    assert affected["actual"]["net_eur"] is None

@@ -172,6 +172,70 @@ def test_required_provider_days_include_unexecuted_and_sunday_signals():
     ]
 
 
+def test_provider_cli_scope_can_exclude_open_day_without_hiding_trade_windows(
+    tmp_path,
+):
+    replay_path = tmp_path / "replay_trades.jsonl"
+    catalog_path = tmp_path / "provider_signal_catalog.json"
+    status_path = tmp_path / "replay_tick_cache_status.json"
+    cache_dir = tmp_path / "ticks_cache"
+    replay_path.write_text(
+        json.dumps(_trade(
+            "actual_current_day",
+            "2026-08-30T10:00:00+00:00",
+            "2026-08-30T10:05:00+00:00",
+        )) + "\n",
+        encoding="utf-8",
+    )
+    catalog_path.write_text(
+        json.dumps({
+            "signals": [
+                {
+                    "record_type": "formal_signal",
+                    "provider_signal_id": "closed_day_signal",
+                    "channel": "canal1",
+                    "first_observed_utc": "2026-08-27T10:00:00+00:00",
+                    "entry_contract": {
+                        "status": "ready",
+                        "direction": "BUY",
+                        "trigger_observed_utc": "2026-08-27T10:00:00+00:00",
+                        "blockers": [],
+                    },
+                },
+                {
+                    "record_type": "formal_signal",
+                    "provider_signal_id": "open_day_signal",
+                    "channel": "canal1",
+                    "first_observed_utc": "2026-08-30T10:00:00+00:00",
+                    "entry_contract": {
+                        "status": "ready",
+                        "direction": "BUY",
+                        "trigger_observed_utc": "2026-08-30T10:00:00+00:00",
+                        "blockers": [],
+                    },
+                },
+            ],
+        }) + "\n",
+        encoding="utf-8",
+    )
+
+    exit_code = ensure_replay_tick_cache.main([
+        "--input", str(replay_path),
+        "--catalog", str(catalog_path),
+        "--status", str(status_path),
+        "--cache-dir", str(cache_dir),
+        "--provider-until", "2026-08-29",
+        "--dry-run",
+        "--quiet",
+    ])
+
+    status = json.loads(status_path.read_text(encoding="utf-8"))
+    assert exit_code == 1
+    assert "2026-08-27" in status["scope"]["additional_required_days"]
+    assert "2026-08-30" not in status["scope"]["additional_required_days"]
+    assert "2026-08-30" in status["required_days"]
+
+
 def test_status_additional_days_require_complete_day_coverage(tmp_path):
     cache_dir = tmp_path / "ticks_cache"
     cache_dir.mkdir()

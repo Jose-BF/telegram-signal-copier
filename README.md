@@ -93,6 +93,25 @@ Prospective strategy shadows:
   Missing ticks, Telegram lineage, verified EUR conversion, prospective
   registration or live-control parity block the ranking instead of estimating
   the missing result.
+- The live preview follows each open signal independently. When no shadow is
+  active its cursor is discarded, so a later signal cannot inherit a stale
+  position from a previous day.
+- The explicit final backup rebuilds `runtime_data/strategy_shadow_report.json`
+  from the frozen registrations, provider management, complete broker ticks
+  and reconciled MT5 ledger. It requires exactly three visible outcomes per
+  eligible signal; a missing registration or price interval is an explicit
+  blocked row, never an omitted trade or an invented zero.
+- Automatic final backups certify only through the last fully closed UTC day.
+  This deliberate one-day ceiling prevents a midday backup from treating
+  future ticks as missing. Historical intervals can still be rebuilt manually.
+- `comparison_allowed` means the complete hypothetical matrix can be compared.
+  `ranking_allowed` is stricter and additionally requires an independently
+  verified live-control mirror plus the minimum prospective sample. Neither
+  status changes the production strategy automatically.
+- A candidate that crosses broker midnight is explicitly blocked while swap
+  is not part of every intermediate basket decision. Adding swap only to the
+  final total could change when a guard would have closed and is therefore not
+  accepted as an exact replay.
 - Entry windows start when Telegram is accepted; holding-time exits start at
   the first virtual fill. An unexpected shadow-runtime failure disables only
   observation and leaves the live bot running.
@@ -103,6 +122,13 @@ Prospective strategy shadows:
 - The rollback is immediate and isolated: set
   `STRATEGY_SHADOW_ENABLED=false`. This changes only observation and leaves the
   active Dubai/Gold execution policies untouched.
+
+Build the same authoritative comparison manually for a closed interval:
+
+```powershell
+python tools\build_strategy_shadow_report.py `
+  --since 2026-08-27 --until 2026-08-28
+```
 
 The compact daily log pass is incremental and reports armed zones, confirmed
 entries, trigger types and failures without rescanning the retained corpus:

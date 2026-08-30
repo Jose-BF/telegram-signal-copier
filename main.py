@@ -60,6 +60,7 @@ import live_auditor
 import pending_actions
 import strategy_shadow_runtime
 from strategy_shadow_contracts import ShadowTick, canonical_hash
+from strategy_shadow_manifest import build_catalog_manifest
 from tools import capture_broker_money_contract as broker_contract
 from listener import (
     _is_transient_telegram_history_error,
@@ -3096,6 +3097,19 @@ def _shadow_row_value(row, name: str, default=0):
         return getattr(row, name, default)
 
 
+def _shadow_market_tick_identity(identity) -> tuple | None:
+    """Match one quote across MT5 APIs that expose different flag bits."""
+    if identity is None:
+        return None
+    return (
+        int(identity[0]),
+        float(identity[1]),
+        float(identity[2]),
+        float(identity[3]),
+        float(identity[5]),
+    )
+
+
 def _shadow_normalized_tick_row(row, utc_offset_seconds: int) -> dict:
     raw_time_msc = int(_shadow_row_value(row, "time_msc", 0) or 0)
     if raw_time_msc <= 0:
@@ -3499,10 +3513,8 @@ def _shadow_tick_history(
                 until_dt,
                 flags,
             )
-            if raw_conversion is None:
-                raise ValueError("conversion history unavailable")
             conversion_rows = []
-            for row in raw_conversion:
+            for row in (() if raw_conversion is None else raw_conversion):
                 try:
                     conversion_rows.append(_shadow_normalized_tick_row(
                         row,
@@ -3532,8 +3544,10 @@ def _shadow_tick_history(
                 utc_offset_seconds=utc_offset_seconds,
             )
             if quote is None:
-                raise ValueError("historical conversion evidence is stale")
-            factors, evidence_id = quote
+                factors = None
+                evidence_id = None
+            else:
+                factors, evidence_id = quote
             ticks.append(_shadow_tick_from_values(
                 time_msc=time_msc,
                 bid=float(_shadow_row_value(row, "bid", 0.0) or 0.0),
@@ -3553,6 +3567,20 @@ def _shadow_tick_history(
                 if observed.identity == tuple(after_identity)
             ]
             if not cursor_indexes:
+                cursor_market_identity = _shadow_market_tick_identity(
+                    after_identity
+                )
+                cursor_indexes = [
+                    index
+                    for index, observed in enumerate(ticks)
+                    if _shadow_market_tick_identity(observed.identity)
+                    == cursor_market_identity
+                ]
+                if cursor_indexes:
+                    evidence_seed["cursor_match"] = (
+                        "market_identity_without_flags"
+                    )
+            if not cursor_indexes:
                 raise ValueError("historical tick cursor unavailable")
             ticks = ticks[cursor_indexes[-1] + 1:]
         evidence_id = canonical_hash({
@@ -3567,6 +3595,14 @@ def _shadow_tick_history(
             evidence_id=evidence_id,
         )
     except Exception as exc:
+        message = str(exc)
+        blocker = {
+            "broker money contract unavailable": "money_contract_unavailable",
+            "XAUUSD history unavailable": "xau_history_unavailable",
+            "historical tick cursor unavailable": (
+                "historical_tick_cursor_unavailable"
+            ),
+        }.get(message, "tick_history_unavailable")
         return strategy_shadow_runtime.ShadowTickHistory(
             ticks=(),
             complete=False,
@@ -3575,23 +3611,20 @@ def _shadow_tick_history(
                 "error_type": type(exc).__name__,
                 "error": str(exc)[:300],
             }),
+            blocker=blocker,
         )
 
 
 def _shadow_live_tick_batch(
-    last_identity: tuple[int, float, float, float, int, float] | None,
+    cursor: strategy_shadow_runtime.ShadowTickCursor,
     latest: ShadowTick,
 ) -> strategy_shadow_runtime.ShadowTickHistory:
-    if last_identity is None:
-        return strategy_shadow_runtime.ShadowTickHistory(
-            ticks=(latest,),
-            complete=True,
-            evidence_id=canonical_hash({
-                "mode": "live_cursor_start",
-                "latest_identity": list(latest.identity),
-            }),
-        )
-    if latest.identity == tuple(last_identity):
+    last_identity = cursor.after_identity
+    if (
+        last_identity is not None
+        and _shadow_market_tick_identity(latest.identity)
+        == _shadow_market_tick_identity(last_identity)
+    ):
         return strategy_shadow_runtime.ShadowTickHistory(
             ticks=(),
             complete=True,
@@ -3600,38 +3633,65 @@ def _shadow_live_tick_batch(
                 "latest_identity": list(latest.identity),
             }),
         )
-    if latest.time_msc < int(last_identity[0]):
+    if latest.time_msc < cursor.from_msc:
         return strategy_shadow_runtime.ShadowTickHistory(
             ticks=(),
             complete=False,
             evidence_id=canonical_hash({
                 "mode": "live_cursor_regressed",
-                "last_identity": list(last_identity),
+                "cursor": {
+                    "from_msc": cursor.from_msc,
+                    "after_identity": (
+                        None if last_identity is None else list(last_identity)
+                    ),
+                },
+                "latest_identity": list(latest.identity),
+            }),
+            blocker="live_tick_cursor_regressed",
+        )
+    if latest.time_msc == cursor.from_msc and last_identity is None:
+        return strategy_shadow_runtime.ShadowTickHistory(
+            ticks=(),
+            complete=True,
+            evidence_id=canonical_hash({
+                "mode": "live_registration_tick_unchanged",
+                "from_msc": cursor.from_msc,
                 "latest_identity": list(latest.identity),
             }),
         )
     history = _shadow_tick_history(
-        int(last_identity[0]),
+        cursor.from_msc,
         until_msc=latest.time_msc,
-        after_identity=tuple(last_identity),
+        after_identity=last_identity,
     )
     if not history.complete:
         return history
-    if latest.identity not in {tick.identity for tick in history.ticks}:
+    if _shadow_market_tick_identity(latest.identity) not in {
+        _shadow_market_tick_identity(tick.identity)
+        for tick in history.ticks
+    }:
         return strategy_shadow_runtime.ShadowTickHistory(
             ticks=history.ticks,
             complete=True,
             evidence_id=canonical_hash({
                 "mode": "live_archive_tail_pending",
-                "last_identity": list(last_identity),
+                "cursor": {
+                    "from_msc": cursor.from_msc,
+                    "after_identity": (
+                        None if last_identity is None else list(last_identity)
+                    ),
+                },
                 "latest_identity": list(latest.identity),
                 "last_archived_identity": (
                     list(history.ticks[-1].identity)
                     if history.ticks
-                    else list(last_identity)
+                    else (
+                        None if last_identity is None else list(last_identity)
+                    )
                 ),
                 "history_evidence_id": history.evidence_id,
             }),
+            pending_reason="live_archive_tail_pending",
         )
     return history
 
@@ -3675,6 +3735,7 @@ async def _initialize_strategy_shadows(path: Path) -> int:
     if not config.STRATEGY_SHADOW_ENABLED:
         strategy_shadow_runtime.install_runtime(None)
         return 0
+    strategy_shadow_runtime.install_runtime(None)
     try:
         controls = _configured_shadow_live_controls()
         catalog = strategy_shadow_runtime.build_shadow_catalog(
@@ -3688,18 +3749,24 @@ async def _initialize_strategy_shadows(path: Path) -> int:
                 config.STRATEGY_SHADOW_SLOWDOWN_THRESHOLD_MS
             ),
         )
-        strategy_shadow_runtime.install_runtime(runtime)
         records = await asyncio.to_thread(
             _load_shadow_journal_records, Path(path)
         )
 
-        async def history_reader(from_msc: int):
-            return await asyncio.to_thread(_shadow_tick_history, from_msc)
+        async def history_reader(
+            cursor: strategy_shadow_runtime.ShadowTickCursor,
+        ):
+            return await asyncio.to_thread(
+                _shadow_tick_history,
+                cursor.from_msc,
+                after_identity=cursor.after_identity,
+            )
 
         restored = await runtime.recover(
             records,
             history_reader=history_reader,
         )
+        strategy_shadow_runtime.install_runtime(runtime)
     except Exception as exc:
         strategy_shadow_runtime.install_runtime(None)
         journal.event(
@@ -3718,6 +3785,7 @@ async def _initialize_strategy_shadows(path: Path) -> int:
             for channel, policies in catalog.items()
         },
         controls=controls,
+        catalog_manifest=build_catalog_manifest(catalog),
     )
     print(
         "[Shadow] 3 estrategias Dubai + 3 Gold activas "
@@ -3752,26 +3820,39 @@ async def _process_strategy_shadow_tick(runtime, observed: ShadowTick) -> bool:
 
 
 async def _strategy_shadow_loop(interval_s: float = 0.25) -> None:
-    last_identity = None
     continuity_failures = 0
+    archive_tail_waits = 0
     while config.STRATEGY_SHADOW_ENABLED:
         runtime = strategy_shadow_runtime.installed_runtime()
         if runtime is None:
+            archive_tail_waits = 0
             await asyncio.sleep(max(0.1, float(interval_s)))
             continue
-        if last_identity is None:
-            last_identity = runtime.earliest_active_tick_identity()
+        cursor = runtime.active_tick_cursor()
+        if cursor is None:
+            continuity_failures = 0
+            archive_tail_waits = 0
+            await asyncio.sleep(max(0.1, float(interval_s)))
+            continue
         latest = await asyncio.to_thread(_shadow_tick_snapshot)
         if latest is None:
             await asyncio.sleep(max(0.1, float(interval_s)))
             continue
-        if latest.identity != last_identity:
+        if (
+            latest.time_msc > cursor.from_msc
+            or (
+                cursor.after_identity is not None
+                and _shadow_market_tick_identity(latest.identity)
+                != _shadow_market_tick_identity(cursor.after_identity)
+            )
+        ):
             history = await asyncio.to_thread(
                 _shadow_live_tick_batch,
-                last_identity,
+                cursor,
                 latest,
             )
             if not history.complete:
+                archive_tail_waits = 0
                 continuity_failures += 1
                 if continuity_failures == 3:
                     try:
@@ -3780,6 +3861,7 @@ async def _strategy_shadow_loop(interval_s: float = 0.25) -> None:
                             "strategy_shadow_tick_continuity_waiting",
                             consecutive_failures=continuity_failures,
                             evidence_id=history.evidence_id,
+                            blocker=history.blocker,
                         )
                     except Exception:
                         pass
@@ -3807,13 +3889,40 @@ async def _strategy_shadow_loop(interval_s: float = 0.25) -> None:
                     "observacion reanudada"
                 )
             continuity_failures = 0
+            if history.pending_reason:
+                archive_tail_waits += 1
+                if (
+                    archive_tail_waits == 3
+                    or archive_tail_waits % 20 == 0
+                ):
+                    try:
+                        journal.event(
+                            "bot",
+                            "strategy_shadow_tick_archive_tail_waiting",
+                            consecutive_waits=archive_tail_waits,
+                            evidence_id=history.evidence_id,
+                            reason=history.pending_reason,
+                        )
+                    except Exception:
+                        pass
+            else:
+                if archive_tail_waits >= 3:
+                    try:
+                        journal.event(
+                            "bot",
+                            "strategy_shadow_tick_archive_tail_resumed",
+                            consecutive_waits=archive_tail_waits,
+                            evidence_id=history.evidence_id,
+                        )
+                    except Exception:
+                        pass
+                archive_tail_waits = 0
             for observed in history.ticks:
                 # Yield so Telegram and live-order work already scheduled for
                 # this event-loop turn keeps priority over observation.
                 await asyncio.sleep(0)
                 if not await _process_strategy_shadow_tick(runtime, observed):
                     break
-                last_identity = observed.identity
         await asyncio.sleep(max(0.01, float(interval_s)))
 
 
@@ -3918,7 +4027,6 @@ async def main():
             f"{recovered_closes}"
         )
     _restore_live_candidate_runtime(journal.EVENTS_FILE)
-    await _initialize_strategy_shadows(journal.EVENTS_FILE)
     restored_zone_plans = restore_canal2_zone_plans_from_journal(
         journal.EVENTS_FILE
     )
@@ -3987,6 +4095,9 @@ async def main():
     # Poller activo: bypass del updateChannelTooLong de Telethon.
     # Entrega mensajes y edits de Canal 2 en ~1s en lugar de 60-600s.
     asyncio.ensure_future(poll_loop_supervised())
+    # La reconstruccion de estrategias hipoteticas nunca retrasa Telegram ni
+    # la proteccion live. Si tarda, el cierre diario recompone cualquier señal.
+    asyncio.ensure_future(_initialize_strategy_shadows(journal.EVENTS_FILE))
 
     try:
         await _run_until_disconnected_with_backoff()

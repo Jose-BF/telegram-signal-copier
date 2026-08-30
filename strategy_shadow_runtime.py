@@ -21,7 +21,10 @@ from strategy_shadow_engine import advance_tick, apply_management, register_sign
 
 
 JournalSink = Callable[..., object]
-HistoryReader = Callable[[int], "ShadowTickHistory | Awaitable[ShadowTickHistory]"]
+HistoryReader = Callable[
+    ["ShadowTickCursor"],
+    "ShadowTickHistory | Awaitable[ShadowTickHistory]",
+]
 
 
 _installed_runtime: "ShadowRuntime | None" = None
@@ -41,13 +44,34 @@ class ShadowTickHistory:
     ticks: tuple[ShadowTick, ...]
     complete: bool
     evidence_id: str
+    blocker: str | None = None
+    pending_reason: str | None = None
 
     def __post_init__(self) -> None:
-        identities = [item.identity for item in self.ticks]
-        if identities != sorted(identities, key=lambda item: (item[0], item)):
+        timestamps = [item.time_msc for item in self.ticks]
+        if timestamps != sorted(timestamps):
             raise ValueError("history ticks must be ordered")
         if not self.evidence_id:
             raise ValueError("history evidence_id is required")
+        if self.complete and self.blocker is not None:
+            raise ValueError("complete history cannot have a blocker")
+        if not self.complete and self.pending_reason is not None:
+            raise ValueError("incomplete history cannot expose a pending prefix")
+
+
+@dataclass(frozen=True)
+class ShadowTickCursor:
+    from_msc: int
+    after_identity: tuple[int, float, float, float, int, float] | None
+
+    def __post_init__(self) -> None:
+        if int(self.from_msc) < 0:
+            raise ValueError("from_msc must be non-negative")
+        if (
+            self.after_identity is not None
+            and int(self.after_identity[0]) != int(self.from_msc)
+        ):
+            raise ValueError("cursor identity timestamp must match from_msc")
 
 
 async def _resolve(value):
@@ -87,6 +111,7 @@ class ShadowRuntime:
         self._states: dict[tuple[str, str], ShadowSignalState] = {}
         self._disabled_candidates: set[str] = set()
         self._degradation_reported: set[str] = set()
+        self._persisted_state_hashes: dict[tuple[str, str], str] = {}
         self._last_checkpoint_at: datetime | None = None
         self._lock = asyncio.Lock()
 
@@ -107,18 +132,42 @@ class ShadowRuntime:
             if state.status not in {"closed", "cancelled", "incomplete"}
         }
 
+    def active_tick_cursor(self) -> ShadowTickCursor | None:
+        cursors: list[ShadowTickCursor] = []
+        for state in self._states.values():
+            if state.status in {"closed", "cancelled", "incomplete"}:
+                continue
+            if state.last_tick_identity is not None:
+                cursors.append(ShadowTickCursor(
+                    from_msc=int(state.last_tick_identity[0]),
+                    after_identity=state.last_tick_identity,
+                ))
+                continue
+            registered_msc = state.registered_tick_msc
+            if registered_msc is None:
+                registered_msc = int(
+                    _utc_datetime(state.registered_at_utc).timestamp() * 1000
+                )
+            cursors.append(ShadowTickCursor(
+                from_msc=int(registered_msc),
+                after_identity=None,
+            ))
+        if not cursors:
+            return None
+        return min(
+            cursors,
+            key=lambda cursor: (
+                cursor.from_msc,
+                0 if cursor.after_identity is not None else 1,
+                cursor.after_identity or (),
+            ),
+        )
+
     def earliest_active_tick_identity(
         self,
     ) -> tuple[int, float, float, float, int, float] | None:
-        identities = [
-            state.last_tick_identity
-            for state in self._states.values()
-            if (
-                state.status not in {"closed", "cancelled", "incomplete"}
-                and state.last_tick_identity is not None
-            )
-        ]
-        return None if not identities else min(identities)
+        cursor = self.active_tick_cursor()
+        return None if cursor is None else cursor.after_identity
 
     def status(self, candidate_id: str) -> str:
         return (
@@ -185,6 +234,7 @@ class ShadowRuntime:
                         previous_state_hash=None,
                         state=state.to_dict(),
                     )
+                    self._persisted_state_hashes[key] = state.state_hash
                 except Exception as exc:
                     await self._disable_candidate(
                         policy.candidate_id,
@@ -227,9 +277,12 @@ class ShadowRuntime:
                 error_type=type(error).__name__,
                 error_message=str(error)[:500],
                 state_hash=incomplete.state_hash,
-                previous_state_hash=state.state_hash,
+                previous_state_hash=self._persisted_state_hashes.get(
+                    key, state.state_hash,
+                ),
                 state=incomplete.to_dict(),
             )
+            self._persisted_state_hashes[key] = incomplete.state_hash
         if not affected:
             await self._emit(
                 signal_id,
@@ -246,7 +299,10 @@ class ShadowRuntime:
         advanced: ShadowAdvance,
         tick: ShadowTick | None,
     ) -> None:
-        chain_hash = previous.state_hash
+        key = (advanced.state.signal_id, policy.candidate_id)
+        chain_hash = self._persisted_state_hashes.get(
+            key, previous.state_hash,
+        )
         for transition in advanced.transitions:
             await self._emit(
                 advanced.state.signal_id,
@@ -257,6 +313,7 @@ class ShadowRuntime:
                 execution_fingerprint=policy.execution_fingerprint,
                 transition=transition.event,
                 reason=transition.reason,
+                transition_tick_msc=transition.tick_msc,
                 decision_state_hash=transition.state_hash,
                 transition_details=dict(transition.details),
                 tick=(None if tick is None else tick.to_dict()),
@@ -265,6 +322,7 @@ class ShadowRuntime:
                 state=advanced.state.to_dict(),
             )
             chain_hash = advanced.state.state_hash
+            self._persisted_state_hashes[key] = chain_hash
 
     async def process_tick(self, tick: ShadowTick) -> None:
         async with self._lock:
@@ -272,40 +330,47 @@ class ShadowRuntime:
 
     async def _process_tick_locked(self, tick: ShadowTick) -> None:
         for key in tuple(self._states):
-            previous = self._states[key]
-            if (
-                previous.status in {"closed", "cancelled", "incomplete"}
-                or previous.candidate_id in self._disabled_candidates
-            ):
-                continue
-            policy = self._policy(previous.candidate_id)
-            started = time.perf_counter()
-            try:
-                advanced = self._engine_advance(policy, previous, tick)
-            except Exception as exc:
-                await self._disable_candidate(
-                    previous.candidate_id,
-                    signal_id=previous.signal_id,
-                    error=exc,
-                )
-                continue
-            elapsed_ms = (time.perf_counter() - started) * 1000.0
-            self._states[key] = advanced.state
-            if advanced.transitions:
-                await self._record_advance(policy, previous, advanced, tick)
-            if (
-                elapsed_ms > self._slowdown_threshold_ms
-                and previous.candidate_id not in self._degradation_reported
-            ):
-                self._degradation_reported.add(previous.candidate_id)
-                await self._emit(
-                    previous.signal_id,
-                    "strategy_shadow_degraded",
-                    candidate_id=previous.candidate_id,
-                    elapsed_ms=round(elapsed_ms, 3),
-                    threshold_ms=self._slowdown_threshold_ms,
-                )
+            await self._process_tick_for_key_locked(key, tick)
         await self._checkpoint_if_due(tick.observed_at_utc)
+
+    async def _process_tick_for_key_locked(
+        self,
+        key: tuple[str, str],
+        tick: ShadowTick,
+    ) -> None:
+        previous = self._states[key]
+        if (
+            previous.status in {"closed", "cancelled", "incomplete"}
+            or previous.candidate_id in self._disabled_candidates
+        ):
+            return
+        policy = self._policy(previous.candidate_id)
+        started = time.perf_counter()
+        try:
+            advanced = self._engine_advance(policy, previous, tick)
+        except Exception as exc:
+            await self._disable_candidate(
+                previous.candidate_id,
+                signal_id=previous.signal_id,
+                error=exc,
+            )
+            return
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        self._states[key] = advanced.state
+        if advanced.transitions:
+            await self._record_advance(policy, previous, advanced, tick)
+        if (
+            elapsed_ms > self._slowdown_threshold_ms
+            and previous.candidate_id not in self._degradation_reported
+        ):
+            self._degradation_reported.add(previous.candidate_id)
+            await self._emit(
+                previous.signal_id,
+                "strategy_shadow_degraded",
+                candidate_id=previous.candidate_id,
+                elapsed_ms=round(elapsed_ms, 3),
+                threshold_ms=self._slowdown_threshold_ms,
+            )
 
     async def process_management(
         self,
@@ -353,6 +418,7 @@ class ShadowRuntime:
         for state in self._states.values():
             if state.status in {"closed", "cancelled", "incomplete"}:
                 continue
+            key = (state.signal_id, state.candidate_id)
             await self._emit(
                 state.signal_id,
                 "strategy_shadow_checkpoint",
@@ -361,9 +427,12 @@ class ShadowRuntime:
                 strategy_fingerprint=state.strategy_fingerprint,
                 execution_fingerprint=state.execution_fingerprint,
                 state_hash=state.state_hash,
-                previous_state_hash=state.state_hash,
+                previous_state_hash=self._persisted_state_hashes.get(
+                    key, state.state_hash,
+                ),
                 state=state.to_dict(),
             )
+            self._persisted_state_hashes[key] = state.state_hash
 
     @staticmethod
     def _mark_incomplete(
@@ -396,6 +465,8 @@ class ShadowRuntime:
         restored: dict[tuple[str, str], ShadowSignalState] = {}
         expected_hashes: dict[tuple[str, str], str | None] = {}
         corrupt: set[tuple[str, str]] = set()
+        identity_corrupt: set[tuple[str, str]] = set()
+        malformed: set[tuple[str, str]] = set()
 
         async with self._lock:
             for record in records:
@@ -406,25 +477,42 @@ class ShadowRuntime:
                 signal_id = str(record.get("sig") or "")
                 if not isinstance(payload, Mapping) or not candidate_id or not signal_id:
                     continue
-                key = (signal_id, candidate_id)
                 try:
                     state = ShadowSignalState.from_dict(payload)
-                    policy = self._policy(candidate_id)
+                    key = (state.signal_id, state.candidate_id)
+                    policy = self._policy(state.candidate_id)
                     if (
                         state.strategy_fingerprint != policy.strategy_fingerprint
                         or state.execution_fingerprint != policy.execution_fingerprint
                     ):
                         raise ValueError("candidate fingerprint mismatch")
                 except Exception:
+                    malformed.add((signal_id, candidate_id))
                     continue
+                if (
+                    signal_id != state.signal_id
+                    or candidate_id != state.candidate_id
+                    or (
+                        record.get("channel") is not None
+                        and str(record.get("channel")) != state.channel
+                    )
+                ):
+                    identity_corrupt.add(key)
                 recorded_hash = str(record.get("state_hash") or "")
                 previous_hash = record.get("previous_state_hash")
                 expected_previous = expected_hashes.get(key)
                 if recorded_hash != state.state_hash:
                     corrupt.add(key)
+                legacy_self_link = (
+                    str(record.get("ev") or "")
+                    == "strategy_shadow_checkpoint"
+                    and previous_hash == recorded_hash
+                    and recorded_hash == state.state_hash
+                )
                 if (
                     expected_previous is not None
-                    and previous_hash not in {None, expected_previous}
+                    and previous_hash != expected_previous
+                    and not legacy_self_link
                 ):
                     corrupt.add(key)
                 restored[key] = state
@@ -435,34 +523,71 @@ class ShadowRuntime:
                     restored[key] = self._mark_incomplete(
                         restored[key], "journal_hash_mismatch",
                     )
+            for key in identity_corrupt:
+                if key in restored:
+                    restored[key] = self._mark_incomplete(
+                        restored[key], "journal_identity_mismatch",
+                    )
+            for key in malformed:
+                if key in restored:
+                    restored[key] = self._mark_incomplete(
+                        restored[key], "journal_state_invalid",
+                    )
             self._states.update(restored)
+            self._persisted_state_hashes.update({
+                key: state_hash
+                for key, state_hash in expected_hashes.items()
+                if state_hash is not None
+            })
 
             pending = [
-                state
-                for state in restored.values()
+                (key, state)
+                for key, state in restored.items()
                 if state.status not in {"closed", "cancelled", "incomplete"}
             ]
-            if pending:
-                cursors = [
-                    int(state.last_tick_identity[0])
-                    if state.last_tick_identity is not None
-                    else int(state.registered_tick_msc or 0)
-                    for state in pending
-                ]
-                history = await _resolve(history_reader(min(cursors)))
+            for key, state in pending:
+                if state.last_tick_identity is not None:
+                    cursor = ShadowTickCursor(
+                        from_msc=int(state.last_tick_identity[0]),
+                        after_identity=state.last_tick_identity,
+                    )
+                else:
+                    registered_msc = state.registered_tick_msc
+                    if registered_msc is None:
+                        registered_msc = int(
+                            _utc_datetime(state.registered_at_utc).timestamp()
+                            * 1000
+                        )
+                    cursor = ShadowTickCursor(
+                        from_msc=int(registered_msc),
+                        after_identity=None,
+                    )
+                history = await _resolve(history_reader(cursor))
                 if not isinstance(history, ShadowTickHistory):
                     raise TypeError("history_reader must return ShadowTickHistory")
                 if not history.complete:
-                    for key, state in tuple(self._states.items()):
-                        if state in pending:
-                            self._states[key] = self._mark_incomplete(
-                                state, "tick_gap",
-                            )
+                    incomplete = self._mark_incomplete(
+                        self._states[key], "tick_gap",
+                    )
+                    if history.blocker:
+                        incomplete = self._mark_incomplete(
+                            incomplete, history.blocker,
+                        )
+                    self._states[key] = incomplete
                 else:
-                    for observed_tick in history.ticks:
-                        await self._process_tick_locked(observed_tick)
+                    for tick_index, observed_tick in enumerate(
+                        history.ticks, start=1,
+                    ):
+                        await self._process_tick_for_key_locked(
+                            key, observed_tick,
+                        )
+                        if tick_index % 256 == 0:
+                            await asyncio.sleep(0)
 
-            for state in self._states.values():
+            for key, state in self._states.items():
+                previous_hash = self._persisted_state_hashes.get(
+                    key, state.state_hash,
+                )
                 await self._emit(
                     state.signal_id,
                     "strategy_shadow_recovered",
@@ -473,7 +598,8 @@ class ShadowRuntime:
                     complete=state.complete,
                     blockers=list(state.evidence_blockers),
                     state_hash=state.state_hash,
-                    previous_state_hash=state.state_hash,
+                    previous_state_hash=previous_hash,
                     state=state.to_dict(),
                 )
+                self._persisted_state_hashes[key] = state.state_hash
         return tuple(self._states.values())

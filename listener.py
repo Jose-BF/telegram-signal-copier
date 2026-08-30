@@ -245,11 +245,13 @@ async def _shadow_observe_resolved_management(
         ).encode("ascii")
     ).hexdigest()
     try:
+        observed = datetime.now(timezone.utc)
         event = ShadowManagementEvent(
             event_id=event_id,
             signal_id=signal_id,
             action=action,
-            observed_at_utc=datetime.now(timezone.utc).isoformat(),
+            observed_at_utc=observed.isoformat(),
+            observed_tick_msc=int(observed.timestamp() * 1000),
             price=classification.get("price"),
             raw_hash=raw_hash,
         )

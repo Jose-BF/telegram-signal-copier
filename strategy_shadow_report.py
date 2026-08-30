@@ -1,8 +1,8 @@
 """Certified summaries for prospective strategy shadows.
 
-The report deliberately separates observed values from evidence gates.  It may
-show incomplete arithmetic, but it never names a leader while causal evidence
-or the live-control mirror is unverified.
+The report deliberately separates hypothetical comparison from adoption.  It
+may name a shadow-only leader when that candidate matrix is complete, but it
+never names a final winner while actual/control evidence is unverified.
 """
 
 from __future__ import annotations
@@ -17,6 +17,18 @@ from strategy_shadow_catalog import build_shadow_catalog
 
 _CHANNELS = ("canal1", "canal2")
 _TERMINAL_STATUSES = {"closed", "cancelled"}
+_ADOPTION_ONLY_BLOCKERS = {
+    "actual_evidence_missing",
+    "control_mirror_mismatch",
+    "duplicate_actual_result",
+    "invalid_actual_identity",
+    "invalid_actual_result",
+    "live_control_changed",
+    "live_control_identity_mismatch",
+    "minimum_sample_not_reached",
+    "mt5_reconciliation_incomplete",
+    "telegram_lineage_incomplete",
+}
 
 
 def _as_rows(values: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
@@ -80,11 +92,19 @@ def _candidate_template() -> dict[str, Any]:
         "mfe_eur": 0.0,
         "mae_eur": 0.0,
         "complete_signals": 0,
+        "blocked_signals": 0,
+        "open_signals": 0,
     }
 
 
 def _actual_template() -> dict[str, Any]:
-    return {"signals": 0, "entries": 0, "net_eur": 0.0}
+    return {
+        "signals": 0,
+        "entries": 0,
+        "net_eur": 0.0,
+        "complete_signals": 0,
+        "blocked_signals": 0,
+    }
 
 
 def _rounded(payload: dict[str, Any]) -> dict[str, Any]:
@@ -92,6 +112,36 @@ def _rounded(payload: dict[str, Any]) -> dict[str, Any]:
         if key in payload:
             payload[key] = round(float(payload[key]), 2)
     return payload
+
+
+def _optional_metric(value: object) -> float | None:
+    return round(float(value), 2) if _is_finite_number(value) else None
+
+
+def _finalize_candidate_summary(payload: dict[str, Any]) -> None:
+    _rounded(payload)
+    payload["settled_net_eur"] = payload["net_eur"]
+    payload["settled_mfe_eur"] = payload["mfe_eur"]
+    payload["settled_mae_eur"] = payload["mae_eur"]
+    payload["complete"] = bool(
+        payload["signals"] > 0
+        and payload["complete_signals"] == payload["signals"]
+    )
+    if not payload["complete"]:
+        payload["net_eur"] = None
+        payload["mfe_eur"] = None
+        payload["mae_eur"] = None
+
+
+def _finalize_actual_summary(payload: dict[str, Any]) -> None:
+    _rounded(payload)
+    payload["settled_net_eur"] = payload["net_eur"]
+    payload["complete"] = bool(
+        payload["signals"] > 0
+        and payload["complete_signals"] == payload["signals"]
+    )
+    if not payload["complete"]:
+        payload["net_eur"] = None
 
 
 def build_report(
@@ -108,6 +158,9 @@ def build_report(
     }
     blockers: set[str] = set()
     signal_blockers: dict[tuple[str, str], set[str]] = defaultdict(set)
+    candidate_blockers: dict[
+        tuple[str, str, str], set[str]
+    ] = defaultdict(set)
 
     actual_by_key: dict[tuple[str, str], dict[str, Any]] = {}
     for row in _as_rows(actual_rows):
@@ -131,6 +184,9 @@ def build_report(
         if row.get("control_mirror_match") is not True:
             blockers.add("control_mirror_mismatch")
             signal_blockers[key].add("control_mirror_mismatch")
+        if row.get("mt5_reconciled") is not True:
+            blockers.add("mt5_reconciliation_incomplete")
+            signal_blockers[key].add("mt5_reconciliation_incomplete")
         if row.get("telegram_lineage_complete") is not True:
             blockers.add("telegram_lineage_incomplete")
             signal_blockers[key].add("telegram_lineage_incomplete")
@@ -153,11 +209,16 @@ def build_report(
             continue
         role = str(row.get("role") or "")
         if role not in {"live_control", "candidate"}:
+            blockers.add("invalid_candidate_role")
+            signal_blockers[signal_key].add("invalid_candidate_role")
+            candidate_blockers[key].add("invalid_candidate_role")
             blockers.add("live_control_identity_mismatch")
             signal_blockers[signal_key].add("live_control_identity_mismatch")
+            candidate_blockers[key].add("live_control_identity_mismatch")
         if key in candidate_by_key:
             blockers.add("duplicate_candidate_result")
             signal_blockers[signal_key].add("duplicate_candidate_result")
+            candidate_blockers[key].add("duplicate_candidate_result")
             continue
         candidate_by_key[key] = row
 
@@ -167,37 +228,52 @@ def build_report(
         ):
             blockers.add("candidate_fingerprint_changed")
             signal_blockers[signal_key].add("candidate_fingerprint_changed")
+            candidate_blockers[key].add("candidate_fingerprint_changed")
 
-        row_blockers = {
+        evidence_blockers = {
             str(value)
             for value in row.get("evidence_blockers", ())
             if str(value)
         }
+        row_blockers = set(evidence_blockers)
         if str(row.get("status") or "") not in _TERMINAL_STATUSES:
             row_blockers.add("candidate_not_terminal")
         if row.get("complete") is not True:
             row_blockers.add("incomplete_candidate_result")
-        if (
-            not _is_non_negative_count(row.get("entry_count"))
-            or any(
-                not _is_finite_number(row.get(field))
+        metrics_valid = all(
+            _is_finite_number(row.get(field))
+            for field in ("net_eur", "mfe_eur", "mae_eur")
+        )
+        explicit_unknown_result = bool(
+            str(row.get("status") or "") == "incomplete"
+            and row.get("complete") is not True
+            and evidence_blockers
+            and all(
+                row.get(field) is None
                 for field in ("net_eur", "mfe_eur", "mae_eur")
             )
+        )
+        if (
+            not _is_non_negative_count(row.get("entry_count"))
+            or not (metrics_valid or explicit_unknown_result)
             or not str(row.get("exit_reason") or "")
             or not str(row.get("day") or "")
         ):
             row_blockers.add("invalid_candidate_result")
         blockers.update(row_blockers)
         signal_blockers[signal_key].update(row_blockers)
+        candidate_blockers[key].update(row_blockers)
 
         registered = _parse_time(row.get("registered_at_utc"))
         outcome = _parse_time(row.get("outcome_at_utc"))
         if registered is None or outcome is None:
             blockers.add("causal_time_missing")
             signal_blockers[signal_key].add("causal_time_missing")
+            candidate_blockers[key].add("causal_time_missing")
         elif registered > outcome:
             blockers.add("registered_after_outcome")
             signal_blockers[signal_key].add("registered_after_outcome")
+            candidate_blockers[key].add("registered_after_outcome")
 
     candidate_signal_keys = {
         (channel, signal_id)
@@ -280,24 +356,47 @@ def build_report(
         if actual is not None:
             day_summary["actual"]["signals"] += 1
             day_summary["actual"]["entries"] += int(actual.get("entry_count") or 0)
-            day_summary["actual"]["net_eur"] += _finite(actual.get("net_eur"))
+            actual_complete = bool(
+                _is_finite_number(actual.get("net_eur"))
+                and actual.get("mt5_reconciled") is True
+            )
+            if actual_complete:
+                day_summary["actual"]["net_eur"] += float(actual["net_eur"])
+                day_summary["actual"]["complete_signals"] += 1
+            else:
+                day_summary["actual"]["blocked_signals"] += 1
 
         candidates: dict[str, Any] = {}
         control_prediction: dict[str, Any] = {}
         for policy in catalog.get(channel, ()):
-            row = candidate_by_key.get((channel, signal_id, policy.candidate_id))
+            candidate_key = (channel, signal_id, policy.candidate_id)
+            row = candidate_by_key.get(candidate_key)
             if row is None:
                 continue
+            row_status = str(row.get("status") or "")
+            result_complete = bool(
+                row_status in _TERMINAL_STATUSES
+                and row.get("complete") is True
+                and not candidate_blockers[candidate_key]
+            )
+            observed_net = _optional_metric(row.get("net_eur"))
+            observed_mfe = _optional_metric(row.get("mfe_eur"))
+            observed_mae = _optional_metric(row.get("mae_eur"))
             candidate = {
                 "candidate_id": policy.candidate_id,
                 "role": str(row.get("role") or ""),
+                "registration_source": row.get("registration_source"),
                 "entry_count": int(row.get("entry_count") or 0),
                 "exit_reason": row.get("exit_reason"),
-                "net_eur": round(_finite(row.get("net_eur")), 2),
-                "mfe_eur": round(_finite(row.get("mfe_eur")), 2),
-                "mae_eur": round(_finite(row.get("mae_eur")), 2),
-                "complete": row.get("complete") is True,
-                "blockers": sorted(signal_blockers[(channel, signal_id)]),
+                "status": row_status,
+                "net_eur": observed_net if result_complete else None,
+                "mfe_eur": observed_mfe if result_complete else None,
+                "mae_eur": observed_mae if result_complete else None,
+                "observed_net_eur": observed_net,
+                "observed_mfe_eur": observed_mfe,
+                "observed_mae_eur": observed_mae,
+                "complete": result_complete,
+                "blockers": sorted(candidate_blockers[candidate_key]),
             }
             candidates[policy.candidate_id] = candidate
             total = candidate_totals[policy.candidate_id]
@@ -305,10 +404,15 @@ def build_report(
             for summary in (total, daily):
                 summary["signals"] += 1
                 summary["entries"] += candidate["entry_count"]
-                summary["net_eur"] += candidate["net_eur"]
-                summary["mfe_eur"] += candidate["mfe_eur"]
-                summary["mae_eur"] += candidate["mae_eur"]
                 summary["complete_signals"] += int(candidate["complete"])
+                if candidate["complete"]:
+                    summary["net_eur"] += candidate["net_eur"]
+                    summary["mfe_eur"] += candidate["mfe_eur"]
+                    summary["mae_eur"] += candidate["mae_eur"]
+                elif row_status == "incomplete":
+                    summary["blocked_signals"] += 1
+                else:
+                    summary["open_signals"] += 1
             if row.get("role") == "live_control":
                 prediction = row.get("control_prediction")
                 if isinstance(prediction, Mapping):
@@ -322,7 +426,9 @@ def build_report(
                 "actual": None if actual is None else {
                     "entry_count": int(actual.get("entry_count") or 0),
                     "exit_reason": actual.get("exit_reason"),
-                    "net_eur": round(_finite(actual.get("net_eur")), 2),
+                    "net_eur": _optional_metric(actual.get("net_eur")),
+                    "complete": actual_complete,
+                    "mt5_reconciled": actual.get("mt5_reconciled") is True,
                     "control_mirror_match": actual.get("control_mirror_match") is True,
                 },
                 "candidates": candidates,
@@ -332,28 +438,129 @@ def build_report(
         )
 
     for total in candidate_totals.values():
-        _rounded(total)
+        _finalize_candidate_summary(total)
     for day in day_totals.values():
-        _rounded(day["actual"])
+        _finalize_actual_summary(day["actual"])
         for total in day["candidates"].values():
-            _rounded(total)
+            _finalize_candidate_summary(total)
 
     pairings: list[dict[str, Any]] = []
     for dubai in catalog["canal1"]:
         for gold in catalog["canal2"]:
+            dubai_net = candidate_totals[dubai.candidate_id]["net_eur"]
+            gold_net = candidate_totals[gold.candidate_id]["net_eur"]
             pairings.append(
                 {
                     "pairing": f"{dubai.candidate_id}+{gold.candidate_id}",
                     "canal1": dubai.candidate_id,
                     "canal2": gold.candidate_id,
-                    "net_eur": round(
-                        candidate_totals[dubai.candidate_id]["net_eur"]
-                        + candidate_totals[gold.candidate_id]["net_eur"],
-                        2,
+                    "net_eur": (
+                        None
+                        if dubai_net is None or gold_net is None
+                        else round(dubai_net + gold_net, 2)
                     ),
                 }
             )
-    pairings.sort(key=lambda row: (-row["net_eur"], row["pairing"]))
+    pairings.sort(key=lambda row: (
+        row["net_eur"] is None,
+        -(row["net_eur"] or 0.0),
+        row["pairing"],
+    ))
+
+    matrix: dict[str, dict[str, Any]] = {}
+    for channel in _CHANNELS:
+        signal_keys = {
+            key for key in candidate_signal_keys if key[0] == channel
+        }
+        expected_rows = len(signal_keys) * len(catalog[channel])
+        channel_rows = [
+            (key, row)
+            for key, row
+            in candidate_by_key.items()
+            if key[0] == channel
+        ]
+        settled_rows = sum(
+            1
+            for key, row in channel_rows
+            if (
+                str(row.get("status") or "") in _TERMINAL_STATUSES
+                and row.get("complete") is True
+                and not row.get("evidence_blockers")
+                and not candidate_blockers[key]
+            )
+        )
+        open_rows = sum(
+            1
+            for key, row in channel_rows
+            if (
+                str(row.get("status") or "") not in {
+                    *_TERMINAL_STATUSES,
+                    "incomplete",
+                }
+                and candidate_blockers[key].issubset({
+                    "candidate_not_terminal",
+                    "incomplete_candidate_result",
+                })
+            )
+        )
+        blocked_rows = max(
+            0,
+            expected_rows - settled_rows - open_rows,
+        )
+        matrix[channel] = {
+            "eligible_signals": len(signal_keys),
+            "expected_rows": expected_rows,
+            "observed_rows": len(channel_rows),
+            "settled_rows": settled_rows,
+            "blocked_rows": blocked_rows,
+            "open_rows": open_rows,
+            "complete": (
+                len(channel_rows) == expected_rows
+                and settled_rows == expected_rows
+            ),
+        }
+
+    if not any(values["eligible_signals"] for values in matrix.values()):
+        blockers.add("no_eligible_signals")
+
+    comparison_blockers = {
+        blocker
+        for blocker in blockers
+        if blocker not in _ADOPTION_ONLY_BLOCKERS
+    }
+    comparison_allowed = not comparison_blockers
+
+    shadow_leader = None
+    if comparison_allowed:
+        channel_leaders: dict[str, str | None] = {}
+        for channel in _CHANNELS:
+            if matrix[channel]["eligible_signals"] == 0:
+                channel_leaders[channel] = None
+                continue
+            policies = list(catalog[channel])
+            channel_leaders[channel] = max(
+                policies,
+                key=lambda policy: (
+                    (
+                        float("-inf")
+                        if candidate_totals[policy.candidate_id]["net_eur"]
+                        is None
+                        else candidate_totals[policy.candidate_id]["net_eur"]
+                    ),
+                    -policies.index(policy),
+                ),
+            ).candidate_id
+        pairing = None
+        if all(channel_leaders.values()):
+            pairing = (
+                f"{channel_leaders['canal1']}+"
+                f"{channel_leaders['canal2']}"
+            )
+        shadow_leader = {
+            "canal1": channel_leaders["canal1"],
+            "canal2": channel_leaders["canal2"],
+            "pairing": pairing,
+        }
 
     ranking_allowed = not blockers
     winner = None
@@ -381,10 +588,13 @@ def build_report(
     label = _checkpoint_label(checkpoint_count)
     return {
         "schema_version": 1,
+        "comparison_allowed": comparison_allowed,
+        "comparison_blockers": sorted(comparison_blockers),
         "ranking_allowed": ranking_allowed,
         "claim_allowed": ranking_allowed and checkpoint_count >= 100,
         "promotion_allowed": False,
         "winner": winner,
+        "shadow_leader": shadow_leader,
         "blockers": sorted(blockers),
         "checkpoint": {
             "label": label,
@@ -399,4 +609,5 @@ def build_report(
         "days": [day_totals[day] for day in sorted(day_totals)],
         "candidate_totals": candidate_totals,
         "pairings": pairings,
+        "matrix": matrix,
     }
