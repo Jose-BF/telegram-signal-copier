@@ -55,6 +55,7 @@ import pipeline_progress
 import runtime_control
 from tools import git_sync
 from tools import runtime_recovery
+from tools import runtime_log_health
 from tools import runtime_telemetry
 from tools import set_channel_id
 
@@ -82,6 +83,9 @@ REPLAY_READINESS_REPORT_FILE = RUNTIME_DATA_DIR / "replay_readiness_report.json"
 OBSERVED_TICK_REPLAY_AUDIT_FILE = RUNTIME_DATA_DIR / "observed_tick_replay_audit.jsonl"
 OBSERVED_TICK_REPLAY_STATUS_FILE = RUNTIME_DATA_DIR / "observed_tick_replay_status.json"
 PROVIDER_SIGNAL_CATALOG_FILE = RUNTIME_DATA_DIR / "provider_signal_catalog.json"
+PROVIDER_RESULT_SCORECARD_FILE = (
+    RUNTIME_DATA_DIR / "provider_result_scorecard.json"
+)
 STRATEGY_FARM_FILE = RUNTIME_DATA_DIR / "strategy_farm.json"
 STRATEGY_SHADOW_REPORT_FILE = (
     RUNTIME_DATA_DIR / "strategy_shadow_report.json"
@@ -109,6 +113,10 @@ RUNTIME_UPDATE_PENDING_FILE = Path(os.getenv(
     "BOT_RUNTIME_UPDATE_PENDING_FILE",
     str(RUNTIME_DATA_DIR / "runtime_update_pending.json"),
 ))
+BOT_RUNTIME_LOG_FILE = RUNTIME_DATA_DIR / "bot_runtime.log"
+BOT_RUNTIME_LOG_WARN_BYTES = int(os.getenv(
+    "BOT_RUNTIME_LOG_WARN_BYTES", str(512 * 1024 * 1024),
+))
 POLL_SEC = 60   # cada cuánto comprobar commits nuevos
 RESTART_GRACE_SEC = 10  # tiempo para SIGTERM antes de SIGKILL
 RELAUNCH_DELAY_SEC = 5  # espera entre fin del bot y relanzamiento
@@ -127,6 +135,7 @@ WATCHER_SELF_UPDATE_PATHS = {
     "tools/git_sync.py",
     "tools/run_bot_watch.py",
     "tools/runtime_recovery.py",
+    "tools/runtime_log_health.py",
     "tools/runtime_telemetry.py",
     "runtime_control.py",
     "run_bot.bat",
@@ -1266,6 +1275,7 @@ def _regenerate_observed_tick_replay_audit() -> bool:
 def _clear_mutable_offline_outputs() -> None:
     """Prevent skipped/failed builders from leaving reports that look current."""
     PROVIDER_SIGNAL_CATALOG_FILE.unlink(missing_ok=True)
+    PROVIDER_RESULT_SCORECARD_FILE.unlink(missing_ok=True)
     STRATEGY_FARM_FILE.unlink(missing_ok=True)
     STRATEGY_SHADOW_REPORT_FILE.unlink(missing_ok=True)
     STRATEGY_SHADOW_TICK_CACHE_STATUS_FILE.unlink(missing_ok=True)
@@ -1648,6 +1658,75 @@ def _regenerate_money_tick_cache_status() -> bool:
         return False
 
 
+def _provider_result_scorecard_publication_valid(path: Path) -> bool:
+    try:
+        report = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(report, dict):
+        return False
+    summary = report.get("summary")
+    summaries = report.get("summaries")
+    if (
+        report.get("schema_version") != 1
+        or report.get("channel") != "canal2"
+        or not isinstance(summary, dict)
+        or not isinstance(summaries, list)
+    ):
+        return False
+    try:
+        records = int(summary["records"])
+        ready = int(summary["calibration_ready"])
+        blocked = int(summary["blocked"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    return bool(
+        min(records, ready, blocked) >= 0
+        and records == len(summaries)
+        and ready + blocked == records
+    )
+
+
+def _regenerate_provider_result_scorecard() -> bool:
+    """Structure provider claims without treating them as verified P&L."""
+    PROVIDER_RESULT_SCORECARD_FILE.unlink(missing_ok=True)
+    try:
+        rec = subprocess.run(
+            [
+                sys.executable,
+                "tools/build_provider_result_scorecard.py",
+                "--catalog", str(PROVIDER_SIGNAL_CATALOG_FILE),
+                "--output", str(PROVIDER_RESULT_SCORECARD_FILE),
+                "--quiet",
+            ],
+            cwd=REPO_DIR,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if (
+            rec.returncode == 0
+            and _provider_result_scorecard_publication_valid(
+                PROVIDER_RESULT_SCORECARD_FILE
+            )
+        ):
+            print("[Watch] resultados publicados estructurados.", flush=True)
+            return True
+        PROVIDER_RESULT_SCORECARD_FILE.unlink(missing_ok=True)
+        print(
+            f"[Watch] marcador del proveedor no publicado (rc={rec.returncode}): "
+            f"{(rec.stderr or rec.stdout or '')[:1000]}",
+            flush=True,
+        )
+        return False
+    except BaseException as exc:
+        PROVIDER_RESULT_SCORECARD_FILE.unlink(missing_ok=True)
+        print(f"[Watch] error en marcador del proveedor: {exc}", flush=True)
+        if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+            raise
+        return False
+
+
 def _strategy_shadow_until_date(now: datetime | None = None) -> str:
     """Return the last UTC day whose complete price path can be certified."""
     observed = now or datetime.now(timezone.utc)
@@ -1831,6 +1910,7 @@ def _regenerate_strategy_shadow_report() -> bool:
             since_value=since.isoformat(),
             until_value=until.isoformat(),
         ):
+            STRATEGY_SHADOW_REPORT_FILE.unlink(missing_ok=True)
             return False
         command = [
             sys.executable,
@@ -1880,6 +1960,7 @@ def _regenerate_strategy_shadow_report() -> bool:
 def _mutable_offline_output_paths() -> tuple[Path, ...]:
     return (
         PROVIDER_SIGNAL_CATALOG_FILE,
+        PROVIDER_RESULT_SCORECARD_FILE,
         STRATEGY_FARM_FILE,
         STRATEGY_SHADOW_REPORT_FILE,
         STRATEGY_SHADOW_TICK_CACHE_STATUS_FILE,
@@ -1918,13 +1999,14 @@ def _regenerate_session_outputs(
         min_interval_s=0.0,
         width=24,
     )
-    stage_total = 12
+    stage_total = 13
     stage_current = 0
     builder_results = {
         "accounting": False,
         "ledger": False,
         "observed_ticks": False,
         "provider_catalog": False,
+        "provider_scorecard": False,
         "readiness": False,
         "replay": False,
         "strategy_farm": False,
@@ -1983,7 +2065,12 @@ def _regenerate_session_outputs(
         "provider_catalog",
         "Catalogo de senales",
         _regenerate_provider_signal_catalog,
-        enabled=accounting_ok,
+    )
+    run_stage(
+        "provider_scorecard",
+        "Resultados publicados",
+        _regenerate_provider_result_scorecard,
+        enabled=builder_results["provider_catalog"],
     )
     run_stage(
         "tick_cache",
@@ -2101,6 +2188,22 @@ def _run_main() -> int:
         return _sync_failure_exit_code(sync)
     last_local = str(sync.local_head)
     last_remote = str(sync.remote_head)
+    log_health = runtime_log_health.inspect_runtime_log(
+        BOT_RUNTIME_LOG_FILE,
+        warn_bytes=BOT_RUNTIME_LOG_WARN_BYTES,
+    )
+    if log_health["exists"]:
+        size_mib = log_health["size_bytes"] / (1024 * 1024)
+        suffix = (
+            " AVISO: supera el umbral configurado."
+            if log_health["warning"]
+            else ""
+        )
+        print(
+            f"[Watch] Log consola append-only: {size_mib:.1f} MiB; "
+            f"sin rotacion automatica.{suffix}",
+            flush=True,
+        )
     proc = _spawn_bot_with_active_channels()
     if proc is None:
         return WATCHER_GIT_BLOCKED_EXIT_CODE

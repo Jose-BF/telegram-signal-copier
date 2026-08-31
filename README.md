@@ -108,6 +108,15 @@ Prospective strategy shadows:
   `ranking_allowed` is stricter and additionally requires an independently
   verified live-control mirror plus the minimum prospective sample. Neither
   status changes the production strategy automatically.
+- `channels.canal1` and `channels.canal2` publish those verdicts independently.
+  Missing access, evidence or sample in one provider cannot hide a valid
+  diagnostic from the other. The top-level pairing remains the stricter joint
+  verdict.
+- Live-control parity is calculated from a deterministic per-leg signature:
+  strategy identity, leg order, volume, target assignment, protection state
+  and exit class. Fill-price, timing and money differences remain separate
+  execution observations. `control_parity.by_source_commit` also separates
+  pre-fix and post-fix cohorts.
 - A candidate that crosses broker midnight is explicitly blocked while swap
   is not part of every intermediate basket decision. Adding swap only to the
   final total could change when a guard would have closed and is therefore not
@@ -148,10 +157,18 @@ Replay and simulation foundation:
   stale source evidence before calculating policies.
 - `accounting_replay_validator.py` validates reconstructed trade accounting into `runtime_data/accounting_replay_audit.jsonl`.
 - `tools/ensure_replay_tick_cache.py` ensures MT5 tick parquet files exist and verifies the `mt5_server_epoch_utc_v3` time/anchor contract and SHA-256 for every cached day.
+- Tick-cache validation preserves the exact MT5 deal millisecond. A nearby
+  market tick proves clock alignment; a fill outside the quote-price tolerance
+  remains visible as broker execution slippage instead of being erased by a
+  wider tolerance.
 - `replay_readiness_report.py` reports whether each trade has enough data for full replay.
 - `observed_tick_replay_validator.py` checks whether cached bid/ask ticks reproduce the observed MT5 ticket closures.
 - `mt5_tick_cache.py` is the local parquet tick-cache helper.
 - `provider_signal_catalog.py` groups raw Telegram messages and edits into one canonical provider signal, including signals the bot did not execute.
+- `runtime_data/provider_result_scorecard.json` parses the latest revision of
+  every Gold Signals daily/weekly claim, checks its arithmetic and links the
+  claimed period to the formal signals actually captured. Published pips stay
+  labelled as provider claims until their counting convention is reproduced.
 - `provider_trade_spec.py` turns every formal provider signal into an immutable virtual-trade contract without requiring an MT5 ticket.
 - `provider_strategy_simulator.py` enters BUY at Ask or SELL at Bid after the configured causal latency, then replays policy price paths over verified ticks.
 - `provider_zone_spec.py` reconstructs each Gold Signals zone only from values
@@ -449,6 +466,10 @@ prefix and pushes immutable gzip chunks to the `telemetry` branch. It uses its
 own Git checkout. A GitHub outage leaves the chunks pending locally and cannot
 stop or delay Telegram/MT5 processing. The console diagnostic is stored at
 `runtime_data/bot_runtime.log` and travels through the same channel.
+The watcher reports its size at startup and warns at 512 MiB by default. It
+does not rotate, truncate or rename this append-only stream; doing so without a
+generation-aware telemetry protocol would invalidate the byte cursor and its
+prefix proof.
 
 Normal VM start:
 

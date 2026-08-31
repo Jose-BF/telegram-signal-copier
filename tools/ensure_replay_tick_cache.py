@@ -9,7 +9,7 @@ import sys
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Mapping
 
 REPO_DIR = Path(__file__).resolve().parent.parent
 if str(REPO_DIR) not in sys.path:
@@ -28,6 +28,9 @@ SOURCE_TIME_BASIS = "mt5_server_epoch"
 TICK_SOURCE_VERIFICATION = "full_day_vs_two_half_days_v1"
 TICK_CONTENT_DIGEST = "time_bid_ask_sequence_sha256_v1"
 ANCHOR_SEARCH_WINDOW_S = 3
+MAX_EXECUTION_PRICE_DEVIATION_XAU = 1.0
+MIN_PRICE_MATCH_SAMPLE = 5
+MIN_PRICE_MATCH_RATIO = 0.80
 ANCHOR_TIME_TOLERANCE_MS = 2_500
 ANCHOR_PRICE_TOLERANCE = 0.10
 DEFAULT_OFFSET_CANDIDATES_SECONDS = tuple(
@@ -61,8 +64,23 @@ def extract_fill_anchors(trades: Iterable[dict]) -> dict[date, list[FillAnchor]]
             # La hora canonica del deal viene del historial MT5. El timestamp
             # del evento es cuando termino order_send y puede llegar segundos
             # despues en sesiones lentas.
-            fill_dt = _parse_dt(
-                ticket_row.get("open_dt_utc") or fill_event.get("ts"))
+            fill_dt = None
+            open_deal = ticket_row.get("open_deal")
+            if isinstance(open_deal, Mapping):
+                try:
+                    raw_time_msc = int(open_deal.get("time_msc"))
+                    utc_offset_s = int(trade.get("mt5_time_offset_s"))
+                except (TypeError, ValueError):
+                    pass
+                else:
+                    fill_dt = datetime.fromtimestamp(
+                        (raw_time_msc / 1000.0) - utc_offset_s,
+                        tz=timezone.utc,
+                    )
+            if fill_dt is None:
+                fill_dt = _parse_dt(
+                    ticket_row.get("open_dt_utc") or fill_event.get("ts")
+                )
             raw_price = ticket_row.get("open_price")
             if raw_price is None:
                 raw_price = fill_event.get("price")
@@ -104,27 +122,63 @@ def validate_cached_day_anchors(
     import pandas as pd
 
     anchors = list(anchors)
+    diagnostic_limit = 25
     result = {
         "valid": True,
         "anchors_checked": len(anchors),
         "anchors_matched": 0,
+        "price_anchors_matched": 0,
         "max_time_delta_ms": None,
         "max_price_delta": None,
+        "price_match_ratio": None,
         "errors": [],
+        "warnings": [],
+        "failed_anchors": [],
+        "price_deviations": [],
+        "failed_anchors_truncated": 0,
+        "price_deviations_truncated": 0,
     }
     if not anchors:
         return result
     if ticks is None or len(ticks) == 0 or "time_utc" not in ticks.columns:
         result["valid"] = False
         result["errors"] = ["fill_anchor_outside_tolerance"]
+        result["failed_anchors"] = [
+            {
+                "signal_id": anchor.signal_id,
+                "ticket": anchor.ticket,
+                "time_utc": anchor.time_utc.isoformat(),
+                "price": anchor.price,
+                "quote_side": anchor.quote_side,
+                "reason": "ticks_unavailable",
+                "nearest_time_delta_ms": None,
+                "nearest_price_delta": None,
+            }
+            for anchor in anchors[:diagnostic_limit]
+        ]
+        result["failed_anchors_truncated"] = max(
+            0, len(anchors) - diagnostic_limit
+        )
         return result
 
     frame = ticks.copy()
     frame["time_utc"] = pd.to_datetime(frame["time_utc"], utc=True)
     observed_time_deltas: list[int] = []
     observed_price_deltas: list[float] = []
+    failed_anchors: list[dict] = []
+    price_deviations: list[dict] = []
     for anchor in anchors:
         if anchor.quote_side not in frame.columns:
+            failed_anchors.append({
+                "signal_id": anchor.signal_id,
+                "ticket": anchor.ticket,
+                "time_utc": anchor.time_utc.isoformat(),
+                "price": anchor.price,
+                "quote_side": anchor.quote_side,
+                "reason": "quote_side_missing",
+                "nearest_time_delta_ms": None,
+                "nearest_price_delta": None,
+            })
             continue
         anchor_ts = pd.Timestamp(anchor.time_utc)
         deltas_ms = (
@@ -132,16 +186,55 @@ def validate_cached_day_anchors(
         )
         near = frame[deltas_ms <= max_time_delta_ms]
         if near.empty:
+            nearest_index = deltas_ms.idxmin()
+            failed_anchors.append({
+                "signal_id": anchor.signal_id,
+                "ticket": anchor.ticket,
+                "time_utc": anchor.time_utc.isoformat(),
+                "price": anchor.price,
+                "quote_side": anchor.quote_side,
+                "reason": "time_outside_tolerance",
+                "nearest_time_delta_ms": int(round(float(
+                    deltas_ms.loc[nearest_index]
+                ))),
+                "nearest_price_delta": round(abs(float(
+                    frame.loc[nearest_index, anchor.quote_side]
+                ) - anchor.price), 6),
+            })
             continue
+        nearest_time_index = deltas_ms.idxmin()
+        nearest_time_delta = int(round(float(
+            deltas_ms.loc[nearest_time_index]
+        )))
+        result["anchors_matched"] += 1
+        observed_time_deltas.append(nearest_time_delta)
         price_deltas = (near[anchor.quote_side].astype(float) - anchor.price).abs()
         best_index = price_deltas.idxmin()
         best_price_delta = float(price_deltas.loc[best_index])
         best_time_delta = int(round(float(deltas_ms.loc[best_index])))
-        if best_price_delta > max_price_delta:
-            continue
-        result["anchors_matched"] += 1
-        observed_time_deltas.append(best_time_delta)
         observed_price_deltas.append(best_price_delta)
+        if best_price_delta > max_price_delta:
+            nearest_tick_price_delta = abs(float(
+                frame.loc[nearest_time_index, anchor.quote_side]
+            ) - anchor.price)
+            price_deviations.append({
+                "signal_id": anchor.signal_id,
+                "ticket": anchor.ticket,
+                "time_utc": anchor.time_utc.isoformat(),
+                "price": anchor.price,
+                "quote_side": anchor.quote_side,
+                "reason": "price_outside_tolerance",
+                "nearest_time_delta_ms": nearest_time_delta,
+                "nearest_tick_price_delta": round(
+                    nearest_tick_price_delta, 6
+                ),
+                "best_price_delta_within_window": round(
+                    best_price_delta, 6
+                ),
+                "best_price_time_delta_ms": best_time_delta,
+            })
+            continue
+        result["price_anchors_matched"] += 1
 
     if observed_time_deltas:
         result["max_time_delta_ms"] = max(observed_time_deltas)
@@ -149,6 +242,35 @@ def validate_cached_day_anchors(
     if result["anchors_matched"] != result["anchors_checked"]:
         result["valid"] = False
         result["errors"] = ["fill_anchor_outside_tolerance"]
+    if price_deviations:
+        result["warnings"] = ["fill_price_outside_quote_tolerance"]
+    if result["anchors_matched"]:
+        result["price_match_ratio"] = round(
+            result["price_anchors_matched"] / result["anchors_matched"],
+            6,
+        )
+    catastrophic_price_deviation = any(
+        float(item["best_price_delta_within_window"])
+        > MAX_EXECUTION_PRICE_DEVIATION_XAU
+        for item in price_deviations
+    )
+    systemic_price_mismatch = bool(
+        result["anchors_matched"] >= MIN_PRICE_MATCH_SAMPLE
+        and (result["price_match_ratio"] or 0.0) < MIN_PRICE_MATCH_RATIO
+    )
+    if catastrophic_price_deviation or systemic_price_mismatch:
+        result["valid"] = False
+        result["errors"] = sorted(
+            set(result["errors"]) | {"fill_price_contract_inconsistent"}
+        )
+    result["failed_anchors"] = failed_anchors[:diagnostic_limit]
+    result["price_deviations"] = price_deviations[:diagnostic_limit]
+    result["failed_anchors_truncated"] = max(
+        0, len(failed_anchors) - diagnostic_limit
+    )
+    result["price_deviations_truncated"] = max(
+        0, len(price_deviations) - diagnostic_limit
+    )
     return result
 
 
@@ -773,6 +895,18 @@ def write_day_contract(
         "max_price_delta": semantic_validation.get("max_price_delta"),
         "errors": list(semantic_validation.get("errors") or []),
     }
+    optional_validation_fields = (
+        "price_anchors_matched",
+        "price_match_ratio",
+        "warnings",
+        "failed_anchors",
+        "price_deviations",
+        "failed_anchors_truncated",
+        "price_deviations_truncated",
+    )
+    for field in optional_validation_fields:
+        if field in semantic_validation:
+            validation[field] = semantic_validation[field]
     if coverage is None:
         try:
             import pandas as pd

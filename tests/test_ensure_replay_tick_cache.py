@@ -525,6 +525,47 @@ def test_load_valid_day_contract_returns_normalized_evidence(tmp_path):
     assert record["size_bytes"] == parquet.stat().st_size
 
 
+def test_day_contract_preserves_price_deviation_diagnostics(tmp_path):
+    cache_dir = tmp_path / "ticks_cache"
+    cache_dir.mkdir()
+    day = date(2026, 8, 19)
+    (cache_dir / "2026-08-19.parquet").write_bytes(b"verified tick bytes")
+    validation = {
+        **_semantic_validation(),
+        "price_anchors_matched": 0,
+        "warnings": ["fill_price_outside_quote_tolerance"],
+        "failed_anchors": [],
+        "price_deviations": [{
+            "signal_id": "canal2_1716",
+            "ticket": 1798918345,
+            "nearest_price_delta": 0.22,
+        }],
+        "failed_anchors_truncated": 0,
+        "price_deviations_truncated": 0,
+    }
+
+    path = ensure_replay_tick_cache.write_day_contract(
+        cache_dir,
+        day,
+        time_evidence=_time_evidence(),
+        semantic_validation=validation,
+        coverage=_tick_coverage(
+            day,
+            captured_at="2026-08-20T00:01:00+00:00",
+            complete_through="2026-08-20T00:00:00+00:00",
+        ),
+        source_verification=_source_verification(),
+        symbol="XAUUSD",
+    )
+
+    contract = json.loads(path.read_text(encoding="utf-8"))
+    assert contract["semantic_time_valid"] is True
+    assert contract["anchor_validation"]["price_anchors_matched"] == 0
+    assert contract["anchor_validation"]["price_deviations"][0][
+        "ticket"
+    ] == 1798918345
+
+
 def test_cache_status_rejects_contract_without_expected_symbol(tmp_path):
     cache_dir = tmp_path / "ticks_cache"
     cache_dir.mkdir()
@@ -1007,6 +1048,109 @@ def test_shifted_tick_frame_fails_semantic_fill_anchor_validation():
     assert result["anchors_checked"] == 1
     assert result["anchors_matched"] == 0
     assert result["errors"] == ["fill_anchor_outside_tolerance"]
+    assert result["failed_anchors"] == [{
+        "signal_id": "canal2_1",
+        "ticket": 101,
+        "time_utc": "2026-07-13T08:00:00+00:00",
+        "price": 4059.61,
+        "quote_side": "ask",
+        "reason": "time_outside_tolerance",
+        "nearest_time_delta_ms": 10_800_000,
+        "nearest_price_delta": 0.0,
+    }]
+
+
+def test_anchor_diagnostics_distinguish_price_mismatch():
+    anchor = ensure_replay_tick_cache.FillAnchor(
+        signal_id="canal2_2",
+        ticket=102,
+        time_utc=datetime(2026, 7, 13, 8, 0, tzinfo=timezone.utc),
+        price=4060.50,
+        quote_side="ask",
+    )
+    ticks = pd.DataFrame([{
+        "time_utc": pd.Timestamp("2026-07-13T08:00:00Z"),
+        "time_msc": 1_783_936_800_000,
+        "bid": 4059.37,
+        "ask": 4059.61,
+    }])
+
+    result = ensure_replay_tick_cache.validate_cached_day_anchors(
+        ticks,
+        [anchor],
+    )
+
+    assert result["valid"] is True
+    assert result["anchors_matched"] == 1
+    assert result["price_anchors_matched"] == 0
+    assert result["failed_anchors"] == []
+    assert result["price_deviations"][0]["reason"] == (
+        "price_outside_tolerance"
+    )
+    assert result["price_deviations"][0]["nearest_time_delta_ms"] == 0
+    assert result["price_deviations"][0]["nearest_tick_price_delta"] == 0.89
+    assert result["price_deviations"][0][
+        "best_price_delta_within_window"
+    ] == 0.89
+    assert result["price_deviations"][0]["best_price_time_delta_ms"] == 0
+    assert result["warnings"] == ["fill_price_outside_quote_tolerance"]
+
+
+def test_catastrophic_anchor_price_deviation_invalidates_contract():
+    anchor = ensure_replay_tick_cache.FillAnchor(
+        signal_id="canal2_wrong_symbol",
+        ticket=999,
+        time_utc=datetime(2026, 7, 13, 8, 0, tzinfo=timezone.utc),
+        price=5000.0,
+        quote_side="ask",
+    )
+    ticks = pd.DataFrame([{
+        "time_utc": pd.Timestamp("2026-07-13T08:00:00Z"),
+        "time_msc": 1_783_936_800_000,
+        "bid": 4059.37,
+        "ask": 4059.61,
+    }])
+
+    result = ensure_replay_tick_cache.validate_cached_day_anchors(
+        ticks,
+        [anchor],
+    )
+
+    assert result["valid"] is False
+    assert "fill_price_contract_inconsistent" in result["errors"]
+
+
+def test_systemic_anchor_price_mismatch_invalidates_contract():
+    base = datetime(2026, 7, 13, 8, 0, tzinfo=timezone.utc)
+    anchors = [
+        ensure_replay_tick_cache.FillAnchor(
+            signal_id=f"canal2_{index}",
+            ticket=200 + index,
+            time_utc=base + timedelta(seconds=index),
+            price=4060.50,
+            quote_side="ask",
+        )
+        for index in range(5)
+    ]
+    ticks = pd.DataFrame([
+        {
+            "time_utc": pd.Timestamp(base + timedelta(seconds=index)),
+            "time_msc": int(
+                (base + timedelta(seconds=index)).timestamp() * 1000
+            ),
+            "bid": 4059.37,
+            "ask": 4059.61,
+        }
+        for index in range(5)
+    ])
+
+    result = ensure_replay_tick_cache.validate_cached_day_anchors(
+        ticks,
+        anchors,
+    )
+
+    assert result["valid"] is False
+    assert "fill_price_contract_inconsistent" in result["errors"]
 
 
 def test_extract_fill_anchors_uses_direction_quote_side():
@@ -1047,6 +1191,29 @@ def test_extract_fill_anchors_prefers_canonical_deal_time_over_response_time():
     anchor = anchors[date(2026, 8, 19)][0]
     assert anchor.time_utc == datetime(
         2026, 8, 19, 12, 57, 38, tzinfo=timezone.utc
+    )
+
+
+def test_extract_fill_anchors_preserves_canonical_deal_milliseconds():
+    trades = [{
+        "sig_id": "canal2_1716",
+        "direction": "SELL",
+        "mt5_time_offset_s": 10_800,
+        "tickets": [{
+            "ticket": 202,
+            "open_dt_utc": "2026-08-19T12:57:38+00:00",
+            "open_price": 4439.90,
+            "open_deal": {
+                "time_msc": 1_787_155_058_330,
+            },
+        }],
+    }]
+
+    anchors = ensure_replay_tick_cache.extract_fill_anchors(trades)
+
+    anchor = anchors[date(2026, 8, 19)][0]
+    assert anchor.time_utc == datetime(
+        2026, 8, 19, 12, 57, 38, 330_000, tzinfo=timezone.utc
     )
 
 

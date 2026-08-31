@@ -10,6 +10,7 @@ from strategy_shadow_report import build_report
 
 def _complete_rows(*, signals_per_channel: int = 15):
     catalog = build_shadow_catalog()
+    source_commit = "a" * 40
     candidate_rows = []
     actual_rows = []
     base = datetime(2026, 8, 27, 8, 0, tzinfo=timezone.utc)
@@ -29,6 +30,7 @@ def _complete_rows(*, signals_per_channel: int = 15):
                     "control_mirror_match": True,
                     "telegram_lineage_complete": True,
                     "mt5_reconciled": True,
+                    "source_commit": source_commit,
                 }
             )
             for rank, policy in enumerate(catalog[channel]):
@@ -41,6 +43,7 @@ def _complete_rows(*, signals_per_channel: int = 15):
                         "strategy_fingerprint": policy.strategy_fingerprint,
                         "execution_fingerprint": policy.execution_fingerprint,
                         "registration_source": "observed_runtime",
+                        "source_commit": source_commit,
                         "registered_at_utc": registered.isoformat(),
                         "outcome_at_utc": outcome.isoformat(),
                         "day": registered.date().isoformat(),
@@ -227,6 +230,135 @@ def test_causal_prediction_slippage_is_measured_but_does_not_block_ranking():
     assert report["ranking_allowed"] is True
     assert signal["control_prediction"]["entry_price_error"] == 2.75
     assert "control_mirror_mismatch" not in report["blockers"]
+
+
+def test_channel_verdict_is_independent_when_other_channel_has_no_evidence():
+    candidate_rows, actual_rows = _complete_rows()
+    candidate_rows = [
+        row for row in candidate_rows if row["channel"] == "canal2"
+    ]
+    actual_rows = [
+        row for row in actual_rows if row["channel"] == "canal2"
+    ]
+
+    report = build_report(candidate_rows, actual_rows)
+
+    assert report["ranking_allowed"] is False
+    assert report["channels"]["canal2"]["ranking_allowed"] is True
+    assert report["channels"]["canal2"]["winner"] == "gold_now_555_v1"
+    assert report["channels"]["canal1"]["ranking_allowed"] is False
+    assert "no_eligible_signals" in report["channels"]["canal1"]["blockers"]
+
+
+def test_actual_blocker_in_one_channel_does_not_contaminate_other_channel():
+    candidate_rows, actual_rows = _complete_rows()
+    canal1_actual = next(
+        row for row in actual_rows if row["channel"] == "canal1"
+    )
+    canal1_actual["control_mirror_match"] = False
+
+    report = build_report(candidate_rows, actual_rows)
+
+    assert report["channels"]["canal1"]["ranking_allowed"] is False
+    assert "control_mirror_mismatch" in report["channels"]["canal1"][
+        "blockers"
+    ]
+    assert report["channels"]["canal2"]["ranking_allowed"] is True
+    assert "control_mirror_mismatch" not in report["channels"]["canal2"][
+        "blockers"
+    ]
+
+
+def test_report_computes_control_parity_from_structural_signatures():
+    candidate_rows, actual_rows = _complete_rows()
+    catalog = build_shadow_catalog()
+    controls = {
+        channel: next(
+            policy.candidate_id
+            for policy in policies
+            if policy.role == "live_control"
+        )
+        for channel, policies in catalog.items()
+    }
+    candidates = {
+        (row["channel"], row["signal_id"], row["candidate_id"]): row
+        for row in candidate_rows
+    }
+    for actual in actual_rows:
+        actual.pop("control_mirror_match")
+        signature = {
+            "schema_version": 1,
+            "strategy_id": controls[actual["channel"]],
+            "positions": [{"leg_index": 0, "volume": 0.04}],
+        }
+        actual["logic_signature"] = signature
+        candidates[
+            actual["channel"],
+            actual["signal_id"],
+            controls[actual["channel"]],
+        ]["logic_signature"] = signature
+
+    report = build_report(candidate_rows, actual_rows)
+
+    assert report["ranking_allowed"] is True
+    assert all(
+        signal["actual"]["control_mirror_match"] is True
+        for signal in report["signals"]
+    )
+    assert all(
+        signal["actual"]["control_parity"]["differences"] == []
+        for signal in report["signals"]
+    )
+    assert report["control_parity"]["canal1"]["matched"] == 15
+    assert report["control_parity"]["canal2"]["matched"] == 15
+    assert report["control_parity"]["canal2"]["unverified"] == 0
+
+
+def test_missing_structural_signature_is_unverified_not_silently_mismatched():
+    candidate_rows, actual_rows = _complete_rows(signals_per_channel=1)
+    actual_rows[0].pop("control_mirror_match")
+
+    report = build_report(candidate_rows, actual_rows)
+
+    assert "control_mirror_unverified" in report["blockers"]
+    assert "control_mirror_mismatch" not in report["signals"][0]["blockers"]
+
+
+def test_malformed_explicit_mirror_value_is_treated_as_unverified():
+    candidate_rows, actual_rows = _complete_rows(signals_per_channel=1)
+    actual_rows[0]["control_mirror_match"] = []
+
+    report = build_report(candidate_rows, actual_rows)
+
+    assert "control_mirror_unverified" in report["blockers"]
+
+
+def test_source_commit_mismatch_blocks_adoption_but_not_shadow_comparison():
+    candidate_rows, actual_rows = _complete_rows()
+    target = actual_rows[0]
+    for row in candidate_rows:
+        if (
+            row["channel"] == target["channel"]
+            and row["signal_id"] == target["signal_id"]
+            and row["role"] == "live_control"
+        ):
+            row["source_commit"] = "b" * 40
+
+    report = build_report(candidate_rows, actual_rows)
+
+    assert report["comparison_allowed"] is True
+    assert report["ranking_allowed"] is False
+    assert "source_commit_mismatch" in report["blockers"]
+
+
+def test_unknown_source_commit_blocks_adoption():
+    candidate_rows, actual_rows = _complete_rows()
+    actual_rows[0]["source_commit"] = None
+
+    report = build_report(candidate_rows, actual_rows)
+
+    assert report["ranking_allowed"] is False
+    assert "source_commit_unverified" in report["blockers"]
 
 
 def test_missing_actual_signal_and_changed_fingerprint_are_explicit_blockers():

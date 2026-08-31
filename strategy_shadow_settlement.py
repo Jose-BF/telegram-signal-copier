@@ -18,6 +18,7 @@ from strategy_shadow_contracts import (
 )
 from strategy_shadow_engine import advance_tick, apply_management, register_signal
 from strategy_shadow_manifest import build_catalog_manifest, catalog_manifest_matches
+from strategy_shadow_parity import actual_logic_signature, shadow_logic_signature
 from strategy_shadow_report import build_report
 
 
@@ -1175,6 +1176,7 @@ def _blocked_row(
     blockers: Iterable[str],
     state: ShadowSignalState | None = None,
     registration_source: str | None = None,
+    source_commit: str | None = None,
 ) -> dict[str, Any]:
     normalized = sorted(set(str(value) for value in blockers if str(value)))
     reason = normalized[0] if normalized else "settlement_incomplete"
@@ -1192,6 +1194,7 @@ def _blocked_row(
         "strategy_fingerprint": policy.strategy_fingerprint,
         "execution_fingerprint": policy.execution_fingerprint,
         "registration_source": registration_source,
+        "source_commit": source_commit,
         "registered_at_utc": registered_at.isoformat(),
         "outcome_at_utc": outcome.isoformat(),
         "day": registered_at.date().isoformat(),
@@ -1211,10 +1214,12 @@ def _blocked_row(
 def _result_row(
     state: ShadowSignalState,
     *,
+    policy,
     role: str,
     horizon: datetime,
     lineage_complete: bool,
     registration_source: str,
+    source_commit: str | None,
 ) -> dict[str, Any]:
     blockers = list(state.evidence_blockers)
     if not lineage_complete:
@@ -1236,6 +1241,7 @@ def _result_row(
         "strategy_fingerprint": state.strategy_fingerprint,
         "execution_fingerprint": state.execution_fingerprint,
         "registration_source": registration_source,
+        "source_commit": source_commit,
         "registered_at_utc": state.registered_at_utc,
         "outcome_at_utc": outcome.isoformat(),
         "day": _parse_utc(state.registered_at_utc).date().isoformat(),
@@ -1249,6 +1255,7 @@ def _result_row(
         "mae_eur": round(state.max_adverse_eur, 2),
         "complete": state.complete and not blockers,
         "evidence_blockers": blockers,
+        "logic_signature": shadow_logic_signature(state, policy),
     }
 
 
@@ -1259,7 +1266,7 @@ def actual_rows_from_ledger(
     since: date,
     until: date,
 ) -> list[dict[str, Any]]:
-    """Build an honest MT5 calibration view without claiming mirror parity."""
+    """Build MT5 calibration evidence without pre-claiming mirror parity."""
 
     start, end = _window(since, until)
     source_records = [dict(record) for record in registration_records]
@@ -1279,6 +1286,11 @@ def actual_rows_from_ledger(
             end=end,
         )
     )
+    policies_by_id = {
+        policy.candidate_id: policy
+        for policies in build_shadow_catalog().values()
+        for policy in policies
+    }
 
     actual: list[dict[str, Any]] = []
     for source in ledger_rows:
@@ -1315,23 +1327,88 @@ def actual_rows_from_ledger(
             record.get("message_revision_id") and record.get("decision_id")
             for record in registrations.get(signal_id, ())
         )
+        live_control_records = [
+            record
+            for record in registrations.get(signal_id, ())
+            if str(record.get("role") or "") == "live_control"
+            and _registration_state(record) is not None
+        ]
+        live_control_record = (
+            live_control_records[0]
+            if len(live_control_records) == 1
+            else None
+        )
+        live_control_state = (
+            _registration_state(live_control_record)
+            if live_control_record is not None
+            else None
+        )
+        strategy_snapshot = source.get("strategy_snapshot")
+        strategy_id = (
+            str(strategy_snapshot.get("live_strategy_id") or "")
+            if isinstance(strategy_snapshot, Mapping)
+            else ""
+        )
+        if not strategy_id and live_control_state is not None:
+            strategy_id = live_control_state.candidate_id
+        policy = policies_by_id.get(strategy_id)
+        if policy is None:
+            logic_signature = None
+            logic_blockers = ["actual_strategy_identity_unknown"]
+        else:
+            signature_source = dict(source)
+            if not isinstance(strategy_snapshot, Mapping):
+                strategy_snapshot = {
+                    "live_strategy_id": live_control_state.candidate_id,
+                    "live_strategy_fingerprint": (
+                        live_control_state.strategy_fingerprint
+                    ),
+                    "code_commit": live_control_record.get("code_commit"),
+                }
+                signature_source["strategy_snapshot"] = strategy_snapshot
+            logic_signature, raw_logic_blockers = actual_logic_signature(
+                signature_source, policy
+            )
+            logic_blockers = list(raw_logic_blockers)
+        entry_count = int(source.get("n_positions") or len(positions))
+        no_position_zero_exposure = bool(
+            str(source.get("status") or "").strip().lower() == "no_position"
+            and entry_count == 0
+            and not positions
+            and net_eur == 0.0
+            and source.get("pnl_mt5_complete") is True
+        )
+        standard_reconciliation = bool(
+            source.get("reconciled_ok") is True
+            and source.get("pnl_mt5_complete") is True
+        )
         row = {
             "channel": channel,
             "signal_id": signal_id,
             "day": registered.date().isoformat(),
-            "entry_count": int(source.get("n_positions") or len(positions)),
+            "entry_count": entry_count,
             "exit_reason": (
                 "+".join(reasons)
                 or str(source.get("status") or "unknown")
             ),
             "net_eur": net_eur,
-            # Independent control-logic parity is a separate certification.
-            # Reconciliation alone must never be promoted to mirror proof.
-            "control_mirror_match": False,
+            "logic_signature": logic_signature,
+            "logic_signature_blockers": logic_blockers,
+            "source_commit": (
+                strategy_snapshot.get("code_commit")
+                if isinstance(strategy_snapshot, Mapping)
+                else None
+            ),
             "telegram_lineage_complete": bool(lineage_complete),
-            "mt5_reconciled": (
-                source.get("reconciled_ok") is True
-                and source.get("pnl_mt5_complete") is True
+            "mt5_reconciled": bool(
+                standard_reconciliation or no_position_zero_exposure
+            ),
+            "reconciliation_basis": (
+                "mt5_deal_reconciliation"
+                if standard_reconciliation
+                else "no_position_zero_exposure"
+                if no_position_zero_exposure
+                else "unverified"
             ),
         }
         actual.append(row)
@@ -1433,6 +1510,7 @@ def settle_shadow_records(
         roles: dict[str, str] = {}
         lineage: dict[str, bool] = {}
         registration_sources: dict[str, str] = {}
+        registration_commits: dict[str, str | None] = {}
         blocked: dict[str, list[str]] = {}
         has_any_registration = any(
             (signal_id, policy.candidate_id) in registrations
@@ -1457,6 +1535,11 @@ def settle_shadow_records(
             roles[policy.candidate_id] = str(record.get("role") or policy.role)
             registration_sources[policy.candidate_id] = str(
                 record.get("registration_source") or "observed_runtime"
+            )
+            registration_commits[policy.candidate_id] = (
+                str(record.get("code_commit"))
+                if record.get("code_commit")
+                else None
             )
             lineage[policy.candidate_id] = bool(
                 record.get("message_revision_id") and record.get("decision_id")
@@ -1716,14 +1799,17 @@ def settle_shadow_records(
                     blockers=blocked[candidate_id],
                     state=states.get(candidate_id),
                     registration_source=registration_sources.get(candidate_id),
+                    source_commit=registration_commits.get(candidate_id),
                 ))
                 continue
             candidate_rows.append(_result_row(
                 states[candidate_id],
+                policy=policy,
                 role=roles[candidate_id],
                 horizon=end,
                 lineage_complete=lineage.get(candidate_id, False),
                 registration_source=registration_sources[candidate_id],
+                source_commit=registration_commits.get(candidate_id),
             ))
 
     report = build_report(candidate_rows, actual_list)

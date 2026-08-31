@@ -1140,6 +1140,51 @@ def test_regenerate_provider_signal_catalog_runs_offline_builder(
     assert watch._regenerate_provider_signal_catalog() is True
 
 
+def test_regenerate_provider_scorecard_validates_derived_output(
+        tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    catalog = data_dir / "provider_signal_catalog.json"
+    output = data_dir / "provider_result_scorecard.json"
+    catalog.write_text('{"signals": []}\n', encoding="utf-8")
+    monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
+    monkeypatch.setattr(watch, "PROVIDER_SIGNAL_CATALOG_FILE", catalog)
+    monkeypatch.setattr(watch, "PROVIDER_RESULT_SCORECARD_FILE", output)
+
+    def fake_run(*args, **kwargs):
+        assert args[0] == [
+            watch.sys.executable,
+            "tools/build_provider_result_scorecard.py",
+            "--catalog", str(catalog),
+            "--output", str(output),
+            "--quiet",
+        ]
+        output.write_text(json.dumps({
+            "schema_version": 1,
+            "channel": "canal2",
+            "summaries": [],
+            "summary": {
+                "records": 0,
+                "calibration_ready": 0,
+                "blocked": 0,
+            },
+        }), encoding="utf-8")
+        return subprocess.CompletedProcess(
+            args=args[0], returncode=0, stdout="", stderr=""
+        )
+
+    monkeypatch.setattr(watch.subprocess, "run", fake_run)
+
+    assert watch._regenerate_provider_result_scorecard() is True
+
+
+def test_provider_scorecard_validator_rejects_non_object(tmp_path):
+    output = tmp_path / "provider_result_scorecard.json"
+    output.write_text("[]\n", encoding="utf-8")
+
+    assert watch._provider_result_scorecard_publication_valid(output) is False
+
+
 def _valid_strategy_farm_publication(root):
     fingerprint = "a" * 64
     card = root / "data" / "simulation_runs" / fingerprint / "run_card.json"
@@ -1621,6 +1666,7 @@ def test_interrupted_pipeline_restores_previous_mutable_reports(
     data_dir.mkdir()
     paths = [
         data_dir / "provider_signal_catalog.json",
+        data_dir / "provider_result_scorecard.json",
         data_dir / "strategy_farm.json",
         data_dir / "strategy_shadow_report.json",
         data_dir / "log_learning_report.json",
@@ -1631,11 +1677,12 @@ def test_interrupted_pipeline_restores_previous_mutable_reports(
         path.write_text(f"old-{index}\n", encoding="utf-8")
 
     monkeypatch.setattr(watch, "PROVIDER_SIGNAL_CATALOG_FILE", paths[0])
-    monkeypatch.setattr(watch, "STRATEGY_FARM_FILE", paths[1])
-    monkeypatch.setattr(watch, "STRATEGY_SHADOW_REPORT_FILE", paths[2])
-    monkeypatch.setattr(watch, "LOG_LEARNING_REPORT_FILE", paths[3])
-    monkeypatch.setattr(watch, "LOG_PATTERN_REGISTRY_FILE", paths[4])
-    monkeypatch.setattr(watch, "LOG_LEARNING_STATUS_FILE", paths[5])
+    monkeypatch.setattr(watch, "PROVIDER_RESULT_SCORECARD_FILE", paths[1])
+    monkeypatch.setattr(watch, "STRATEGY_FARM_FILE", paths[2])
+    monkeypatch.setattr(watch, "STRATEGY_SHADOW_REPORT_FILE", paths[3])
+    monkeypatch.setattr(watch, "LOG_LEARNING_REPORT_FILE", paths[4])
+    monkeypatch.setattr(watch, "LOG_PATTERN_REGISTRY_FILE", paths[5])
+    monkeypatch.setattr(watch, "LOG_LEARNING_STATUS_FILE", paths[6])
     monkeypatch.setattr(
         watch,
         "_regenerate_ledger",
@@ -1678,6 +1725,8 @@ def test_push_pipeline_runs_learning_after_all_causal_builders(monkeypatch):
         watch, "_regenerate_observed_tick_replay_audit", step("observed"))
     monkeypatch.setattr(
         watch, "_regenerate_provider_signal_catalog", step("provider"))
+    monkeypatch.setattr(
+        watch, "_regenerate_provider_result_scorecard", step("scorecard"))
     monkeypatch.setattr(watch, "_regenerate_strategy_farm", step("farm"))
     learning_dependencies = []
 
@@ -1702,7 +1751,7 @@ def test_push_pipeline_runs_learning_after_all_causal_builders(monkeypatch):
     watch._push_session_data()
 
     assert calls == [
-        "ledger", "replay", "accounting", "provider", "tick_cache",
+        "ledger", "replay", "accounting", "provider", "scorecard", "tick_cache",
         "money_contract", "money_ticks", "shadow", "observed",
         "readiness", "farm", "learning",
     ]
@@ -1727,6 +1776,9 @@ def test_shadow_report_ignores_unrelated_global_tick_cache_failure(
     )
     monkeypatch.setattr(
         watch, "_regenerate_provider_signal_catalog", step("provider"),
+    )
+    monkeypatch.setattr(
+        watch, "_regenerate_provider_result_scorecard", step("scorecard"),
     )
     monkeypatch.setattr(
         watch, "_regenerate_replay_tick_cache_status",
@@ -1763,6 +1815,37 @@ def test_shadow_report_ignores_unrelated_global_tick_cache_failure(
     assert "shadow" in calls
 
 
+def test_provider_scorecard_survives_accounting_failure(monkeypatch):
+    calls = []
+    monkeypatch.setattr(watch, "_clear_mutable_offline_outputs", lambda: None)
+    monkeypatch.setattr(watch, "_regenerate_ledger", lambda: True)
+    monkeypatch.setattr(watch, "_regenerate_replay_trades", lambda: True)
+    monkeypatch.setattr(
+        watch, "_regenerate_accounting_replay_audit", lambda: False,
+    )
+    monkeypatch.setattr(
+        watch,
+        "_regenerate_provider_signal_catalog",
+        lambda: calls.append("provider") or True,
+    )
+    monkeypatch.setattr(
+        watch,
+        "_regenerate_provider_result_scorecard",
+        lambda: calls.append("scorecard") or True,
+    )
+    monkeypatch.setattr(
+        watch,
+        "_regenerate_recursive_learning_outputs",
+        lambda dependencies: True,
+    )
+
+    results = watch._regenerate_session_outputs()
+
+    assert calls == ["provider", "scorecard"]
+    assert results["provider_catalog"] is True
+    assert results["provider_scorecard"] is True
+
+
 def test_session_pipeline_reports_every_stage_in_causal_order(monkeypatch):
     monkeypatch.setattr(watch, "_clear_mutable_offline_outputs", lambda: None)
     stages = [
@@ -1770,6 +1853,7 @@ def test_session_pipeline_reports_every_stage_in_causal_order(monkeypatch):
         ("_regenerate_replay_trades", "Replay"),
         ("_regenerate_accounting_replay_audit", "Auditoria contable"),
         ("_regenerate_provider_signal_catalog", "Catalogo de senales"),
+        ("_regenerate_provider_result_scorecard", "Resultados publicados"),
         ("_regenerate_replay_tick_cache_status", "Ticks XAUUSD"),
         ("_regenerate_broker_money_contract", "Contrato monetario"),
         ("_regenerate_money_tick_cache_status", "Ticks de conversion"),
@@ -1802,7 +1886,7 @@ def test_session_pipeline_reports_every_stage_in_causal_order(monkeypatch):
         if label.endswith(" OK")
     ]
     assert completed == [
-        (index, 12, f"{label} OK")
+        (index, 13, f"{label} OK")
         for index, (_, label) in enumerate(
             [*stages, ("learning", "Aprendizaje recursivo")],
             start=1,
@@ -1815,6 +1899,12 @@ def test_push_pipeline_runs_learning_after_upstream_failure(monkeypatch):
     captured = []
     monkeypatch.setattr(watch, "_clear_mutable_offline_outputs", lambda: None)
     monkeypatch.setattr(watch, "_regenerate_ledger", lambda: False)
+    monkeypatch.setattr(
+        watch, "_regenerate_provider_signal_catalog", lambda: True,
+    )
+    monkeypatch.setattr(
+        watch, "_regenerate_provider_result_scorecard", lambda: True,
+    )
     monkeypatch.setattr(
         watch,
         "_regenerate_recursive_learning_outputs",
@@ -1835,7 +1925,8 @@ def test_push_pipeline_runs_learning_after_upstream_failure(monkeypatch):
         "accounting": False,
         "ledger": False,
         "observed_ticks": False,
-        "provider_catalog": False,
+        "provider_catalog": True,
+        "provider_scorecard": True,
         "readiness": False,
         "replay": False,
         "strategy_farm": False,
@@ -1852,18 +1943,21 @@ def test_push_session_data_clears_stale_farm_when_pipeline_stops_early(
     data_dir = tmp_path / "data"
     data_dir.mkdir()
     catalog = data_dir / "provider_signal_catalog.json"
+    scorecard = data_dir / "provider_result_scorecard.json"
     farm = data_dir / "strategy_farm.json"
     shadow = data_dir / "strategy_shadow_report.json"
     learning_report = data_dir / "log_learning_report.json"
     pattern_registry = data_dir / "log_pattern_registry.json"
     learning_status = data_dir / "log_learning_status.json"
     catalog.write_text('{"generated_at":"old"}\n', encoding="utf-8")
+    scorecard.write_text('{"generated_at":"old"}\n', encoding="utf-8")
     farm.write_text('{"generated_at":"old"}\n', encoding="utf-8")
     shadow.write_text('{"generated_at":"old"}\n', encoding="utf-8")
     learning_report.write_text('{"old":true}\n', encoding="utf-8")
     pattern_registry.write_text('{"old":true}\n', encoding="utf-8")
     learning_status.write_text('{"old":true}\n', encoding="utf-8")
     monkeypatch.setattr(watch, "PROVIDER_SIGNAL_CATALOG_FILE", catalog)
+    monkeypatch.setattr(watch, "PROVIDER_RESULT_SCORECARD_FILE", scorecard)
     monkeypatch.setattr(watch, "STRATEGY_FARM_FILE", farm)
     monkeypatch.setattr(watch, "STRATEGY_SHADOW_REPORT_FILE", shadow)
     monkeypatch.setattr(watch, "LOG_LEARNING_REPORT_FILE", learning_report)
@@ -1889,6 +1983,7 @@ def test_push_session_data_clears_stale_farm_when_pipeline_stops_early(
     watch._push_session_data()
 
     assert not catalog.exists()
+    assert not scorecard.exists()
     assert not farm.exists()
     assert not shadow.exists()
     assert not learning_report.exists()
@@ -1979,3 +2074,7 @@ def test_paths_changed_between_ignores_unrelated_files(monkeypatch):
 
     assert watch._paths_changed_between(
         "old", "new", {"tools/run_bot_watch.py"}) is False
+
+
+def test_runtime_log_health_change_requires_watcher_self_update():
+    assert "tools/runtime_log_health.py" in watch.WATCHER_SELF_UPDATE_PATHS

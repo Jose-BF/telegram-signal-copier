@@ -12,6 +12,7 @@ from strategy_shadow_contracts import (
 )
 from strategy_shadow_engine import advance_tick, apply_management, register_signal
 from strategy_shadow_manifest import build_catalog_manifest
+from strategy_shadow_parity import compare_logic_signatures, shadow_logic_signature
 from strategy_shadow_settlement import (
     ParquetShadowTickReader,
     ShadowRegistrationTickRead,
@@ -508,6 +509,171 @@ def test_settlement_rebuilds_all_three_rows_for_every_registered_signal():
         "dubai_frontloaded_30m_v1",
         "dubai_frontloaded_40m_v1",
     }
+    assert all(
+        row["logic_signature"]["strategy_id"] == row["candidate_id"]
+        for row in result["candidate_rows"]
+    )
+
+
+def test_actual_ledger_exposes_structural_signature_without_claiming_match():
+    policy = build_shadow_catalog()["canal1"][0]
+    ledger = [{
+        "sig_id": "canal1_3000",
+        "channel": "canal1",
+        "direction": "BUY",
+        "signal_dt_utc": BASE.isoformat(),
+        "n_positions": 1,
+        "pnl_real_mt5": -0.40,
+        "status": "closed",
+        "strategy_snapshot": {
+            "live_strategy_id": policy.candidate_id,
+            "live_strategy_fingerprint": policy.strategy_fingerprint,
+            "code_commit": "a" * 40,
+        },
+        "positions": [{
+            "role": "market_a",
+            "volume": 0.01,
+            "open_price": 101.20,
+            "is_closed": True,
+            "close_reason": "bot_close",
+            "open_deal": {"comment": "c1_3000_dv1"},
+            "tp_history": [],
+            "sl_history": [],
+        }],
+        "reconciled_ok": True,
+        "pnl_mt5_complete": True,
+    }]
+
+    actual = actual_rows_from_ledger(
+        ledger,
+        _dubai_registrations(),
+        since=BASE.date(),
+        until=BASE.date(),
+    )
+
+    assert "control_mirror_match" not in actual[0]
+    assert actual[0]["logic_signature"]["strategy_id"] == (
+        "dubai_balanced_v1"
+    )
+    assert actual[0]["logic_signature_blockers"] == []
+    assert actual[0]["source_commit"] == "a" * 40
+
+
+def test_no_position_ledger_can_certify_a_matching_cancelled_control():
+    commit = "a" * 40
+    registrations = []
+    cancelled_control = None
+    control_policy = None
+    for policy in build_shadow_catalog()["canal2"]:
+        state = register_signal(
+            policy,
+            signal_id="canal2_5000",
+            source_message_id=5000,
+            direction="BUY",
+            registered_at_utc=BASE.isoformat(),
+            registered_tick_msc=BASE_MSC,
+            reference_price=100.2,
+        )
+        registrations.append({
+            "sig": state.signal_id,
+            "ev": "strategy_shadow_registered",
+            "channel": state.channel,
+            "candidate_id": state.candidate_id,
+            "role": policy.role,
+            "strategy_fingerprint": state.strategy_fingerprint,
+            "execution_fingerprint": state.execution_fingerprint,
+            "state_hash": state.state_hash,
+            "state": state.to_dict(),
+            "message_revision_id": "msgrev-5000",
+            "decision_id": "decision-5000",
+            "code_commit": commit,
+            "ts": BASE.isoformat(),
+        })
+        if policy.role == "live_control":
+            control_policy = policy
+            cancelled_control = ShadowSignalState.from_dict({
+                **state.to_dict(),
+                "status": "cancelled",
+                "exit_reason": "entry_expired",
+            })
+    ledger = [{
+        "sig_id": "canal2_5000",
+        "channel": "canal2",
+        "direction": "BUY",
+        "signal_dt_utc": BASE.isoformat(),
+        "n_positions": 0,
+        "pnl_real_mt5": 0,
+        "status": "no_position",
+        "strategy_snapshot": None,
+        "positions": [],
+        "reconciled_ok": None,
+        "pnl_mt5_complete": True,
+    }]
+
+    actual = actual_rows_from_ledger(
+        ledger,
+        registrations,
+        since=BASE.date(),
+        until=BASE.date(),
+    )[0]
+    comparison = compare_logic_signatures(
+        actual["logic_signature"],
+        shadow_logic_signature(cancelled_control, control_policy),
+    )
+
+    assert actual["mt5_reconciled"] is True
+    assert actual["reconciliation_basis"] == "no_position_zero_exposure"
+    assert actual["source_commit"] == commit
+    assert comparison["match"] is True
+
+
+def test_settlement_certifies_matching_live_control_structure():
+    policy = build_shadow_catalog()["canal1"][0]
+    ledger = [{
+        "sig_id": "canal1_3000",
+        "channel": "canal1",
+        "direction": "BUY",
+        "signal_dt_utc": BASE.isoformat(),
+        "n_positions": 1,
+        "pnl_real_mt5": -0.40,
+        "status": "closed",
+        "strategy_snapshot": {
+            "live_strategy_id": policy.candidate_id,
+            "live_strategy_fingerprint": policy.strategy_fingerprint,
+            "code_commit": "a" * 40,
+        },
+        "positions": [{
+            "role": "market_a",
+            "volume": 0.01,
+            "open_price": 101.20,
+            "is_closed": True,
+            "close_reason": "bot_close",
+            "open_deal": {"comment": "c1_3000_dv1"},
+            "tp_history": [],
+            "sl_history": [],
+        }],
+        "reconciled_ok": True,
+        "pnl_mt5_complete": True,
+    }]
+    records = _dubai_registrations()
+    actual = actual_rows_from_ledger(
+        ledger,
+        records,
+        since=BASE.date(),
+        until=BASE.date(),
+    )
+
+    result = settle_shadow_records(
+        records,
+        tick_reader=CompleteReader(),
+        since=BASE.date(),
+        until=BASE.date(),
+        actual_rows=actual,
+    )
+
+    signal = result["report"]["signals"][0]
+    assert signal["actual"]["control_mirror_match"] is True
+    assert signal["actual"]["control_parity"]["differences"] == []
 
 
 def test_settlement_starts_at_the_frozen_registration_tick_boundary():

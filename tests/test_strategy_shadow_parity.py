@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
@@ -10,8 +11,13 @@ import gold_live_candidate
 import position_lifecycle_monitor as live_monitor
 from state import Signal
 from strategy_shadow_catalog import policy_by_id
-from strategy_shadow_contracts import ShadowTick
+from strategy_shadow_contracts import ShadowPosition, ShadowSignalState, ShadowTick
 from strategy_shadow_engine import advance_tick, register_signal
+from strategy_shadow_parity import (
+    actual_logic_signature,
+    compare_logic_signatures,
+    shadow_logic_signature,
+)
 
 
 BASE = datetime(2026, 8, 27, 8, 0, tzinfo=timezone.utc)
@@ -265,3 +271,176 @@ async def test_555_live_and_shadow_both_keep_ladder_after_flat_first_tp(
     assert opened == 1
     assert live.candidate_filled_leg_indexes == [1]
     assert live.dca_tickets == [1001]
+
+
+def _structural_gold_state():
+    policy = policy_by_id("gold_now_555_v1")
+    state = ShadowSignalState.new(
+        signal_id="canal2_5000",
+        source_message_id=5000,
+        candidate_id=policy.candidate_id,
+        channel="canal2",
+        direction="BUY",
+        registered_at_utc="2026-08-31T08:00:00+00:00",
+        registered_tick_msc=1,
+        strategy_fingerprint=policy.strategy_fingerprint,
+        execution_fingerprint=policy.execution_fingerprint,
+    )
+    positions = (
+        ShadowPosition(
+            leg_index=0,
+            volume=0.04,
+            entry_price=100.20,
+            opened_tick_msc=2,
+            target_price=100.70,
+            stop_price=70.20,
+            status="closed",
+            close_price=100.70,
+            closed_tick_msc=3,
+            close_reason="target",
+            realized_eur=1.72,
+        ),
+        ShadowPosition(
+            leg_index=1,
+            volume=0.03,
+            entry_price=98.70,
+            opened_tick_msc=4,
+            target_price=99.70,
+            stop_price=68.70,
+            status="closed",
+            close_price=99.70,
+            closed_tick_msc=5,
+            close_reason="target",
+            realized_eur=2.58,
+        ),
+    )
+    return policy, replace(
+        state,
+        status="closed",
+        positions=positions,
+        exit_reason="target",
+    )
+
+
+def _structural_gold_ledger_source(*, second_target=199.90):
+    policy = policy_by_id("gold_now_555_v1")
+    return {
+        "direction": "BUY",
+        "strategy_snapshot": {
+            "live_strategy_id": policy.candidate_id,
+            "live_strategy_fingerprint": policy.strategy_fingerprint,
+            "code_commit": "a" * 40,
+        },
+        "positions": [
+            {
+                "role": "market_a",
+                "volume": 0.04,
+                "open_price": 200.10,
+                "is_closed": True,
+                "close_reason": "tp",
+                "open_deal": {"comment": "c2_5000_g55"},
+                "tp_history": [{"status": "confirmed", "tp": 200.60}],
+                "sl_history": [{"status": "confirmed", "sl": 170.10}],
+            },
+            {
+                "role": "scale_out_leg",
+                "volume": 0.03,
+                "open_price": 198.90,
+                "is_closed": True,
+                "close_reason": "tp",
+                "open_deal": {"comment": "c2_5000_B1_g55"},
+                "tp_history": [
+                    {"status": "confirmed", "tp": second_target}
+                ],
+                "sl_history": [{"status": "confirmed", "sl": 168.90}],
+            },
+        ],
+    }
+
+
+def test_logic_parity_ignores_fill_price_but_preserves_relative_targets():
+    policy, state = _structural_gold_state()
+
+    shadow = shadow_logic_signature(state, policy)
+    actual, blockers = actual_logic_signature(
+        _structural_gold_ledger_source(), policy
+    )
+    comparison = compare_logic_signatures(actual, shadow)
+
+    assert blockers == ()
+    assert comparison["match"] is True
+    assert comparison["differences"] == []
+
+
+def test_logic_parity_detects_wrong_target_assignment():
+    policy, state = _structural_gold_state()
+
+    shadow = shadow_logic_signature(state, policy)
+    actual, blockers = actual_logic_signature(
+        _structural_gold_ledger_source(second_target=200.40), policy
+    )
+    comparison = compare_logic_signatures(actual, shadow)
+
+    assert blockers == ()
+    assert comparison["match"] is False
+    assert any(
+        "positions[1].target" in item
+        for item in comparison["differences"]
+    )
+
+
+def test_actual_signature_refuses_ambiguous_leg_identity():
+    policy, _state = _structural_gold_state()
+    source = _structural_gold_ledger_source()
+    source["positions"][1]["open_deal"]["comment"] = "unknown"
+
+    signature, blockers = actual_logic_signature(source, policy)
+
+    assert signature is None
+    assert blockers == ("actual_leg_identity_ambiguous",)
+
+
+def test_actual_signature_handles_malformed_open_deal_without_crashing():
+    policy, _state = _structural_gold_state()
+    source = _structural_gold_ledger_source()
+    source["positions"][1]["open_deal"] = "malformed"
+
+    signature, blockers = actual_logic_signature(source, policy)
+
+    assert signature is None
+    assert blockers == ("actual_leg_identity_ambiguous",)
+
+
+def test_logic_parity_normalizes_mt5_be_exit_reason():
+    policy, state = _structural_gold_state()
+    positions = list(state.positions)
+    positions[0] = replace(positions[0], close_reason="break_even")
+    state = replace(state, positions=tuple(positions))
+    source = _structural_gold_ledger_source()
+    source["positions"][0]["close_reason"] = "be"
+
+    comparison = compare_logic_signatures(
+        actual_logic_signature(source, policy)[0],
+        shadow_logic_signature(state, policy),
+    )
+
+    assert comparison["match"] is True
+
+
+def test_logic_parity_rejects_wrong_relative_stop_level():
+    policy, state = _structural_gold_state()
+    source = _structural_gold_ledger_source()
+    source["positions"][0]["sl_history"] = [
+        {"status": "confirmed", "sl": 190.10}
+    ]
+
+    comparison = compare_logic_signatures(
+        actual_logic_signature(source, policy)[0],
+        shadow_logic_signature(state, policy),
+    )
+
+    assert comparison["match"] is False
+    assert any(
+        "positions[0].protection" in item
+        for item in comparison["differences"]
+    )

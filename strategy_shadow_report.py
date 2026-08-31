@@ -13,6 +13,7 @@ import math
 from typing import Any, Iterable, Mapping
 
 from strategy_shadow_catalog import build_shadow_catalog
+from strategy_shadow_parity import compare_logic_signatures
 
 
 _CHANNELS = ("canal1", "canal2")
@@ -20,6 +21,7 @@ _TERMINAL_STATUSES = {"closed", "cancelled"}
 _ADOPTION_ONLY_BLOCKERS = {
     "actual_evidence_missing",
     "control_mirror_mismatch",
+    "control_mirror_unverified",
     "duplicate_actual_result",
     "invalid_actual_identity",
     "invalid_actual_result",
@@ -27,7 +29,13 @@ _ADOPTION_ONLY_BLOCKERS = {
     "live_control_identity_mismatch",
     "minimum_sample_not_reached",
     "mt5_reconciliation_incomplete",
+    "source_commit_mismatch",
+    "source_commit_unverified",
     "telegram_lineage_incomplete",
+}
+_UNSCOPED_INTEGRITY_BLOCKERS = {
+    "invalid_actual_identity",
+    "invalid_candidate_identity",
 }
 
 
@@ -181,7 +189,7 @@ def build_report(
         ):
             blockers.add("invalid_actual_result")
             signal_blockers[key].add("invalid_actual_result")
-        if row.get("control_mirror_match") is not True:
+        if row.get("control_mirror_match") is False:
             blockers.add("control_mirror_mismatch")
             signal_blockers[key].add("control_mirror_mismatch")
         if row.get("mt5_reconciled") is not True:
@@ -310,6 +318,46 @@ def build_report(
     if any(len(values) != 1 for values in controls_by_channel.values()):
         blockers.add("live_control_changed")
 
+    for signal_key, actual in actual_by_key.items():
+        control_rows = [
+            row
+            for (channel, signal_id, _candidate_id), row
+            in candidate_by_key.items()
+            if (channel, signal_id) == signal_key
+            and row.get("role") == "live_control"
+        ]
+        if len(control_rows) != 1:
+            blockers.add("control_mirror_unverified")
+            signal_blockers[signal_key].add("control_mirror_unverified")
+            continue
+        actual_commit = str(actual.get("source_commit") or "")
+        shadow_commit = str(control_rows[0].get("source_commit") or "")
+        if not actual_commit or not shadow_commit:
+            blockers.add("source_commit_unverified")
+            signal_blockers[signal_key].add("source_commit_unverified")
+        elif actual_commit != shadow_commit:
+            blockers.add("source_commit_mismatch")
+            signal_blockers[signal_key].add("source_commit_mismatch")
+        explicit_mirror = actual.get("control_mirror_match")
+        if explicit_mirror is True or explicit_mirror is False:
+            continue
+        actual_signature = actual.get("logic_signature")
+        shadow_signature = control_rows[0].get("logic_signature")
+        if not isinstance(actual_signature, Mapping) or not isinstance(
+            shadow_signature, Mapping
+        ):
+            blockers.add("control_mirror_unverified")
+            signal_blockers[signal_key].add("control_mirror_unverified")
+            continue
+        parity = compare_logic_signatures(
+            actual_signature, shadow_signature
+        )
+        actual["_control_parity"] = parity
+        actual["control_mirror_match"] = parity["match"]
+        if not parity["match"]:
+            blockers.add("control_mirror_mismatch")
+            signal_blockers[signal_key].add("control_mirror_mismatch")
+
     channel_counts = {
         channel: sum(1 for key in actual_by_key if key[0] == channel)
         for channel in _CHANNELS
@@ -386,6 +434,7 @@ def build_report(
                 "candidate_id": policy.candidate_id,
                 "role": str(row.get("role") or ""),
                 "registration_source": row.get("registration_source"),
+                "source_commit": row.get("source_commit"),
                 "entry_count": int(row.get("entry_count") or 0),
                 "exit_reason": row.get("exit_reason"),
                 "status": row_status,
@@ -430,6 +479,11 @@ def build_report(
                     "complete": actual_complete,
                     "mt5_reconciled": actual.get("mt5_reconciled") is True,
                     "control_mirror_match": actual.get("control_mirror_match") is True,
+                    "control_parity": actual.get("_control_parity"),
+                    "logic_signature_blockers": list(
+                        actual.get("logic_signature_blockers") or []
+                    ),
+                    "source_commit": actual.get("source_commit"),
                 },
                 "candidates": candidates,
                 "control_prediction": control_prediction,
@@ -585,6 +639,85 @@ def build_report(
             "pairing": f"{best_dubai.candidate_id}+{best_gold.candidate_id}",
         }
 
+    channel_verdicts: dict[str, dict[str, Any]] = {}
+    for channel in _CHANNELS:
+        channel_blockers = {
+            blocker
+            for key, values in signal_blockers.items()
+            if key[0] == channel
+            for blocker in values
+        }
+        channel_blockers.update(blockers & _UNSCOPED_INTEGRITY_BLOCKERS)
+        if len(controls_by_channel[channel]) != 1:
+            channel_blockers.add("live_control_changed")
+        if channel_counts[channel] < 15:
+            channel_blockers.add("minimum_sample_not_reached")
+        if matrix[channel]["eligible_signals"] == 0:
+            channel_blockers.add("no_eligible_signals")
+
+        channel_comparison_blockers = {
+            blocker
+            for blocker in channel_blockers
+            if blocker not in _ADOPTION_ONLY_BLOCKERS
+        }
+        channel_comparison_allowed = not channel_comparison_blockers
+        channel_leader = None
+        if channel_comparison_allowed:
+            policies = list(catalog[channel])
+            channel_leader = max(
+                policies,
+                key=lambda policy: (
+                    float("-inf")
+                    if candidate_totals[policy.candidate_id]["net_eur"] is None
+                    else candidate_totals[policy.candidate_id]["net_eur"],
+                    -policies.index(policy),
+                ),
+            ).candidate_id
+        channel_ranking_allowed = not channel_blockers
+        channel_verdicts[channel] = {
+            "comparison_allowed": channel_comparison_allowed,
+            "comparison_blockers": sorted(channel_comparison_blockers),
+            "ranking_allowed": channel_ranking_allowed,
+            "claim_allowed": (
+                channel_ranking_allowed and channel_counts[channel] >= 100
+            ),
+            "winner": channel_leader if channel_ranking_allowed else None,
+            "shadow_leader": channel_leader,
+            "blockers": sorted(channel_blockers),
+            "checkpoint": {
+                "label": _checkpoint_label(channel_counts[channel]),
+                "untouched_signals": channel_counts[channel],
+            },
+            "matrix": matrix[channel],
+        }
+
+    control_parity: dict[str, dict[str, Any]] = {}
+    for channel in _CHANNELS:
+        summary = {
+            "matched": 0,
+            "mismatched": 0,
+            "unverified": 0,
+            "by_source_commit": {},
+        }
+        for (row_channel, _signal_id), actual in actual_by_key.items():
+            if row_channel != channel:
+                continue
+            commit = str(actual.get("source_commit") or "unknown")
+            cohort = summary["by_source_commit"].setdefault(commit, {
+                "matched": 0,
+                "mismatched": 0,
+                "unverified": 0,
+            })
+            if actual.get("control_mirror_match") is True:
+                status = "matched"
+            elif actual.get("control_mirror_match") is False:
+                status = "mismatched"
+            else:
+                status = "unverified"
+            summary[status] += 1
+            cohort[status] += 1
+        control_parity[channel] = summary
+
     label = _checkpoint_label(checkpoint_count)
     return {
         "schema_version": 1,
@@ -610,4 +743,6 @@ def build_report(
         "candidate_totals": candidate_totals,
         "pairings": pairings,
         "matrix": matrix,
+        "channels": channel_verdicts,
+        "control_parity": control_parity,
     }
