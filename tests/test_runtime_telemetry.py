@@ -1,6 +1,7 @@
 import gzip
 import hashlib
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -40,6 +41,73 @@ def _runtime(tmp_path: Path) -> Path:
 def test_default_export_includes_console_diagnostics():
     assert "bot_runtime.log" in runtime_telemetry.DEFAULT_STREAM_NAMES
     assert "telegram_media.jsonl" in runtime_telemetry.DEFAULT_STREAM_NAMES
+
+
+def test_run_git_timeout_terminates_the_complete_process_tree(
+        tmp_path, monkeypatch):
+    terminated = []
+
+    class TimedOutProcess:
+        pid = 4321
+        returncode = None
+
+        def communicate(self, timeout=None):
+            if not terminated:
+                raise subprocess.TimeoutExpired(["git", "fetch"], timeout)
+            return ("partial stdout", "partial stderr")
+
+        def poll(self):
+            return None
+
+    monkeypatch.setattr(
+        runtime_telemetry.subprocess,
+        "Popen",
+        lambda *args, **kwargs: TimedOutProcess(),
+    )
+    monkeypatch.setattr(
+        runtime_telemetry,
+        "terminate_process_tree",
+        lambda process, timeout_sec=5.0: terminated.append(
+            (process.pid, timeout_sec)
+        ),
+    )
+
+    result = runtime_telemetry._run_git(
+        tmp_path,
+        "fetch",
+        timeout_sec=0.25,
+    )
+
+    assert result.returncode == 124
+    assert terminated == [(4321, 5.0)]
+    assert result.stdout == "partial stdout"
+    assert "timed out" in result.stderr
+
+
+def test_publication_health_reports_oldest_local_backlog(
+        tmp_path, monkeypatch):
+    runtime = _runtime(tmp_path)
+    checkpoint = runtime_telemetry.checkpoint_runtime(
+        runtime,
+        stream_names=("trade_events.jsonl",),
+    )
+    assert checkpoint.ok is True
+    pending_files = [
+        path
+        for path in (
+            runtime / runtime_telemetry.TELEMETRY_DIR_NAME / "outbox"
+        ).rglob("*")
+        if path.is_file()
+    ]
+    for path in pending_files:
+        os.utime(path, (100.0, 100.0))
+
+    health = runtime_telemetry.publication_health(runtime, now=701.0)
+
+    assert health["pending_files"] == 2
+    assert health["pending_chunks"] == 1
+    assert health["oldest_pending_age_s"] == pytest.approx(601.0)
+    assert health["latest_error"] is None
 
 
 def test_checkpoint_exports_only_complete_records_and_advances_cursor(

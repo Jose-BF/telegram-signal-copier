@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
+import pytest
 import dubai_live_candidate
 import gold_555_live_candidate
 import gold_live_candidate
+import position_lifecycle_monitor as live_monitor
+from state import Signal
 from strategy_shadow_catalog import policy_by_id
 from strategy_shadow_contracts import ShadowTick
 from strategy_shadow_engine import advance_tick, register_signal
@@ -169,3 +173,95 @@ def test_555_shadow_fill_levels_match_independent_live_price_oracle():
     assert position.entry_price == 4300.4
     assert position.target_price == live.target_price("BUY", 4300.4, 0)
     assert position.stop_price == live.initial_stop("BUY", 4300.4)
+
+
+@pytest.mark.asyncio
+async def test_555_live_and_shadow_both_keep_ladder_after_flat_first_tp(
+        monkeypatch):
+    policy, shadow = _state(
+        "gold_now_555_v1",
+        reference=4300.0,
+    )
+    shadow = advance_tick(
+        policy, shadow, _tick(1, bid=4298.7, ask=4298.9, minutes=1),
+    ).state
+    shadow = advance_tick(
+        policy, shadow, _tick(2, bid=4300.2, ask=4300.4, minutes=2),
+    ).state
+    shadow = advance_tick(
+        policy, shadow, _tick(3, bid=4300.9, ask=4301.1, minutes=3),
+    ).state
+
+    assert shadow.status == "open"
+    assert not any(position.status == "open" for position in shadow.positions)
+
+    shadow = advance_tick(
+        policy, shadow, _tick(4, bid=4298.6, ask=4298.8, minutes=4),
+    ).state
+    assert len(shadow.positions) == 2
+    assert shadow.positions[1].status == "open"
+
+    live_policy = gold_555_live_candidate.Gold555Policy()
+    first_fill_at = datetime(2026, 8, 27, 8, 2)
+    entry_levels = live_policy.entry_levels("BUY", 4300.4)
+    live = Signal(
+        channel="canal2",
+        message_id=9001,
+        direction="BUY",
+        timestamp=first_fill_at,
+        market_ticket=1000,
+        market_fill_price=4300.4,
+        live_strategy_id=gold_555_live_candidate.CANDIDATE_ID,
+        live_strategy_fingerprint=(
+            gold_555_live_candidate.CANDIDATE_FINGERPRINT
+        ),
+        candidate_entry_anchor=4300.4,
+        candidate_first_fill_at=first_fill_at,
+        candidate_entry_expires_at=first_fill_at + timedelta(minutes=30),
+        candidate_entry_legs=[
+            {
+                "index": index,
+                "volume": live_policy.entry_volumes[index],
+                "trigger_price": entry_levels[index],
+                "target_step": live_policy.target_steps[index],
+            }
+            for index in range(len(live_policy.entry_volumes))
+        ],
+    )
+    live.candidate_entry_prices_by_ticket[1000] = 4300.4
+    live.candidate_hard_stops[1000] = live_policy.initial_stop(
+        "BUY", 4300.4
+    )
+
+    assert live_monitor._should_auto_finalize_signal(
+        live,
+        {"positions_complete": True, "n_open": 0},
+        monitor_started_monotonic=100.0,
+        now_monotonic=131.0,
+        now=first_fill_at + timedelta(minutes=3),
+    ) is False
+
+    async def fake_open(_signal, _leg, _observed_price):
+        return 1001, 4298.8
+
+    monkeypatch.setattr(live_monitor, "_open_candidate_leg", fake_open)
+    monkeypatch.setattr(
+        live_monitor,
+        "_queue_gold_555_leg_protection",
+        lambda *args, **kwargs: (4268.8, 4299.8),
+    )
+    monkeypatch.setattr(
+        live_monitor,
+        "_journal_event",
+        lambda *args, **kwargs: None,
+    )
+
+    opened = await live_monitor._process_candidate_entry_tick(
+        live,
+        SimpleNamespace(bid=4298.6, ask=4298.8, time_msc=4),
+        now=first_fill_at + timedelta(minutes=4),
+    )
+
+    assert opened == 1
+    assert live.candidate_filled_leg_indexes == [1]
+    assert live.dca_tickets == [1001]

@@ -768,6 +768,23 @@ async def test_unexpected_shadow_tick_failure_disables_only_shadow_runtime(
 
 
 @pytest.mark.asyncio
+async def test_successful_shadow_tick_reports_processed():
+    calls = []
+
+    class HealthyRuntime:
+        async def process_tick(self, tick):
+            calls.append(tick)
+
+    runtime = HealthyRuntime()
+    observed = object()
+
+    processed = await main._process_strategy_shadow_tick(runtime, observed)
+
+    assert processed is True
+    assert calls == [observed]
+
+
+@pytest.mark.asyncio
 async def test_tick_continuity_pause_keeps_shadow_runtime_installed(
     monkeypatch,
 ):

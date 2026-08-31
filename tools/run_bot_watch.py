@@ -334,18 +334,10 @@ def _trigger_telemetry_publication(*, now: float | None = None) -> bool:
             f"({elapsed:.0f}s). Lo reemplazo sin detener el bot.",
             flush=True,
         )
-        try:
-            _telemetry_publish_process.terminate()
-            _telemetry_publish_process.wait(
-                timeout=TELEMETRY_PROCESS_STOP_TIMEOUT_SEC
-            )
-        except subprocess.TimeoutExpired:
-            _telemetry_publish_process.kill()
-            _telemetry_publish_process.wait(
-                timeout=TELEMETRY_PROCESS_STOP_TIMEOUT_SEC
-            )
-        except OSError:
-            pass
+        runtime_telemetry.terminate_process_tree(
+            _telemetry_publish_process,
+            timeout_sec=TELEMETRY_PROCESS_STOP_TIMEOUT_SEC,
+        )
         _telemetry_publish_process = None
         _telemetry_publish_started_at = None
     command = [
@@ -364,6 +356,7 @@ def _trigger_telemetry_publication(*, now: float | None = None) -> bool:
             command,
             cwd=REPO_DIR,
             env=environment,
+            **runtime_telemetry._process_group_kwargs(),
         )
         _telemetry_publish_started_at = current_time
     except OSError as exc:

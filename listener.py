@@ -2865,27 +2865,16 @@ async def _process_management_reply_edit(msg, channel: str,
         and int(reply_id) in _gold_555_entry_watches
     ):
         pending_classification = await classify_async(text)
-        if any(
-            isinstance(row, dict)
-            and gold_555_live_candidate.is_provider_close_action(
-                row.get("action")
-            )
-            for row in (
-                pending_classification
-                if isinstance(pending_classification, list)
-                else [pending_classification]
-            )
+        if _edit_already_seen(channel, msg):
+            return True
+        if _handle_gold_555_pending_management(
+            int(reply_id),
+            pending_classification,
+            raw_text=text,
+            source_message_id=int(getattr(msg, "id", 0) or 0),
+            tg_ts=_msg_ts_iso(msg),
         ):
-            if _edit_already_seen(channel, msg):
-                return True
-            if _handle_gold_555_pending_management(
-                int(reply_id),
-                pending_classification,
-                raw_text=text,
-                source_message_id=int(getattr(msg, "id", 0) or 0),
-                tg_ts=_msg_ts_iso(msg),
-            ):
-                return True
+            return True
 
     sig, route = await _resolve_management_reply_target_with_ancestry(
         msg,
@@ -7710,12 +7699,43 @@ def _handle_gold_555_pending_management(
     source_message_id: int | None,
     tg_ts: str | None,
 ) -> bool:
-    """Cancel a pending 555 entry, or remember a close racing its order."""
+    """Bind provider context to a pending 555 and honour explicit closes."""
     root_message_id = int(message_id)
     record = _gold_555_entry_watches.get(root_message_id)
     if record is None:
         return False
     rows = classifications if isinstance(classifications, list) else [classifications]
+    classification_rows = [
+        dict(row) for row in rows if isinstance(row, dict)
+    ]
+    classified_actions = [
+        str(row.get("action") or "").upper()
+        for row in classification_rows
+        if row.get("action")
+    ]
+    parsed_levels = parse_canal2(str(raw_text or ""))
+    provider_levels = {
+        key: parsed_levels[key]
+        for key in _PROVIDER_LEVEL_FIELDS
+        if key in parsed_levels
+    }
+    journal.event(
+        f"canal2_{root_message_id}",
+        "gold_555_pending_provider_context_observed",
+        strategy_id=gold_555_live_candidate.CANDIDATE_ID,
+        strategy_fingerprint=(
+            gold_555_live_candidate.CANDIDATE_FINGERPRINT
+        ),
+        source_message_id=source_message_id,
+        tg_ts=tg_ts,
+        raw_snippet=str(raw_text or "")[:500],
+        classified_actions=classified_actions,
+        classifications=classification_rows,
+        provider_levels=provider_levels,
+        watch_status=record.watch.status,
+        order_started=bool(record.order_started),
+        applied_to_live_entry=False,
+    )
     close_row = next(
         (
             row for row in rows
@@ -7727,7 +7747,7 @@ def _handle_gold_555_pending_management(
         None,
     )
     if close_row is None:
-        return False
+        return True
 
     action = str(close_row.get("action") or "CLOSE").upper()
     common = {
@@ -10756,8 +10776,12 @@ _POLL_LEGACY_COVERAGE_LOOKBACK_S = 24 * 60 * 60
 _POLLER_UNSEEN = object()
 _POLLER_HISTORY_BACKOFF_BASE_S = 15.0
 _POLLER_HISTORY_BACKOFF_MAX_S = 120.0
+_POLLER_ACCESS_BACKOFF_BASE_S = 300.0
+_POLLER_ACCESS_BACKOFF_MAX_S = 1800.0
 _poller_history_backoff_until: dict[str, float] = {}
 _poller_history_failures: dict[str, int] = {}
+_poller_access_backoff_until: dict[str, float] = {}
+_poller_access_failures: dict[str, int] = {}
 _poller_dispatch_retry_state: dict[tuple, tuple[int, float]] = {}
 _poller_dispatch_retry_messages: dict[tuple, tuple[object, str | None]] = {}
 
@@ -10777,6 +10801,22 @@ def _is_transient_telegram_history_error(exc: Exception) -> bool:
         "internal issues",
     )
     return any(marker in text for marker in transient_markers)
+
+
+def _is_telegram_channel_access_error(exc: Exception) -> bool:
+    text = f"{type(exc).__name__}: {exc} {exc!r}".lower()
+    access_markers = (
+        "channelprivateerror",
+        "channelinvaliderror",
+        "chatadminrequirederror",
+        "usernotparticipanterror",
+        "not a participant",
+        "has not joined",
+        "channel specified is private",
+        "could not find the input entity",
+        "cannot find any entity",
+    )
+    return any(marker in text for marker in access_markers)
 
 
 def _poller_history_backoff_seconds(failures: int) -> float:
@@ -10823,6 +10863,56 @@ def _poller_clear_history_backoff(channel_name: str) -> None:
         journal.event(
             "bot",
             "poller_telegram_history_recovered",
+            channel=channel_name,
+            failures=failures,
+        )
+
+
+def _poller_access_backoff_seconds(failures: int) -> float:
+    exponent = max(0, failures - 1)
+    return min(
+        _POLLER_ACCESS_BACKOFF_MAX_S,
+        _POLLER_ACCESS_BACKOFF_BASE_S * (2 ** exponent),
+    )
+
+
+def _poller_in_access_backoff(channel_name: str) -> bool:
+    until = _poller_access_backoff_until.get(channel_name, 0.0)
+    return _poller_now_monotonic() < until
+
+
+def _poller_record_access_backoff(
+        channel_name: str, phase: str, exc: Exception) -> None:
+    failures = _poller_access_failures.get(channel_name, 0) + 1
+    cooldown_s = _poller_access_backoff_seconds(failures)
+    _poller_access_failures[channel_name] = failures
+    _poller_access_backoff_until[channel_name] = (
+        _poller_now_monotonic() + cooldown_s
+    )
+    error = str(exc)
+    print(
+        f"[Poller] Sin acceso a {channel_name}; "
+        f"nuevo intento en {cooldown_s:.0f}s: {error}"
+    )
+    journal.event(
+        "bot",
+        "poller_channel_access_backoff",
+        channel=channel_name,
+        phase=phase,
+        failures=failures,
+        cooldown_s=cooldown_s,
+        error=error,
+    )
+
+
+def _poller_clear_access_backoff(channel_name: str) -> None:
+    failures = _poller_access_failures.pop(channel_name, 0)
+    _poller_access_backoff_until.pop(channel_name, None)
+    if failures:
+        print(f"[Poller] Acceso recuperado para {channel_name}.")
+        journal.event(
+            "bot",
+            "poller_channel_access_recovered",
             channel=channel_name,
             failures=failures,
         )
@@ -11281,7 +11371,10 @@ async def _poller_initial_scan_channel(
     channel_id: int,
     channel_name: str,
 ) -> bool:
-    if _poller_in_history_backoff(channel_name):
+    if (
+        _poller_in_history_backoff(channel_name)
+        or _poller_in_access_backoff(channel_name)
+    ):
         return False
     history = _load_poller_startup_history(channel_name, channel_id)
     scan_started_utc = datetime.now(timezone.utc)
@@ -11301,7 +11394,11 @@ async def _poller_initial_scan_channel(
             history,
         )
         _poller_clear_history_backoff(channel_name)
+        _poller_clear_access_backoff(channel_name)
     except Exception as exc:
+        if _is_telegram_channel_access_error(exc):
+            _poller_record_access_backoff(channel_name, "initial_scan", exc)
+            return False
         if _is_transient_telegram_history_error(exc):
             _poller_record_history_backoff(channel_name, "initial_scan", exc)
             return False
@@ -11607,7 +11704,10 @@ async def _poll_channel(channel_id: int, channel_name: str):
     La dedup global (_new_msg_already_seen, _edit_already_seen) garantiza
     que si Telethon también dispara el mismo evento, se descarta sin trabajo.
     """
-    if _poller_in_history_backoff(channel_name):
+    if (
+        _poller_in_history_backoff(channel_name)
+        or _poller_in_access_backoff(channel_name)
+    ):
         return
 
     poll_started_utc = datetime.now(timezone.utc)
@@ -11622,7 +11722,11 @@ async def _poll_channel(channel_id: int, channel_name: str):
             list(initial_msgs),
         )
         _poller_clear_history_backoff(channel_name)
+        _poller_clear_access_backoff(channel_name)
     except Exception as e:
+        if _is_telegram_channel_access_error(e):
+            _poller_record_access_backoff(channel_name, "active_poll", e)
+            return
         if _is_transient_telegram_history_error(e):
             _poller_record_history_backoff(channel_name, "active_poll", e)
             return

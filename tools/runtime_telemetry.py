@@ -13,6 +13,7 @@ import gzip
 import hashlib
 import json
 import os
+import signal
 import shutil
 import subprocess
 import sys
@@ -40,6 +41,7 @@ DEFAULT_STREAM_NAMES = (
 DEFAULT_MAX_CHUNK_BYTES = 4 * 1024 * 1024
 DEFAULT_GIT_TIMEOUT_SEC = 30.0
 DEFAULT_PUBLISH_LOCK_STALE_SEC = 15 * 60.0
+PUBLICATION_STATUS_FILE_NAME = "publication_status.json"
 # The raw byte range is the chunk identity. Compressed size/hash are transport
 # details: Python 3.11 and 3.14 can emit different gzip headers for the same
 # payload, so those fields must not turn equivalent evidence into a conflict.
@@ -90,6 +92,81 @@ class PublishResult:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _as_process_text(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return str(value)
+
+
+def _process_group_kwargs() -> dict:
+    if os.name == "nt":
+        return {
+            "creationflags": getattr(
+                subprocess, "CREATE_NEW_PROCESS_GROUP", 0
+            )
+        }
+    return {"start_new_session": True}
+
+
+def terminate_process_tree(process, timeout_sec: float = 5.0) -> None:
+    """Stop a spawned command and every descendant it may have left alive."""
+    try:
+        if process.poll() is not None:
+            return
+    except (AttributeError, OSError):
+        pass
+
+    pid = getattr(process, "pid", None)
+    tree_signal_sent = False
+    if pid and os.name == "nt":
+        try:
+            subprocess.run(
+                ["taskkill", "/PID", str(int(pid)), "/T", "/F"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                timeout=max(1.0, float(timeout_sec)),
+            )
+            tree_signal_sent = True
+        except (OSError, subprocess.TimeoutExpired, ValueError):
+            pass
+    elif pid:
+        try:
+            os.killpg(os.getpgid(int(pid)), signal.SIGTERM)
+            tree_signal_sent = True
+        except (AttributeError, OSError, ProcessLookupError, ValueError):
+            pass
+
+    if not tree_signal_sent:
+        try:
+            process.terminate()
+        except (AttributeError, OSError):
+            pass
+
+    try:
+        process.wait(timeout=max(0.1, float(timeout_sec)))
+        return
+    except (AttributeError, OSError, subprocess.TimeoutExpired):
+        pass
+
+    if pid and os.name != "nt":
+        try:
+            os.killpg(os.getpgid(int(pid)), signal.SIGKILL)
+        except (AttributeError, OSError, ProcessLookupError, ValueError):
+            pass
+    else:
+        try:
+            process.kill()
+        except (AttributeError, OSError):
+            pass
+    try:
+        process.wait(timeout=max(0.1, float(timeout_sec)))
+    except (AttributeError, OSError, subprocess.TimeoutExpired):
+        pass
 
 
 def _sha256(payload: bytes) -> str:
@@ -744,22 +821,130 @@ def _run_git(
     timeout_sec: float = DEFAULT_GIT_TIMEOUT_SEC,
 ) -> subprocess.CompletedProcess:
     command = ["git", *args]
+    process = subprocess.Popen(
+        command,
+        cwd=Path(cwd),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        **_process_group_kwargs(),
+    )
     try:
-        return subprocess.run(
+        stdout, stderr = process.communicate(timeout=float(timeout_sec))
+        return subprocess.CompletedProcess(
             command,
-            cwd=Path(cwd),
-            text=True,
-            capture_output=True,
-            check=False,
-            timeout=float(timeout_sec),
+            int(process.returncode or 0),
+            stdout=_as_process_text(stdout),
+            stderr=_as_process_text(stderr),
         )
     except subprocess.TimeoutExpired as exc:
+        terminate_process_tree(process)
+        try:
+            stdout, stderr = process.communicate(timeout=1.0)
+        except (OSError, subprocess.TimeoutExpired):
+            stdout, stderr = exc.stdout, exc.stderr
+        stderr_text = _as_process_text(stderr or exc.stderr)
+        timeout_message = f"git {' '.join(args)} timed out"
         return subprocess.CompletedProcess(
             command,
             124,
-            stdout=exc.stdout or "",
-            stderr=f"git {' '.join(args)} timed out",
+            stdout=_as_process_text(stdout or exc.stdout),
+            stderr=(
+                f"{stderr_text.rstrip()}\n{timeout_message}".strip()
+                if stderr_text
+                else timeout_message
+            ),
         )
+
+
+def _publication_outbox_files(runtime_dir: Path) -> list[Path]:
+    outbox = Path(runtime_dir) / TELEMETRY_DIR_NAME / "outbox"
+    if not outbox.is_dir():
+        return []
+    return sorted(
+        path
+        for path in outbox.rglob("*")
+        if path.is_file()
+        and (
+            path.name.endswith(".gz")
+            or path.name.endswith(".manifest.json")
+        )
+    )
+
+
+def publication_health(
+    runtime_dir: Path,
+    *,
+    now: float | None = None,
+) -> dict:
+    """Describe locally safe telemetry that has not reached the remote yet."""
+    runtime_dir = Path(runtime_dir).resolve()
+    files = _publication_outbox_files(runtime_dir)
+    current_time = time.time() if now is None else float(now)
+    oldest_mtime = min(
+        (path.stat().st_mtime for path in files),
+        default=None,
+    )
+    status_path = (
+        runtime_dir / TELEMETRY_DIR_NAME / PUBLICATION_STATUS_FILE_NAME
+    )
+    status = {}
+    if status_path.is_file():
+        try:
+            status = json.loads(status_path.read_text(encoding="utf-8"))
+        except (OSError, TypeError, ValueError):
+            status = {}
+    return {
+        "pending_files": len(files),
+        "pending_chunks": sum(
+            path.name.endswith(".manifest.json") for path in files
+        ),
+        "oldest_pending_age_s": (
+            max(0.0, current_time - oldest_mtime)
+            if oldest_mtime is not None
+            else 0.0
+        ),
+        "latest_error": status.get("error"),
+        "last_attempt_at": status.get("attempted_at"),
+        "last_success_at": status.get("last_success_at"),
+    }
+
+
+def _record_publication_status(
+    runtime_dir: Path,
+    result: PublishResult,
+) -> None:
+    runtime_dir = Path(runtime_dir).resolve()
+    status_path = (
+        runtime_dir / TELEMETRY_DIR_NAME / PUBLICATION_STATUS_FILE_NAME
+    )
+    previous = {}
+    if status_path.is_file():
+        try:
+            previous = json.loads(status_path.read_text(encoding="utf-8"))
+        except (OSError, TypeError, ValueError):
+            previous = {}
+    attempted_at = _now_iso()
+    health = publication_health(runtime_dir)
+    payload = {
+        "schema_version": 1,
+        "attempted_at": attempted_at,
+        "ok": bool(result.ok),
+        "published_files": int(result.published_files),
+        "commit": result.commit,
+        "error": result.error,
+        "pending_files": health["pending_files"],
+        "pending_chunks": health["pending_chunks"],
+        "last_success_at": (
+            attempted_at if result.ok else previous.get("last_success_at")
+        ),
+    }
+    _atomic_write(
+        status_path,
+        (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode(
+            "utf-8"
+        ),
+    )
 
 
 def _git_output(
@@ -1060,13 +1245,15 @@ def publish_outbox(
     runtime_dir = Path(runtime_dir).resolve()
     lock = _acquire_publish_lock(runtime_dir)
     if lock is None:
-        return PublishResult(
+        result = PublishResult(
             False,
             0,
             error="telemetry publication is already running",
         )
+        _record_publication_status(runtime_dir, result)
+        return result
     try:
-        return _publish_outbox_locked(
+        result = _publish_outbox_locked(
             source_repo,
             runtime_dir,
             remote_url=remote_url,
@@ -1074,6 +1261,8 @@ def publish_outbox(
             branch=branch,
             timeout_sec=timeout_sec,
         )
+        _record_publication_status(runtime_dir, result)
+        return result
     finally:
         lock.unlink(missing_ok=True)
 

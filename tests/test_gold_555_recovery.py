@@ -159,6 +159,157 @@ def test_gold_555_runtime_hooks_restore_watch_and_start_tick_loop(
     assert loops == [main.gold_555_entry_watch_loop]
 
 
+def test_restart_restores_flat_gold_555_with_remaining_entry_window(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(minutes=20)
+    events_file = tmp_path / "trade_events.jsonl"
+    rows = [
+        {
+            "sig": "canal2_380",
+            "ev": "signal_received",
+            "channel": "canal2",
+            "direction": "BUY",
+            "tg_ts": (now - timedelta(minutes=10)).isoformat(),
+            "telegram_entry_command_key": "BUY GOLD NOW",
+            "entry_source_kind": "telegram_now",
+            "live_strategy_id": gold_555_live_candidate.CANDIDATE_ID,
+            "live_strategy_fingerprint": (
+                gold_555_live_candidate.CANDIDATE_FINGERPRINT
+            ),
+            "message_revision_id": "msgrev_origin",
+            "decision_id": "decision_origin",
+        },
+        {
+            "sig": "canal2_380",
+            "ev": "gold_555_first_leg_filled",
+            "strategy_id": gold_555_live_candidate.CANDIDATE_ID,
+            "strategy_fingerprint": (
+                gold_555_live_candidate.CANDIDATE_FINGERPRINT
+            ),
+            "ticket": 1771000001,
+            "fill_price": 4300.0,
+            "exact_sl": 4270.0,
+            "exact_tp": 4300.5,
+            "entry_levels": [4300.0, 4298.5, 4297.0, 4295.5, 4294.0],
+            "expires_at": expires_at.isoformat(),
+            "ts": (now - timedelta(minutes=9)).isoformat(),
+        },
+    ]
+    events_file.write_text(
+        "".join(json.dumps(row) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+    runtime_state = StateManager()
+    started = []
+    emitted = []
+    monkeypatch.setattr(state_module, "state", runtime_state)
+    monkeypatch.setattr(
+        position_lifecycle_monitor,
+        "start",
+        lambda signal, levels: started.append((signal, levels)),
+    )
+    monkeypatch.setattr(
+        main.journal,
+        "event",
+        lambda sig, ev, **fields: emitted.append((sig, ev, fields)),
+    )
+
+    restored = main._restore_flat_gold_555_entry_plans(
+        events_file,
+        now=now,
+    )
+
+    assert restored == 1
+    signal = runtime_state.get("canal2", 380)
+    assert signal is not None
+    assert signal.status == "open"
+    assert signal.market_ticket == 1771000001
+    assert signal.market_fill_price == 4300.0
+    assert signal.candidate_filled_leg_indexes == []
+    assert signal.candidate_entry_expires_at == expires_at.replace(tzinfo=None)
+    assert signal.candidate_entry_prices_by_ticket == {1771000001: 4300.0}
+    assert signal.candidate_hard_stops == {1771000001: 4270.0}
+    assert signal.tp_by_ticket == {1771000001: 4300.5}
+    assert signal.source_message_revision_id == "msgrev_origin"
+    assert signal.source_decision_id == "decision_origin"
+    assert started == [(signal, [4298.5, 4297.0, 4295.5, 4294.0])]
+    assert any(ev == "gold_555_flat_entry_plan_restored" for _, ev, _ in emitted)
+
+
+def test_restart_does_not_restore_expired_or_closed_flat_gold_555(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    now = datetime.now(timezone.utc)
+    events_file = tmp_path / "trade_events.jsonl"
+    rows = []
+    for message_id, terminal in ((380, False), (381, True)):
+        rows.extend([
+            {
+                "sig": f"canal2_{message_id}",
+                "ev": "signal_received",
+                "channel": "canal2",
+                "direction": "SELL",
+                "live_strategy_id": gold_555_live_candidate.CANDIDATE_ID,
+                "live_strategy_fingerprint": (
+                    gold_555_live_candidate.CANDIDATE_FINGERPRINT
+                ),
+            },
+            {
+                "sig": f"canal2_{message_id}",
+                "ev": "gold_555_first_leg_filled",
+                "strategy_id": gold_555_live_candidate.CANDIDATE_ID,
+                "strategy_fingerprint": (
+                    gold_555_live_candidate.CANDIDATE_FINGERPRINT
+                ),
+                "ticket": 1771000000 + message_id,
+                "fill_price": 4300.0,
+                "entry_levels": [4300.0, 4301.5, 4303.0, 4304.5, 4306.0],
+                "expires_at": (
+                    now + timedelta(minutes=20)
+                    if terminal else now - timedelta(seconds=1)
+                ).isoformat(),
+            },
+        ])
+        if terminal:
+            rows.append({
+                "sig": f"canal2_{message_id}",
+                "ev": "signal_closed",
+            })
+    events_file.write_text(
+        "".join(json.dumps(row) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+    runtime_state = StateManager()
+    monkeypatch.setattr(state_module, "state", runtime_state)
+
+    assert main._restore_flat_gold_555_entry_plans(
+        events_file,
+        now=now,
+    ) == 0
+    assert runtime_state.open_signals("canal2") == []
+
+
+def test_orphan_finalizer_recognizes_restored_flat_plan_as_active(
+    monkeypatch,
+) -> None:
+    runtime_state = StateManager()
+    runtime_state.add(Signal(
+        channel="canal2",
+        message_id=380,
+        direction="BUY",
+        status="open",
+        live_strategy_id=gold_555_live_candidate.CANDIDATE_ID,
+    ))
+    monkeypatch.setattr(state_module, "state", runtime_state)
+
+    assert main._runtime_signal_is_open("canal2_380") is True
+    assert main._runtime_signal_is_open("canal2_381") is False
+
+
 def test_generic_naked_watchdog_cannot_overwrite_gold_555_protection(
     monkeypatch,
 ) -> None:

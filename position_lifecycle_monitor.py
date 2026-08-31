@@ -843,6 +843,53 @@ def _auto_finalize_grace_elapsed(
     return (now - monitor_started_monotonic) >= grace_s
 
 
+def _gold_555_waiting_for_remaining_legs(
+    signal: Signal,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    """Keep an empty 555 basket alive while its adverse ladder can still fill."""
+    if (
+        signal.live_strategy_id != gold_555_live_candidate.CANDIDATE_ID
+        or signal.live_strategy_fingerprint
+        != gold_555_live_candidate.CANDIDATE_FINGERPRINT
+        or signal.requested_close_reason
+        or signal.basket_guard_triggered
+        or signal.candidate_entry_expires_at is None
+    ):
+        return False
+    plan_size = len(signal.candidate_entry_legs)
+    if plan_size <= 1:
+        return False
+    filled_size = 1 + len(_candidate_filled_indexes(signal))
+    if filled_size >= plan_size:
+        return False
+    observed_now = datetime.utcnow() if now is None else now
+    return observed_now <= signal.candidate_entry_expires_at
+
+
+def _should_auto_finalize_signal(
+    signal: Signal,
+    summary: dict,
+    *,
+    monitor_started_monotonic: float,
+    now_monotonic: float | None = None,
+    now: datetime | None = None,
+) -> bool:
+    """Decide whether a flat MT5 basket is definitively finished."""
+    if (
+        int(summary.get("n_open") or 0) != 0
+        or not summary.get("positions_complete", True)
+        or not signal.all_filled_tickets
+        or not _auto_finalize_grace_elapsed(
+            monitor_started_monotonic,
+            now_monotonic=now_monotonic,
+        )
+    ):
+        return False
+    return not _gold_555_waiting_for_remaining_legs(signal, now=now)
+
+
 def _signal_still_alive(signal: Signal) -> bool:
     """True si la señal sigue abierta y tiene posiciones que vigilar."""
     return signal.status == "open"
@@ -1198,7 +1245,12 @@ def _queue_gold_555_leg_protection(
     return exact_sl, exact_tp
 
 
-async def _apply_gold_555_trailing_stops(signal: Signal, tick) -> int:
+async def _apply_gold_555_trailing_stops(
+    signal: Signal,
+    tick,
+    *,
+    open_tickets: set[int] | None = None,
+) -> int:
     if signal.live_strategy_id != gold_555_live_candidate.CANDIDATE_ID:
         return 0
     if signal.requested_close_reason or signal.basket_guard_triggered:
@@ -1212,7 +1264,15 @@ async def _apply_gold_555_trailing_stops(signal: Signal, tick) -> int:
         tick.bid if signal.direction == "BUY" else tick.ask
     )
     tightened = 0
-    for ticket in signal.all_filled_tickets:
+    eligible_tickets = (
+        signal.all_filled_tickets
+        if open_tickets is None
+        else [
+            ticket for ticket in signal.all_filled_tickets
+            if int(ticket) in open_tickets
+        ]
+    )
+    for ticket in eligible_tickets:
         ticket = int(ticket)
         candidate = policy.trailing_stop(
             signal.direction,
@@ -2217,7 +2277,6 @@ async def run(signal: Signal, levels: list[float]):
         if gold_555_active:
             try:
                 await _process_candidate_entry_tick(signal, tick)
-                await _apply_gold_555_trailing_stops(signal, tick)
                 signal.candidate_entry_plan_error_alerted = False
             except Exception as exc:
                 if not signal.candidate_entry_plan_error_alerted:
@@ -2380,6 +2439,33 @@ async def run(signal: Signal, levels: list[float]):
                         pass
                 basket_guard_error_alerted = True
 
+        if gold_555_active and guard_summary is not None:
+            try:
+                await _apply_gold_555_trailing_stops(
+                    signal,
+                    tick,
+                    open_tickets={
+                        int(ticket)
+                        for ticket in guard_summary.get("open_tickets") or []
+                    },
+                )
+                signal.candidate_trailing_error_alerted = False
+            except Exception as exc:
+                if not signal.candidate_trailing_error_alerted:
+                    signal.candidate_trailing_error_alerted = True
+                    _journal_anomaly(
+                        f"{signal.channel}_{signal.message_id}",
+                        "mt5",
+                        "critical",
+                        "Gold 555 trailing decision blocked",
+                        exc_type=type(exc).__name__,
+                        exc_msg=str(exc)[:300],
+                        strategy_id=signal.live_strategy_id,
+                        strategy_fingerprint=(
+                            signal.live_strategy_fingerprint
+                        ),
+                    )
+
         # ── Track MFE/MAE + auto-finalize (throttled cada 5s) ──
         now_ts = datetime.utcnow().timestamp()
         if now_ts - last_extremes_ts >= EXTREMES_INTERVAL_S:
@@ -2441,13 +2527,10 @@ async def run(signal: Signal, levels: list[float]):
                                  avg_entry=round(summary["avg_entry"], 2)
                                      if summary.get("avg_entry") else None,
                                  elapsed_s=round((datetime.utcnow() - signal.timestamp).total_seconds(), 0))
-                elif (
-                    summary.get("positions_complete", True)
-                    and
-                    signal.all_filled_tickets
-                    and _auto_finalize_grace_elapsed(
-                        monitor_started_monotonic
-                    )
+                elif _should_auto_finalize_signal(
+                    signal,
+                    summary,
+                    monitor_started_monotonic=monitor_started_monotonic,
                 ):
                     # n_open == 0 pero hay tickets registrados → MT5 cerró todas
                     # las posiciones vía TP o SL sin que el canal mandara mensaje.

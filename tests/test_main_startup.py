@@ -74,6 +74,64 @@ def test_startup_status_message_does_not_infer_sync_from_clean_main():
     assert "Codigo: estado local sin verificar" in text
 
 
+@pytest.mark.asyncio
+async def test_telemetry_backlog_alert_is_edge_triggered_and_recovers(
+        monkeypatch):
+    health = {
+        "pending_files": 4,
+        "pending_chunks": 2,
+        "oldest_pending_age_s": 701.0,
+        "latest_error": "git push timed out",
+    }
+    notifications = []
+    events = []
+    monkeypatch.setattr(
+        main.runtime_telemetry,
+        "publication_health",
+        lambda *_args, **_kwargs: dict(health),
+    )
+
+    async def fake_notify(text):
+        notifications.append(text)
+        return True
+
+    monkeypatch.setattr(main, "notify", fake_notify)
+    monkeypatch.setattr(
+        main.journal,
+        "event",
+        lambda sig, ev, **fields: events.append((sig, ev, fields)),
+    )
+
+    alerted = await main._check_telemetry_publication_health(
+        False,
+        alert_after_s=600.0,
+    )
+    alerted = await main._check_telemetry_publication_health(
+        alerted,
+        alert_after_s=600.0,
+    )
+    health.update({
+        "pending_files": 0,
+        "pending_chunks": 0,
+        "oldest_pending_age_s": 0.0,
+        "latest_error": None,
+    })
+    alerted = await main._check_telemetry_publication_health(
+        alerted,
+        alert_after_s=600.0,
+    )
+
+    assert alerted is False
+    assert len(notifications) == 2
+    assert "REGISTRO REMOTO RETRASADO" in notifications[0]
+    assert "El bot sigue operando" in notifications[0]
+    assert "REGISTRO REMOTO RECUPERADO" in notifications[1]
+    assert [event for _, event, _ in events] == [
+        "telemetry_publication_stale_alerted",
+        "telemetry_publication_recovered",
+    ]
+
+
 def test_publish_live_strategy_contract_records_exact_runtime_policy(
         monkeypatch):
     events = []

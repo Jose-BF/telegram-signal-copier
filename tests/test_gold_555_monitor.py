@@ -77,6 +77,81 @@ def test_555_entry_plan_is_recognized_and_frozen() -> None:
     }
 
 
+def test_flat_555_waits_for_unfilled_legs_before_entry_expiry() -> None:
+    signal = _signal()
+    now = signal.candidate_entry_expires_at - timedelta(seconds=1)
+
+    assert monitor._should_auto_finalize_signal(
+        signal,
+        {
+            "positions_complete": True,
+            "n_open": 0,
+        },
+        monitor_started_monotonic=100.0,
+        now_monotonic=131.0,
+        now=now,
+    ) is False
+
+
+@pytest.mark.parametrize(
+    ("mutate", "now_offset_s"),
+    [
+        ("expired", 1),
+        ("all_legs_filled", -1),
+        ("provider_close", -1),
+    ],
+)
+def test_flat_555_finalizes_only_when_entry_plan_is_over(
+    mutate,
+    now_offset_s,
+) -> None:
+    signal = _signal()
+    if mutate == "all_legs_filled":
+        signal.candidate_filled_leg_indexes = [1, 2, 3, 4]
+    elif mutate == "provider_close":
+        signal.requested_close_reason = "PROVIDER_CLOSE"
+    now = signal.candidate_entry_expires_at + timedelta(seconds=now_offset_s)
+
+    assert monitor._should_auto_finalize_signal(
+        signal,
+        {
+            "positions_complete": True,
+            "n_open": 0,
+        },
+        monitor_started_monotonic=100.0,
+        now_monotonic=131.0,
+        now=now,
+    ) is True
+
+
+@pytest.mark.asyncio
+async def test_flat_555_can_fill_a_later_adverse_leg(monkeypatch) -> None:
+    signal = _signal()
+    fills = []
+
+    async def fake_open(sig, leg, observed_price):
+        fills.append((leg["index"], observed_price))
+        return 1001, 4298.4
+
+    monkeypatch.setattr(monitor, "_open_candidate_leg", fake_open)
+    monkeypatch.setattr(
+        monitor,
+        "_queue_gold_555_leg_protection",
+        lambda *args, **kwargs: (4268.4, 4299.4),
+    )
+
+    opened = await monitor._process_candidate_entry_tick(
+        signal,
+        SimpleNamespace(bid=4298.3, ask=4298.5, time_msc=123),
+        now=signal.candidate_entry_expires_at - timedelta(seconds=1),
+    )
+
+    assert opened == 1
+    assert fills == [(1, 4298.5)]
+    assert signal.status == "open"
+    assert signal.dca_tickets == [1001]
+
+
 @pytest.mark.asyncio
 async def test_delayed_leg_provisional_levels_use_current_executable_quote(
     monkeypatch,
@@ -247,6 +322,32 @@ async def test_trailing_stop_tightens_each_leg_without_loosening(monkeypatch) ->
         (1001, 4280.0),
     ]
     assert signal.candidate_hard_stops == {1000: 4280.0, 1001: 4280.0}
+
+
+@pytest.mark.asyncio
+async def test_trailing_only_targets_tickets_still_open_in_mt5(monkeypatch) -> None:
+    signal = _signal()
+    signal.dca_tickets = [1001]
+    signal.candidate_filled_leg_indexes = [1]
+    signal.candidate_entry_prices_by_ticket[1001] = 4298.5
+    signal.candidate_hard_stops[1001] = 4268.5
+    requests = []
+    monkeypatch.setattr(
+        monitor.pending_actions,
+        "enqueue_modify_sl",
+        lambda sig, ticket, price, **kwargs: requests.append(ticket),
+    )
+
+    tightened = await monitor._apply_gold_555_trailing_stops(
+        signal,
+        SimpleNamespace(bid=4310.0, ask=4310.2, time_msc=1),
+        open_tickets={1001},
+    )
+
+    assert tightened == 1
+    assert requests == [1001]
+    assert signal.candidate_hard_stops[1000] == 4270.0
+    assert signal.candidate_hard_stops[1001] == 4280.0
 
 
 def test_555_basket_guard_uses_its_own_profit_contract(monkeypatch) -> None:

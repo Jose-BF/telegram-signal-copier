@@ -240,6 +240,42 @@ def test_provider_close_during_confirmed_order_is_remembered(monkeypatch) -> Non
     )
 
 
+def test_pending_555_records_provider_levels_without_changing_entry(
+    monkeypatch,
+) -> None:
+    events = _patch_registration(monkeypatch)
+    record = listener._Gold555PendingEntry(
+        intent=_intent(),
+        watch=listener.gold_555_entry_watch.EntryWatch.new(
+            "BUY",
+            reference=4300.0,
+            observed_at=NOW,
+        ),
+    )
+    listener._gold_555_entry_watches[380] = record
+
+    handled = listener._handle_gold_555_pending_management(
+        380,
+        [{"action": "TP1_HIT", "confidence": 0.98}],
+        raw_text="TP1 4305\nSL 4290",
+        source_message_id=381,
+        tg_ts=NOW.isoformat(),
+    )
+
+    assert handled is True
+    assert record.watch.status == "waiting"
+    assert 380 in listener._gold_555_entry_watches
+    observed = next(
+        fields for _, event, fields in events
+        if event == "gold_555_pending_provider_context_observed"
+    )
+    assert observed["source_message_id"] == 381
+    assert observed["classified_actions"] == ["TP1_HIT"]
+    assert observed["provider_levels"]["tps"] == [4305.0]
+    assert observed["provider_levels"]["sl"] == 4290.0
+    assert observed["applied_to_live_entry"] is False
+
+
 @pytest.mark.asyncio
 async def test_reply_close_is_routed_to_waiting_watch(monkeypatch) -> None:
     events = _patch_registration(monkeypatch)

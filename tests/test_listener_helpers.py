@@ -621,6 +621,64 @@ class TestPollerTelegramBackoff:
             })
         ]
 
+    @pytest.mark.asyncio
+    async def test_inaccessible_channel_uses_long_isolated_backoff(
+            self, monkeypatch):
+        listener._poller_access_backoff_until.clear()
+        listener._poller_access_failures.clear()
+
+        class FakeClient:
+            def __init__(self):
+                self.calls = 0
+
+            async def get_messages(self, channel_id, limit):
+                self.calls += 1
+                raise RuntimeError(
+                    "ChannelPrivateError: The channel specified is private "
+                    "and you are not a participant"
+                )
+
+        fake_client = FakeClient()
+        events = []
+        monkeypatch.setattr(listener, "client", fake_client)
+        monkeypatch.setattr(
+            listener, "_poller_now_monotonic", lambda: 100.0,
+        )
+        monkeypatch.setattr(
+            listener.journal,
+            "event",
+            lambda sig, ev, **fields: events.append((sig, ev, fields)),
+        )
+
+        await listener._poll_channel(123, "canal1")
+        await listener._poll_channel(123, "canal1")
+
+        assert fake_client.calls == 1
+        assert events == [(
+            "bot",
+            "poller_channel_access_backoff",
+            {
+                "channel": "canal1",
+                "phase": "active_poll",
+                "failures": 1,
+                "cooldown_s": 300.0,
+                "error": (
+                    "ChannelPrivateError: The channel specified is private "
+                    "and you are not a participant"
+                ),
+            },
+        )]
+
+    @pytest.mark.parametrize("message", [
+        "ChannelPrivateError: channel is private",
+        "The user has not joined this channel",
+        "Could not find the input entity for PeerChannel",
+    ])
+    def test_channel_access_error_classifier(self, message):
+        assert listener._is_telegram_channel_access_error(
+            RuntimeError(message)
+        ) is True
+
 
 class TestPollerStartupCatchup:
     @staticmethod
@@ -639,6 +697,14 @@ class TestPollerStartupCatchup:
             listener._poller_dispatch_retry_state.clear()
         if hasattr(listener, "_poller_dispatch_retry_messages"):
             listener._poller_dispatch_retry_messages.clear()
+        if hasattr(listener, "_poller_history_backoff_until"):
+            listener._poller_history_backoff_until.clear()
+        if hasattr(listener, "_poller_history_failures"):
+            listener._poller_history_failures.clear()
+        if hasattr(listener, "_poller_access_backoff_until"):
+            listener._poller_access_backoff_until.clear()
+        if hasattr(listener, "_poller_access_failures"):
+            listener._poller_access_failures.clear()
 
     def test_unseen_message_during_downtime_is_dispatched_as_new(self):
         history = {

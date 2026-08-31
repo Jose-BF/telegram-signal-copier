@@ -62,6 +62,7 @@ import strategy_shadow_runtime
 from strategy_shadow_contracts import ShadowTick, canonical_hash
 from strategy_shadow_manifest import build_catalog_manifest
 from tools import capture_broker_money_contract as broker_contract
+from tools import runtime_telemetry
 from listener import (
     _is_transient_telegram_history_error,
     canal2_zone_touch_loop,
@@ -85,6 +86,12 @@ _last_broker_contract_error: str | None = None
 _broker_contract_ready: bool | None = None
 _shadow_money_contract_cache: dict | None = None
 _shadow_conversion_tick_cache: dict[tuple[str, int], list[dict]] = {}
+_TELEMETRY_PUBLICATION_MONITOR_S = float(os.getenv(
+    "BOT_TELEMETRY_PUBLICATION_MONITOR_S", "60"
+))
+_TELEMETRY_PUBLICATION_ALERT_AFTER_S = float(os.getenv(
+    "BOT_TELEMETRY_PUBLICATION_ALERT_AFTER_S", "600"
+))
 
 
 def _should_alert_sustained_disconnect(connected: bool,
@@ -2270,6 +2277,18 @@ def _fetch_orphan_deals_synced(
     return deals
 
 
+def _runtime_signal_is_open(signal_id: str) -> bool:
+    """Return whether startup recovery already owns this journal signal."""
+    from state import state as runtime_state
+
+    try:
+        channel, message_id = str(signal_id).rsplit("_", 1)
+        signal = runtime_state.get(channel, int(message_id))
+    except (TypeError, ValueError):
+        return False
+    return signal is not None and signal.status == "open"
+
+
 def _finalize_journal_orphans():
     """Finaliza señales HUERFANAS del journal usando el historial de MT5.
 
@@ -2323,9 +2342,16 @@ def _finalize_journal_orphans():
         return
 
     cutoff_iso = (datetime.utcnow() - timedelta(days=7)).isoformat()
-    orphans = {s: t for s, t in received.items()
-               if s not in closed and s and s.startswith("canal")
-               and t >= cutoff_iso}
+    orphans = {
+        s: t for s, t in received.items()
+        if (
+            s not in closed
+            and s
+            and s.startswith("canal")
+            and t >= cutoff_iso
+            and not _runtime_signal_is_open(s)
+        )
+    }
     if not orphans:
         print("[OrphanFinalizer] sin huerfanos recientes en el journal. OK.")
         return
@@ -3819,6 +3845,93 @@ async def _process_strategy_shadow_tick(runtime, observed: ShadowTick) -> bool:
     return True
 
 
+async def _check_telemetry_publication_health(
+    alert_active: bool,
+    *,
+    alert_after_s: float | None = None,
+) -> bool:
+    """Emit one human alert per sustained remote-publication interruption."""
+    threshold_s = float(
+        _TELEMETRY_PUBLICATION_ALERT_AFTER_S
+        if alert_after_s is None
+        else alert_after_s
+    )
+    health = await asyncio.to_thread(
+        runtime_telemetry.publication_health,
+        Path(journal.EVENTS_FILE).resolve().parent,
+    )
+    pending_files = int(health.get("pending_files") or 0)
+    pending_chunks = int(health.get("pending_chunks") or 0)
+    age_s = float(health.get("oldest_pending_age_s") or 0.0)
+    stale = pending_files > 0 and age_s >= max(0.0, threshold_s)
+
+    if stale and not alert_active:
+        minutes = max(1, int(age_s // 60))
+        latest_error = str(health.get("latest_error") or "").strip()
+        detail = (
+            f"\nMotivo registrado: {latest_error[:180]}"
+            if latest_error
+            else ""
+        )
+        delivered = await notify(
+            "REGISTRO REMOTO RETRASADO\n\n"
+            "El bot sigue operando y los logs continúan seguros en la VM.\n"
+            f"Hay {pending_chunks} fragmento(s) esperando desde hace "
+            f"{minutes} min.{detail}"
+        )
+        journal.event(
+            "bot",
+            "telemetry_publication_stale_alerted",
+            pending_files=pending_files,
+            pending_chunks=pending_chunks,
+            oldest_pending_age_s=round(age_s, 3),
+            latest_error=latest_error or None,
+            delivered=delivered is not False,
+        )
+        return True
+
+    if alert_active and pending_files == 0:
+        delivered = await notify(
+            "REGISTRO REMOTO RECUPERADO\n\n"
+            "Los logs pendientes ya se han publicado correctamente."
+        )
+        journal.event(
+            "bot",
+            "telemetry_publication_recovered",
+            delivered=delivered is not False,
+        )
+        return False
+
+    return alert_active
+
+
+async def _telemetry_publication_health_monitor(
+    interval_sec: float | None = None,
+) -> None:
+    interval = max(
+        15.0,
+        float(
+            _TELEMETRY_PUBLICATION_MONITOR_S
+            if interval_sec is None
+            else interval_sec
+        ),
+    )
+    alert_active = False
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            alert_active = await _check_telemetry_publication_health(
+                alert_active
+            )
+        except Exception as exc:
+            journal.event(
+                "bot",
+                "telemetry_publication_health_check_failed",
+                exception_type=type(exc).__name__,
+                error=str(exc)[:240],
+            )
+
+
 async def _strategy_shadow_loop(interval_s: float = 0.25) -> None:
     continuity_failures = 0
     archive_tail_waits = 0
@@ -3926,14 +4039,214 @@ async def _strategy_shadow_loop(interval_s: float = 0.25) -> None:
         await asyncio.sleep(max(0.01, float(interval_s)))
 
 
+def _restore_flat_gold_555_entry_plans(
+    path,
+    *,
+    now: datetime | None = None,
+) -> int:
+    """Restore filled 555 plans that are flat while later legs remain valid."""
+    import position_lifecycle_monitor
+    from state import Signal, state as runtime_state
+
+    source = Path(path)
+    if not source.is_file():
+        return 0
+
+    def parse_utc(value):
+        if not value:
+            return None
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            return None
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+        return parsed
+
+    records: dict[str, dict] = {}
+    terminal_events = {
+        "signal_closed",
+        "gold_555_entry_ladder_expired",
+        "gold_555_provider_close_during_open",
+        "gold_555_provider_close_requested",
+        "gold_555_provider_retraction_close_requested",
+    }
+    with source.open("r", encoding="utf-8", errors="replace") as handle:
+        for raw_line in handle:
+            try:
+                row = json.loads(raw_line)
+            except json.JSONDecodeError:
+                continue
+            signal_id = str(row.get("sig") or "")
+            if not signal_id.startswith("canal2_"):
+                continue
+            event = str(row.get("ev") or "")
+            record = records.setdefault(signal_id, {
+                "received": None,
+                "first_fill": None,
+                "delayed_fills": {},
+                "terminal": False,
+            })
+            if event == "signal_received" and (
+                row.get("live_strategy_id")
+                == gold_555_live_candidate.CANDIDATE_ID
+            ):
+                record["received"] = row
+            elif event == "gold_555_first_leg_filled" and (
+                row.get("strategy_id")
+                == gold_555_live_candidate.CANDIDATE_ID
+            ):
+                record["first_fill"] = row
+            elif event == "dca_filled" and (
+                row.get("strategy_id")
+                == gold_555_live_candidate.CANDIDATE_ID
+            ):
+                try:
+                    leg_index = int(row["candidate_leg_index"])
+                except (KeyError, TypeError, ValueError):
+                    continue
+                record["delayed_fills"][leg_index] = row
+            elif event in terminal_events:
+                record["terminal"] = True
+
+    observed_now = now or datetime.now(timezone.utc)
+    if observed_now.tzinfo is not None:
+        observed_now = observed_now.astimezone(timezone.utc).replace(tzinfo=None)
+    policy = gold_555_live_candidate.Gold555Policy()
+    restored = 0
+    for signal_id, record in records.items():
+        received = record["received"]
+        first = record["first_fill"]
+        if received is None or first is None or record["terminal"]:
+            continue
+        if first.get("strategy_fingerprint") != (
+            gold_555_live_candidate.CANDIDATE_FINGERPRINT
+        ):
+            continue
+        expires_at = parse_utc(first.get("expires_at"))
+        if expires_at is None or observed_now > expires_at:
+            continue
+        try:
+            message_id = int(signal_id.split("_", 1)[1])
+            direction = str(received["direction"]).upper()
+            first_ticket = int(first["ticket"])
+            anchor = float(first["fill_price"])
+            logged_levels = [float(value) for value in first["entry_levels"]]
+        except (KeyError, TypeError, ValueError):
+            continue
+        expected_levels = list(policy.entry_levels(direction, anchor))
+        if logged_levels != expected_levels:
+            journal.anomaly(
+                signal_id,
+                "levels",
+                "critical",
+                "Plan Gold 555 sin posiciones no restaurado: niveles mutados",
+                logged_levels=logged_levels,
+                expected_levels=expected_levels,
+            )
+            continue
+        delayed = record["delayed_fills"]
+        filled_indexes = sorted(delayed)
+        if filled_indexes and filled_indexes != list(
+            range(1, max(filled_indexes) + 1)
+        ):
+            continue
+        if 1 + len(filled_indexes) >= len(policy.entry_volumes):
+            continue
+        if runtime_state.get("canal2", message_id) is not None:
+            continue
+
+        timestamp = (
+            parse_utc(received.get("tg_ts"))
+            or parse_utc(received.get("ts"))
+            or parse_utc(first.get("ts"))
+            or observed_now
+        )
+        signal = Signal(
+            channel="canal2",
+            message_id=message_id,
+            direction=direction,
+            timestamp=timestamp,
+            market_ticket=first_ticket,
+            market_fill_price=anchor,
+            entry_mode="adverse_ladder",
+            live_strategy_id=gold_555_live_candidate.CANDIDATE_ID,
+            live_strategy_fingerprint=(
+                gold_555_live_candidate.CANDIDATE_FINGERPRINT
+            ),
+            candidate_entry_anchor=anchor,
+            candidate_first_fill_at=(
+                parse_utc(first.get("ts")) or timestamp
+            ),
+            candidate_entry_expires_at=expires_at,
+            candidate_entry_legs=[
+                {
+                    "index": index,
+                    "volume": policy.entry_volumes[index],
+                    "trigger_price": expected_levels[index],
+                    "target_step": policy.target_steps[index],
+                }
+                for index in range(len(expected_levels))
+            ],
+            candidate_filled_leg_indexes=filled_indexes,
+            source_message_revision_id=received.get("message_revision_id"),
+            source_decision_id=received.get("decision_id"),
+            telegram_entry_command_key=received.get(
+                "telegram_entry_command_key"
+            ),
+            telegram_entry_timestamp=parse_utc(received.get("tg_ts")),
+            entry_source_kind=received.get("entry_source_kind")
+            or "telegram_now",
+        )
+        signal.dca_tickets = [
+            int(delayed[index]["ticket"]) for index in filled_indexes
+        ]
+        fill_rows = {0: first, **delayed}
+        for index, row in fill_rows.items():
+            ticket = first_ticket if index == 0 else int(row["ticket"])
+            fill_price = float(row.get("fill_price") or anchor)
+            signal.candidate_entry_prices_by_ticket[ticket] = fill_price
+            stop = row.get("exact_sl") if index == 0 else row.get("sl")
+            target = row.get("exact_tp") if index == 0 else row.get("tp")
+            if stop is not None:
+                signal.candidate_hard_stops[ticket] = float(stop)
+                signal.sl_by_ticket[ticket] = float(stop)
+            if target is not None:
+                signal.tp_by_ticket[ticket] = float(target)
+        signal.candidate_provisional_sl = signal.candidate_hard_stops.get(
+            first_ticket
+        )
+        signal.basket_guard_known_tickets = list(signal.all_filled_tickets)
+        signal.dca_placed = True
+        runtime_state.add(signal)
+        missing_levels = expected_levels[1 + len(filled_indexes):]
+        position_lifecycle_monitor.start(signal, missing_levels)
+        journal.event(
+            signal_id,
+            "gold_555_flat_entry_plan_restored",
+            strategy_id=signal.live_strategy_id,
+            strategy_fingerprint=signal.live_strategy_fingerprint,
+            filled_tickets=list(signal.all_filled_tickets),
+            filled_leg_indexes=filled_indexes,
+            remaining_leg_indexes=list(
+                range(1 + len(filled_indexes), len(expected_levels))
+            ),
+            expires_at=expires_at.isoformat(timespec="milliseconds"),
+        )
+        restored += 1
+    return restored
+
+
 def _restore_live_candidate_runtime(path) -> int:
     if not config.STRATEGY_C2_GOLD_NOW_555_ENABLED:
         return 0
-    restored = restore_gold_555_entry_watches_from_journal(path)
+    restored_watches = restore_gold_555_entry_watches_from_journal(path)
+    restored_flat_plans = _restore_flat_gold_555_entry_plans(path)
     print(
-        f"[Resync] esperas de entrada Gold 555 recuperadas: {restored}"
+        f"[Resync] Gold 555 recuperado: esperas={restored_watches}, "
+        f"planes momentaneamente sin posicion={restored_flat_plans}"
     )
-    return restored
+    return restored_watches + restored_flat_plans
 
 
 def _candidate_background_loops() -> list:
@@ -4078,6 +4391,7 @@ async def main():
 
     asyncio.ensure_future(_runtime_heartbeat())
     asyncio.ensure_future(_heartbeat())
+    asyncio.ensure_future(_telemetry_publication_health_monitor())
     asyncio.ensure_future(_broker_money_contract_monitor())
     asyncio.ensure_future(_telegram_connection_monitor())
     asyncio.ensure_future(_mt5_connection_monitor())
