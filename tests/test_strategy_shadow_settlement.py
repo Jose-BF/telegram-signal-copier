@@ -559,7 +559,7 @@ def test_actual_ledger_exposes_structural_signature_without_claiming_match():
     assert actual[0]["source_commit"] == "a" * 40
 
 
-def test_no_position_ledger_can_certify_a_matching_cancelled_control():
+def test_no_position_ledger_requires_a_verified_no_entry_outcome():
     commit = "a" * 40
     registrations = []
     cancelled_control = None
@@ -605,10 +605,31 @@ def test_no_position_ledger_can_certify_a_matching_cancelled_control():
         "pnl_real_mt5": 0,
         "status": "no_position",
         "strategy_snapshot": None,
+        "bot_version": {"git_commit": commit[:8]},
         "positions": [],
         "reconciled_ok": None,
         "pnl_mt5_complete": True,
     }]
+
+    unverified = actual_rows_from_ledger(
+        ledger,
+        registrations,
+        since=BASE.date(),
+        until=BASE.date(),
+    )[0]
+
+    assert unverified["mt5_reconciled"] is False
+    assert unverified["reconciliation_basis"] == "unverified"
+
+    registrations.append({
+        "sig": "canal2_5000",
+        "ev": "gold_555_entry_watch_expired",
+        "strategy_id": control_policy.candidate_id,
+        "strategy_fingerprint": control_policy.strategy_fingerprint,
+        "outcome": "unfilled",
+        "ts": (BASE + timedelta(minutes=30)).isoformat(),
+        "code_commit": commit,
+    })
 
     actual = actual_rows_from_ledger(
         ledger,
@@ -622,8 +643,8 @@ def test_no_position_ledger_can_certify_a_matching_cancelled_control():
     )
 
     assert actual["mt5_reconciled"] is True
-    assert actual["reconciliation_basis"] == "no_position_zero_exposure"
-    assert actual["source_commit"] == commit
+    assert actual["reconciliation_basis"] == "verified_no_entry_outcome"
+    assert actual["source_commit"] == commit[:8]
     assert comparison["match"] is True
 
 

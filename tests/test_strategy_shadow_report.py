@@ -15,10 +15,22 @@ def _complete_rows(*, signals_per_channel: int = 15):
     actual_rows = []
     base = datetime(2026, 8, 27, 8, 0, tzinfo=timezone.utc)
     for channel in ("canal1", "canal2"):
+        control = next(
+            policy for policy in catalog[channel]
+            if policy.role == "live_control"
+        )
         for index in range(signals_per_channel):
             signal_id = f"{channel}_{1000 + index}"
             registered = base + timedelta(minutes=index)
             outcome = registered + timedelta(minutes=30)
+            control_signature = {
+                "schema_version": 2,
+                "strategy_id": control.candidate_id,
+                "strategy_fingerprint": control.strategy_fingerprint,
+                "direction": "BUY",
+                "status": "closed",
+                "positions": [],
+            }
             actual_rows.append(
                 {
                     "channel": channel,
@@ -27,7 +39,7 @@ def _complete_rows(*, signals_per_channel: int = 15):
                     "entry_count": 3,
                     "exit_reason": "provider_close",
                     "net_eur": 1.0,
-                    "control_mirror_match": True,
+                    "logic_signature": dict(control_signature),
                     "telegram_lineage_complete": True,
                     "mt5_reconciled": True,
                     "source_commit": source_commit,
@@ -55,6 +67,17 @@ def _complete_rows(*, signals_per_channel: int = 15):
                         "mae_eur": float(-(rank + 1)),
                         "complete": True,
                         "evidence_blockers": [],
+                        "logic_signature": (
+                            dict(control_signature)
+                            if policy.role == "live_control"
+                            else {
+                                **control_signature,
+                                "strategy_id": policy.candidate_id,
+                                "strategy_fingerprint": (
+                                    policy.strategy_fingerprint
+                                ),
+                            }
+                        ),
                         "control_prediction": {
                             "entry_price_error": 0.2,
                             "entry_time_error_ms": 40,
@@ -285,7 +308,7 @@ def test_report_computes_control_parity_from_structural_signatures():
         for row in candidate_rows
     }
     for actual in actual_rows:
-        actual.pop("control_mirror_match")
+        actual.pop("control_mirror_match", None)
         signature = {
             "schema_version": 1,
             "strategy_id": controls[actual["channel"]],
@@ -316,7 +339,8 @@ def test_report_computes_control_parity_from_structural_signatures():
 
 def test_missing_structural_signature_is_unverified_not_silently_mismatched():
     candidate_rows, actual_rows = _complete_rows(signals_per_channel=1)
-    actual_rows[0].pop("control_mirror_match")
+    actual_rows[0].pop("control_mirror_match", None)
+    actual_rows[0].pop("logic_signature")
 
     report = build_report(candidate_rows, actual_rows)
 
@@ -333,6 +357,20 @@ def test_malformed_explicit_mirror_value_is_treated_as_unverified():
     assert "control_mirror_unverified" in report["blockers"]
 
 
+def test_legacy_true_mirror_cannot_override_contradictory_signatures():
+    candidate_rows, actual_rows = _complete_rows()
+    actual_rows[0]["control_mirror_match"] = True
+    actual_rows[0]["logic_signature"] = {
+        **actual_rows[0]["logic_signature"],
+        "status": "cancelled",
+    }
+
+    report = build_report(candidate_rows, actual_rows)
+
+    assert report["ranking_allowed"] is False
+    assert "control_mirror_mismatch" in report["blockers"]
+
+
 def test_source_commit_mismatch_blocks_adoption_but_not_shadow_comparison():
     candidate_rows, actual_rows = _complete_rows()
     target = actual_rows[0]
@@ -343,6 +381,18 @@ def test_source_commit_mismatch_blocks_adoption_but_not_shadow_comparison():
             and row["role"] == "live_control"
         ):
             row["source_commit"] = "b" * 40
+
+    report = build_report(candidate_rows, actual_rows)
+
+    assert report["comparison_allowed"] is True
+    assert report["ranking_allowed"] is False
+    assert "source_commit_mismatch" in report["blockers"]
+
+
+def test_non_control_candidate_commit_mismatch_blocks_ranking():
+    candidate_rows, actual_rows = _complete_rows()
+    target = next(row for row in candidate_rows if row["role"] != "live_control")
+    target["source_commit"] = "b" * 40
 
     report = build_report(candidate_rows, actual_rows)
 
@@ -422,6 +472,17 @@ def test_incomplete_candidate_is_never_presented_as_zero_profit():
 def test_report_uses_the_prospectively_recorded_control_identity():
     candidate_rows, actual_rows = _complete_rows()
     target_signal = "canal2_1000"
+    c490 = next(
+        policy for policy in build_shadow_catalog()["canal2"]
+        if policy.candidate_id == "gold_now_c490_v1"
+    )
+    for actual in actual_rows:
+        if actual["channel"] == "canal2":
+            actual["logic_signature"] = {
+                **actual["logic_signature"],
+                "strategy_id": c490.candidate_id,
+                "strategy_fingerprint": c490.strategy_fingerprint,
+            }
     for row in candidate_rows:
         if row["channel"] != "canal2":
             continue

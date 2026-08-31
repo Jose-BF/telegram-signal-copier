@@ -141,6 +141,15 @@ def parse_provider_summary(
         )
         if not arithmetic_consistent:
             blockers.add("summary_arithmetic_inconsistent")
+    if (
+        win_rate is not None
+        and signals_sent is not None
+        and wins is not None
+        and int(signals_sent) > 0
+    ):
+        expected_win_rate = (float(wins) / float(signals_sent)) * 100.0
+        if abs(float(win_rate) - expected_win_rate) > 0.05:
+            blockers.add("summary_win_rate_inconsistent")
     partial = bool(re.search(r"\bso\s+far\b|\bwant\s+more\b", normalized, re.I))
     if partial:
         blockers.add("summary_marked_partial")
@@ -253,14 +262,25 @@ def build_scorecard(catalog: Mapping[str, Any]) -> dict[str, Any]:
             if claim["period_end"]
             else None
         )
-        linked = sorted(
-            str(record.get("provider_signal_id") or "")
-            for record, signal_day in formal_dates
+        linked_records = [
+            formal_record
+            for formal_record, signal_day in formal_dates
             if start is not None
             and end is not None
             and signal_day is not None
             and start <= signal_day <= end
-        )
+        ]
+        linked_id_values = [
+            str(formal_record.get("provider_signal_id") or "")
+            for formal_record in linked_records
+        ]
+        linked = sorted({value for value in linked_id_values if value})
+        duplicate_ids = sorted({
+            value
+            for value in linked_id_values
+            if value and linked_id_values.count(value) > 1
+        })
+        missing_identity = any(not value for value in linked_id_values)
         claimed_count = claim.get("signals_sent")
         signal_count_delta = (
             None
@@ -277,6 +297,17 @@ def build_scorecard(catalog: Mapping[str, Any]) -> dict[str, Any]:
                 "calibration_ready": False,
                 "blockers": claim_blockers,
             }
+        identity_blockers = set(claim.get("blockers") or ())
+        if duplicate_ids:
+            identity_blockers.add("provider_signal_identity_duplicate")
+        if missing_identity:
+            identity_blockers.add("provider_signal_identity_missing")
+        if identity_blockers != set(claim.get("blockers") or ()):
+            claim = {
+                **claim,
+                "calibration_ready": False,
+                "blockers": sorted(identity_blockers),
+            }
         summaries.append({
             "provider_signal_id": str(record.get("provider_signal_id") or ""),
             "revision_count": revision_count,
@@ -284,6 +315,7 @@ def build_scorecard(catalog: Mapping[str, Any]) -> dict[str, Any]:
             "claim": claim,
             "observed_formal_signals": len(linked),
             "observed_signal_ids": linked,
+            "duplicate_signal_ids": duplicate_ids,
             "signal_count_delta": signal_count_delta,
             "diagnostic_ready": bool(start is not None and end is not None),
         })

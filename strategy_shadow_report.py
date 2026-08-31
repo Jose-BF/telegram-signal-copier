@@ -70,6 +70,27 @@ def _is_non_negative_count(value: object) -> bool:
     return normalized >= 0 and normalized == value
 
 
+def _normalized_commit(value: object) -> str:
+    commit = str(value or "").strip().lower()
+    if len(commit) < 7 or any(
+        char not in "0123456789abcdef" for char in commit
+    ):
+        return ""
+    return commit
+
+
+def _commits_match(left: object, right: object) -> bool:
+    left_commit = _normalized_commit(left)
+    right_commit = _normalized_commit(right)
+    if not left_commit or not right_commit:
+        return False
+    return (
+        left_commit == right_commit
+        or left_commit.startswith(right_commit)
+        or right_commit.startswith(left_commit)
+    )
+
+
 def _parse_time(value: object) -> datetime | None:
     if not value:
         return None
@@ -332,14 +353,22 @@ def build_report(
             continue
         actual_commit = str(actual.get("source_commit") or "")
         shadow_commit = str(control_rows[0].get("source_commit") or "")
-        if not actual_commit or not shadow_commit:
+        if not _normalized_commit(actual_commit) or not _normalized_commit(
+            shadow_commit
+        ):
             blockers.add("source_commit_unverified")
             signal_blockers[signal_key].add("source_commit_unverified")
-        elif actual_commit != shadow_commit:
+        elif not _commits_match(actual_commit, shadow_commit):
             blockers.add("source_commit_mismatch")
             signal_blockers[signal_key].add("source_commit_mismatch")
         explicit_mirror = actual.get("control_mirror_match")
-        if explicit_mirror is True or explicit_mirror is False:
+        if (
+            "control_mirror_match" in actual
+            and explicit_mirror is not True
+            and explicit_mirror is not False
+        ):
+            blockers.add("control_mirror_unverified")
+            signal_blockers[signal_key].add("control_mirror_unverified")
             continue
         actual_signature = actual.get("logic_signature")
         shadow_signature = control_rows[0].get("logic_signature")
@@ -353,10 +382,34 @@ def build_report(
             actual_signature, shadow_signature
         )
         actual["_control_parity"] = parity
-        actual["control_mirror_match"] = parity["match"]
-        if not parity["match"]:
+        actual["control_mirror_match"] = bool(
+            parity["match"] and explicit_mirror is not False
+        )
+        if not actual["control_mirror_match"]:
             blockers.add("control_mirror_mismatch")
             signal_blockers[signal_key].add("control_mirror_mismatch")
+
+    for signal_key in set(actual_by_key) | candidate_signal_keys:
+        control_rows = [
+            row
+            for (channel, signal_id, _candidate_id), row
+            in candidate_by_key.items()
+            if (channel, signal_id) == signal_key
+            and row.get("role") == "live_control"
+        ]
+        if len(control_rows) != 1:
+            continue
+        control_commit = control_rows[0].get("source_commit")
+        for (channel, signal_id, _candidate_id), row in candidate_by_key.items():
+            if (channel, signal_id) != signal_key:
+                continue
+            candidate_commit = row.get("source_commit")
+            if not _normalized_commit(candidate_commit):
+                blockers.add("source_commit_unverified")
+                signal_blockers[signal_key].add("source_commit_unverified")
+            elif not _commits_match(control_commit, candidate_commit):
+                blockers.add("source_commit_mismatch")
+                signal_blockers[signal_key].add("source_commit_mismatch")
 
     channel_counts = {
         channel: sum(1 for key in actual_by_key if key[0] == channel)

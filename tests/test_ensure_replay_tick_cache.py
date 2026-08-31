@@ -1153,6 +1153,35 @@ def test_systemic_anchor_price_mismatch_invalidates_contract():
     assert "fill_price_contract_inconsistent" in result["errors"]
 
 
+def test_five_correlated_legs_are_one_independent_price_sample():
+    base = datetime(2026, 7, 13, 8, 0, tzinfo=timezone.utc)
+    anchors = [
+        ensure_replay_tick_cache.FillAnchor(
+            signal_id="canal2_one_basket",
+            ticket=300 + index,
+            time_utc=base,
+            price=4059.72,
+            quote_side="ask",
+        )
+        for index in range(5)
+    ]
+    ticks = pd.DataFrame([{
+        "time_utc": pd.Timestamp(base),
+        "time_msc": int(base.timestamp() * 1000),
+        "bid": 4059.37,
+        "ask": 4059.61,
+    }])
+
+    result = ensure_replay_tick_cache.validate_cached_day_anchors(
+        ticks,
+        anchors,
+    )
+
+    assert result["valid"] is True
+    assert result["independent_price_samples"] == 1
+    assert result["independent_price_matches"] == 0
+
+
 def test_extract_fill_anchors_uses_direction_quote_side():
     trades = [{
         "sig_id": "canal2_1",

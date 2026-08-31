@@ -444,3 +444,23 @@ def test_logic_parity_rejects_wrong_relative_stop_level():
         "positions[0].protection" in item
         for item in comparison["differences"]
     )
+
+
+def test_logic_parity_detects_levels_removed_after_prior_confirmation():
+    policy, state = _structural_gold_state()
+    source = _structural_gold_ledger_source()
+    source["positions"][0]["tp_history"].append(
+        {"status": "snapshot", "tp": 0.0}
+    )
+    source["positions"][0]["sl_history"].append(
+        {"status": "snapshot", "sl": 0.0}
+    )
+
+    comparison = compare_logic_signatures(
+        actual_logic_signature(source, policy)[0],
+        shadow_logic_signature(state, policy),
+    )
+
+    assert comparison["match"] is False
+    assert "positions[0].target" in comparison["differences"]
+    assert "positions[0].protection" in comparison["differences"]

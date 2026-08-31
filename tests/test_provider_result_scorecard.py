@@ -99,3 +99,43 @@ def test_inconsistent_claim_remains_blocked():
     assert claim["arithmetic_consistent"] is False
     assert claim["calibration_ready"] is False
     assert "summary_arithmetic_inconsistent" in claim["blockers"]
+
+
+def test_claimed_win_rate_must_match_wins_over_signals():
+    claim = parse_provider_summary(
+        "Weekly Summary\n10/08/26 - 14/08/26\n"
+        "2 Signals Sent\n2 Wins\n0 Loss\nPips gained +200\n"
+        "Win rate 10%",
+        observed_at_utc="2026-08-14T19:00:00+00:00",
+    )
+
+    assert claim["calibration_ready"] is False
+    assert "summary_win_rate_inconsistent" in claim["blockers"]
+
+
+def test_duplicate_formal_signal_identity_blocks_scorecard_calibration():
+    summary = {
+        "provider_signal_id": "canal2_summary",
+        "channel": "canal2",
+        "record_type": "daily_summary",
+        "first_observed_utc": "2026-08-03T19:40:09+00:00",
+        "revisions": [{
+            "telegram_ts_utc": "2026-08-03T19:40:07+00:00",
+            "text": "Monday Summary\n1 Signal Sent\n1 Win\n"
+            "0 Loss\nPips gained +100\nWin rate 100%",
+        }],
+    }
+    duplicate = {
+        "provider_signal_id": "canal2_trade_1",
+        "channel": "canal2",
+        "record_type": "formal_signal",
+        "first_observed_utc": "2026-08-03T10:00:00+00:00",
+    }
+
+    row = build_scorecard({
+        "signals": [summary, duplicate, dict(duplicate)],
+    })["summaries"][0]
+
+    assert row["observed_formal_signals"] == 1
+    assert row["claim"]["calibration_ready"] is False
+    assert "provider_signal_identity_duplicate" in row["claim"]["blockers"]

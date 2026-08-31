@@ -94,7 +94,7 @@ def _latest_confirmed_level(
         if str(item.get("status") or "") not in {"confirmed", "snapshot"}:
             continue
         value = _finite(item.get(field))
-        if value is not None and value > 0.0:
+        if value is not None:
             observed = value
     return observed
 

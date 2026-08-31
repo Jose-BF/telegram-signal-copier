@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from tools.runtime_log_health import inspect_runtime_log
 
 
@@ -24,3 +26,18 @@ def test_runtime_log_health_reports_missing_file_without_creating_it(tmp_path):
     assert health["warning"] is None
     assert health["action"] == "none"
     assert path.exists() is False
+
+
+def test_runtime_log_health_access_error_is_informational(monkeypatch, tmp_path):
+    path = tmp_path / "bot_runtime.log"
+
+    def denied(_path):
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(Path, "is_file", denied)
+
+    health = inspect_runtime_log(path, warn_bytes=10)
+
+    assert health["warning"] == "runtime_log_inspection_failed"
+    assert health["action"] == "none"
+    assert health["error"] == "PermissionError: denied"

@@ -2078,3 +2078,8 @@ def test_paths_changed_between_ignores_unrelated_files(monkeypatch):
 
 def test_runtime_log_health_change_requires_watcher_self_update():
     assert "tools/runtime_log_health.py" in watch.WATCHER_SELF_UPDATE_PATHS
+
+
+def test_invalid_runtime_log_threshold_falls_back_without_crashing():
+    assert watch._runtime_log_warn_bytes("not-a-number") == 512 * 1024 * 1024
+    assert watch._runtime_log_warn_bytes("-1") == 512 * 1024 * 1024

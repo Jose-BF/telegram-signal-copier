@@ -33,6 +33,10 @@ _MATERIAL_PROVIDER_TRANSITIONS = {
     "provider_close_pending",
     "provider_protection_applied",
 }
+_VERIFIED_NO_ENTRY_EVENTS = {
+    "gold_555_entry_watch_expired",
+    "gold_555_entry_watch_cancelled",
+}
 
 
 @dataclass(frozen=True)
@@ -1292,6 +1296,31 @@ def actual_rows_from_ledger(
         for policy in policies
     }
 
+    def verified_no_entry_outcome(
+        signal_id: str,
+        strategy_id: str,
+    ) -> bool:
+        for record in source_records:
+            if (
+                str(record.get("sig") or "") != signal_id
+                or str(record.get("ev") or "") not in _VERIFIED_NO_ENTRY_EVENTS
+                or str(record.get("strategy_id") or "") != strategy_id
+            ):
+                continue
+            event_name = str(record.get("ev") or "")
+            if (
+                event_name == "gold_555_entry_watch_expired"
+                and str(record.get("outcome") or "") == "unfilled"
+            ):
+                return True
+            if (
+                event_name == "gold_555_entry_watch_cancelled"
+                and str(record.get("reason") or "")
+                == "provider_close_before_fill"
+            ):
+                return True
+        return False
+
     actual: list[dict[str, Any]] = []
     for source in ledger_rows:
         signal_id = str(source.get("sig_id") or source.get("signal_id") or "")
@@ -1344,6 +1373,14 @@ def actual_rows_from_ledger(
             else None
         )
         strategy_snapshot = source.get("strategy_snapshot")
+        bot_version = source.get("bot_version")
+        independent_commit = (
+            str(strategy_snapshot.get("code_commit") or "")
+            if isinstance(strategy_snapshot, Mapping)
+            else ""
+        )
+        if not independent_commit and isinstance(bot_version, Mapping):
+            independent_commit = str(bot_version.get("git_commit") or "")
         strategy_id = (
             str(strategy_snapshot.get("live_strategy_id") or "")
             if isinstance(strategy_snapshot, Mapping)
@@ -1357,26 +1394,40 @@ def actual_rows_from_ledger(
             logic_blockers = ["actual_strategy_identity_unknown"]
         else:
             signature_source = dict(source)
-            if not isinstance(strategy_snapshot, Mapping):
-                strategy_snapshot = {
-                    "live_strategy_id": live_control_state.candidate_id,
-                    "live_strategy_fingerprint": (
-                        live_control_state.strategy_fingerprint
-                    ),
-                    "code_commit": live_control_record.get("code_commit"),
-                }
-                signature_source["strategy_snapshot"] = strategy_snapshot
+            strategy_snapshot = (
+                dict(strategy_snapshot)
+                if isinstance(strategy_snapshot, Mapping)
+                else {}
+            )
+            if (
+                not strategy_snapshot.get("live_strategy_id")
+                and live_control_state is not None
+            ):
+                strategy_snapshot["live_strategy_id"] = (
+                    live_control_state.candidate_id
+                )
+            if (
+                not strategy_snapshot.get("live_strategy_fingerprint")
+                and live_control_state is not None
+            ):
+                strategy_snapshot["live_strategy_fingerprint"] = (
+                    live_control_state.strategy_fingerprint
+                )
+            if independent_commit:
+                strategy_snapshot["code_commit"] = independent_commit
+            signature_source["strategy_snapshot"] = strategy_snapshot
             logic_signature, raw_logic_blockers = actual_logic_signature(
                 signature_source, policy
             )
             logic_blockers = list(raw_logic_blockers)
         entry_count = int(source.get("n_positions") or len(positions))
-        no_position_zero_exposure = bool(
+        verified_no_position = bool(
             str(source.get("status") or "").strip().lower() == "no_position"
             and entry_count == 0
             and not positions
             and net_eur == 0.0
             and source.get("pnl_mt5_complete") is True
+            and verified_no_entry_outcome(signal_id, strategy_id)
         )
         standard_reconciliation = bool(
             source.get("reconciled_ok") is True
@@ -1394,20 +1445,16 @@ def actual_rows_from_ledger(
             "net_eur": net_eur,
             "logic_signature": logic_signature,
             "logic_signature_blockers": logic_blockers,
-            "source_commit": (
-                strategy_snapshot.get("code_commit")
-                if isinstance(strategy_snapshot, Mapping)
-                else None
-            ),
+            "source_commit": independent_commit or None,
             "telegram_lineage_complete": bool(lineage_complete),
             "mt5_reconciled": bool(
-                standard_reconciliation or no_position_zero_exposure
+                standard_reconciliation or verified_no_position
             ),
             "reconciliation_basis": (
                 "mt5_deal_reconciliation"
                 if standard_reconciliation
-                else "no_position_zero_exposure"
-                if no_position_zero_exposure
+                else "verified_no_entry_outcome"
+                if verified_no_position
                 else "unverified"
             ),
         }

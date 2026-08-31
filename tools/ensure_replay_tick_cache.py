@@ -131,6 +131,9 @@ def validate_cached_day_anchors(
         "max_time_delta_ms": None,
         "max_price_delta": None,
         "price_match_ratio": None,
+        "independent_price_samples": 0,
+        "independent_price_matches": 0,
+        "independent_price_match_ratio": None,
         "errors": [],
         "warnings": [],
         "failed_anchors": [],
@@ -167,6 +170,7 @@ def validate_cached_day_anchors(
     observed_price_deltas: list[float] = []
     failed_anchors: list[dict] = []
     price_deviations: list[dict] = []
+    signal_price_matches: dict[str, bool] = {}
     for anchor in anchors:
         if anchor.quote_side not in frame.columns:
             failed_anchors.append({
@@ -213,6 +217,10 @@ def validate_cached_day_anchors(
         best_price_delta = float(price_deltas.loc[best_index])
         best_time_delta = int(round(float(deltas_ms.loc[best_index])))
         observed_price_deltas.append(best_price_delta)
+        signal_price_matches[anchor.signal_id] = bool(
+            signal_price_matches.get(anchor.signal_id, True)
+            and best_price_delta <= max_price_delta
+        )
         if best_price_delta > max_price_delta:
             nearest_tick_price_delta = abs(float(
                 frame.loc[nearest_time_index, anchor.quote_side]
@@ -249,14 +257,23 @@ def validate_cached_day_anchors(
             result["price_anchors_matched"] / result["anchors_matched"],
             6,
         )
+    result["independent_price_samples"] = len(signal_price_matches)
+    result["independent_price_matches"] = sum(signal_price_matches.values())
+    if signal_price_matches:
+        result["independent_price_match_ratio"] = round(
+            result["independent_price_matches"]
+            / result["independent_price_samples"],
+            6,
+        )
     catastrophic_price_deviation = any(
         float(item["best_price_delta_within_window"])
         > MAX_EXECUTION_PRICE_DEVIATION_XAU
         for item in price_deviations
     )
     systemic_price_mismatch = bool(
-        result["anchors_matched"] >= MIN_PRICE_MATCH_SAMPLE
-        and (result["price_match_ratio"] or 0.0) < MIN_PRICE_MATCH_RATIO
+        result["independent_price_samples"] >= MIN_PRICE_MATCH_SAMPLE
+        and (result["independent_price_match_ratio"] or 0.0)
+        < MIN_PRICE_MATCH_RATIO
     )
     if catastrophic_price_deviation or systemic_price_mismatch:
         result["valid"] = False
@@ -898,6 +915,9 @@ def write_day_contract(
     optional_validation_fields = (
         "price_anchors_matched",
         "price_match_ratio",
+        "independent_price_samples",
+        "independent_price_matches",
+        "independent_price_match_ratio",
         "warnings",
         "failed_anchors",
         "price_deviations",

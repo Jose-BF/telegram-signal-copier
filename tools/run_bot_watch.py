@@ -114,7 +114,18 @@ RUNTIME_UPDATE_PENDING_FILE = Path(os.getenv(
     str(RUNTIME_DATA_DIR / "runtime_update_pending.json"),
 ))
 BOT_RUNTIME_LOG_FILE = RUNTIME_DATA_DIR / "bot_runtime.log"
-BOT_RUNTIME_LOG_WARN_BYTES = int(os.getenv(
+
+
+def _runtime_log_warn_bytes(value: object) -> int:
+    default = 512 * 1024 * 1024
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed > 0 else default
+
+
+BOT_RUNTIME_LOG_WARN_BYTES = _runtime_log_warn_bytes(os.getenv(
     "BOT_RUNTIME_LOG_WARN_BYTES", str(512 * 1024 * 1024),
 ))
 POLL_SEC = 60   # cada cuánto comprobar commits nuevos
@@ -2202,6 +2213,12 @@ def _run_main() -> int:
         print(
             f"[Watch] Log consola append-only: {size_mib:.1f} MiB; "
             f"sin rotacion automatica.{suffix}",
+            flush=True,
+        )
+    elif log_health["warning"]:
+        print(
+            "[Watch] AVISO: no se pudo consultar el tamano del log; "
+            "el bot continua sin modificarlo.",
             flush=True,
         )
     proc = _spawn_bot_with_active_channels()
