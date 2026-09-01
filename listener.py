@@ -106,6 +106,12 @@ class _Canal2EntryIntent:
     zone_plan_message_id: int | None = None
     zone_thread_root_message_id: int | None = None
     zone_entry_generation: int = 0
+    source_message_revision_id: str | None = field(
+        default_factory=causal_trace.current_message_revision_id
+    )
+    source_decision_id: str | None = field(
+        default_factory=causal_trace.current_decision_id
+    )
 
 
 @dataclass
@@ -7568,10 +7574,17 @@ def _gold_555_intent_payload(intent: _Canal2EntryIntent) -> dict:
         "max_tp_index": intent.max_tp_index,
         "command_key": intent.command_key,
         "is_high_risk": bool(intent.is_high_risk),
+        "source_message_revision_id": intent.source_message_revision_id,
+        "source_decision_id": intent.source_decision_id,
     }
 
 
-def _gold_555_intent_from_payload(payload: dict) -> _Canal2EntryIntent:
+def _gold_555_intent_from_payload(
+    payload: dict,
+    *,
+    fallback_message_revision_id: str | None = None,
+    fallback_decision_id: str | None = None,
+) -> _Canal2EntryIntent:
     entry_timestamp = _as_utc_datetime(payload.get("entry_timestamp"))
     if entry_timestamp is None:
         raise ValueError("Gold 555 intent has no entry timestamp")
@@ -7593,6 +7606,13 @@ def _gold_555_intent_from_payload(payload: dict) -> _Canal2EntryIntent:
         max_tp_index=payload.get("max_tp_index"),
         command_key=payload.get("command_key"),
         is_high_risk=bool(payload.get("is_high_risk", False)),
+        source_message_revision_id=(
+            payload.get("source_message_revision_id")
+            or fallback_message_revision_id
+        ),
+        source_decision_id=(
+            payload.get("source_decision_id") or fallback_decision_id
+        ),
     )
 
 
@@ -7607,6 +7627,7 @@ def restore_gold_555_entry_watches_from_journal(
     if not source.is_file():
         return 0
     latest: dict[int, dict] = {}
+    causal_origins: dict[int, tuple[str | None, str | None]] = {}
     terminal: set[int] = set()
     snapshot_events = {
         "gold_555_entry_watch_started",
@@ -7634,8 +7655,23 @@ def restore_gold_555_entry_watches_from_journal(
             if event_name in terminal_events:
                 terminal.add(message_id)
                 latest.pop(message_id, None)
+                causal_origins.pop(message_id, None)
             elif event_name in snapshot_events:
                 latest[message_id] = row
+                payload = row.get("intent")
+                payload = payload if isinstance(payload, dict) else {}
+                previous_revision, previous_decision = causal_origins.get(
+                    message_id,
+                    (None, None),
+                )
+                causal_origins[message_id] = (
+                    payload.get("source_message_revision_id")
+                    or row.get("message_revision_id")
+                    or previous_revision,
+                    payload.get("source_decision_id")
+                    or row.get("decision_id")
+                    or previous_decision,
+                )
 
     observed_now = now or datetime.now(timezone.utc)
     if observed_now.tzinfo is None:
@@ -7650,7 +7686,15 @@ def restore_gold_555_entry_watches_from_journal(
             _canal2_open_committed(message_id)
             continue
         try:
-            intent = _gold_555_intent_from_payload(row["intent"])
+            fallback_revision, fallback_decision = causal_origins.get(
+                message_id,
+                (None, None),
+            )
+            intent = _gold_555_intent_from_payload(
+                row["intent"],
+                fallback_message_revision_id=fallback_revision,
+                fallback_decision_id=fallback_decision,
+            )
             watch = gold_555_entry_watch.EntryWatch.from_dict(row["watch"])
         except (KeyError, TypeError, ValueError) as exc:
             journal.anomaly(
@@ -7906,6 +7950,40 @@ async def _open_gold_555_confirmed_intent(
     record: _Gold555PendingEntry,
 ) -> Signal | None:
     intent = record.intent
+    with causal_trace.bind_internal_decision(
+        message_revision_id=intent.source_message_revision_id,
+        parent_decision_id=intent.source_decision_id,
+        reason="gold_555_confirmed_first_fill",
+    ) as decision:
+        sig_id = f"canal2_{int(intent.message_id)}"
+        journal.event(
+            sig_id,
+            "bot_internal_decision_started",
+            decision_id=decision.decision_id,
+            message_revision_id=decision.message_revision_id,
+            parent_decision_id=decision.parent_decision_id,
+            decision_reason=decision.decision_reason,
+        )
+        try:
+            return await _open_gold_555_confirmed_intent_bound(record)
+        finally:
+            action_ids = causal_trace.declared_action_ids(decision)
+            journal.event(
+                sig_id,
+                "bot_internal_decision",
+                decision_id=decision.decision_id,
+                message_revision_id=decision.message_revision_id,
+                parent_decision_id=decision.parent_decision_id,
+                decision_reason=decision.decision_reason,
+                declared_action_ids=action_ids,
+                declared_action_count=len(action_ids),
+            )
+
+
+async def _open_gold_555_confirmed_intent_bound(
+    record: _Gold555PendingEntry,
+) -> Signal | None:
+    intent = record.intent
     watch = record.watch
     message_id = int(intent.message_id)
     sig_id = f"canal2_{message_id}"
@@ -7965,7 +8043,7 @@ async def _open_gold_555_confirmed_intent(
             str(intent.direction).upper(),
             policy.entry_volumes[0],
             provisional_sl,
-            provisional_tp,
+            None,
             gold_555_live_candidate.market_comment(message_id),
             config.magic_for("canal2"),
         )
@@ -8013,6 +8091,8 @@ async def _open_gold_555_confirmed_intent(
         be_at_tp_index=None,
         adverse_action=config.STRATEGY_C2_ADVERSE_ACTION,
         entry_source_kind=intent.source_kind,
+        source_message_revision_id=intent.source_message_revision_id,
+        source_decision_id=intent.source_decision_id,
     )
     sig.live_strategy_id = gold_555_live_candidate.CANDIDATE_ID
     sig.live_strategy_fingerprint = (
@@ -8100,7 +8180,8 @@ async def _open_gold_555_confirmed_intent(
             if watch.confirmed_at is not None else None
         ),
         requested_sl=provisional_sl,
-        requested_tp=provisional_tp,
+        requested_tp=None,
+        planned_tp=provisional_tp,
         fill_price=fill_price,
         exact_sl=exact_sl,
         exact_tp=exact_tp,

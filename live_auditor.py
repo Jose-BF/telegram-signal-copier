@@ -195,6 +195,43 @@ def _expected_scale_out_legs(sig: Signal) -> int | None:
     return None
 
 
+def _gold_555_waiting_for_remaining_legs(
+    signal: Signal,
+    *,
+    now: datetime,
+) -> bool:
+    """Recognize an intentionally flat 555 basket while its ladder is live."""
+    if (
+        signal.live_strategy_id != gold_555_live_candidate.CANDIDATE_ID
+        or signal.live_strategy_fingerprint
+        != gold_555_live_candidate.CANDIDATE_FINGERPRINT
+        or signal.requested_close_reason
+        or signal.basket_guard_triggered
+        or signal.candidate_entry_expires_at is None
+    ):
+        return False
+    plan_size = len(signal.candidate_entry_legs)
+    if plan_size <= 1:
+        return False
+    try:
+        filled_indexes = {
+            int(index) for index in signal.candidate_filled_leg_indexes
+        }
+    except (TypeError, ValueError):
+        return False
+    if 1 + len(filled_indexes) >= plan_size:
+        return False
+    observed_now = now
+    expires_at = signal.candidate_entry_expires_at
+    if observed_now.tzinfo is not None:
+        observed_now = observed_now.astimezone(timezone.utc).replace(
+            tzinfo=None
+        )
+    if expires_at.tzinfo is not None:
+        expires_at = expires_at.astimezone(timezone.utc).replace(tzinfo=None)
+    return observed_now <= expires_at
+
+
 def _age_seconds(sig: Signal, now: datetime) -> float:
     try:
         return max(0.0, (now - sig.timestamp).total_seconds())
@@ -523,7 +560,11 @@ class LiveAuditor:
 
         if (state_tickets and not mt5_open_tickets
                 and age_s >= self.settings.no_position_after_s
-                and missing_for_s >= self.settings.no_position_missing_grace_s):
+                and missing_for_s >= self.settings.no_position_missing_grace_s
+                and not _gold_555_waiting_for_remaining_legs(
+                    sig,
+                    now=now,
+                )):
             key = (sig_id, "signal_without_mt5_position")
             issues.append((
                 key, sig_id, "mt5", "warning",

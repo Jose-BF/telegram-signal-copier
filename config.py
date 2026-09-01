@@ -121,6 +121,11 @@ STRATEGY_SHADOW_CHECKPOINT_SECONDS = int(
 STRATEGY_SHADOW_SLOWDOWN_THRESHOLD_MS = _float(
     "STRATEGY_SHADOW_SLOWDOWN_THRESHOLD_MS", 20.0,
 )
+# Bound every MT5 archive read made by the live shadow worker. The cursor is
+# advanced only by real broker ticks, so chunking changes latency, not results.
+STRATEGY_SHADOW_LIVE_MAX_BATCH_MS = int(
+    os.getenv("STRATEGY_SHADOW_LIVE_MAX_BATCH_MS", "60000")
+)
 
 # Heartbeat de runtime para el watcher externo. Si el proceso queda vivo pero
 # congelado, tools/run_bot_watch.py reinicia el bot al ver este fichero viejo.

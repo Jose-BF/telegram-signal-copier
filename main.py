@@ -3685,13 +3685,51 @@ def _shadow_live_tick_batch(
                 "latest_identity": list(latest.identity),
             }),
         )
+    max_batch_ms = max(
+        1_000,
+        int(config.STRATEGY_SHADOW_LIVE_MAX_BATCH_MS),
+    )
+    query_until_msc = min(
+        int(latest.time_msc),
+        int(cursor.from_msc) + max_batch_ms,
+    )
     history = _shadow_tick_history(
         cursor.from_msc,
-        until_msc=latest.time_msc,
+        until_msc=query_until_msc,
         after_identity=last_identity,
     )
     if not history.complete:
         return history
+    if query_until_msc < latest.time_msc and history.ticks:
+        return strategy_shadow_runtime.ShadowTickHistory(
+            ticks=history.ticks,
+            complete=True,
+            evidence_id=canonical_hash({
+                "mode": "live_catchup_chunk",
+                "cursor": {
+                    "from_msc": cursor.from_msc,
+                    "after_identity": (
+                        None if last_identity is None else list(last_identity)
+                    ),
+                },
+                "query_until_msc": query_until_msc,
+                "latest_identity": list(latest.identity),
+                "last_archived_identity": list(history.ticks[-1].identity),
+                "history_evidence_id": history.evidence_id,
+            }),
+            pending_reason="live_catchup_chunk_remaining",
+        )
+    if query_until_msc < latest.time_msc and not history.ticks:
+        # A market closure can leave a large interval with no ticks. Prove the
+        # empty gap in one read so the cursor never gets stranded at Friday's
+        # final quote when trading resumes.
+        history = _shadow_tick_history(
+            cursor.from_msc,
+            until_msc=latest.time_msc,
+            after_identity=last_identity,
+        )
+        if not history.complete:
+            return history
     if _shadow_market_tick_identity(latest.identity) not in {
         _shadow_market_tick_identity(tick.identity)
         for tick in history.ticks
@@ -3959,6 +3997,7 @@ async def _strategy_shadow_loop(interval_s: float = 0.25) -> None:
                 != _shadow_market_tick_identity(cursor.after_identity)
             )
         ):
+            next_delay_s = max(0.01, float(interval_s))
             history = await asyncio.to_thread(
                 _shadow_live_tick_batch,
                 cursor,
@@ -3967,7 +4006,10 @@ async def _strategy_shadow_loop(interval_s: float = 0.25) -> None:
             if not history.complete:
                 archive_tail_waits = 0
                 continuity_failures += 1
-                if continuity_failures == 3:
+                if (
+                    continuity_failures == 3
+                    or continuity_failures % 60 == 0
+                ):
                     try:
                         journal.event(
                             "bot",
@@ -3975,13 +4017,20 @@ async def _strategy_shadow_loop(interval_s: float = 0.25) -> None:
                             consecutive_failures=continuity_failures,
                             evidence_id=history.evidence_id,
                             blocker=history.blocker,
+                            cursor_from_msc=cursor.from_msc,
+                            cursor_after_identity=(
+                                list(cursor.after_identity)
+                                if cursor.after_identity is not None else None
+                            ),
+                            latest_identity=list(latest.identity),
                         )
                     except Exception:
                         pass
-                    print(
-                        "[Shadow] continuidad pendiente; no se procesa "
-                        "ningun tick hasta que MT5 permita demostrarla"
-                    )
+                    if continuity_failures == 3:
+                        print(
+                            "[Shadow] continuidad pendiente; no se procesa "
+                            "ningun tick hasta que MT5 permita demostrarla"
+                        )
                 await asyncio.sleep(max(
                     1.0 if continuity_failures >= 3 else 0.1,
                     float(interval_s),
@@ -4002,8 +4051,9 @@ async def _strategy_shadow_loop(interval_s: float = 0.25) -> None:
                     "observacion reanudada"
                 )
             continuity_failures = 0
-            if history.pending_reason:
+            if history.pending_reason == "live_archive_tail_pending":
                 archive_tail_waits += 1
+                next_delay_s = max(1.0, float(interval_s))
                 if (
                     archive_tail_waits == 3
                     or archive_tail_waits % 20 == 0
@@ -4015,6 +4065,13 @@ async def _strategy_shadow_loop(interval_s: float = 0.25) -> None:
                             consecutive_waits=archive_tail_waits,
                             evidence_id=history.evidence_id,
                             reason=history.pending_reason,
+                            cursor_from_msc=cursor.from_msc,
+                            cursor_after_identity=(
+                                list(cursor.after_identity)
+                                if cursor.after_identity is not None else None
+                            ),
+                            latest_identity=list(latest.identity),
+                            batch_tick_count=len(history.ticks),
                         )
                     except Exception:
                         pass
@@ -4036,6 +4093,8 @@ async def _strategy_shadow_loop(interval_s: float = 0.25) -> None:
                 await asyncio.sleep(0)
                 if not await _process_strategy_shadow_tick(runtime, observed):
                     break
+            await asyncio.sleep(next_delay_s)
+            continue
         await asyncio.sleep(max(0.01, float(interval_s)))
 
 

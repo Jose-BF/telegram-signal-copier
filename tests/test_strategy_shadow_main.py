@@ -158,6 +158,71 @@ def test_live_tick_batch_exposes_pending_archive_tail(monkeypatch):
     assert history.pending_reason == "live_archive_tail_pending"
 
 
+def test_live_tick_batch_bounds_catchup_without_skipping_archived_ticks(
+    monkeypatch,
+):
+    cursor_tick = main._shadow_tick_from_values(
+        time_msc=20_000,
+        bid=4300.0,
+        ask=4300.2,
+        last=4300.1,
+        flags=6,
+        volume_real=1.0,
+        factors={"positive": 100.0, "negative": 100.0},
+        money_evidence_id="money-cursor",
+    )
+    archived = main._shadow_tick_from_values(
+        time_msc=80_000,
+        bid=4301.0,
+        ask=4301.2,
+        last=4301.1,
+        flags=6,
+        volume_real=2.0,
+        factors={"positive": 100.0, "negative": 100.0},
+        money_evidence_id="money-archived",
+    )
+    latest = main._shadow_tick_from_values(
+        time_msc=200_000,
+        bid=4302.0,
+        ask=4302.2,
+        last=4302.1,
+        flags=6,
+        volume_real=3.0,
+        factors={"positive": 100.0, "negative": 100.0},
+        money_evidence_id="money-latest",
+    )
+    calls = []
+
+    def bounded_history(from_msc, *, until_msc, after_identity):
+        calls.append((from_msc, until_msc, after_identity))
+        return strategy_shadow_runtime.ShadowTickHistory(
+            ticks=(archived,),
+            complete=True,
+            evidence_id="bounded-history",
+        )
+
+    monkeypatch.setattr(
+        main.config,
+        "STRATEGY_SHADOW_LIVE_MAX_BATCH_MS",
+        60_000,
+        raising=False,
+    )
+    monkeypatch.setattr(main, "_shadow_tick_history", bounded_history)
+
+    history = main._shadow_live_tick_batch(
+        strategy_shadow_runtime.ShadowTickCursor(
+            from_msc=cursor_tick.time_msc,
+            after_identity=cursor_tick.identity,
+        ),
+        latest,
+    )
+
+    assert calls == [(20_000, 80_000, cursor_tick.identity)]
+    assert history.complete is True
+    assert history.ticks == (archived,)
+    assert history.pending_reason == "live_catchup_chunk_remaining"
+
+
 def test_conversion_factors_follow_verified_broker_orientation():
     factors = main._shadow_conversion_factors(
         money_contract(),
@@ -789,6 +854,7 @@ async def test_tick_continuity_pause_keeps_shadow_runtime_installed(
     monkeypatch,
 ):
     events = []
+    sleep_calls = []
     calls = 0
     cursor = (20_000, 4300.0, 4300.2, 4300.1, 6, 1.0)
     latest = main._shadow_tick_from_values(
@@ -812,6 +878,10 @@ async def test_tick_continuity_pause_keeps_shadow_runtime_installed(
     runtime = Runtime()
     strategy_shadow_runtime.install_runtime(runtime)
     monkeypatch.setattr(main.config, "STRATEGY_SHADOW_ENABLED", True)
+    async def fake_sleep(delay):
+        sleep_calls.append(delay)
+
+    monkeypatch.setattr(main.asyncio, "sleep", fake_sleep)
     monkeypatch.setattr(main, "_shadow_tick_snapshot", lambda: latest)
     monkeypatch.setattr(
         main.journal,
@@ -842,6 +912,7 @@ async def test_tick_continuity_pause_keeps_shadow_runtime_installed(
 
     assert calls == 3
     assert strategy_shadow_runtime.installed_runtime() is runtime
+    assert max(sleep_calls) >= 1.0
     assert events == [(
         "bot",
         "strategy_shadow_tick_continuity_waiting",
@@ -849,6 +920,9 @@ async def test_tick_continuity_pause_keeps_shadow_runtime_installed(
             "consecutive_failures": 3,
             "evidence_id": "missing-3",
             "blocker": None,
+            "cursor_from_msc": 20_000,
+            "cursor_after_identity": list(cursor),
+            "latest_identity": list(latest.identity),
         },
     )]
 
@@ -858,6 +932,7 @@ async def test_sustained_archive_tail_delay_is_recorded_without_pausing_prefix(
     monkeypatch,
 ):
     events = []
+    sleep_calls = []
     calls = 0
     cursor = (20_000, 4300.0, 4300.2, 4300.1, 6, 1.0)
     latest = main._shadow_tick_from_values(
@@ -884,6 +959,10 @@ async def test_sustained_archive_tail_delay_is_recorded_without_pausing_prefix(
     runtime = Runtime()
     strategy_shadow_runtime.install_runtime(runtime)
     monkeypatch.setattr(main.config, "STRATEGY_SHADOW_ENABLED", True)
+    async def fake_sleep(delay):
+        sleep_calls.append(delay)
+
+    monkeypatch.setattr(main.asyncio, "sleep", fake_sleep)
     monkeypatch.setattr(main, "_shadow_tick_snapshot", lambda: latest)
     monkeypatch.setattr(
         main.journal,
@@ -910,6 +989,7 @@ async def test_sustained_archive_tail_delay_is_recorded_without_pausing_prefix(
     await main._strategy_shadow_loop(interval_s=0.01)
 
     assert calls == 3
+    assert max(sleep_calls) >= 1.0
     assert events == [(
         "bot",
         "strategy_shadow_tick_archive_tail_waiting",
@@ -917,6 +997,10 @@ async def test_sustained_archive_tail_delay_is_recorded_without_pausing_prefix(
             "consecutive_waits": 3,
             "evidence_id": "pending-3",
             "reason": "live_archive_tail_pending",
+            "cursor_from_msc": 20_000,
+            "cursor_after_identity": list(cursor),
+            "latest_identity": list(latest.identity),
+            "batch_tick_count": 0,
         },
     )]
 
@@ -956,6 +1040,10 @@ async def test_tick_continuity_resumes_from_same_cursor(monkeypatch):
     runtime = Runtime()
     strategy_shadow_runtime.install_runtime(runtime)
     monkeypatch.setattr(main.config, "STRATEGY_SHADOW_ENABLED", True)
+    async def fake_sleep(_delay):
+        return None
+
+    monkeypatch.setattr(main.asyncio, "sleep", fake_sleep)
     monkeypatch.setattr(main, "_shadow_tick_snapshot", lambda: latest)
     monkeypatch.setattr(
         main.journal,

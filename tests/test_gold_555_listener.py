@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 import config
+import causal_trace
 import listener
 from state import StateManager
 
@@ -412,7 +413,7 @@ async def test_confirmed_watch_opens_first_leg_from_real_fill(monkeypatch) -> No
         "BUY",
         0.04,
         4270.4,
-        4300.9,
+        None,
         "c2_380_g55",
         config.magic_for("canal2"),
     )]
@@ -427,6 +428,88 @@ async def test_confirmed_watch_opens_first_leg_from_real_fill(monkeypatch) -> No
     assert monitor_starts == [signal]
     assert listener._canal2_open_already_committed(380)
     assert any(row[1] == "gold_555_first_leg_filled" for row in events)
+
+
+@pytest.mark.asyncio
+async def test_confirmed_watch_preserves_telegram_origin_in_delayed_order(
+    monkeypatch,
+) -> None:
+    _patch_registration(monkeypatch)
+    intent = listener._Canal2EntryIntent(
+        **{
+            **_intent().__dict__,
+            "source_message_revision_id": "msgrev_gold_555",
+            "source_decision_id": "decision_telegram_gold_555",
+        }
+    )
+    await listener._open_canal2_intent(intent)
+    record = listener._gold_555_entry_watches.pop(380)
+    record.watch.on_quote(
+        bid=4298.7,
+        ask=4298.9,
+        now=NOW + timedelta(seconds=1),
+        tick_msc=2,
+    )
+    record.watch.on_quote(
+        bid=4300.2,
+        ask=4300.4,
+        now=NOW + timedelta(seconds=2),
+        tick_msc=3,
+    )
+    order_contexts = []
+
+    def fake_open(*_args, **_kwargs):
+        order_contexts.append(causal_trace.current_context())
+        return 1645000001, 4300.6
+
+    monkeypatch.setattr(listener.executor, "open_market_with_fill", fake_open)
+    monkeypatch.setattr(listener.pending_actions, "enqueue_modify_sl", lambda *a, **k: None)
+    monkeypatch.setattr(listener.pending_actions, "enqueue_modify_tp", lambda *a, **k: None)
+    monkeypatch.setattr(listener, "_place_dca", lambda *_args: _async_none())
+    monkeypatch.setattr(listener.journal, "begin_trade", lambda *a, **k: None)
+    monkeypatch.setattr(listener.logger, "log_signal", lambda *a, **k: None)
+    monkeypatch.setattr(listener, "_emit_same_direction_overlap_anomaly", lambda *a, **k: None)
+
+    signal = await listener._open_gold_555_confirmed_intent(record)
+
+    assert signal.source_message_revision_id == "msgrev_gold_555"
+    assert signal.source_decision_id == "decision_telegram_gold_555"
+    assert len(order_contexts) == 1
+    assert order_contexts[0].message_revision_id == "msgrev_gold_555"
+    assert order_contexts[0].parent_decision_id == "decision_telegram_gold_555"
+    assert order_contexts[0].decision_kind == "internal"
+
+
+async def _async_none():
+    return None
+
+
+def test_gold_555_intent_payload_round_trip_preserves_causal_origin() -> None:
+    intent = listener._Canal2EntryIntent(
+        **{
+            **_intent(381).__dict__,
+            "source_message_revision_id": "msgrev_origin",
+            "source_decision_id": "decision_origin",
+        }
+    )
+
+    restored = listener._gold_555_intent_from_payload(
+        listener._gold_555_intent_payload(intent)
+    )
+
+    assert restored.source_message_revision_id == "msgrev_origin"
+    assert restored.source_decision_id == "decision_origin"
+
+
+def test_gold_555_intent_captures_active_telegram_context() -> None:
+    with causal_trace.bind_message_revision(
+        "msgrev_context",
+        decision_id="decision_context",
+    ):
+        intent = _intent(382)
+
+    assert intent.source_message_revision_id == "msgrev_context"
+    assert intent.source_decision_id == "decision_context"
 
 
 @pytest.mark.asyncio
@@ -626,6 +709,9 @@ async def test_confirmed_watch_rechecks_demo_account_before_order(monkeypatch) -
 def test_restart_restores_latest_unfilled_watch(tmp_path, monkeypatch) -> None:
     events = _patch_registration(monkeypatch)
     intent = _intent(381)
+    legacy_payload = listener._gold_555_intent_payload(intent)
+    legacy_payload.pop("source_message_revision_id")
+    legacy_payload.pop("source_decision_id")
     watch = listener.gold_555_entry_watch.EntryWatch.new(
         "BUY",
         reference=4300.0,
@@ -642,7 +728,9 @@ def test_restart_restores_latest_unfilled_watch(tmp_path, monkeypatch) -> None:
         {
             "sig": "canal2_381",
             "ev": "gold_555_entry_watch_started",
-            "intent": listener._gold_555_intent_payload(intent),
+            "message_revision_id": "msgrev_legacy_watch",
+            "decision_id": "decision_legacy_watch",
+            "intent": legacy_payload,
             "watch": listener.gold_555_entry_watch.EntryWatch.new(
                 "BUY", reference=4300.0, observed_at=NOW
             ).to_dict(),
@@ -650,7 +738,7 @@ def test_restart_restores_latest_unfilled_watch(tmp_path, monkeypatch) -> None:
         {
             "sig": "canal2_381",
             "ev": "gold_555_entry_watch_state",
-            "intent": listener._gold_555_intent_payload(intent),
+            "intent": legacy_payload,
             "watch": watch.to_dict(),
         },
     ]
@@ -666,6 +754,15 @@ def test_restart_restores_latest_unfilled_watch(tmp_path, monkeypatch) -> None:
 
     assert restored == 1
     assert listener._gold_555_entry_watches[381].watch.armed is True
+    assert (
+        listener._gold_555_entry_watches[381]
+        .intent.source_message_revision_id
+        == "msgrev_legacy_watch"
+    )
+    assert (
+        listener._gold_555_entry_watches[381].intent.source_decision_id
+        == "decision_legacy_watch"
+    )
     assert listener._canal2_open_in_progress(381)
     assert any(row[1] == "gold_555_entry_watch_restored" for row in events)
 

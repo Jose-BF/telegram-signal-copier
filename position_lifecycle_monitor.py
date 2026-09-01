@@ -1157,7 +1157,7 @@ async def _open_candidate_leg(
                 signal.direction,
                 float(leg["volume"]),
                 sl=provisional_sl,
-                tp=provisional_tp,
+                tp=None if gold_555 else provisional_tp,
                 comment=comment,
                 magic=signal.magic,
             )

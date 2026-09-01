@@ -663,6 +663,68 @@ def test_missing_position_waits_for_disappearance_grace():
     assert issue["missing_for_s"] == 46.0
 
 
+def test_flat_gold_555_ladder_is_not_reported_missing_before_expiry():
+    journal = FakeJournal()
+    auditor = LiveAuditor(
+        settings=AuditSettings(
+            snapshot_every_s=0,
+            no_position_after_s=0,
+            no_position_missing_grace_s=45,
+        ),
+        journal=journal,
+    )
+    sig = _signal()
+    sig.live_strategy_id = gold_555_live_candidate.CANDIDATE_ID
+    sig.live_strategy_fingerprint = (
+        gold_555_live_candidate.CANDIDATE_FINGERPRINT
+    )
+    sig.candidate_entry_legs = [
+        {"index": index, "volume": 0.01, "trigger_price": 4300 - index}
+        for index in range(5)
+    ]
+    sig.candidate_filled_leg_indexes = []
+    sig.candidate_entry_expires_at = datetime(2026, 5, 29, 15, 10, 0)
+
+    auditor.audit_cycle(
+        signals=[sig],
+        positions=[
+            _pos(1365772408, sl=4545.0, tp=4575.86),
+            _pos(1365772471, sl=4545.0, tp=4575.86),
+        ],
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 5, 0),
+    )
+    auditor.audit_cycle(
+        signals=[sig],
+        positions=[],
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 5, 5),
+    )
+    auditor.audit_cycle(
+        signals=[sig],
+        positions=[],
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 5, 51),
+    )
+
+    assert not [
+        anomaly for anomaly in journal.anomalies
+        if anomaly.get("code") == "signal_without_mt5_position"
+    ]
+
+    auditor.audit_cycle(
+        signals=[sig],
+        positions=[],
+        pending_actions=[],
+        now=datetime(2026, 5, 29, 15, 10, 1),
+    )
+
+    assert len([
+        anomaly for anomaly in journal.anomalies
+        if anomaly.get("code") == "signal_without_mt5_position"
+    ]) == 1
+
+
 def test_scale_out_missing_expected_legs_is_detected_after_grace():
     journal = FakeJournal()
     auditor = LiveAuditor(

@@ -80,11 +80,12 @@ def _parse_zone_plan(text: str) -> dict | None:
 def load_jsonl(path: Path) -> list[dict]:
     if not path.exists():
         return []
-    return [
-        json.loads(line)
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
+    rows = []
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            if line.strip():
+                rows.append(json.loads(line))
+    return rows
 
 
 def _message_id_from_sig(sig_id: str | None) -> tuple[str, int] | None:

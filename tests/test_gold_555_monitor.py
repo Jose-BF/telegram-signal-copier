@@ -180,7 +180,7 @@ async def test_delayed_leg_provisional_levels_use_current_executable_quote(
         "BUY",
         0.03,
         4266.80,
-        4297.80,
+        None,
         "c2_380_B1_g55",
         signal.magic,
     )]
