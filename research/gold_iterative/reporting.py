@@ -94,6 +94,7 @@ def build_gold_research_artifacts(
         Sequence[Mapping[str, object]] | pd.DataFrame | Path | None
     ) = None,
     candidate_population_size: int | None = None,
+    signal_scope: str = "formal_telegram_now",
 ) -> ResearchArtifacts:
     """Build immutable evidence without comparing unlike financial units."""
 
@@ -203,9 +204,13 @@ def build_gold_research_artifacts(
     }
     run_card = {
         "schema_version": 1,
-        "research_kind": "gold_now_iterative_strategy_farm",
+        "research_kind": (
+            "gold_now_iterative_strategy_farm"
+            if signal_scope == "formal_telegram_now"
+            else "gold_direct_iterative_strategy_farm"
+        ),
         "channel": "canal2",
-        "signal_scope": "formal_telegram_now",
+        "signal_scope": signal_scope,
         "source_hashes": dict(sorted(dataset.source_hashes.items())),
         "eligible_signal_ids": list(dataset.eligible_signal_ids),
         "research_signal_ids": [

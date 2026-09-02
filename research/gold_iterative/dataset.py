@@ -32,12 +32,72 @@ def load_gold_now_dataset(
     to_date: str | None = None,
     max_hold_minutes: int = 240,
 ) -> StrategyDataset:
+    return _load_gold_dataset(
+        replay_path=replay_path,
+        audit_path=audit_path,
+        provider_catalog_path=provider_catalog_path,
+        raw_events_path=raw_events_path,
+        market_ticks=market_ticks,
+        conversion_ticks=conversion_ticks,
+        money_contract=money_contract,
+        from_date=from_date,
+        to_date=to_date,
+        max_hold_minutes=max_hold_minutes,
+        signal_scope="now",
+    )
+
+
+def load_gold_direct_dataset(
+    *,
+    replay_path: Path,
+    audit_path: Path,
+    provider_catalog_path: Path,
+    raw_events_path: Path,
+    market_ticks: TickSource,
+    conversion_ticks: TickSource | None,
+    money_contract: Mapping[str, Any],
+    from_date: str | None = None,
+    to_date: str | None = None,
+    max_hold_minutes: int = 240,
+) -> StrategyDataset:
+    """Load NOW plus explicit priced direct entries; zone plans stay excluded."""
+
+    return _load_gold_dataset(
+        replay_path=replay_path,
+        audit_path=audit_path,
+        provider_catalog_path=provider_catalog_path,
+        raw_events_path=raw_events_path,
+        market_ticks=market_ticks,
+        conversion_ticks=conversion_ticks,
+        money_contract=money_contract,
+        from_date=from_date,
+        to_date=to_date,
+        max_hold_minutes=max_hold_minutes,
+        signal_scope="direct",
+    )
+
+
+def _load_gold_dataset(
+    *,
+    replay_path: Path,
+    audit_path: Path,
+    provider_catalog_path: Path,
+    raw_events_path: Path,
+    market_ticks: TickSource,
+    conversion_ticks: TickSource | None,
+    money_contract: Mapping[str, Any],
+    from_date: str | None,
+    to_date: str | None,
+    max_hold_minutes: int,
+    signal_scope: str,
+) -> StrategyDataset:
     catalog_path = Path(provider_catalog_path)
     raw_events_path = Path(raw_events_path)
-    scopes = _load_now_scopes(
+    scopes = _load_scopes(
         catalog_path,
         from_date=from_date,
         to_date=to_date,
+        signal_scope=signal_scope,
     )
     return load_strategy_dataset(
         replay_path=replay_path,
@@ -49,7 +109,9 @@ def load_gold_now_dataset(
         from_date=from_date,
         to_date=to_date,
         max_hold_minutes=max_hold_minutes,
-        required_entry_source_kind="telegram_now",
+        required_entry_source_kind=(
+            "telegram_now" if signal_scope == "now" else None
+        ),
         signal_scopes=scopes,
         audit_reason_prefix="tick_replay_",
         extra_source_paths={
@@ -59,12 +121,15 @@ def load_gold_now_dataset(
     )
 
 
-def _load_now_scopes(
+def _load_scopes(
     path: Path,
     *,
     from_date: str | None,
     to_date: str | None,
+    signal_scope: str,
 ) -> tuple[SignalScope, ...]:
+    if signal_scope not in {"now", "direct"}:
+        raise ValueError(f"unsupported Gold signal scope: {signal_scope}")
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -88,7 +153,15 @@ def _load_now_scopes(
         if observed_at is None or not start <= observed_at.date() <= end:
             continue
         direction = str(row.get("direction") or "").upper()
-        if direction not in {"BUY", "SELL"} or not _has_now_revision(row, direction):
+        is_now = _has_now_revision(row, direction)
+        is_direct_priced = str(
+            (row.get("entry_contract") or {}).get("trigger_kind") or ""
+        ).startswith("direct_priced_")
+        if direction not in {"BUY", "SELL"}:
+            continue
+        if signal_scope == "now" and not is_now:
+            continue
+        if signal_scope == "direct" and not (is_now or is_direct_priced):
             continue
         signal_id = str(row.get("provider_signal_id") or "")
         if not signal_id:

@@ -64,6 +64,7 @@ def run_gold_chronological_search(
     progress_callback: ProgressCallback | None = None,
     evaluation_callback: EvaluationCallback | None = None,
     experiment_context: Mapping[str, object] | None = None,
+    signal_scope: str = "formal_telegram_now",
     workers: int = 1,
     initial_genomes: Sequence[StrategyGenome] = (),
     resume_from_root: Path | None = None,
@@ -80,7 +81,7 @@ def run_gold_chronological_search(
     context = {
         **dict(experiment_context or {}),
         "channel": "canal2",
-        "signal_scope": "formal_telegram_now",
+        "signal_scope": signal_scope,
         "day_partition": "complete_explicit_days_v1",
         "strategy_grammar": "gold_schema_v2",
     }

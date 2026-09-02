@@ -44,6 +44,7 @@ def test_gold_cli_has_explicit_commands_and_safe_runtime_defaults():
     assert inspect.command == "inspect"
     assert search.command == "search"
     assert search.from_date == "2026-07-27"
+    assert search.signal_scope == "now"
     assert search.replay_path == "runtime_data/replay_trades.jsonl"
     assert search.audit_path == "runtime_data/observed_tick_replay_audit.jsonl"
     assert search.provider_catalog_path == "runtime_data/provider_signal_catalog.json"
@@ -106,6 +107,11 @@ def test_search_prints_bounded_progress_and_publishes_deterministically(
         "minimum_future_filled_signals": 1,
         "scope": "post_first_discovery_only",
     }
+    validation = card["run_metadata"]["cross_fold_validation"]
+    assert len(validation["stability_assessments"]) == (
+        validation["stability_considered_count"]
+    )
+    assert card["run_metadata"]["chronological_challenge"]["complete"] is True
     assert {"fold", "generation", "strategy_fingerprint"} <= set(
         candidates.columns
     )
@@ -202,3 +208,53 @@ def test_real_provider_hypotheses_are_built_from_selected_simulations(monkeypatc
     assert result == ("hypothesis",)
     assert captured["evaluations"] == ("evaluation",)
     assert captured["paths"] == ("path",)
+
+
+def test_chronological_diagnostics_accepts_a_fold_with_any_complete_candidate():
+    report = SimpleNamespace(fold_reports=(
+        SimpleNamespace(
+            fold=SimpleNamespace(name="fold_01"),
+            challenge_evaluations=(
+                SimpleNamespace(net_eur=1, blockers=()),
+                SimpleNamespace(
+                    net_eur=None,
+                    blockers=("path_ended_before_strategy_exit",),
+                ),
+            ),
+        ),
+    ))
+
+    diagnostics = gold_cli._chronological_diagnostics(report)
+
+    assert diagnostics["complete"] is True
+    assert diagnostics["folds"][0] == {
+        "fold": "fold_01",
+        "candidate_count": 2,
+        "complete_candidate_count": 1,
+        "rejected_candidate_count": 1,
+        "rejection_reasons": {
+            "missing_net_eur": 1,
+            "path_ended_before_strategy_exit": 1,
+        },
+    }
+
+
+def test_chronological_diagnostics_rejects_a_fold_without_complete_candidate():
+    report = SimpleNamespace(fold_reports=(
+        SimpleNamespace(
+            fold=SimpleNamespace(name="fold_01"),
+            challenge_evaluations=(
+                SimpleNamespace(net_eur=None, blockers=()),
+                SimpleNamespace(net_eur=1, blockers=("missing_conversion",)),
+            ),
+        ),
+    ))
+
+    diagnostics = gold_cli._chronological_diagnostics(report)
+
+    assert diagnostics["complete"] is False
+    assert diagnostics["folds"][0]["complete_candidate_count"] == 0
+    assert diagnostics["folds"][0]["rejection_reasons"] == {
+        "missing_conversion": 1,
+        "missing_net_eur": 1,
+    }

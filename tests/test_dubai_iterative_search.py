@@ -203,6 +203,27 @@ def test_resume_produces_same_frontier_as_uninterrupted_run(tmp_path):
     assert resumed.generations_completed == 4
 
 
+def test_resume_with_same_budget_preserves_original_stop_reason(tmp_path):
+    common = dict(
+        dataset=_dataset(),
+        fold=_fold(),
+        budget=SearchBudget(max_generations=1, patience_generations=10),
+        search_space=SearchSpace(),
+        evaluator=_flat_evaluator,
+        seed=20260817,
+        population_size=4,
+        output_dir=tmp_path / "same-budget",
+    )
+    first = run_search(**common)
+    resumed = run_search(
+        **common,
+        resume_from=first.checkpoint_path,
+    )
+
+    assert first.stop_reason == "max_generations"
+    assert resumed.stop_reason == first.stop_reason
+
+
 def test_parallel_evaluation_is_identical_to_serial_evaluation(tmp_path):
     common = dict(
         dataset=_dataset(),

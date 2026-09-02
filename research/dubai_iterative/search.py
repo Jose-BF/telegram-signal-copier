@@ -598,6 +598,7 @@ def run_search(
     archive: tuple[CandidateEvaluation, ...] = ()
     seen: set[str] = set()
     generation_summaries: list[GenerationProgress] = []
+    resumed_stop_reason: str | None = None
 
     if resume_from is not None:
         state = _load_checkpoint(
@@ -630,6 +631,11 @@ def run_search(
             GenerationProgress(**item)
             for item in state.get("generation_summaries", ())
         ]
+        resumed_stop_reason = (
+            str(state["stop_reason"])
+            if state.get("stop_reason") is not None
+            else None
+        )
     else:
         seeds = tuple(seed_population_factory(search_space, seed=seed))
         scout_slots = min(
@@ -763,7 +769,14 @@ def run_search(
             if stop_reason is not None:
                 break
         if stop_reason is None:
-            stop_reason = "completed"
+            stop_reason = (
+                resumed_stop_reason
+                if (
+                    resumed_stop_reason is not None
+                    and generation_completed >= budget.max_generations
+                )
+                else "completed"
+            )
     except KeyboardInterrupt:
         stop_reason = "user_interrupt"
 

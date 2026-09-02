@@ -7,7 +7,10 @@ import json
 
 import pandas as pd
 
-from research.gold_iterative.dataset import load_gold_now_dataset
+from research.gold_iterative.dataset import (
+    load_gold_direct_dataset,
+    load_gold_now_dataset,
+)
 
 
 class FakeTickSource:
@@ -416,6 +419,50 @@ def test_gold_loader_requires_literal_now_semantics(tmp_path):
     dataset = load_gold_now_dataset(**fixture)
 
     assert "canal2_15" not in dataset.eligible_signal_ids
+
+
+def test_gold_direct_loader_adds_explicit_priced_entries_without_mixing_zones(
+    tmp_path,
+):
+    fixture = _fixture(tmp_path)
+    catalog = json.loads(fixture["provider_catalog_path"].read_text(encoding="utf-8"))
+    direct = _catalog_signal(
+        "canal2_15",
+        text="Very high risk buy\n\n100\n\nHave your SL at 98",
+        execution_ids=(),
+    )
+    direct["effective_range"] = [100.0, 100.0]
+    direct["effective_tps"] = []
+    direct["effective_sl"] = 98.0
+    direct["semantic_status"] = "incomplete"
+    direct["semantic_gaps"] = ["missing_tps"]
+    direct["entry_contract"]["trigger_kind"] = "direct_priced_text"
+    zone = _catalog_signal(
+        "canal2_16",
+        record_type="zone_plan",
+        text="Buy zone 100 - 99",
+        execution_ids=(),
+    )
+    catalog["signals"].extend((direct, zone))
+    fixture["provider_catalog_path"].write_text(
+        json.dumps(catalog),
+        encoding="utf-8",
+    )
+
+    now_dataset = load_gold_now_dataset(**fixture)
+    direct_dataset = load_gold_direct_dataset(**fixture)
+
+    assert "canal2_15" not in now_dataset.eligible_signal_ids
+    assert "canal2_15" in direct_dataset.eligible_signal_ids
+    assert "canal2_16" not in direct_dataset.eligible_signal_ids
+    direct_path = next(
+        path for path in direct_dataset.paths if path.signal_id == "canal2_15"
+    )
+    assert direct_path.legs[0].opened_at.isoformat() == (
+        "2026-07-27T09:00:00+00:00"
+    )
+    assert direct_path.legs[0].open_price == 100.0
+    assert direct_path.legs[0].sl_events[0].level == 98.0
 
 
 def test_gold_manifest_binds_catalog_and_raw_causal_events(tmp_path):

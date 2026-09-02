@@ -1789,6 +1789,50 @@ def test_executed_potential_comment_stays_unknown_not_formal_signal():
     ]
 
 
+def test_explicit_priced_high_risk_entry_is_a_formal_direct_signal():
+    events = [
+        _raw(
+            "canal2",
+            2186,
+            "Very high risk buy\n\n4530\n\nHave your SL at 4520",
+            ts="2026-08-28T14:30:01+00:00",
+            date_utc="2026-08-28T14:30:00+00:00",
+        ),
+    ]
+
+    report = provider_signal_catalog.build_catalog_report(events, [])
+
+    assert report["summary"]["provider_signals"] == 1
+    record = report["signals"][0]
+    assert record["provider_signal_id"] == "canal2_2186"
+    assert record["record_type"] == "formal_signal"
+    assert record["risk_label"] == "high_risk"
+    assert record["direction"] == "BUY"
+    assert record["effective_range"] == [4530.0, 4530.0]
+    assert record["effective_sl"] == 4520.0
+    assert record["semantic_gaps"] == ["missing_tps"]
+    assert record["entry_contract"]["status"] == "ready"
+    assert record["entry_contract"]["trigger_kind"] == "direct_priced_text"
+
+
+@pytest.mark.parametrize(
+    "text",
+    (
+        "Potential sell at 4051\nSL 4060",
+        "If price reaches 4051 sell\nSL 4060",
+        "Next sell zone we can expect a reaction is 4051\nSL 4060",
+    ),
+)
+def test_conditional_priced_comment_is_not_a_formal_direct_signal(text):
+    report = provider_signal_catalog.build_catalog_report(
+        [_raw("canal2", 2187, text)],
+        [],
+    )
+
+    assert report["summary"]["provider_signals"] == 0
+    assert report["signals"][0]["record_type"] != "formal_signal"
+
+
 def test_reply_reentry_and_standalone_repeat_share_one_provider_identity():
     events = [
         _raw(

@@ -71,6 +71,18 @@ CONTEXT_SETUP_RE = re.compile(
     r"\b(?:SUPPORT|RESISTANCE|4\s*H(?:R|OUR)|ANALYSIS|LEVELS?|ZONES?)\b",
     re.IGNORECASE,
 )
+DIRECT_ENTRY_INTENT_RE = re.compile(
+    r"(?:^|\n)\s*(?:BUY|SELL)\b|"
+    r"\b(?:VERY\s+)?HIGH\s+RISK\s+(?:BUY|SELL)\b|"
+    r"\bI\s+(?:PUT|ADD|OPEN(?:ED)?)\s+(?:MORE\s+)?(?:BUY|SELL)\b|"
+    r"\bENTER(?:ING)?\s+(?:A\s+)?(?:BUY|SELL)\b",
+    re.IGNORECASE,
+)
+DIRECT_ENTRY_UNCERTAINTY_RE = re.compile(
+    r"\b(?:POTENTIAL|POSSIBLE|MAY|MIGHT|COULD|EXPECT|EXPECTED|"
+    r"LOOKING|WATCH|WAIT|IF|WHEN|UNLESS|NEXT|ZONE|AREA)\b",
+    re.IGNORECASE,
+)
 
 
 def _parse_zone_plan(text: str) -> dict | None:
@@ -545,6 +557,26 @@ def _single_entry_range(text: str) -> list[float] | None:
     except (TypeError, ValueError):
         return None
     return [value, value]
+
+
+def _is_canal2_explicit_priced_entry(text: str) -> bool:
+    """Recognize an explicit priced order without broadening live NOW rules."""
+
+    if not text or re.search(r"\bNOW\b", text, re.IGNORECASE):
+        return False
+    if DIRECT_ENTRY_UNCERTAINTY_RE.search(text) or _parse_zone_plan(text) is not None:
+        return False
+    parsed = _normalise_parsed(parse_canal2(text))
+    return bool(
+        parsed.get("direction") in {"BUY", "SELL"}
+        and parsed.get("sl") is not None
+        and _single_entry_range(text) is not None
+        and DIRECT_ENTRY_INTENT_RE.search(text)
+    )
+
+
+def _is_canal2_actionable_entry(text: str) -> bool:
+    return is_canal2_entry(text) or _is_canal2_explicit_priced_entry(text)
 
 
 def _indexed_tp_updates(
@@ -1546,7 +1578,9 @@ def _finalize(signal: dict) -> dict:
             "_source_order": revision["_source_order"],
         })
         if signal["channel"] == "canal2":
-            is_actionable_entry = is_canal2_entry(revision.get("text") or "")
+            is_actionable_entry = _is_canal2_actionable_entry(
+                revision.get("text") or ""
+            )
         else:
             is_actionable_entry = (
                 revision.get("sticker_id") is not None
@@ -1554,7 +1588,15 @@ def _finalize(signal: dict) -> dict:
             )
         if not is_actionable_entry:
             continue
-        if _is_edit_update_kind((revision.get("update_kinds") or [None])[0]):
+        if _is_canal2_explicit_priced_entry(revision.get("text") or ""):
+            trigger_kind = (
+                "direct_priced_edit"
+                if _is_edit_update_kind(
+                    (revision.get("update_kinds") or [None])[0]
+                )
+                else "direct_priced_text"
+            )
+        elif _is_edit_update_kind((revision.get("update_kinds") or [None])[0]):
             trigger_kind = "edit"
         elif revision.get("sticker_id") is not None:
             trigger_kind = "sticker"
@@ -1632,7 +1674,7 @@ def _finalize(signal: dict) -> dict:
     immediate_market_entry = (
         signal["channel"] == "canal2"
         and any(
-            is_canal2_entry(revision.get("text") or "")
+            _is_canal2_actionable_entry(revision.get("text") or "")
             for revision in signal["revisions"]
         )
     )
@@ -1850,7 +1892,7 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
             continue
         message_id = row.get("message_id")
         text = str(row.get("text") or "")
-        if message_id is None or not is_canal2_entry(text):
+        if message_id is None or not _is_canal2_actionable_entry(text):
             continue
         message_id = int(message_id)
         observed_dt = _parse_dt(_telegram_ts(row))
@@ -2113,7 +2155,9 @@ def build_catalog_report(events: Iterable[dict], replay_trades: Iterable[dict]) 
             continue
         message_id = int(message_id)
         text = str(row.get("text") or "")
-        canal2_entry = channel == "canal2" and is_canal2_entry(text)
+        canal2_entry = (
+            channel == "canal2" and _is_canal2_actionable_entry(text)
+        )
         if (
             row.get("is_reply") or row.get("reply_to_msg_id") is not None
         ) and not canal2_entry:

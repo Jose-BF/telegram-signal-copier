@@ -46,7 +46,7 @@ from research.dubai_iterative.search import (
     cross_validate_frontier_candidates,
 )
 
-from .dataset import load_gold_now_dataset
+from .dataset import load_gold_direct_dataset, load_gold_now_dataset
 from .folds import build_gold_fold_plan
 from .provider_accounting import build_candidate_pip_hypotheses
 from .reporting import (
@@ -251,10 +251,12 @@ def _search(args, *, resume: bool) -> int:
         else args.minimum_future_filled_signals
     )
     output_root = Path(args.output_root)
-    checkpoint_root = output_root / ".checkpoints"
+    checkpoint_base = output_root / ".checkpoints"
+    signal_scope = _signal_scope_label(args.signal_scope)
     context = {
         "engine": "numba_fixed_point_gold_v2",
         "execution": asdict(execution),
+        "signal_scope": signal_scope,
     }
     experiment_key = _experiment_key(
         dataset.source_hashes,
@@ -262,8 +264,17 @@ def _search(args, *, resume: bool) -> int:
         execution,
         args.seed,
     )
+    checkpoint_root = checkpoint_base / experiment_key
+    legacy_checkpoint_root = checkpoint_base
+    if (
+        resume
+        and not any(checkpoint_root.glob("gold_fold_*/checkpoint.json"))
+        and args.signal_scope == "now"
+        and any(legacy_checkpoint_root.glob("gold_fold_*/checkpoint.json"))
+    ):
+        checkpoint_root = legacy_checkpoint_root
     spool = _CandidateFragmentSpool(
-        checkpoint_root / ".candidate_fragments" / experiment_key,
+        checkpoint_base / ".candidate_fragments" / experiment_key,
         output_root,
     )
     if resume and not any(checkpoint_root.glob("gold_fold_*/checkpoint.json")):
@@ -304,6 +315,7 @@ def _search(args, *, resume: bool) -> int:
             progress_callback=progress,
             evaluation_callback=spool.append,
             experiment_context=context,
+            signal_scope=signal_scope,
             workers=args.workers,
             resume_from_root=checkpoint_root if resume else None,
         )
@@ -387,6 +399,7 @@ def _search(args, *, resume: bool) -> int:
             for item in selected_validations
         )
         provider_scorecard = _provider_scorecard(args)
+        chronological_diagnostics = _chronological_diagnostics(report.search)
         gates = GoldEvidenceGates(
             provider_paths_complete=(
                 bool(complete_paths)
@@ -414,8 +427,8 @@ def _search(args, *, resume: bool) -> int:
                     for item in world_certifications
                 )
             ),
-            chronological_challenge_complete=_chronological_complete(
-                report.search
+            chronological_challenge_complete=bool(
+                chronological_diagnostics["complete"]
             ),
             cross_fold_candidate_eligible=bool(cross_fold.eligible),
             daily_stability_candidate_eligible=bool(
@@ -465,6 +478,7 @@ def _search(args, *, resume: bool) -> int:
                 ),
             },
             "engine": "numba_fixed_point_gold_v2",
+            "signal_scope": signal_scope,
             "oracle": "independent_scalar_gold_v2",
             "oracle_statuses": [
                 item.status for item in world_certifications
@@ -491,6 +505,10 @@ def _search(args, *, resume: bool) -> int:
                 "stability_considered_count": len(
                     candidate_validation.candidates
                 ),
+                "stability_assessments": [
+                    _candidate_validation_summary(item)
+                    for item in candidate_validation.candidates
+                ],
                 "fully_world_tested_count": sum(
                     item.scenario_count == len(validation_worlds)
                     for item in cross_fold.assessments
@@ -500,6 +518,7 @@ def _search(args, *, resume: bool) -> int:
                     for item in selected_validations
                 ],
             },
+            "chronological_challenge": chronological_diagnostics,
             "fixture": args.fixture is not None,
             "live_code_changed": False,
             "automatic_deployment": False,
@@ -514,6 +533,7 @@ def _search(args, *, resume: bool) -> int:
             generation_rows=generation_rows,
             gates=gates,
             provider_scorecard=provider_scorecard,
+            signal_scope=signal_scope,
             provider_pip_hypotheses=_provider_hypotheses(
                 args,
                 evaluations=frontier_evaluations,
@@ -568,7 +588,12 @@ def _load_dataset(args) -> StrategyDataset:
             Path(args.conversion_tick_cache),
             expected_symbol=str(conversion.get("symbol") or "EURUSD"),
         )
-    return load_gold_now_dataset(
+    loader = (
+        load_gold_now_dataset
+        if args.signal_scope == "now"
+        else load_gold_direct_dataset
+    )
+    return loader(
         replay_path=Path(args.replay_path),
         audit_path=Path(args.audit_path),
         provider_catalog_path=Path(args.provider_catalog_path),
@@ -633,14 +658,40 @@ def _provider_hypotheses(
 
 
 def _chronological_complete(report) -> bool:
-    return bool(report.fold_reports) and all(
-        fold.challenge_evaluations
-        and all(
-            item.net_eur is not None and not item.blockers
-            for item in fold.challenge_evaluations
-        )
-        for fold in report.fold_reports
-    )
+    return bool(_chronological_diagnostics(report)["complete"])
+
+
+def _chronological_diagnostics(report) -> dict[str, object]:
+    """Require usable challenge evidence per fold, not perfection per genome."""
+
+    folds = []
+    for fold_report in report.fold_reports:
+        reasons: dict[str, int] = {}
+        complete_count = 0
+        evaluations = tuple(fold_report.challenge_evaluations)
+        for item in evaluations:
+            blockers = tuple(item.blockers)
+            if item.net_eur is not None and not blockers:
+                complete_count += 1
+                continue
+            if item.net_eur is None:
+                reasons["missing_net_eur"] = reasons.get("missing_net_eur", 0) + 1
+            for blocker in blockers:
+                key = str(blocker)
+                reasons[key] = reasons.get(key, 0) + 1
+        folds.append({
+            "fold": str(fold_report.fold.name),
+            "candidate_count": len(evaluations),
+            "complete_candidate_count": complete_count,
+            "rejected_candidate_count": len(evaluations) - complete_count,
+            "rejection_reasons": dict(sorted(reasons.items())),
+        })
+    return {
+        "complete": bool(folds) and all(
+            item["complete_candidate_count"] > 0 for item in folds
+        ),
+        "folds": folds,
+    }
 
 
 def _execution_validation_worlds(search_execution):
@@ -943,6 +994,12 @@ def _sha256_file(path: Path) -> str:
 
 def _add_dataset_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--fixture", choices=("tiny",), default=None)
+    parser.add_argument(
+        "--signal-scope",
+        choices=("now", "direct"),
+        default="now",
+        help="NOW only, or NOW plus explicit priced direct entries",
+    )
     parser.add_argument("--from", dest="from_date", default="2026-07-27")
     parser.add_argument("--to", dest="to_date", default=None)
     parser.add_argument("--replay-path", default="runtime_data/replay_trades.jsonl")
@@ -1058,6 +1115,17 @@ def _parser() -> argparse.ArgumentParser:
     )
     compare.add_argument("--run-dir", required=True)
     return parser
+
+
+def _signal_scope_label(value: str) -> str:
+    labels = {
+        "now": "formal_telegram_now",
+        "direct": "formal_telegram_direct",
+    }
+    try:
+        return labels[value]
+    except KeyError as exc:
+        raise ValueError(f"unsupported Gold signal scope: {value}") from exc
 
 
 if __name__ == "__main__":
