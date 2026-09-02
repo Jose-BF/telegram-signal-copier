@@ -18,6 +18,8 @@ from .engine import SimulationResult, simulate
 from .evolution import (
     CandidateEvaluation,
     Critic,
+    Mutator,
+    collapse_observational_equivalents,
     crossover,
     deduplicate,
     evolve_generation,
@@ -224,6 +226,7 @@ def run_chronological_search(
     output_dir: Path,
     evaluator: Evaluator = simulate,
     critic: Critic | None = None,
+    mutator: Mutator | None = None,
     seed: int = 20260817,
     population_size: int = 64,
     clock: Clock = time.monotonic,
@@ -244,6 +247,7 @@ def run_chronological_search(
             output_dir=Path(output_dir) / fold.name,
             evaluator=evaluator,
             critic=critic,
+            mutator=mutator,
             seed=seed,
             population_size=population_size,
             clock=clock,
@@ -267,6 +271,7 @@ def run_search(
     output_dir: Path,
     evaluator: Evaluator = simulate,
     critic: Critic | None = None,
+    mutator: Mutator | None = None,
     seed: int = 20260817,
     population_size: int = 64,
     resume_from: Path | None = None,
@@ -413,8 +418,11 @@ def run_search(
             evaluations += len(current)
             if evaluation_callback is not None:
                 evaluation_callback(fold, generation_index + 1, current)
+            current = collapse_observational_equivalents(current)
             previous_archive = archive
-            archive = pareto_front(_merge_evaluations(archive, current))
+            archive = pareto_front(collapse_observational_equivalents(
+                _merge_evaluations(archive, current)
+            ))
             if _material_frontier_improvement(previous_archive, archive):
                 stale_generations = 0
             else:
@@ -425,6 +433,7 @@ def run_search(
                 archive=archive,
                 current=current,
                 critic=critic,
+                mutator=mutator,
                 search_space=search_space,
                 seeds=seed_population(search_space, seed=seed),
                 seen=seen,
@@ -560,6 +569,7 @@ def _next_population(
     archive: Sequence[CandidateEvaluation],
     current: Sequence[CandidateEvaluation],
     critic: Critic | None,
+    mutator: Mutator | None = None,
     search_space: SearchSpace,
     seeds: Sequence[StrategyGenome],
     seen: set[str],
@@ -591,6 +601,7 @@ def _next_population(
     batch = evolve_generation(
         parents,
         critic=critic,
+        mutator=mutator,
         search_space=search_space,
         seed=seed,
     )

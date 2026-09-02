@@ -944,6 +944,9 @@ def _causal_entry_index(
         return None
     expiry_ns = signal_ns + genome.entry_expiry_min * 60 * 1_000_000_000
 
+    if genome.entry_mode == "no_entry":
+        return None
+
     if genome.entry_mode == "signal_market":
         end_index = int(np.searchsorted(path.times_ns, expiry_ns, side="left"))
         usable = _usable_tick_mask(path, start_index, end_index)

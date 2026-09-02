@@ -238,6 +238,7 @@ class StrategyGenome:
                 "momentum",
                 "signal_market",
                 "adverse_reversal",
+                "no_entry",
             },
             "entry_ladder_mode": {"simultaneous", "adverse", "favourable"},
             "target_mode": {

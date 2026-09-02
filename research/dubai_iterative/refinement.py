@@ -28,6 +28,79 @@ def parameter_neighborhood(
             return
         proposals.append(candidate)
 
+    if parent.schema_version >= 2:
+        propose(
+            "entry_no_control",
+            entry_mode="no_entry",
+            entry_value=None,
+            entry_confirmation_value=None,
+            entry_ladder_mode="simultaneous",
+            entry_ladder_step=None,
+            pending_entry_policy="none",
+        )
+        propose(
+            "entry_signal_market",
+            entry_mode="signal_market",
+            entry_value=None,
+            entry_confirmation_value=None,
+        )
+        for adverse in (0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 5.0):
+            for reversal in (0.25, 0.5, 1.0, 1.5, 2.0, 3.0):
+                propose(
+                    "entry_adverse_reversal",
+                    entry_mode="adverse_reversal",
+                    entry_value=adverse,
+                    entry_confirmation_value=reversal,
+                )
+
+        if parent.target_mode == "per_leg_steps":
+            for base_step in (0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 5.0):
+                propose(
+                    "target_per_leg_steps",
+                    target_steps=tuple(
+                        round(base_step * (index + 1), 3)
+                        for index in range(parent.leg_count)
+                    ),
+                )
+            propose(
+                "target_v2_none",
+                target_mode="none",
+                target_steps=(),
+            )
+            for target in (3.0, 5.0, 10.0, 20.0, 30.0, 50.0):
+                propose(
+                    "target_v2_basket",
+                    target_mode="fixed_basket",
+                    target_value=target,
+                    target_steps=(),
+                    **_compatible_lock(parent, target),
+                )
+
+        for weights in _volume_neighbors(parent, search_space):
+            changes = {
+                "leg_count": len(weights),
+                "volume_weights": weights,
+            }
+            if parent.target_mode == "per_leg_steps":
+                changes["target_steps"] = _resized_target_steps(
+                    parent.target_steps,
+                    len(weights),
+                )
+            propose("v2_exposure_plan", **changes)
+
+        for distance in (None, 1.0, 2.0, 3.0, 5.0, 8.0, 10.0, 15.0, 20.0, 30.0, 40.0):
+            propose("trailing_distance", trailing_distance=distance)
+        for amount in (None, 5.0, 10.0, 15.0, 20.0, 30.0, 50.0):
+            propose("hard_stop_per_leg", hard_stop_eur_per_leg=amount)
+        for mode in ("none", "loss_only", "profit_only", "non_negative"):
+            propose("time_exit_mode", time_exit_mode=mode)
+        for policy in ("none", "until_expiry"):
+            propose("pending_entry_policy", pending_entry_policy=policy)
+        propose(
+            "provider_explicit_close_only",
+            provider_management_mode="explicit_close_only",
+        )
+
     # Entry timing and price behaviour.
     propose("entry_actual", entry_mode="actual_mt5", entry_value=None)
     for mode, values in (
@@ -201,7 +274,12 @@ def parameter_neighborhood(
             or minutes + parent.entry_expiry_min <= search_space.max_path_horizon_min
         ):
             propose("time_exit", time_exit_min=minutes)
-    for mode in ("exact", "close_only", "ignore"):
+    for mode in (
+        "exact",
+        "close_only",
+        "explicit_close_only",
+        "ignore",
+    ):
         propose("provider_management", provider_management_mode=mode)
 
     propose(
@@ -298,3 +376,23 @@ def _half_close_executable(weights, step):
         and abs((value / 2) / step - round((value / 2) / step)) <= tolerance
         for value in weights
     )
+
+
+def _resized_target_steps(
+    current: tuple[float, ...],
+    count: int,
+) -> tuple[float, ...]:
+    if not current:
+        return tuple(float(index + 1) for index in range(count))
+    if count <= len(current):
+        return tuple(current[:count])
+    step = (
+        current[-1] - current[-2]
+        if len(current) >= 2
+        else current[-1]
+    )
+    step = max(0.1, float(step))
+    values = list(current)
+    while len(values) < count:
+        values.append(round(values[-1] + step, 3))
+    return tuple(values)

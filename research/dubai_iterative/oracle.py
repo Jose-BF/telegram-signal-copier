@@ -800,6 +800,8 @@ def _causal_index(path: DubaiPath, genome: StrategyGenome, execution: ExecutionS
     if start_index >= len(times):
         return None
     expiry_ns = signal_ns + genome.entry_expiry_min * 60 * 1_000_000_000
+    if genome.entry_mode == "no_entry":
+        return None
     if genome.entry_mode == "delay":
         target_ns = start_ns + int(float(genome.entry_value) * 1_000_000_000)
         index = bisect_left(times, target_ns)

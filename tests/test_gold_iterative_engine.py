@@ -254,3 +254,22 @@ def test_c490_loss_only_time_exit_does_not_require_provider_management() -> None
     assert result.exit_reason == "time_exit"
     assert {exit.reason for exit in result.exits} == {"time_exit"}
     assert result.pnl_eur == Decimal("-6.00")
+
+
+def test_no_entry_control_is_an_explicit_zero_participation_strategy() -> None:
+    path = _path([100.0, 110.0], [100.2, 110.2], legs=1)
+    genome = _single_555(
+        entry_mode="no_entry",
+        entry_value=None,
+        entry_confirmation_value=None,
+        target_mode="none",
+        target_steps=(),
+        trailing_distance=None,
+    )
+
+    result = simulate(path, genome)
+
+    assert result.unfilled is True
+    assert result.entries == ()
+    assert result.exits == ()
+    assert result.pnl_eur == Decimal("0.00")

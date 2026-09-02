@@ -175,6 +175,17 @@ class Critic(Protocol):
     def diagnose(self, evaluation: CandidateEvaluation) -> Diagnosis: ...
 
 
+class Mutator(Protocol):
+    def __call__(
+        self,
+        parent: StrategyGenome,
+        diagnosis: Diagnosis,
+        *,
+        search_space: SearchSpace,
+        seed: int,
+    ) -> tuple[StrategyGenome, ...]: ...
+
+
 def diagnose(evaluation: CandidateEvaluation) -> Diagnosis:
     labels: list[str] = []
     evidence: list[DiagnosticEvidence] = []
@@ -276,6 +287,69 @@ def diagnose(evaluation: CandidateEvaluation) -> Diagnosis:
         labels=tuple(dict.fromkeys(labels)),
         evidence=tuple(evidence),
     )
+
+
+def diagnose_gold(evaluation: CandidateEvaluation) -> Diagnosis:
+    """Extend the stable Dubai critic with Gold schema-v2 failure modes."""
+
+    base = diagnose(evaluation)
+    labels = [label for label in base.labels if label != "no_dominant_failure"]
+    evidence = list(base.evidence)
+    unfilled = [
+        result
+        for _day, result in evaluation.results
+        if result.unfilled and not result.blockers
+    ]
+    if unfilled and evaluation.participation_rate < 0.50:
+        labels.append("entry_filter_too_strict")
+        for result in unfilled:
+            evidence.append(DiagnosticEvidence(
+                "entry_filter_too_strict",
+                result.signal_id,
+                "not_filled",
+                "participation_at_least_50_percent",
+            ))
+
+    for _day, result in evaluation.results:
+        if result.blockers or result.pnl_eur is None:
+            continue
+        favourable = result.max_favourable_eur or Decimal("0")
+        giveback = favourable - result.pnl_eur
+        if result.exit_reason == "hard_stop_per_leg":
+            labels.append("per_leg_stop_pressure")
+            evidence.append(DiagnosticEvidence(
+                "per_leg_stop_pressure",
+                result.signal_id,
+                result.pnl_eur,
+                result.max_adverse_eur or Decimal("0"),
+            ))
+        if (
+            result.exit_reason == "trailing_stop"
+            and favourable >= Decimal("3")
+            and giveback >= max(Decimal("2"), favourable * Decimal("0.40"))
+        ):
+            labels.append("trailing_giveback")
+            evidence.append(DiagnosticEvidence(
+                "trailing_giveback",
+                result.signal_id,
+                giveback,
+                favourable,
+            ))
+        if (
+            result.exit_reason == "per_leg_target"
+            and favourable >= Decimal("5")
+            and giveback >= Decimal("3")
+        ):
+            labels.append("fragmented_target_too_short")
+            evidence.append(DiagnosticEvidence(
+                "fragmented_target_too_short",
+                result.signal_id,
+                result.pnl_eur,
+                favourable,
+            ))
+    if not labels:
+        labels.append("no_dominant_failure")
+    return Diagnosis(tuple(dict.fromkeys(labels)), tuple(evidence))
 
 
 def diagnose_against_reference(
@@ -490,6 +564,113 @@ def mutate_from_diagnosis(
     return deduplicate(proposals)
 
 
+def mutate_gold_from_diagnosis(
+    parent: StrategyGenome,
+    diagnosis: Diagnosis,
+    *,
+    search_space: SearchSpace,
+    seed: int,
+) -> tuple[StrategyGenome, ...]:
+    """Generate bounded, single-cause Gold mutations plus generic probes."""
+
+    proposals = list(mutate_from_diagnosis(
+        parent,
+        diagnosis,
+        search_space=search_space,
+        seed=seed,
+    ))
+
+    def propose(reason: str, **changes) -> None:
+        try:
+            child = parent.with_change(**changes).with_lineage(
+                parent_fingerprints=(parent.fingerprint,),
+                mutation_reason=reason,
+                lineage_depth=parent.lineage_depth + 1,
+            )
+        except (TypeError, ValueError):
+            return
+        if child.fingerprint == parent.fingerprint:
+            return
+        if child.validation_errors() or search_space.validation_errors(child):
+            return
+        proposals.append(child)
+
+    labels = set(diagnosis.labels)
+    if "entry_filter_too_strict" in labels:
+        propose(
+            "entry_filter_too_strict",
+            entry_mode="signal_market",
+            entry_value=None,
+            entry_confirmation_value=None,
+        )
+        if parent.entry_mode == "adverse_reversal":
+            adverse = max(0.1, float(parent.entry_value) * 0.5)
+            reversal = max(
+                0.1,
+                float(parent.entry_confirmation_value) * 0.5,
+            )
+            propose(
+                "entry_filter_too_strict",
+                entry_value=round(adverse, 3),
+                entry_confirmation_value=round(reversal, 3),
+            )
+            propose(
+                "entry_filter_too_strict",
+                entry_expiry_min=min(
+                    search_space.max_entry_expiry_min,
+                    max(parent.entry_expiry_min + 15, parent.entry_expiry_min * 2),
+                ),
+            )
+    if "per_leg_stop_pressure" in labels:
+        propose("per_leg_stop_pressure", hard_stop_eur_per_leg=None)
+        current = float(parent.hard_stop_eur_per_leg or 20.0)
+        for multiplier in (1.5, 2.0):
+            propose(
+                "per_leg_stop_pressure",
+                hard_stop_eur_per_leg=round(current * multiplier, 2),
+            )
+    if "trailing_giveback" in labels:
+        current = float(parent.trailing_distance or 10.0)
+        for multiplier in (0.5, 0.75, 1.25):
+            propose(
+                "trailing_giveback",
+                trailing_distance=round(max(0.1, current * multiplier), 3),
+            )
+        propose("trailing_giveback", trailing_distance=None)
+    if "fragmented_target_too_short" in labels and parent.target_steps:
+        for multiplier in (1.5, 2.0):
+            propose(
+                "fragmented_target_too_short",
+                target_steps=tuple(
+                    round(value * multiplier, 3)
+                    for value in parent.target_steps
+                ),
+            )
+        propose(
+            "fragmented_target_too_short",
+            target_mode="none",
+            target_steps=(),
+        )
+    return deduplicate(proposals)
+
+
+def collapse_observational_equivalents(
+    evaluations: Sequence[CandidateEvaluation],
+) -> tuple[CandidateEvaluation, ...]:
+    """Keep one simplest genome for each complete observed outcome trace."""
+
+    representatives: dict[tuple, CandidateEvaluation] = {}
+    for evaluation in evaluations:
+        signature = _outcome_signature(evaluation)
+        current = representatives.get(signature)
+        if current is None or _representative_order(evaluation) < _representative_order(current):
+            representatives[signature] = evaluation
+    return tuple(sorted(
+        representatives.values(),
+        key=lambda item: item.genome.fingerprint,
+    ))
+
+
 def crossover(
     left: StrategyGenome,
     right: StrategyGenome,
@@ -505,20 +686,31 @@ def crossover(
         (
             "entry_mode",
             "entry_value",
+            "entry_confirmation_value",
             "entry_expiry_min",
             "entry_ladder_mode",
             "entry_ladder_step",
+            "pending_entry_policy",
         ),
         ("leg_count", "volume_weights"),
-        ("target_mode", "target_value", "partial_fraction", "runner_target"),
+        (
+            "target_mode",
+            "target_value",
+            "target_steps",
+            "partial_fraction",
+            "runner_target",
+        ),
         (
             "be_mode",
             "be_trigger",
             "stop_mode",
             "stop_value",
+            "hard_stop_eur_per_leg",
+            "trailing_distance",
             "profit_lock_arm",
             "profit_lock_giveback",
             "time_exit_min",
+            "time_exit_mode",
             "provider_management_mode",
         ),
         ("context_filter_mode", "context_filter_value"),
@@ -546,6 +738,7 @@ def evolve_generation(
     training_results: Sequence[CandidateEvaluation],
     *,
     critic: Critic | None = None,
+    mutator: Mutator | None = None,
     challenge_results: Sequence[CandidateEvaluation] = (),
     search_space: SearchSpace,
     seed: int,
@@ -562,7 +755,8 @@ def evolve_generation(
             else diagnose(evaluation)
         )
         diagnoses.append((evaluation.genome.fingerprint, current))
-        children.extend(mutate_from_diagnosis(
+        active_mutator = mutator or mutate_from_diagnosis
+        children.extend(active_mutator(
             evaluation.genome,
             current,
             search_space=search_space,
@@ -1020,10 +1214,13 @@ def _reduce_exposure(
     search_space: SearchSpace,
 ) -> dict | None:
     if genome.leg_count > 1:
-        return {
+        changes = {
             "leg_count": genome.leg_count - 1,
             "volume_weights": genome.volume_weights[:-1],
         }
+        if genome.target_mode == "per_leg_steps":
+            changes["target_steps"] = genome.target_steps[:-1]
+        return changes
     return _scale_exposure(genome, search_space, 0.5)
 
 
@@ -1062,7 +1259,12 @@ def _median(values: Sequence[float]) -> float:
 def _genome_complexity(genome: StrategyGenome) -> int:
     baseline = StrategyGenome.baseline().to_dict()
     current = genome.to_dict()
-    ignored = {"parent_fingerprints", "mutation_reason", "lineage_depth"}
+    ignored = {
+        "parent_fingerprints",
+        "mutation_reason",
+        "lineage_depth",
+        "source_strategy_fingerprint",
+    }
     return sum(
         1
         for key, value in current.items()
@@ -1083,3 +1285,52 @@ def _marginal_last_leg(result: SimulationResult) -> Decimal | None:
         return None
     marginal = sum(values, start=Decimal("0"))
     return marginal if marginal < Decimal("-0.01") else None
+
+
+def _outcome_signature(evaluation: CandidateEvaluation) -> tuple:
+    rows = []
+    for day, result in evaluation.results:
+        entries = tuple(
+            (
+                item.ticket,
+                item.tick_index,
+                item.entry_price,
+                item.volume,
+                item.source,
+            )
+            for item in result.entries
+        )
+        exits = tuple(
+            (
+                item.ticket,
+                item.tick_index,
+                item.exit_price,
+                item.volume,
+                item.pnl_eur,
+                item.reason,
+            )
+            for item in result.exits
+        )
+        rows.append((
+            day,
+            result.signal_id,
+            result.pnl_eur,
+            result.exit_reason,
+            result.max_favourable_eur,
+            result.max_adverse_eur,
+            result.max_floating_drawdown_eur,
+            result.blockers,
+            result.unfilled,
+            result.filled_volume,
+            entries,
+            exits,
+        ))
+    return tuple(rows)
+
+
+def _representative_order(evaluation: CandidateEvaluation) -> tuple:
+    return (
+        evaluation.complexity,
+        round(sum(evaluation.genome.volume_weights), 10),
+        evaluation.genome.fingerprint,
+    )
