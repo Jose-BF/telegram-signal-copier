@@ -134,7 +134,10 @@ def certify_genome_worlds(
     reports = []
     for name, fast_execution, oracle_scenario in worlds:
         evaluator = evaluator_factory(fast_execution)
-        fast_results = tuple(evaluator(path, genome) for path in paths)
+        fast_results = tuple(
+            _evaluate_and_release(evaluator, path, genome)
+            for path in paths
+        )
         certificate = certifier(
             paths,
             genome,
@@ -194,6 +197,15 @@ def certify_genome_worlds(
         certified_worlds=certified,
         world_count=len(reports),
     )
+
+
+def _evaluate_and_release(evaluator, path, genome):
+    try:
+        return evaluator(path, genome)
+    finally:
+        clear_cache = getattr(evaluator, "clear_cache", None)
+        if callable(clear_cache):
+            clear_cache()
 
 
 def select_finalist_genomes(

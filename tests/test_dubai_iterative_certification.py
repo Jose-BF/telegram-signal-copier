@@ -485,6 +485,53 @@ def test_world_certification_requires_every_execution_world_to_match_oracle():
     ]
 
 
+def test_world_certification_releases_fast_cache_after_each_path():
+    genome = StrategyGenome.baseline()
+    paths = tuple(
+        SimpleNamespace(signal_id=f"signal_{index}")
+        for index in range(3)
+    )
+    evaluators = []
+
+    class CacheAwareEvaluator:
+        def __init__(self):
+            self.cached = set()
+            self.max_cached = 0
+            self.clear_calls = 0
+
+        def __call__(self, path, _genome):
+            self.cached.add(path.signal_id)
+            self.max_cached = max(self.max_cached, len(self.cached))
+            return SimpleNamespace(
+                signal_id=path.signal_id,
+                pnl_eur=Decimal("1.00"),
+                blockers=(),
+            )
+
+        def clear_cache(self):
+            self.clear_calls += 1
+            self.cached.clear()
+
+    def evaluator_factory(_execution):
+        evaluator = CacheAwareEvaluator()
+        evaluators.append(evaluator)
+        return evaluator
+
+    report = certify_genome_worlds(
+        paths,
+        genome,
+        worlds=(("measured", "fast", ExecutionScenario("measured")),),
+        evaluator_factory=evaluator_factory,
+        certifier=lambda *_args, **_kwargs: OracleCertificate(
+            "pass", (), (), True
+        ),
+    )
+
+    assert report.status == "pass"
+    assert evaluators[0].max_cached == 1
+    assert evaluators[0].clear_calls == len(paths)
+
+
 def test_world_certification_requires_complete_portfolio_reconstruction():
     genome = StrategyGenome.baseline()
     paths = (SimpleNamespace(signal_id="signal_1"),)
