@@ -112,6 +112,7 @@ def _load_now_scopes(
                 signal_id=signal_id,
                 execution_signal_ids=execution_ids,
                 observed_at=observed_at,
+                provider_trade=_provider_trade(row, observed_at),
             ),
         ))
     return tuple(
@@ -121,6 +122,152 @@ def _load_now_scopes(
             key=lambda item: (item[0], item[1].signal_id),
         )
     )
+
+
+def _provider_trade(
+    row: Mapping[str, Any],
+    observed_at: datetime,
+) -> Mapping[str, Any]:
+    """Compile one formal NOW signal into an execution-independent template."""
+
+    entry_contract = row.get("entry_contract") or {}
+    trigger = _parse_datetime(
+        entry_contract.get("trigger_telegram_utc")
+        or row.get("signal_ts_utc")
+    ) or observed_at
+    direction = str(row.get("direction") or "").upper()
+    level_rows = _provider_level_rows(row, trigger)
+    target_count = max(
+        [len(item[1]) for item in level_rows]
+        + [len(row.get("effective_tps") or ()), 1]
+    )
+    effective_range = [
+        float(value)
+        for value in row.get("effective_range") or ()
+        if _positive_number(value) is not None
+    ]
+    template_price = (
+        sum(effective_range) / len(effective_range)
+        if effective_range
+        else 1.0
+    )
+    tickets = []
+    for index in range(target_count):
+        tp_history = [
+            {
+                "ts": timestamp.isoformat(),
+                "tp": targets[index],
+                "status": "confirmed",
+                "source": "provider_catalog_telegram",
+            }
+            for timestamp, targets, _stop in level_rows
+            if index < len(targets)
+        ]
+        sl_history = [
+            {
+                "ts": timestamp.isoformat(),
+                "sl": stop,
+                "status": "confirmed",
+                "source": "provider_catalog_telegram",
+            }
+            for timestamp, _targets, stop in level_rows
+            if stop is not None
+        ]
+        tickets.append({
+            "ticket": f"provider_template_{index + 1}",
+            "role": f"provider_target_{index + 1}",
+            "volume": 0.01,
+            "open_dt_utc": trigger.isoformat(),
+            "open_price": template_price,
+            "pnl_net": None,
+            "tp_history": tp_history,
+            "sl_history": sl_history,
+        })
+
+    management = []
+    for event in row.get("management_events") or ():
+        if not isinstance(event, Mapping):
+            continue
+        event_time = _parse_datetime(
+            event.get("telegram_ts_utc")
+            or event.get("observed_ts_utc")
+        )
+        if event_time is None:
+            continue
+        normalized = dict(event)
+        normalized["captured_observed_ts_utc"] = event.get(
+            "observed_ts_utc"
+        )
+        normalized["observed_ts_utc"] = event_time.isoformat()
+        management.append(normalized)
+
+    return {
+        "sig_id": str(row.get("provider_signal_id") or ""),
+        "channel": "canal2",
+        "direction": direction,
+        "signal_dt_utc": trigger.isoformat(),
+        "entry_evidence_kind": "provider_telegram",
+        "entry_provenance": {"source_kind": "provider_telegram"},
+        "tickets": tickets,
+        "management": management,
+    }
+
+
+def _provider_level_rows(
+    row: Mapping[str, Any],
+    trigger: datetime,
+) -> tuple[tuple[datetime, tuple[float, ...], float | None], ...]:
+    candidates = list(row.get("level_timeline") or ())
+    if not candidates:
+        candidates = [
+            {
+                "telegram_ts_utc": revision.get("telegram_ts_utc"),
+                "observed_ts_utc": revision.get("observed_ts_utc"),
+                "tps": (revision.get("parsed") or {}).get("tps"),
+                "sl": (revision.get("parsed") or {}).get("sl"),
+            }
+            for revision in row.get("revisions") or ()
+            if isinstance(revision, Mapping)
+        ]
+    rows: list[tuple[datetime, tuple[float, ...], float | None]] = []
+    seen: set[tuple[datetime, tuple[float, ...], float | None]] = set()
+    for candidate in candidates:
+        if not isinstance(candidate, Mapping):
+            continue
+        timestamp = _parse_datetime(
+            candidate.get("telegram_ts_utc")
+            or candidate.get("observed_ts_utc")
+        )
+        if timestamp is None:
+            continue
+        targets = tuple(
+            value
+            for raw in candidate.get("tps") or ()
+            if (value := _positive_number(raw)) is not None
+        )
+        stop = _positive_number(candidate.get("sl"))
+        identity = (timestamp, targets, stop)
+        if (targets or stop is not None) and identity not in seen:
+            seen.add(identity)
+            rows.append(identity)
+    if not rows:
+        targets = tuple(
+            value
+            for raw in row.get("effective_tps") or ()
+            if (value := _positive_number(raw)) is not None
+        )
+        stop = _positive_number(row.get("effective_sl"))
+        if targets or stop is not None:
+            rows.append((trigger, targets, stop))
+    return tuple(sorted(rows, key=lambda item: item[0]))
+
+
+def _positive_number(value: object) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
 
 
 def _has_now_revision(row: Mapping[str, Any], direction: str) -> bool:

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -132,6 +134,141 @@ def _assert_same(scalar, oracle):
         (item.tick_index, item.exit_price, item.volume, item.pnl_eur, item.reason)
         for item in scalar.exits
     ]
+
+
+def test_all_engines_reject_actual_entry_on_provider_template() -> None:
+    path = replace(
+        _path([100.0, 100.5], [100.2, 100.7]),
+        entry_evidence_kind="provider_telegram",
+    )
+    genome = gold_c490_genome().with_change(entry_mode="actual_mt5")
+
+    scalar = simulate(path, genome)
+    fast = FAST(path, genome)
+    oracle = oracle_simulate(path, genome)
+
+    assert scalar.blockers == ("actual_entry_evidence_missing",)
+    _assert_same(scalar, fast)
+    _assert_same(scalar, oracle)
+
+
+def test_all_engines_apply_rollover_cost_before_exit_decisions() -> None:
+    lookup = _array([0, -2], dtype=np.int64)
+    path = replace(
+        _path(
+            [100.0, 100.0, 100.0],
+            [100.0, 100.0, 100.0],
+            interval_seconds=60,
+            legs=1,
+        ),
+        rollover_events=(SimpleNamespace(
+            observed_at=BASE + timedelta(minutes=1),
+            minor_by_volume_unit=lookup,
+            blocker=None,
+        ),),
+    )
+    genome = gold_c490_genome().with_change(
+        leg_count=1,
+        volume_weights=(0.01,),
+        target_mode="none",
+        target_steps=(),
+        be_mode="none",
+        stop_mode="none",
+        trailing_distance=None,
+        hard_stop_eur_per_leg=None,
+        profit_lock_arm=None,
+        profit_lock_giveback=None,
+        time_exit_min=2,
+        time_exit_mode="loss_only",
+    )
+
+    scalar = simulate(path, genome)
+    fast = FastEvaluator()(path, genome)
+    oracle = oracle_simulate(path, genome)
+
+    assert scalar.pnl_eur == Decimal("-0.02")
+    assert scalar.exits[0].pnl_eur == Decimal("-0.02")
+    assert scalar.exit_reason == "time_exit"
+    _assert_same(scalar, fast)
+    _assert_same(scalar, oracle)
+
+
+def test_all_engines_fail_closed_only_when_open_position_reaches_unknown_rollover() -> None:
+    path = replace(
+        _path(
+            [100.0, 100.0, 100.0],
+            [100.0, 100.0, 100.0],
+            interval_seconds=60,
+            legs=1,
+        ),
+        rollover_events=(SimpleNamespace(
+            observed_at=BASE + timedelta(minutes=1),
+            minor_by_volume_unit=_array([0, 0], dtype=np.int64),
+            blocker="missing_swap_rollover_bracket:fixture",
+        ),),
+    )
+    genome = gold_c490_genome().with_change(
+        leg_count=1,
+        volume_weights=(0.01,),
+        target_mode="none",
+        be_mode="none",
+        stop_mode="none",
+        hard_stop_eur_per_leg=None,
+        profit_lock_arm=None,
+        profit_lock_giveback=None,
+        time_exit_min=2,
+        time_exit_mode="loss_only",
+    )
+
+    scalar = simulate(path, genome)
+    fast = FastEvaluator()(path, genome)
+    oracle = oracle_simulate(path, genome)
+
+    assert scalar.pnl_eur is None
+    assert scalar.blockers == ("missing_swap_rollover_bracket:fixture",)
+    _assert_same(scalar, fast)
+    _assert_same(scalar, oracle)
+
+
+def test_all_engines_do_not_charge_rollover_to_entry_opened_after_event() -> None:
+    path = replace(
+        _path(
+            [100.0, 100.0, 100.0],
+            [100.0, 100.0, 100.0],
+            interval_seconds=120,
+            legs=1,
+        ),
+        rollover_events=(SimpleNamespace(
+            observed_at=BASE + timedelta(minutes=1),
+            minor_by_volume_unit=_array([0, -2], dtype=np.int64),
+            blocker=None,
+        ),),
+    )
+    genome = _single_555(
+        entry_mode="delay",
+        entry_value=90.0,
+        entry_expiry_min=5,
+        volume_weights=(0.01,),
+        target_mode="none",
+        target_steps=(),
+        be_mode="none",
+        stop_mode="none",
+        trailing_distance=None,
+        hard_stop_eur_per_leg=None,
+        profit_lock_arm=None,
+        profit_lock_giveback=None,
+        time_exit_min=2,
+        time_exit_mode="none",
+    )
+
+    scalar = simulate(path, genome)
+    fast = FastEvaluator()(path, genome)
+    oracle = oracle_simulate(path, genome)
+
+    assert scalar.entries[0].opened_at == BASE + timedelta(minutes=2)
+    assert scalar.pnl_eur == Decimal("0.00")
+    _assert_same(scalar, fast)
+    _assert_same(scalar, oracle)
 
 
 @pytest.mark.parametrize(

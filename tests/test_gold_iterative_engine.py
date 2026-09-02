@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
@@ -92,6 +93,19 @@ def _single_555(**changes) -> StrategyGenome:
     }
     values.update(changes)
     return gold_555_genome().with_change(**values)
+
+
+def test_provider_template_cannot_masquerade_as_actual_mt5_entry() -> None:
+    path = replace(
+        _path([100.0, 100.5], [100.2, 100.7]),
+        entry_evidence_kind="provider_telegram",
+    )
+    genome = gold_c490_genome().with_change(entry_mode="actual_mt5")
+
+    result = simulate(path, genome)
+
+    assert result.entries == ()
+    assert result.blockers == ("actual_entry_evidence_missing",)
 
 
 def test_555_buy_waits_for_adverse_move_and_reversal_before_entry() -> None:

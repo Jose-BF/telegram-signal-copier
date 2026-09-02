@@ -91,6 +91,7 @@ class _Position:
     be_stop: float | None = None
     be_reason: str = "break_even"
     trailing_stop: float | None = None
+    accrued_swap_minor: int = 0
 
 
 @dataclass(frozen=True)
@@ -146,6 +147,14 @@ def simulate(
         sorted(path.provider_events, key=lambda event: _datetime_ns(event.observed_at))
     )
     provider_cursor = 0
+    rollover_events = tuple(
+        sorted(
+            path.rollover_events,
+            key=lambda event: _datetime_ns(event.observed_at),
+        )
+    )
+    rollover_cursor = 0
+    rollover_blocked = False
     realized_minor = 0
     money_unknown = False
     partial_taken = False
@@ -181,6 +190,44 @@ def simulate(
                 source=item.source,
             ))
             schedule_cursor += 1
+
+        while (
+            rollover_cursor < len(rollover_events)
+            and _datetime_ns(
+                rollover_events[rollover_cursor].observed_at
+            ) <= now_ns
+        ):
+            event = rollover_events[rollover_cursor]
+            rollover_cursor += 1
+            event_ns = _datetime_ns(event.observed_at)
+            rollover_positions = [
+                position
+                for position in positions
+                if position.opened_ns < event_ns
+            ]
+            if not rollover_positions:
+                continue
+            if event.blocker:
+                blockers.append(event.blocker)
+                money_unknown = True
+                rollover_blocked = True
+                last_tick_index = index
+                break
+            for position in rollover_positions:
+                units = _volume_units(position.volume)
+                if units is None or units >= len(event.minor_by_volume_unit):
+                    blockers.append("swap_volume_unsupported")
+                    money_unknown = True
+                    rollover_blocked = True
+                    last_tick_index = index
+                    break
+                position.accrued_swap_minor += int(
+                    event.minor_by_volume_unit[units]
+                )
+            if rollover_blocked:
+                break
+        if rollover_blocked:
+            break
 
         if not positions:
             if schedule_cursor >= len(scheduled) and entries:
@@ -605,7 +652,7 @@ def simulate(
                 float(genome.trailing_distance),
             )
 
-    if positions:
+    if positions and not rollover_blocked:
         if last_tick_index >= 0 and _tick_is_usable(path, last_tick_index):
             realized_minor, money_unknown = _close_all(
                 path,
@@ -663,6 +710,13 @@ def _prepare_entries(
     genome: StrategyGenome,
     execution: ExecutionAssumptions,
 ) -> tuple[list[_ScheduledEntry], str, list[str]]:
+    if (
+        genome.entry_mode == "actual_mt5"
+        and path.entry_evidence_kind != "actual_mt5"
+    ):
+        return [], "counterfactual_entry", [
+            "actual_entry_evidence_missing"
+        ]
     if genome.entry_ladder_mode != "simultaneous":
         return _prepare_ladder_entries(path, genome, execution)
 
@@ -1320,6 +1374,8 @@ def _close_position(
         blockers.append(f"stale_conversion_at_exit:{index}")
         money_unknown = True
     else:
+        swap_minor = _allocate_position_swap(position, volume)
+        pnl_minor += swap_minor
         realized_minor += pnl_minor
     exits.append(ExitRecord(
         ticket=position.ticket,
@@ -1356,7 +1412,7 @@ def _basket_minor(
             position.volume,
             index,
         )
-        total += value
+        total += value + position.accrued_swap_minor
         exact = exact and value_exact
     return total, exact
 
@@ -1367,13 +1423,39 @@ def _position_minor(
     index: int,
     execution: ExecutionAssumptions,
 ) -> tuple[int, bool]:
-    return _money_minor(
+    value, exact = _money_minor(
         path,
         position.entry_price,
         _adverse_exit_price(path, index, execution),
         position.volume,
         index,
     )
+    return value + position.accrued_swap_minor, exact
+
+
+def _volume_units(volume: float) -> int | None:
+    scaled = Decimal(str(volume)) * Decimal(100)
+    integral = scaled.to_integral_value(rounding=ROUND_HALF_UP)
+    if abs(scaled - integral) > Decimal("0.00000001"):
+        return None
+    units = int(integral)
+    return units if units >= 0 else None
+
+
+def _allocate_position_swap(position: _Position, volume: float) -> int:
+    if position.accrued_swap_minor == 0:
+        return 0
+    if math.isclose(volume, position.volume, abs_tol=1e-12):
+        allocated = position.accrued_swap_minor
+    else:
+        allocated = _round_minor(
+            Decimal(position.accrued_swap_minor)
+            * Decimal(str(volume))
+            / Decimal(str(position.volume)),
+            0,
+        )
+    position.accrued_swap_minor -= allocated
+    return allocated
 
 
 def _money_minor(

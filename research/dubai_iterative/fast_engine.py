@@ -103,6 +103,8 @@ BLOCK_STALE_PROFIT_LOCK = 8
 BLOCK_STALE_EXIT = 16
 BLOCK_PATH_ENDED = 32
 BLOCK_STALE_HARD_STOP = 64
+BLOCK_SWAP_ROLLOVER = 128
+BLOCK_SWAP_VOLUME = 256
 
 
 _TARGET_CODES = {
@@ -178,6 +180,11 @@ class _CompiledPath:
     all_tp_indices: np.ndarray
     all_tp_levels: np.ndarray
     all_tp_counts: np.ndarray
+    rollover_indices: np.ndarray
+    rollover_times_ns: np.ndarray
+    rollover_costs: np.ndarray
+    rollover_valid: np.ndarray
+    rollover_blockers: tuple[str | None, ...]
 
 
 class FastEvaluator:
@@ -264,6 +271,26 @@ def _compile_path(
         path.times_ns,
         observation_latency_ns=observation_latency_ns,
     )
+    rollover_rows = sorted(
+        path.rollover_events,
+        key=lambda event: _datetime_ns(event.observed_at),
+    )
+    rollover_width = max(
+        (len(event.minor_by_volume_unit) for event in rollover_rows),
+        default=1,
+    )
+    rollover_costs = np.zeros(
+        (len(rollover_rows), rollover_width),
+        dtype=np.int64,
+    )
+    for row, event in enumerate(rollover_rows):
+        values = np.asarray(event.minor_by_volume_unit)
+        if values.ndim != 1 or values.dtype.kind not in {"i", "u"}:
+            raise FastPathUnsupported("rollover_cost_lookup")
+        rollover_costs[row, :len(values)] = values.astype(
+            np.int64,
+            copy=False,
+        )
     return _CompiledPath(
         direction=1 if path.direction == "BUY" else -1,
         orientation=orientation,
@@ -281,6 +308,27 @@ def _compile_path(
         all_tp_indices=tp_indices,
         all_tp_levels=tp_levels,
         all_tp_counts=tp_counts,
+        rollover_indices=np.asarray(
+            [
+                int(np.searchsorted(
+                    path.times_ns,
+                    _datetime_ns(event.observed_at),
+                    side="left",
+                ))
+                for event in rollover_rows
+            ],
+            dtype=np.int64,
+        ),
+        rollover_times_ns=np.asarray(
+            [_datetime_ns(event.observed_at) for event in rollover_rows],
+            dtype=np.int64,
+        ),
+        rollover_costs=rollover_costs,
+        rollover_valid=np.asarray(
+            [event.blocker is None for event in rollover_rows],
+            dtype=np.bool_,
+        ),
+        rollover_blockers=tuple(event.blocker for event in rollover_rows),
     )
 
 
@@ -377,6 +425,10 @@ def _simulate_compiled(
         compiled.provider_indices,
         compiled.provider_actions,
         compiled.provider_prices,
+        compiled.rollover_indices,
+        compiled.rollover_times_ns,
+        compiled.rollover_costs,
+        compiled.rollover_valid,
         _TARGET_CODES[genome.target_mode],
         leg_target_points,
         _minor(genome.target_value),
@@ -403,10 +455,24 @@ def _simulate_compiled(
         max(1, int(round(float(genome.target_value or 1.0)))) - 1,
         genome.pending_entry_policy == "until_expiry",
     )
-    return _result_from_kernel(path, genome, scheduled, confidence, output)
+    return _result_from_kernel(
+        path,
+        genome,
+        scheduled,
+        confidence,
+        compiled,
+        output,
+    )
 
 
-def _result_from_kernel(path, genome, scheduled, confidence, output) -> SimulationResult:
+def _result_from_kernel(
+    path,
+    genome,
+    scheduled,
+    confidence,
+    compiled,
+    output,
+) -> SimulationResult:
     (
         pnl_minor,
         exit_reason_code,
@@ -417,6 +483,7 @@ def _result_from_kernel(path, genome, scheduled, confidence, output) -> Simulati
         max_adverse_points,
         blocker_mask,
         blocker_index,
+        rollover_blocker_event,
         last_tick_index,
         unfilled,
         entries_seen,
@@ -431,7 +498,12 @@ def _result_from_kernel(path, genome, scheduled, confidence, output) -> Simulati
         exit_exact,
         exit_reasons,
     ) = output
-    blockers = _blockers(int(blocker_mask), int(blocker_index))
+    blockers = list(_blockers(int(blocker_mask), int(blocker_index)))
+    if int(rollover_blocker_event) >= 0:
+        blocker = compiled.rollover_blockers[
+            int(rollover_blocker_event)
+        ]
+        blockers.append(blocker or "swap_volume_unsupported")
     entries = tuple(
         EntryRecord(
             ticket=item.position.ticket,
@@ -473,6 +545,8 @@ def _result_from_kernel(path, genome, scheduled, confidence, output) -> Simulati
         | BLOCK_STALE_PROFIT_LOCK
         | BLOCK_STALE_EXIT
         | BLOCK_STALE_HARD_STOP
+        | BLOCK_SWAP_ROLLOVER
+        | BLOCK_SWAP_VOLUME
     ))
     return SimulationResult(
         signal_id=path.signal_id,
@@ -496,7 +570,7 @@ def _result_from_kernel(path, genome, scheduled, confidence, output) -> Simulati
         ),
         max_favourable_move=round(float(max_favourable_points) / PRICE_SCALE, 10),
         max_adverse_move=round(float(max_adverse_points) / PRICE_SCALE, 10),
-        blockers=blockers,
+        blockers=tuple(dict.fromkeys(blockers)),
         last_tick_index=int(last_tick_index),
         unfilled=bool(unfilled),
         filled_volume=round(float(filled_units) / VOLUME_SCALE, 10),
@@ -687,6 +761,15 @@ def _money_minor_fixed(direction, orientation, contract_size, entry, exit_price,
     return _round_ratio(numerator, denominator), bool(fx_valid)
 
 
+@njit(cache=True)
+def _allocate_swap_fixed(accrued, close_volume, current_volume):
+    if accrued == 0 or close_volume <= 0 or current_volume <= 0:
+        return 0
+    if close_volume >= current_volume:
+        return accrued
+    return _round_ratio(accrued * close_volume, current_volume)
+
+
 @njit(cache=True, nogil=True)
 def _kernel(
     direction,
@@ -718,6 +801,10 @@ def _kernel(
     provider_indices,
     provider_actions,
     provider_prices,
+    rollover_indices,
+    rollover_times_ns,
+    rollover_costs,
+    rollover_valid,
     target_mode,
     leg_target_points,
     target_minor,
@@ -743,6 +830,7 @@ def _kernel(
     position_count = len(schedule_indices)
     active = np.zeros(position_count, dtype=np.bool_)
     volumes = initial_volumes.copy()
+    accrued_swap = np.zeros(position_count, dtype=np.int64)
     be_stops = np.zeros(position_count, dtype=np.int64)
     be_reasons = np.full(position_count, REASON_BREAK_EVEN, dtype=np.int8)
     trailing_stops = np.zeros(position_count, dtype=np.int64)
@@ -772,6 +860,9 @@ def _kernel(
 
     schedule_cursor = 0
     provider_cursor = 0
+    rollover_cursor = 0
+    rollover_blocker_event = -1
+    rollover_blocked = False
     realized = 0
     money_unknown = False
     partial_taken = False
@@ -798,6 +889,45 @@ def _kernel(
             if opened_ns[schedule_cursor] < first_open_ns:
                 first_open_ns = opened_ns[schedule_cursor]
             schedule_cursor += 1
+        while (
+            rollover_cursor < len(rollover_indices)
+            and rollover_indices[rollover_cursor] <= index
+        ):
+            event_index = rollover_cursor
+            rollover_cursor += 1
+            eligible_count = 0
+            for slot in range(position_count):
+                if active[slot] and opened_ns[slot] < rollover_times_ns[event_index]:
+                    eligible_count += 1
+            if eligible_count == 0:
+                continue
+            if not rollover_valid[event_index]:
+                blocker_mask |= BLOCK_SWAP_ROLLOVER
+                blocker_index = index
+                rollover_blocker_event = event_index
+                money_unknown = True
+                rollover_blocked = True
+                break
+            for slot in range(position_count):
+                if (
+                    not active[slot]
+                    or opened_ns[slot] >= rollover_times_ns[event_index]
+                ):
+                    continue
+                units = volumes[slot]
+                if units < 0 or units >= rollover_costs.shape[1]:
+                    blocker_mask |= BLOCK_SWAP_VOLUME
+                    blocker_index = index
+                    rollover_blocker_event = event_index
+                    money_unknown = True
+                    rollover_blocked = True
+                    break
+                accrued_swap[slot] += rollover_costs[event_index, units]
+            if rollover_blocked:
+                break
+        if rollover_blocked:
+            last_index = index
+            break
         if active_count == 0:
             if schedule_cursor >= position_count and entries_seen > 0:
                 break
@@ -852,7 +982,7 @@ def _kernel(
                 direction, orientation, contract_size, entry_prices[slot], money_exit,
                 volumes[slot], fx_bid[index], fx_ask[index], fx_valid[index]
             )
-            floating += value
+            floating += value + accrued_swap[slot]
             floating_exact = floating_exact and exact
         total = realized + floating
         if floating_exact and not money_unknown:
@@ -869,6 +999,8 @@ def _kernel(
                 for slot in range(position_count):
                     if active[slot]:
                         value, exact = _money_minor_fixed(direction, orientation, contract_size, entry_prices[slot], money_exit, volumes[slot], fx_bid[index], fx_ask[index], fx_valid[index])
+                        value += accrued_swap[slot]
+                        accrued_swap[slot] = 0
                         exit_slots[exit_count] = slot; exit_indices[exit_count] = index
                         exit_entry_prices[exit_count] = entry_prices[slot]; exit_prices[exit_count] = money_exit
                         exit_volumes[exit_count] = volumes[slot]; exit_pnls[exit_count] = value
@@ -888,6 +1020,7 @@ def _kernel(
                     entry_prices[slot], money_exit, volumes[slot],
                     fx_bid[index], fx_ask[index], fx_valid[index],
                 )
+                value += accrued_swap[slot]
                 if current_exact and value <= -hard_stop_minor:
                     exit_slots[exit_count] = slot
                     exit_indices[exit_count] = index
@@ -899,6 +1032,7 @@ def _kernel(
                     exit_reasons[exit_count] = REASON_HARD_STOP_PER_LEG
                     exit_count += 1
                     realized += value
+                    accrued_swap[slot] = 0
                     active[slot] = False
                     active_count -= 1
                     exit_reason = REASON_HARD_STOP_PER_LEG
@@ -929,6 +1063,8 @@ def _kernel(
             for slot in range(position_count):
                 if active[slot]:
                     value, exact = _money_minor_fixed(direction, orientation, contract_size, entry_prices[slot], money_exit, volumes[slot], fx_bid[index], fx_ask[index], fx_valid[index])
+                    value += accrued_swap[slot]
+                    accrued_swap[slot] = 0
                     exit_slots[exit_count] = slot; exit_indices[exit_count] = index
                     exit_entry_prices[exit_count] = entry_prices[slot]; exit_prices[exit_count] = money_exit
                     exit_volumes[exit_count] = volumes[slot]; exit_pnls[exit_count] = value
@@ -965,6 +1101,8 @@ def _kernel(
             hit = level != 0 and ((direction == 1 and raw_exit <= level) or (direction == -1 and raw_exit >= level))
             if hit:
                 value, exact = _money_minor_fixed(direction, orientation, contract_size, entry_prices[slot], money_exit, volumes[slot], fx_bid[index], fx_ask[index], fx_valid[index])
+                value += accrued_swap[slot]
+                accrued_swap[slot] = 0
                 exit_slots[exit_count] = slot; exit_indices[exit_count] = index
                 exit_entry_prices[exit_count] = entry_prices[slot]; exit_prices[exit_count] = money_exit
                 exit_volumes[exit_count] = volumes[slot]; exit_pnls[exit_count] = value
@@ -981,7 +1119,7 @@ def _kernel(
         for slot in range(position_count):
             if active[slot]:
                 value, exact = _money_minor_fixed(direction, orientation, contract_size, entry_prices[slot], money_exit, volumes[slot], fx_bid[index], fx_ask[index], fx_valid[index])
-                floating += value; floating_exact = floating_exact and exact
+                floating += value + accrued_swap[slot]; floating_exact = floating_exact and exact
         total = realized + floating
 
         if target_mode == TARGET_PROVIDER_LEG:
@@ -990,6 +1128,8 @@ def _kernel(
                 hit = active[slot] and level != 0 and ((direction == 1 and raw_exit >= level) or (direction == -1 and raw_exit <= level))
                 if hit:
                     value, exact = _money_minor_fixed(direction, orientation, contract_size, entry_prices[slot], money_exit, volumes[slot], fx_bid[index], fx_ask[index], fx_valid[index])
+                    value += accrued_swap[slot]
+                    accrued_swap[slot] = 0
                     exit_slots[exit_count] = slot; exit_indices[exit_count] = index
                     exit_entry_prices[exit_count] = entry_prices[slot]; exit_prices[exit_count] = money_exit
                     exit_volumes[exit_count] = volumes[slot]; exit_pnls[exit_count] = value
@@ -1011,6 +1151,8 @@ def _kernel(
                         entry_prices[slot], money_exit, volumes[slot],
                         fx_bid[index], fx_ask[index], fx_valid[index],
                     )
+                    value += accrued_swap[slot]
+                    accrued_swap[slot] = 0
                     exit_slots[exit_count] = slot
                     exit_indices[exit_count] = index
                     exit_entry_prices[exit_count] = entry_prices[slot]
@@ -1053,6 +1195,8 @@ def _kernel(
                     for slot in range(position_count):
                         if active[slot]:
                             value, exact = _money_minor_fixed(direction, orientation, contract_size, entry_prices[slot], money_exit, volumes[slot], fx_bid[index], fx_ask[index], fx_valid[index])
+                            value += accrued_swap[slot]
+                            accrued_swap[slot] = 0
                             exit_slots[exit_count] = slot; exit_indices[exit_count] = index
                             exit_entry_prices[exit_count] = entry_prices[slot]; exit_prices[exit_count] = money_exit
                             exit_volumes[exit_count] = volumes[slot]; exit_pnls[exit_count] = value
@@ -1067,6 +1211,8 @@ def _kernel(
                 for slot in range(position_count):
                     if active[slot]:
                         value, exact = _money_minor_fixed(direction, orientation, contract_size, entry_prices[slot], money_exit, volumes[slot], fx_bid[index], fx_ask[index], fx_valid[index])
+                        value += accrued_swap[slot]
+                        accrued_swap[slot] = 0
                         exit_slots[exit_count] = slot; exit_indices[exit_count] = index
                         exit_entry_prices[exit_count] = entry_prices[slot]; exit_prices[exit_count] = money_exit
                         exit_volumes[exit_count] = volumes[slot]; exit_pnls[exit_count] = value
@@ -1089,6 +1235,8 @@ def _kernel(
                 for slot in range(position_count):
                     if active[slot]:
                         value, exact = _money_minor_fixed(direction, orientation, contract_size, entry_prices[slot], money_exit, volumes[slot], fx_bid[index], fx_ask[index], fx_valid[index])
+                        value += accrued_swap[slot]
+                        accrued_swap[slot] = 0
                         exit_slots[exit_count] = slot; exit_indices[exit_count] = index
                         exit_entry_prices[exit_count] = entry_prices[slot]; exit_prices[exit_count] = money_exit
                         exit_volumes[exit_count] = volumes[slot]; exit_pnls[exit_count] = value
@@ -1105,6 +1253,13 @@ def _kernel(
                         close_volume = int(math.floor(volumes[slot] * partial_fraction + 0.5))
                         if close_volume <= 0: continue
                         value, exact = _money_minor_fixed(direction, orientation, contract_size, entry_prices[slot], money_exit, close_volume, fx_bid[index], fx_ask[index], fx_valid[index])
+                        allocated_swap = _allocate_swap_fixed(
+                            accrued_swap[slot],
+                            close_volume,
+                            volumes[slot],
+                        )
+                        value += allocated_swap
+                        accrued_swap[slot] -= allocated_swap
                         exit_slots[exit_count] = slot; exit_indices[exit_count] = index
                         exit_entry_prices[exit_count] = entry_prices[slot]; exit_prices[exit_count] = money_exit
                         exit_volumes[exit_count] = close_volume; exit_pnls[exit_count] = value
@@ -1117,12 +1272,14 @@ def _kernel(
                 for slot in range(position_count):
                     if active[slot]:
                         value, exact = _money_minor_fixed(direction, orientation, contract_size, entry_prices[slot], money_exit, volumes[slot], fx_bid[index], fx_ask[index], fx_valid[index])
-                        floating += value; floating_exact = floating_exact and exact
+                        floating += value + accrued_swap[slot]; floating_exact = floating_exact and exact
                 total = realized + floating
                 if partial_taken and floating_exact and total >= runner_minor:
                     for slot in range(position_count):
                         if active[slot]:
                             value, exact = _money_minor_fixed(direction, orientation, contract_size, entry_prices[slot], money_exit, volumes[slot], fx_bid[index], fx_ask[index], fx_valid[index])
+                            value += accrued_swap[slot]
+                            accrued_swap[slot] = 0
                             exit_slots[exit_count] = slot; exit_indices[exit_count] = index
                             exit_entry_prices[exit_count] = entry_prices[slot]; exit_prices[exit_count] = money_exit
                             exit_volumes[exit_count] = volumes[slot]; exit_pnls[exit_count] = value
@@ -1141,6 +1298,8 @@ def _kernel(
                     for slot in range(position_count):
                         if active[slot]:
                             value, exact = _money_minor_fixed(direction, orientation, contract_size, entry_prices[slot], money_exit, volumes[slot], fx_bid[index], fx_ask[index], fx_valid[index])
+                            value += accrued_swap[slot]
+                            accrued_swap[slot] = 0
                             exit_slots[exit_count] = slot; exit_indices[exit_count] = index
                             exit_entry_prices[exit_count] = entry_prices[slot]; exit_prices[exit_count] = money_exit
                             exit_volumes[exit_count] = volumes[slot]; exit_pnls[exit_count] = value
@@ -1171,6 +1330,8 @@ def _kernel(
             for slot in range(position_count):
                 if active[slot]:
                     value, exact = _money_minor_fixed(direction, orientation, contract_size, entry_prices[slot], money_exit, volumes[slot], fx_bid[index], fx_ask[index], fx_valid[index])
+                    value += accrued_swap[slot]
+                    accrued_swap[slot] = 0
                     exit_slots[exit_count] = slot; exit_indices[exit_count] = index
                     exit_entry_prices[exit_count] = entry_prices[slot]; exit_prices[exit_count] = money_exit
                     exit_volumes[exit_count] = volumes[slot]; exit_pnls[exit_count] = value
@@ -1194,13 +1355,15 @@ def _kernel(
                 ):
                     trailing_stops[slot] = candidate
 
-    if active_count > 0:
+    if active_count > 0 and not rollover_blocked:
         if last_index >= 0:
             raw_exit = exit_quote[last_index]
             money_exit = raw_exit - direction * exit_cost_points
             for slot in range(position_count):
                 if active[slot]:
                     value, exact = _money_minor_fixed(direction, orientation, contract_size, entry_prices[slot], money_exit, volumes[slot], fx_bid[last_index], fx_ask[last_index], fx_valid[last_index])
+                    value += accrued_swap[slot]
+                    accrued_swap[slot] = 0
                     exit_slots[exit_count] = slot; exit_indices[exit_count] = last_index
                     exit_entry_prices[exit_count] = entry_prices[slot]; exit_prices[exit_count] = money_exit
                     exit_volumes[exit_count] = volumes[slot]; exit_pnls[exit_count] = value
@@ -1215,7 +1378,8 @@ def _kernel(
     return (
         realized, exit_reason, max_total, min_total, max_drawdown,
         max_favourable_points, max_adverse_points, blocker_mask, blocker_index,
-        last_index, False, entries_seen, np.sum(initial_volumes[:entries_seen]), exit_count,
+        rollover_blocker_event, last_index, False, entries_seen,
+        np.sum(initial_volumes[:entries_seen]), exit_count,
         exit_slots, exit_indices, exit_entry_prices, exit_prices, exit_volumes,
         exit_pnls, exit_exact, exit_reasons,
     )

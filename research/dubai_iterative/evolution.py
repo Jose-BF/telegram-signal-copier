@@ -651,7 +651,11 @@ def mutate_gold_from_diagnosis(
             target_mode="none",
             target_steps=(),
         )
-    return deduplicate(proposals)
+    return deduplicate(
+        proposal
+        for proposal in proposals
+        if proposal.entry_mode != "actual_mt5"
+    )
 
 
 def collapse_observational_equivalents(

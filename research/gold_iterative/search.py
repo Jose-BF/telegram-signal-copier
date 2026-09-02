@@ -19,7 +19,6 @@ from research.dubai_iterative.evolution import (
     mutate_gold_from_diagnosis,
 )
 from research.dubai_iterative.fast_engine import FastEvaluator
-from research.dubai_iterative.refinement import parameter_neighborhood
 from research.dubai_iterative.search import (
     ChronologicalSearchReport,
     Clock,
@@ -31,7 +30,11 @@ from research.dubai_iterative.search import (
 
 from .contracts import gold_555_genome, gold_c490_genome
 from .folds import GoldFoldDataset, GoldFoldPlan, build_gold_fold_plan
-from .seeds import gold_seed_population, sample_gold_population
+from .seeds import (
+    gold_parameter_neighborhood,
+    gold_seed_population,
+    sample_gold_population,
+)
 
 
 class _GoldCritic:
@@ -100,7 +103,7 @@ def run_gold_chronological_search(
         initial_genomes=anchors,
         seed_population_factory=gold_seed_population,
         scout_population_factory=sample_gold_population,
-        neighborhood_factory=parameter_neighborhood,
+        neighborhood_factory=gold_parameter_neighborhood,
         baseline_genome=gold_555_genome(),
         resume_from_root=resume_from_root,
     )

@@ -312,7 +312,14 @@ def _search(args, *, resume: bool) -> int:
         )
         provider_scorecard = _provider_scorecard(args)
         gates = GoldEvidenceGates(
-            actual_mt5_complete=bool(complete_paths),
+            provider_paths_complete=(
+                bool(complete_paths)
+                and all(
+                    not coverage.missing_signal_ids
+                    for coverage in fold_plan.day_coverage
+                    if coverage.day in complete_days
+                )
+            ),
             tick_paths_complete=(
                 bool(complete_paths)
                 and all(path.market_evidence for path in complete_paths)

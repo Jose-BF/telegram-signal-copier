@@ -26,7 +26,7 @@ from research.gold_iterative.reporting import (
 class TinyPath:
     signal_id: str
     day: str
-    actual_pnl_eur: Decimal
+    actual_pnl_eur: Decimal | None
 
 
 @dataclass(frozen=True)
@@ -130,7 +130,7 @@ def _hypothesis():
 
 def _gates(**changes) -> GoldEvidenceGates:
     values = {
-        "actual_mt5_complete": True,
+        "provider_paths_complete": True,
         "tick_paths_complete": True,
         "account_currency_money_complete": True,
         "oracle_parity_complete": True,
@@ -278,3 +278,60 @@ def test_financial_totals_exclude_partial_days_from_the_research_universe():
     assert artifacts.run_card["financial_totals"]["actual_mt5"]["amount"] == "6.00"
     daily = pd.DataFrame(artifacts.extra_tables["daily_totals.parquet"])
     assert "2026-08-25" not in set(daily["day"])
+
+
+def test_provider_only_path_never_becomes_false_zero_actual_mt5():
+    paths = (
+        TinyPath("observed", "2026-08-24", Decimal("1.25")),
+        TinyPath("provider_only", "2026-08-25", None),
+        TinyPath("observed_2", "2026-08-26", Decimal("3.00")),
+    )
+    dataset = TinyDataset(
+        paths=paths,
+        eligible_signal_ids=tuple(path.signal_id for path in paths),
+        eligible_signal_days={path.signal_id: path.day for path in paths},
+        exclusions={"actual_evidence_missing": ("provider_only",)},
+        source_hashes={"fixture": "provider-first"},
+    )
+    evaluation = CandidateEvaluation.from_results(
+        gold_555_genome(),
+        (
+            (path.day, _result(path, pnl))
+            for path, pnl in zip(
+                paths,
+                ("1.00", "2.00", "3.00"),
+                strict=True,
+            )
+        ),
+    )
+
+    artifacts = build_gold_research_artifacts(
+        dataset,
+        fold_plan=build_gold_fold_plan(dataset),
+        frontier_evaluations=(evaluation,),
+        candidate_evaluations=(evaluation,),
+        generation_rows=(),
+        gates=_gates(),
+        provider_scorecard={"summaries": []},
+    )
+
+    actual = artifacts.run_card["financial_totals"]["actual_mt5"]
+    assert actual["amount"] is None
+    assert actual["known_amount"] == "4.25"
+    assert artifacts.run_card["actual_mt5_coverage"] == {
+        "known_signal_count": 2,
+        "research_signal_count": 3,
+        "complete": False,
+    }
+    assert artifacts.run_card["selection"]["ranking_allowed"] is True
+    assert "actual_mt5_incomplete" not in artifacts.run_card["selection"][
+        "blockers"
+    ]
+    signals = pd.DataFrame(artifacts.signal_rows)
+    assert pd.isna(signals.loc[
+        signals["signal_id"] == "provider_only", "actual_mt5_eur"
+    ].iloc[0])
+    daily = pd.DataFrame(artifacts.extra_tables["daily_totals.parquet"])
+    assert pd.isna(daily.loc[
+        daily["day"] == "2026-08-25", "actual_mt5_eur"
+    ].iloc[0])

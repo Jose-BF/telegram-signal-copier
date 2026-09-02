@@ -212,6 +212,7 @@ def test_gold_search_uses_gold_anchors_and_never_leaks_challenge_into_critic(
         genome.fingerprint for genome in first_generation
     }
     assert all(genome.schema_version == 2 for genome in first_generation)
+    assert all(genome.entry_mode != "actual_mt5" for genome in first_generation)
     assert set(critic.signal_ids) == {"dev_1", "dev_2_a", "dev_2_b"}
     challenge_ids = {
         result.signal_id

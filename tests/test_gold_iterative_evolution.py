@@ -10,9 +10,12 @@ from research.dubai_iterative.evolution import (
     diagnose_gold,
     mutate_gold_from_diagnosis,
 )
-from research.dubai_iterative.refinement import parameter_neighborhood
 from research.gold_iterative.contracts import gold_555_genome, gold_c490_genome
-from research.gold_iterative.seeds import gold_seed_population
+from research.gold_iterative.seeds import (
+    gold_parameter_neighborhood,
+    gold_seed_population,
+    sample_gold_population,
+)
 
 
 SPACE = SearchSpace(
@@ -99,7 +102,7 @@ def test_gold_generation_zero_contains_materially_distinct_families() -> None:
 def test_gold_neighborhood_changes_every_schema_v2_strategy_block() -> None:
     parent = gold_555_genome()
 
-    children = parameter_neighborhood(parent, SPACE)
+    children = gold_parameter_neighborhood(parent, SPACE)
 
     assert 20 < len(children) < 2_000
     assert len({item.fingerprint for item in children}) == len(children)
@@ -113,6 +116,14 @@ def test_gold_neighborhood_changes_every_schema_v2_strategy_block() -> None:
     assert any(item.time_exit_mode != parent.time_exit_mode for item in children)
     assert any(item.provider_management_mode == "ignore" for item in children)
     assert any(item.pending_entry_policy == "none" for item in children)
+    assert all(item.entry_mode != "actual_mt5" for item in children)
+
+
+def test_gold_scouts_never_use_missing_actual_mt5_entry_evidence() -> None:
+    scouts = sample_gold_population(SPACE, seed=20260902, count=128)
+
+    assert len(scouts) == 128
+    assert all(item.entry_mode != "actual_mt5" for item in scouts)
 
 
 def test_gold_critic_relaxes_an_entry_filter_that_skips_every_signal() -> None:
@@ -134,6 +145,7 @@ def test_gold_critic_relaxes_an_entry_filter_that_skips_every_signal() -> None:
     assert "entry_filter_too_strict" in diagnosis.labels
     assert children
     assert any(item.entry_mode == "signal_market" for item in children)
+    assert all(item.entry_mode != "actual_mt5" for item in children)
     assert all(item.parent_fingerprints == (parent.fingerprint,) for item in children)
     assert all(item.lineage_depth == 1 for item in children)
 

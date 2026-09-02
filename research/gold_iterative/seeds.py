@@ -11,6 +11,19 @@ from research.dubai_iterative.refinement import parameter_neighborhood
 from .contracts import gold_555_genome, gold_c490_genome
 
 
+def gold_parameter_neighborhood(
+    parent: StrategyGenome,
+    search_space: SearchSpace,
+) -> tuple[StrategyGenome, ...]:
+    """Return only entry rules supported by provider-first Gold evidence."""
+
+    return tuple(
+        candidate
+        for candidate in parameter_neighborhood(parent, search_space)
+        if candidate.entry_mode != "actual_mt5"
+    )
+
+
 def gold_seed_population(
     search_space: SearchSpace,
     *,
@@ -194,7 +207,7 @@ def sample_gold_population(
     while len(unique) < count and cursor < len(candidates):
         parent = candidates[cursor]
         cursor += 1
-        for child in parameter_neighborhood(parent, search_space):
+        for child in gold_parameter_neighborhood(parent, search_space):
             if child.schema_version != 2:
                 continue
             if child.validation_errors() or search_space.validation_errors(child):

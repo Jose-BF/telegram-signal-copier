@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
-from decimal import Decimal, InvalidOperation
+from datetime import date, datetime, time, timedelta, timezone
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import hashlib
 import json
 from pathlib import Path
@@ -14,8 +14,11 @@ from typing import Any, Mapping, Protocol
 import numpy as np
 import pandas as pd
 
+import broker_money
+
 
 EXACT_AUDIT_STATUS = "exact"
+EXECUTION_TAIL_MINUTES = 90
 
 
 class TickSource(Protocol):
@@ -79,6 +82,7 @@ class VerifiedParquetTickSource:
                 f"tick_cache_read_failed:{day_text}:{type(exc).__name__}"
             ]
         evidence = dict(metadata)
+        evidence["day"] = day_text
         evidence["cache_path"] = str(parquet)
         return frame, evidence, []
 
@@ -96,6 +100,13 @@ class ProviderEvent:
     observed_at: datetime
     action: str
     payload: Mapping[str, Any]
+
+
+@dataclass(frozen=True)
+class RolloverEvent:
+    observed_at: datetime
+    minor_by_volume_unit: np.ndarray
+    blocker: str | None = None
 
 
 @dataclass(frozen=True)
@@ -120,7 +131,7 @@ class SignalPath:
     direction: str
     signal_observed_at: datetime
     opened_at: datetime
-    actual_pnl_eur: Decimal
+    actual_pnl_eur: Decimal | None
     legs: tuple[SignalLeg, ...]
     provider_events: tuple[ProviderEvent, ...]
     times_ns: np.ndarray
@@ -136,6 +147,8 @@ class SignalPath:
     currency_digits: int
     market_evidence: tuple[Mapping[str, Any], ...]
     conversion_evidence: tuple[Mapping[str, Any], ...]
+    entry_evidence_kind: str = "actual_mt5"
+    rollover_events: tuple[RolloverEvent, ...] = ()
 
     @property
     def total_volume(self) -> float:
@@ -153,6 +166,7 @@ class StrategyDataset:
     account_currency: str
     currency_digits: int
     max_hold_minutes: int
+    actual_evidence_signal_ids: tuple[str, ...] = ()
 
     @property
     def actual_pnl_eur(self) -> Decimal:
@@ -162,7 +176,11 @@ class StrategyDataset:
     def loaded_actual_pnl_eur(self) -> Decimal:
         quantum = Decimal(1).scaleb(-self.currency_digits)
         return sum(
-            (path.actual_pnl_eur for path in self.paths),
+            (
+                path.actual_pnl_eur
+                for path in self.paths
+                if path.actual_pnl_eur is not None
+            ),
             start=Decimal(0),
         ).quantize(quantum)
 
@@ -181,6 +199,7 @@ class SignalScope:
     signal_id: str
     execution_signal_ids: tuple[str, ...]
     observed_at: datetime | None = None
+    provider_trade: Mapping[str, Any] | None = None
 
 
 def load_dubai_dataset(
@@ -250,20 +269,35 @@ def load_strategy_dataset(
         "profit_base_account_quote",
     }:
         raise ValueError("money contract has unsupported conversion orientation")
-    supported_costs = {
-        "commission_model": "observed_zero_intraday",
-        "fee_model": "observed_zero_intraday",
-        "swap_model": "intraday_only_zero",
-    }
-    if any(costs.get(name) != value for name, value in supported_costs.items()):
+    if (
+        costs.get("commission_model") != "observed_zero_intraday"
+        or costs.get("fee_model") != "observed_zero_intraday"
+    ):
         raise ValueError(
             "unsupported broker cost contract; commission, fee and swap must "
             "be explicitly reproducible before strategy research"
         )
+    swap_model = str(costs.get("swap_model") or "")
+    if swap_model not in {
+        broker_money.SWAP_MODEL_INTRADAY,
+        broker_money.SWAP_MODEL_POINTS,
+    }:
+        raise ValueError(
+            "unsupported broker cost contract; commission, fee and swap must "
+            "be explicitly reproducible before strategy research"
+        )
+    if swap_model == broker_money.SWAP_MODEL_POINTS:
+        contract_blockers = broker_money.validate_contract_metadata(
+            dict(money_contract)
+        )
+        if contract_blockers:
+            raise ValueError(
+                "invalid broker money contract: " + ",".join(contract_blockers)
+            )
 
     audit_rows = {row.get("sig_id"): row for row in _read_jsonl(audit_path)}
     exclusions: dict[str, list[str]] = defaultdict(list)
-    selected: list[tuple[str, dict[str, Any]]] = []
+    selected: list[tuple[str, Mapping[str, Any], Decimal | None]] = []
     start = _parse_date(from_date, date.min)
     end = _parse_date(to_date, date.max)
     replay_rows = _read_jsonl(replay_path)
@@ -291,7 +325,7 @@ def load_strategy_dataset(
             if reason:
                 exclusions[reason].append(signal_id)
                 continue
-            selected.append((signal_id, trade))
+            selected.append((signal_id, trade, _trade_actual_pnl(trade)))
             eligible_signal_ids_list.append(signal_id)
             eligible_signal_days[signal_id] = observed.date().isoformat()
     else:
@@ -306,36 +340,63 @@ def load_strategy_dataset(
                 eligible_signal_days[scope.signal_id] = (
                     scope.observed_at.date().isoformat()
                 )
+            actual_pnl: Decimal | None = None
+            actual_reason: str | None = None
             if len(scope.execution_signal_ids) != 1:
                 reason = (
                     "actual_evidence_missing"
                     if not scope.execution_signal_ids
                     else "ambiguous_execution_mapping"
                 )
-                exclusions[reason].append(scope.signal_id)
+                actual_reason = reason
+                trade = None
+            else:
+                execution_signal_id = scope.execution_signal_ids[0]
+                trade = replay_by_id.get(execution_signal_id)
+                if trade is None:
+                    actual_reason = "actual_evidence_missing"
+                else:
+                    actual_reason = _trade_selection_blocker(
+                        trade,
+                        signal_id=execution_signal_id,
+                        audit_rows=audit_rows,
+                        required_entry_source_kind=required_entry_source_kind,
+                        audit_reason_prefix=audit_reason_prefix,
+                    )
+                    if actual_reason is None:
+                        actual_pnl = _trade_actual_pnl(trade)
+
+            if scope.provider_trade is not None:
+                if actual_reason is not None:
+                    label = (
+                        actual_reason
+                        if actual_reason.startswith("actual_")
+                        else f"actual_{actual_reason}"
+                    )
+                    exclusions[label].append(scope.signal_id)
+                provider_trade = dict(scope.provider_trade)
+                if scope.signal_id not in eligible_signal_days:
+                    observed = _parse_datetime(
+                        provider_trade.get("signal_dt_utc")
+                    )
+                    if observed is not None:
+                        eligible_signal_days[scope.signal_id] = (
+                            observed.date().isoformat()
+                        )
+                selected.append((scope.signal_id, provider_trade, actual_pnl))
                 continue
-            execution_signal_id = scope.execution_signal_ids[0]
-            trade = replay_by_id.get(execution_signal_id)
-            if trade is None:
-                exclusions["actual_evidence_missing"].append(scope.signal_id)
+
+            if actual_reason is not None:
+                exclusions[actual_reason].append(scope.signal_id)
                 continue
+            assert trade is not None
             if scope.signal_id not in eligible_signal_days:
                 observed = _parse_datetime(trade.get("signal_dt_utc"))
                 if observed is not None:
                     eligible_signal_days[scope.signal_id] = (
                         observed.date().isoformat()
                     )
-            reason = _trade_selection_blocker(
-                trade,
-                signal_id=execution_signal_id,
-                audit_rows=audit_rows,
-                required_entry_source_kind=required_entry_source_kind,
-                audit_reason_prefix=audit_reason_prefix,
-            )
-            if reason:
-                exclusions[reason].append(scope.signal_id)
-                continue
-            selected.append((scope.signal_id, trade))
+            selected.append((scope.signal_id, trade, actual_pnl))
 
     selected = sorted(
         selected,
@@ -348,14 +409,36 @@ def load_strategy_dataset(
     eligible_signal_ids = tuple(eligible_signal_ids_list)
     quantum = Decimal(1).scaleb(-currency_digits)
     eligible_actual_pnl = sum(
-        (_trade_actual_pnl(trade) for _signal_id, trade in selected),
+        (
+            actual_pnl
+            for _signal_id, _trade, actual_pnl in selected
+            if actual_pnl is not None
+        ),
         start=Decimal(0),
     ).quantize(quantum)
+    actual_evidence_signal_ids = tuple(
+        signal_id
+        for signal_id, _trade, actual_pnl in selected
+        if actual_pnl is not None
+    )
 
     paths: list[SignalPath] = []
     market_cache: dict[date, tuple[pd.DataFrame, Mapping[str, Any]]] = {}
     conversion_cache: dict[date, tuple[pd.DataFrame, Mapping[str, Any]]] = {}
-    for signal_id, trade in selected:
+    money_converter: broker_money.BrokerMoneyConverter | None = None
+    if swap_model == broker_money.SWAP_MODEL_POINTS:
+        def cached_quote_loader(day: date) -> tuple[pd.DataFrame, str | None]:
+            cached = conversion_cache.get(day)
+            if cached is None:
+                symbol = str(conversion.get("symbol") or "")
+                return pd.DataFrame(), f"missing_conversion_ticks:{symbol}"
+            return cached[0], None
+
+        money_converter = broker_money.BrokerMoneyConverter(
+            dict(money_contract),
+            quote_loader=cached_quote_loader,
+        )
+    for signal_id, trade, actual_pnl in selected:
         legs = _build_legs(trade)
         if not legs:
             exclusions["invalid_mt5_entry_tickets"].append(signal_id)
@@ -367,17 +450,18 @@ def load_strategy_dataset(
         opened_at = min(leg.opened_at for leg in legs)
         last_fill_at = max(leg.opened_at for leg in legs)
         path_started_at = min(signal_observed_at, opened_at)
-        horizon = last_fill_at + timedelta(minutes=max_hold_minutes)
+        decision_horizon = last_fill_at + timedelta(minutes=max_hold_minutes)
         actual_closes = [
             leg.closed_at for leg in legs if leg.closed_at is not None
         ]
         if actual_closes:
-            horizon = max(horizon, max(actual_closes))
+            decision_horizon = max(decision_horizon, max(actual_closes))
         market_frame, market_evidence, blockers = _load_tick_range(
             market_ticks,
             path_started_at,
-            horizon,
+            decision_horizon,
             market_cache,
+            terminal_lookahead_minutes=EXECUTION_TAIL_MINUTES,
         )
         if blockers:
             exclusions[_reason_name(blockers[0])].append(signal_id)
@@ -395,6 +479,7 @@ def load_strategy_dataset(
         )
         direction = str(trade["direction"]).upper()
         exit_quotes = bid if direction == "BUY" else ask
+        market_end = market_frame["time_utc"].iloc[-1].to_pydatetime()
 
         conversion_evidence: list[Mapping[str, Any]] = []
         if orientation == "identity":
@@ -413,7 +498,7 @@ def load_strategy_dataset(
             conversion_frame, conversion_evidence, blockers = _load_tick_range(
                 conversion_ticks,
                 opened_at - timedelta(minutes=1),
-                horizon,
+                market_end,
                 conversion_cache,
             )
             if blockers:
@@ -432,16 +517,27 @@ def load_strategy_dataset(
             fx_age_ms = _readonly_array(aligned[2])
             fx_valid = _readonly_array(aligned[3])
 
-        actual = _decimal(trade.get("pnl_real_mt5"))
-        if actual is None:
-            actual = sum((leg.actual_pnl_eur for leg in legs), start=Decimal(0))
+        rollover_events: tuple[RolloverEvent, ...] = ()
+        if money_converter is not None:
+            rollover_events, rollover_blockers = _build_rollover_events(
+                direction=direction,
+                opened_at=opened_at,
+                horizon=market_end,
+                market_evidence=market_evidence,
+                converter=money_converter,
+                currency_digits=currency_digits,
+            )
+            if rollover_blockers:
+                exclusions[_reason_name(rollover_blockers[0])].append(signal_id)
+                continue
+
         paths.append(SignalPath(
             signal_id=signal_id,
             day=(_parse_datetime(trade["signal_dt_utc"]) or opened_at).date().isoformat(),
             direction=direction,
             signal_observed_at=signal_observed_at,
             opened_at=opened_at,
-            actual_pnl_eur=actual,
+            actual_pnl_eur=actual_pnl,
             legs=legs,
             provider_events=_build_provider_events(trade),
             times_ns=times_ns,
@@ -457,6 +553,10 @@ def load_strategy_dataset(
             currency_digits=currency_digits,
             market_evidence=tuple(market_evidence),
             conversion_evidence=tuple(conversion_evidence),
+            entry_evidence_kind=str(
+                trade.get("entry_evidence_kind") or "actual_mt5"
+            ),
+            rollover_events=rollover_events,
         ))
 
     dataset_contract = {
@@ -465,6 +565,7 @@ def load_strategy_dataset(
         "from_date": from_date,
         "to_date": to_date,
         "max_hold_minutes": max_hold_minutes,
+        "execution_tail_minutes": EXECUTION_TAIL_MINUTES,
     }
     if required_entry_source_kind is not None:
         dataset_contract["required_entry_source_kind"] = required_entry_source_kind
@@ -521,6 +622,7 @@ def load_strategy_dataset(
         account_currency=account_currency,
         currency_digits=currency_digits,
         max_hold_minutes=max_hold_minutes,
+        actual_evidence_signal_ids=actual_evidence_signal_ids,
     )
 
 
@@ -669,24 +771,120 @@ def _build_provider_events(trade: Mapping[str, Any]) -> tuple[ProviderEvent, ...
     return tuple(sorted(events, key=lambda event: (event.observed_at, event.action)))
 
 
+def _build_rollover_events(
+    *,
+    direction: str,
+    opened_at: datetime,
+    horizon: datetime,
+    market_evidence: list[Mapping[str, Any]],
+    converter: broker_money.BrokerMoneyConverter,
+    currency_digits: int,
+    max_volume_units: int = 100,
+) -> tuple[tuple[RolloverEvent, ...], list[str]]:
+    candidates: dict[datetime, set[int]] = defaultdict(set)
+    for evidence in market_evidence:
+        try:
+            evidence_day = date.fromisoformat(str(evidence.get("day") or ""))
+        except ValueError:
+            return (), ["missing_swap_tick_day_evidence"]
+        offset = evidence.get("utc_offset_seconds")
+        if (
+            isinstance(offset, bool)
+            or not isinstance(offset, int)
+            or not -14 * 3600 <= offset <= 14 * 3600
+        ):
+            return (), [f"missing_swap_offset_evidence:{evidence_day.isoformat()}"]
+        for day_delta in (-1, 0, 1):
+            server_midnight = datetime.combine(
+                evidence_day + timedelta(days=day_delta),
+                time.min,
+                tzinfo=timezone.utc,
+            )
+            rollover_utc = server_midnight - timedelta(seconds=offset)
+            if rollover_utc.date() != evidence_day:
+                continue
+            if opened_at < rollover_utc <= horizon:
+                candidates[rollover_utc].add(offset)
+
+    events: list[RolloverEvent] = []
+    quantum = Decimal(1).scaleb(-currency_digits)
+    for rollover_utc, offsets in sorted(candidates.items()):
+        if len(offsets) != 1:
+            return (), [
+                f"swap_offset_transition_unverified:{rollover_utc.isoformat()}"
+            ]
+        offset = next(iter(offsets))
+        lookup = np.zeros(max_volume_units + 1, dtype=np.int64)
+        blocker: str | None = None
+        for units in range(1, max_volume_units + 1):
+            result = converter.convert_leg(
+                direction=direction,
+                open_price=1.0,
+                close_price=1.0,
+                volume=Decimal(units) / Decimal(100),
+                open_time_utc=rollover_utc - timedelta(microseconds=1),
+                close_time_utc=rollover_utc,
+                allow_overnight=True,
+                verified_utc_offset_seconds=offset,
+            )
+            result_blockers = [
+                str(item) for item in result.get("blockers") or () if str(item)
+            ]
+            if result.get("status") != "verified" or result_blockers:
+                blocker = ",".join(result_blockers) or (
+                    f"swap_calculation_unverified:{rollover_utc.isoformat()}"
+                )
+                break
+            rollovers = (result.get("swap") or {}).get("rollovers") or []
+            if (
+                len(rollovers) != 1
+                or _parse_datetime(rollovers[0].get("rollover_utc"))
+                != rollover_utc
+            ):
+                blocker = f"swap_rollover_identity_mismatch:{rollover_utc.isoformat()}"
+                break
+            amount = _decimal(result.get("swap_strategy_pnl"))
+            if amount is None:
+                blocker = f"swap_amount_unverified:{rollover_utc.isoformat()}"
+                break
+            rounded = amount.quantize(quantum, rounding=ROUND_HALF_UP)
+            lookup[units] = int(rounded.scaleb(currency_digits))
+        events.append(RolloverEvent(
+            observed_at=rollover_utc,
+            minor_by_volume_unit=_readonly_array(lookup),
+            blocker=blocker,
+        ))
+    return tuple(events), []
+
+
 def _load_tick_range(
     source: TickSource,
     start: datetime,
     end: datetime,
     cache: dict[date, tuple[pd.DataFrame, Mapping[str, Any]]],
+    *,
+    terminal_lookahead_minutes: int = 0,
 ) -> tuple[pd.DataFrame, list[Mapping[str, Any]], list[str]]:
     frames: list[pd.DataFrame] = []
     evidence: list[Mapping[str, Any]] = []
+    required_last_day = end.date()
+    lookahead_end = end + timedelta(minutes=terminal_lookahead_minutes)
     current = start.date()
-    while current <= end.date():
+    while current <= lookahead_end.date():
         if current not in cache:
             frame, day_evidence, blockers = source.load_day(current)
             if blockers:
+                if current > required_last_day:
+                    break
                 return pd.DataFrame(), evidence, blockers
             if day_evidence is None:
+                if current > required_last_day:
+                    break
                 return pd.DataFrame(), evidence, [f"missing_tick_evidence:{current}"]
             normalized = _normalize_ticks(frame)
             if normalized is None:
+                if current > required_last_day:
+                    break
                 return pd.DataFrame(), evidence, [f"invalid_tick_frame:{current}"]
             cache[current] = (normalized, dict(day_evidence))
         frame, day_evidence = cache[current]
@@ -696,8 +894,16 @@ def _load_tick_range(
     combined = pd.concat(frames, ignore_index=True).sort_values(
         "time_utc", kind="stable"
     )
-    mask = combined["time_utc"].between(start, end, inclusive="both")
-    return combined.loc[mask].reset_index(drop=True), evidence, []
+    base_mask = combined["time_utc"].between(start, end, inclusive="both")
+    selected = combined.loc[base_mask]
+    if terminal_lookahead_minutes > 0:
+        terminal = combined.loc[
+            (combined["time_utc"] > end)
+            & (combined["time_utc"] <= lookahead_end)
+        ].head(1)
+        if not terminal.empty:
+            selected = pd.concat((selected, terminal), ignore_index=True)
+    return selected.reset_index(drop=True), evidence, []
 
 
 def _normalize_ticks(frame: pd.DataFrame) -> pd.DataFrame | None:

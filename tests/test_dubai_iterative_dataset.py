@@ -335,6 +335,7 @@ def test_verified_parquet_source_checks_content_and_contract(tmp_path):
 
     assert blockers == []
     assert len(loaded) == len(frame)
+    assert evidence["day"] == "2026-07-27"
     assert evidence["parquet_sha256"] == meta["parquet_sha256"]
 
 

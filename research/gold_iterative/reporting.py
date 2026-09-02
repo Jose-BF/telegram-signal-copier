@@ -18,7 +18,7 @@ from .folds import GoldFoldPlan
 
 @dataclass(frozen=True)
 class GoldEvidenceGates:
-    actual_mt5_complete: bool
+    provider_paths_complete: bool
     tick_paths_complete: bool
     account_currency_money_complete: bool
     oracle_parity_complete: bool
@@ -33,7 +33,7 @@ class GoldEvidenceGates:
     @property
     def blockers(self) -> tuple[str, ...]:
         labels = {
-            "actual_mt5_complete": "actual_mt5_incomplete",
+            "provider_paths_complete": "provider_paths_incomplete",
             "tick_paths_complete": "tick_paths_incomplete",
             "account_currency_money_complete": (
                 "account_currency_money_incomplete"
@@ -156,10 +156,29 @@ def build_gold_research_artifacts(
         path for path in dataset.paths if str(path.day) in complete_days
     )
     path_by_signal = {str(path.signal_id): path for path in research_paths}
-    actual_total = sum(
-        (Decimal(str(path.actual_pnl_eur)) for path in research_paths),
+    actual_values = tuple(
+        Decimal(str(path.actual_pnl_eur))
+        for path in research_paths
+        if path.actual_pnl_eur is not None
+    )
+    actual_known_total = sum(
+        actual_values,
         start=Decimal(0),
     )
+    actual_complete = len(actual_values) == len(research_paths)
+    actual_financial_total = {
+        "amount": _money_text(
+            actual_known_total if actual_complete else None,
+            dataset.currency_digits,
+        ),
+        "currency": dataset.account_currency,
+        "kind": "observed_mt5",
+    }
+    if not actual_complete:
+        actual_financial_total["known_amount"] = _money_text(
+            actual_known_total,
+            dataset.currency_digits,
+        )
     provider_claims = _provider_claim_totals(provider_scorecard)
     distance_rows = _claim_distance_rows(
         provider_scorecard,
@@ -195,6 +214,11 @@ def build_gold_research_artifacts(
         "folds": [asdict(fold) for fold in fold_plan.folds],
         "evidence_gates": asdict(gates),
         "selection": selection,
+        "actual_mt5_coverage": {
+            "known_signal_count": len(actual_values),
+            "research_signal_count": len(research_paths),
+            "complete": actual_complete,
+        },
         "units_contract": {
             "actual_mt5": dataset.account_currency,
             "counterfactual_simulation": dataset.account_currency,
@@ -202,11 +226,7 @@ def build_gold_research_artifacts(
             "provider_pips_are_not_account_currency": True,
         },
         "financial_totals": {
-            "actual_mt5": {
-                "amount": _money_text(actual_total, dataset.currency_digits),
-                "currency": dataset.account_currency,
-                "kind": "observed_mt5",
-            },
+            "actual_mt5": actual_financial_total,
             "simulated_frontier": [
                 {
                     "strategy_fingerprint": evaluation.genome.fingerprint,
@@ -332,7 +352,11 @@ def _signal_rows(
     for evaluation in evaluations:
         for day, result in evaluation.results:
             path = path_by_signal.get(result.signal_id)
-            actual = None if path is None else Decimal(str(path.actual_pnl_eur))
+            actual = (
+                None
+                if path is None or path.actual_pnl_eur is None
+                else Decimal(str(path.actual_pnl_eur))
+            )
             rows.append({
                 "strategy_fingerprint": evaluation.genome.fingerprint,
                 "signal_id": result.signal_id,
@@ -357,12 +381,16 @@ def _daily_rows(
     *,
     currency_digits: int,
 ) -> tuple[dict[str, object], ...]:
-    actual_by_day: dict[str, Decimal] = {}
+    actual_by_day: dict[str, Decimal | None] = {}
     for path in paths:
-        actual_by_day[str(path.day)] = actual_by_day.get(
-            str(path.day),
-            Decimal(0),
-        ) + Decimal(str(path.actual_pnl_eur))
+        day = str(path.day)
+        if path.actual_pnl_eur is None:
+            actual_by_day[day] = None
+        elif actual_by_day.get(day, Decimal(0)) is not None:
+            actual_by_day[day] = (
+                actual_by_day.get(day, Decimal(0))
+                + Decimal(str(path.actual_pnl_eur))
+            )
     daily_claim = {
         str(item["period_start"]): item["amount"]
         for item in provider_claims
