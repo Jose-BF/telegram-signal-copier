@@ -155,6 +155,13 @@ class StrategyGenome:
     provider_management_mode: str = "exact"
     context_filter_mode: str = "none"
     context_filter_value: float | None = None
+    entry_confirmation_value: float | None = None
+    target_steps: tuple[float, ...] = ()
+    trailing_distance: float | None = None
+    hard_stop_eur_per_leg: float | None = None
+    time_exit_mode: str = "none"
+    pending_entry_policy: str = "none"
+    source_strategy_fingerprint: str | None = None
     parent_fingerprints: tuple[str, ...] = ()
     mutation_reason: str | None = None
     lineage_depth: int = 0
@@ -166,7 +173,7 @@ class StrategyGenome:
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "StrategyGenome":
         values = dict(payload)
-        for name in ("volume_weights", "parent_fingerprints"):
+        for name in ("volume_weights", "target_steps", "parent_fingerprints"):
             if name in values and not isinstance(values[name], tuple):
                 values[name] = tuple(values[name] or ())
         return cls(**values)
@@ -174,11 +181,15 @@ class StrategyGenome:
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["volume_weights"] = list(self.volume_weights)
+        payload["target_steps"] = list(self.target_steps)
         payload["parent_fingerprints"] = list(self.parent_fingerprints)
+        if self.schema_version == 1:
+            for field_name in _SCHEMA_V2_FIELDS:
+                payload.pop(field_name, None)
         return payload
 
     def with_change(self, **changes: Any) -> "StrategyGenome":
-        tuple_fields = {"volume_weights", "parent_fingerprints"}
+        tuple_fields = {"volume_weights", "target_steps", "parent_fingerprints"}
         normalized = {
             key: tuple(value) if key in tuple_fields and value is not None else value
             for key, value in changes.items()
@@ -206,6 +217,7 @@ class StrategyGenome:
             "parent_fingerprints",
             "mutation_reason",
             "lineage_depth",
+            "source_strategy_fingerprint",
         ):
             payload.pop(field_name, None)
         encoded = json.dumps(
@@ -219,7 +231,14 @@ class StrategyGenome:
     def validation_errors(self) -> tuple[str, ...]:
         errors: list[str] = []
         allowed = {
-            "entry_mode": {"actual_mt5", "delay", "pullback", "momentum"},
+            "entry_mode": {
+                "actual_mt5",
+                "delay",
+                "pullback",
+                "momentum",
+                "signal_market",
+                "adverse_reversal",
+            },
             "entry_ladder_mode": {"simultaneous", "adverse", "favourable"},
             "target_mode": {
                 "provider_per_leg",
@@ -227,11 +246,17 @@ class StrategyGenome:
                 "fixed_basket",
                 "fixed_move",
                 "partial_runner",
+                "per_leg_steps",
                 "none",
             },
             "be_mode": {"provider", "none", "price", "delayed", "partial"},
             "stop_mode": {"provider", "fixed_move", "basket_money", "none"},
-            "provider_management_mode": {"exact", "close_only", "ignore"},
+            "provider_management_mode": {
+                "exact",
+                "close_only",
+                "explicit_close_only",
+                "ignore",
+            },
             "context_filter_mode": {
                 "none",
                 "max_spread",
@@ -244,8 +269,13 @@ class StrategyGenome:
             if getattr(self, field_name) not in choices:
                 errors.append(f"unsupported_{field_name}")
 
-        if self.schema_version != 1:
+        if self.schema_version not in {1, 2}:
             errors.append("unsupported_schema_version")
+        if self.schema_version == 1 and any(
+            getattr(self, field_name) != neutral
+            for field_name, neutral in _SCHEMA_V2_NEUTRAL.items()
+        ):
+            errors.append("schema_v2_fields_require_schema_v2")
         if self.leg_count < 1:
             errors.append("invalid_leg_count")
         if len(self.volume_weights) != self.leg_count:
@@ -253,8 +283,17 @@ class StrategyGenome:
         if any(not _positive_finite(value) for value in self.volume_weights):
             errors.append("invalid_volume_weight")
 
-        if self.entry_mode != "actual_mt5" and not _positive_finite(self.entry_value):
+        if self.entry_mode in {
+            "delay",
+            "pullback",
+            "momentum",
+            "adverse_reversal",
+        } and not _positive_finite(self.entry_value):
             errors.append("missing_entry_value")
+        if self.entry_mode == "adverse_reversal" and not _positive_finite(
+            self.entry_confirmation_value
+        ):
+            errors.append("missing_entry_confirmation_value")
         if self.entry_expiry_min <= 0:
             errors.append("invalid_entry_expiry")
         if self.entry_ladder_mode == "simultaneous":
@@ -279,12 +318,27 @@ class StrategyGenome:
                 errors.append("missing_target_value")
             if not _positive_finite(self.runner_target):
                 errors.append("missing_runner_target")
+        if self.target_mode == "per_leg_steps":
+            if len(self.target_steps) != self.leg_count:
+                errors.append("target_step_count_mismatch")
+            if any(not _positive_finite(value) for value in self.target_steps):
+                errors.append("invalid_target_step")
+        elif self.target_steps:
+            errors.append("unexpected_target_steps")
         if self.be_mode in {"price", "delayed", "partial"}:
             if not _positive_finite(self.be_trigger):
                 errors.append("missing_be_trigger")
         if self.stop_mode in {"fixed_move", "basket_money"}:
             if not _positive_finite(self.stop_value):
                 errors.append("missing_stop_value")
+        if self.trailing_distance is not None and not _positive_finite(
+            self.trailing_distance
+        ):
+            errors.append("invalid_trailing_distance")
+        if self.hard_stop_eur_per_leg is not None and not _positive_finite(
+            self.hard_stop_eur_per_leg
+        ):
+            errors.append("invalid_hard_stop_eur_per_leg")
         if (self.profit_lock_arm is None) != (self.profit_lock_giveback is None):
             errors.append("incomplete_profit_lock")
         elif self.profit_lock_arm is not None:
@@ -300,6 +354,20 @@ class StrategyGenome:
                 errors.append("unreachable_profit_lock")
         if self.time_exit_min <= 0:
             errors.append("invalid_time_exit")
+        if self.time_exit_mode not in {
+            "none",
+            "loss_only",
+            "profit_only",
+            "non_negative",
+        }:
+            errors.append("unsupported_time_exit_mode")
+        if self.pending_entry_policy not in {"none", "until_expiry"}:
+            errors.append("unsupported_pending_entry_policy")
+        if (
+            self.source_strategy_fingerprint is not None
+            and not _sha256(self.source_strategy_fingerprint)
+        ):
+            errors.append("invalid_source_strategy_fingerprint")
         if self.context_filter_mode != "none" and not _positive_finite(
             self.context_filter_value
         ):
@@ -317,3 +385,22 @@ def _positive_finite(value: object) -> bool:
     except (TypeError, ValueError):
         return False
     return math.isfinite(number) and number > 0.0
+
+
+def _sha256(value: object) -> bool:
+    normalized = str(value or "").lower()
+    return len(normalized) == 64 and all(
+        character in "0123456789abcdef" for character in normalized
+    )
+
+
+_SCHEMA_V2_NEUTRAL = {
+    "entry_confirmation_value": None,
+    "target_steps": (),
+    "trailing_distance": None,
+    "hard_stop_eur_per_leg": None,
+    "time_exit_mode": "none",
+    "pending_entry_policy": "none",
+    "source_strategy_fingerprint": None,
+}
+_SCHEMA_V2_FIELDS = tuple(_SCHEMA_V2_NEUTRAL)
