@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import hashlib
 import json
 import os
@@ -28,6 +28,11 @@ class ResearchArtifacts:
     generation_rows: Sequence[Mapping[str, object]]
     candidate_rows: Sequence[Mapping[str, object]] | pd.DataFrame | Path
     signal_rows: Sequence[Mapping[str, object]] | pd.DataFrame | Path
+    extra_json_files: Mapping[str, object] = field(default_factory=dict)
+    extra_tables: Mapping[
+        str,
+        Sequence[Mapping[str, object]] | pd.DataFrame | Path,
+    ] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -58,6 +63,8 @@ def publish_run(artifacts: ResearchArtifacts, output_root: Path) -> PublishedRun
             output_root,
         ),
     }
+    for relative, source in _validated_extra_tables(artifacts).items():
+        expected_tables[relative] = _expected_table_hash(source, output_root)
     if run_dir.exists():
         _verify_existing(run_dir, expected_text, expected_tables)
         return PublishedRun(run_id, run_dir)
@@ -71,6 +78,10 @@ def publish_run(artifacts: ResearchArtifacts, output_root: Path) -> PublishedRun
             target.write_bytes(content)
         _write_table(artifacts.candidate_rows, temporary / "candidate_matrix.parquet")
         _write_table(artifacts.signal_rows, temporary / "signal_results.parquet")
+        for relative, source in _validated_extra_tables(artifacts).items():
+            target = temporary / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            _write_table(source, target)
         _write_charts(artifacts, temporary / "charts")
         manifest = {
             "schema_version": ARTIFACT_SCHEMA_VERSION,
@@ -108,7 +119,54 @@ def _expected_text_files(
         "run_card.json": _pretty_json_bytes(run_card),
         "frontier.json": _pretty_json_bytes(list(artifacts.frontier)),
         "generation_summary.jsonl": generation,
+        **{
+            relative: _pretty_json_bytes(payload)
+            for relative, payload in _validated_extra_json(artifacts).items()
+        },
     }
+
+
+def _validated_extra_json(
+    artifacts: ResearchArtifacts,
+) -> dict[str, object]:
+    return {
+        _validate_extra_path(relative, suffix=".json"): payload
+        for relative, payload in artifacts.extra_json_files.items()
+    }
+
+
+def _validated_extra_tables(
+    artifacts: ResearchArtifacts,
+) -> dict[
+    str,
+    Sequence[Mapping[str, object]] | pd.DataFrame | Path,
+]:
+    return {
+        _validate_extra_path(relative, suffix=".parquet"): source
+        for relative, source in artifacts.extra_tables.items()
+    }
+
+
+def _validate_extra_path(value: object, *, suffix: str) -> str:
+    relative = Path(str(value))
+    reserved = {
+        "run_card.json",
+        "frontier.json",
+        "generation_summary.jsonl",
+        "candidate_matrix.parquet",
+        "signal_results.parquet",
+        "artifact_manifest.json",
+    }
+    normalized = relative.as_posix()
+    if (
+        relative.is_absolute()
+        or ".." in relative.parts
+        or normalized in reserved
+        or normalized.startswith("charts/")
+        or relative.suffix.lower() != suffix
+    ):
+        raise ValueError(f"invalid extra artifact path: {value}")
+    return normalized
 
 
 def _verify_existing(
@@ -144,6 +202,13 @@ def _verify_existing(
 def _write_charts(artifacts: ResearchArtifacts, chart_dir: Path) -> None:
     signals = _read_table(artifacts.signal_rows)
     generations = pd.DataFrame(tuple(artifacts.generation_rows))
+    if "strategy_fingerprint" in signals and artifacts.frontier:
+        first = artifacts.frontier[0]
+        fingerprint = first.get("strategy_fingerprint") or first.get("fingerprint")
+        if fingerprint:
+            signals = signals[
+                signals["strategy_fingerprint"].astype(str) == str(fingerprint)
+            ].reset_index(drop=True)
 
     pnl = (
         pd.to_numeric(signals.get("pnl_eur"), errors="coerce").fillna(0.0)
