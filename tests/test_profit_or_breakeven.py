@@ -105,7 +105,8 @@ async def test_positive_basket_closes_once_without_moving_be(monkeypatch):
     assert outcome == "requested"
     assert cancels == [2001]
     assert modifies == []
-    assert signal.status == "closed"
+    assert signal.status == "open"
+    assert signal.requested_close_reason == "PROVIDER_CLOSE"
     assert finalized[0][1] == "CLOSE_PROFIT_OR_BE"
     resolved = [row for row in events if row[1] == "close_profit_or_be_resolved"]
     assert resolved[0][2]["selected_action"] == "CLOSE_ALL"

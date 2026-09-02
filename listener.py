@@ -43,6 +43,12 @@ import telegram_notifications
 import telegram_media_evidence
 import strategy_shadow_runtime
 from strategy_shadow_contracts import ShadowManagementEvent
+from signal_lifecycle import (
+    TerminalCause,
+    apply_lifecycle_decision,
+    evaluate_terminal_request,
+    terminal_cause_for_signal,
+)
 from risk_free_basket import BasketLeg, plan_risk_free_basket
 from canal2_zone_lifecycle import (
     LIFECYCLE_SCHEMA_VERSION,
@@ -1860,12 +1866,14 @@ def _open_mt5_positions_for_signal(signal: Signal) -> list[dict] | None:
     return open_positions
 
 
-async def _finalize_integrity_allows(signal: Signal, closed_by: str) -> bool:
+async def _finalization_position_evidence(
+    signal: Signal,
+    closed_by: str,
+) -> tuple[bool, list[dict]]:
     sig_id = _sig_id(signal)
     try:
         open_positions = await _run(_open_mt5_positions_for_signal, signal)
     except Exception as e:
-        signal.status = "open"
         journal.event(sig_id, "signal_integrity_snapshot",
                       phase="before_finalize",
                       can_finalize=False,
@@ -1882,10 +1890,9 @@ async def _finalize_integrity_allows(signal: Signal, closed_by: str) -> bool:
             error_type=type(e).__name__,
             error=str(e)[:200],
         )
-        return False
+        return False, []
 
     if open_positions is None:
-        signal.status = "open"
         journal.event(sig_id, "signal_integrity_snapshot",
                       phase="before_finalize",
                       can_finalize=False,
@@ -1898,11 +1905,10 @@ async def _finalize_integrity_allows(signal: Signal, closed_by: str) -> bool:
             phase="before_finalize",
             closed_by=closed_by,
         )
-        return False
+        return False, []
 
     if open_positions:
         open_tickets = [p.get("ticket") for p in open_positions]
-        signal.status = "open"
         if closed_by in {"CLOSE_ALL", "CLOSE_PROFIT_OR_BE"}:
             journal.event(
                 sig_id,
@@ -1915,7 +1921,7 @@ async def _finalize_integrity_allows(signal: Signal, closed_by: str) -> bool:
                 open_positions=open_positions,
                 state_tickets=list(signal.all_filled_tickets),
             )
-            return False
+            return True, open_positions
         journal.event(sig_id, "signal_integrity_snapshot",
                       phase="before_finalize",
                       can_finalize=False,
@@ -1934,12 +1940,55 @@ async def _finalize_integrity_allows(signal: Signal, closed_by: str) -> bool:
             open_positions=open_positions,
             state_tickets=list(signal.all_filled_tickets),
         )
-        return False
+        return True, open_positions
 
-    return True
+    return True, []
 
 
-async def _finalize_signal(signal: Signal, closed_by: str, notes: str = ""):
+async def _finalize_integrity_allows(signal: Signal, closed_by: str) -> bool:
+    complete, open_positions = await _finalization_position_evidence(
+        signal,
+        closed_by,
+    )
+    allowed = bool(complete and not open_positions)
+    if not allowed:
+        signal.status = "open"
+    return allowed
+
+
+def _terminal_cause_for_close(signal: Signal, closed_by: str) -> TerminalCause:
+    requested = terminal_cause_for_signal(signal)
+    if requested != TerminalCause.AUTOMATIC_FLAT:
+        return requested
+    normalized = str(closed_by or "").upper()
+    if "RETRACT" in normalized:
+        return TerminalCause.RETRACTION
+    if "TIME" in normalized:
+        return TerminalCause.TIME_EXIT
+    if normalized in {"SL", "LOSS_BE"} or "STOP" in normalized:
+        return TerminalCause.STRATEGY_STOP
+    if (
+        "PROVIDER" in normalized
+        or normalized in {
+            "CLOSE_ALL",
+            "CLOSE_PROFIT_OR_BE",
+            "SIGNAL_UPDATED",
+        }
+    ):
+        return TerminalCause.PROVIDER_CLOSE
+    if "MANUAL" in normalized or "OPERATOR" in normalized:
+        return TerminalCause.OPERATOR_CLOSE
+    return TerminalCause.AUTOMATIC_FLAT
+
+
+async def _finalize_signal(
+    signal: Signal,
+    closed_by: str,
+    notes: str = "",
+    *,
+    terminal_cause: TerminalCause | str | None = None,
+    observed_at: datetime | None = None,
+):
     """Cierra el trade en el journal con la información disponible.
 
     Se llama cuando la señal pasa a status="closed" por una vía conocida
@@ -1953,8 +2002,34 @@ async def _finalize_signal(signal: Signal, closed_by: str, notes: str = ""):
     """
     try:
         sig_id = _sig_id(signal)
-        if not await _finalize_integrity_allows(signal, closed_by):
-            return
+        positions_complete, open_positions = (
+            await _finalization_position_evidence(signal, closed_by)
+        )
+        cause = (
+            TerminalCause(terminal_cause)
+            if terminal_cause is not None
+            else _terminal_cause_for_close(signal, closed_by)
+        )
+        decision = evaluate_terminal_request(
+            signal,
+            cause=cause,
+            open_position_count=len(open_positions),
+            observed_at=observed_at,
+            positions_complete=positions_complete,
+        )
+        apply_lifecycle_decision(signal, decision)
+        if decision.action != "finalize":
+            signal.status = "open"
+            journal.event(
+                sig_id,
+                "lifecycle_finalization_deferred",
+                source="listener_finalizer",
+                closed_by=closed_by,
+                **decision.to_dict(),
+            )
+            return False
+
+        signal.status = "closed"
 
         closed_at_utc = datetime.now(timezone.utc)
         signal_started_utc = signal.timestamp
@@ -2015,8 +2090,11 @@ async def _finalize_signal(signal: Signal, closed_by: str, notes: str = ""):
             n_tickets_opened=len(signal.all_filled_tickets),
             notes=notes,
         )
+        return True
     except Exception as e:
         print(f"[Journal] _finalize_signal error: {e}")
+        signal.status = "open"
+        return False
 
 client = TelegramClient("signal_session", config.TELEGRAM_API_ID, config.TELEGRAM_API_HASH)
 _media_capture_tasks: set[asyncio.Future] = set()
@@ -3955,7 +4033,7 @@ async def _handle_range_arrival_safety(signal: Signal, lo: float, hi: float) -> 
             pending_actions.enqueue_cancel_pending(
                 signal, t, label=f"layered C close pend #{t}"
             )
-        signal.status = "closed"
+        signal.requested_close_reason = "STRATEGY_STOP"
         signal.dca_placed = True  # evita que _place_dca arranque monitor
         return True
 
@@ -3985,7 +4063,7 @@ async def _handle_range_arrival_safety(signal: Signal, lo: float, hi: float) -> 
             signal, signal.market_ticket,
             label=f"layered C unknown action {action}: entry {entry:.2f}"
         )
-        signal.status = "closed"
+        signal.requested_close_reason = "STRATEGY_STOP"
         signal.dca_placed = True
         return True
 
@@ -5097,7 +5175,6 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
         if open_positions == []:
             duration_s = (datetime.utcnow() - signal.timestamp).total_seconds()
             strategies.record_sl_hit(signal.channel, duration_s)
-            signal.status = "closed"
             sl_hit_detected = True
             journal.event(
                 sig_id,
@@ -5127,6 +5204,7 @@ async def _execute_actions(signal: Signal, classifications, raw_text: str = "",
         # Si una acción anterior cerró la señal, no aplicamos las restantes
         # (excepto INFORMATIONAL que solo loguea).
         will_apply = (signal.status == "open"
+                      and signal.lifecycle_state != "closing"
                       or cl.get("action") == "INFORMATIONAL")
 
         action_name = cl.get("action", "")
@@ -5664,6 +5742,7 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
             semantics="strict_positive_close_else_exact_entry_be",
         )
         if selected_action == "CLOSE_ALL":
+            signal.requested_close_reason = "PROVIDER_CLOSE"
             for ticket in signal.all_filled_tickets:
                 pending_actions.enqueue_close_position(
                     signal,
@@ -5676,7 +5755,6 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
                     ticket,
                     label=f"CANCEL_PENDING #{ticket}",
                 )
-            signal.status = "closed"
             logger.log_action(signal, action)
             await _finalize_signal(
                 signal,
@@ -5697,11 +5775,11 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
             return "requested"
         # El cierre se encola con reintento — si falla por transient, reintenta;
         # si no hay posición (ya cerrada por SL/TP), se considera hecho.
+        signal.requested_close_reason = "PROVIDER_CLOSE"
         for t in signal.all_filled_tickets:
             pending_actions.enqueue_close_position(signal, t, label=f"CLOSE_ALL #{t}")
         for t in signal.pending_tickets:
             pending_actions.enqueue_cancel_pending(signal, t, label=f"CANCEL_PENDING #{t}")
-        signal.status = "closed"
         logger.log_action(signal, action)
         await _finalize_signal(signal, closed_by="CLOSE_ALL",
                                notes=f"reason={classification.get('_reason', 'classifier')}")
@@ -6024,11 +6102,11 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
 
             if pl > 0.5:
                 # Cerrar todo — asegurar profit
+                signal.requested_close_reason = "PROVIDER_CLOSE"
                 for t in signal.all_filled_tickets:
                     pending_actions.enqueue_close_position(
                         signal, t, label=f"SIGNAL_UPDATED close (profit) #{t}"
                     )
-                signal.status = "closed"
                 await _finalize_signal(signal, closed_by="SIGNAL_UPDATED",
                                        notes=f"profit secured P&L={pl:+.2f}")
             elif pl > -2 and cur is not None:

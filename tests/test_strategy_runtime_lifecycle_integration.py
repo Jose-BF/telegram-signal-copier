@@ -2,8 +2,12 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pytest
+
 import live_auditor
+import listener
 import main
+import pending_actions
 import position_lifecycle_monitor as monitor
 from signal_lifecycle import TerminalCause, evaluate_terminal_request
 from state import Signal
@@ -108,3 +112,138 @@ def test_fixture_keeps_actual_mt5_separate_from_blocked_shadow_prediction():
         "money_contract_missing"
     ]
 
+
+class _Journal:
+    def __init__(self):
+        self.events = []
+        self.anomalies = []
+        self.finalized = []
+
+    def event(self, signal_id, event, **fields):
+        self.events.append({"sig": signal_id, "event": event, **fields})
+
+    def anomaly(self, signal_id, category, severity, detail, **fields):
+        self.anomalies.append({
+            "sig": signal_id,
+            "category": category,
+            "severity": severity,
+            "detail": detail,
+            **fields,
+        })
+
+    def finalize_trade(self, signal_id, **fields):
+        self.finalized.append({"sig": signal_id, **fields})
+
+
+@pytest.mark.asyncio
+async def test_real_finalizer_refuses_canal2_2320_automatic_flat(monkeypatch):
+    signal, _payload = _load_signal()
+    journal = _Journal()
+    monkeypatch.setattr(listener, "journal", journal)
+    monkeypatch.setattr(
+        listener,
+        "_open_mt5_positions_for_signal",
+        lambda _signal: [],
+    )
+
+    finalized = await listener._finalize_signal(
+        signal,
+        closed_by="RECONCILER",
+        observed_at=_utc("2026-09-01T11:49:30.252+00:00"),
+    )
+
+    assert finalized is False
+    assert signal.status == "open"
+    assert journal.finalized == []
+    decision = next(
+        row for row in journal.events
+        if row["event"] == "lifecycle_finalization_deferred"
+    )
+    assert decision["reason"] == "eligible_entry_intents"
+    assert decision["eligible_entry_indexes"] == [1, 2, 3, 4]
+
+
+@pytest.mark.asyncio
+async def test_explicit_provider_close_finalizes_once_mt5_is_flat(monkeypatch):
+    signal, _payload = _load_signal()
+    signal.requested_close_reason = "PROVIDER_CLOSE"
+    journal = _Journal()
+    monkeypatch.setattr(listener, "journal", journal)
+    monkeypatch.setattr(
+        listener,
+        "_open_mt5_positions_for_signal",
+        lambda _signal: [],
+    )
+    monkeypatch.setattr(listener, "_realized_pl", lambda _signal: 1.72)
+    monkeypatch.setattr(
+        listener.executor,
+        "account_evidence",
+        lambda: {"currency": "EUR"},
+    )
+    monkeypatch.setattr(listener.asyncio, "sleep", lambda _seconds: None)
+
+    async def no_sleep(_seconds):
+        return None
+
+    monkeypatch.setattr(listener.asyncio, "sleep", no_sleep)
+
+    finalized = await listener._finalize_signal(
+        signal,
+        closed_by="PROVIDER_CLOSE",
+        observed_at=_utc("2026-09-01T11:49:30.252+00:00"),
+    )
+
+    assert finalized is True
+    assert signal.status == "closed"
+    assert signal.lifecycle_cancelled_entry_indexes == [1, 2, 3, 4]
+    assert len(journal.finalized) == 1
+    assert journal.finalized[0]["total_pnl_usd"] == 1.72
+
+
+@pytest.mark.asyncio
+async def test_explicit_close_does_not_finalize_while_mt5_position_remains(
+    monkeypatch,
+):
+    signal, _payload = _load_signal()
+    signal.requested_close_reason = "PROVIDER_CLOSE"
+    journal = _Journal()
+    monkeypatch.setattr(listener, "journal", journal)
+    monkeypatch.setattr(
+        listener,
+        "_open_mt5_positions_for_signal",
+        lambda _signal: [{"ticket": signal.market_ticket}],
+    )
+
+    finalized = await listener._finalize_signal(
+        signal,
+        closed_by="PROVIDER_CLOSE",
+        observed_at=_utc("2026-09-01T11:49:30.252+00:00"),
+    )
+
+    assert finalized is False
+    assert signal.status == "open"
+    assert signal.lifecycle_state == "closing"
+    assert journal.finalized == []
+
+
+@pytest.mark.asyncio
+async def test_confirmed_pending_close_rechecks_terminal_signal(monkeypatch):
+    signal, _payload = _load_signal()
+    signal.requested_close_reason = "PROVIDER_CLOSE"
+    signal.lifecycle_state = "closing"
+    calls = []
+
+    async def fake_finalize(sig, closed_by, **kwargs):
+        calls.append((sig, closed_by, kwargs))
+        return True
+
+    monkeypatch.setattr(listener, "_finalize_signal", fake_finalize)
+
+    finalized = await pending_actions._recheck_terminal_signal(
+        signal,
+        trigger="close_position_confirmed",
+    )
+
+    assert finalized is True
+    assert calls[0][0] is signal
+    assert calls[0][1] == "PROVIDER_CLOSE"

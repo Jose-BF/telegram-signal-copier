@@ -43,6 +43,10 @@ import live_basket_guard
 import pending_actions
 import strategies
 from mt5_deal_reason import close_reason_from_deal
+from signal_lifecycle import (
+    evaluate_terminal_request,
+    terminal_cause_for_signal,
+)
 from state import Signal
 
 
@@ -843,31 +847,6 @@ def _auto_finalize_grace_elapsed(
     return (now - monitor_started_monotonic) >= grace_s
 
 
-def _gold_555_waiting_for_remaining_legs(
-    signal: Signal,
-    *,
-    now: datetime | None = None,
-) -> bool:
-    """Keep an empty 555 basket alive while its adverse ladder can still fill."""
-    if (
-        signal.live_strategy_id != gold_555_live_candidate.CANDIDATE_ID
-        or signal.live_strategy_fingerprint
-        != gold_555_live_candidate.CANDIDATE_FINGERPRINT
-        or signal.requested_close_reason
-        or signal.basket_guard_triggered
-        or signal.candidate_entry_expires_at is None
-    ):
-        return False
-    plan_size = len(signal.candidate_entry_legs)
-    if plan_size <= 1:
-        return False
-    filled_size = 1 + len(_candidate_filled_indexes(signal))
-    if filled_size >= plan_size:
-        return False
-    observed_now = datetime.utcnow() if now is None else now
-    return observed_now <= signal.candidate_entry_expires_at
-
-
 def _should_auto_finalize_signal(
     signal: Signal,
     summary: dict,
@@ -887,7 +866,29 @@ def _should_auto_finalize_signal(
         )
     ):
         return False
-    return not _gold_555_waiting_for_remaining_legs(signal, now=now)
+    decision = _automatic_flat_terminal_decision(
+        signal,
+        n_open=int(summary.get("n_open") or 0),
+        positions_complete=bool(summary.get("positions_complete", True)),
+        observed_at=datetime.utcnow() if now is None else now,
+    )
+    return decision.action == "finalize"
+
+
+def _automatic_flat_terminal_decision(
+    signal: Signal,
+    *,
+    n_open: int,
+    positions_complete: bool,
+    observed_at: datetime,
+):
+    return evaluate_terminal_request(
+        signal,
+        cause=terminal_cause_for_signal(signal),
+        open_position_count=n_open,
+        observed_at=observed_at,
+        positions_complete=positions_complete,
+    )
 
 
 def _signal_still_alive(signal: Signal) -> bool:
@@ -1431,6 +1432,7 @@ def _close_all_positions(signal: Signal, reason: str):
     print(f"[Position Monitor] [TIME-STOP] {reason} -> cerrando todas las posiciones de "
           f"senal {signal.message_id}")
 
+    signal.requested_close_reason = "TIME_EXIT"
     for t in signal.all_filled_tickets:
         pending_actions.enqueue_close_position(
             signal, t, label=f"{reason} #{t}"
@@ -1439,7 +1441,6 @@ def _close_all_positions(signal: Signal, reason: str):
         pending_actions.enqueue_cancel_pending(
             signal, t, label=f"{reason} pend #{t}"
         )
-    signal.status = "closed"
 
 
 def _dominant_close_tag(signal: Signal, by_tag: dict) -> str:
@@ -2543,7 +2544,7 @@ async def run(signal: Signal, levels: list[float]):
                     summary_str = ", ".join(f"{tag}×{n}" for tag, n in by_tag.items())
                     print(f"[Position Monitor] Auto-finalize señal {signal.message_id}: "
                           f"n_open=0 ({summary_str if summary_str else 'no_history'})")
-                    signal.status = "closed"
+                    finalized = False
                     try:
                         import journal as _j
                         sig_id = f"{signal.channel}_{signal.message_id}"
@@ -2554,29 +2555,28 @@ async def run(signal: Signal, levels: list[float]):
                         from listener import _finalize_signal
                         # closed_by usa el tag dominante (mayoría de tickets)
                         dominant_tag = _dominant_close_tag(signal, by_tag)
-                        await _finalize_signal(
+                        finalized = await _finalize_signal(
                             signal, closed_by=dominant_tag,
                             notes=f"auto-finalize: {summary_str}"
                         )
                     except Exception as fe:
                         print(f"[Position Monitor] auto-finalize error: {fe}")
-                        # Batch E: la senal esta marcada status=closed pero
-                        # _finalize_signal fallo → no se loguea
-                        # positions_closed_by_mt5, no hay PnL, el trade
-                        # desaparece de analytics. Critical.
+                        # La señal permanece abierta si falla el finalizador;
+                        # el siguiente ciclo volverá a intentarlo.
                         try:
                             import journal as _j_af
                             sig_id_af = f"{signal.channel}_{signal.message_id}"
                             _j_af.anomaly(sig_id_af, "mt5", "critical",
-                                          f"auto-finalize fallo tras "
-                                          f"status=closed: "
+                                          f"auto-finalize fallo antes de "
+                                          f"confirmar status=closed: "
                                           f"{type(fe).__name__}: "
                                           f"{str(fe)[:200]} — trade no "
                                           f"aparecera en el ledger del dia",
                                           exc_type=type(fe).__name__)
                         except Exception:
                             pass
-                    break
+                    if finalized:
+                        break
             except Exception as e:
                 # Errores aquí no deben matar el monitor — solo log y seguir
                 print(f"[Position Monitor] update_extremes error: {e}")

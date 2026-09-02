@@ -197,6 +197,20 @@ def test_restart_restores_flat_gold_555_with_remaining_entry_window(
             "expires_at": expires_at.isoformat(),
             "ts": (now - timedelta(minutes=9)).isoformat(),
         },
+        {
+            "sig": "canal2_380",
+            "ev": "lifecycle_finalization_deferred",
+            "action": "keep_alive",
+            "reason": "eligible_entry_intents",
+            "cause": "automatic_flat",
+            "eligible_entry_indexes": [1, 2, 3, 4],
+            "cancelled_entry_indexes": [],
+            "blockers": [],
+            "observed_at_utc": (
+                now - timedelta(minutes=8)
+            ).replace(tzinfo=None).isoformat(timespec="milliseconds"),
+            "open_position_count": 0,
+        },
     ]
     events_file.write_text(
         "".join(json.dumps(row) + "\n" for row in rows),
@@ -226,6 +240,10 @@ def test_restart_restores_flat_gold_555_with_remaining_entry_window(
     signal = runtime_state.get("canal2", 380)
     assert signal is not None
     assert signal.status == "open"
+    assert signal.lifecycle_state == "temporarily_flat"
+    assert signal.lifecycle_last_decision["reason"] == (
+        "eligible_entry_intents"
+    )
     assert signal.market_ticket == 1771000001
     assert signal.market_fill_price == 4300.0
     assert signal.candidate_filled_leg_indexes == []

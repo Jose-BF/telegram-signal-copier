@@ -59,6 +59,11 @@ import live_basket_guard
 import live_auditor
 import pending_actions
 import strategy_shadow_runtime
+from signal_lifecycle import (
+    apply_lifecycle_decision,
+    evaluate_terminal_request,
+    terminal_cause_for_signal,
+)
 from strategy_shadow_contracts import ShadowTick, canonical_hash
 from strategy_shadow_manifest import build_catalog_manifest
 from tools import capture_broker_money_contract as broker_contract
@@ -835,6 +840,22 @@ async def _pending_correction_watchdog(check_interval_s: int = 30,
         await asyncio.sleep(check_interval_s)
 
 
+def _reconciler_terminal_decision(
+    signal,
+    *,
+    n_open_mt5: int,
+    observed_at: datetime,
+    positions_complete: bool = True,
+):
+    return evaluate_terminal_request(
+        signal,
+        cause=terminal_cause_for_signal(signal),
+        open_position_count=n_open_mt5,
+        observed_at=observed_at,
+        positions_complete=positions_complete,
+    )
+
+
 async def _position_reconciler(check_interval_s: int = 60,
                                 stale_alert_h: float = 12.0):
     """Reconcilia el estado interno del bot con MT5 — CAUSA RAIZ de los
@@ -885,19 +906,34 @@ async def _position_reconciler(check_interval_s: int = 60,
                 full_sig_id = f"{sig.channel}_{sig.message_id}"
 
                 if n_open_mt5 == 0:
+                    decision = _reconciler_terminal_decision(
+                        sig,
+                        n_open_mt5=n_open_mt5,
+                        observed_at=now,
+                    )
+                    apply_lifecycle_decision(sig, decision)
+                    if decision.action != "finalize":
+                        journal.event(
+                            full_sig_id,
+                            "lifecycle_finalization_deferred",
+                            source="reconciler",
+                            **decision.to_dict(),
+                        )
+                        continue
                     # MT5 cerro todas las posiciones pero el bot no lo registro.
                     print(f"[Reconciler] {full_sig_id}: 0/{len(tickets)} tickets "
                           f"abiertos en MT5 → finalizar (cierre no detectado)")
                     journal.event(full_sig_id, "reconciler_closed_detected",
                                   n_tickets=len(tickets),
                                   age_s=round(age_s, 1))
-                    sig.status = "closed"  # corta el monitor de esa senal
                     try:
                         from listener import _finalize_signal
                         await _finalize_signal(
                             sig, closed_by="RECONCILER",
                             notes="cierre MT5 detectado por reconciler "
-                                  "(monitor no lo registro)")
+                                  "(monitor no lo registro)",
+                            observed_at=now,
+                        )
                     except Exception as e:
                         print(f"[Reconciler] error finalizando {full_sig_id}: {e}")
                 elif age_s > stale_alert_h * 3600:
@@ -4144,6 +4180,7 @@ def _restore_flat_gold_555_entry_plans(
                 "received": None,
                 "first_fill": None,
                 "delayed_fills": {},
+                "lifecycle": None,
                 "terminal": False,
             })
             if event == "signal_received" and (
@@ -4165,6 +4202,8 @@ def _restore_flat_gold_555_entry_plans(
                 except (KeyError, TypeError, ValueError):
                     continue
                 record["delayed_fills"][leg_index] = row
+            elif event == "lifecycle_finalization_deferred":
+                record["lifecycle"] = row
             elif event in terminal_events:
                 record["terminal"] = True
 
@@ -4257,6 +4296,32 @@ def _restore_flat_gold_555_entry_plans(
             entry_source_kind=received.get("entry_source_kind")
             or "telegram_now",
         )
+        lifecycle = record.get("lifecycle") or {}
+        signal.lifecycle_state = "temporarily_flat"
+        signal.lifecycle_settled_entry_indexes = [0, *filled_indexes]
+        signal.lifecycle_cancelled_entry_indexes = sorted({
+            int(index)
+            for index in lifecycle.get("cancelled_entry_indexes", [])
+            if str(index).lstrip("-").isdigit() and int(index) >= 0
+        })
+        if lifecycle:
+            signal.lifecycle_last_decision = {
+                key: lifecycle.get(key)
+                for key in (
+                    "action",
+                    "reason",
+                    "cause",
+                    "observed_at_utc",
+                    "open_position_count",
+                    "eligible_entry_indexes",
+                    "cancelled_entry_indexes",
+                    "blockers",
+                )
+            }
+            if lifecycle.get("cause") not in {None, "automatic_flat"}:
+                signal.lifecycle_terminal_cause = str(
+                    lifecycle["cause"]
+                )
         signal.dca_tickets = [
             int(delayed[index]["ticket"]) for index in filled_indexes
         ]

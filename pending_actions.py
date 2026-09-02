@@ -109,6 +109,32 @@ def _should_alert_waiting_exact_be(action, age_s: float,
     )
 
 
+async def _recheck_terminal_signal(
+    signal: Signal,
+    *,
+    trigger: str,
+) -> bool:
+    """Ask the canonical finalizer after a terminal MT5 action completes."""
+    if not (
+        signal.requested_close_reason
+        or signal.basket_guard_triggered
+        or signal.lifecycle_state == "closing"
+    ):
+        return False
+    from listener import _finalize_signal
+
+    closed_by = str(
+        signal.requested_close_reason
+        or signal.basket_guard_trigger_reason
+        or trigger
+    )
+    return bool(await _finalize_signal(
+        signal,
+        closed_by=closed_by,
+        notes=f"pending action terminal recheck: {trigger}",
+    ))
+
+
 @dataclass
 class PendingAction:
     kind: str                       # "MODIFY_SLTP" | "CLOSE_POSITION" | "CANCEL_PENDING"
@@ -814,6 +840,17 @@ class PendingQueue:
                         queued for queued in self._actions
                         if queued is not act
                     ]
+                    if act.kind in {"CLOSE_POSITION", "CANCEL_PENDING"}:
+                        try:
+                            await _recheck_terminal_signal(
+                                act.signal,
+                                trigger=f"{act.kind.lower()}_confirmed",
+                            )
+                        except Exception as exc:
+                            print(
+                                "[Pending] finalization recheck error: "
+                                f"{type(exc).__name__}: {exc}"
+                            )
                 elif result == "DROP":
                     print(f"[Pending] Descartado (error permanente {act.last_retcode}): {act.label}")
                     self._log_failure(act, reason=f"permanent_error_retcode_{act.last_retcode}")
