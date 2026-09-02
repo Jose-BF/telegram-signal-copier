@@ -1,0 +1,45 @@
+{
+  "signal_id": "canal2_2320",
+  "channel": "canal2",
+  "message_id": 2320,
+  "direction": "BUY",
+  "strategy_id": "gold_now_555_v1",
+  "strategy_fingerprint": "555124a24b534aa2abda53ddaaa2ee35fd3afd07e61d05937eb14c80ad0676f0",
+  "signal_observed_at_utc": "2026-09-01T11:47:11+00:00",
+  "first_fill": {
+    "ticket": 1903871553,
+    "filled_at_utc": "2026-09-01T11:47:57.789+00:00",
+    "price": 4386.07,
+    "volume": 0.04,
+    "target": 4386.57,
+    "stop": 4356.07
+  },
+  "entry_plan": {
+    "expires_at_utc": "2026-09-01T12:17:11+00:00",
+    "levels": [4386.07, 4384.57, 4383.07, 4381.57, 4380.07],
+    "volumes": [0.04, 0.03, 0.03, 0.03, 0.03],
+    "filled_leg_indexes": [0],
+    "settled_leg_indexes": [0],
+    "cancelled_leg_indexes": []
+  },
+  "first_close": {
+    "closed_at_utc": "2026-09-01T11:48:04.758+00:00",
+    "price": 4386.57,
+    "reason": "target",
+    "actual_mt5_eur": 1.72
+  },
+  "automatic_flat_check": {
+    "observed_at_utc": "2026-09-01T11:49:30.252+00:00",
+    "open_position_count": 0,
+    "source": "reconciler_closed_detected",
+    "source_event_id": "event_d8c12d5e4e1a4a7c8b8e166a707bef08"
+  },
+  "expected": {
+    "action": "keep_alive",
+    "reason": "eligible_entry_intents",
+    "eligible_leg_indexes": [1, 2, 3, 4],
+    "actual_mt5_eur": 1.72,
+    "incorrect_shadow_prediction_eur": -310.18,
+    "shadow_prediction_blockers": ["money_contract_missing"]
+  }
+}
