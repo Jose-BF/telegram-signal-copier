@@ -68,6 +68,7 @@ def run_gold_chronological_search(
     workers: int = 1,
     initial_genomes: Sequence[StrategyGenome] = (),
     resume_from_root: Path | None = None,
+    retain_result_rows: bool = True,
 ) -> GoldSearchReport:
     """Run the shared engine with Gold-only evidence and search operators."""
 
@@ -107,5 +108,6 @@ def run_gold_chronological_search(
         neighborhood_factory=gold_parameter_neighborhood,
         baseline_genome=gold_555_genome(),
         resume_from_root=resume_from_root,
+        retain_result_rows=retain_result_rows,
     )
     return GoldSearchReport(fold_plan=active_plan, search=search)

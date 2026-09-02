@@ -318,6 +318,7 @@ def _search(args, *, resume: bool) -> int:
             signal_scope=signal_scope,
             workers=args.workers,
             resume_from_root=checkpoint_root if resume else None,
+            retain_result_rows=False,
         )
         candidate_path, candidate_count = spool.materialize()
         complete_days = set(fold_plan.complete_days)

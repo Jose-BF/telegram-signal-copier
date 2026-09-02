@@ -476,9 +476,12 @@ def run_chronological_search(
     neighborhood_factory: NeighborhoodFactory = parameter_neighborhood,
     baseline_genome: StrategyGenome | None = None,
     resume_from_root: Path | None = None,
+    retain_result_rows: bool = True,
 ) -> ChronologicalSearchReport:
     """Run each expanding fold independently with its own frozen challenge."""
 
+    if not isinstance(retain_result_rows, bool):
+        raise ValueError("retain_result_rows must be boolean")
     reports = []
     for fold in folds:
         resume_from = None
@@ -487,7 +490,7 @@ def run_chronological_search(
             if candidate.is_file():
                 resume_from = candidate
         try:
-            reports.append(run_search(
+            fold_report = run_search(
                 dataset,
                 fold=fold,
                 budget=budget,
@@ -509,7 +512,20 @@ def run_chronological_search(
                 neighborhood_factory=neighborhood_factory,
                 baseline_genome=baseline_genome,
                 resume_from=resume_from,
-            ))
+            )
+            if not retain_result_rows:
+                fold_report = replace(
+                    fold_report,
+                    frontier=tuple(
+                        replace(item, results=())
+                        for item in fold_report.frontier
+                    ),
+                    challenge_evaluations=tuple(
+                        replace(item, results=())
+                        for item in fold_report.challenge_evaluations
+                    ),
+                )
+            reports.append(fold_report)
         finally:
             _release_evaluator_cache(evaluator)
     return ChronologicalSearchReport(tuple(reports))

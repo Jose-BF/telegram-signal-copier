@@ -774,6 +774,27 @@ def test_path_bounded_evaluator_never_accumulates_multiple_tick_paths():
     assert evaluator.clear_calls == len(paths)
 
 
+def test_chronological_search_can_discard_fold_rows_after_aggregation(tmp_path):
+    report = run_chronological_search(
+        _dataset(),
+        folds=(_fold(),),
+        budget=SearchBudget(max_generations=1),
+        search_space=SearchSpace(),
+        output_dir=tmp_path,
+        evaluator=_flat_evaluator,
+        population_size=4,
+        retain_result_rows=False,
+    )
+
+    fold = report.fold_reports[0]
+    assert fold.frontier
+    assert fold.challenge_evaluations
+    assert all(item.net_eur is not None for item in fold.frontier)
+    assert all(item.net_eur is not None for item in fold.challenge_evaluations)
+    assert all(item.results == () for item in fold.frontier)
+    assert all(item.results == () for item in fold.challenge_evaluations)
+
+
 def test_cross_fold_gate_rejects_rule_that_only_wins_in_base_execution(tmp_path):
     genome = StrategyGenome.baseline().with_change(time_exit_min=30)
     fold = ChronologicalFold(
