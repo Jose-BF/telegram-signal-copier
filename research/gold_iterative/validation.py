@@ -110,6 +110,7 @@ def _validated_candidate(
     assessment = group.representative
     if not assessment.robustness_eligible:
         blockers.append("execution_robustness_failed")
+        blockers.extend(assessment.selection_blockers)
     if not stability.evidence_complete:
         blockers.append("daily_stability_incomplete")
         blockers.extend(stability.blockers)

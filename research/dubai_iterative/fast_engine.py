@@ -236,6 +236,12 @@ class FastEvaluator:
                 blockers=(f"fast_path_unsupported:{exc}",),
             )
 
+    def clear_cache(self) -> None:
+        """Release compiled tick arrays between bounded validation worlds."""
+
+        with self._cache_lock:
+            self._cache.clear()
+
 
 def _compile_path(
     path: DubaiPath,

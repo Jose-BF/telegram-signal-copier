@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from decimal import Decimal
 import json
 import os
@@ -155,6 +155,17 @@ class CrossFoldCandidateValidation:
 
 
 @dataclass(frozen=True)
+class _TemporalValidationContract:
+    future_folds: tuple[ChronologicalFold, ...]
+    validation_fold_names: tuple[str, ...]
+    validation_days: tuple[str, ...]
+    signal_count: int
+    filled_signal_count: int
+    participation_rate: float
+    blockers: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class GenerationProgress:
     fold: str
     generation: int
@@ -189,17 +200,32 @@ def cross_validate_frontier_candidates(
     ] = (),
     minimum_participation: float = 0.50,
     minimum_positive_challenge_ratio: float = 1.0,
+    minimum_future_challenge_folds: int = 1,
+    minimum_future_challenge_signals: int = 1,
+    minimum_future_filled_signals: int = 1,
     workers: int = 1,
     progress_callback: CandidateProgressCallback | None = None,
 ) -> CrossFoldCandidateValidation:
-    """Freeze every discovered frontier rule and retest all later folds."""
+    """Freeze each rule at first discovery and test only later evidence."""
 
     folds = tuple(item.fold for item in report.fold_reports)
-    genomes = deduplicate(
-        item.genome
-        for fold_report in report.fold_reports
-        for item in fold_report.frontier
-    )
+    for name, value in (
+        ("minimum_future_challenge_folds", minimum_future_challenge_folds),
+        ("minimum_future_challenge_signals", minimum_future_challenge_signals),
+        ("minimum_future_filled_signals", minimum_future_filled_signals),
+    ):
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise ValueError(f"{name} must be a positive integer")
+
+    genomes_by_fingerprint: dict[str, StrategyGenome] = {}
+    discovery_index: dict[str, int] = {}
+    for fold_index, fold_report in enumerate(report.fold_reports):
+        for item in fold_report.frontier:
+            fingerprint = item.genome.fingerprint
+            if fingerprint not in genomes_by_fingerprint:
+                genomes_by_fingerprint[fingerprint] = item.genome
+                discovery_index[fingerprint] = fold_index
+    genomes = tuple(genomes_by_fingerprint.values())
     scenario_evaluators = (
         ("full_window", evaluator),
         *tuple(additional_execution_scenarios),
@@ -210,42 +236,111 @@ def cross_validate_frontier_candidates(
     if len(set(scenario_names)) != len(scenario_names):
         raise ValueError("execution scenario names must be unique")
 
-    scenario_evaluations: list[
-        tuple[str, tuple[CandidateEvaluation, ...]]
-    ] = []
+    evaluations_by_fingerprint: dict[
+        str, list[ScenarioEvaluation]
+    ] = {item.fingerprint: [] for item in genomes}
     total = len(genomes) * len(scenario_evaluators)
     completed_before = 0
-    for name, scenario_evaluator in scenario_evaluators:
+    active_fingerprints = set(evaluations_by_fingerprint)
+    temporal_contracts: dict[str, _TemporalValidationContract] = {}
+    for scenario_index, (name, scenario_evaluator) in enumerate(
+        scenario_evaluators
+    ):
+        scenario_genomes = (
+            genomes
+            if scenario_index == 0
+            else tuple(
+                item for item in genomes
+                if item.fingerprint in active_fingerprints
+            )
+        )
         callback = None
         if progress_callback is not None:
             callback = lambda completed, _subtotal, offset=completed_before: (
                 progress_callback(offset + completed, total)
             )
-        evaluations = _evaluate_population(
-            genomes,
-            tuple(dataset.paths),
-            scenario_evaluator,
-            workers=workers,
-            progress_callback=callback,
-        )
-        scenario_evaluations.append((name, evaluations))
-        completed_before += len(genomes)
+        try:
+            evaluations = _evaluate_population(
+                scenario_genomes,
+                tuple(dataset.paths),
+                scenario_evaluator,
+                workers=workers,
+                progress_callback=callback,
+            )
+        finally:
+            _release_evaluator_cache(scenario_evaluator)
+        completed_before += len(scenario_genomes)
+        for evaluation in evaluations:
+            fingerprint = evaluation.genome.fingerprint
+            evaluations_by_fingerprint[fingerprint].append(
+                ScenarioEvaluation(name, evaluation)
+            )
+            if scenario_index == 0:
+                temporal_contracts[fingerprint] = _temporal_contract(
+                    evaluation,
+                    folds=folds,
+                    discovery_index=discovery_index[fingerprint],
+                    minimum_future_challenge_folds=(
+                        minimum_future_challenge_folds
+                    ),
+                    minimum_future_challenge_signals=(
+                        minimum_future_challenge_signals
+                    ),
+                    minimum_future_filled_signals=(
+                        minimum_future_filled_signals
+                    ),
+                    minimum_participation=minimum_participation,
+                )
 
-    assessments = tuple(
-        assess_execution_robustness(
-            tuple(
-                ScenarioEvaluation(name, evaluations[index])
-                for name, evaluations in scenario_evaluations
-            ),
+        active_fingerprints = {
+            fingerprint
+            for fingerprint in active_fingerprints
+            if (
+                evaluations_by_fingerprint[fingerprint]
+                and _can_survive_remaining_worlds(
+                    evaluations_by_fingerprint[fingerprint][-1].evaluation,
+                    minimum_participation=minimum_participation,
+                )
+                and not temporal_contracts[fingerprint].blockers
+            )
+        }
+
+    assessments = []
+    for genome in genomes:
+        fingerprint = genome.fingerprint
+        temporal = temporal_contracts[fingerprint]
+        scenarios = tuple(evaluations_by_fingerprint[fingerprint])
+        selection_blockers = list(temporal.blockers)
+        if len(scenarios) != len(scenario_evaluators):
+            selection_blockers.append("not_all_execution_worlds_evaluated")
+        assessment = assess_execution_robustness(
+            scenarios,
             minimum_participation=minimum_participation,
-            folds=folds,
+            folds=temporal.future_folds,
             minimum_positive_challenge_ratio=(
                 minimum_positive_challenge_ratio
             ),
         )
-        for index in range(len(genomes))
-    )
-    ranked = rank_robust_candidates(assessments)
+        selection_blockers = tuple(dict.fromkeys(selection_blockers))
+        assessments.append(replace(
+            assessment,
+            discovery_fold_name=folds[
+                discovery_index[fingerprint]
+            ].name,
+            validation_fold_names=temporal.validation_fold_names,
+            validation_days=temporal.validation_days,
+            validation_signal_count=temporal.signal_count,
+            validation_filled_signal_count=temporal.filled_signal_count,
+            validation_participation_rate=temporal.participation_rate,
+            selection_blockers=selection_blockers,
+            evidence_complete=(
+                assessment.evidence_complete and not selection_blockers
+            ),
+            robustness_eligible=(
+                assessment.robustness_eligible and not selection_blockers
+            ),
+        ))
+    ranked = rank_robust_candidates(tuple(assessments))
     eligible = tuple(item for item in ranked if item.robustness_eligible)
     rejected = tuple(item for item in ranked if not item.robustness_eligible)
     return CrossFoldCandidateValidation(
@@ -253,6 +348,81 @@ def cross_validate_frontier_candidates(
         eligible=eligible,
         rejected=rejected,
     )
+
+
+def _temporal_contract(
+    evaluation: CandidateEvaluation,
+    *,
+    folds: Sequence[ChronologicalFold],
+    discovery_index: int,
+    minimum_future_challenge_folds: int,
+    minimum_future_challenge_signals: int,
+    minimum_future_filled_signals: int,
+    minimum_participation: float,
+) -> _TemporalValidationContract:
+    future_folds = tuple(folds[discovery_index:])
+    challenge_rows = tuple(
+        (str(day), result)
+        for day, result in evaluation.results
+        if any(fold.challenge_contains(str(day)) for fold in future_folds)
+    )
+    covered_folds = tuple(
+        fold
+        for fold in future_folds
+        if any(
+            fold.challenge_contains(day)
+            for day, _result in challenge_rows
+        )
+    )
+    validation_days = tuple(sorted({day for day, _result in challenge_rows}))
+    filled_signal_count = sum(
+        not result.unfilled for _day, result in challenge_rows
+    )
+    participation_rate = (
+        filled_signal_count / len(challenge_rows)
+        if challenge_rows
+        else 0.0
+    )
+    blockers: list[str] = []
+    if len(covered_folds) < minimum_future_challenge_folds:
+        blockers.append("insufficient_future_challenge_folds")
+    if len(challenge_rows) < minimum_future_challenge_signals:
+        blockers.append("insufficient_future_challenge_signals")
+    if filled_signal_count < minimum_future_filled_signals:
+        blockers.append("insufficient_future_filled_signals")
+    if participation_rate < minimum_participation:
+        blockers.append("future_participation_below_threshold")
+    return _TemporalValidationContract(
+        future_folds=future_folds,
+        validation_fold_names=tuple(fold.name for fold in covered_folds),
+        validation_days=validation_days,
+        signal_count=len(challenge_rows),
+        filled_signal_count=filled_signal_count,
+        participation_rate=participation_rate,
+        blockers=tuple(blockers),
+    )
+
+
+def _can_survive_remaining_worlds(
+    evaluation: CandidateEvaluation,
+    *,
+    minimum_participation: float,
+) -> bool:
+    return (
+        not evaluation.blockers
+        and evaluation.net_eur is not None
+        and evaluation.net_eur > 0
+        and evaluation.max_drawdown_eur is not None
+        and evaluation.normalized_net_per_001 is not None
+        and evaluation.normalized_max_drawdown_per_001 is not None
+        and evaluation.participation_rate >= minimum_participation
+    )
+
+
+def _release_evaluator_cache(evaluator: object) -> None:
+    clear_cache = getattr(evaluator, "clear_cache", None)
+    if callable(clear_cache):
+        clear_cache()
 
 
 class SearchCheckpointError(ValueError):

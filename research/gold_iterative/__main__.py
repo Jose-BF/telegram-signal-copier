@@ -238,6 +238,18 @@ def _search(args, *, resume: bool) -> int:
             args.minimum_leave_one_day_out_positive_ratio
         ),
     )
+    minimum_future_challenge_folds = (
+        1 if args.fixture == "tiny"
+        else args.minimum_future_challenge_folds
+    )
+    minimum_future_challenge_signals = (
+        1 if args.fixture == "tiny"
+        else args.minimum_future_challenge_signals
+    )
+    minimum_future_filled_signals = (
+        1 if args.fixture == "tiny"
+        else args.minimum_future_filled_signals
+    )
     output_root = Path(args.output_root)
     checkpoint_root = output_root / ".checkpoints"
     context = {
@@ -304,6 +316,21 @@ def _search(args, *, resume: bool) -> int:
             paths=complete_paths,
             source_hashes=dataset.source_hashes,
         )
+        validation_progress_state = {"bucket": -1}
+
+        def validation_progress(completed: int, total: int) -> None:
+            if not args.progress or total <= 0:
+                return
+            percent = min(100, int(completed * 100 / total))
+            bucket = percent // 5
+            if bucket <= validation_progress_state["bucket"]:
+                return
+            validation_progress_state["bucket"] = bucket
+            _emit(
+                f"[Validacion cruzada] {completed}/{total} "
+                f"({percent}%; candidatos inviables se podan pronto)",
+            )
+
         cross_fold = cross_validate_frontier_candidates(
             complete_dataset,
             report.search,
@@ -317,10 +344,24 @@ def _search(args, *, resume: bool) -> int:
             minimum_positive_challenge_ratio=(
                 args.minimum_positive_challenge_ratio
             ),
+            minimum_future_challenge_folds=(
+                minimum_future_challenge_folds
+            ),
+            minimum_future_challenge_signals=(
+                minimum_future_challenge_signals
+            ),
+            minimum_future_filled_signals=(
+                minimum_future_filled_signals
+            ),
             workers=args.workers,
+            progress_callback=validation_progress,
+        )
+        stability_candidates = (
+            cross_fold.eligible
+            or cross_fold.assessments[:max(12, args.oracle_finalists)]
         )
         candidate_validation = validate_gold_candidates(
-            cross_fold.assessments,
+            stability_candidates,
             policy=stability_policy,
         )
         selection_pool = (
@@ -411,6 +452,18 @@ def _search(args, *, resume: bool) -> int:
             "minimum_positive_challenge_ratio": (
                 args.minimum_positive_challenge_ratio
             ),
+            "future_evidence_policy": {
+                "scope": "post_first_discovery_only",
+                "minimum_future_challenge_folds": (
+                    minimum_future_challenge_folds
+                ),
+                "minimum_future_challenge_signals": (
+                    minimum_future_challenge_signals
+                ),
+                "minimum_future_filled_signals": (
+                    minimum_future_filled_signals
+                ),
+            },
             "engine": "numba_fixed_point_gold_v2",
             "oracle": "independent_scalar_gold_v2",
             "oracle_statuses": [
@@ -434,6 +487,13 @@ def _search(args, *, resume: bool) -> int:
                 "stable_count": len(candidate_validation.eligible),
                 "stability_rejected_count": len(
                     candidate_validation.rejected
+                ),
+                "stability_considered_count": len(
+                    candidate_validation.candidates
+                ),
+                "fully_world_tested_count": sum(
+                    item.scenario_count == len(validation_worlds)
+                    for item in cross_fold.assessments
                 ),
                 "selected": [
                     _candidate_validation_summary(item)
@@ -631,6 +691,20 @@ def _candidate_validation_summary(item) -> Mapping[str, object]:
         "validation_eligible": item.eligible,
         "validation_blockers": list(item.blockers),
         "robustness_eligible": assessment.robustness_eligible,
+        "discovery_fold_name": assessment.discovery_fold_name,
+        "validation_fold_names": list(
+            assessment.validation_fold_names
+        ),
+        "validation_days": list(assessment.validation_days),
+        "validation_signal_count": assessment.validation_signal_count,
+        "validation_filled_signal_count": (
+            assessment.validation_filled_signal_count
+        ),
+        "validation_participation_rate": (
+            assessment.validation_participation_rate
+        ),
+        "selection_blockers": list(assessment.selection_blockers),
+        "selection_scope": "post_first_discovery_only",
         "worst_net_eur": _decimal_text(assessment.worst_net_eur),
         "worst_challenge_net_eur": _decimal_text(
             assessment.worst_challenge_net_eur
@@ -926,6 +1000,21 @@ def _add_search_arguments(parser: argparse.ArgumentParser) -> None:
         "--minimum-positive-challenge-ratio",
         type=float,
         default=0.60,
+    )
+    parser.add_argument(
+        "--minimum-future-challenge-folds",
+        type=int,
+        default=12,
+    )
+    parser.add_argument(
+        "--minimum-future-challenge-signals",
+        type=int,
+        default=100,
+    )
+    parser.add_argument(
+        "--minimum-future-filled-signals",
+        type=int,
+        default=100,
     )
     parser.add_argument("--bootstrap-samples", type=int, default=10_000)
     parser.add_argument(

@@ -55,6 +55,9 @@ def test_gold_cli_has_explicit_commands_and_safe_runtime_defaults():
     )
     assert search.raw_events_path == "runtime_data/trade_events.jsonl"
     assert search.max_total_volume == 1.0
+    assert search.minimum_future_challenge_folds == 12
+    assert search.minimum_future_challenge_signals == 100
+    assert search.minimum_future_filled_signals == 100
 
 
 def test_inspect_reports_complete_and_incomplete_days_without_running_search(capsys):
@@ -97,6 +100,12 @@ def test_search_prints_bounded_progress_and_publishes_deterministically(
     assert card["run_metadata"]["budget"]["max_generations"] == 2
     assert card["run_metadata"]["stop_reasons"] == ["max_generations"]
     assert card["run_metadata"]["live_code_changed"] is False
+    assert card["run_metadata"]["future_evidence_policy"] == {
+        "minimum_future_challenge_folds": 1,
+        "minimum_future_challenge_signals": 1,
+        "minimum_future_filled_signals": 1,
+        "scope": "post_first_discovery_only",
+    }
     assert {"fold", "generation", "strategy_fingerprint"} <= set(
         candidates.columns
     )

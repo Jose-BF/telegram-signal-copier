@@ -1,3 +1,4 @@
+from dataclasses import replace
 from decimal import Decimal
 
 from research.dubai_iterative.contracts import StrategyGenome
@@ -111,6 +112,41 @@ def test_gold_validation_never_resurrects_execution_robustness_rejection():
     assert selection.eligible == ()
     assert selection.rejected[0].blockers[0] == (
         "execution_robustness_failed"
+    )
+
+
+def test_gold_validation_bootstraps_only_post_discovery_days():
+    genome = StrategyGenome.baseline().with_change(time_exit_min=30)
+    full_history = _evaluation(genome, (
+        ("2026-08-10", "100.00"),
+        ("2026-08-11", "-1.00"),
+        ("2026-08-12", "-1.00"),
+    ))
+    assessment = assess_execution_robustness((
+        ScenarioEvaluation("base", full_history),
+        ScenarioEvaluation("stress", full_history),
+    ))
+    assessment = replace(
+        assessment,
+        discovery_fold_name="fold_02",
+        validation_fold_names=("fold_02", "fold_03"),
+        validation_days=("2026-08-11", "2026-08-12"),
+        validation_signal_count=2,
+    )
+
+    selection = validate_gold_candidates(
+        (assessment,),
+        policy=GoldStabilityPolicy(bootstrap_samples=1_000, seed=11),
+    )
+
+    assert selection.eligible == ()
+    stability = selection.rejected[0].stability
+    assert stability.scenarios[0][1].day_totals == (
+        ("2026-08-11", Decimal("-1.00")),
+        ("2026-08-12", Decimal("-1.00")),
+    )
+    assert "bootstrap_probability_below_threshold" in (
+        selection.rejected[0].blockers
     )
 
 

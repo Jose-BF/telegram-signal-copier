@@ -361,7 +361,7 @@ def test_complete_coordinator_runs_the_four_expanding_contract_folds(tmp_path):
         )
 
 
-def test_cross_fold_gate_retests_every_frontier_candidate_on_all_challenges(
+def test_cross_fold_gate_retests_each_candidate_only_after_first_discovery(
     tmp_path,
 ):
     fragile = StrategyGenome.baseline().with_change(time_exit_min=15)
@@ -437,6 +437,14 @@ def test_cross_fold_gate_retests_every_frontier_candidate_on_all_challenges(
     assert [
         item.genome.fingerprint for item in validated.eligible
     ] == [robust.fingerprint]
+    accepted = validated.eligible[0]
+    assert accepted.discovery_fold_name == "second"
+    assert accepted.validation_fold_names == ("second",)
+    assert accepted.validation_days == ("2026-07-29",)
+    assert accepted.validation_signal_count == 1
+    assert accepted.validation_filled_signal_count == 1
+    assert accepted.validation_participation_rate == 1.0
+    assert accepted.challenge_count == 1
     rejected = {
         item.genome.fingerprint: item for item in validated.rejected
     }
@@ -444,6 +452,211 @@ def test_cross_fold_gate_retests_every_frontier_candidate_on_all_challenges(
     assert rejected[fragile.fingerprint].positive_challenges == 1
     assert rejected[fragile.fingerprint].challenge_count == 2
     assert progress[-1] == (2, 2)
+
+
+def test_cross_fold_gate_requires_enough_post_discovery_evidence(tmp_path):
+    early = StrategyGenome.baseline().with_change(time_exit_min=15)
+    late = StrategyGenome.baseline().with_change(time_exit_min=30)
+    folds = (
+        ChronologicalFold(
+            "first", "2026-07-27", "2026-07-27",
+            "2026-07-28", "2026-07-28",
+        ),
+        ChronologicalFold(
+            "second", "2026-07-27", "2026-07-28",
+            "2026-07-29", "2026-07-29",
+        ),
+    )
+    dataset = TinyDataset(
+        paths=(
+            TinyPath("day_1", "2026-07-27"),
+            TinyPath("day_2", "2026-07-28"),
+            TinyPath("day_3", "2026-07-29"),
+        ),
+        source_hashes={"fixture": "future-evidence"},
+    )
+
+    def evaluator(path, genome):
+        return replace(
+            _flat_evaluator(path, genome),
+            pnl_eur=Decimal("1.00"),
+        )
+
+    reports = tuple(
+        SearchReport(
+            fold=fold,
+            stop_reason="max_generations",
+            generations_completed=1,
+            evaluations=1,
+            elapsed_seconds=1.0,
+            frontier=(CandidateEvaluation.from_results(
+                genome,
+                (
+                    (path.day, evaluator(path, genome))
+                    for path in dataset.paths
+                    if fold.development_contains(path.day)
+                ),
+            ),),
+            challenge_evaluations=(),
+            checkpoint_path=tmp_path / fold.name / "checkpoint.json",
+            stale_generations=0,
+            generation_summaries=(),
+        )
+        for fold, genome in zip(folds, (early, late), strict=True)
+    )
+
+    validated = cross_validate_frontier_candidates(
+        dataset,
+        ChronologicalSearchReport(reports),
+        evaluator=evaluator,
+        minimum_future_challenge_folds=2,
+        minimum_future_challenge_signals=2,
+        minimum_future_filled_signals=2,
+    )
+
+    by_fingerprint = {
+        item.genome.fingerprint: item for item in validated.assessments
+    }
+    assert by_fingerprint[early.fingerprint].robustness_eligible is True
+    assert by_fingerprint[late.fingerprint].robustness_eligible is False
+    assert by_fingerprint[late.fingerprint].selection_blockers == (
+        "insufficient_future_challenge_folds",
+        "insufficient_future_challenge_signals",
+        "insufficient_future_filled_signals",
+    )
+
+
+def test_cross_fold_gate_rejects_low_post_discovery_participation(tmp_path):
+    genome = StrategyGenome.baseline().with_change(time_exit_min=30)
+    fold = ChronologicalFold(
+        "first", "2026-07-27", "2026-07-27",
+        "2026-07-28", "2026-07-29",
+    )
+    dataset = TinyDataset(
+        paths=(
+            TinyPath("train_1", "2026-07-27"),
+            TinyPath("train_2", "2026-07-27"),
+            TinyPath("train_3", "2026-07-27"),
+            TinyPath("train_4", "2026-07-27"),
+            TinyPath("future_1", "2026-07-28"),
+            TinyPath("future_2", "2026-07-29"),
+        ),
+        source_hashes={"fixture": "future-participation"},
+    )
+
+    def evaluator(path, active_genome):
+        result = replace(
+            _flat_evaluator(path, active_genome),
+            pnl_eur=Decimal("1.00"),
+        )
+        if path.day == "2026-07-27":
+            return result
+        return replace(
+            result,
+            pnl_eur=Decimal("0.00"),
+            unfilled=True,
+            filled_volume=0.0,
+        )
+
+    development = CandidateEvaluation.from_results(
+        genome,
+        (
+            (path.day, evaluator(path, genome))
+            for path in dataset.paths
+            if fold.development_contains(path.day)
+        ),
+    )
+    report = ChronologicalSearchReport((SearchReport(
+        fold=fold,
+        stop_reason="max_generations",
+        generations_completed=1,
+        evaluations=1,
+        elapsed_seconds=1.0,
+        frontier=(development,),
+        challenge_evaluations=(),
+        checkpoint_path=tmp_path / "checkpoint.json",
+        stale_generations=0,
+        generation_summaries=(),
+    ),))
+
+    validated = cross_validate_frontier_candidates(
+        dataset,
+        report,
+        evaluator=evaluator,
+        minimum_participation=0.50,
+        minimum_future_challenge_signals=2,
+        minimum_future_filled_signals=1,
+        minimum_positive_challenge_ratio=0.0,
+    )
+
+    assessment = validated.assessments[0]
+    assert assessment.validation_signal_count == 2
+    assert assessment.validation_filled_signal_count == 0
+    assert assessment.validation_participation_rate == 0.0
+    assert assessment.robustness_eligible is False
+    assert assessment.selection_blockers == (
+        "insufficient_future_filled_signals",
+        "future_participation_below_threshold",
+    )
+
+
+def test_cross_fold_releases_each_execution_world_cache(tmp_path):
+    genome = StrategyGenome.baseline().with_change(time_exit_min=30)
+    fold = ChronologicalFold(
+        "only", "2026-07-27", "2026-07-27",
+        "2026-07-28", "2026-07-28",
+    )
+    dataset = TinyDataset(
+        paths=(
+            TinyPath("day_1", "2026-07-27"),
+            TinyPath("day_2", "2026-07-28"),
+        ),
+        source_hashes={"fixture": "cache-release"},
+    )
+
+    class CacheAwareEvaluator:
+        def __init__(self):
+            self.clear_calls = 0
+
+        def __call__(self, path, active_genome):
+            return replace(
+                _flat_evaluator(path, active_genome),
+                pnl_eur=Decimal("1.00"),
+            )
+
+        def clear_cache(self):
+            self.clear_calls += 1
+
+    base = CacheAwareEvaluator()
+    stress = CacheAwareEvaluator()
+    development = CandidateEvaluation.from_results(
+        genome,
+        (("2026-07-27", base(dataset.paths[0], genome)),),
+    )
+    report = ChronologicalSearchReport((SearchReport(
+        fold=fold,
+        stop_reason="max_generations",
+        generations_completed=1,
+        evaluations=1,
+        elapsed_seconds=1.0,
+        frontier=(development,),
+        challenge_evaluations=(),
+        checkpoint_path=tmp_path / "checkpoint.json",
+        stale_generations=0,
+        generation_summaries=(),
+    ),))
+
+    validated = cross_validate_frontier_candidates(
+        dataset,
+        report,
+        evaluator=base,
+        additional_execution_scenarios=(("stress", stress),),
+        minimum_positive_challenge_ratio=0.0,
+    )
+
+    assert validated.eligible
+    assert base.clear_calls == 1
+    assert stress.clear_calls == 1
 
 
 def test_cross_fold_gate_rejects_rule_that_only_wins_in_base_execution(tmp_path):

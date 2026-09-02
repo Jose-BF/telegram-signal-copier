@@ -45,6 +45,13 @@ class ExecutionRobustnessAssessment:
     risk_eligible: bool
     evidence_complete: bool
     robustness_eligible: bool
+    discovery_fold_name: str | None = None
+    validation_fold_names: tuple[str, ...] = ()
+    validation_days: tuple[str, ...] = ()
+    validation_signal_count: int = 0
+    validation_filled_signal_count: int = 0
+    validation_participation_rate: float = 0.0
+    selection_blockers: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -290,6 +297,11 @@ def assess_robust_daily_stability(
 
     scenario_rows: list[tuple[str, DailyStabilityAssessment]] = []
     blockers: list[str] = []
+    validation_days = (
+        set(candidate.validation_days)
+        if candidate.discovery_fold_name is not None
+        else None
+    )
     for index, scenario in enumerate(
         sorted(candidate.scenarios, key=lambda item: item.name)
     ):
@@ -297,6 +309,7 @@ def assess_robust_daily_stability(
             (
                 (day, result.pnl_eur)
                 for day, result in scenario.evaluation.results
+                if validation_days is None or day in validation_days
             ),
             samples=samples,
             seed=seed + index,
@@ -463,7 +476,21 @@ def _observed_behavior_id(
             })
         scenarios.append({"name": scenario.name, "results": results})
     encoded = json.dumps(
-        scenarios,
+        {
+            "scenarios": scenarios,
+            "validation_contract": {
+                "discovery_fold_name": candidate.discovery_fold_name,
+                "validation_fold_names": candidate.validation_fold_names,
+                "validation_days": candidate.validation_days,
+                "validation_signal_count": candidate.validation_signal_count,
+                "validation_filled_signal_count": (
+                    candidate.validation_filled_signal_count
+                ),
+                "validation_participation_rate": (
+                    candidate.validation_participation_rate
+                ),
+            },
+        },
         sort_keys=True,
         separators=(",", ":"),
         allow_nan=False,
