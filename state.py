@@ -144,6 +144,14 @@ class Signal:
     candidate_sl_confirmed_tickets: list = field(default_factory=list)
     candidate_sl_install_alerted: bool = False
 
+    # Generic strategy lifecycle evidence.  These fields are deliberately
+    # strategy-neutral so new policies do not need core close exceptions.
+    lifecycle_state: str = "active"
+    lifecycle_terminal_cause: Optional[str] = None
+    lifecycle_settled_entry_indexes: list[int] = field(default_factory=list)
+    lifecycle_cancelled_entry_indexes: list[int] = field(default_factory=list)
+    lifecycle_last_decision: dict = field(default_factory=dict)
+
     # Índice (0-based) del TP que cierra TODAS las posiciones (TP único por canal).
     # None = comportamiento escalonado legacy (pos i → tps[i]).
     # Canal 1: TP3 (idx=2) | Canal 2: TP4 (idx=3)
