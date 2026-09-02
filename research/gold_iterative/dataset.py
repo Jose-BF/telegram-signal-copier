@@ -111,6 +111,7 @@ def _load_now_scopes(
             SignalScope(
                 signal_id=signal_id,
                 execution_signal_ids=execution_ids,
+                observed_at=observed_at,
             ),
         ))
     return tuple(

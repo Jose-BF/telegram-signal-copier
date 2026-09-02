@@ -36,7 +36,7 @@ from .robustness import (
 )
 
 
-CHECKPOINT_SCHEMA_VERSION = 2
+CHECKPOINT_SCHEMA_VERSION = 3
 
 
 class SearchDataset(Protocol):
@@ -55,6 +55,8 @@ class ChronologicalFold:
     development_to: str
     challenge_from: str
     challenge_to: str
+    development_days: tuple[str, ...] = ()
+    challenge_days: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.name:
@@ -65,11 +67,37 @@ class ChronologicalFold:
             raise ValueError("challenge range is reversed")
         if self.development_to >= self.challenge_from:
             raise ValueError("development and challenge ranges must not overlap")
+        for label, days, range_from, range_to in (
+            (
+                "development",
+                self.development_days,
+                self.development_from,
+                self.development_to,
+            ),
+            (
+                "challenge",
+                self.challenge_days,
+                self.challenge_from,
+                self.challenge_to,
+            ),
+        ):
+            if not days:
+                continue
+            if tuple(sorted(set(days))) != days:
+                raise ValueError(f"{label} days must be sorted and unique")
+            if days[0] != range_from or days[-1] != range_to:
+                raise ValueError(f"{label} day bounds do not match its range")
+        if set(self.development_days).intersection(self.challenge_days):
+            raise ValueError("development and challenge day membership overlaps")
 
     def development_contains(self, day: str) -> bool:
+        if self.development_days:
+            return day in self.development_days
         return self.development_from <= day <= self.development_to
 
     def challenge_contains(self, day: str) -> bool:
+        if self.challenge_days:
+            return day in self.challenge_days
         return self.challenge_from <= day <= self.challenge_to
 
 
@@ -143,6 +171,11 @@ CandidateProgressCallback = Callable[[int, int], None]
 EvaluationCallback = Callable[
     [ChronologicalFold, int, tuple[CandidateEvaluation, ...]],
     None,
+]
+PopulationFactory = Callable[..., Sequence[StrategyGenome]]
+NeighborhoodFactory = Callable[
+    [StrategyGenome, SearchSpace],
+    Sequence[StrategyGenome],
 ]
 
 
@@ -235,6 +268,10 @@ def run_chronological_search(
     experiment_context: Mapping[str, object] | None = None,
     workers: int = 1,
     initial_genomes: Sequence[StrategyGenome] = (),
+    seed_population_factory: PopulationFactory = seed_population,
+    scout_population_factory: PopulationFactory = sample_diverse_population,
+    neighborhood_factory: NeighborhoodFactory = parameter_neighborhood,
+    baseline_genome: StrategyGenome | None = None,
 ) -> ChronologicalSearchReport:
     """Run each expanding fold independently with its own frozen challenge."""
 
@@ -256,6 +293,10 @@ def run_chronological_search(
             experiment_context=experiment_context,
             workers=workers,
             initial_genomes=initial_genomes,
+            seed_population_factory=seed_population_factory,
+            scout_population_factory=scout_population_factory,
+            neighborhood_factory=neighborhood_factory,
+            baseline_genome=baseline_genome,
         )
         for fold in folds
     )
@@ -281,6 +322,10 @@ def run_search(
     experiment_context: Mapping[str, object] | None = None,
     workers: int = 1,
     initial_genomes: Sequence[StrategyGenome] = (),
+    seed_population_factory: PopulationFactory = seed_population,
+    scout_population_factory: PopulationFactory = sample_diverse_population,
+    neighborhood_factory: NeighborhoodFactory = parameter_neighborhood,
+    baseline_genome: StrategyGenome | None = None,
 ) -> SearchReport:
     """Run one development fold; challenge rows remain invisible until stop."""
 
@@ -289,6 +334,17 @@ def run_search(
     if isinstance(workers, bool) or not isinstance(workers, int) or workers <= 0:
         raise ValueError("workers must be a positive integer")
     initial_genomes = deduplicate(initial_genomes)
+    baseline = baseline_genome or StrategyGenome.baseline()
+    baseline_errors = (
+        *baseline.validation_errors(),
+        *search_space.validation_errors(baseline),
+    )
+    if baseline_errors:
+        raise ValueError(
+            "invalid baseline genome "
+            f"{baseline.fingerprint[:12]}:"
+            f"{','.join(sorted(set(baseline_errors)))}"
+        )
     if len(initial_genomes) > population_size:
         raise ValueError("initial_genomes cannot exceed population_size")
     for genome in initial_genomes:
@@ -303,6 +359,14 @@ def run_search(
         context["initial_genome_fingerprints"] = sorted(
             item.fingerprint for item in initial_genomes
         )
+    context["search_operators"] = {
+        "seed_population": _callable_identity(seed_population_factory),
+        "scout_population": _callable_identity(scout_population_factory),
+        "neighborhood": _callable_identity(neighborhood_factory),
+        "critic": _callable_identity(critic),
+        "mutator": _callable_identity(mutator),
+        "baseline_fingerprint": baseline.fingerprint,
+    }
     experiment_context = _normalize_experiment_context(context)
     development_paths = tuple(
         path for path in dataset.paths if fold.development_contains(str(path.day))
@@ -358,20 +422,22 @@ def run_search(
             for item in state.get("generation_summaries", ())
         ]
     else:
-        seeds = seed_population(search_space, seed=seed)
-        baseline = StrategyGenome.baseline()
+        seeds = tuple(seed_population_factory(search_space, seed=seed))
         scout_slots = min(
             max(1, population_size // 3),
             max(0, population_size - 1),
         )
-        scout_pool = sample_diverse_population(
+        scout_pool = tuple(scout_population_factory(
             search_space,
             seed=seed + 91_337,
             count=max(scout_slots, scout_slots * 3),
-        )
+        ))
         scouts = tuple(sorted(
             scout_pool,
-            key=lambda item: (-_distance_from_baseline(item), item.fingerprint),
+            key=lambda item: (
+                -_distance_from_baseline(item, baseline),
+                item.fingerprint,
+            ),
         )[:scout_slots])
         population = deduplicate((
             *initial_genomes,
@@ -435,12 +501,15 @@ def run_search(
                 critic=critic,
                 mutator=mutator,
                 search_space=search_space,
-                seeds=seed_population(search_space, seed=seed),
+                seeds=tuple(seed_population_factory(search_space, seed=seed)),
                 seen=seen,
                 rng=rng,
                 seed=seed + generation_completed * 10_000,
                 population_size=population_size,
                 max_lineage_depth=budget.max_lineage_depth,
+                scout_population_factory=scout_population_factory,
+                neighborhood_factory=neighborhood_factory,
+                baseline_genome=baseline,
             )
             elapsed = _elapsed(clock, start_clock, carried_elapsed)
             progress = GenerationProgress(
@@ -577,11 +646,14 @@ def _next_population(
     seed: int,
     population_size: int,
     max_lineage_depth: int,
+    scout_population_factory: PopulationFactory = sample_diverse_population,
+    neighborhood_factory: NeighborhoodFactory = parameter_neighborhood,
+    baseline_genome: StrategyGenome | None = None,
 ) -> tuple[StrategyGenome, ...]:
     proposals: list[StrategyGenome] = []
     parents = tuple(archive[: min(8, len(archive))]) or tuple(current[:1])
     for parent in parents:
-        neighborhood = parameter_neighborhood(parent.genome, search_space)
+        neighborhood = tuple(neighborhood_factory(parent.genome, search_space))
         exposure = sorted(
             (
                 item for item in neighborhood
@@ -621,11 +693,11 @@ def _next_population(
     proposals.extend(seeds)
 
     scout_slots = max(1, population_size // 3)
-    scouts = sample_diverse_population(
+    scouts = tuple(scout_population_factory(
         search_space,
         seed=seed + 91_337,
         count=max(scout_slots, scout_slots * 4),
-    )
+    ))
 
     accepted: list[StrategyGenome] = []
     for genome in deduplicate(proposals):
@@ -641,7 +713,10 @@ def _next_population(
         seen.add(genome.fingerprint)
     for genome in sorted(
         scouts,
-        key=lambda item: (-_distance_from_baseline(item), item.fingerprint),
+        key=lambda item: (
+            -_distance_from_baseline(item, baseline_genome),
+            item.fingerprint,
+        ),
     ):
         if len(accepted) >= population_size:
             break
@@ -654,22 +729,38 @@ def _next_population(
     return tuple(accepted)
 
 
-def _distance_from_baseline(genome: StrategyGenome) -> int:
-    baseline = StrategyGenome.baseline()
+def _distance_from_baseline(
+    genome: StrategyGenome,
+    baseline_genome: StrategyGenome | None = None,
+) -> int:
+    baseline = baseline_genome or StrategyGenome.baseline()
     blocks = (
         (
             "entry_mode",
             "entry_value",
+            "entry_confirmation_value",
             "entry_expiry_min",
             "entry_ladder_mode",
             "entry_ladder_step",
+            "pending_entry_policy",
         ),
         ("leg_count", "volume_weights"),
-        ("target_mode", "target_value", "partial_fraction", "runner_target"),
+        (
+            "target_mode",
+            "target_value",
+            "target_steps",
+            "partial_fraction",
+            "runner_target",
+        ),
         ("be_mode", "be_trigger"),
-        ("stop_mode", "stop_value"),
+        (
+            "stop_mode",
+            "stop_value",
+            "hard_stop_eur_per_leg",
+            "trailing_distance",
+        ),
         ("profit_lock_arm", "profit_lock_giveback"),
-        ("time_exit_min",),
+        ("time_exit_min", "time_exit_mode"),
         ("provider_management_mode",),
         ("context_filter_mode", "context_filter_value"),
     )
@@ -677,6 +768,19 @@ def _distance_from_baseline(genome: StrategyGenome) -> int:
         any(getattr(genome, name) != getattr(baseline, name) for name in block)
         for block in blocks
     )
+
+
+def _callable_identity(value: object) -> str | None:
+    if value is None:
+        return None
+    target = value if isinstance(value, type) else getattr(value, "__class__", None)
+    module = getattr(value, "__module__", None)
+    qualname = getattr(value, "__qualname__", None)
+    if module and qualname:
+        return f"{module}.{qualname}"
+    if target is not None:
+        return f"{target.__module__}.{target.__qualname__}"
+    return str(type(value))
 
 
 def _merge_evaluations(
@@ -808,7 +912,7 @@ def _load_checkpoint(
         raise SearchCheckpointError("checkpoint schema version does not match")
     if payload.get("source_hashes") != dict(sorted(dataset.source_hashes.items())):
         raise SearchCheckpointError("checkpoint source hashes do not match")
-    if payload.get("fold") != asdict(fold):
+    if payload.get("fold") != _normalize_json_mapping(asdict(fold)):
         raise SearchCheckpointError("checkpoint fold does not match")
     if payload.get("search_space") != asdict(search_space):
         raise SearchCheckpointError("checkpoint search space does not match")
@@ -822,8 +926,14 @@ def _load_checkpoint(
 def _normalize_experiment_context(
     context: Mapping[str, object] | None,
 ) -> dict[str, object]:
+    return _normalize_json_mapping(dict(context or {}))
+
+
+def _normalize_json_mapping(
+    value: Mapping[str, object],
+) -> dict[str, object]:
     return json.loads(json.dumps(
-        dict(context or {}),
+        dict(value),
         sort_keys=True,
         separators=(",", ":"),
         allow_nan=False,

@@ -6,6 +6,7 @@ import random
 
 from research.dubai_iterative.contracts import SearchSpace, StrategyGenome
 from research.dubai_iterative.evolution import deduplicate
+from research.dubai_iterative.refinement import parameter_neighborhood
 
 from .contracts import gold_555_genome, gold_c490_genome
 
@@ -173,6 +174,39 @@ def gold_seed_population(
     unique = list(deduplicate(population))
     random.Random(seed).shuffle(unique)
     return tuple(unique)
+
+
+def sample_gold_population(
+    search_space: SearchSpace,
+    *,
+    seed: int,
+    count: int,
+) -> tuple[StrategyGenome, ...]:
+    """Draw deterministic Gold scouts from seeds and their valid neighbours."""
+
+    if count < 0:
+        raise ValueError("count must be non-negative")
+    if count == 0:
+        return ()
+    candidates = list(gold_seed_population(search_space, seed=seed))
+    unique = {item.fingerprint: item for item in candidates}
+    cursor = 0
+    while len(unique) < count and cursor < len(candidates):
+        parent = candidates[cursor]
+        cursor += 1
+        for child in parameter_neighborhood(parent, search_space):
+            if child.schema_version != 2:
+                continue
+            if child.validation_errors() or search_space.validation_errors(child):
+                continue
+            if child.fingerprint not in unique:
+                unique[child.fingerprint] = child
+                candidates.append(child)
+            if len(unique) >= count:
+                break
+    population = list(unique.values())
+    random.Random(seed).shuffle(population)
+    return tuple(population[:count])
 
 
 def _base() -> StrategyGenome:

@@ -76,13 +76,14 @@ def _catalog_signal(
     record_type="formal_signal",
     text="Buy Gold Now",
     execution_ids=None,
+    signal_ts="2026-07-27T09:00:00+00:00",
 ):
     return {
         "provider_signal_id": signal_id,
         "record_type": record_type,
         "channel": "canal2",
-        "signal_ts_utc": "2026-07-27T09:00:00+00:00",
-        "first_observed_utc": "2026-07-27T09:00:00.100+00:00",
+        "signal_ts_utc": signal_ts,
+        "first_observed_utc": signal_ts,
         "direction": "BUY",
         "revisions": [
             {
@@ -196,6 +197,12 @@ def test_gold_loader_accounts_for_every_formal_now_signal(tmp_path):
     assert dataset.exclusions["tick_replay_blocked"] == ("canal2_11",)
     assert dataset.exclusions["actual_evidence_missing"] == ("canal2_12",)
     assert dataset.exclusions["entry_source_kind_mismatch"] == ("canal2_14",)
+    assert dataset.eligible_signal_days == {
+        "canal2_10": "2026-07-27",
+        "canal2_11": "2026-07-27",
+        "canal2_12": "2026-07-27",
+        "canal2_14": "2026-07-27",
+    }
     assert "canal2_13" not in {
         signal_id
         for signal_ids in dataset.exclusions.values()

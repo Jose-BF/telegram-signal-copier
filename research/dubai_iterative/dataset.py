@@ -146,6 +146,7 @@ class SignalPath:
 class StrategyDataset:
     paths: tuple[SignalPath, ...]
     eligible_signal_ids: tuple[str, ...]
+    eligible_signal_days: Mapping[str, str]
     eligible_actual_pnl_eur: Decimal
     exclusions: Mapping[str, tuple[str, ...]]
     source_hashes: Mapping[str, str]
@@ -179,6 +180,7 @@ DubaiDataset = StrategyDataset
 class SignalScope:
     signal_id: str
     execution_signal_ids: tuple[str, ...]
+    observed_at: datetime | None = None
 
 
 def load_dubai_dataset(
@@ -265,6 +267,7 @@ def load_strategy_dataset(
     start = _parse_date(from_date, date.min)
     end = _parse_date(to_date, date.max)
     replay_rows = _read_jsonl(replay_path)
+    eligible_signal_days: dict[str, str] = {}
     if signal_scopes is None:
         eligible_signal_ids_list: list[str] = []
         for trade in replay_rows:
@@ -290,6 +293,7 @@ def load_strategy_dataset(
                 continue
             selected.append((signal_id, trade))
             eligible_signal_ids_list.append(signal_id)
+            eligible_signal_days[signal_id] = observed.date().isoformat()
     else:
         eligible_signal_ids_list = [scope.signal_id for scope in signal_scopes]
         replay_by_id = {
@@ -298,6 +302,10 @@ def load_strategy_dataset(
             if trade.get("channel") == channel and trade.get("sig_id")
         }
         for scope in signal_scopes:
+            if scope.observed_at is not None:
+                eligible_signal_days[scope.signal_id] = (
+                    scope.observed_at.date().isoformat()
+                )
             if len(scope.execution_signal_ids) != 1:
                 reason = (
                     "actual_evidence_missing"
@@ -311,6 +319,12 @@ def load_strategy_dataset(
             if trade is None:
                 exclusions["actual_evidence_missing"].append(scope.signal_id)
                 continue
+            if scope.signal_id not in eligible_signal_days:
+                observed = _parse_datetime(trade.get("signal_dt_utc"))
+                if observed is not None:
+                    eligible_signal_days[scope.signal_id] = (
+                        observed.date().isoformat()
+                    )
             reason = _trade_selection_blocker(
                 trade,
                 signal_id=execution_signal_id,
@@ -459,9 +473,17 @@ def load_strategy_dataset(
             {
                 "signal_id": scope.signal_id,
                 "execution_signal_ids": list(scope.execution_signal_ids),
+                "observed_at": (
+                    scope.observed_at.isoformat()
+                    if scope.observed_at is not None
+                    else None
+                ),
             }
             for scope in signal_scopes
         ]
+    dataset_contract["eligible_signal_days"] = dict(
+        sorted(eligible_signal_days.items())
+    )
 
     source_hashes = {
         "replay": _sha256_file(replay_path),
@@ -489,6 +511,7 @@ def load_strategy_dataset(
     return StrategyDataset(
         paths=tuple(paths),
         eligible_signal_ids=eligible_signal_ids,
+        eligible_signal_days=dict(sorted(eligible_signal_days.items())),
         eligible_actual_pnl_eur=eligible_actual_pnl,
         exclusions={
             reason: tuple(sorted(set(signal_ids)))
