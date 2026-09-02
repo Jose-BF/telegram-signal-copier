@@ -48,6 +48,7 @@ TARGET_FIXED_BASKET = 2
 TARGET_PARTIAL_RUNNER = 3
 TARGET_NONE = 4
 TARGET_FIXED_MOVE = 5
+TARGET_PER_LEG_STEPS = 6
 
 BE_PROVIDER = 0
 BE_NONE = 1
@@ -63,6 +64,12 @@ STOP_NONE = 3
 MANAGEMENT_EXACT = 0
 MANAGEMENT_CLOSE_ONLY = 1
 MANAGEMENT_IGNORE = 2
+
+TIME_UNCONDITIONAL = 0
+TIME_DISABLED = 1
+TIME_LOSS_ONLY = 2
+TIME_PROFIT_ONLY = 3
+TIME_NON_NEGATIVE = 4
 
 PROVIDER_OTHER = 0
 PROVIDER_MOVE_BE = 1
@@ -85,6 +92,9 @@ REASON_PROFIT_LOCK = 12
 REASON_TIME_EXIT = 13
 REASON_DATA_END = 14
 REASON_FIXED_MOVE_TARGET = 15
+REASON_PER_LEG_TARGET = 16
+REASON_TRAILING_STOP = 17
+REASON_HARD_STOP_PER_LEG = 18
 
 BLOCK_INVALID_TICK = 1
 BLOCK_STALE_BASKET_STOP = 2
@@ -92,6 +102,7 @@ BLOCK_STALE_BASKET_TARGET = 4
 BLOCK_STALE_PROFIT_LOCK = 8
 BLOCK_STALE_EXIT = 16
 BLOCK_PATH_ENDED = 32
+BLOCK_STALE_HARD_STOP = 64
 
 
 _TARGET_CODES = {
@@ -100,6 +111,7 @@ _TARGET_CODES = {
     "fixed_basket": TARGET_FIXED_BASKET,
     "fixed_move": TARGET_FIXED_MOVE,
     "partial_runner": TARGET_PARTIAL_RUNNER,
+    "per_leg_steps": TARGET_PER_LEG_STEPS,
     "none": TARGET_NONE,
 }
 _BE_CODES = {
@@ -118,6 +130,7 @@ _STOP_CODES = {
 _MANAGEMENT_CODES = {
     "exact": MANAGEMENT_EXACT,
     "close_only": MANAGEMENT_CLOSE_ONLY,
+    "explicit_close_only": MANAGEMENT_CLOSE_ONLY,
     "ignore": MANAGEMENT_IGNORE,
 }
 _REASON_NAMES = {
@@ -137,6 +150,9 @@ _REASON_NAMES = {
     REASON_TIME_EXIT: "time_exit",
     REASON_DATA_END: "data_end",
     REASON_FIXED_MOVE_TARGET: "fixed_move_target",
+    REASON_PER_LEG_TARGET: "per_leg_target",
+    REASON_TRAILING_STOP: "trailing_stop",
+    REASON_HARD_STOP_PER_LEG: "hard_stop_per_leg",
 }
 
 
@@ -172,7 +188,10 @@ class FastEvaluator:
         *,
         execution: ExecutionAssumptions | None = None,
     ) -> None:
-        self._cache: dict[tuple[int, int], _CompiledPath] = {}
+        self._cache: dict[
+            tuple[int, int],
+            tuple[DubaiPath, _CompiledPath],
+        ] = {}
         self._cache_lock = Lock()
         self.execution = execution or ExecutionAssumptions()
 
@@ -182,10 +201,16 @@ class FastEvaluator:
             return _empty_result(path, genome, blockers=blockers)
         try:
             cache_key = (id(path), self.execution.latency_ms)
-            compiled = self._cache.get(cache_key)
+            cached = self._cache.get(cache_key)
+            compiled = cached[1] if cached is not None and cached[0] is path else None
             if compiled is None:
                 with self._cache_lock:
-                    compiled = self._cache.get(cache_key)
+                    cached = self._cache.get(cache_key)
+                    compiled = (
+                        cached[1]
+                        if cached is not None and cached[0] is path
+                        else None
+                    )
                     if compiled is None:
                         compiled = _compile_path(
                             path,
@@ -193,7 +218,9 @@ class FastEvaluator:
                                 self.execution.latency_ms * 1_000_000
                             ),
                         )
-                        self._cache[cache_key] = compiled
+                        # Keep a strong reference to the path so CPython cannot
+                        # recycle its id and bind another signal to these ticks.
+                        self._cache[cache_key] = (path, compiled)
             return _simulate_compiled(path, compiled, genome, self.execution)
         except FastPathUnsupported as exc:
             return _empty_result(
@@ -301,6 +328,15 @@ def _simulate_compiled(
         [0 if item.position.role == "market_a" else 1 for item in scheduled],
         dtype=np.int8,
     )
+    leg_target_points = np.asarray(
+        [
+            _price_points(genome.target_steps[item.position.leg_index])
+            if genome.target_mode == "per_leg_steps"
+            else 0
+            for item in scheduled
+        ],
+        dtype=np.int64,
+    )
     tp_indices, tp_levels, tp_counts, _ = _level_matrices(
         tuple(item.position.tp_events for item in scheduled),
         compiled.times_ns,
@@ -342,6 +378,7 @@ def _simulate_compiled(
         compiled.provider_actions,
         compiled.provider_prices,
         _TARGET_CODES[genome.target_mode],
+        leg_target_points,
         _minor(genome.target_value),
         _price_points(genome.target_value)
         if genome.target_mode == "fixed_move"
@@ -356,11 +393,15 @@ def _simulate_compiled(
         _STOP_CODES[genome.stop_mode],
         _price_points(genome.stop_value) if genome.stop_mode == "fixed_move" else 0,
         _minor(genome.stop_value) if genome.stop_mode == "basket_money" else 0,
+        _minor(genome.hard_stop_eur_per_leg),
+        _price_points(genome.trailing_distance),
         _minor(genome.profit_lock_arm),
         _minor(genome.profit_lock_giveback),
         int(genome.time_exit_min) * 60 * 1_000_000_000,
+        _time_exit_code(genome),
         _MANAGEMENT_CODES[genome.provider_management_mode],
         max(1, int(round(float(genome.target_value or 1.0)))) - 1,
+        genome.pending_entry_policy == "until_expiry",
     )
     return _result_from_kernel(path, genome, scheduled, confidence, output)
 
@@ -431,6 +472,7 @@ def _result_from_kernel(path, genome, scheduled, confidence, output) -> Simulati
         | BLOCK_STALE_BASKET_TARGET
         | BLOCK_STALE_PROFIT_LOCK
         | BLOCK_STALE_EXIT
+        | BLOCK_STALE_HARD_STOP
     ))
     return SimulationResult(
         signal_id=path.signal_id,
@@ -581,6 +623,17 @@ def _minutes_ns(value):
     return int(Decimal(str(value)) * Decimal(60_000_000_000))
 
 
+def _time_exit_code(genome: StrategyGenome) -> int:
+    if genome.schema_version == 1:
+        return TIME_UNCONDITIONAL
+    return {
+        "none": TIME_DISABLED,
+        "loss_only": TIME_LOSS_ONLY,
+        "profit_only": TIME_PROFIT_ONLY,
+        "non_negative": TIME_NON_NEGATIVE,
+    }[genome.time_exit_mode]
+
+
 def _decimal_minor(value: int, digits: int) -> Decimal:
     quantum = Decimal(1).scaleb(-digits)
     return Decimal(value).scaleb(-digits).quantize(quantum)
@@ -600,6 +653,8 @@ def _blockers(mask: int, index: int) -> tuple[str, ...]:
         rows.append(f"stale_conversion_at_exit:{index}")
     if mask & BLOCK_PATH_ENDED:
         rows.append("path_ended_before_strategy_exit")
+    if mask & BLOCK_STALE_HARD_STOP:
+        rows.append(f"stale_conversion_at_hard_stop_index:{index}")
     return tuple(rows)
 
 
@@ -664,6 +719,7 @@ def _kernel(
     provider_actions,
     provider_prices,
     target_mode,
+    leg_target_points,
     target_minor,
     target_points,
     runner_minor,
@@ -674,17 +730,27 @@ def _kernel(
     stop_mode,
     stop_points,
     stop_minor,
+    hard_stop_minor,
+    trailing_points,
     lock_arm_minor,
     lock_giveback_minor,
     time_exit_ns,
+    time_exit_mode,
     management_mode,
     provider_target_index,
+    keep_pending_entries,
 ):
     position_count = len(schedule_indices)
     active = np.zeros(position_count, dtype=np.bool_)
     volumes = initial_volumes.copy()
     be_stops = np.zeros(position_count, dtype=np.int64)
     be_reasons = np.full(position_count, REASON_BREAK_EVEN, dtype=np.int8)
+    trailing_stops = np.zeros(position_count, dtype=np.int64)
+    if trailing_points > 0:
+        for slot in range(position_count):
+            trailing_stops[slot] = (
+                entry_prices[slot] - direction * trailing_points
+            )
     tp_cursor = np.zeros(position_count, dtype=np.int64)
     sl_cursor = np.zeros(position_count, dtype=np.int64)
     current_tp = np.zeros(position_count, dtype=np.int64)
@@ -813,6 +879,36 @@ def _kernel(
             blocker_mask |= BLOCK_STALE_BASKET_STOP
             money_unknown = True
 
+        if hard_stop_minor > 0:
+            for slot in range(position_count):
+                if not active[slot]:
+                    continue
+                value, current_exact = _money_minor_fixed(
+                    direction, orientation, contract_size,
+                    entry_prices[slot], money_exit, volumes[slot],
+                    fx_bid[index], fx_ask[index], fx_valid[index],
+                )
+                if current_exact and value <= -hard_stop_minor:
+                    exit_slots[exit_count] = slot
+                    exit_indices[exit_count] = index
+                    exit_entry_prices[exit_count] = entry_prices[slot]
+                    exit_prices[exit_count] = money_exit
+                    exit_volumes[exit_count] = volumes[slot]
+                    exit_pnls[exit_count] = value
+                    exit_exact[exit_count] = current_exact
+                    exit_reasons[exit_count] = REASON_HARD_STOP_PER_LEG
+                    exit_count += 1
+                    realized += value
+                    active[slot] = False
+                    active_count -= 1
+                    exit_reason = REASON_HARD_STOP_PER_LEG
+                elif not current_exact and value <= -hard_stop_minor:
+                    blocker_mask |= BLOCK_STALE_HARD_STOP
+                    blocker_index = index
+                    money_unknown = True
+            if active_count == 0:
+                break
+
         close_due = False
         while provider_cursor < len(provider_indices) and provider_indices[provider_cursor] <= index:
             action = provider_actions[provider_cursor]
@@ -854,6 +950,14 @@ def _kernel(
             elif stop_mode == STOP_FIXED_MOVE:
                 level = entry_prices[slot] - direction * stop_points
                 reason = REASON_FIXED_SL
+            if trailing_stops[slot] != 0:
+                if (
+                    level == 0
+                    or (direction == 1 and trailing_stops[slot] >= level)
+                    or (direction == -1 and trailing_stops[slot] <= level)
+                ):
+                    level = trailing_stops[slot]
+                    reason = REASON_TRAILING_STOP
             if be_stops[slot] != 0:
                 if level == 0 or (direction == 1 and be_stops[slot] >= level) or (direction == -1 and be_stops[slot] <= level):
                     level = be_stops[slot]
@@ -894,6 +998,37 @@ def _kernel(
                     if exact: realized += value
                     else: blocker_mask |= BLOCK_STALE_EXIT; blocker_index = index; money_unknown = True
                     active[slot] = False; active_count -= 1; exit_reason = REASON_PROVIDER_TP
+        elif target_mode == TARGET_PER_LEG_STEPS:
+            for slot in range(position_count):
+                level = entry_prices[slot] + direction * leg_target_points[slot]
+                hit = active[slot] and (
+                    (direction == 1 and raw_exit >= level)
+                    or (direction == -1 and raw_exit <= level)
+                )
+                if hit:
+                    value, current_exact = _money_minor_fixed(
+                        direction, orientation, contract_size,
+                        entry_prices[slot], money_exit, volumes[slot],
+                        fx_bid[index], fx_ask[index], fx_valid[index],
+                    )
+                    exit_slots[exit_count] = slot
+                    exit_indices[exit_count] = index
+                    exit_entry_prices[exit_count] = entry_prices[slot]
+                    exit_prices[exit_count] = money_exit
+                    exit_volumes[exit_count] = volumes[slot]
+                    exit_pnls[exit_count] = value
+                    exit_exact[exit_count] = current_exact
+                    exit_reasons[exit_count] = REASON_PER_LEG_TARGET
+                    exit_count += 1
+                    if current_exact:
+                        realized += value
+                    else:
+                        blocker_mask |= BLOCK_STALE_EXIT
+                        blocker_index = index
+                        money_unknown = True
+                    active[slot] = False
+                    active_count -= 1
+                    exit_reason = REASON_PER_LEG_TARGET
         elif target_mode == TARGET_PROVIDER_ALL:
             available = np.empty(len(current_all_tp), dtype=np.int64)
             available_count = 0
@@ -995,6 +1130,8 @@ def _kernel(
                             exit_count += 1; realized += value; active[slot] = False; active_count -= 1
                     exit_reason = REASON_RUNNER_TARGET
         if active_count == 0:
+            if keep_pending_entries and schedule_cursor < position_count:
+                continue
             break
 
         if lock_arm_minor > 0:
@@ -1014,7 +1151,23 @@ def _kernel(
             elif not floating_exact and lock_armed:
                 blocker_mask |= BLOCK_STALE_PROFIT_LOCK; money_unknown = True
 
-        if active_count > 0 and first_open_ns != np.iinfo(np.int64).max and now - first_open_ns >= time_exit_ns:
+        time_due = (
+            active_count > 0
+            and first_open_ns != np.iinfo(np.int64).max
+            and now - first_open_ns >= time_exit_ns
+        )
+        time_matches = (
+            time_exit_mode == TIME_UNCONDITIONAL
+            or (
+                floating_exact
+                and (
+                    (time_exit_mode == TIME_LOSS_ONLY and total <= 0)
+                    or (time_exit_mode == TIME_PROFIT_ONLY and total > 0)
+                    or (time_exit_mode == TIME_NON_NEGATIVE and total >= 0)
+                )
+            )
+        )
+        if time_due and time_matches:
             for slot in range(position_count):
                 if active[slot]:
                     value, exact = _money_minor_fixed(direction, orientation, contract_size, entry_prices[slot], money_exit, volumes[slot], fx_bid[index], fx_ask[index], fx_valid[index])
@@ -1028,6 +1181,18 @@ def _kernel(
                     active[slot] = False; active_count -= 1
             exit_reason = REASON_TIME_EXIT
             break
+
+        if active_count > 0 and trailing_points > 0:
+            candidate = raw_exit - direction * trailing_points
+            for slot in range(position_count):
+                if not active[slot]:
+                    continue
+                if (
+                    trailing_stops[slot] == 0
+                    or (direction == 1 and candidate > trailing_stops[slot])
+                    or (direction == -1 and candidate < trailing_stops[slot])
+                ):
+                    trailing_stops[slot] = candidate
 
     if active_count > 0:
         if last_index >= 0:

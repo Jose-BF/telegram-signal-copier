@@ -116,6 +116,7 @@ class StressReport:
 class _Position:
     ticket: str
     role: str
+    leg_index: int
     volume: float
     entry_price: float
     opened_ns: int
@@ -123,6 +124,7 @@ class _Position:
     sl_events: tuple[LevelEvent, ...]
     be_stop: float | None = None
     be_reason: str = "break_even"
+    trailing_stop: float | None = None
 
 
 @dataclass(frozen=True)
@@ -224,6 +226,33 @@ def oracle_simulate(
                 blockers.append("stale_conversion_at_basket_stop")
                 unknown_money = True
 
+        if genome.hard_stop_eur_per_leg is not None:
+            threshold = _amount_to_minor(
+                float(genome.hard_stop_eur_per_leg),
+                path.currency_digits,
+            )
+            for position in tuple(active):
+                current_minor, current_exact = _position_money(
+                    path,
+                    position,
+                    index,
+                    execution,
+                )
+                if current_exact and current_minor <= -threshold:
+                    realized_minor, unknown_money = _close_one(
+                        path, position, position.volume, active, exits, index,
+                        "hard_stop_per_leg", execution, realized_minor,
+                        unknown_money, blockers,
+                    )
+                    reason = "hard_stop_per_leg"
+                elif not current_exact and current_minor <= -threshold:
+                    blockers.append(
+                        f"stale_conversion_at_hard_stop:{position.ticket}"
+                    )
+                    unknown_money = True
+            if not active:
+                break
+
         due: list[ProviderEvent] = []
         while (
             provider_cursor < len(provider_events)
@@ -235,7 +264,11 @@ def oracle_simulate(
             provider_cursor += 1
         if genome.be_mode == "provider":
             _provider_protection(active, due)
-        if genome.provider_management_mode in {"exact", "close_only"} and any(_provider_close(item.action) for item in due):
+        if genome.provider_management_mode in {
+            "exact",
+            "close_only",
+            "explicit_close_only",
+        } and any(_provider_close(item.action) for item in due):
             realized_minor, unknown_money = _close_all(
                 path, active, exits, index, "provider_close", execution,
                 realized_minor, unknown_money, blockers,
@@ -279,6 +312,20 @@ def oracle_simulate(
                     "provider_tp", execution, realized_minor, unknown_money, blockers,
                 )
                 reason = "provider_tp"
+        elif genome.target_mode == "per_leg_steps":
+            direction = _sign(path.direction)
+            for position in tuple(active):
+                target = position.entry_price + direction * float(
+                    genome.target_steps[position.leg_index]
+                )
+                if not _hit(path.direction, raw_exit, target, target=True):
+                    continue
+                realized_minor, unknown_money = _close_one(
+                    path, position, position.volume, active, exits, index,
+                    "per_leg_target", execution, realized_minor,
+                    unknown_money, blockers,
+                )
+                reason = "per_leg_target"
         elif genome.target_mode == "provider_target_all":
             target = _provider_target(
                 path,
@@ -338,6 +385,11 @@ def oracle_simulate(
                     )
                     reason = "runner_target"
         if not active:
+            if (
+                genome.pending_entry_policy == "until_expiry"
+                and schedule_cursor < len(scheduled)
+            ):
+                continue
             break
 
         if genome.profit_lock_arm is not None:
@@ -356,13 +408,27 @@ def oracle_simulate(
                 blockers.append("stale_conversion_during_profit_lock")
                 unknown_money = True
 
-        if active and first_open_ns is not None and now_ns - first_open_ns >= genome.time_exit_min * 60 * 1_000_000_000:
+        if (
+            active
+            and first_open_ns is not None
+            and now_ns - first_open_ns
+            >= genome.time_exit_min * 60 * 1_000_000_000
+            and _time_rule_matches(genome, total_minor, exact)
+        ):
             realized_minor, unknown_money = _close_all(
                 path, active, exits, index, "time_exit", execution,
                 realized_minor, unknown_money, blockers,
             )
             reason = "time_exit"
             break
+
+        if active and genome.trailing_distance is not None:
+            _advance_trailing(
+                active,
+                path.direction,
+                raw_exit,
+                float(genome.trailing_distance),
+            )
 
     if active:
         if last_index >= 0 and _usable_tick(path, last_index):
@@ -506,11 +572,21 @@ def _schedule_entries(
                 _Position(
                     ticket=ticket,
                     role=template.role,
+                    leg_index=index,
                     volume=float(genome.volume_weights[index]),
-                    entry_price=_entry_with_cost(path.direction, base, execution),
+                    entry_price=(entry_price := _entry_with_cost(
+                        path.direction,
+                        base,
+                        execution,
+                    )),
                     opened_ns=opened_ns,
                     tp_events=template.tp_events,
                     sl_events=template.sl_events,
+                    trailing_stop=_trailing_start(
+                        path.direction,
+                        entry_price,
+                        genome.trailing_distance,
+                    ),
                 ),
             ))
         scheduled.sort(key=lambda item: (item.index, item.position.ticket))
@@ -544,11 +620,17 @@ def _schedule_entries(
             _Position(
                 ticket=f"sim_{index + 1}",
                 role=path.legs[min(index, len(path.legs) - 1)].role,
+                leg_index=index,
                 volume=float(volume),
                 entry_price=price,
                 opened_ns=entry_ns,
                 tp_events=path.legs[min(index, len(path.legs) - 1)].tp_events,
                 sl_events=path.legs[min(index, len(path.legs) - 1)].sl_events,
+                trailing_stop=_trailing_start(
+                    path.direction,
+                    price,
+                    genome.trailing_distance,
+                ),
             ),
         )
         for index, volume in enumerate(genome.volume_weights)
@@ -578,9 +660,19 @@ def _schedule_ladder_entries(
             template.open_price,
             execution,
         )
+        if genome.schema_version >= 2:
+            reference_price = first_price
         first_ticket = template.ticket
         first_source = "observed_mt5_fill"
-        expiry_ns = base_ns + genome.entry_expiry_min * 60 * 1_000_000_000
+        expiry_anchor_ns = (
+            _to_ns(path.signal_observed_at)
+            if genome.schema_version >= 2
+            else base_ns
+        )
+        expiry_ns = (
+            expiry_anchor_ns
+            + genome.entry_expiry_min * 60 * 1_000_000_000
+        )
     else:
         base_index = _causal_index(path, genome, execution)
         if base_index is None or not _context_allowed(
@@ -597,6 +689,8 @@ def _schedule_ladder_entries(
             reference_price,
             execution,
         )
+        if genome.schema_version >= 2:
+            reference_price = first_price
         first_ticket = "sim_1"
         first_source = f"causal_{genome.entry_mode}"
         expiry_ns = (
@@ -621,11 +715,17 @@ def _schedule_ladder_entries(
         _Position(
             ticket=first_ticket,
             role=first_template.role,
+            leg_index=0,
             volume=float(genome.volume_weights[0]),
             entry_price=first_price,
             opened_ns=base_ns,
             tp_events=first_template.tp_events,
             sl_events=first_template.sl_events,
+            trailing_stop=_trailing_start(
+                path.direction,
+                first_price,
+                genome.trailing_distance,
+            ),
         ),
     )]
     direction = _sign(path.direction)
@@ -635,7 +735,11 @@ def _schedule_ladder_entries(
     for leg_index in range(1, genome.leg_count):
         matched_index = None
         for index in range(cursor, len(times)):
-            if times[index] > expiry_ns:
+            if (
+                times[index] >= expiry_ns
+                if genome.schema_version >= 2
+                else times[index] > expiry_ns
+            ):
                 break
             if not _usable_tick(path, index):
                 continue
@@ -668,15 +772,21 @@ def _schedule_ladder_entries(
             _Position(
                 ticket=f"sim_ladder_{leg_index + 1}",
                 role=template.role,
+                leg_index=leg_index,
                 volume=float(genome.volume_weights[leg_index]),
-                entry_price=_entry_with_cost(
+                entry_price=(entry_price := _entry_with_cost(
                     path.direction,
                     _entry_quote(path, matched_index),
                     execution,
-                ),
+                )),
                 opened_ns=times[matched_index],
                 tp_events=template.tp_events,
                 sl_events=template.sl_events,
+                trailing_stop=_trailing_start(
+                    path.direction,
+                    entry_price,
+                    genome.trailing_distance,
+                ),
             ),
         ))
     return tuple(scheduled), "counterfactual_entry", ()
@@ -694,6 +804,56 @@ def _causal_index(path: DubaiPath, genome: StrategyGenome, execution: ExecutionS
         target_ns = start_ns + int(float(genome.entry_value) * 1_000_000_000)
         index = bisect_left(times, target_ns)
         return index if index < len(times) and times[index] <= expiry_ns else None
+
+    if genome.entry_mode == "signal_market":
+        for index in range(start_index, len(times)):
+            if times[index] >= expiry_ns:
+                break
+            if _usable_tick(path, index):
+                return index
+        return None
+
+    if genome.entry_mode == "adverse_reversal":
+        reference_index = None
+        for index in range(start_index, len(times)):
+            if times[index] >= expiry_ns:
+                break
+            if _usable_tick(path, index):
+                reference_index = index
+                break
+        if reference_index is None:
+            return None
+        reference = _entry_quote(path, reference_index)
+        adverse = float(genome.entry_value)
+        reversal = float(genome.entry_confirmation_value)
+        armed = False
+        extreme = reference
+        for index in range(reference_index, len(times)):
+            if times[index] >= expiry_ns:
+                break
+            if not _usable_tick(path, index):
+                continue
+            quote = _entry_quote(path, index)
+            if not armed:
+                crossed = (
+                    quote <= reference - adverse
+                    if path.direction == "BUY"
+                    else quote >= reference + adverse
+                )
+                if crossed:
+                    armed = True
+                    extreme = quote
+                continue
+            if path.direction == "BUY":
+                extreme = min(extreme, quote)
+                if quote >= extreme + reversal:
+                    return index
+            else:
+                extreme = max(extreme, quote)
+                if quote <= extreme - reversal:
+                    return index
+        return None
+
     if not _usable_tick(path, start_index):
         return None
     reference = _entry_quote(path, start_index)
@@ -791,6 +951,19 @@ def _stop_level(
     elif genome.stop_mode == "fixed_move":
         base = position.entry_price - _sign(direction) * float(genome.stop_value)
         reason = "fixed_sl"
+    if position.trailing_stop is not None:
+        if base is None:
+            base = position.trailing_stop
+            reason = "trailing_stop"
+        else:
+            tighter = (
+                max(base, position.trailing_stop)
+                if direction == "BUY"
+                else min(base, position.trailing_stop)
+            )
+            if math.isclose(tighter, position.trailing_stop, abs_tol=1e-12):
+                reason = "trailing_stop"
+            base = tighter
     if position.be_stop is None:
         return base, reason
     if base is None:
@@ -964,6 +1137,16 @@ def _basket_money(path, active, index, execution):
     return total, exact
 
 
+def _position_money(path, position, index, execution):
+    return _money_minor(
+        path,
+        position.entry_price,
+        _exit_with_cost(path, index, execution),
+        position.volume,
+        index,
+    )
+
+
 def _money_minor(path: DubaiPath, entry: float, exit_price: float, volume: float, index: int) -> tuple[int, bool]:
     raw = Decimal(_sign(path.direction)) * (Decimal(str(exit_price)) - Decimal(str(entry)))
     raw *= Decimal(str(path.contract_size)) * Decimal(str(volume))
@@ -1001,6 +1184,41 @@ def _fixed_move_target_reached(direction, raw_exit, positions, target):
         Decimal(str(raw_exit)) * total_volume - weighted_entry
     )
     return move_numerator >= Decimal(str(target)) * total_volume
+
+
+def _trailing_start(direction, entry_price, trailing_distance):
+    if trailing_distance is None:
+        return None
+    return _clean_price(
+        entry_price - _sign(direction) * float(trailing_distance)
+    )
+
+
+def _advance_trailing(active, direction, executable_exit, distance):
+    candidate = _clean_price(
+        executable_exit - _sign(direction) * float(distance)
+    )
+    for position in active:
+        if position.trailing_stop is None:
+            position.trailing_stop = candidate
+        elif direction == "BUY" and candidate > position.trailing_stop:
+            position.trailing_stop = candidate
+        elif direction == "SELL" and candidate < position.trailing_stop:
+            position.trailing_stop = candidate
+
+
+def _time_rule_matches(genome, total_minor, exact):
+    if genome.schema_version == 1:
+        return True
+    if not exact:
+        return False
+    if genome.time_exit_mode == "loss_only":
+        return total_minor <= 0
+    if genome.time_exit_mode == "profit_only":
+        return total_minor > 0
+    if genome.time_exit_mode == "non_negative":
+        return total_minor >= 0
+    return False
 
 
 def _compare_result(fast: object, oracle: OracleResult) -> list[OracleMismatch]:
