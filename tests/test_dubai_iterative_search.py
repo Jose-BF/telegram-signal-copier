@@ -19,6 +19,7 @@ from research.dubai_iterative.search import (
     cross_validate_frontier_candidates,
     run_chronological_search,
     run_search,
+    _evaluate_population,
     _next_population,
     _replace_checkpoint,
 )
@@ -724,6 +725,53 @@ def test_chronological_search_releases_cache_after_every_fold(tmp_path):
 
     assert len(report.fold_reports) == 2
     assert evaluator.clear_calls == 2
+
+
+def test_path_bounded_evaluator_never_accumulates_multiple_tick_paths():
+    paths = (
+        TinyPath("day_1", "2026-07-27"),
+        TinyPath("day_2", "2026-07-28"),
+        TinyPath("day_3", "2026-07-29"),
+    )
+    genomes = (
+        StrategyGenome.baseline(),
+        StrategyGenome.baseline().with_change(time_exit_min=30),
+        StrategyGenome.baseline().with_change(time_exit_min=60),
+    )
+
+    class PathBoundedEvaluator:
+        path_bounded_cache = True
+
+        def __init__(self):
+            self.cached_paths = set()
+            self.max_cached_paths = 0
+            self.clear_calls = 0
+
+        def __call__(self, path, genome):
+            self.cached_paths.add(path.signal_id)
+            self.max_cached_paths = max(
+                self.max_cached_paths,
+                len(self.cached_paths),
+            )
+            return _flat_evaluator(path, genome)
+
+        def clear_cache(self):
+            self.clear_calls += 1
+            self.cached_paths.clear()
+
+    evaluator = PathBoundedEvaluator()
+
+    evaluations = _evaluate_population(
+        genomes,
+        paths,
+        evaluator,
+        workers=3,
+    )
+
+    assert [item.genome for item in evaluations] == list(genomes)
+    assert all(len(item.results) == len(paths) for item in evaluations)
+    assert evaluator.max_cached_paths == 1
+    assert evaluator.clear_calls == len(paths)
 
 
 def test_cross_fold_gate_rejects_rule_that_only_wins_in_base_execution(tmp_path):

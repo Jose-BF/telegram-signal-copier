@@ -190,6 +190,8 @@ class _CompiledPath:
 class FastEvaluator:
     """Cache fixed-point paths and evaluate genomes through the JIT kernel."""
 
+    path_bounded_cache = True
+
     def __init__(
         self,
         *,

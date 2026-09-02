@@ -831,6 +831,17 @@ def _evaluate_population(
     workers: int,
     progress_callback: CandidateProgressCallback | None = None,
 ) -> tuple[CandidateEvaluation, ...]:
+    genomes = tuple(genomes)
+    paths = tuple(paths)
+    if bool(getattr(evaluator, "path_bounded_cache", False)):
+        return _evaluate_population_path_major(
+            genomes,
+            paths,
+            evaluator,
+            workers=workers,
+            progress_callback=progress_callback,
+        )
+
     def evaluate(genome: StrategyGenome) -> CandidateEvaluation:
         return CandidateEvaluation.from_results(
             genome,
@@ -856,6 +867,57 @@ def _evaluate_population(
             if progress_callback is not None:
                 progress_callback(index, len(genomes))
         return tuple(results)
+
+
+def _evaluate_population_path_major(
+    genomes: tuple[StrategyGenome, ...],
+    paths: tuple[object, ...],
+    evaluator: Evaluator,
+    *,
+    workers: int,
+    progress_callback: CandidateProgressCallback | None,
+) -> tuple[CandidateEvaluation, ...]:
+    """Compile one tick path at a time and release it after all genomes."""
+
+    rows: list[list[tuple[str, SimulationResult]]] = [
+        [] for _genome in genomes
+    ]
+
+    def evaluate_path(path: object, pool=None) -> None:
+        try:
+            if pool is None:
+                results = tuple(evaluator(path, genome) for genome in genomes)
+            else:
+                results = tuple(pool.map(
+                    lambda genome: evaluator(path, genome),
+                    genomes,
+                ))
+            day = str(path.day)
+            for index, result in enumerate(results):
+                rows[index].append((day, result))
+        finally:
+            _release_evaluator_cache(evaluator)
+
+    if workers == 1 or len(genomes) < 2:
+        for path in paths:
+            evaluate_path(path)
+    else:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            for path in paths:
+                evaluate_path(path, pool)
+
+    evaluations = []
+    for index, (genome, result_rows) in enumerate(
+        zip(genomes, rows),
+        start=1,
+    ):
+        evaluations.append(CandidateEvaluation.from_results(
+            genome,
+            tuple(result_rows),
+        ))
+        if progress_callback is not None:
+            progress_callback(index, len(genomes))
+    return tuple(evaluations)
 
 
 def _next_population(
