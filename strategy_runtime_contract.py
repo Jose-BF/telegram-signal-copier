@@ -323,4 +323,3 @@ def strategy_contract_by_id(strategy_id: str) -> StrategyRuntimeContract:
         return _BY_ID[str(strategy_id)]
     except KeyError as exc:
         raise KeyError(f"unknown strategy contract: {strategy_id}") from exc
-

@@ -34,6 +34,7 @@ from research.dubai_iterative.dataset import (
     VerifiedParquetTickSource,
 )
 from research.dubai_iterative.engine import ExecutionAssumptions
+from research.dubai_iterative.evolution import CandidateEvaluation
 from research.dubai_iterative.fast_engine import FastEvaluator
 from research.dubai_iterative.oracle import ExecutionScenario
 from research.dubai_iterative.reporting import (
@@ -385,9 +386,6 @@ def _search(args, *, resume: bool) -> int:
         selected_assessments = tuple(
             item.assessment for item in selected_validations
         )
-        frontier_evaluations = tuple(
-            item.scenarios[0].evaluation for item in selected_assessments
-        )
         world_certifications = tuple(
             certify_genome_worlds(
                 complete_paths,
@@ -398,6 +396,10 @@ def _search(args, *, resume: bool) -> int:
                 ),
             )
             for item in selected_validations
+        )
+        frontier_evaluations = _detailed_certified_evaluations(
+            world_certifications,
+            paths=complete_paths,
         )
         provider_scorecard = _provider_scorecard(args)
         chronological_diagnostics = _chronological_diagnostics(report.search)
@@ -481,6 +483,10 @@ def _search(args, *, resume: bool) -> int:
             "engine": "numba_fixed_point_gold_v2",
             "signal_scope": signal_scope,
             "oracle": "independent_scalar_gold_v2",
+            "provider_accounting_contract": {
+                "input": "oracle_certified_full_window_detail_v1",
+                "model": "candidate_exit_and_mfe_hypotheses_v1",
+            },
             "oracle_statuses": [
                 item.status for item in world_certifications
             ],
@@ -656,6 +662,52 @@ def _provider_hypotheses(
         paths=paths,
         provider_scorecard=provider_scorecard or {},
     )
+
+
+def _detailed_certified_evaluations(
+    certifications: Sequence[object],
+    *,
+    paths: Sequence[object],
+) -> tuple[CandidateEvaluation, ...]:
+    """Recover detailed base-world rows already checked by the scalar oracle."""
+
+    paths = tuple(paths)
+    evaluations = []
+    for certification in certifications:
+        base_worlds = tuple(
+            world
+            for world in certification.worlds
+            if str(world.name) == "full_window"
+        )
+        if len(base_worlds) != 1:
+            raise ValueError(
+                "certification must contain exactly one full_window world"
+            )
+        world = base_worlds[0]
+        results = tuple(world.fast_results)
+        if len(results) != len(paths):
+            raise ValueError(
+                "certified full_window result count does not match paths"
+            )
+        rows = []
+        for path, result in zip(paths, results, strict=True):
+            if str(result.signal_id) != str(path.signal_id):
+                raise ValueError(
+                    "certified full_window signal order does not match paths"
+                )
+            if result.strategy_fingerprint != certification.genome.fingerprint:
+                raise ValueError(
+                    "certified result strategy fingerprint mismatch"
+                )
+            rows.append((str(path.day), result))
+        evaluation = CandidateEvaluation.from_results(
+            certification.genome,
+            tuple(rows),
+        )
+        if evaluation.net_eur != world.net_eur:
+            raise ValueError("certified full_window net total mismatch")
+        evaluations.append(evaluation)
+    return tuple(evaluations)
 
 
 def _chronological_complete(report) -> bool:

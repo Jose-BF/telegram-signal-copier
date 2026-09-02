@@ -210,6 +210,54 @@ def test_real_provider_hypotheses_are_built_from_selected_simulations(monkeypatc
     assert captured["paths"] == ("path",)
 
 
+def test_search_uses_detailed_certified_results_for_provider_accounting(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    captured = {}
+
+    def capture_hypotheses(
+        _args,
+        *,
+        evaluations,
+        paths,
+        provider_scorecard,
+    ):
+        captured.update({
+            "evaluations": evaluations,
+            "paths": paths,
+            "provider_scorecard": provider_scorecard,
+        })
+        return ()
+
+    monkeypatch.setattr(
+        gold_cli,
+        "_provider_hypotheses",
+        capture_hypotheses,
+    )
+
+    assert main(_search_args(tmp_path)) == 0
+    capsys.readouterr()
+
+    results = tuple(
+        result
+        for evaluation in captured["evaluations"]
+        for _day, result in evaluation.results
+    )
+    assert results
+    assert any(result.exits for result in results)
+    assert all(result.behavior_digest is None for result in results)
+    run_dir = _run_dirs(tmp_path)[0]
+    card = json.loads(
+        (run_dir / "run_card.json").read_text(encoding="utf-8")
+    )
+    assert card["run_metadata"]["provider_accounting_contract"] == {
+        "input": "oracle_certified_full_window_detail_v1",
+        "model": "candidate_exit_and_mfe_hypotheses_v1",
+    }
+
+
 def test_chronological_diagnostics_accepts_a_fold_with_any_complete_candidate():
     report = SimpleNamespace(fold_reports=(
         SimpleNamespace(

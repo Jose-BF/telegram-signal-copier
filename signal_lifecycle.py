@@ -265,4 +265,3 @@ def apply_lifecycle_decision(signal, decision: LifecycleDecision) -> dict:
     payload = decision.to_dict()
     signal.lifecycle_last_decision = payload
     return dict(payload)
-

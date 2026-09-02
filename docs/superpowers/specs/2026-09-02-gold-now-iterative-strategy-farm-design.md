@@ -140,4 +140,3 @@ The first complete release must:
 6. preserve all Dubai characterization tests and historical cent results;
 7. remain unable to import live order modules, restart the bot or change VM
    configuration.
-

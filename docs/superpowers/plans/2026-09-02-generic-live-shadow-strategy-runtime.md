@@ -276,4 +276,3 @@ Run: `git add AGENTS.md README.md tests/test_live_terminalization_static.py && g
 - [ ] **Step 4: Query VM MT5 and require zero open positions before deployment.**
 - [ ] **Step 5: Fast-forward main, push once, verify VM commit and watcher health.**
 - [ ] **Step 6: Send the exact commit, tests and deployment status by Telegram.**
-
