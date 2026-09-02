@@ -135,6 +135,8 @@ def _gates(**changes) -> GoldEvidenceGates:
         "account_currency_money_complete": True,
         "oracle_parity_complete": True,
         "chronological_challenge_complete": True,
+        "cross_fold_candidate_eligible": True,
+        "daily_stability_candidate_eligible": True,
         "source_manifest_complete": True,
     }
     values.update(changes)
@@ -209,6 +211,23 @@ def test_all_hard_gates_allow_only_retrospective_ranking_not_a_live_winner():
         "promotion_eligible": False,
     }
     assert artifacts.frontier[0]["retrospective_rank"] == 1
+
+
+def test_no_cross_fold_survivor_keeps_results_diagnostic_only():
+    artifacts = _artifacts(_gates(cross_fold_candidate_eligible=False))
+
+    selection = artifacts.run_card["selection"]
+    assert selection["ranking_allowed"] is False
+    assert "no_cross_fold_candidate" in selection["blockers"]
+    assert all("retrospective_rank" not in row for row in artifacts.frontier)
+
+
+def test_no_statistically_stable_survivor_keeps_results_diagnostic_only():
+    artifacts = _artifacts(_gates(daily_stability_candidate_eligible=False))
+
+    selection = artifacts.run_card["selection"]
+    assert selection["ranking_allowed"] is False
+    assert "no_daily_stability_candidate" in selection["blockers"]
 
 
 def test_gold_publication_keeps_daily_and_claim_evidence_immutable(tmp_path):

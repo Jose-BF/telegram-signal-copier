@@ -19,8 +19,12 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from provider_result_scorecard import build_scorecard
+from provider_result_scorecard import (
+    build_scorecard,
+    load_hash_bound_media_summaries,
+)
 from research.dubai_iterative.contracts import SearchBudget, SearchSpace
+from research.dubai_iterative.certification import certify_genome_worlds
 from research.dubai_iterative.dataset import (
     LevelEvent,
     ProviderEvent,
@@ -31,7 +35,7 @@ from research.dubai_iterative.dataset import (
 )
 from research.dubai_iterative.engine import ExecutionAssumptions
 from research.dubai_iterative.fast_engine import FastEvaluator
-from research.dubai_iterative.oracle import ExecutionScenario, certify_candidate
+from research.dubai_iterative.oracle import ExecutionScenario
 from research.dubai_iterative.reporting import (
     ProvenanceConflictError,
     publish_run,
@@ -44,12 +48,17 @@ from research.dubai_iterative.search import (
 
 from .dataset import load_gold_now_dataset
 from .folds import build_gold_fold_plan
+from .provider_accounting import build_candidate_pip_hypotheses
 from .reporting import (
     GoldEvidenceGates,
     ProviderPipHypothesis,
     build_gold_research_artifacts,
 )
 from .search import run_gold_chronological_search
+from .validation import (
+    GoldStabilityPolicy,
+    validate_gold_candidates,
+)
 
 
 _CANDIDATE_SCHEMA = pa.schema((
@@ -218,6 +227,17 @@ def _search(args, *, resume: bool) -> int:
         exit_slippage=args.search_exit_slippage,
         spread_addition=args.search_spread_addition,
     )
+    validation_worlds = _execution_validation_worlds(execution)
+    stability_policy = GoldStabilityPolicy(
+        bootstrap_samples=args.bootstrap_samples,
+        seed=args.seed,
+        minimum_bootstrap_probability_positive=(
+            args.minimum_bootstrap_probability_positive
+        ),
+        minimum_leave_one_day_out_positive_ratio=(
+            args.minimum_leave_one_day_out_positive_ratio
+        ),
+    )
     output_root = Path(args.output_root)
     checkpoint_root = output_root / ".checkpoints"
     context = {
@@ -288,27 +308,42 @@ def _search(args, *, resume: bool) -> int:
             complete_dataset,
             report.search,
             evaluator=evaluator,
+            additional_execution_scenarios=tuple(
+                (name, FastEvaluator(execution=world_execution))
+                for name, world_execution, _oracle_scenario
+                in validation_worlds[1:]
+            ),
+            minimum_participation=args.minimum_participation,
+            minimum_positive_challenge_ratio=(
+                args.minimum_positive_challenge_ratio
+            ),
             workers=args.workers,
         )
-        selected_assessments = cross_fold.assessments[: args.oracle_finalists]
+        candidate_validation = validate_gold_candidates(
+            cross_fold.assessments,
+            policy=stability_policy,
+        )
+        selection_pool = (
+            candidate_validation.eligible
+            or candidate_validation.candidates
+        )
+        selected_validations = selection_pool[: args.oracle_finalists]
+        selected_assessments = tuple(
+            item.assessment for item in selected_validations
+        )
         frontier_evaluations = tuple(
             item.scenarios[0].evaluation for item in selected_assessments
         )
-        oracle_scenario = ExecutionScenario(
-            "search_execution",
-            latency_ms=execution.latency_ms,
-            entry_slippage=execution.entry_slippage,
-            exit_slippage=execution.exit_slippage,
-            spread_addition=execution.spread_addition,
-        )
-        certificates = tuple(
-            certify_candidate(
+        world_certifications = tuple(
+            certify_genome_worlds(
                 complete_paths,
-                evaluation.genome,
-                tuple(result for _day, result in evaluation.results),
-                execution=oracle_scenario,
+                item.genome,
+                worlds=validation_worlds,
+                evaluator_factory=lambda active_execution: FastEvaluator(
+                    execution=active_execution
+                ),
             )
-            for evaluation in frontier_evaluations
+            for item in selected_validations
         )
         provider_scorecard = _provider_scorecard(args)
         gates = GoldEvidenceGates(
@@ -325,18 +360,25 @@ def _search(args, *, resume: bool) -> int:
                 and all(path.market_evidence for path in complete_paths)
             ),
             account_currency_money_complete=(
-                bool(frontier_evaluations)
+                bool(selected_assessments)
                 and all(
-                    item.net_eur is not None and not item.blockers
-                    for item in frontier_evaluations
+                    item.evidence_complete
+                    for item in selected_assessments
                 )
             ),
             oracle_parity_complete=(
-                bool(certificates)
-                and all(item.status == "pass" for item in certificates)
+                bool(world_certifications)
+                and all(
+                    item.status == "pass"
+                    for item in world_certifications
+                )
             ),
             chronological_challenge_complete=_chronological_complete(
                 report.search
+            ),
+            cross_fold_candidate_eligible=bool(cross_fold.eligible),
+            daily_stability_candidate_eligible=bool(
+                candidate_validation.eligible
             ),
             source_manifest_complete=all(dataset.source_hashes.values()),
         )
@@ -356,9 +398,28 @@ def _search(args, *, resume: bool) -> int:
             "budget": asdict(budget),
             "search_space": asdict(search_space),
             "execution": asdict(execution),
+            "execution_validation_worlds": [
+                {
+                    "name": name,
+                    **asdict(world_execution),
+                }
+                for name, world_execution, _oracle_scenario
+                in validation_worlds
+            ],
+            "stability_policy": asdict(stability_policy),
+            "minimum_participation": args.minimum_participation,
+            "minimum_positive_challenge_ratio": (
+                args.minimum_positive_challenge_ratio
+            ),
             "engine": "numba_fixed_point_gold_v2",
             "oracle": "independent_scalar_gold_v2",
-            "oracle_statuses": [item.status for item in certificates],
+            "oracle_statuses": [
+                item.status for item in world_certifications
+            ],
+            "oracle_world_certification": [
+                _world_certification_summary(item)
+                for item in world_certifications
+            ],
             "stop_reasons": [
                 item.stop_reason for item in report.search.fold_reports
             ],
@@ -366,6 +427,19 @@ def _search(args, *, resume: bool) -> int:
                 item.generations_completed for item in report.search.fold_reports
             ],
             "total_evaluations": report.search.total_evaluations,
+            "cross_fold_validation": {
+                "considered_count": cross_fold.considered_count,
+                "eligible_count": len(cross_fold.eligible),
+                "rejected_count": len(cross_fold.rejected),
+                "stable_count": len(candidate_validation.eligible),
+                "stability_rejected_count": len(
+                    candidate_validation.rejected
+                ),
+                "selected": [
+                    _candidate_validation_summary(item)
+                    for item in selected_validations
+                ],
+            },
             "fixture": args.fixture is not None,
             "live_code_changed": False,
             "automatic_deployment": False,
@@ -380,7 +454,12 @@ def _search(args, *, resume: bool) -> int:
             generation_rows=generation_rows,
             gates=gates,
             provider_scorecard=provider_scorecard,
-            provider_pip_hypotheses=_provider_hypotheses(args),
+            provider_pip_hypotheses=_provider_hypotheses(
+                args,
+                evaluations=frontier_evaluations,
+                paths=complete_paths,
+                provider_scorecard=provider_scorecard,
+            ),
             run_metadata=run_metadata,
         )
         published = publish_run(artifacts, output_root)
@@ -452,18 +531,45 @@ def _provider_scorecard(args) -> Mapping[str, object]:
     catalog = json.loads(
         Path(args.provider_catalog_path).read_text(encoding="utf-8")
     )
-    return build_scorecard(catalog)
+    annotations_path = Path(args.provider_media_annotations)
+    media_evidence_path = Path(args.provider_media_evidence)
+    supplemental = load_hash_bound_media_summaries(
+        annotations_path,
+        media_evidence_path,
+    )
+    scorecard = build_scorecard(
+        catalog,
+        supplemental_records=supplemental,
+    )
+    return {
+        **scorecard,
+        "source_hashes": {
+            "provider_catalog": _sha256_file(Path(args.provider_catalog_path)),
+            "provider_media_annotations": _sha256_file(annotations_path),
+            "provider_media_evidence": _sha256_file(media_evidence_path),
+        },
+    }
 
 
-def _provider_hypotheses(args) -> tuple[ProviderPipHypothesis, ...]:
-    if args.fixture != "tiny":
-        return ()
-    return (ProviderPipHypothesis(
-        hypothesis_id="fixture_sum_exit_moves_x100",
-        description="Synthetic provider accounting hypothesis",
-        period_totals={"2026-08-24:2026-08-26": Decimal("385")},
-        verified=False,
-    ),)
+def _provider_hypotheses(
+    args,
+    *,
+    evaluations: Sequence[object] = (),
+    paths: Sequence[object] = (),
+    provider_scorecard: Mapping[str, object] | None = None,
+) -> tuple[ProviderPipHypothesis, ...]:
+    if args.fixture == "tiny":
+        return (ProviderPipHypothesis(
+            hypothesis_id="fixture_sum_exit_moves_x100",
+            description="Synthetic provider accounting hypothesis",
+            period_totals={"2026-08-24:2026-08-26": Decimal("385")},
+            verified=False,
+        ),)
+    return build_candidate_pip_hypotheses(
+        evaluations,
+        paths=paths,
+        provider_scorecard=provider_scorecard or {},
+    )
 
 
 def _chronological_complete(report) -> bool:
@@ -475,6 +581,115 @@ def _chronological_complete(report) -> bool:
         )
         for fold in report.fold_reports
     )
+
+
+def _execution_validation_worlds(search_execution):
+    worlds = (
+        ("full_window", search_execution),
+        ("latency_250ms", ExecutionAssumptions(latency_ms=250)),
+        ("latency_1s", ExecutionAssumptions(latency_ms=1_000)),
+        ("latency_2s", ExecutionAssumptions(latency_ms=2_000)),
+        (
+            "mild_costs",
+            ExecutionAssumptions(
+                latency_ms=250,
+                entry_slippage=0.03,
+                exit_slippage=0.03,
+                spread_addition=0.02,
+            ),
+        ),
+        (
+            "adverse_costs",
+            ExecutionAssumptions(
+                latency_ms=500,
+                entry_slippage=0.10,
+                exit_slippage=0.10,
+                spread_addition=0.10,
+            ),
+        ),
+    )
+    return tuple(
+        (
+            name,
+            world_execution,
+            ExecutionScenario(name, **asdict(world_execution)),
+        )
+        for name, world_execution in worlds
+    )
+
+
+def _candidate_validation_summary(item) -> Mapping[str, object]:
+    assessment = item.assessment
+    stability = item.stability
+    return {
+        "strategy_fingerprint": item.genome.fingerprint,
+        "behavior_id": item.group.behavior_id,
+        "equivalent_genome_count": item.group.member_count,
+        "equivalent_genome_fingerprints": list(
+            item.group.member_fingerprints
+        ),
+        "validation_eligible": item.eligible,
+        "validation_blockers": list(item.blockers),
+        "robustness_eligible": assessment.robustness_eligible,
+        "worst_net_eur": _decimal_text(assessment.worst_net_eur),
+        "worst_challenge_net_eur": _decimal_text(
+            assessment.worst_challenge_net_eur
+        ),
+        "positive_challenge_ratio": assessment.positive_challenge_ratio,
+        "minimum_participation": assessment.minimum_participation,
+        "maximum_drawdown_eur": _decimal_text(
+            assessment.maximum_drawdown_eur
+        ),
+        "execution_scenarios": [
+            {
+                "name": scenario.name,
+                "net_eur": _decimal_text(scenario.evaluation.net_eur),
+                "max_drawdown_eur": _decimal_text(
+                    scenario.evaluation.max_drawdown_eur
+                ),
+                "participation_rate": (
+                    scenario.evaluation.participation_rate
+                ),
+                "blockers": list(scenario.evaluation.blockers),
+            }
+            for scenario in assessment.scenarios
+        ],
+        "daily_stability": {
+            "evidence_complete": stability.evidence_complete,
+            "minimum_bootstrap_probability_positive": (
+                stability.minimum_bootstrap_probability_positive
+            ),
+            "worst_bootstrap_p05_eur": _decimal_text(
+                stability.worst_bootstrap_p05_eur
+            ),
+            "minimum_leave_one_day_out_positive_ratio": (
+                stability.minimum_leave_one_day_out_positive_ratio
+            ),
+            "maximum_positive_day_concentration": (
+                stability.maximum_positive_day_concentration
+            ),
+            "blockers": list(stability.blockers),
+        },
+    }
+
+
+def _world_certification_summary(report) -> Mapping[str, object]:
+    return {
+        "strategy_fingerprint": report.genome.fingerprint,
+        "status": report.status,
+        "certified_worlds": report.certified_worlds,
+        "world_count": report.world_count,
+        "worlds": [
+            {
+                "name": item.name,
+                "oracle_status": item.certificate.status,
+                "oracle_mismatch_count": len(item.certificate.mismatches),
+                "net_eur": _decimal_text(item.net_eur),
+                "blockers": list(item.blockers),
+            }
+            for item in report.worlds
+        ],
+    }
 
 
 def _experiment_key(source_hashes, search_space, execution, seed) -> str:
@@ -666,6 +881,14 @@ def _add_dataset_arguments(parser: argparse.ArgumentParser) -> None:
         default="runtime_data/provider_signal_catalog.json",
     )
     parser.add_argument(
+        "--provider-media-annotations",
+        default="research/gold_iterative/provider_claim_annotations.json",
+    )
+    parser.add_argument(
+        "--provider-media-evidence",
+        default="runtime_data/telemetry_latest/telegram_media.jsonl",
+    )
+    parser.add_argument(
         "--raw-events-path",
         default="runtime_data/trade_events.jsonl",
     )
@@ -698,6 +921,23 @@ def _add_search_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--max-entry-expiry-minutes", type=int, default=240)
     parser.add_argument("--max-time-exit-minutes", type=int, default=240)
     parser.add_argument("--oracle-finalists", type=int, default=3)
+    parser.add_argument("--minimum-participation", type=float, default=0.50)
+    parser.add_argument(
+        "--minimum-positive-challenge-ratio",
+        type=float,
+        default=0.60,
+    )
+    parser.add_argument("--bootstrap-samples", type=int, default=10_000)
+    parser.add_argument(
+        "--minimum-bootstrap-probability-positive",
+        type=float,
+        default=0.95,
+    )
+    parser.add_argument(
+        "--minimum-leave-one-day-out-positive-ratio",
+        type=float,
+        default=1.0,
+    )
     parser.add_argument("--search-latency-ms", type=int, default=0)
     parser.add_argument("--search-entry-slippage", type=float, default=0.0)
     parser.add_argument("--search-exit-slippage", type=float, default=0.0)

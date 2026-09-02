@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 import pandas as pd
 
+import research.gold_iterative.__main__ as gold_cli
 from research.gold_iterative.__main__ import _parser, main
 
 
@@ -45,6 +47,12 @@ def test_gold_cli_has_explicit_commands_and_safe_runtime_defaults():
     assert search.replay_path == "runtime_data/replay_trades.jsonl"
     assert search.audit_path == "runtime_data/observed_tick_replay_audit.jsonl"
     assert search.provider_catalog_path == "runtime_data/provider_signal_catalog.json"
+    assert search.provider_media_annotations == (
+        "research/gold_iterative/provider_claim_annotations.json"
+    )
+    assert search.provider_media_evidence == (
+        "runtime_data/telemetry_latest/telegram_media.jsonl"
+    )
     assert search.raw_events_path == "runtime_data/trade_events.jsonl"
     assert search.max_total_volume == 1.0
 
@@ -155,3 +163,33 @@ def test_verify_rejects_a_modified_published_artifact(tmp_path, capsys):
     assert "ERROR" in output
     assert "immutable artifact conflict" in output
     assert "VERIFICADO" not in output
+
+
+def test_real_provider_hypotheses_are_built_from_selected_simulations(monkeypatch):
+    captured = {}
+
+    def fake_builder(evaluations, *, paths, provider_scorecard):
+        captured.update({
+            "evaluations": evaluations,
+            "paths": paths,
+            "provider_scorecard": provider_scorecard,
+        })
+        return ("hypothesis",)
+
+    monkeypatch.setattr(
+        gold_cli,
+        "build_candidate_pip_hypotheses",
+        fake_builder,
+        raising=False,
+    )
+
+    result = gold_cli._provider_hypotheses(
+        SimpleNamespace(fixture=None),
+        evaluations=("evaluation",),
+        paths=("path",),
+        provider_scorecard={"provider": "Gold Signals"},
+    )
+
+    assert result == ("hypothesis",)
+    assert captured["evaluations"] == ("evaluation",)
+    assert captured["paths"] == ("path",)

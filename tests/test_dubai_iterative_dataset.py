@@ -539,3 +539,46 @@ def test_sparse_conversion_marks_stale_ticks_without_dropping_path(tmp_path):
     path = dataset.paths[0]
     assert path.fx_valid.tolist() == [True, True, True, False]
     assert path.fx_age_ms[-1] > 5_000
+
+
+def test_conversion_uses_causal_quote_when_verified_feed_brackets_tick(tmp_path):
+    replay = _write_jsonl(tmp_path / "replay.jsonl", [_trade()])
+    audit = _write_jsonl(
+        tmp_path / "audit.jsonl",
+        [{"sig_id": "canal1_1", "status": "exact", "blockers": []}],
+    )
+    contract = _money_contract()
+    contract["conversion"] = {
+        "orientation": "account_base_profit_quote",
+        "symbol": "EURUSD",
+        "max_quote_age_ms": 5_000,
+        "max_quote_interval_ms": 60_000,
+    }
+    fx_ticks = pd.DataFrame(
+        {
+            "time_utc": pd.to_datetime(
+                ["2026-07-27T08:59:59Z", "2026-07-27T09:00:30Z"],
+                format="mixed",
+                utc=True,
+            ),
+            "bid": [1.10, 1.20],
+            "ask": [1.11, 1.21],
+        }
+    )
+    market_ticks = _ticks()
+    market_ticks.loc[2, "time_utc"] = pd.Timestamp(
+        "2026-07-27T09:00:10Z"
+    )
+
+    dataset = load_dubai_dataset(
+        replay_path=replay,
+        audit_path=audit,
+        market_ticks=FakeTickSource({"2026-07-27": market_ticks}),
+        conversion_ticks=FakeTickSource({"2026-07-27": fx_ticks}),
+        money_contract=contract,
+    )
+
+    path = dataset.paths[0]
+    assert path.fx_valid.tolist() == [True, True, True, False]
+    assert path.fx_age_ms[2] > 5_000
+    assert path.fx_bid[2] == 1.10

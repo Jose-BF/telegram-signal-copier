@@ -23,6 +23,8 @@ class GoldEvidenceGates:
     account_currency_money_complete: bool
     oracle_parity_complete: bool
     chronological_challenge_complete: bool
+    cross_fold_candidate_eligible: bool
+    daily_stability_candidate_eligible: bool
     source_manifest_complete: bool
 
     def __post_init__(self) -> None:
@@ -41,6 +43,10 @@ class GoldEvidenceGates:
             "oracle_parity_complete": "oracle_parity_incomplete",
             "chronological_challenge_complete": (
                 "chronological_challenge_incomplete"
+            ),
+            "cross_fold_candidate_eligible": "no_cross_fold_candidate",
+            "daily_stability_candidate_eligible": (
+                "no_daily_stability_candidate"
             ),
             "source_manifest_complete": "source_manifest_incomplete",
         }

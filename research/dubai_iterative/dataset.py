@@ -508,6 +508,11 @@ def load_strategy_dataset(
                 times_ns,
                 conversion_frame,
                 max_age_ms=int(conversion.get("max_quote_age_ms") or 0),
+                max_interval_ms=int(
+                    conversion.get("max_quote_interval_ms")
+                    or conversion.get("max_quote_age_ms")
+                    or 0
+                ),
             )
             if aligned is None:
                 exclusions["stale_or_missing_conversion_quote"].append(signal_id)
@@ -931,8 +936,13 @@ def _align_conversion(
     frame: pd.DataFrame,
     *,
     max_age_ms: int,
+    max_interval_ms: int,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None:
-    if frame.empty or max_age_ms <= 0:
+    if (
+        frame.empty
+        or max_age_ms <= 0
+        or max_interval_ms < max_age_ms
+    ):
         return None
     fx_times_ns = _series_ns(frame["time_utc"])
     indices = np.searchsorted(fx_times_ns, path_times_ns, side="right") - 1
@@ -942,7 +952,23 @@ def _align_conversion(
     ages_ms[has_prior_quote] = (
         path_times_ns[has_prior_quote] - fx_times_ns[safe_indices[has_prior_quote]]
     ) / 1_000_000
-    valid = has_prior_quote & (ages_ms <= max_age_ms)
+    next_indices = indices + 1
+    has_next_quote = has_prior_quote & (next_indices < len(fx_times_ns))
+    safe_next_indices = np.minimum(next_indices, len(fx_times_ns) - 1)
+    intervals_ms = np.full(len(path_times_ns), np.inf, dtype=float)
+    intervals_ms[has_next_quote] = (
+        fx_times_ns[safe_next_indices[has_next_quote]]
+        - fx_times_ns[safe_indices[has_next_quote]]
+    ) / 1_000_000
+    bracketed = (
+        has_next_quote
+        & (intervals_ms > 0)
+        & (intervals_ms <= max_interval_ms)
+        & (path_times_ns < fx_times_ns[safe_next_indices])
+    )
+    valid = has_prior_quote & (
+        (ages_ms <= max_age_ms) | bracketed
+    )
     fx_bid = np.full(len(path_times_ns), np.nan, dtype=float)
     fx_ask = np.full(len(path_times_ns), np.nan, dtype=float)
     bid_values = frame["bid"].to_numpy(dtype=float, copy=False)

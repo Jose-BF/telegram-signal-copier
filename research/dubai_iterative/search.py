@@ -184,7 +184,11 @@ def cross_validate_frontier_candidates(
     report: ChronologicalSearchReport,
     *,
     evaluator: Evaluator = simulate,
+    additional_execution_scenarios: Sequence[
+        tuple[str, Evaluator]
+    ] = (),
     minimum_participation: float = 0.50,
+    minimum_positive_challenge_ratio: float = 1.0,
     workers: int = 1,
     progress_callback: CandidateProgressCallback | None = None,
 ) -> CrossFoldCandidateValidation:
@@ -196,21 +200,50 @@ def cross_validate_frontier_candidates(
         for fold_report in report.fold_reports
         for item in fold_report.frontier
     )
-    evaluations = _evaluate_population(
-        genomes,
-        tuple(dataset.paths),
-        evaluator,
-        workers=workers,
-        progress_callback=progress_callback,
+    scenario_evaluators = (
+        ("full_window", evaluator),
+        *tuple(additional_execution_scenarios),
     )
+    scenario_names = tuple(name for name, _item in scenario_evaluators)
+    if any(not str(name).strip() for name in scenario_names):
+        raise ValueError("execution scenario names cannot be empty")
+    if len(set(scenario_names)) != len(scenario_names):
+        raise ValueError("execution scenario names must be unique")
+
+    scenario_evaluations: list[
+        tuple[str, tuple[CandidateEvaluation, ...]]
+    ] = []
+    total = len(genomes) * len(scenario_evaluators)
+    completed_before = 0
+    for name, scenario_evaluator in scenario_evaluators:
+        callback = None
+        if progress_callback is not None:
+            callback = lambda completed, _subtotal, offset=completed_before: (
+                progress_callback(offset + completed, total)
+            )
+        evaluations = _evaluate_population(
+            genomes,
+            tuple(dataset.paths),
+            scenario_evaluator,
+            workers=workers,
+            progress_callback=callback,
+        )
+        scenario_evaluations.append((name, evaluations))
+        completed_before += len(genomes)
+
     assessments = tuple(
         assess_execution_robustness(
-            (ScenarioEvaluation("full_window", evaluation),),
+            tuple(
+                ScenarioEvaluation(name, evaluations[index])
+                for name, evaluations in scenario_evaluations
+            ),
             minimum_participation=minimum_participation,
             folds=folds,
-            minimum_positive_challenge_ratio=1.0,
+            minimum_positive_challenge_ratio=(
+                minimum_positive_challenge_ratio
+            ),
         )
-        for evaluation in evaluations
+        for index in range(len(genomes))
     )
     ranked = rank_robust_candidates(assessments)
     eligible = tuple(item for item in ranked if item.robustness_eligible)

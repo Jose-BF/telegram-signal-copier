@@ -446,6 +446,72 @@ def test_cross_fold_gate_retests_every_frontier_candidate_on_all_challenges(
     assert progress[-1] == (2, 2)
 
 
+def test_cross_fold_gate_rejects_rule_that_only_wins_in_base_execution(tmp_path):
+    genome = StrategyGenome.baseline().with_change(time_exit_min=30)
+    fold = ChronologicalFold(
+        "only", "2026-07-27", "2026-07-27",
+        "2026-07-28", "2026-07-28",
+    )
+    dataset = TinyDataset(
+        paths=(
+            TinyPath("day_1", "2026-07-27"),
+            TinyPath("day_2", "2026-07-28"),
+        ),
+        source_hashes={"fixture": "execution-worlds"},
+    )
+
+    def base(path, active_genome):
+        return replace(
+            _flat_evaluator(path, active_genome),
+            pnl_eur=Decimal("2.00"),
+        )
+
+    def stressed(path, active_genome):
+        return replace(
+            _flat_evaluator(path, active_genome),
+            pnl_eur=Decimal("-1.00"),
+        )
+
+    development = CandidateEvaluation.from_results(
+        genome,
+        (("2026-07-27", base(dataset.paths[0], genome)),),
+    )
+    report = ChronologicalSearchReport((SearchReport(
+        fold=fold,
+        stop_reason="max_generations",
+        generations_completed=1,
+        evaluations=1,
+        elapsed_seconds=1.0,
+        frontier=(development,),
+        challenge_evaluations=(),
+        checkpoint_path=tmp_path / "checkpoint.json",
+        stale_generations=0,
+        generation_summaries=(),
+    ),))
+    progress = []
+
+    validated = cross_validate_frontier_candidates(
+        dataset,
+        report,
+        evaluator=base,
+        additional_execution_scenarios=(("stressed", stressed),),
+        minimum_positive_challenge_ratio=0.0,
+        progress_callback=lambda completed, total: progress.append(
+            (completed, total)
+        ),
+    )
+
+    assessment = validated.assessments[0]
+    assert validated.eligible == ()
+    assert assessment.scenario_count == 2
+    assert assessment.worst_net_eur == Decimal("-2.00")
+    assert [item.name for item in assessment.scenarios] == [
+        "full_window",
+        "stressed",
+    ]
+    assert progress[-1] == (2, 2)
+
+
 def test_generation_zero_reserves_space_for_distant_strategy_scouts(tmp_path):
     evaluated = []
 
