@@ -5,6 +5,7 @@ from __future__ import annotations
 from types import MappingProxyType
 from typing import Mapping
 
+from strategy_runtime_contract import all_strategy_contracts
 from strategy_shadow_contracts import ShadowPolicy
 
 
@@ -49,109 +50,14 @@ def build_shadow_catalog(
         )
 
     catalog = {
-        "canal1": (
-            ShadowPolicy(
-                candidate_id="dubai_balanced_v1",
-                channel="canal1",
-                role=role("canal1", "dubai_balanced_v1"),
-                strategy_fingerprint=DUBAI_BALANCED_FINGERPRINT,
-                entry_mode="market_ladder",
-                entry_volumes=(0.01, 0.04, 0.04),
-                ladder_step=4.0,
-                ladder_expiry_minutes=15,
-                basket_stop_eur=25.0,
-                profit_arm_eur=10.0,
-                profit_giveback_eur=2.0,
-                time_exit_minutes=40,
-                time_exit_mode="loss_only",
-                provider_management_mode="exact",
-            ),
-            ShadowPolicy(
-                candidate_id="dubai_frontloaded_30m_v1",
-                channel="canal1",
-                role=role("canal1", "dubai_frontloaded_30m_v1"),
-                strategy_fingerprint=DUBAI_FRONTLOADED_30M_FINGERPRINT,
-                entry_mode="market_ladder",
-                entry_volumes=(0.01, 0.05, 0.01, 0.02, 0.01, 0.02),
-                ladder_step=4.0,
-                ladder_expiry_minutes=15,
-                basket_stop_eur=30.0,
-                profit_arm_eur=10.0,
-                profit_giveback_eur=8.0,
-                time_exit_minutes=30,
-                time_exit_mode="loss_only",
-                provider_management_mode="exact",
-            ),
-            ShadowPolicy(
-                candidate_id="dubai_frontloaded_40m_v1",
-                channel="canal1",
-                role=role("canal1", "dubai_frontloaded_40m_v1"),
-                strategy_fingerprint=DUBAI_FRONTLOADED_40M_FINGERPRINT,
-                entry_mode="market_ladder",
-                entry_volumes=(0.01, 0.05, 0.01, 0.02, 0.01, 0.02),
-                ladder_step=4.0,
-                ladder_expiry_minutes=15,
-                basket_stop_eur=30.0,
-                profit_arm_eur=10.0,
-                profit_giveback_eur=8.0,
-                time_exit_minutes=40,
-                time_exit_mode="loss_only",
-                provider_management_mode="exact",
-            ),
-        ),
-        "canal2": (
-            ShadowPolicy(
-                candidate_id="gold_now_555_v1",
-                channel="canal2",
-                role=role("canal2", "gold_now_555_v1"),
-                strategy_fingerprint=GOLD_555_FINGERPRINT,
-                entry_mode="adverse_reversal",
-                entry_volumes=(0.04, 0.03, 0.03, 0.03, 0.03),
-                ladder_step=1.5,
-                ladder_expiry_minutes=30,
-                entry_adverse=1.0,
-                entry_reversal=1.5,
-                target_steps=(0.5, 1.0, 1.5, 2.0, 2.5),
-                trailing_distance=30.0,
-                profit_arm_eur=30.0,
-                profit_giveback_eur=1.0,
-                time_exit_minutes=180,
-                time_exit_mode="non_negative",
-                provider_management_mode="explicit_close_only",
-            ),
-            ShadowPolicy(
-                candidate_id="gold_now_b210_v1",
-                channel="canal2",
-                role=role("canal2", "gold_now_b210_v1"),
-                strategy_fingerprint=GOLD_B210_FINGERPRINT,
-                entry_mode="market_ladder",
-                entry_volumes=(0.01, 0.01, 0.01, 0.01, 0.01, 0.01),
-                ladder_step=1.0,
-                ladder_expiry_minutes=15,
-                basket_stop_eur=60.0,
-                profit_arm_eur=30.0,
-                profit_giveback_eur=10.0,
-                time_exit_minutes=3,
-                time_exit_mode="profit_only",
-                provider_management_mode="exact",
-            ),
-            ShadowPolicy(
-                candidate_id="gold_now_c490_v1",
-                channel="canal2",
-                role=role("canal2", "gold_now_c490_v1"),
-                strategy_fingerprint=GOLD_C490_FINGERPRINT,
-                entry_mode="immediate_multi",
-                entry_volumes=(0.01, 0.01, 0.01, 0.01, 0.01),
-                hard_stop_eur_per_leg=20.0,
-                break_even_trigger_xau=12.0,
-                basket_stop_eur=100.0,
-                profit_arm_eur=10.0,
-                profit_giveback_eur=8.0,
-                time_exit_minutes=40,
-                time_exit_mode="loss_only",
-                provider_management_mode="ignore",
-            ),
-        ),
+        channel: tuple(
+            contract.to_shadow_policy(
+                role=role(channel, contract.strategy_id),
+            )
+            for contract in all_strategy_contracts()
+            if contract.channel == channel
+        )
+        for channel in ("canal1", "canal2")
     }
     validate_shadow_catalog(catalog)
     return MappingProxyType(catalog)
