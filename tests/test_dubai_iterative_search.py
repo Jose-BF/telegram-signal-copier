@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from datetime import datetime, timezone
 from decimal import Decimal
 
 import numpy as np
 import pytest
 
 from research.dubai_iterative.contracts import SearchBudget, SearchSpace, StrategyGenome
-from research.dubai_iterative.engine import SimulationResult
+from research.dubai_iterative.engine import EntryRecord, ExitRecord, SimulationResult
 from research.dubai_iterative.evolution import CandidateEvaluation, Diagnosis
 from research.dubai_iterative.search import (
     ChronologicalFold,
@@ -23,6 +24,7 @@ from research.dubai_iterative.search import (
     _next_population,
     _replace_checkpoint,
 )
+from research.dubai_iterative.robustness import simulation_behavior_digest
 
 
 @dataclass(frozen=True)
@@ -793,6 +795,58 @@ def test_chronological_search_can_discard_fold_rows_after_aggregation(tmp_path):
     assert all(item.net_eur is not None for item in fold.challenge_evaluations)
     assert all(item.results == () for item in fold.frontier)
     assert all(item.results == () for item in fold.challenge_evaluations)
+
+
+def test_compact_population_keeps_exact_behavior_digest_and_money_metrics():
+    opened = datetime(2026, 7, 27, 9, 0, tzinfo=timezone.utc)
+
+    def evaluator(path, genome):
+        return replace(
+            _flat_evaluator(path, genome),
+            entries=(EntryRecord(
+                ticket="entry_1",
+                tick_index=1,
+                opened_at=opened,
+                entry_price=100.2,
+                volume=0.01,
+                source="market",
+            ),),
+            exits=(ExitRecord(
+                ticket="entry_1",
+                tick_index=2,
+                closed_at=opened,
+                entry_price=100.2,
+                exit_price=101.2,
+                volume=0.01,
+                pnl_eur=Decimal("1.00"),
+                reason="fixed_move_target",
+            ),),
+        )
+
+    genome = StrategyGenome.baseline()
+    full = _evaluate_population(
+        (genome,),
+        (_dataset().paths[0],),
+        evaluator,
+        workers=1,
+    )[0]
+    compact = _evaluate_population(
+        (genome,),
+        (_dataset().paths[0],),
+        evaluator,
+        workers=1,
+        compact_results=True,
+    )[0]
+
+    assert compact.net_eur == full.net_eur
+    assert compact.max_drawdown_eur == full.max_drawdown_eur
+    compact_result = compact.results[0][1]
+    full_result = full.results[0][1]
+    assert compact_result.entries == ()
+    assert compact_result.exits == ()
+    assert compact_result.behavior_digest == simulation_behavior_digest(
+        full_result
+    )
 
 
 def test_cross_fold_gate_rejects_rule_that_only_wins_in_base_execution(tmp_path):

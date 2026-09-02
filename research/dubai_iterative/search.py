@@ -33,6 +33,7 @@ from .robustness import (
     ScenarioEvaluation,
     assess_execution_robustness,
     rank_robust_candidates,
+    simulation_behavior_digest,
 )
 
 
@@ -266,6 +267,7 @@ def cross_validate_frontier_candidates(
                 scenario_evaluator,
                 workers=workers,
                 progress_callback=callback,
+                compact_results=True,
             )
         finally:
             _release_evaluator_cache(scenario_evaluator)
@@ -846,7 +848,10 @@ def _evaluate_population(
     *,
     workers: int,
     progress_callback: CandidateProgressCallback | None = None,
+    compact_results: bool = False,
 ) -> tuple[CandidateEvaluation, ...]:
+    if not isinstance(compact_results, bool):
+        raise ValueError("compact_results must be boolean")
     genomes = tuple(genomes)
     paths = tuple(paths)
     if bool(getattr(evaluator, "path_bounded_cache", False)):
@@ -856,13 +861,19 @@ def _evaluate_population(
             evaluator,
             workers=workers,
             progress_callback=progress_callback,
+            compact_results=compact_results,
         )
 
     def evaluate(genome: StrategyGenome) -> CandidateEvaluation:
         return CandidateEvaluation.from_results(
             genome,
             (
-                (str(path.day), evaluator(path, genome))
+                (
+                    str(path.day),
+                    _compact_result(evaluator(path, genome))
+                    if compact_results
+                    else evaluator(path, genome),
+                )
                 for path in paths
             ),
         )
@@ -892,6 +903,7 @@ def _evaluate_population_path_major(
     *,
     workers: int,
     progress_callback: CandidateProgressCallback | None,
+    compact_results: bool,
 ) -> tuple[CandidateEvaluation, ...]:
     """Compile one tick path at a time and release it after all genomes."""
 
@@ -908,6 +920,8 @@ def _evaluate_population_path_major(
                     lambda genome: evaluator(path, genome),
                     genomes,
                 ))
+            if compact_results:
+                results = tuple(_compact_result(item) for item in results)
             day = str(path.day)
             for index, result in enumerate(results):
                 rows[index].append((day, result))
@@ -934,6 +948,17 @@ def _evaluate_population_path_major(
         if progress_callback is not None:
             progress_callback(index, len(genomes))
     return tuple(evaluations)
+
+
+def _compact_result(result: SimulationResult) -> SimulationResult:
+    return replace(
+        result,
+        entries=(),
+        exits=(),
+        behavior_digest=(
+            result.behavior_digest or simulation_behavior_digest(result)
+        ),
+    )
 
 
 def _next_population(

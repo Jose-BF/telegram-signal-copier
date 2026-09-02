@@ -75,6 +75,7 @@ class SimulationResult:
     last_tick_index: int
     unfilled: bool
     filled_volume: float
+    behavior_digest: str | None = None
 
 
 @dataclass

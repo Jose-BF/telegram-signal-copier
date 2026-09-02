@@ -432,47 +432,12 @@ def _observed_behavior_id(
             scenario.evaluation.results,
             key=lambda row: (str(row[0]), row[1].signal_id),
         ):
-            entries = sorted((
-                {
-                    "tick_index": item.tick_index,
-                    "opened_at": item.opened_at.isoformat(),
-                    "entry_price": float(item.entry_price).hex(),
-                    "volume": float(item.volume).hex(),
-                }
-                for item in result.entries
-            ), key=_canonical_sort_key)
-            exits = sorted((
-                {
-                    "tick_index": item.tick_index,
-                    "closed_at": item.closed_at.isoformat(),
-                    "entry_price": float(item.entry_price).hex(),
-                    "exit_price": float(item.exit_price).hex(),
-                    "volume": float(item.volume).hex(),
-                    "pnl_eur": _canonical_decimal(item.pnl_eur),
-                    "reason": item.reason,
-                }
-                for item in result.exits
-            ), key=_canonical_sort_key)
             results.append({
                 "day": str(day),
-                "signal_id": result.signal_id,
-                "entries": entries,
-                "exits": exits,
-                "pnl_eur": _canonical_decimal(result.pnl_eur),
-                "exit_reason": result.exit_reason,
-                "max_favourable_eur": _canonical_decimal(
-                    result.max_favourable_eur
+                "behavior_digest": (
+                    result.behavior_digest
+                    or simulation_behavior_digest(result)
                 ),
-                "max_adverse_eur": _canonical_decimal(result.max_adverse_eur),
-                "max_floating_drawdown_eur": _canonical_decimal(
-                    result.max_floating_drawdown_eur
-                ),
-                "max_favourable_move": float(result.max_favourable_move).hex(),
-                "max_adverse_move": float(result.max_adverse_move).hex(),
-                "blockers": sorted(result.blockers),
-                "last_tick_index": result.last_tick_index,
-                "unfilled": result.unfilled,
-                "filled_volume": float(result.filled_volume).hex(),
             })
         scenarios.append({"name": scenario.name, "results": results})
     encoded = json.dumps(
@@ -496,6 +461,60 @@ def _observed_behavior_id(
         allow_nan=False,
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def simulation_behavior_digest(result) -> str:
+    """Hash every observable decision before heavy entry/exit rows are dropped."""
+
+    encoded = json.dumps(
+        _canonical_result_behavior(result),
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _canonical_result_behavior(result) -> dict[str, object]:
+    entries = sorted((
+        {
+            "tick_index": item.tick_index,
+            "opened_at": item.opened_at.isoformat(),
+            "entry_price": float(item.entry_price).hex(),
+            "volume": float(item.volume).hex(),
+        }
+        for item in result.entries
+    ), key=_canonical_sort_key)
+    exits = sorted((
+        {
+            "tick_index": item.tick_index,
+            "closed_at": item.closed_at.isoformat(),
+            "entry_price": float(item.entry_price).hex(),
+            "exit_price": float(item.exit_price).hex(),
+            "volume": float(item.volume).hex(),
+            "pnl_eur": _canonical_decimal(item.pnl_eur),
+            "reason": item.reason,
+        }
+        for item in result.exits
+    ), key=_canonical_sort_key)
+    return {
+        "signal_id": result.signal_id,
+        "entries": entries,
+        "exits": exits,
+        "pnl_eur": _canonical_decimal(result.pnl_eur),
+        "exit_reason": result.exit_reason,
+        "max_favourable_eur": _canonical_decimal(result.max_favourable_eur),
+        "max_adverse_eur": _canonical_decimal(result.max_adverse_eur),
+        "max_floating_drawdown_eur": _canonical_decimal(
+            result.max_floating_drawdown_eur
+        ),
+        "max_favourable_move": float(result.max_favourable_move).hex(),
+        "max_adverse_move": float(result.max_adverse_move).hex(),
+        "blockers": sorted(result.blockers),
+        "last_tick_index": result.last_tick_index,
+        "unfilled": result.unfilled,
+        "filled_volume": float(result.filled_volume).hex(),
+    }
 
 
 def _canonical_sort_key(payload: dict[str, object]) -> str:
