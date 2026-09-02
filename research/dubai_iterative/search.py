@@ -486,29 +486,32 @@ def run_chronological_search(
             candidate = Path(resume_from_root) / fold.name / "checkpoint.json"
             if candidate.is_file():
                 resume_from = candidate
-        reports.append(run_search(
-            dataset,
-            fold=fold,
-            budget=budget,
-            search_space=search_space,
-            output_dir=Path(output_dir) / fold.name,
-            evaluator=evaluator,
-            critic=critic,
-            mutator=mutator,
-            seed=seed,
-            population_size=population_size,
-            clock=clock,
-            progress_callback=progress_callback,
-            evaluation_callback=evaluation_callback,
-            experiment_context=experiment_context,
-            workers=workers,
-            initial_genomes=initial_genomes,
-            seed_population_factory=seed_population_factory,
-            scout_population_factory=scout_population_factory,
-            neighborhood_factory=neighborhood_factory,
-            baseline_genome=baseline_genome,
-            resume_from=resume_from,
-        ))
+        try:
+            reports.append(run_search(
+                dataset,
+                fold=fold,
+                budget=budget,
+                search_space=search_space,
+                output_dir=Path(output_dir) / fold.name,
+                evaluator=evaluator,
+                critic=critic,
+                mutator=mutator,
+                seed=seed,
+                population_size=population_size,
+                clock=clock,
+                progress_callback=progress_callback,
+                evaluation_callback=evaluation_callback,
+                experiment_context=experiment_context,
+                workers=workers,
+                initial_genomes=initial_genomes,
+                seed_population_factory=seed_population_factory,
+                scout_population_factory=scout_population_factory,
+                neighborhood_factory=neighborhood_factory,
+                baseline_genome=baseline_genome,
+                resume_from=resume_from,
+            ))
+        finally:
+            _release_evaluator_cache(evaluator)
     return ChronologicalSearchReport(tuple(reports))
 
 

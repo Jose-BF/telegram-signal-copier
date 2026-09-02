@@ -680,6 +680,52 @@ def test_cross_fold_releases_each_execution_world_cache(tmp_path):
     assert stress.clear_calls == 1
 
 
+def test_chronological_search_releases_cache_after_every_fold(tmp_path):
+    dataset = TinyDataset(
+        paths=(
+            TinyPath("day_1", "2026-07-27"),
+            TinyPath("day_2", "2026-07-28"),
+            TinyPath("day_3", "2026-07-29"),
+        ),
+        source_hashes={"fixture": "fold-cache-release"},
+    )
+    folds = (
+        ChronologicalFold(
+            "fold_1", "2026-07-27", "2026-07-27",
+            "2026-07-28", "2026-07-28",
+        ),
+        ChronologicalFold(
+            "fold_2", "2026-07-27", "2026-07-28",
+            "2026-07-29", "2026-07-29",
+        ),
+    )
+
+    class CacheAwareEvaluator:
+        def __init__(self):
+            self.clear_calls = 0
+
+        def __call__(self, path, genome):
+            return _flat_evaluator(path, genome)
+
+        def clear_cache(self):
+            self.clear_calls += 1
+
+    evaluator = CacheAwareEvaluator()
+
+    report = run_chronological_search(
+        dataset,
+        folds=folds,
+        budget=SearchBudget(max_generations=1),
+        search_space=SearchSpace(),
+        output_dir=tmp_path,
+        evaluator=evaluator,
+        population_size=4,
+    )
+
+    assert len(report.fold_reports) == 2
+    assert evaluator.clear_calls == 2
+
+
 def test_cross_fold_gate_rejects_rule_that_only_wins_in_base_execution(tmp_path):
     genome = StrategyGenome.baseline().with_change(time_exit_min=30)
     fold = ChronologicalFold(
