@@ -45,6 +45,45 @@ class ProvenanceConflictError(RuntimeError):
     """An immutable run directory no longer matches its recorded bytes."""
 
 
+def verify_published_run(run_dir: Path) -> PublishedRun:
+    """Verify a published run from its immutable card and byte manifest."""
+
+    run_dir = Path(run_dir)
+    manifest_path = run_dir / "artifact_manifest.json"
+    card_path = run_dir / "run_card.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        card = json.loads(card_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ProvenanceConflictError(f"published run is unreadable: {exc}") from exc
+    run_id = str(card.get("run_id") or "")
+    identity = dict(card)
+    identity.pop("run_id", None)
+    expected_id = hashlib.sha256(_canonical_bytes(identity)).hexdigest()[:20]
+    if not run_id or run_id != expected_id or run_dir.name != run_id:
+        raise ProvenanceConflictError("run identity does not match its run card")
+    if (
+        manifest.get("schema_version") != ARTIFACT_SCHEMA_VERSION
+        or manifest.get("run_id") != run_id
+    ):
+        raise ProvenanceConflictError("artifact manifest identity mismatch")
+    recorded = manifest.get("files")
+    if not isinstance(recorded, dict):
+        raise ProvenanceConflictError("artifact manifest has no file hashes")
+    actual_files = {
+        path.relative_to(run_dir).as_posix()
+        for path in run_dir.rglob("*")
+        if path.is_file() and path.name != "artifact_manifest.json"
+    }
+    if actual_files != set(recorded):
+        raise ProvenanceConflictError("artifact manifest file set mismatch")
+    for relative, expected_hash in recorded.items():
+        path = run_dir / relative
+        if _sha256_file(path) != expected_hash:
+            raise ProvenanceConflictError(f"immutable artifact conflict: {relative}")
+    return PublishedRun(run_id=run_id, run_dir=run_dir)
+
+
 def publish_run(artifacts: ResearchArtifacts, output_root: Path) -> PublishedRun:
     output_root = Path(output_root)
     output_root.mkdir(parents=True, exist_ok=True)

@@ -228,6 +228,58 @@ time, stale generations and lineage depth are all hard stopping conditions.
 A retrospective result remains unvalidated until it survives untouched
 forward/OOS evidence with the project sample-size and significance gates.
 
+Offline iterative Gold Signals NOW research:
+
+- `research/gold_iterative/` applies the same causal, fixed-point simulation
+  discipline to every formal Canal 2 `BUY/SELL NOW` signal. Zone plans remain
+  a separate research universe and cannot enter this ranking silently.
+- A trading day is either complete or excluded in full. Blocked and unexecuted
+  formal NOW signals remain in the denominator, so a failed capture cannot make
+  a day look artificially profitable.
+- Gold 555, c490 and the provider-style baseline are ordinary immutable
+  strategy configurations evaluated by the same engines. They do not have
+  duplicated simulation code or privileged accounting.
+- Search candidates are written as deterministic Parquet fragments after each
+  generation. A stopped run can resume from verified checkpoints without
+  retaining the full population in Python memory.
+- The fast engine, scalar engine and independent oracle must agree to the cent.
+  Provider-declared pips are kept in a separate diagnostic scorecard and never
+  select a money strategy.
+
+Inspect the usable corpus before spending time on a search:
+
+```powershell
+python -m research.gold_iterative inspect --from 2026-07-27
+```
+
+Run or resume a bounded search, then verify every published byte:
+
+```powershell
+python -m research.gold_iterative search `
+  --from 2026-07-27 --max-total-volume 1.00 --max-legs 12 `
+  --max-generations 8 --population-size 64 `
+  --max-evaluations 800 --max-wall-seconds 1800 `
+  --oracle-finalists 3 --progress
+
+python -m research.gold_iterative resume `
+  --from 2026-07-27 --max-total-volume 1.00 --max-legs 12 `
+  --max-generations 16 --population-size 64 `
+  --max-evaluations 1600 --max-wall-seconds 3600 `
+  --oracle-finalists 3 --progress
+
+python -m research.gold_iterative verify `
+  --run-dir runtime_data\gold_strategy_runs\<run-id>
+
+python -m research.gold_iterative compare-provider-claims `
+  --run-dir runtime_data\gold_strategy_runs\<run-id>
+```
+
+Confidence labels are intentionally strict. `diagnostic_only` means at least
+one evidence gate failed. `retrospective_ranked_requires_untouched_forward`
+means the historical comparison is internally complete but is not a live
+winner. Only a separately frozen strategy that survives new untouched demo
+signals may advance toward promotion; the research command never deploys it.
+
 Current frozen Dubai research checkpoint (2026-08-22):
 
 - The retrospective universe is `2026-07-27..2026-08-14`: 45 exact signals

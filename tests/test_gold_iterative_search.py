@@ -235,3 +235,37 @@ def test_gold_development_profit_that_fails_later_is_not_a_winner():
 
     assert assessment.confidence == "retrospective_unstable"
     assert assessment.promotion_eligible is False
+
+
+def test_gold_search_resume_matches_an_uninterrupted_run(tmp_path):
+    dataset = _complete_dataset()
+    plan = build_gold_fold_plan(dataset)
+    common = {
+        "dataset": dataset,
+        "fold_plan": plan,
+        "search_space": SearchSpace(),
+        "evaluator": _flat_evaluator,
+        "population_size": 8,
+    }
+    first = run_gold_chronological_search(
+        **common,
+        budget=SearchBudget(max_generations=1, patience_generations=10),
+        output_dir=tmp_path / "resumed",
+    )
+    resumed = run_gold_chronological_search(
+        **common,
+        budget=SearchBudget(max_generations=2, patience_generations=10),
+        output_dir=tmp_path / "resumed",
+        resume_from_root=tmp_path / "resumed",
+    )
+    uninterrupted = run_gold_chronological_search(
+        **common,
+        budget=SearchBudget(max_generations=2, patience_generations=10),
+        output_dir=tmp_path / "uninterrupted",
+    )
+
+    assert first.search.fold_reports[0].generations_completed == 1
+    assert resumed.search.fold_reports[0].generations_completed == 2
+    assert resumed.search.fold_reports[0].frontier_fingerprints == (
+        uninterrupted.search.fold_reports[0].frontier_fingerprints
+    )

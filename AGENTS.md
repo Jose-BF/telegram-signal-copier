@@ -106,6 +106,31 @@ report and run archive.
   seeded run must label them `research_seed_only_full_sample_origin_not_oos`;
   it cannot reset or improve the confidence class by itself.
 
+## Iterative Gold NOW Research
+
+- `research/gold_iterative/` owns Canal 2 formal `BUY/SELL NOW` discovery.
+  Gold zone plans are a separate universe and must never be included by an
+  implicit fallback.
+- Account for every eligible formal signal. Preserve blocked and unexecuted
+  signals and their observed trading day; only complete days may enter folds.
+- Keep all baskets from one day together. Development data may diagnose and
+  mutate; later challenge data may evaluate only and must never feed mutation.
+- Gold 555, c490 and provider baselines are genomes through the common scalar,
+  fixed-point and independent-oracle path. Do not add strategy-specific replay
+  branches to make one policy match live results.
+- Candidate populations must stream to deterministic Parquet fragments. Resume
+  only from checkpoints whose dataset, search envelope, operators and seed
+  match the current experiment.
+- Never compare provider pips with account-currency P&L as if they shared a
+  unit. Provider scorecards are accounting hypotheses and cannot select a
+  strategy.
+- Any incomplete MT5, tick, money, oracle, chronological or source-manifest
+  gate forces `diagnostic_only`. A complete retrospective run still requires a
+  frozen untouched forward cohort before any promotion claim.
+- `python -m research.gold_iterative verify --run-dir <path>` must pass before
+  quoting a run. Research code cannot import live order modules, deploy, restart
+  the VM or change the active policy.
+
 ## Recursive Reliability Evidence
 
 - Logs may propose patterns; they never modify runtime rules or promote themselves.

@@ -272,11 +272,18 @@ def run_chronological_search(
     scout_population_factory: PopulationFactory = sample_diverse_population,
     neighborhood_factory: NeighborhoodFactory = parameter_neighborhood,
     baseline_genome: StrategyGenome | None = None,
+    resume_from_root: Path | None = None,
 ) -> ChronologicalSearchReport:
     """Run each expanding fold independently with its own frozen challenge."""
 
-    reports = tuple(
-        run_search(
+    reports = []
+    for fold in folds:
+        resume_from = None
+        if resume_from_root is not None:
+            candidate = Path(resume_from_root) / fold.name / "checkpoint.json"
+            if candidate.is_file():
+                resume_from = candidate
+        reports.append(run_search(
             dataset,
             fold=fold,
             budget=budget,
@@ -297,10 +304,9 @@ def run_chronological_search(
             scout_population_factory=scout_population_factory,
             neighborhood_factory=neighborhood_factory,
             baseline_genome=baseline_genome,
-        )
-        for fold in folds
-    )
-    return ChronologicalSearchReport(reports)
+            resume_from=resume_from,
+        ))
+    return ChronologicalSearchReport(tuple(reports))
 
 
 def run_search(

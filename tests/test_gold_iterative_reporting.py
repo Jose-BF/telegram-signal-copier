@@ -157,6 +157,11 @@ def _artifacts(gates: GoldEvidenceGates):
         gates=gates,
         provider_scorecard=_scorecard(),
         provider_pip_hypotheses=(_hypothesis(),),
+        run_metadata={
+            "seed": 20260902,
+            "budget": {"max_generations": 2},
+            "engine": "fixture_fixed_point",
+        },
     )
 
 
@@ -180,6 +185,7 @@ def test_gold_report_never_mixes_mt5_eur_simulated_eur_and_provider_pips():
     assert card["selection"]["ranking_allowed"] is False
     assert card["selection"]["status"] == "diagnostic_only"
     assert card["selection"]["selected_strategy_fingerprint"] is None
+    assert card["run_metadata"]["seed"] == 20260902
     assert "oracle_parity_incomplete" in card["selection"]["blockers"]
     assert "retrospective_rank" not in artifacts.frontier[0]
 
@@ -222,3 +228,53 @@ def test_gold_publication_keeps_daily_and_claim_evidence_immutable(tmp_path):
     (published.run_dir / "daily_totals.parquet").write_bytes(b"corrupt")
     with pytest.raises(ProvenanceConflictError, match="daily_totals.parquet"):
         publish_run(artifacts, tmp_path)
+
+
+def test_financial_totals_exclude_partial_days_from_the_research_universe():
+    paths = (
+        TinyPath("complete_1", "2026-08-24", Decimal("1.00")),
+        TinyPath("partial_loaded", "2026-08-25", Decimal("-99.00")),
+        TinyPath("complete_2", "2026-08-26", Decimal("2.00")),
+        TinyPath("complete_3", "2026-08-27", Decimal("3.00")),
+    )
+    dataset = TinyDataset(
+        paths=paths,
+        eligible_signal_ids=(
+            "complete_1",
+            "partial_loaded",
+            "partial_missing",
+            "complete_2",
+            "complete_3",
+        ),
+        eligible_signal_days={
+            "complete_1": "2026-08-24",
+            "partial_loaded": "2026-08-25",
+            "partial_missing": "2026-08-25",
+            "complete_2": "2026-08-26",
+            "complete_3": "2026-08-27",
+        },
+        exclusions={"tick_replay_blocked": ("partial_missing",)},
+        source_hashes={"fixture": "partial-day"},
+    )
+    plan = build_gold_fold_plan(dataset)
+    evaluation = CandidateEvaluation.from_results(
+        gold_555_genome(),
+        (
+            (path.day, _result(path, "1.00"))
+            for path in (paths[0], paths[2], paths[3])
+        ),
+    )
+
+    artifacts = build_gold_research_artifacts(
+        dataset,
+        fold_plan=plan,
+        frontier_evaluations=(evaluation,),
+        candidate_evaluations=(evaluation,),
+        generation_rows=(),
+        gates=_gates(),
+        provider_scorecard={"summaries": []},
+    )
+
+    assert artifacts.run_card["financial_totals"]["actual_mt5"]["amount"] == "6.00"
+    daily = pd.DataFrame(artifacts.extra_tables["daily_totals.parquet"])
+    assert "2026-08-25" not in set(daily["day"])

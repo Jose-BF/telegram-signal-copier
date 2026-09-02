@@ -5,7 +5,10 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from decimal import Decimal
 import json
+from pathlib import Path
 from typing import Mapping, Sequence
+
+import pandas as pd
 
 from research.dubai_iterative.evolution import CandidateEvaluation
 from research.dubai_iterative.reporting import ResearchArtifacts
@@ -80,6 +83,11 @@ def build_gold_research_artifacts(
     provider_scorecard: Mapping[str, object],
     candidate_evaluations: Sequence[CandidateEvaluation] | None = None,
     provider_pip_hypotheses: Sequence[ProviderPipHypothesis] = (),
+    run_metadata: Mapping[str, object] | None = None,
+    candidate_rows_source: (
+        Sequence[Mapping[str, object]] | pd.DataFrame | Path | None
+    ) = None,
+    candidate_population_size: int | None = None,
 ) -> ResearchArtifacts:
     """Build immutable evidence without comparing unlike financial units."""
 
@@ -97,6 +105,13 @@ def build_gold_research_artifacts(
     }.difference(candidate_fingerprints)
     if missing_frontier:
         raise ValueError("frontier evaluations must exist in candidate population")
+    if candidate_population_size is not None and candidate_population_size < 0:
+        raise ValueError("candidate_population_size must be non-negative")
+    population_size = (
+        len(candidates)
+        if candidate_population_size is None
+        else candidate_population_size
+    )
     hypotheses = _unique_hypotheses(provider_pip_hypotheses)
     blockers = list(gates.blockers)
     if not evaluations:
@@ -136,9 +151,13 @@ def build_gold_research_artifacts(
             row["retrospective_rank"] = rank
         frontier.append(row)
 
-    path_by_signal = {str(path.signal_id): path for path in dataset.paths}
+    complete_days = set(fold_plan.complete_days)
+    research_paths = tuple(
+        path for path in dataset.paths if str(path.day) in complete_days
+    )
+    path_by_signal = {str(path.signal_id): path for path in research_paths}
     actual_total = sum(
-        (Decimal(str(path.actual_pnl_eur)) for path in dataset.paths),
+        (Decimal(str(path.actual_pnl_eur)) for path in research_paths),
         start=Decimal(0),
     )
     provider_claims = _provider_claim_totals(provider_scorecard)
@@ -164,6 +183,9 @@ def build_gold_research_artifacts(
         "signal_scope": "formal_telegram_now",
         "source_hashes": dict(sorted(dataset.source_hashes.items())),
         "eligible_signal_ids": list(dataset.eligible_signal_ids),
+        "research_signal_ids": [
+            str(path.signal_id) for path in research_paths
+        ],
         "exclusions": {
             reason: list(signal_ids)
             for reason, signal_ids in sorted(dataset.exclusions.items())
@@ -207,15 +229,20 @@ def build_gold_research_artifacts(
             }
             for item in hypotheses
         ],
-        "candidate_population_size": len(candidates),
+        "candidate_population_size": population_size,
+        "run_metadata": dict(run_metadata or {}),
     }
     return ResearchArtifacts(
         run_card=run_card,
         frontier=tuple(frontier),
         generation_rows=tuple(dict(row) for row in generation_rows),
-        candidate_rows=_candidate_rows(
-            candidates,
-            currency_digits=dataset.currency_digits,
+        candidate_rows=(
+            candidate_rows_source
+            if candidate_rows_source is not None
+            else _candidate_rows(
+                candidates,
+                currency_digits=dataset.currency_digits,
+            )
         ),
         signal_rows=_signal_rows(
             candidates,
@@ -228,7 +255,7 @@ def build_gold_research_artifacts(
         extra_tables={
             "daily_totals.parquet": _daily_rows(
                 candidates,
-                tuple(dataset.paths),
+                research_paths,
                 provider_claims,
                 currency_digits=dataset.currency_digits,
             ),

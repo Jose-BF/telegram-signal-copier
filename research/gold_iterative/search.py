@@ -63,6 +63,7 @@ def run_gold_chronological_search(
     experiment_context: Mapping[str, object] | None = None,
     workers: int = 1,
     initial_genomes: Sequence[StrategyGenome] = (),
+    resume_from_root: Path | None = None,
 ) -> GoldSearchReport:
     """Run the shared engine with Gold-only evidence and search operators."""
 
@@ -101,5 +102,6 @@ def run_gold_chronological_search(
         scout_population_factory=sample_gold_population,
         neighborhood_factory=parameter_neighborhood,
         baseline_genome=gold_555_genome(),
+        resume_from_root=resume_from_root,
     )
     return GoldSearchReport(fold_plan=active_plan, search=search)
