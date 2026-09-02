@@ -922,6 +922,7 @@ def test_regenerate_replay_tick_cache_status_runs_ensure_tool(tmp_path, monkeypa
     catalog.write_text('{"signals": []}\n', encoding="utf-8")
 
     monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
+    monkeypatch.setattr(watch, "RUNTIME_DATA_DIR", data_dir)
     monkeypatch.setattr(watch, "REPLAY_TICK_CACHE_STATUS_FILE", tick_status)
     monkeypatch.setattr(watch, "PROVIDER_SIGNAL_CATALOG_FILE", catalog)
     monkeypatch.setattr(
@@ -935,6 +936,8 @@ def test_regenerate_replay_tick_cache_status_runs_ensure_tool(tmp_path, monkeypa
             "--ensure",
             "--since",
             "2026-07-06",
+            "--events",
+            str(data_dir / "trade_events.jsonl"),
             "--catalog",
             str(catalog),
             "--provider-until",
@@ -999,6 +1002,7 @@ def test_strategy_shadow_tick_cache_uses_only_its_own_window(
             "--catalog", str(catalog),
             "--provider-since", "2026-08-27",
             "--provider-until", "2026-08-29",
+            "--events", str(data_dir / "trade_events.jsonl"),
             "--quiet",
         ]
         assert kwargs["timeout"] == 900

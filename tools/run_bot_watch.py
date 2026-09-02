@@ -1183,6 +1183,8 @@ def _regenerate_replay_tick_cache_status() -> bool:
             "tools/ensure_replay_tick_cache.py",
             "--ensure",
             *_simulation_scope_args(),
+            "--events",
+            str(RUNTIME_DATA_DIR / "trade_events.jsonl"),
         ]
         if PROVIDER_SIGNAL_CATALOG_FILE.is_file():
             command.extend([
@@ -1774,6 +1776,7 @@ def _regenerate_strategy_shadow_tick_cache_status(
             "--catalog", str(PROVIDER_SIGNAL_CATALOG_FILE),
             "--provider-since", since.isoformat(),
             "--provider-until", until.isoformat(),
+            "--events", str(RUNTIME_DATA_DIR / "trade_events.jsonl"),
             "--quiet",
         ]
         rec = subprocess.run(

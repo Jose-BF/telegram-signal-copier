@@ -366,6 +366,56 @@ def test_broker_confirmed_stop_execution_lag_is_preserved_as_a_limitation():
     ]
 
 
+def test_broker_confirmed_tp_execution_lag_is_preserved_as_a_limitation():
+    trade = _trade(direction="BUY", mt5_time_offset_s=10_800)
+    raw_broker_close_msc = int(
+        pd.Timestamp("2026-07-06T13:00:17+00:00").timestamp() * 1000
+    )
+    ticket = _ticket(
+        close_dt_utc="2026-07-06T10:00:17+00:00",
+        close_price=4202.0,
+        close_reason="tp",
+        close_deal={
+            "reason": 5,
+            "position_id": 101,
+            "price": 4202.0,
+            "time_msc": raw_broker_close_msc,
+            "comment": "[tp 4202.00]",
+        },
+    )
+    ticks = _ticks([
+        {
+            "time_utc": "2026-07-06T10:00:00.000+00:00",
+            "bid": 4200.0,
+            "ask": 4200.2,
+        },
+        {
+            "time_utc": "2026-07-06T10:00:11.000+00:00",
+            "bid": 4202.0,
+            "ask": 4202.2,
+        },
+        {
+            "time_utc": "2026-07-06T10:00:17.000+00:00",
+            "bid": 4201.8,
+            "ask": 4202.0,
+        },
+    ])
+
+    result = observed_tick_replay_validator.validate_ticket(
+        trade,
+        ticket,
+        ticks,
+    )
+
+    assert result["status"] == "delayed_close_observation"
+    assert result["blockers"] == []
+    assert result["first_touch"]["time_utc"] == "2026-07-06T10:00:11+00:00"
+    assert result["observed_close_utc"] == "2026-07-06T10:00:17+00:00"
+    assert result["limitations"] == [
+        "broker_tp_execution_delay_observed:101:+6.000s"
+    ]
+
+
 def test_delayed_batch_stop_rejects_late_level_ack_when_touch_time_changes():
     ticket = _ticket(
         open_price=4122.66,
@@ -677,6 +727,63 @@ def test_be_request_four_ms_after_broker_close_is_causal_race_not_mismatch():
         item.startswith("causal_ordering_tolerance_applied:101:")
         for item in result["limitations"]
     )
+
+
+def test_tp_request_just_before_broker_close_is_causal_race_not_mismatch():
+    trade = _trade(direction="BUY", mt5_time_offset_s=10_800)
+    raw_broker_close_msc = int(
+        pd.Timestamp("2026-07-06T13:01:30.900+00:00").timestamp() * 1000
+    )
+    ticket = _ticket(
+        close_dt_utc="2026-07-06T10:01:30.900+00:00",
+        close_price=4202.0,
+        close_reason="tp",
+        tp_history=[
+            {
+                "ts": "2026-07-06T10:00:00+00:00",
+                "status": "confirmed",
+                "tp": 4205.0,
+            },
+            {
+                "ts": "2026-07-06T10:01:30.400+00:00",
+                "status": "requested",
+                "tp": 4202.0,
+            },
+        ],
+        close_deal={
+            "reason": 5,
+            "position_id": 101,
+            "price": 4202.0,
+            "time_msc": raw_broker_close_msc,
+            "comment": "[tp 4202.00]",
+        },
+    )
+    ticks = _ticks([
+        {
+            "time_utc": "2026-07-06T10:00:00.000+00:00",
+            "bid": 4200.0,
+            "ask": 4200.2,
+        },
+        {
+            "time_utc": "2026-07-06T10:01:30.900+00:00",
+            "bid": 4201.9,
+            "ask": 4202.1,
+        },
+    ])
+
+    result = observed_tick_replay_validator.validate_ticket(
+        trade,
+        ticket,
+        ticks,
+    )
+
+    assert result["status"] == "exact"
+    assert result["first_touch"]["reason"] == "tp"
+    assert result["first_touch"]["level"] == 4202.0
+    assert result["blockers"] == []
+    assert result["limitations"] == [
+        "causal_ordering_tolerance_applied:101:-500ms"
+    ]
 
 def test_unlogged_sl_during_runtime_gap_is_external_not_causal_mismatch():
     trade = _trade(

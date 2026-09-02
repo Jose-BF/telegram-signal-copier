@@ -1024,6 +1024,130 @@ def test_historical_day_cannot_inherit_offset_from_current_live_tick(monkeypatch
         source.time_evidence_for_day(date(2025, 1, 15))
 
 
+def _recorded_action_tick(
+    event_id,
+    observed_at,
+    *,
+    offset_seconds=10_800,
+    tick_age_ms=750,
+):
+    observed = datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
+    raw_tick = observed + timedelta(
+        seconds=offset_seconds,
+        milliseconds=-tick_age_ms,
+    )
+    return {
+        "ev": "mt5_action_attempt",
+        "event_id": event_id,
+        "payload_sha256": event_id.rjust(64, "a")[-64:],
+        "attempt_started_utc": observed.isoformat(),
+        "source_tick_lookup_state": "found",
+        "source_tick": {
+            "time_msc": int(raw_tick.timestamp() * 1000),
+            "bid": 4435.91,
+            "ask": 4436.12,
+        },
+    }
+
+
+def test_recorded_action_ticks_prove_historical_broker_clock_without_a_fill():
+    day = date(2026, 8, 31)
+    events = [
+        _recorded_action_tick("event_1", "2026-08-31T13:00:53.500Z"),
+        _recorded_action_tick("event_2", "2026-08-31T13:04:11.250Z"),
+    ]
+
+    evidence = ensure_replay_tick_cache.extract_recorded_tick_clock_evidence(
+        events,
+        offset_candidates_seconds=(0, 7_200, 10_800),
+    )
+
+    assert set(evidence) == {day}
+    row = evidence[day]
+    assert row["source_time_basis"] == "mt5_server_epoch"
+    assert row["utc_offset_seconds"] == 10_800
+    assert row["offset_detection_method"] == "recorded_mt5_action_tick"
+    assert row["offset_reference"]["observation_count"] == 2
+    assert row["offset_reference"]["event_ids"] == ["event_1", "event_2"]
+    assert row["offset_reference"]["max_tick_age_ms"] == 750
+    assert len(row["offset_reference"]["evidence_sha256"]) == 64
+
+
+def test_recorded_action_ticks_fail_closed_when_offsets_conflict():
+    events = [
+        _recorded_action_tick("event_1", "2026-08-31T13:00:53Z"),
+        _recorded_action_tick(
+            "event_2",
+            "2026-08-31T13:04:11Z",
+            offset_seconds=7_200,
+        ),
+    ]
+
+    with pytest.raises(ValueError, match="conflicting recorded broker offsets"):
+        ensure_replay_tick_cache.extract_recorded_tick_clock_evidence(
+            events,
+            offset_candidates_seconds=(7_200, 10_800),
+        )
+
+
+def test_recorded_action_tick_older_than_clock_contract_is_not_evidence():
+    events = [
+        _recorded_action_tick(
+            "event_old",
+            "2026-08-31T13:00:53Z",
+            tick_age_ms=31_000,
+        ),
+    ]
+
+    evidence = ensure_replay_tick_cache.extract_recorded_tick_clock_evidence(
+        events,
+        offset_candidates_seconds=(7_200, 10_800),
+    )
+
+    assert evidence == {}
+
+
+def test_tick_source_uses_recorded_clock_evidence_for_an_unfilled_day(
+    monkeypatch,
+):
+    day = date(2026, 8, 31)
+
+    class FakeMT5:
+        COPY_TICKS_ALL = 7
+
+        @staticmethod
+        def initialize():
+            return True
+
+        @staticmethod
+        def symbol_select(_symbol, _enabled):
+            return True
+
+        @staticmethod
+        def last_error():
+            return (0, "ok")
+
+        @staticmethod
+        def shutdown():
+            return None
+
+    monkeypatch.setitem(sys.modules, "MetaTrader5", FakeMT5)
+    evidence = ensure_replay_tick_cache.extract_recorded_tick_clock_evidence(
+        [_recorded_action_tick("event_1", "2026-08-31T13:00:53Z")],
+        offset_candidates_seconds=(0, 10_800),
+    )
+    source = ensure_replay_tick_cache.MT5TickSource(
+        "XAUUSD",
+        anchors_by_day={},
+        recorded_time_evidence_by_day=evidence,
+        offset_candidates_seconds=(0, 10_800),
+    )
+    try:
+        assert source.time_evidence_for_day(day) == evidence[day]
+    finally:
+        source.shutdown()
+
+
 def test_shifted_tick_frame_fails_semantic_fill_anchor_validation():
     anchor = ensure_replay_tick_cache.FillAnchor(
         signal_id="canal2_1",

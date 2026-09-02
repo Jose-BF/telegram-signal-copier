@@ -16,6 +16,7 @@ if str(REPO_DIR) not in sys.path:
     sys.path.insert(0, str(REPO_DIR))
 
 from broker_market_sessions import broker_session_close_utc
+import broker_tick_clock
 import runtime_paths
 
 
@@ -33,6 +34,7 @@ MIN_PRICE_MATCH_SAMPLE = 5
 MIN_PRICE_MATCH_RATIO = 0.80
 ANCHOR_TIME_TOLERANCE_MS = 2_500
 ANCHOR_PRICE_TOLERANCE = 0.10
+RECORDED_CLOCK_MAX_TICK_AGE_MS = 300_000
 DEFAULT_OFFSET_CANDIDATES_SECONDS = tuple(
     hours * 3600
     for hours in (0, 2, 3, 1, 4, -1, -2, -3, -4, 5, 6, 7, 8, 9, 10,
@@ -109,6 +111,117 @@ def extract_fill_anchors(trades: Iterable[dict]) -> dict[date, list[FillAnchor]]
     for anchors in by_day.values():
         anchors.sort(key=lambda row: (row.time_utc, row.ticket or 0))
     return dict(sorted(by_day.items()))
+
+
+def extract_recorded_tick_clock_evidence(
+    events: Iterable[dict],
+    *,
+    offset_candidates_seconds: Iterable[int] = (
+        DEFAULT_OFFSET_CANDIDATES_SECONDS
+    ),
+    max_tick_age_ms: int = RECORDED_CLOCK_MAX_TICK_AGE_MS,
+) -> dict[date, dict]:
+    """Prove historical broker offsets from causal MT5 action snapshots."""
+
+    candidates = tuple(dict.fromkeys(
+        int(value) for value in offset_candidates_seconds
+    ))
+    if not candidates:
+        raise ValueError("recorded clock offsets cannot be empty")
+    if max_tick_age_ms < 0:
+        raise ValueError("recorded clock max tick age must be non-negative")
+
+    observations: dict[date, dict[str, dict]] = {}
+    for event in events:
+        if event.get("ev") != "mt5_action_attempt":
+            continue
+        lookup_state = event.get("source_tick_lookup_state")
+        if lookup_state not in {None, "found"}:
+            continue
+        source_tick = event.get("source_tick")
+        if not isinstance(source_tick, Mapping):
+            continue
+        try:
+            raw_time_msc = int(source_tick.get("time_msc"))
+        except (TypeError, ValueError):
+            continue
+        observed_at = _parse_dt(
+            event.get("attempt_started_utc") or event.get("ts")
+        )
+        event_id = str(event.get("event_id") or "").strip()
+        payload_sha256 = str(event.get("payload_sha256") or "").strip()
+        if observed_at is None or not event_id or not payload_sha256:
+            continue
+        try:
+            offset_seconds = broker_tick_clock.inferred_utc_offset_seconds(
+                raw_time_msc,
+                observed_utc=observed_at,
+            )
+        except ValueError:
+            continue
+        if offset_seconds not in candidates:
+            continue
+        normalized_msc = broker_tick_clock.normalize_server_msc(
+            raw_time_msc,
+            offset_seconds,
+        )
+        normalized = datetime.fromtimestamp(
+            normalized_msc / 1000.0,
+            tz=timezone.utc,
+        )
+        age_ms = int(round(abs(
+            (observed_at - normalized).total_seconds() * 1000
+        )))
+        if age_ms > max_tick_age_ms:
+            continue
+        day = observed_at.date()
+        row = {
+            "event_id": event_id,
+            "payload_sha256": payload_sha256,
+            "observed_at_utc": observed_at.isoformat(),
+            "raw_time_msc": raw_time_msc,
+            "normalized_tick_utc": normalized.isoformat(),
+            "tick_age_ms": age_ms,
+            "utc_offset_seconds": int(offset_seconds),
+        }
+        existing = observations.setdefault(day, {}).get(event_id)
+        if existing is not None and existing != row:
+            raise ValueError(
+                f"conflicting recorded event identity for {event_id}"
+            )
+        observations[day][event_id] = row
+
+    evidence: dict[date, dict] = {}
+    for day, by_event_id in sorted(observations.items()):
+        rows = sorted(
+            by_event_id.values(),
+            key=lambda item: (item["observed_at_utc"], item["event_id"]),
+        )
+        offsets = {int(item["utc_offset_seconds"]) for item in rows}
+        if len(offsets) != 1:
+            raise ValueError(
+                "conflicting recorded broker offsets for "
+                f"{day.isoformat()}: {sorted(offsets)}"
+            )
+        evidence_payload = json.dumps(
+            rows,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        evidence[day] = {
+            "source_time_basis": SOURCE_TIME_BASIS,
+            "utc_offset_seconds": offsets.pop(),
+            "offset_detection_method": "recorded_mt5_action_tick",
+            "offset_reference": {
+                "observation_count": len(rows),
+                "event_ids": [item["event_id"] for item in rows],
+                "first_observed_at_utc": rows[0]["observed_at_utc"],
+                "last_observed_at_utc": rows[-1]["observed_at_utc"],
+                "max_tick_age_ms": max(item["tick_age_ms"] for item in rows),
+                "evidence_sha256": hashlib.sha256(evidence_payload).hexdigest(),
+            },
+        }
+    return evidence
 
 
 def validate_cached_day_anchors(
@@ -319,14 +432,17 @@ def _iter_days(start: date, end: date):
         cur += timedelta(days=1)
 
 
-def load_jsonl(path: Path) -> list[dict]:
+def iter_jsonl(path: Path) -> Iterable[dict]:
     if not path.exists():
-        return []
-    rows: list[dict] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if line.strip():
-            rows.append(json.loads(line))
-    return rows
+        return
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            if line.strip():
+                yield json.loads(line)
+
+
+def load_jsonl(path: Path) -> list[dict]:
+    return list(iter_jsonl(path))
 
 
 def _trade_window(trade: dict, pad_minutes: int) -> tuple[datetime, datetime] | None:
@@ -1243,6 +1359,7 @@ class MT5TickSource:
         anchors_by_day: dict[date, list[FillAnchor]] | None = None,
         offset_candidates_seconds: Iterable[int] | None = None,
         preloaded_time_evidence_by_day: dict[date, dict] | None = None,
+        recorded_time_evidence_by_day: dict[date, dict] | None = None,
     ):
         import MetaTrader5 as mt5
         import pandas as pd
@@ -1253,6 +1370,9 @@ class MT5TickSource:
         self.anchors_by_day = anchors_by_day or {}
         self.offset_candidates_seconds = tuple(
             offset_candidates_seconds or DEFAULT_OFFSET_CANDIDATES_SECONDS)
+        self.recorded_time_evidence_by_day = dict(
+            recorded_time_evidence_by_day or {}
+        )
         self._time_evidence_by_day: dict[date, dict] = dict(
             preloaded_time_evidence_by_day or {}
         )
@@ -1409,7 +1529,19 @@ class MT5TickSource:
     def _resolve_time_evidence(self, day: date) -> dict:
         if day in self._time_evidence_by_day:
             return self._time_evidence_by_day[day]
-        evidence = self._detect_offset_from_anchors(day)
+        anchor_evidence = self._detect_offset_from_anchors(day)
+        recorded_evidence = self.recorded_time_evidence_by_day.get(day)
+        if (
+            anchor_evidence is not None
+            and recorded_evidence is not None
+            and int(anchor_evidence["utc_offset_seconds"])
+            != int(recorded_evidence["utc_offset_seconds"])
+        ):
+            raise RuntimeError(
+                "fill and recorded broker offsets conflict for "
+                f"{day.isoformat()}"
+            )
+        evidence = anchor_evidence or recorded_evidence
         if evidence is None:
             evidence = self._inherit_adjacent_evidence(day)
         if evidence is None:
@@ -1513,6 +1645,7 @@ def ensure_missing_days(
     symbol: str,
     verbose: bool,
     trades: list[dict],
+    recorded_time_evidence_by_day: dict[date, dict] | None = None,
 ) -> dict:
     from mt5_tick_cache import TickCache
 
@@ -1522,6 +1655,7 @@ def ensure_missing_days(
     source = MT5TickSource(
         symbol,
         anchors_by_day=anchors_by_day,
+        recorded_time_evidence_by_day=recorded_time_evidence_by_day,
         preloaded_time_evidence_by_day=load_adjacent_time_evidence(
             cache_dir,
             days,
@@ -1596,6 +1730,14 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--events",
+        type=Path,
+        help=(
+            "Optional causal event stream used to prove historical broker "
+            "clock offsets on days without MT5 fills"
+        ),
+    )
+    parser.add_argument(
         "--provider-until",
         help=(
             "Optional upper date bound for provider-catalog signals; "
@@ -1655,6 +1797,21 @@ def main(argv: list[str] | None = None) -> int:
         args.cache_dir,
         expected_symbol=args.symbol,
     )
+    recorded_time_evidence_by_day = None
+    if args.events is not None:
+        if not args.events.is_file():
+            parser.error(f"causal event stream does not exist: {args.events}")
+        try:
+            recorded_time_evidence_by_day = (
+                extract_recorded_tick_clock_evidence(
+                    iter_jsonl(args.events),
+                    offset_candidates_seconds=(
+                        verified_offsets or DEFAULT_OFFSET_CANDIDATES_SECONDS
+                    ),
+                )
+            )
+        except (OSError, ValueError) as exc:
+            parser.error(f"invalid recorded broker clock evidence: {exc}")
     additional_required_days = required_provider_dates(
         catalog,
         since=provider_since,
@@ -1713,6 +1870,15 @@ def main(argv: list[str] | None = None) -> int:
                 symbol=args.symbol,
                 verbose=not args.quiet,
                 trades=trades,
+                **(
+                    {
+                        "recorded_time_evidence_by_day": (
+                            recorded_time_evidence_by_day
+                        )
+                    }
+                    if args.events is not None
+                    else {}
+                ),
             )
             for day in ensure_days:
                 day_contract = (stats.get("day_contracts") or {}).get(

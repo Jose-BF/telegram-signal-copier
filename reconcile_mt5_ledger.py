@@ -44,6 +44,7 @@ from mt5_deal_reason import (
     close_reason_from_deal as _close_reason_from_deal,
 )
 import runtime_paths
+import broker_tick_clock
 
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8")
@@ -204,7 +205,37 @@ def _journal_time_references(journal: dict) -> list[datetime]:
     return refs
 
 
-def _infer_mt5_time_offset_s(journal: dict, mt5_positions: list[dict]) -> int | None:
+def _recorded_mt5_time_offset_s(journal: dict) -> int | None:
+    """Infer broker clock only from ticks observed during recorded MT5 calls."""
+    offsets: set[int] = set()
+    for event in journal.get("order_lifecycle") or []:
+        if event.get("ev") != "mt5_action_attempt":
+            continue
+        if event.get("source_tick_lookup_state") not in (None, "found"):
+            continue
+        source_tick = event.get("source_tick")
+        if not isinstance(source_tick, dict):
+            continue
+        observed_utc = _parse_iso(
+            event.get("attempt_started_utc") or event.get("ts")
+        )
+        if observed_utc is None:
+            continue
+        try:
+            offset_s = broker_tick_clock.inferred_utc_offset_seconds(
+                int(source_tick.get("time_msc")),
+                observed_utc=observed_utc,
+            )
+        except (TypeError, ValueError):
+            continue
+        offsets.add(offset_s)
+    if len(offsets) > 1:
+        raise ValueError("broker UTC offset evidence mismatch")
+    return next(iter(offsets), None)
+
+
+def _heuristic_mt5_time_offset_s(journal: dict,
+                                 mt5_positions: list[dict]) -> int | None:
     """Detecta offset horario MT5 vs journal solo si la evidencia es clara.
 
     En algunos terminals MT5 el deal.time llega en hora de servidor pero el
@@ -238,6 +269,14 @@ def _infer_mt5_time_offset_s(journal: dict, mt5_positions: list[dict]) -> int | 
         if best is None or residual < best[0]:
             best = (residual, offset_s)
     return best[1] if best else None
+
+
+def _infer_mt5_time_offset_s(journal: dict, mt5_positions: list[dict]) -> int | None:
+    recorded = _recorded_mt5_time_offset_s(journal)
+    heuristic = _heuristic_mt5_time_offset_s(journal, mt5_positions)
+    if recorded is not None and heuristic is not None and recorded != heuristic:
+        raise ValueError("broker UTC offset evidence mismatch")
+    return recorded if recorded is not None else heuristic
 
 
 def _shift_iso_utc(ts: str | None, offset_s: int) -> str | None:

@@ -33,6 +33,7 @@ ALIGNMENT_NEAR_SECONDS = 5
 CLOSE_TOUCH_TIME_TOLERANCE_SECONDS = 5
 BROKER_STOP_EXECUTION_DELAY_MAX_SECONDS = 30
 CAUSAL_ORDERING_RACE_TOLERANCE_MS = 100
+CAUSAL_LEVEL_REQUEST_LEAD_MS = 1_000
 CAUSAL_PATH_CONTRACT = "causal_path_v3"
 FILL_PRICE_AUTHORITY = "mt5_deals"
 MARKET_CLOSE_REASONS = {"bot_close", "other", "manual_close"}
@@ -355,20 +356,21 @@ def _broker_close_time_utc(trade: dict, ticket: dict) -> datetime | None:
         return _parse_dt(ticket.get("close_dt_utc"))
 
 
-def _broker_confirmed_stop_execution_delay(
+def _broker_confirmed_level_execution_delay(
     trade: dict,
     ticket: dict,
     first_touch: dict,
     expected_reason: str,
 ) -> float | None:
-    """Return a narrow, broker-confirmed SL execution delay in seconds."""
-    if expected_reason not in {"sl", "be"}:
+    """Return a narrow, broker-confirmed protective-level delay."""
+    deal_reason = 5 if expected_reason == "tp" else 4
+    if expected_reason not in {"sl", "be", "tp"}:
         return None
     close_deal = ticket.get("close_deal")
     if not isinstance(close_deal, dict):
         return None
     try:
-        if int(close_deal.get("reason")) != 4:
+        if int(close_deal.get("reason")) != deal_reason:
             return None
         if str(close_deal.get("position_id")) != str(ticket.get("ticket")):
             return None
@@ -420,7 +422,11 @@ def _near_close_requested_transition(
         if ts is None or abs(level - expected_level) > PRICE_EPSILON:
             continue
         delta_ms = (ts - close_dt).total_seconds() * 1000.0
-        if abs(delta_ms) <= CAUSAL_ORDERING_RACE_TOLERANCE_MS:
+        if (
+            -CAUSAL_LEVEL_REQUEST_LEAD_MS
+            <= delta_ms
+            <= CAUSAL_ORDERING_RACE_TOLERANCE_MS
+        ):
             candidates.append((ts, delta_ms))
     if not candidates:
         return None
@@ -521,6 +527,7 @@ def _broker_confirmed_race_touch(
     ticks: pd.DataFrame,
     *,
     level: float,
+    expected_reason: str,
 ) -> dict:
     direction = _direction(trade)
     side = "bid" if direction == "BUY" else "ask"
@@ -540,7 +547,9 @@ def _broker_confirmed_race_touch(
             ).argmin())
             side_price = near.iloc[nearest].get(side, side_price)
     return {
-        "reason": _sl_reason(ticket, level),
+        "reason": (
+            "tp" if expected_reason == "tp" else _sl_reason(ticket, level)
+        ),
         "level": round(level, 2),
         "side": side,
         "side_price": round(float(side_price), 2),
@@ -770,6 +779,7 @@ def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
                         ticket,
                         window_ticks,
                         level=mt5_sl_level,
+                        expected_reason=expected_reason,
                     ),
                     "blockers": race_blockers,
                     "warnings": warnings,
@@ -802,6 +812,48 @@ def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
             expected_reason == "tp"
             and mt5_tp_level is not None
         ):
+            ordering_race = _near_close_requested_transition(
+                trade,
+                ticket,
+                tp_history,
+                "tp",
+                mt5_tp_level,
+            )
+            if ordering_race is not None:
+                request_dt, delta_ms = ordering_race
+                race_blockers = []
+                close_alignment = alignment["close"]
+                if close_alignment.get("status") != "verified":
+                    race_blockers.append(
+                        f"close_tick_alignment_unverified:{label}"
+                    )
+                elif abs(float(
+                    close_alignment.get("price_delta") or 0.0
+                )) > PRICE_EPSILON:
+                    warnings.append(
+                        f"observed_close_execution_delta:{label}:"
+                        f"{float(close_alignment['price_delta']):+.2f}"
+                    )
+                return {
+                    **base,
+                    "status": "exact" if not race_blockers else "mismatch",
+                    "first_touch": _broker_confirmed_race_touch(
+                        trade,
+                        ticket,
+                        window_ticks,
+                        level=mt5_tp_level,
+                        expected_reason=expected_reason,
+                    ),
+                    "blockers": race_blockers,
+                    "warnings": warnings,
+                    "limitations": [
+                        f"causal_ordering_tolerance_applied:{label}:"
+                        f"{delta_ms:+.0f}ms"
+                    ],
+                    "ordering_race_request_utc": request_dt.isoformat(
+                        timespec="milliseconds"
+                    ),
+                }
             if _has_unattributed_level_marker(
                 tp_history,
                 "tp",
@@ -912,25 +964,26 @@ def validate_ticket(trade: dict, ticket: dict, ticks: pd.DataFrame) -> dict:
             or late_ack_touch is not None
         )
     )
-    broker_stop_execution_delay = None
+    broker_level_execution_delay = None
     if (
         time_mismatch_blocker is not None
         and result_blockers == [time_mismatch_blocker]
     ):
-        broker_stop_execution_delay = _broker_confirmed_stop_execution_delay(
+        broker_level_execution_delay = _broker_confirmed_level_execution_delay(
             trade,
             ticket,
             first_touch,
             expected_reason,
         )
-    if delayed_batch_close or broker_stop_execution_delay is not None:
+    if delayed_batch_close or broker_level_execution_delay is not None:
         limitations = []
         if delayed_batch_close:
             limitations.append(f"per_ticket_close_time_unavailable:{label}")
         else:
+            delay_kind = "tp" if expected_reason == "tp" else "stop"
             limitations.append(
-                f"broker_stop_execution_delay_observed:{label}:"
-                f"{broker_stop_execution_delay:+.3f}s"
+                f"broker_{delay_kind}_execution_delay_observed:{label}:"
+                f"{broker_level_execution_delay:+.3f}s"
             )
         if late_ack_touch is not None:
             first_touch = late_ack_touch

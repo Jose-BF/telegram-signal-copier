@@ -752,6 +752,61 @@ class TestReconcileForensicLifecycle:
         assert row["positions"][0]["open_dt_mt5_raw"] == "2026-05-29T19:30:12+00:00"
         assert row["positions"][0]["close_dt_mt5_raw"] == "2026-05-29T19:42:12+00:00"
 
+    def test_delayed_entry_uses_recorded_tick_clock_for_mt5_offset(self):
+        order_lifecycle = [{
+            "ev": "mt5_action_attempt",
+            "operation": "OPEN_MARKET",
+            "attempt_started_utc": "2026-08-31T13:29:16.357+00:00",
+            "source_tick_lookup_state": "found",
+            "source_tick": {
+                "time_msc": 1788193756276,
+                "bid": 4445.67,
+                "ask": 4445.89,
+            },
+        }]
+        mt5_pos = [_pos("market_a", 1.72)]
+        mt5_pos[0]["open_dt_utc"] = "2026-08-31T16:29:16+00:00"
+        mt5_pos[0]["close_dt_utc"] = "2026-08-31T16:29:44+00:00"
+
+        row = reconcile_signal(
+            "canal2_2232",
+            self._base(
+                channel="canal2",
+                signal_dt_utc="2026-08-31T13:16:04.175+00:00",
+                order_lifecycle=order_lifecycle,
+            ),
+            mt5_pos,
+        )
+
+        assert row["mt5_time_offset_s"] == 10800
+        assert row["open_dt_utc"] == "2026-08-31T13:29:16+00:00"
+        assert row["close_dt_utc"] == "2026-08-31T13:29:44+00:00"
+
+    def test_conflicting_recorded_tick_clocks_fail_closed(self):
+        order_lifecycle = [
+            {
+                "ev": "mt5_action_attempt",
+                "attempt_started_utc": "2026-08-31T13:29:16.357+00:00",
+                "source_tick_lookup_state": "found",
+                "source_tick": {"time_msc": 1788193756276},
+            },
+            {
+                "ev": "mt5_action_attempt",
+                "attempt_started_utc": "2026-08-31T13:29:17.357+00:00",
+                "source_tick_lookup_state": "found",
+                "source_tick": {"time_msc": 1788190157276},
+            },
+        ]
+        mt5_pos = [_pos("market_a", 1.72)]
+        mt5_pos[0]["open_dt_utc"] = "2026-08-31T16:29:16+00:00"
+
+        with pytest.raises(ValueError, match="broker UTC offset evidence mismatch"):
+            reconcile_signal(
+                "canal2_2232",
+                self._base(order_lifecycle=order_lifecycle),
+                mt5_pos,
+            )
+
     def test_autotrading_disabled_marks_trade_excluded_from_analysis(self):
         order_lifecycle = [
             {"ts": "2026-06-01T07:20:00+00:00",
