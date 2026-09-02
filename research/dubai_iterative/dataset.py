@@ -99,7 +99,7 @@ class ProviderEvent:
 
 
 @dataclass(frozen=True)
-class DubaiLeg:
+class SignalLeg:
     ticket: str
     role: str
     volume: float
@@ -114,14 +114,14 @@ class DubaiLeg:
 
 
 @dataclass(frozen=True)
-class DubaiPath:
+class SignalPath:
     signal_id: str
     day: str
     direction: str
     signal_observed_at: datetime
     opened_at: datetime
     actual_pnl_eur: Decimal
-    legs: tuple[DubaiLeg, ...]
+    legs: tuple[SignalLeg, ...]
     provider_events: tuple[ProviderEvent, ...]
     times_ns: np.ndarray
     bid: np.ndarray
@@ -143,8 +143,8 @@ class DubaiPath:
 
 
 @dataclass(frozen=True)
-class DubaiDataset:
-    paths: tuple[DubaiPath, ...]
+class StrategyDataset:
+    paths: tuple[SignalPath, ...]
     eligible_signal_ids: tuple[str, ...]
     eligible_actual_pnl_eur: Decimal
     exclusions: Mapping[str, tuple[str, ...]]
@@ -170,6 +170,17 @@ class DubaiDataset:
         return tuple(path.signal_id for path in self.paths) == self.eligible_signal_ids
 
 
+DubaiLeg = SignalLeg
+DubaiPath = SignalPath
+DubaiDataset = StrategyDataset
+
+
+@dataclass(frozen=True)
+class SignalScope:
+    signal_id: str
+    execution_signal_ids: tuple[str, ...]
+
+
 def load_dubai_dataset(
     *,
     replay_path: Path,
@@ -181,8 +192,40 @@ def load_dubai_dataset(
     to_date: str | None = None,
     max_hold_minutes: int = 240,
 ) -> DubaiDataset:
+    return load_strategy_dataset(
+        replay_path=replay_path,
+        audit_path=audit_path,
+        market_ticks=market_ticks,
+        conversion_ticks=conversion_ticks,
+        money_contract=money_contract,
+        from_date=from_date,
+        to_date=to_date,
+        max_hold_minutes=max_hold_minutes,
+        channel="canal1",
+    )
+
+
+def load_strategy_dataset(
+    *,
+    replay_path: Path,
+    audit_path: Path,
+    market_ticks: TickSource,
+    conversion_ticks: TickSource | None,
+    money_contract: Mapping[str, Any],
+    channel: str,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    max_hold_minutes: int = 240,
+    required_entry_source_kind: str | None = None,
+    signal_scopes: tuple[SignalScope, ...] | None = None,
+    audit_reason_prefix: str = "",
+    extra_source_paths: Mapping[str, Path] | None = None,
+) -> StrategyDataset:
     replay_path = Path(replay_path)
     audit_path = Path(audit_path)
+    channel = str(channel)
+    if not channel:
+        raise ValueError("channel cannot be empty")
     if max_hold_minutes <= 0:
         raise ValueError("max_hold_minutes must be positive")
     account = money_contract.get("account") or {}
@@ -218,59 +261,87 @@ def load_dubai_dataset(
 
     audit_rows = {row.get("sig_id"): row for row in _read_jsonl(audit_path)}
     exclusions: dict[str, list[str]] = defaultdict(list)
-    selected: list[dict[str, Any]] = []
+    selected: list[tuple[str, dict[str, Any]]] = []
     start = _parse_date(from_date, date.min)
     end = _parse_date(to_date, date.max)
-    for trade in _read_jsonl(replay_path):
-        if trade.get("channel") != "canal1":
-            continue
-        observed = _parse_datetime(trade.get("signal_dt_utc"))
-        signal_id = str(trade.get("sig_id") or "")
-        if not signal_id or observed is None:
-            if signal_id:
-                exclusions["invalid_signal_time"].append(signal_id)
-            continue
-        if not start <= observed.date() <= end:
-            continue
-        audit = audit_rows.get(signal_id) or {}
-        status = str(audit.get("status") or "missing_audit")
-        if status != EXACT_AUDIT_STATUS:
-            exclusions[_reason_name(status)].append(signal_id)
-            continue
-        direction = str(trade.get("direction") or "").upper()
-        if direction not in {"BUY", "SELL"}:
-            exclusions["invalid_direction"].append(signal_id)
-            continue
-        tickets = [
-            ticket
-            for ticket in trade.get("tickets") or []
-            if _positive_float(ticket.get("volume")) is not None
-        ]
-        if not tickets:
-            exclusions["no_mt5_entry_tickets"].append(signal_id)
-            continue
-        selected.append(trade)
+    replay_rows = _read_jsonl(replay_path)
+    if signal_scopes is None:
+        eligible_signal_ids_list: list[str] = []
+        for trade in replay_rows:
+            if trade.get("channel") != channel:
+                continue
+            observed = _parse_datetime(trade.get("signal_dt_utc"))
+            signal_id = str(trade.get("sig_id") or "")
+            if not signal_id or observed is None:
+                if signal_id:
+                    exclusions["invalid_signal_time"].append(signal_id)
+                continue
+            if not start <= observed.date() <= end:
+                continue
+            reason = _trade_selection_blocker(
+                trade,
+                signal_id=signal_id,
+                audit_rows=audit_rows,
+                required_entry_source_kind=required_entry_source_kind,
+                audit_reason_prefix=audit_reason_prefix,
+            )
+            if reason:
+                exclusions[reason].append(signal_id)
+                continue
+            selected.append((signal_id, trade))
+            eligible_signal_ids_list.append(signal_id)
+    else:
+        eligible_signal_ids_list = [scope.signal_id for scope in signal_scopes]
+        replay_by_id = {
+            str(trade.get("sig_id")): trade
+            for trade in replay_rows
+            if trade.get("channel") == channel and trade.get("sig_id")
+        }
+        for scope in signal_scopes:
+            if len(scope.execution_signal_ids) != 1:
+                reason = (
+                    "actual_evidence_missing"
+                    if not scope.execution_signal_ids
+                    else "ambiguous_execution_mapping"
+                )
+                exclusions[reason].append(scope.signal_id)
+                continue
+            execution_signal_id = scope.execution_signal_ids[0]
+            trade = replay_by_id.get(execution_signal_id)
+            if trade is None:
+                exclusions["actual_evidence_missing"].append(scope.signal_id)
+                continue
+            reason = _trade_selection_blocker(
+                trade,
+                signal_id=execution_signal_id,
+                audit_rows=audit_rows,
+                required_entry_source_kind=required_entry_source_kind,
+                audit_reason_prefix=audit_reason_prefix,
+            )
+            if reason:
+                exclusions[reason].append(scope.signal_id)
+                continue
+            selected.append((scope.signal_id, trade))
 
     selected = sorted(
         selected,
         key=lambda item: (
-            _parse_datetime(item.get("signal_dt_utc"))
+            _parse_datetime(item[1].get("signal_dt_utc"))
             or datetime.min.replace(tzinfo=timezone.utc),
-            str(item.get("sig_id")),
+            item[0],
         ),
     )
-    eligible_signal_ids = tuple(str(item["sig_id"]) for item in selected)
+    eligible_signal_ids = tuple(eligible_signal_ids_list)
     quantum = Decimal(1).scaleb(-currency_digits)
     eligible_actual_pnl = sum(
-        (_trade_actual_pnl(item) for item in selected),
+        (_trade_actual_pnl(trade) for _signal_id, trade in selected),
         start=Decimal(0),
     ).quantize(quantum)
 
-    paths: list[DubaiPath] = []
+    paths: list[SignalPath] = []
     market_cache: dict[date, tuple[pd.DataFrame, Mapping[str, Any]]] = {}
     conversion_cache: dict[date, tuple[pd.DataFrame, Mapping[str, Any]]] = {}
-    for trade in selected:
-        signal_id = str(trade["sig_id"])
+    for signal_id, trade in selected:
         legs = _build_legs(trade)
         if not legs:
             exclusions["invalid_mt5_entry_tickets"].append(signal_id)
@@ -350,7 +421,7 @@ def load_dubai_dataset(
         actual = _decimal(trade.get("pnl_real_mt5"))
         if actual is None:
             actual = sum((leg.actual_pnl_eur for leg in legs), start=Decimal(0))
-        paths.append(DubaiPath(
+        paths.append(SignalPath(
             signal_id=signal_id,
             day=(_parse_datetime(trade["signal_dt_utc"]) or opened_at).date().isoformat(),
             direction=direction,
@@ -374,7 +445,48 @@ def load_dubai_dataset(
             conversion_evidence=tuple(conversion_evidence),
         ))
 
-    return DubaiDataset(
+    dataset_contract = {
+        "channel": channel,
+        "audit_status": EXACT_AUDIT_STATUS,
+        "from_date": from_date,
+        "to_date": to_date,
+        "max_hold_minutes": max_hold_minutes,
+    }
+    if required_entry_source_kind is not None:
+        dataset_contract["required_entry_source_kind"] = required_entry_source_kind
+    if signal_scopes is not None:
+        dataset_contract["signal_scopes"] = [
+            {
+                "signal_id": scope.signal_id,
+                "execution_signal_ids": list(scope.execution_signal_ids),
+            }
+            for scope in signal_scopes
+        ]
+
+    source_hashes = {
+        "replay": _sha256_file(replay_path),
+        "audit": _sha256_file(audit_path),
+        "money_contract": _sha256_json(money_contract),
+        "market_ticks": _sha256_json({
+            "evidence": _tick_evidence_identity(
+                item
+                for path in paths
+                for item in path.market_evidence
+            ),
+        }),
+        "conversion_ticks": _sha256_json({
+            "evidence": _tick_evidence_identity(
+                item
+                for path in paths
+                for item in path.conversion_evidence
+            ),
+        }),
+        "dataset_contract": _sha256_json(dataset_contract),
+    }
+    for source_name, source_path in (extra_source_paths or {}).items():
+        source_hashes[str(source_name)] = _sha256_file(Path(source_path))
+
+    return StrategyDataset(
         paths=tuple(paths),
         eligible_signal_ids=eligible_signal_ids,
         eligible_actual_pnl_eur=eligible_actual_pnl,
@@ -382,36 +494,57 @@ def load_dubai_dataset(
             reason: tuple(sorted(set(signal_ids)))
             for reason, signal_ids in sorted(exclusions.items())
         },
-        source_hashes={
-            "replay": _sha256_file(replay_path),
-            "audit": _sha256_file(audit_path),
-            "money_contract": _sha256_json(money_contract),
-            "market_ticks": _sha256_json({
-                "evidence": _tick_evidence_identity(
-                    item
-                    for path in paths
-                    for item in path.market_evidence
-                ),
-            }),
-            "conversion_ticks": _sha256_json({
-                "evidence": _tick_evidence_identity(
-                    item
-                    for path in paths
-                    for item in path.conversion_evidence
-                ),
-            }),
-            "dataset_contract": _sha256_json({
-                "channel": "canal1",
-                "audit_status": EXACT_AUDIT_STATUS,
-                "from_date": from_date,
-                "to_date": to_date,
-                "max_hold_minutes": max_hold_minutes,
-            }),
-        },
+        source_hashes=source_hashes,
         account_currency=account_currency,
         currency_digits=currency_digits,
         max_hold_minutes=max_hold_minutes,
     )
+
+
+def _trade_selection_blocker(
+    trade: Mapping[str, Any],
+    *,
+    signal_id: str,
+    audit_rows: Mapping[str, Mapping[str, Any]],
+    required_entry_source_kind: str | None,
+    audit_reason_prefix: str,
+) -> str | None:
+    if _parse_datetime(trade.get("signal_dt_utc")) is None:
+        return "invalid_signal_time"
+    if required_entry_source_kind is not None:
+        observed_source_kinds = _entry_source_kinds(trade)
+        if observed_source_kinds != {required_entry_source_kind}:
+            return "entry_source_kind_mismatch"
+    audit = audit_rows.get(signal_id) or {}
+    status = str(audit.get("status") or "missing_audit")
+    if status != EXACT_AUDIT_STATUS:
+        return f"{audit_reason_prefix}{_reason_name(status)}"
+    if str(trade.get("direction") or "").upper() not in {"BUY", "SELL"}:
+        return "invalid_direction"
+    tickets = [
+        ticket
+        for ticket in trade.get("tickets") or []
+        if _positive_float(ticket.get("volume")) is not None
+    ]
+    if not tickets:
+        return "no_mt5_entry_tickets"
+    return None
+
+
+def _entry_source_kinds(trade: Mapping[str, Any]) -> set[str]:
+    observed: set[str] = set()
+    provenance = trade.get("entry_provenance") or {}
+    if isinstance(provenance, Mapping) and provenance.get("source_kind"):
+        observed.add(str(provenance["source_kind"]))
+    for ticket in trade.get("tickets") or []:
+        fill_events = list(ticket.get("fill_events") or ())
+        fill_event = ticket.get("fill_event")
+        if isinstance(fill_event, Mapping):
+            fill_events.append(fill_event)
+        for event in fill_events:
+            if isinstance(event, Mapping) and event.get("entry_source_kind"):
+                observed.add(str(event["entry_source_kind"]))
+    return observed
 
 
 def _build_legs(trade: Mapping[str, Any]) -> tuple[DubaiLeg, ...]:
