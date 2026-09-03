@@ -334,6 +334,10 @@ class _MT5AttemptEvidence:
         self.symbol_info_lookup_state = "not_queried"
         self.request = None
         self.broker_request_sent = False
+        self.broker_request_started_utc_ns = None
+        self.broker_request_started_monotonic_ns = None
+        self.broker_response_received_utc_ns = None
+        self.broker_response_received_monotonic_ns = None
         self.last_error = None
         self._emitted = False
 
@@ -383,7 +387,17 @@ class _MT5AttemptEvidence:
 
     def mark_request(self, request: dict) -> None:
         self.request = dict(request)
+
+    def mark_broker_request_started(self) -> None:
         self.broker_request_sent = True
+        self.broker_request_started_monotonic_ns = time.monotonic_ns()
+        self.broker_request_started_utc_ns = time.time_ns()
+
+    def mark_broker_response_received(self) -> None:
+        if self.broker_request_started_monotonic_ns is None:
+            return
+        self.broker_response_received_monotonic_ns = time.monotonic_ns()
+        self.broker_response_received_utc_ns = time.time_ns()
 
     def observe_last_error(self, value) -> None:
         self.last_error = str(value)
@@ -413,6 +427,38 @@ class _MT5AttemptEvidence:
                 "type": type(exception).__name__,
                 "message": str(exception)[:500],
             }
+        broker_started_ns = self.broker_request_started_monotonic_ns
+        broker_finished_ns = self.broker_response_received_monotonic_ns
+        broker_roundtrip_ns = (
+            max(0, broker_finished_ns - broker_started_ns)
+            if broker_started_ns is not None and broker_finished_ns is not None
+            else None
+        )
+        pre_broker_duration_ns = (
+            max(0, broker_started_ns - self.started_monotonic_ns)
+            if broker_started_ns is not None else None
+        )
+        post_broker_duration_ns = (
+            max(0, finished_monotonic_ns - broker_finished_ns)
+            if broker_finished_ns is not None else None
+        )
+        requested_price = _finite_level(
+            (self.request or {}).get("price")
+        )
+        filled_price = _finite_level(result_payload.get("price"))
+        adverse_slippage_xau = None
+        order_type = (self.request or {}).get("type")
+        if requested_price is not None and filled_price is not None:
+            if order_type == mt5.ORDER_TYPE_BUY:
+                adverse_slippage_xau = round(
+                    filled_price - requested_price,
+                    8,
+                )
+            elif order_type == mt5.ORDER_TYPE_SELL:
+                adverse_slippage_xau = round(
+                    requested_price - filled_price,
+                    8,
+                )
         _emit_event(
             sig_id,
             "mt5_action_attempt",
@@ -428,7 +474,30 @@ class _MT5AttemptEvidence:
                 0,
                 finished_monotonic_ns - self.started_monotonic_ns,
             ),
+            timing_schema_version=1,
             broker_request_sent=self.broker_request_sent,
+            broker_request_started_utc=(
+                datetime.fromtimestamp(
+                    self.broker_request_started_utc_ns / 1_000_000_000,
+                    tz=timezone.utc,
+                ).isoformat(timespec="milliseconds")
+                if self.broker_request_started_utc_ns is not None else None
+            ),
+            broker_response_received_utc=(
+                datetime.fromtimestamp(
+                    self.broker_response_received_utc_ns / 1_000_000_000,
+                    tz=timezone.utc,
+                ).isoformat(timespec="milliseconds")
+                if self.broker_response_received_utc_ns is not None else None
+            ),
+            broker_request_started_monotonic_ns=broker_started_ns,
+            broker_response_received_monotonic_ns=broker_finished_ns,
+            broker_roundtrip_ns=broker_roundtrip_ns,
+            pre_broker_duration_ns=pre_broker_duration_ns,
+            post_broker_duration_ns=post_broker_duration_ns,
+            requested_price=requested_price,
+            filled_price=filled_price,
+            adverse_slippage_xau=adverse_slippage_xau,
             request=self.request,
             result=result_payload,
             last_error=last_error,
@@ -663,7 +732,13 @@ def _send_safe(
     Batch D: cuando order_send devuelve None emitimos anomaly critical
     para que la falla quede registrada en el ledger (antes solo print).
     """
-    res = mt5.order_send(req)
+    if evidence is not None:
+        evidence.mark_broker_request_started()
+    try:
+        res = mt5.order_send(req)
+    finally:
+        if evidence is not None:
+            evidence.mark_broker_response_received()
     if res is None:
         last_err = mt5.last_error()
         if evidence is not None:

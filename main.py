@@ -59,6 +59,7 @@ import live_basket_guard
 import live_auditor
 import pending_actions
 import strategy_shadow_runtime
+import execution_latency
 from signal_lifecycle import (
     apply_lifecycle_decision,
     evaluate_terminal_request,
@@ -1094,6 +1095,7 @@ async def _mt5_connection_monitor(interval_sec: int = 10):
                           previous_state=last_state,
                           trade_allowed=trade_allowed,
                           tradeapi_disabled=tradeapi_disabled,
+                          **execution_latency.terminal_network_fields(info),
                           previous_state_duration_sec=
                               round(duration_s, 1) if duration_s else None,
                           utc=now.isoformat(timespec="seconds"))
@@ -1119,6 +1121,7 @@ async def _mt5_connection_monitor(interval_sec: int = 10):
                           connected=connected,
                           trade_allowed=trade_allowed,
                           tradeapi_disabled=tradeapi_disabled,
+                          **execution_latency.terminal_network_fields(info),
                           uptime_in_state_sec=round(uptime, 0),
                           utc=now.isoformat(timespec="seconds"))
             last_periodic_beat = now

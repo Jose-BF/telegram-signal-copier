@@ -158,6 +158,41 @@ def test_summary_ignores_legacy_handler_entries_without_delay():
     assert report["latency_ms"] == {}
 
 
+def test_compact_report_exposes_passive_mt5_stage_latency():
+    events = [
+        {
+            "ev": "telegram_decision_started",
+            "sig": "canal1_20",
+            "session_id": "session_1",
+            "decision_id": "decision_1",
+            "monotonic_ns": 50_000_000,
+        },
+        {
+            "ev": "mt5_action_attempt",
+            "sig": "canal1_20",
+            "session_id": "session_1",
+            "decision_id": "decision_1",
+            "operation": "OPEN_MARKET",
+            "broker_response_received_monotonic_ns": 350_000_000,
+            "broker_roundtrip_ns": 150_000_000,
+            "pre_broker_duration_ns": 100_000_000,
+            "post_broker_duration_ns": 50_000_000,
+            "result": {"retcode": 10009},
+        },
+    ]
+
+    report = log_analysis.summarize_events(events)
+
+    assert report["execution_latency"]["broker_roundtrip_ms"]["overall"][
+        "p95"
+    ] == 150.0
+    report["scan"] = {"mode": "incremental"}
+    report["status_snapshots"] = {}
+    rendered = log_analysis.render_compact_report(report)
+    assert "order_send p95=150ms" in rendered
+    assert "decision->respuesta p95=300ms" in rendered
+
+
 def test_incremental_summary_counts_zone_transitions_and_triggers():
     events = [
         {"ev": "canal2_zone_plan_created", "status": "armed"},

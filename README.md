@@ -150,7 +150,11 @@ python tools\build_strategy_shadow_report.py `
 ```
 
 The compact daily log pass is incremental and reports armed zones, confirmed
-entries, trigger types and failures without rescanning the retained corpus:
+entries, trigger types and failures without rescanning the retained corpus.
+New sessions also report Telegram delivery, decision-to-response,
+`mt5.order_send`, terminal ping and adverse fill slippage as separate
+distributions. Fewer than 30 successful market samples remain diagnostic and
+must not replace simulation latency assumptions automatically:
 
 ```powershell
 python tools\analyze_new_logs.py

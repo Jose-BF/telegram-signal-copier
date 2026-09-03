@@ -44,15 +44,31 @@ def test_live_and_shadow_compile_from_the_same_execution_contract(strategy_id):
 
 def test_gold_555_contract_preserves_declared_pending_entry_window():
     contract = strategy_contract_by_id("gold_now_555_v1")
+    deployed = gold_555_live_candidate.Gold555Policy()
 
     assert contract.strategy_fingerprint == (
         gold_555_live_candidate.CANDIDATE_FINGERPRINT
     )
     assert contract.terminal.pending_entry_policy == "until_expiry"
     assert contract.terminal.automatic_flat_policy == "keep_if_eligible"
-    assert contract.entry.volumes == (0.04, 0.03, 0.03, 0.03, 0.03)
-    assert contract.entry.expiry_minutes == 30
-    assert contract.protection.target_steps == (0.5, 1.0, 1.5, 2.0, 2.5)
+    assert contract.entry.volumes == deployed.entry_volumes
+    assert contract.entry.ladder_step == deployed.ladder_step
+    assert contract.entry.expiry_minutes == deployed.entry_expiry_minutes
+    assert contract.entry.adverse == deployed.entry_adverse
+    assert contract.entry.reversal == deployed.entry_reversal
+    assert contract.protection.target_steps == deployed.target_steps
+    assert contract.protection.trailing_distance == deployed.trailing_distance
+    assert contract.protection.profit_arm_eur == deployed.profit_arm_eur
+    assert contract.protection.profit_giveback_eur == deployed.profit_giveback_eur
+    assert (
+        contract.protection.time_exit_minutes
+        == deployed.non_negative_exit_minutes
+    )
+    assert contract.protection.time_exit_mode == "non_negative"
+    assert (
+        contract.terminal.provider_management_mode
+        == deployed.provider_management_mode
+    )
 
 
 def test_current_live_candidate_fingerprints_are_frozen_in_registry():

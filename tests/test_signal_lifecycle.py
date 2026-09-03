@@ -9,6 +9,7 @@ from signal_lifecycle import (
     TerminalCause,
     apply_lifecycle_decision,
     evaluate_terminal_request,
+    terminal_cause_for_signal,
 )
 from state import Signal
 
@@ -180,3 +181,30 @@ def test_legacy_signal_without_a_candidate_plan_keeps_existing_flat_semantics():
 
     assert decision.action == "finalize"
     assert decision.reason == "no_eligible_entry_intents"
+
+
+@pytest.mark.parametrize("expires_in_minutes", (-1, 0, 20))
+@pytest.mark.parametrize("filled_indexes", ((), (1,), (1, 2, 3, 4)))
+@pytest.mark.parametrize("terminal_reason", (None, "PROVIDER_CLOSE"))
+def test_canonical_555_lifecycle_preserves_the_previous_live_wait_rule(
+    expires_in_minutes,
+    filled_indexes,
+    terminal_reason,
+):
+    signal, now = _signal(expires_in_minutes=expires_in_minutes)
+    signal.candidate_filled_leg_indexes = list(filled_indexes)
+    signal.requested_close_reason = terminal_reason
+
+    previous_live_waited = bool(
+        terminal_reason is None
+        and len(filled_indexes) < 4
+        and now <= signal.candidate_entry_expires_at
+    )
+    decision = evaluate_terminal_request(
+        signal,
+        cause=terminal_cause_for_signal(signal),
+        open_position_count=0,
+        observed_at=now,
+    )
+
+    assert (decision.action == "keep_alive") is previous_live_waited

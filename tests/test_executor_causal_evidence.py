@@ -143,6 +143,29 @@ def test_market_open_records_one_correlated_attempt_without_extra_ipc(
 
     assert attempt["operation"] == "OPEN_MARKET"
     assert attempt["broker_request_sent"] is True
+    assert (
+        attempt["attempt_started_monotonic_ns"]
+        <= attempt["broker_request_started_monotonic_ns"]
+        <= attempt["broker_response_received_monotonic_ns"]
+        <= attempt["attempt_finished_monotonic_ns"]
+    )
+    assert attempt["broker_roundtrip_ns"] == (
+        attempt["broker_response_received_monotonic_ns"]
+        - attempt["broker_request_started_monotonic_ns"]
+    )
+    assert attempt["pre_broker_duration_ns"] == (
+        attempt["broker_request_started_monotonic_ns"]
+        - attempt["attempt_started_monotonic_ns"]
+    )
+    assert attempt["post_broker_duration_ns"] == (
+        attempt["attempt_finished_monotonic_ns"]
+        - attempt["broker_response_received_monotonic_ns"]
+    )
+    assert attempt["broker_request_started_utc"]
+    assert attempt["broker_response_received_utc"]
+    assert attempt["requested_price"] == 4056.53
+    assert attempt["filled_price"] == 4056.53
+    assert attempt["adverse_slippage_xau"] == 0.0
     assert attempt["source_tick"]["time_msc"] == tick.time_msc
     assert attempt["source_tick"]["bid"] == tick.bid
     assert attempt["source_tick"]["ask"] == tick.ask
@@ -714,6 +737,9 @@ def test_order_send_exception_is_recorded_and_re_raised(
                 if ev == "mt5_action_attempt"]
     assert len(attempts) == 1
     assert attempts[0]["broker_request_sent"] is True
+    assert attempts[0]["broker_roundtrip_ns"] >= 0
+    assert attempts[0]["broker_request_started_utc"]
+    assert attempts[0]["broker_response_received_utc"]
     assert attempts[0]["exception"]["type"] == "TimeoutError"
 
 

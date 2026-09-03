@@ -10,6 +10,8 @@ from pathlib import Path
 import re
 from typing import Any
 
+import execution_latency
+
 
 CURSOR_VERSION = 1
 _HASH_CHUNK_SIZE = 1024 * 1024
@@ -368,6 +370,8 @@ def summarize_events(events: list[dict]) -> dict:
         "monitor_errors": event_counts["canal2_zone_touch_loop_error"],
     }
 
+    execution_latency_report = execution_latency.summarize_events(events)
+
     return {
         "window": {
             "events": len(events),
@@ -426,6 +430,7 @@ def summarize_events(events: list[dict]) -> dict:
             "top": top_anomalies,
         },
         "latency_ms": latency_report,
+        "execution_latency": execution_latency_report,
         "zone_lifecycle": zone_lifecycle,
         "event_counts": dict(sorted(event_counts.items())),
     }
@@ -507,6 +512,31 @@ def render_compact_report(report: dict) -> str:
         )
     if latency_parts:
         lines.append("Latencia: " + " | ".join(latency_parts))
+    execution_latency_report = report.get("execution_latency") or {}
+    order_send = (
+        execution_latency_report.get("broker_roundtrip_ms", {}).get(
+            "overall"
+        )
+    )
+    decision_response = (
+        execution_latency_report.get(
+            "decision_to_broker_response_ms", {}
+        ).get("overall")
+    )
+    if order_send or decision_response:
+        stage_parts = []
+        if order_send:
+            stage_parts.append(
+                f"order_send p95={order_send['p95']:.0f}ms "
+                f"(n={order_send['count']})"
+            )
+        if decision_response:
+            stage_parts.append(
+                "decision->respuesta "
+                f"p95={decision_response['p95']:.0f}ms "
+                f"(n={decision_response['count']})"
+            )
+        lines.append("MT5 por tramos: " + " | ".join(stage_parts))
     readiness = (report.get("status_snapshots") or {}).get("replay_readiness", {})
     if readiness.get("summary"):
         summary = readiness["summary"]
