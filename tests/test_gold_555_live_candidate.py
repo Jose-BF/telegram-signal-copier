@@ -189,12 +189,22 @@ def test_invalid_direction_or_leg_is_rejected() -> None:
 
 @pytest.mark.parametrize(
     "action",
-    ["CLOSE_ALL", "CLOSE_FIRST", "CLOSE_AT_TP", "CLOSE_PARTIAL", "EXIT"],
+    ["CLOSE_ALL", "EXIT", "CERRAR"],
 )
 def test_exact_provider_close_actions_are_recognized(action: str) -> None:
     assert is_provider_close_action(action) is True
 
 
-@pytest.mark.parametrize("action", ["MOVE_SL_TO_BE", "MOVE_SL_TO_PRICE", "INFORMATIONAL"])
+@pytest.mark.parametrize(
+    "action",
+    [
+        "CLOSE_FIRST",
+        "CLOSE_AT_TP",
+        "CLOSE_PARTIAL",
+        "MOVE_SL_TO_BE",
+        "MOVE_SL_TO_PRICE",
+        "INFORMATIONAL",
+    ],
+)
 def test_provider_level_actions_are_not_close_actions(action: str) -> None:
     assert is_provider_close_action(action) is False

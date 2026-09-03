@@ -412,6 +412,23 @@ def test_explicit_provider_close_is_causal():
     assert result.pnl_eur == Decimal("0.50")
 
 
+def test_exact_provider_management_retains_legacy_close_vocabulary():
+    close = ProviderEvent(BASE + timedelta(seconds=1), "CLOSE_FIRST", {})
+    path = _path(
+        [100.2, 100.7, 102.0],
+        [100.4, 100.9, 102.2],
+        provider_events=(close,),
+    )
+
+    result = simulate(
+        path,
+        _genome(provider_management_mode="exact"),
+    )
+
+    assert result.exit_reason == "provider_close"
+    assert result.last_tick_index == 1
+
+
 def test_execution_latency_delays_provider_close_instruction():
     close = ProviderEvent(BASE + timedelta(seconds=1), "CLOSE_ALL", {})
     path = _path(
@@ -457,7 +474,7 @@ def test_execution_latency_delays_provider_tp_visibility():
 
     assert immediate.last_tick_index == 1
     assert delayed.last_tick_index == 4
-    assert delayed.pnl_eur == Decimal("0.90")
+    assert delayed.pnl_eur == Decimal("0.80")
 
 
 def test_execution_latency_delays_provider_sl_visibility():

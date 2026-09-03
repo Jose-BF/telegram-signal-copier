@@ -147,8 +147,10 @@ def _load_scopes(
             continue
         if row.get("channel") != "canal2" or row.get("record_type") != "formal_signal":
             continue
+        entry_contract = row.get("entry_contract") or {}
         observed_at = _parse_datetime(
-            row.get("signal_ts_utc") or row.get("first_observed_utc")
+            entry_contract.get("trigger_observed_utc")
+            or row.get("first_observed_utc")
         )
         if observed_at is None or not start <= observed_at.date() <= end:
             continue
@@ -204,9 +206,13 @@ def _provider_trade(
     """Compile one formal NOW signal into an execution-independent template."""
 
     entry_contract = row.get("entry_contract") or {}
-    trigger = _parse_datetime(
+    sent_at = _parse_datetime(
         entry_contract.get("trigger_telegram_utc")
         or row.get("signal_ts_utc")
+    ) or observed_at
+    trigger = _parse_datetime(
+        entry_contract.get("trigger_observed_utc")
+        or row.get("first_observed_utc")
     ) or observed_at
     direction = str(row.get("direction") or "").upper()
     level_rows = _provider_level_rows(row, trigger)
@@ -262,15 +268,12 @@ def _provider_trade(
         if not isinstance(event, Mapping):
             continue
         event_time = _parse_datetime(
-            event.get("telegram_ts_utc")
-            or event.get("observed_ts_utc")
+            event.get("observed_ts_utc")
+            or event.get("telegram_ts_utc")
         )
         if event_time is None:
             continue
         normalized = dict(event)
-        normalized["captured_observed_ts_utc"] = event.get(
-            "observed_ts_utc"
-        )
         normalized["observed_ts_utc"] = event_time.isoformat()
         management.append(normalized)
 
@@ -279,6 +282,7 @@ def _provider_trade(
         "channel": "canal2",
         "direction": direction,
         "signal_dt_utc": trigger.isoformat(),
+        "entry_expiry_anchor_utc": sent_at.isoformat(),
         "entry_evidence_kind": "provider_telegram",
         "entry_provenance": {"source_kind": "provider_telegram"},
         "tickets": tickets,
@@ -308,8 +312,8 @@ def _provider_level_rows(
         if not isinstance(candidate, Mapping):
             continue
         timestamp = _parse_datetime(
-            candidate.get("telegram_ts_utc")
-            or candidate.get("observed_ts_utc")
+            candidate.get("observed_ts_utc")
+            or candidate.get("telegram_ts_utc")
         )
         if timestamp is None:
             continue

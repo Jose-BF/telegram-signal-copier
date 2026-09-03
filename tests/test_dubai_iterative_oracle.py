@@ -481,7 +481,7 @@ def test_all_engines_delay_every_provider_artifact_by_execution_latency():
             ),
             _genome(target_mode="provider_per_leg"),
             4,
-            Decimal("0.90"),
+            Decimal("0.80"),
         ),
         (
             _path(

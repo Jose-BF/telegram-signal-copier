@@ -15,6 +15,8 @@ import math
 import re
 from typing import Iterable, Sequence
 
+from provider_action_semantics import is_strategy_close_action
+
 from .contracts import StrategyGenome
 from .dataset import DubaiPath, LevelEvent, ProviderEvent
 
@@ -310,7 +312,10 @@ def oracle_simulate(
             "exact",
             "close_only",
             "explicit_close_only",
-        } and any(_provider_close(item.action) for item in due):
+        } and any(
+            _provider_close(item.action, genome.provider_management_mode)
+            for item in due
+        ):
             realized_minor, unknown_money = _close_all(
                 path, active, exits, index, "provider_close", execution,
                 realized_minor, unknown_money, blockers,
@@ -352,6 +357,9 @@ def oracle_simulate(
                 realized_minor, unknown_money = _close_one(
                     path, position, position.volume, active, exits, index,
                     "provider_tp", execution, realized_minor, unknown_money, blockers,
+                    exit_price=_target_exit_price(
+                        path.direction, target, execution
+                    ),
                 )
                 reason = "provider_tp"
         elif genome.target_mode == "per_leg_steps":
@@ -366,6 +374,9 @@ def oracle_simulate(
                     path, position, position.volume, active, exits, index,
                     "per_leg_target", execution, realized_minor,
                     unknown_money, blockers,
+                    exit_price=_target_exit_price(
+                        path.direction, target, execution
+                    ),
                 )
                 reason = "per_leg_target"
         elif genome.target_mode == "provider_target_all":
@@ -379,6 +390,9 @@ def oracle_simulate(
                 realized_minor, unknown_money = _close_all(
                     path, active, exits, index, "provider_target_all", execution,
                     realized_minor, unknown_money, blockers,
+                    exit_price=_target_exit_price(
+                        path.direction, target, execution
+                    ),
                 )
                 reason = "provider_target_all"
         elif genome.target_mode == "fixed_basket":
@@ -714,7 +728,7 @@ def _schedule_ladder_entries(
         first_ticket = template.ticket
         first_source = "observed_mt5_fill"
         expiry_anchor_ns = (
-            _to_ns(path.signal_observed_at)
+            _entry_expiry_anchor_ns(path)
             if genome.schema_version >= 2
             else base_ns
         )
@@ -743,7 +757,7 @@ def _schedule_ladder_entries(
         first_ticket = "sim_1"
         first_source = f"causal_{genome.entry_mode}"
         expiry_ns = (
-            _to_ns(path.signal_observed_at)
+            _entry_expiry_anchor_ns(path)
             + genome.entry_expiry_min * 60 * 1_000_000_000
         )
         if (
@@ -848,7 +862,10 @@ def _causal_index(path: DubaiPath, genome: StrategyGenome, execution: ExecutionS
     start_index = bisect_left(times, start_ns)
     if start_index >= len(times):
         return None
-    expiry_ns = signal_ns + genome.entry_expiry_min * 60 * 1_000_000_000
+    expiry_ns = (
+        _entry_expiry_anchor_ns(path)
+        + genome.entry_expiry_min * 60 * 1_000_000_000
+    )
     if genome.entry_mode == "no_entry":
         return None
     if genome.entry_mode == "delay":
@@ -1143,18 +1160,46 @@ def _announced_price(event: ProviderEvent) -> float | None:
     return value if math.isfinite(value) and value > 0 else None
 
 
-def _close_all(path, active, exits, index, reason, execution, realized, unknown, blockers):
+def _close_all(
+    path,
+    active,
+    exits,
+    index,
+    reason,
+    execution,
+    realized,
+    unknown,
+    blockers,
+    *,
+    exit_price=None,
+):
     for position in tuple(active):
         realized, unknown = _close_one(
             path, position, position.volume, active, exits, index, reason,
             execution, realized, unknown, blockers,
+            exit_price=exit_price,
         )
     return realized, unknown
 
 
-def _close_one(path, position, volume, active, exits, index, reason, execution, realized, unknown, blockers):
+def _close_one(
+    path,
+    position,
+    volume,
+    active,
+    exits,
+    index,
+    reason,
+    execution,
+    realized,
+    unknown,
+    blockers,
+    *,
+    exit_price=None,
+):
     volume = min(position.volume, _clean_volume(volume))
-    exit_price = _exit_with_cost(path, index, execution)
+    if exit_price is None:
+        exit_price = _exit_with_cost(path, index, execution)
     pnl_minor, exact = _money_minor(path, position.entry_price, exit_price, volume, index)
     if exact:
         pnl_minor += _allocate_swap(position, volume)
@@ -1391,6 +1436,11 @@ def _entry_quote(path: DubaiPath, index: int) -> float:
     return float(path.ask[index] if path.direction == "BUY" else path.bid[index])
 
 
+def _entry_expiry_anchor_ns(path: DubaiPath) -> int:
+    anchor = path.entry_expiry_anchor_at or path.signal_observed_at
+    return _to_ns(anchor)
+
+
 def _entry_with_cost(direction: str, price: float, scenario: ExecutionScenario) -> float:
     cost = scenario.entry_slippage + scenario.spread_addition
     return _clean_price(price + cost if direction == "BUY" else price - cost)
@@ -1400,6 +1450,15 @@ def _exit_with_cost(path: DubaiPath, index: int, scenario: ExecutionScenario) ->
     price = float(path.exit_quotes[index])
     cost = scenario.exit_slippage + scenario.spread_addition
     return _clean_price(price - cost if path.direction == "BUY" else price + cost)
+
+
+def _target_exit_price(
+    direction: str,
+    target: float,
+    scenario: ExecutionScenario,
+) -> float:
+    cost = scenario.exit_slippage + scenario.spread_addition
+    return _clean_price(float(target) - _sign(direction) * cost)
 
 
 def _usable_tick(path: DubaiPath, index: int) -> bool:
@@ -1414,9 +1473,8 @@ def _hit(direction: str, price: float, level: float, *, target: bool) -> bool:
     return price <= level if direction == "BUY" else price >= level
 
 
-def _provider_close(action: str) -> bool:
-    normalized = str(action).upper()
-    return "CLOSE" in normalized or normalized in {"EXIT", "CERRAR"}
+def _provider_close(action: str, provider_management_mode: str = "exact") -> bool:
+    return is_strategy_close_action(action, provider_management_mode)
 
 
 def _be_source(source: str) -> bool:

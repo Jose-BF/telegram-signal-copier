@@ -8,6 +8,8 @@ from decimal import Decimal, ROUND_HALF_UP
 import math
 from typing import Iterable
 
+from provider_action_semantics import is_strategy_close_action
+
 from strategy_shadow_contracts import (
     ShadowAdvance,
     ShadowManagementEvent,
@@ -170,11 +172,13 @@ def _close_positions(
     positions: Iterable[ShadowPosition],
     *,
     reason: str,
+    exit_price: float | None = None,
 ) -> tuple[ShadowSignalState, tuple[int, ...]]:
     indexes = {item.leg_index for item in positions if item.status == "open"}
     if not indexes:
         return state, ()
-    exit_price = tick.executable_price(state.direction, entry=False)
+    if exit_price is None:
+        exit_price = tick.executable_price(state.direction, entry=False)
     exact = True
     closed_indexes: list[int] = []
     updated_positions: list[ShadowPosition] = []
@@ -481,7 +485,13 @@ def _process_price_exits(
         if reason is None:
             continue
         updated, closed = _close_positions(
-            updated, tick, (position,), reason=reason,
+            updated,
+            tick,
+            (position,),
+            reason=reason,
+            exit_price=(
+                position.target_price if reason == "target" else None
+            ),
         )
         transitions.append(_transition(
             updated,
@@ -769,9 +779,8 @@ def advance_tick(
     return ShadowAdvance(updated, tuple(transitions))
 
 
-def _is_close_action(action: str) -> bool:
-    normalized = str(action or "").upper()
-    return "CLOSE" in normalized or normalized in {"EXIT", "CERRAR"}
+def _is_close_action(action: str, provider_management_mode: str) -> bool:
+    return is_strategy_close_action(action, provider_management_mode)
 
 
 def apply_management(
@@ -801,7 +810,7 @@ def apply_management(
         ))
         return ShadowAdvance(updated, tuple(transitions))
 
-    if _is_close_action(action):
+    if _is_close_action(action, policy.provider_management_mode):
         updated = replace(updated, pending_provider_close=True)
         transitions.append(_transition(
             updated,

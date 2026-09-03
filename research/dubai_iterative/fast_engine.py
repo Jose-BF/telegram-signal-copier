@@ -17,6 +17,8 @@ from typing import Iterable
 import numpy as np
 from numba import njit
 
+from provider_action_semantics import is_full_close_action
+
 from .contracts import StrategyGenome
 from .dataset import DubaiPath, LevelEvent, ProviderEvent
 from .engine import (
@@ -64,6 +66,7 @@ STOP_NONE = 3
 MANAGEMENT_EXACT = 0
 MANAGEMENT_CLOSE_ONLY = 1
 MANAGEMENT_IGNORE = 2
+MANAGEMENT_EXPLICIT_CLOSE_ONLY = 3
 
 TIME_UNCONDITIONAL = 0
 TIME_DISABLED = 1
@@ -75,6 +78,7 @@ PROVIDER_OTHER = 0
 PROVIDER_MOVE_BE = 1
 PROVIDER_MOVE_PRICE = 2
 PROVIDER_CLOSE = 3
+PROVIDER_LEGACY_CLOSE = 4
 
 REASON_NOT_CLOSED = 0
 REASON_BASKET_STOP = 1
@@ -132,7 +136,7 @@ _STOP_CODES = {
 _MANAGEMENT_CODES = {
     "exact": MANAGEMENT_EXACT,
     "close_only": MANAGEMENT_CLOSE_ONLY,
-    "explicit_close_only": MANAGEMENT_CLOSE_ONLY,
+    "explicit_close_only": MANAGEMENT_EXPLICIT_CLOSE_ONLY,
     "ignore": MANAGEMENT_IGNORE,
 }
 _REASON_NAMES = {
@@ -598,8 +602,10 @@ def _provider_arrays(
             code = PROVIDER_MOVE_BE
         elif action == "MOVE_SL_TO_PRICE":
             code = PROVIDER_MOVE_PRICE
-        elif _is_provider_close(action):
+        elif is_full_close_action(action):
             code = PROVIDER_CLOSE
+        elif _is_provider_close(action, "exact"):
+            code = PROVIDER_LEGACY_CLOSE
         else:
             code = PROVIDER_OTHER
         price = 0
@@ -1064,10 +1070,16 @@ def _kernel(
                     if active[slot]:
                         be_stops[slot] = provider_prices[provider_cursor]
                         be_reasons[slot] = REASON_PROVIDER_SL_MOVE
-            if action == PROVIDER_CLOSE:
+            if (
+                action == PROVIDER_CLOSE
+                or (
+                    action == PROVIDER_LEGACY_CLOSE
+                    and management_mode != MANAGEMENT_EXPLICIT_CLOSE_ONLY
+                )
+            ):
                 close_due = True
             provider_cursor += 1
-        if close_due and (management_mode == MANAGEMENT_EXACT or management_mode == MANAGEMENT_CLOSE_ONLY):
+        if close_due and management_mode != MANAGEMENT_IGNORE:
             for slot in range(position_count):
                 if active[slot]:
                     value, exact = _money_minor_fixed(direction, orientation, contract_size, entry_prices[slot], money_exit, volumes[slot], fx_bid[index], fx_ask[index], fx_valid[index])
@@ -1135,11 +1147,12 @@ def _kernel(
                 level = current_tp[slot]
                 hit = active[slot] and level != 0 and ((direction == 1 and raw_exit >= level) or (direction == -1 and raw_exit <= level))
                 if hit:
-                    value, exact = _money_minor_fixed(direction, orientation, contract_size, entry_prices[slot], money_exit, volumes[slot], fx_bid[index], fx_ask[index], fx_valid[index])
+                    target_exit = level - direction * exit_cost_points
+                    value, exact = _money_minor_fixed(direction, orientation, contract_size, entry_prices[slot], target_exit, volumes[slot], fx_bid[index], fx_ask[index], fx_valid[index])
                     value += accrued_swap[slot]
                     accrued_swap[slot] = 0
                     exit_slots[exit_count] = slot; exit_indices[exit_count] = index
-                    exit_entry_prices[exit_count] = entry_prices[slot]; exit_prices[exit_count] = money_exit
+                    exit_entry_prices[exit_count] = entry_prices[slot]; exit_prices[exit_count] = target_exit
                     exit_volumes[exit_count] = volumes[slot]; exit_pnls[exit_count] = value
                     exit_exact[exit_count] = exact; exit_reasons[exit_count] = REASON_PROVIDER_TP
                     exit_count += 1
@@ -1154,9 +1167,10 @@ def _kernel(
                     or (direction == -1 and raw_exit <= level)
                 )
                 if hit:
+                    target_exit = level - direction * exit_cost_points
                     value, current_exact = _money_minor_fixed(
                         direction, orientation, contract_size,
-                        entry_prices[slot], money_exit, volumes[slot],
+                        entry_prices[slot], target_exit, volumes[slot],
                         fx_bid[index], fx_ask[index], fx_valid[index],
                     )
                     value += accrued_swap[slot]
@@ -1164,7 +1178,7 @@ def _kernel(
                     exit_slots[exit_count] = slot
                     exit_indices[exit_count] = index
                     exit_entry_prices[exit_count] = entry_prices[slot]
-                    exit_prices[exit_count] = money_exit
+                    exit_prices[exit_count] = target_exit
                     exit_volumes[exit_count] = volumes[slot]
                     exit_pnls[exit_count] = value
                     exit_exact[exit_count] = current_exact
@@ -1200,13 +1214,14 @@ def _kernel(
                 level = ordered[selected] if direction == 1 else ordered[available_count - 1 - selected]
                 hit = (direction == 1 and raw_exit >= level) or (direction == -1 and raw_exit <= level)
                 if hit:
+                    target_exit = level - direction * exit_cost_points
                     for slot in range(position_count):
                         if active[slot]:
-                            value, exact = _money_minor_fixed(direction, orientation, contract_size, entry_prices[slot], money_exit, volumes[slot], fx_bid[index], fx_ask[index], fx_valid[index])
+                            value, exact = _money_minor_fixed(direction, orientation, contract_size, entry_prices[slot], target_exit, volumes[slot], fx_bid[index], fx_ask[index], fx_valid[index])
                             value += accrued_swap[slot]
                             accrued_swap[slot] = 0
                             exit_slots[exit_count] = slot; exit_indices[exit_count] = index
-                            exit_entry_prices[exit_count] = entry_prices[slot]; exit_prices[exit_count] = money_exit
+                            exit_entry_prices[exit_count] = entry_prices[slot]; exit_prices[exit_count] = target_exit
                             exit_volumes[exit_count] = volumes[slot]; exit_pnls[exit_count] = value
                             exit_exact[exit_count] = exact; exit_reasons[exit_count] = REASON_PROVIDER_TARGET_ALL
                             exit_count += 1

@@ -1,7 +1,14 @@
 from __future__ import annotations
 
 from research.dubai_iterative.contracts import StrategyGenome
-from research.gold_iterative.contracts import gold_c490_genome, gold_555_genome
+from research.gold_iterative.contracts import (
+    GOLD_555_FLAT_CANCEL_FINGERPRINT,
+    GOLD_555_UNTIL_EXPIRY_FINGERPRINT,
+    gold_c490_genome,
+    gold_555_genome,
+    gold_555_flat_cancel_genome,
+    gold_555_until_expiry_genome,
+)
 from strategy_runtime_contract import strategy_contract_by_id
 
 
@@ -42,6 +49,23 @@ def test_gold_555_genome_encodes_the_complete_runtime_contract():
     assert genome.pending_entry_policy == runtime.terminal.pending_entry_policy
     assert genome.provider_management_mode == runtime.terminal.provider_management_mode
     assert genome.validation_errors() == ()
+
+
+def test_declared_until_expiry_and_deterministic_flat_have_distinct_identities():
+    declared = gold_555_genome()
+    until_expiry = gold_555_until_expiry_genome()
+    flat_cancel = gold_555_flat_cancel_genome()
+
+    assert declared.pending_entry_policy == "until_expiry"
+    assert until_expiry.pending_entry_policy == "until_expiry"
+    assert flat_cancel.pending_entry_policy == "none"
+    assert flat_cancel.fingerprint == GOLD_555_FLAT_CANCEL_FINGERPRINT
+    assert until_expiry.fingerprint == GOLD_555_UNTIL_EXPIRY_FINGERPRINT
+    assert until_expiry.fingerprint == declared.fingerprint
+    assert flat_cancel.fingerprint != declared.fingerprint
+    assert flat_cancel.source_strategy_fingerprint == declared.source_strategy_fingerprint
+    assert flat_cancel.validation_errors() == ()
+    assert until_expiry.validation_errors() == ()
 
 
 def test_gold_c490_genome_encodes_every_live_protection_rule():

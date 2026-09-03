@@ -94,20 +94,23 @@ def _catalog_signal(
     execution_ids=None,
     signal_ts="2026-07-27T09:00:00+00:00",
 ):
+    observed_ts = (
+        pd.Timestamp(signal_ts) + pd.Timedelta(milliseconds=100)
+    ).isoformat()
     return {
         "provider_signal_id": signal_id,
         "record_type": record_type,
         "channel": "canal2",
         "signal_ts_utc": signal_ts,
-        "first_observed_utc": signal_ts,
+        "first_observed_utc": observed_ts,
         "direction": "BUY",
         "effective_range": [99.0, 101.0],
         "effective_tps": [102.0, 103.0],
         "effective_sl": 98.0,
         "revisions": [
             {
-                "observed_ts_utc": "2026-07-27T09:00:00.100+00:00",
-                "telegram_ts_utc": "2026-07-27T09:00:00+00:00",
+                "observed_ts_utc": observed_ts,
+                "telegram_ts_utc": signal_ts,
                 "text": text,
                 "parsed": {"direction": "BUY"},
             }
@@ -131,7 +134,7 @@ def _catalog_signal(
         "entry_contract": {
             "status": "ready",
             "trigger_telegram_utc": signal_ts,
-            "trigger_observed_utc": "2026-07-27T09:00:00.100+00:00",
+            "trigger_observed_utc": observed_ts,
             "blockers": [],
         },
         "execution_sig_ids": list(execution_ids or ()),
@@ -382,17 +385,53 @@ def test_gold_loader_builds_provider_path_from_telegram_not_mt5(tmp_path):
 
     path = next(item for item in dataset.paths if item.signal_id == "canal2_10")
     assert path.entry_evidence_kind == "provider_telegram"
-    assert path.signal_observed_at.isoformat() == "2026-07-27T09:00:00+00:00"
+    assert path.signal_observed_at.isoformat() == (
+        "2026-07-27T09:00:00.100000+00:00"
+    )
+    assert path.entry_expiry_anchor_at.isoformat() == (
+        "2026-07-27T09:00:00+00:00"
+    )
     assert path.actual_pnl_eur == Decimal("2.35")
-    assert path.legs[0].opened_at.isoformat() == "2026-07-27T09:00:00+00:00"
+    assert path.legs[0].opened_at.isoformat() == (
+        "2026-07-27T09:00:00.100000+00:00"
+    )
     assert path.legs[0].open_price == 100.0
     assert [item.level for item in path.legs[0].tp_events] == [102.0]
     assert [item.level for item in path.legs[1].tp_events] == [103.0]
     assert path.legs[0].tp_events[0].observed_at.isoformat() == (
-        "2026-07-27T09:00:02+00:00"
+        "2026-07-27T09:00:05+00:00"
     )
     assert path.provider_events[0].observed_at.isoformat() == (
+        "2026-07-27T09:01:03+00:00"
+    )
+    assert path.provider_events[0].payload["telegram_ts_utc"] == (
         "2026-07-27T09:01:00+00:00"
+    )
+
+
+def test_gold_loader_never_starts_before_the_bot_observed_the_signal(tmp_path):
+    fixture = _fixture(tmp_path)
+    catalog = json.loads(
+        fixture["provider_catalog_path"].read_text(encoding="utf-8")
+    )
+    signal = catalog["signals"][0]
+    signal["first_observed_utc"] = "2026-07-27T09:00:00.500+00:00"
+    signal["entry_contract"]["trigger_observed_utc"] = (
+        "2026-07-27T09:00:00.500+00:00"
+    )
+    fixture["provider_catalog_path"].write_text(
+        json.dumps(catalog),
+        encoding="utf-8",
+    )
+
+    dataset = load_gold_now_dataset(**fixture)
+
+    path = next(item for item in dataset.paths if item.signal_id == "canal2_10")
+    assert path.signal_observed_at.isoformat() == (
+        "2026-07-27T09:00:00.500000+00:00"
+    )
+    assert path.times_ns[0] >= int(
+        pd.Timestamp("2026-07-27T09:00:00.500Z").value
     )
 
 
@@ -459,7 +498,7 @@ def test_gold_direct_loader_adds_explicit_priced_entries_without_mixing_zones(
         path for path in direct_dataset.paths if path.signal_id == "canal2_15"
     )
     assert direct_path.legs[0].opened_at.isoformat() == (
-        "2026-07-27T09:00:00+00:00"
+        "2026-07-27T09:00:00.100000+00:00"
     )
     assert direct_path.legs[0].open_price == 100.0
     assert direct_path.legs[0].sl_events[0].level == 98.0

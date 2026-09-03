@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 import math
 
+from provider_action_semantics import is_full_close_action
+
 
 CANDIDATE_ID = "gold_now_555_v1"
 CANDIDATE_FINGERPRINT = (
@@ -234,6 +236,5 @@ def market_comment(message_id: int, leg_index: int | None = None) -> str:
 
 
 def is_provider_close_action(action: str) -> bool:
-    """Match the exact close predicate used by the frozen replay."""
-    normalized = str(action or "").upper()
-    return "CLOSE" in normalized or normalized in {"EXIT", "CERRAR"}
+    """Match only an explicit instruction to close the whole basket."""
+    return is_full_close_action(action)

@@ -8,6 +8,8 @@ import hashlib
 import json
 import math
 
+from provider_action_semantics import is_strategy_close_action
+
 
 CANDIDATE_ID = "dubai_balanced_v1"
 CANDIDATE_FINGERPRINT = (
@@ -226,8 +228,7 @@ def evaluate_guard(
 
 
 def is_provider_close_action(action: str) -> bool:
-    normalized = str(action or "").upper()
-    return "CLOSE" in normalized or normalized in {"EXIT", "CERRAR"}
+    return is_strategy_close_action(action, DubaiLivePolicy().provider_management_mode)
 
 
 if DubaiLivePolicy().fingerprint != CANDIDATE_FINGERPRINT:

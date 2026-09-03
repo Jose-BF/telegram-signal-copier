@@ -77,6 +77,16 @@ Current demo forward policy:
   testing, not an independently validated winner. It logs every entry-watch
   transition and broker-tick decision, and emits one alert if a negative
   basket remains open after its three-hour non-negative exit threshold.
+- Gold 555 parity reports keep three evidence roles separate: reconciled MT5
+  money, a retrospective management replay conditioned on those real fills,
+  and a prospective Telegram-plus-ticks simulation. Matching the first two
+  proves management only. Historical extension remains blocked unless entry
+  outcome, exact trigger tick, broker fill and deterministic terminal
+  lifecycle all pass independently. The tools
+  `certify_gold_555_live_parity.py`,
+  `certify_gold_555_entry_watch_parity.py`,
+  `compare_gold_555_semantics.py` and
+  `build_gold_555_pipeline_truth.py` produce those separate checks.
 - Both candidate basket guards sample every fresh broker tick. Dubai remains
   process-protected; Gold NOW also has a broker-side catastrophe SL on every
   leg so a stopped Python process does not leave those positions naked.

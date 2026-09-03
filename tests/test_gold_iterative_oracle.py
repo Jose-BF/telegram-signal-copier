@@ -18,7 +18,11 @@ from research.dubai_iterative.dataset import (
 from research.dubai_iterative.engine import simulate
 from research.dubai_iterative.fast_engine import FastEvaluator
 from research.dubai_iterative.oracle import oracle_simulate
-from research.gold_iterative.contracts import gold_555_genome, gold_c490_genome
+from research.gold_iterative.contracts import (
+    gold_555_genome,
+    gold_555_until_expiry_genome,
+    gold_c490_genome,
+)
 
 
 BASE = datetime(2026, 8, 31, 9, 0, tzinfo=timezone.utc)
@@ -303,13 +307,43 @@ def test_oracle_independently_matches_555_adverse_reversal(
     _assert_same(scalar, fast)
 
 
+def test_555_entry_expiry_is_anchored_to_telegram_send_time() -> None:
+    path = replace(
+        _path(
+            [100.0, 98.8, 100.4],
+            [100.2, 99.0, 100.6],
+            interval_seconds=5,
+            legs=1,
+        ),
+        signal_observed_at=BASE + timedelta(seconds=50),
+        entry_expiry_anchor_at=BASE,
+        times_ns=_array(
+            [
+                int((BASE + timedelta(seconds=offset)).timestamp() * 1_000_000_000)
+                for offset in (50, 55, 65)
+            ],
+            dtype=np.int64,
+        ),
+    )
+    genome = _single_555(entry_expiry_min=1)
+
+    scalar = simulate(path, genome)
+    fast = FastEvaluator()(path, genome)
+    oracle = oracle_simulate(path, genome)
+
+    assert scalar.unfilled is True
+    assert scalar.entries == ()
+    _assert_same(scalar, fast)
+    _assert_same(scalar, oracle)
+
+
 def test_oracle_independently_matches_temporary_flat_555_ladder() -> None:
     path = _path(
         [100.0, 99.0, 98.5, 100.0, 100.7, 98.5, 99.7],
         [100.2, 99.2, 98.7, 100.2, 100.9, 98.7, 99.9],
         legs=2,
     )
-    genome = gold_555_genome().with_change(
+    genome = gold_555_until_expiry_genome().with_change(
         leg_count=2,
         volume_weights=(0.04, 0.03),
         target_steps=(0.5, 1.0),
@@ -445,6 +479,59 @@ def test_three_engines_match_555_explicit_provider_close() -> None:
 
     assert scalar.exit_reason == "provider_close"
     assert scalar.pnl_eur == Decimal("3.20")
+    _assert_same(scalar, oracle)
+    _assert_same(scalar, fast)
+
+
+def test_three_engines_ignore_partial_close_for_explicit_full_close_mode() -> None:
+    partial_at = BASE + timedelta(minutes=1)
+    path = _path(
+        [100.0, 100.1, 100.7],
+        [100.2, 100.3, 100.9],
+        legs=1,
+        provider_events=(
+            ProviderEvent(
+                partial_at,
+                "CLOSE_PARTIAL",
+                {"raw_text": "I will close partials"},
+            ),
+        ),
+    )
+    genome = _single_555(
+        entry_mode="signal_market",
+        entry_value=None,
+        entry_confirmation_value=None,
+    )
+
+    scalar = simulate(path, genome)
+    oracle = oracle_simulate(path, genome)
+    fast = FAST(path, genome)
+
+    assert scalar.exit_reason == "per_leg_target"
+    assert scalar.pnl_eur == Decimal("2.00")
+    _assert_same(scalar, oracle)
+    _assert_same(scalar, fast)
+
+
+def test_three_engines_fill_per_leg_target_at_limit_not_overshoot() -> None:
+    path = _path(
+        [100.0, 101.4],
+        [100.2, 101.6],
+        legs=1,
+    )
+    genome = _single_555(
+        entry_mode="signal_market",
+        entry_value=None,
+        entry_confirmation_value=None,
+    )
+
+    scalar = simulate(path, genome)
+    oracle = oracle_simulate(path, genome)
+    fast = FAST(path, genome)
+
+    assert scalar.exit_reason == "per_leg_target"
+    assert scalar.exits[0].exit_price == 100.7
+    assert scalar.pnl_eur == Decimal("2.00")
     _assert_same(scalar, oracle)
     _assert_same(scalar, fast)
 

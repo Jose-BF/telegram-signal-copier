@@ -20,7 +20,7 @@ def _signal() -> Signal:
 
 
 @pytest.mark.asyncio
-async def test_explicit_provider_close_closes_complete_555_basket(monkeypatch) -> None:
+async def test_partial_provider_close_does_not_close_complete_555_basket(monkeypatch) -> None:
     signal = _signal()
     closes = []
     events = []
@@ -39,6 +39,34 @@ async def test_explicit_provider_close_closes_complete_555_basket(monkeypatch) -
         signal,
         {"action": "CLOSE_FIRST", "confidence": 0.99},
         raw_text="Close first entries now",
+    )
+
+    assert result == "ignored"
+    assert signal.requested_close_reason is None
+    assert closes == []
+    assert events[-1][1] == "gold_555_provider_action_observed_not_applied"
+
+
+@pytest.mark.asyncio
+async def test_explicit_full_close_closes_complete_555_basket(monkeypatch) -> None:
+    signal = _signal()
+    closes = []
+    events = []
+    monkeypatch.setattr(
+        listener.pending_actions,
+        "enqueue_close_position",
+        lambda sig, ticket, **kwargs: closes.append((ticket, kwargs)),
+    )
+    monkeypatch.setattr(
+        listener.journal,
+        "event",
+        lambda sig, ev, **fields: events.append((sig, ev, fields)),
+    )
+
+    result = await listener._execute_one_action(
+        signal,
+        {"action": "CLOSE_ALL", "confidence": 0.99},
+        raw_text="Close all entries now",
     )
 
     assert result == "closed"

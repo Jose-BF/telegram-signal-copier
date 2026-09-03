@@ -148,6 +148,7 @@ class SignalPath:
     market_evidence: tuple[Mapping[str, Any], ...]
     conversion_evidence: tuple[Mapping[str, Any], ...]
     entry_evidence_kind: str = "actual_mt5"
+    entry_expiry_anchor_at: datetime | None = None
     rollover_events: tuple[RolloverEvent, ...] = ()
 
     @property
@@ -561,6 +562,10 @@ def load_strategy_dataset(
             entry_evidence_kind=str(
                 trade.get("entry_evidence_kind") or "actual_mt5"
             ),
+            entry_expiry_anchor_at=(
+                _parse_datetime(trade.get("entry_expiry_anchor_utc"))
+                or signal_observed_at
+            ),
             rollover_events=rollover_events,
         ))
 
@@ -571,6 +576,9 @@ def load_strategy_dataset(
         "to_date": to_date,
         "max_hold_minutes": max_hold_minutes,
         "execution_tail_minutes": EXECUTION_TAIL_MINUTES,
+        "entry_timing_contract": (
+            "locally_observed_start_provider_sent_expiry_v1"
+        ),
     }
     if required_entry_source_kind is not None:
         dataset_contract["required_entry_source_kind"] = required_entry_source_kind

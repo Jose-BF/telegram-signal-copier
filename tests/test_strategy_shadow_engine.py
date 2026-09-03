@@ -136,7 +136,7 @@ def test_555_targets_use_each_fill_and_buy_exit_quote():
     result = advance_tick(policy, state, tick(103, bid=4300.91, ask=4301.11))
 
     assert result.state.positions[0].status == "closed"
-    assert result.state.positions[0].close_price == 4300.91
+    assert result.state.positions[0].close_price == 4300.9
     assert result.state.positions[0].close_reason == "target"
 
 
@@ -323,6 +323,29 @@ def test_provider_close_is_pending_until_next_unique_tick_and_deduplicated():
     assert pending.state.pending_provider_close is True
     assert duplicate.transitions == ()
     assert closed.state.exit_reason == "provider_close"
+
+
+def test_provider_close_vocabulary_depends_on_declared_strategy_mode():
+    dubai, dubai_state = new_state("dubai_balanced_v1")
+    gold, gold_state = new_state("gold_now_555_v1", reference=4300.0)
+    dubai_event = ShadowManagementEvent(
+        event_id="dubai-close-first",
+        signal_id=dubai_state.signal_id,
+        action="CLOSE_FIRST",
+        observed_at_utc=iso(1),
+    )
+    gold_event = ShadowManagementEvent(
+        event_id="gold-close-first",
+        signal_id=gold_state.signal_id,
+        action="CLOSE_FIRST",
+        observed_at_utc=iso(1),
+    )
+
+    dubai_result = apply_management(dubai, dubai_state, dubai_event)
+    gold_result = apply_management(gold, gold_state, gold_event)
+
+    assert dubai_result.state.pending_provider_close is True
+    assert gold_result.state.pending_provider_close is False
 
 
 def test_provider_close_before_555_entry_waits_for_next_unique_tick():

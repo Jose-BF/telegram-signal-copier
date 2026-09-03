@@ -42,7 +42,7 @@ def test_live_and_shadow_compile_from_the_same_execution_contract(strategy_id):
     assert live.execution_payload == shadow.execution_payload()
 
 
-def test_gold_555_contract_preserves_pending_legs_until_original_expiry():
+def test_gold_555_contract_preserves_declared_pending_entry_window():
     contract = strategy_contract_by_id("gold_now_555_v1")
 
     assert contract.strategy_fingerprint == (

@@ -11,6 +11,8 @@ from typing import Iterable
 
 import numpy as np
 
+from provider_action_semantics import is_strategy_close_action
+
 from .contracts import StrategyGenome
 from .dataset import DubaiLeg, DubaiPath, LevelEvent, ProviderEvent
 
@@ -351,7 +353,14 @@ def simulate(
             "explicit_close_only",
         }:
             close_event = next(
-                (event for event in provider_due if _is_provider_close(event.action)),
+                (
+                    event
+                    for event in provider_due
+                    if _is_provider_close(
+                        event.action,
+                        genome.provider_management_mode,
+                    )
+                ),
                 None,
             )
             if close_event is not None:
@@ -438,6 +447,9 @@ def simulate(
                     realized_minor,
                     money_unknown,
                     blockers,
+                    exit_price=_target_exit_price(
+                        path.direction, target, execution
+                    ),
                 )
                 exit_reason = "provider_tp"
         elif genome.target_mode == "per_leg_steps":
@@ -465,6 +477,9 @@ def simulate(
                     realized_minor,
                     money_unknown,
                     blockers,
+                    exit_price=_target_exit_price(
+                        path.direction, target, execution
+                    ),
                 )
                 exit_reason = "per_leg_target"
         elif genome.target_mode == "provider_target_all":
@@ -490,6 +505,9 @@ def simulate(
                     realized_minor,
                     money_unknown,
                     blockers,
+                    exit_price=_target_exit_price(
+                        path.direction, target, execution
+                    ),
                 )
                 exit_reason = "provider_target_all"
         elif genome.target_mode == "fixed_basket":
@@ -863,7 +881,7 @@ def _prepare_ladder_entries(
         first_ticket = template.ticket
         first_source = "observed_mt5_fill"
         expiry_anchor_ns = (
-            _datetime_ns(path.signal_observed_at)
+            _entry_expiry_anchor_ns(path)
             if genome.schema_version >= 2
             else base_ns
         )
@@ -892,7 +910,7 @@ def _prepare_ladder_entries(
         first_ticket = "sim_1"
         first_source = f"causal_{genome.entry_mode}"
         expiry_ns = (
-            _datetime_ns(path.signal_observed_at)
+            _entry_expiry_anchor_ns(path)
             + genome.entry_expiry_min * 60 * 1_000_000_000
         )
         if (
@@ -997,7 +1015,10 @@ def _causal_entry_index(
     start_index = int(np.searchsorted(path.times_ns, start_ns, side="left"))
     if start_index >= len(path.times_ns):
         return None
-    expiry_ns = signal_ns + genome.entry_expiry_min * 60 * 1_000_000_000
+    expiry_ns = (
+        _entry_expiry_anchor_ns(path)
+        + genome.entry_expiry_min * 60 * 1_000_000_000
+    )
 
     if genome.entry_mode == "no_entry":
         return None
@@ -1331,6 +1352,8 @@ def _close_all(
     realized_minor: int,
     money_unknown: bool,
     blockers: list[str],
+    *,
+    exit_price: float | None = None,
 ) -> tuple[int, bool]:
     for position in list(positions):
         realized_minor, money_unknown = _close_position(
@@ -1345,6 +1368,7 @@ def _close_all(
             realized_minor,
             money_unknown,
             blockers,
+            exit_price=exit_price,
         )
     return realized_minor, money_unknown
 
@@ -1361,9 +1385,12 @@ def _close_position(
     realized_minor: int,
     money_unknown: bool,
     blockers: list[str],
+    *,
+    exit_price: float | None = None,
 ) -> tuple[int, bool]:
     volume = min(position.volume, _clean_volume(volume))
-    exit_price = _adverse_exit_price(path, index, execution)
+    if exit_price is None:
+        exit_price = _adverse_exit_price(path, index, execution)
     pnl_minor, exact = _money_minor(
         path,
         position.entry_price,
@@ -1591,6 +1618,11 @@ def _entry_quote(path: DubaiPath, index: int) -> float:
     return float(path.ask[index] if path.direction == "BUY" else path.bid[index])
 
 
+def _entry_expiry_anchor_ns(path: DubaiPath) -> int:
+    anchor = path.entry_expiry_anchor_at or path.signal_observed_at
+    return _datetime_ns(anchor)
+
+
 def _adverse_entry_price(
     direction: str,
     price: float,
@@ -1610,13 +1642,23 @@ def _adverse_exit_price(
     return _clean_price(price - cost if path.direction == "BUY" else price + cost)
 
 
+def _target_exit_price(
+    direction: str,
+    target: float,
+    execution: ExecutionAssumptions,
+) -> float:
+    cost = execution.exit_slippage + execution.spread_addition
+    return _clean_price(
+        float(target) - _direction_sign(direction) * cost
+    )
+
+
 def _direction_sign(direction: str) -> int:
     return 1 if direction == "BUY" else -1
 
 
-def _is_provider_close(action: str) -> bool:
-    normalized = str(action).upper()
-    return "CLOSE" in normalized or normalized in {"EXIT", "CERRAR"}
+def _is_provider_close(action: str, provider_management_mode: str = "exact") -> bool:
+    return is_strategy_close_action(action, provider_management_mode)
 
 
 def _looks_like_be(source: str) -> bool:
