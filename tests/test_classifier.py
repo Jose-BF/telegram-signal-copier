@@ -25,12 +25,14 @@ import asyncio
 import pytest
 
 from classifier import (
+    _PROMPT_CONTEXTUAL,
+    _build_context_block,
     _canal1_safe_regex_classify,
     _regex_classify_all,
     classify_async,
     classify_one,
 )
-from state import Signal
+from state import Signal, TradeContext
 
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
@@ -41,6 +43,49 @@ def _actions(text: str) -> list[dict]:
 
 def _action_names(text: str) -> list[str]:
     return [a["action"] for a in _regex_classify_all(text)]
+
+
+def test_context_prompt_separates_bot_protection_from_provider_levels_and_money():
+    ctx = TradeContext(
+        channel="canal1",
+        signal_id="canal1_99",
+        direction="BUY",
+        entry_price=4005.0,
+        tps=[4012.0, 4018.0],
+        sl=3990.0,
+        n_initial=3,
+        n_open=2,
+        open_tickets_pnl=[(101, 12.34)],
+        floating_pnl_total=12.34,
+        elapsed_min=8.0,
+        current_price=4010.0,
+        be_armed=False,
+        effective_sls=[3998.0],
+        effective_tps=[4020.0],
+        account_currency="EUR",
+        provider_tps=[4012.0, 4018.0],
+        provider_sl=3990.0,
+        live_strategy_id="dubai-balanced-v1",
+        entry_mode="adverse_ladder",
+    )
+    sig = Signal(channel="canal1", message_id=99, direction="BUY")
+    sig.build_context = lambda: ctx
+
+    prompt = _PROMPT_CONTEXTUAL.format(
+        msg="Protect the trade",
+        **_build_context_block(sig),
+    )
+
+    assert "Floating P&L (account currency): +12.34 EUR" in prompt
+    assert "Bot-installed TPs: [4020.0]" in prompt
+    assert "Bot-installed SLs: [3998.0]" in prompt
+    assert "Provider TPs (informational): [4012.0, 4018.0]" in prompt
+    assert "Provider SL (informational): 3990.0" in prompt
+    assert "Active bot policy: dubai-balanced-v1" in prompt
+    assert "Bot entry mode: adverse_ladder" in prompt
+    assert "Current TPs:" not in prompt
+    assert "Current SL:" not in prompt
+    assert "Floating P&L:   +12.34 USD" not in prompt
 
 
 # ─── 0. Pure levels announcement ────────────────────────────────────────────

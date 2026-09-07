@@ -41,6 +41,9 @@ def _runtime(tmp_path: Path) -> Path:
 def test_default_export_includes_console_diagnostics():
     assert "bot_runtime.log" in runtime_telemetry.DEFAULT_STREAM_NAMES
     assert "telegram_media.jsonl" in runtime_telemetry.DEFAULT_STREAM_NAMES
+    assert "strategy_shadow_incidents.jsonl" in (
+        runtime_telemetry.DEFAULT_STREAM_NAMES
+    )
 
 
 def test_run_git_timeout_terminates_the_complete_process_tree(

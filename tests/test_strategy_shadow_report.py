@@ -19,6 +19,7 @@ def _complete_rows(*, signals_per_channel: int = 15):
             policy for policy in catalog[channel]
             if policy.role == "live_control"
         )
+        control_rank = list(catalog[channel]).index(control)
         for index in range(signals_per_channel):
             signal_id = f"{channel}_{1000 + index}"
             registered = base + timedelta(minutes=index)
@@ -36,9 +37,9 @@ def _complete_rows(*, signals_per_channel: int = 15):
                     "channel": channel,
                     "signal_id": signal_id,
                     "day": registered.date().isoformat(),
-                    "entry_count": 3,
+                    "entry_count": control_rank + 1,
                     "exit_reason": "provider_close",
-                    "net_eur": 1.0,
+                    "net_eur": float(3 - control_rank),
                     "logic_signature": dict(control_signature),
                     "telegram_lineage_complete": True,
                     "mt5_reconciled": True,
@@ -78,11 +79,6 @@ def _complete_rows(*, signals_per_channel: int = 15):
                                 ),
                             }
                         ),
-                        "control_prediction": {
-                            "entry_price_error": 0.2,
-                            "entry_time_error_ms": 40,
-                            "net_eur_error": 0.1,
-                        },
                     }
                 )
     return candidate_rows, actual_rows
@@ -119,6 +115,197 @@ def test_report_refuses_to_rank_when_required_evidence_is_blocked(blocker):
     assert blocker in report["blockers"]
 
 
+def test_open_parity_incident_blocks_comparison_until_same_signal_is_fixed():
+    candidate_rows, actual_rows = _complete_rows()
+    actual_rows[0]["control_mirror_match"] = False
+    broken = build_report(
+        candidate_rows,
+        actual_rows,
+        observation_id="before_fix",
+    )
+
+    assert broken["parity_incidents"]["open_count"] == 1
+    assert broken["comparison_allowed"] is False
+    assert broken["ranking_allowed"] is False
+    assert broken["shadow_leader"] is None
+    assert "open_parity_incidents" in broken["blockers"]
+
+    fixed_rows, fixed_actual = _complete_rows()
+    fixed = build_report(
+        fixed_rows,
+        fixed_actual,
+        previous_incident_register=broken["parity_incidents"],
+        observation_id="after_fix",
+    )
+
+    assert fixed["parity_incidents"]["open_count"] == 0
+    assert fixed["parity_incidents"]["resolved_count"] == 1
+    assert fixed["comparison_allowed"] is True
+    assert fixed["ranking_allowed"] is True
+
+
+def test_same_signal_repair_is_visible_but_never_promoted_as_forward_evidence():
+    candidate_rows, actual_rows = _complete_rows(signals_per_channel=1)
+    control = next(
+        row for row in candidate_rows
+        if row["channel"] == "canal1" and row["role"] == "live_control"
+    )
+    actual = next(row for row in actual_rows if row["channel"] == "canal1")
+    repair = {
+        "evidence_role": "retrospective_same_signal_repair",
+        "engine_contract": "current_worktree",
+        "source_registration_commit": control["source_commit"],
+        "status": "closed",
+        "entry_count": actual["entry_count"],
+        "exit_reason": actual["exit_reason"],
+        "net_eur": actual["net_eur"],
+        "mfe_eur": 6.0,
+        "mae_eur": -1.0,
+        "complete": True,
+        "blockers": [],
+    }
+    control.update({
+        "status": "incomplete",
+        "net_eur": None,
+        "mfe_eur": None,
+        "mae_eur": None,
+        "complete": False,
+        "evidence_blockers": ["candidate_source_code_unverified"],
+        "repair_replay": repair,
+    })
+
+    report = build_report(candidate_rows, actual_rows)
+    signal = next(
+        row for row in report["signals"] if row["channel"] == "canal1"
+    )
+
+    assert signal["control_outcome_parity"]["status"] == "unverified"
+    assert signal["control_repair_outcome"]["status"] == "exact"
+    assert signal["candidates"][control["candidate_id"]][
+        "repair_replay"
+    ]["complete"] is True
+    assert report["ranking_allowed"] is False
+    assert report["winner"] is None
+
+
+def test_same_signal_repair_mismatch_opens_its_own_actionable_incident():
+    candidate_rows, actual_rows = _complete_rows(signals_per_channel=1)
+    control = next(
+        row for row in candidate_rows
+        if row["channel"] == "canal1" and row["role"] == "live_control"
+    )
+    actual = next(row for row in actual_rows if row["channel"] == "canal1")
+    control.update({
+        "status": "incomplete",
+        "net_eur": None,
+        "mfe_eur": None,
+        "mae_eur": None,
+        "complete": False,
+        "evidence_blockers": ["candidate_source_code_unverified"],
+        "repair_replay": {
+            "evidence_role": "retrospective_same_signal_repair",
+            "engine_contract": "current_worktree",
+            "source_registration_commit": control["source_commit"],
+            "status": "closed",
+            "entry_count": actual["entry_count"] + 1,
+            "exit_reason": actual["exit_reason"],
+            "net_eur": actual["net_eur"] + 4.0,
+            "mfe_eur": 6.0,
+            "mae_eur": -1.0,
+            "complete": True,
+            "blockers": [],
+        },
+    })
+
+    report = build_report(
+        candidate_rows,
+        actual_rows,
+        observation_id="repair_mismatch",
+    )
+    signal = next(
+        row for row in report["signals"] if row["channel"] == "canal1"
+    )
+
+    assert signal["control_repair_outcome"]["status"] == "mismatch"
+    assert "control_repair_outcome_mismatch" in signal["blockers"]
+    assert "control_repair_outcome_mismatch" in report["blockers"]
+    incident = next(
+        row for row in report["parity_incidents"]["incidents"]
+        if row["blocker"] == "control_repair_outcome_mismatch"
+    )
+    assert incident["status"] == "open"
+    assert incident["category"] == "retrospective_control_repair"
+    assert incident["diagnosis"]["repair_focus"] == "entry_lifecycle"
+    assert incident["required_action"] == (
+        "fix_current_engine_then_replay_same_historical_basket"
+    )
+    assert report["comparison_allowed"] is False
+    assert report["ranking_allowed"] is False
+
+
+def test_exact_same_signal_repair_resolves_old_outcome_mismatch_only():
+    broken_candidates, broken_actual = _complete_rows(signals_per_channel=1)
+    old_control = next(
+        row for row in broken_candidates
+        if row["channel"] == "canal1" and row["role"] == "live_control"
+    )
+    old_control["net_eur"] += 1.0
+    broken = build_report(
+        broken_candidates,
+        broken_actual,
+        observation_id="old_engine",
+    )
+    mismatch = next(
+        row for row in broken["parity_incidents"]["incidents"]
+        if row["blocker"] == "control_outcome_mismatch"
+    )
+
+    repaired_candidates, repaired_actual = _complete_rows(signals_per_channel=1)
+    repaired_control = next(
+        row for row in repaired_candidates
+        if row["channel"] == "canal1" and row["role"] == "live_control"
+    )
+    actual = next(
+        row for row in repaired_actual if row["channel"] == "canal1"
+    )
+    repaired_control.update({
+        "status": "incomplete",
+        "net_eur": None,
+        "mfe_eur": None,
+        "mae_eur": None,
+        "complete": False,
+        "evidence_blockers": ["candidate_source_code_unverified"],
+        "repair_replay": {
+            "evidence_role": "retrospective_same_signal_repair",
+            "engine_contract": "current_worktree",
+            "source_registration_commit": repaired_control["source_commit"],
+            "status": "closed",
+            "entry_count": actual["entry_count"],
+            "exit_reason": actual["exit_reason"],
+            "net_eur": actual["net_eur"],
+            "mfe_eur": 6.0,
+            "mae_eur": -1.0,
+            "complete": True,
+            "blockers": [],
+        },
+    })
+    repaired = build_report(
+        repaired_candidates,
+        repaired_actual,
+        previous_incident_register=broken["parity_incidents"],
+        observation_id="current_engine_repair",
+    )
+    repaired_mismatch = next(
+        row for row in repaired["parity_incidents"]["incidents"]
+        if row["incident_id"] == mismatch["incident_id"]
+    )
+
+    assert repaired_mismatch["status"] == "resolved"
+    assert repaired_mismatch["verification_state"] == "exact_repair_replay"
+    assert repaired["ranking_allowed"] is False
+    assert repaired["parity_incidents"]["open_count"] > 0
+
+
 def test_invalid_candidate_role_blocks_comparison_without_crashing():
     candidate_rows, actual_rows = _complete_rows(signals_per_channel=1)
     candidate_rows[0]["role"] = "unexpected_role"
@@ -153,6 +340,10 @@ def test_report_summarizes_signals_days_candidates_and_nine_pairings():
     assert report["pairings"][0]["net_eur"] == 90.0
     assert report["matrix"]["canal1"]["complete"] is True
     assert report["matrix"]["canal2"]["complete"] is True
+    assert report["control_outcome_parity"] == {
+        "canal1": {"exact": 15, "mismatch": 0, "unverified": 0},
+        "canal2": {"exact": 15, "mismatch": 0, "unverified": 0},
+    }
     assert next(iter(report["signals"]))["candidates"][
         "dubai_balanced_v1"
     ]["registration_source"] == "observed_runtime"
@@ -212,7 +403,7 @@ def test_unreconciled_mt5_result_is_visible_but_not_called_complete():
         and row["signal_id"] == actual_rows[0]["signal_id"]
     )
     assert "mt5_reconciliation_incomplete" in report["blockers"]
-    assert signal["actual"]["net_eur"] == 1.0
+    assert signal["actual"]["net_eur"] == 3.0
     assert signal["actual"]["complete"] is False
     assert report["days"][0]["actual"]["complete"] is False
     assert report["days"][0]["actual"]["net_eur"] is None
@@ -234,7 +425,98 @@ def test_checkpoint_labels_use_untouched_signal_count(signal_count, label):
     assert report["ranking_allowed"] is (signal_count >= 15)
 
 
-def test_causal_prediction_slippage_is_measured_but_does_not_block_ranking():
+def test_control_outcome_requires_exact_mt5_entries_and_money():
+    candidate_rows, actual_rows = _complete_rows()
+
+    report = build_report(candidate_rows, actual_rows)
+
+    assert report["ranking_allowed"] is True
+    assert all(
+        signal["control_outcome_parity"] == {
+            "status": "exact",
+            "candidate_id": signal["actual"]["control_strategy_id"],
+            "actual_entry_count": 1,
+            "shadow_entry_count": 1,
+            "entry_count_delta": 0,
+            "actual_net_eur": 3.0,
+            "shadow_net_eur": 3.0,
+            "net_eur_delta": 0.0,
+        }
+        for signal in report["signals"]
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "repair_focus"),
+    [
+        ("net_eur", 3.01, "money_or_exit_execution"),
+        ("entry_count", 2, "entry_lifecycle"),
+    ],
+)
+def test_control_outcome_mismatch_blocks_comparison_and_opens_repair(
+    field, value, repair_focus,
+):
+    candidate_rows, actual_rows = _complete_rows()
+    actual_rows[0][field] = value
+
+    report = build_report(
+        candidate_rows,
+        actual_rows,
+        observation_id=f"mismatch_{field}",
+    )
+
+    signal = next(
+        row for row in report["signals"]
+        if row["signal_id"] == actual_rows[0]["signal_id"]
+        and row["channel"] == actual_rows[0]["channel"]
+    )
+    assert signal["control_outcome_parity"]["status"] == "mismatch"
+    assert "control_outcome_mismatch" in signal["blockers"]
+    assert report["comparison_allowed"] is False
+    assert report["ranking_allowed"] is False
+    incident = next(
+        row for row in report["parity_incidents"]["incidents"]
+        if row["blocker"] == "control_outcome_mismatch"
+    )
+    assert incident["status"] == "open"
+    assert incident["category"] == "prospective_control_parity"
+    assert incident["diagnosis"]["repair_focus"] == repair_focus
+    assert incident["diagnosis"]["entry_count_delta"] == signal[
+        "control_outcome_parity"
+    ]["entry_count_delta"]
+    assert incident["diagnosis"]["net_eur_delta"] == signal[
+        "control_outcome_parity"
+    ]["net_eur_delta"]
+
+
+def test_control_outcome_incident_resolves_only_after_same_basket_is_exact():
+    candidate_rows, actual_rows = _complete_rows()
+    actual_rows[0]["net_eur"] = 3.01
+    broken = build_report(
+        candidate_rows,
+        actual_rows,
+        observation_id="before_outcome_fix",
+    )
+
+    fixed_candidates, fixed_actual = _complete_rows()
+    fixed = build_report(
+        fixed_candidates,
+        fixed_actual,
+        previous_incident_register=broken["parity_incidents"],
+        observation_id="after_outcome_fix",
+    )
+
+    incident = next(
+        row for row in fixed["parity_incidents"]["incidents"]
+        if row["blocker"] == "control_outcome_mismatch"
+    )
+    assert incident["status"] == "resolved"
+    assert incident["verification_state"] == "exact_replay"
+    assert fixed["comparison_allowed"] is True
+    assert fixed["ranking_allowed"] is True
+
+
+def test_untrusted_control_prediction_is_ignored_and_recomputed():
     candidate_rows, actual_rows = _complete_rows()
     candidate_rows[0]["control_prediction"] = {
         "entry_price_error": 2.75,
@@ -251,8 +533,9 @@ def test_causal_prediction_slippage_is_measured_but_does_not_block_ranking():
         and row["channel"] == candidate_rows[0]["channel"]
     )
     assert report["ranking_allowed"] is True
-    assert signal["control_prediction"]["entry_price_error"] == 2.75
-    assert "control_mirror_mismatch" not in report["blockers"]
+    assert signal["control_outcome_parity"]["status"] == "exact"
+    assert "entry_price_error" not in signal["control_outcome_parity"]
+    assert "control_outcome_mismatch" not in report["blockers"]
 
 
 def test_channel_verdict_is_independent_when_other_channel_has_no_evidence():
@@ -478,6 +761,8 @@ def test_report_uses_the_prospectively_recorded_control_identity():
     )
     for actual in actual_rows:
         if actual["channel"] == "canal2":
+            actual["entry_count"] = 3
+            actual["net_eur"] = 1.0
             actual["logic_signature"] = {
                 **actual["logic_signature"],
                 "strategy_id": c490.candidate_id,
@@ -491,8 +776,6 @@ def test_report_uses_the_prospectively_recorded_control_identity():
             if row["candidate_id"] == "gold_now_c490_v1"
             else "candidate"
         )
-        if row["signal_id"] == target_signal:
-            row["control_prediction"] = {"source": row["candidate_id"]}
 
     report = build_report(candidate_rows, actual_rows)
 
@@ -501,7 +784,10 @@ def test_report_uses_the_prospectively_recorded_control_identity():
         if row["signal_id"] == target_signal and row["channel"] == "canal2"
     )
     assert report["ranking_allowed"] is True
-    assert signal["control_prediction"] == {"source": "gold_now_c490_v1"}
+    assert signal["control_outcome_parity"]["status"] == "exact"
+    assert signal["control_outcome_parity"]["candidate_id"] == (
+        "gold_now_c490_v1"
+    )
     assert signal["candidates"]["gold_now_c490_v1"]["role"] == "live_control"
 
 

@@ -16,6 +16,10 @@ if str(REPO_DIR) not in sys.path:
     sys.path.insert(0, str(REPO_DIR))
 
 import runtime_paths
+from parity_incident_journal import (
+    append_registry as append_incident_registry,
+    load_registry as load_incident_journal,
+)
 from strategy_shadow_settlement import (
     ParquetShadowTickReader,
     actual_rows_from_ledger,
@@ -31,6 +35,8 @@ SHADOW_CONTRACT_PATHS = (
     "strategy_shadow_catalog.py",
     "strategy_shadow_contracts.py",
     "strategy_shadow_engine.py",
+    "strategy_runtime_contract.py",
+    "provider_action_semantics.py",
 )
 
 
@@ -152,6 +158,32 @@ def _atomic_json(path: Path, payload: dict) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def _load_incident_registry(
+    path: Path,
+    journal_path: Path | None = None,
+) -> dict | None:
+    journal = (
+        None
+        if journal_path is None
+        else load_incident_journal(journal_path)
+    )
+    if journal is not None:
+        return journal
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"invalid incident registry: {path}") from exc
+    if (
+        not isinstance(payload, dict)
+        or payload.get("schema_version") != 1
+        or not isinstance(payload.get("incidents"), list)
+    ):
+        raise ValueError(f"invalid incident registry: {path}")
+    return payload
+
+
 def _print_summary(result: dict, output: Path) -> None:
     report = result["report"]
     print("Shadow settlement complete")
@@ -174,6 +206,13 @@ def _print_summary(result: dict, output: Path) -> None:
             "  Comparison: BLOCKED | "
             + ", ".join(report["comparison_blockers"])
         )
+    incidents = report["parity_incidents"]
+    print(
+        "  Parity incidents: "
+        f"{incidents['open_count']} open, "
+        f"{incidents['resolved_count']} resolved, "
+        f"{incidents['regressed_count']} regressed"
+    )
     print(f"  Settlement hash: {result['settlement_hash']}")
     print(f"  Output: {output}")
 
@@ -216,6 +255,16 @@ def main(argv: list[str] | None = None) -> int:
         "--output",
         type=Path,
         default=RUNTIME_DIR / "strategy_shadow_report.json",
+    )
+    parser.add_argument(
+        "--incident-registry",
+        type=Path,
+        default=RUNTIME_DIR / "strategy_shadow_incident_registry.json",
+    )
+    parser.add_argument(
+        "--incident-events",
+        type=Path,
+        default=RUNTIME_DIR / "strategy_shadow_incidents.jsonl",
     )
     args = parser.parse_args(argv)
 
@@ -263,6 +312,10 @@ def main(argv: list[str] | None = None) -> int:
         until=args.until,
     )
     print("[3/4] Replaying all frozen candidates over verified ticks...")
+    previous_incidents = _load_incident_registry(
+        args.incident_registry,
+        args.incident_events,
+    )
     result = settle_shadow_records(
         records,
         tick_reader=reader,
@@ -271,9 +324,18 @@ def main(argv: list[str] | None = None) -> int:
         actual_rows=actual,
         provider_catalog=provider_catalog,
         trusted_source_commits=trusted_commits,
+        previous_incident_register=previous_incidents,
     )
     print("[4/4] Writing deterministic comparison report...")
+    append_incident_registry(
+        args.incident_events,
+        result["report"]["parity_incidents"],
+    )
     _atomic_json(args.output, result)
+    _atomic_json(
+        args.incident_registry,
+        result["report"]["parity_incidents"],
+    )
     _print_summary(result, args.output)
     return 0
 

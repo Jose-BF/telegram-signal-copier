@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from dataclasses import replace
 import json
 
+import pytest
+import strategy_shadow_settlement as settlement_module
+
+from parity_incident_journal import append_registry
 from strategy_shadow_catalog import build_shadow_catalog
 from strategy_shadow_contracts import (
     ShadowManagementEvent,
@@ -11,6 +16,7 @@ from strategy_shadow_contracts import (
     ShadowTick,
 )
 from strategy_shadow_engine import advance_tick, apply_management, register_signal
+from strategy_shadow_runtime import ShadowRuntime, ShadowTickHistory
 from strategy_shadow_manifest import build_catalog_manifest
 from strategy_shadow_parity import compare_logic_signatures, shadow_logic_signature
 from strategy_shadow_settlement import (
@@ -27,6 +33,57 @@ from tools import build_strategy_shadow_report
 
 BASE = datetime(2026, 8, 27, 8, 0, tzinfo=timezone.utc)
 BASE_MSC = int(BASE.timestamp() * 1000)
+
+
+def test_incident_registry_loader_is_persistent_and_fail_closed(tmp_path):
+    path = tmp_path / "parity_incidents.json"
+    assert build_strategy_shadow_report._load_incident_registry(path) is None
+
+    expected = {
+        "schema_version": 1,
+        "open_count": 0,
+        "comparison_blocking_open_count": 0,
+        "resolved_count": 0,
+        "regressed_count": 0,
+        "incidents": [],
+    }
+    path.write_text(json.dumps(expected), encoding="utf-8")
+    assert build_strategy_shadow_report._load_incident_registry(path) == expected
+
+    path.write_text('{"schema_version": 99}', encoding="utf-8")
+    with pytest.raises(ValueError, match="incident registry"):
+        build_strategy_shadow_report._load_incident_registry(path)
+
+
+def test_incident_registry_loader_recovers_portable_journal(tmp_path):
+    sidecar = tmp_path / "missing-sidecar.json"
+    journal = tmp_path / "strategy_shadow_incidents.jsonl"
+    incident = {
+        "incident_id": "parity_one",
+        "status": "open",
+        "blocks_comparison": True,
+        "channel": "canal1",
+        "signal_id": "canal1_1",
+        "blocker": "control_outcome_mismatch",
+    }
+    expected = {
+        "schema_version": 1,
+        "observation_id": "portable-run",
+        "open_count": 1,
+        "comparison_blocking_open_count": 1,
+        "resolved_count": 0,
+        "regressed_count": 0,
+        "ranking_blocked": True,
+        "comparison_blocked": True,
+        "unresolved_incident_ids": ["parity_one"],
+        "incidents": [incident],
+    }
+    append_registry(journal, expected)
+
+    assert build_strategy_shadow_report._load_incident_registry(
+        sidecar,
+        journal,
+    ) == expected
 
 
 def test_cli_loader_keeps_signal_received_as_the_independent_denominator(
@@ -79,6 +136,12 @@ def test_builder_trusts_only_matching_historical_shadow_contracts(monkeypatch):
 
     assert set(trusted) == {commit}
     assert len(trusted[commit]) == 64
+    assert "strategy_runtime_contract.py" in (
+        build_strategy_shadow_report.SHADOW_CONTRACT_PATHS
+    )
+    assert "provider_action_semantics.py" in (
+        build_strategy_shadow_report.SHADOW_CONTRACT_PATHS
+    )
 
 
 def _gold_reconstruction_inputs(*, actionable_management: bool = False):
@@ -495,6 +558,66 @@ class RecordingReader(CompleteReader):
         return super().read(start, end)
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("action", ["CLOSE_ALL", "MOVE_SL_TO_BE"])
+async def test_runtime_jsonl_recovery_and_settlement_preserve_management_availability(
+        action, monkeypatch):
+    catalog = build_shadow_catalog()
+    if action == "MOVE_SL_TO_BE":
+        catalog = {**catalog, "canal1": tuple(replace(p, provider_protection_mode="exact")
+                                            for p in catalog["canal1"])}
+        monkeypatch.setattr(settlement_module, "build_shadow_catalog", lambda: catalog)
+    records = []
+
+    def capture(signal_id, event, **fields):
+        records.append(json.loads(json.dumps({
+            "sig": signal_id, "ev": event, "ts": BASE.isoformat(),
+            "message_revision_id": "msgrev-causal", "decision_id": "decision-causal", **fields,
+        })))
+
+    def precise_tick(milliseconds, bid):
+        observed = BASE + timedelta(milliseconds=milliseconds)
+        return replace(_tick(0, bid, bid + 0.2), time_msc=BASE_MSC + milliseconds,
+                       observed_at_utc=observed.isoformat())
+
+    first = precise_tick(100, 100.0)
+    early = precise_tick(123, 99.9)
+    eligible = precise_tick(124, 100.1 if action == "MOVE_SL_TO_BE" else 100.5)
+    expiry = precise_tick(41 * 60 * 1000, 99.9)
+    ticks = (first, early, eligible, expiry)
+    runtime = ShadowRuntime(catalog=catalog, journal_sink=capture)
+    await runtime.register_signal(channel="canal1", signal_id="canal1_3000", source_message_id=3000,
+                                  direction="BUY", registered_at_utc=BASE.isoformat(), registered_tick_msc=BASE_MSC)
+    await runtime.process_tick(first)
+    event = ShadowManagementEvent(event_id="precise-event", signal_id="canal1_3000", action=action,
+                                  observed_at_utc=(BASE + timedelta(microseconds=123900)).isoformat(),
+                                  observed_tick_msc=BASE_MSC + 123)
+    await runtime.process_management(event)
+    if action == "MOVE_SL_TO_BE":
+        await runtime.process_management(replace(event, event_id="later-info", action="HIGH_RISK_WARNING",
+                                                observed_at_utc=(BASE + timedelta(microseconds=123950)).isoformat()))
+    restart_records = tuple(records)
+    for tick in ticks[1:]:
+        await runtime.process_tick(tick)
+    direct = runtime.state("canal1_3000", "dubai_balanced_v1")
+    assert direct.positions[0].closed_tick_msc == eligible.time_msc
+
+    recovered = ShadowRuntime(catalog=catalog)
+    await recovered.recover(restart_records, history_reader=lambda _: ShadowTickHistory(
+        ticks=ticks[1:], complete=True, evidence_id="precise-recovery"))
+    assert recovered.state("canal1_3000", "dubai_balanced_v1") == direct
+
+    class Reader(CompleteReader):
+        def read(self, _start, _end):
+            return ShadowTickRead(ticks=ticks, complete=True, evidence_id="precise-settlement")
+
+    result = settle_shadow_records(records, tick_reader=Reader(), since=BASE.date(), until=BASE.date())
+    row = next(r for r in result["candidate_rows"] if r["candidate_id"] == "dubai_balanced_v1")
+    assert row["complete"] is True, row["evidence_blockers"]
+    assert row["net_eur"] == direct.realized_eur
+    assert row["logic_signature"] == shadow_logic_signature(direct, catalog["canal1"][0])
+
+
 def test_settlement_rebuilds_all_three_rows_for_every_registered_signal():
     result = settle_shadow_records(
         _dubai_registrations(),
@@ -513,6 +636,80 @@ def test_settlement_rebuilds_all_three_rows_for_every_registered_signal():
         row["logic_signature"]["strategy_id"] == row["candidate_id"]
         for row in result["candidate_rows"]
     )
+
+
+def test_settlement_never_promotes_old_registration_repair_as_forward_evidence():
+    records = _dubai_registrations()
+    old_commit = "a" * 40
+    for record in records:
+        record["code_commit"] = old_commit
+
+    blocked = settle_shadow_records(
+        records,
+        tick_reader=CompleteReader(),
+        since=BASE.date(),
+        until=BASE.date(),
+        trusted_source_commits={},
+    )
+
+    assert all(
+        "candidate_source_code_unverified" in row["evidence_blockers"]
+        for row in blocked["candidate_rows"]
+    )
+    assert all(
+        row["repair_replay"]["complete"] is True
+        for row in blocked["candidate_rows"]
+    )
+    assert all(
+        row["repair_replay"]["evidence_role"]
+        == "retrospective_same_signal_repair"
+        for row in blocked["candidate_rows"]
+    )
+    assert all(row["net_eur"] is None for row in blocked["candidate_rows"])
+    assert blocked["report"]["comparison_allowed"] is False
+    assert blocked["report"]["signals"][0]["candidates"][
+        "dubai_balanced_v1"
+    ]["repair_replay"]["complete"] is True
+
+    trusted = settle_shadow_records(
+        records,
+        tick_reader=CompleteReader(),
+        since=BASE.date(),
+        until=BASE.date(),
+        trusted_source_commits={old_commit: "contract-proof"},
+    )
+    assert all(
+        "candidate_source_code_unverified" not in row["evidence_blockers"]
+        for row in trusted["candidate_rows"]
+    )
+    assert all(
+        "repair_replay" not in row
+        for row in trusted["candidate_rows"]
+    )
+
+
+@pytest.mark.parametrize("event", ["strategy_shadow_tick_gap", "strategy_shadow_recovered",
+                                  "strategy_shadow_candidate_disabled"])
+def test_failed_runtime_cohort_remains_repair_only_when_archive_later_recovers(event):
+    records = _dubai_registrations()
+    original = ShadowSignalState.from_dict(records[0]["state"])
+    failed = replace(original, status="incomplete", complete=False,
+                     evidence_blockers=("tick_gap", "historical_tick_cursor_unavailable"))
+    records.append({
+        "ev": event, "sig": failed.signal_id, "candidate_id": failed.candidate_id,
+        "channel": failed.channel, "state_hash": failed.state_hash, "state": failed.to_dict(),
+        "previous_state_hash": original.state_hash,
+    })
+    result = settle_shadow_records(records, tick_reader=CompleteReader(),
+                                   since=BASE.date(), until=BASE.date())
+    assert len(result["candidate_rows"]) == 3
+    row = next(r for r in result["candidate_rows"] if r["candidate_id"] == failed.candidate_id)
+    assert row["complete"] is False and row["net_eur"] is None
+    assert "prospective_runtime_incomplete" in row["evidence_blockers"]
+    assert "tick_gap" in row["evidence_blockers"]
+    assert row["repair_replay"]["complete"] is True
+    assert row["repair_replay"]["evidence_role"] == "retrospective_same_signal_repair"
+    assert result["report"]["comparison_allowed"] is False
 
 
 def test_actual_ledger_exposes_structural_signature_without_claiming_match():

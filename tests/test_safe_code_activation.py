@@ -2,19 +2,56 @@ import json
 import os
 from types import SimpleNamespace
 
+import pytest
 from tools import run_bot_watch as watch
 
 
-def _write_heartbeat(path, *, state, positions=0, signals=0, mtime=1000.0):
+def _write_heartbeat(path, *, state, positions=0, signals=0, pending=0,
+                     schema_version=3, mtime=1000.0):
     path.write_text(json.dumps({
-        "schema_version": 2,
+        "schema_version": schema_version,
         "pid": 123,
         "utc": "2026-07-23T15:00:00.000",
         "exposure_state": state,
         "bot_position_count": positions,
         "open_signal_count": signals,
+        "pending_entry_count": pending,
     }), encoding="utf-8")
     os.utime(path, (mtime, mtime))
+
+
+def test_v2_flat_heartbeat_without_pending_contract_cannot_authorize_restart(tmp_path):
+    heartbeat = tmp_path / "heartbeat.json"
+    _write_heartbeat(heartbeat, state="flat", schema_version=2)
+
+    exposure = watch._read_runtime_exposure(heartbeat, now=1010.0)
+
+    assert exposure["exposure_state"] == "unknown"
+    assert exposure["reason"] == "heartbeat_schema_unsupported"
+
+
+@pytest.mark.parametrize("pending", [1, None, -1, True, "0", 0.0])
+def test_pending_or_unverified_entries_cannot_be_reported_flat(tmp_path, pending):
+    heartbeat = tmp_path / "heartbeat.json"
+    _write_heartbeat(heartbeat, state="flat", pending=pending)
+
+    exposure = watch._read_runtime_exposure(heartbeat, now=1010.0)
+
+    assert exposure["exposure_state"] == "unknown"
+
+
+def test_pending_entry_alone_defers_code_update(tmp_path):
+    heartbeat = tmp_path / "heartbeat.json"
+    marker = tmp_path / "pending.json"
+    _write_heartbeat(heartbeat, state="open", pending=1)
+
+    deferred, exposure = watch._defer_code_update_if_exposed(
+        "old", "new", heartbeat_path=heartbeat, pending_path=marker,
+        now=1010.0, max_age_s=30.0)
+
+    assert deferred is True
+    assert exposure["pending_entry_count"] == 1
+    assert json.loads(marker.read_text())["pending_entry_count"] == 1
 
 
 def test_code_update_is_deferred_while_bot_positions_are_open(tmp_path):

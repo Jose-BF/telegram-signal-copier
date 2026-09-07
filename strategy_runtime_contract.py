@@ -95,7 +95,7 @@ class StrategyRuntimeContract:
     entry: EntryPlanContract
     protection: ProtectionContract
     terminal: TerminalPolicy
-    schema_version: int = 1
+    schema_version: int = 2
     fill_rule: str = "first_subsequent_tick"
     money_rounding: str = "leg_cent_then_sum"
 
@@ -142,6 +142,9 @@ class StrategyRuntimeContract:
             provider_protection_mode=(
                 self.terminal.provider_protection_mode
             ),
+            pending_entry_policy=self.terminal.pending_entry_policy,
+            automatic_flat_policy=self.terminal.automatic_flat_policy,
+            require_zero_positions=self.terminal.require_zero_positions,
             schema_version=self.schema_version,
             fill_rule=self.fill_rule,
             money_rounding=self.money_rounding,

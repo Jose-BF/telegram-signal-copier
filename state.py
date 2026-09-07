@@ -21,9 +21,13 @@ class TradeContext:
       • n_initial, n_open                          : conteo (in-memory vs MT5)
       • open_tickets_pnl                           : P&L floating por ticket abierto
       • floating_pnl_total                         : suma
+      • account_currency                           : moneda de ese P&L
       • elapsed_min                                : tiempo desde signal_received
       • current_price                              : bid/ask relevante
       • be_armed                                   : si BE ya disparó
+      • effective_sls/tps                          : niveles instalados en MT5
+      • provider_sl/tps                            : niveles informativos del canal
+      • live_strategy_id, entry_mode               : politica activa del bot
     """
     channel: str
     signal_id: str
@@ -42,6 +46,11 @@ class TradeContext:
     # El SL/TP del proveedor puede quedar obsoleto tras una gestion posterior.
     effective_sls: list = field(default_factory=list)
     effective_tps: list = field(default_factory=list)
+    account_currency: Optional[str] = None
+    provider_tps: list = field(default_factory=list)
+    provider_sl: Optional[float] = None
+    live_strategy_id: Optional[str] = None
+    entry_mode: Optional[str] = None
 
     def summary_oneline(self) -> str:
         """Resumen de 1 línea para logs."""
@@ -408,6 +417,15 @@ class Signal:
                     n_open += 1
             floating_total = sum(p for _, p in open_pnls)
 
+            account_currency = None
+            try:
+                account = mt5.account_info()
+                currency = getattr(account, "currency", None) if account else None
+                if currency:
+                    account_currency = str(currency)
+            except Exception:
+                pass
+
             # Tick actual
             current_price = None
             try:
@@ -436,6 +454,15 @@ class Signal:
                 be_armed=self.be_armed,
                 effective_sls=effective_sls,
                 effective_tps=effective_tps,
+                account_currency=account_currency,
+                provider_tps=list(self.provider_tps),
+                provider_sl=(
+                    self.sl
+                    if self.provider_sl_received or self.sl_source == "provider"
+                    else None
+                ),
+                live_strategy_id=self.live_strategy_id,
+                entry_mode=self.entry_mode,
             )
         except Exception as e:
             # Defensive: nunca crashear, devolver context mínimo
@@ -454,6 +481,14 @@ class Signal:
                 elapsed_min=0.0,
                 current_price=None,
                 be_armed=self.be_armed,
+                provider_tps=list(self.provider_tps),
+                provider_sl=(
+                    self.sl
+                    if self.provider_sl_received or self.sl_source == "provider"
+                    else None
+                ),
+                live_strategy_id=self.live_strategy_id,
+                entry_mode=self.entry_mode,
             )
 
 

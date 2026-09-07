@@ -74,13 +74,21 @@ instruction. Respond ONLY with valid JSON, no markdown.
 Channel:        {channel}
 Direction:      {direction}
 Entry price:    {entry_price}
-Current TPs:    {tps}
-Current SL:     {sl}
+Active bot policy: {live_strategy_id}
+Bot entry mode: {entry_mode}
+Bot-installed TPs: {effective_tps}
+Bot-installed SLs: {effective_sls}
+Provider TPs (informational): {provider_tps}
+Provider SL (informational): {provider_sl}
 Open positions: {n_open} of {n_initial} originally opened
 Time elapsed:   {elapsed_min} min
-Floating P&L:   {floating_pnl} USD
+Floating P&L (account currency): {floating_pnl} {account_currency}
 Current price:  {current_price}
 BE armed:       {be_armed}
+
+Provider levels are informational context. Do not present them as protection
+currently installed on the bot's positions. Bot-installed levels are the
+levels observed on the open MT5 positions.
 
 ═══ TRADER'S TYPICAL PHRASES ═══
 EXPLICIT ACTIONS:
@@ -101,7 +109,8 @@ CHANGED LEVELS (signal still active but TPs/SL different):
 WARNINGS (no direct action, just info):
   "High risk trade 🚨" → HIGH_RISK_WARNING (the bot already labeled at signal start)
   "Don't add more entries" / "stay out for now" → MARKET_COMMENTARY
-    (the bot doesn't add positions on its own; future signals processed normally)
+    (classify the provider intent; the bot may have autonomous entries under
+     its active frozen policy, and classification does not change that policy)
 
 NON-EXECUTABLE INTENTS (classify precisely; no direct MT5 action):
   "TP1 hit" / "TP4 smashed" → TP_HIT_ANNOUNCEMENT
@@ -254,12 +263,25 @@ def _build_context_block(signal) -> dict:
             "channel": ctx.channel,
             "direction": ctx.direction,
             "entry_price": ctx.entry_price if ctx.entry_price else "n/a",
-            "tps": ctx.tps if ctx.tps else "[]",
-            "sl": ctx.sl if ctx.sl else "n/a",
+            "live_strategy_id": (
+                getattr(ctx, "live_strategy_id", None) or "unknown"
+            ),
+            "entry_mode": getattr(ctx, "entry_mode", None) or "unknown",
+            "effective_tps": getattr(ctx, "effective_tps", None) or "[]",
+            "effective_sls": getattr(ctx, "effective_sls", None) or "[]",
+            "provider_tps": getattr(ctx, "provider_tps", None) or "[]",
+            "provider_sl": (
+                getattr(ctx, "provider_sl", None)
+                if getattr(ctx, "provider_sl", None) is not None
+                else "n/a"
+            ),
             "n_open": ctx.n_open,
             "n_initial": ctx.n_initial,
             "elapsed_min": ctx.elapsed_min,
             "floating_pnl": f"{ctx.floating_pnl_total:+.2f}",
+            "account_currency": (
+                getattr(ctx, "account_currency", None) or "unknown"
+            ),
             "current_price": ctx.current_price if ctx.current_price else "n/a",
             "be_armed": "yes" if ctx.be_armed else "no",
         }
@@ -267,8 +289,11 @@ def _build_context_block(signal) -> dict:
         print(f"[Classifier] _build_context_block error: {e} — usando placeholders")
         return {
             "channel": "unknown", "direction": "?", "entry_price": "n/a",
-            "tps": "[]", "sl": "n/a", "n_open": 0, "n_initial": 0,
-            "elapsed_min": 0, "floating_pnl": "0.00",
+            "live_strategy_id": "unknown", "entry_mode": "unknown",
+            "effective_tps": "[]", "effective_sls": "[]",
+            "provider_tps": "[]", "provider_sl": "n/a",
+            "n_open": 0, "n_initial": 0, "elapsed_min": 0,
+            "floating_pnl": "0.00", "account_currency": "unknown",
             "current_price": "n/a", "be_armed": "no",
         }
 

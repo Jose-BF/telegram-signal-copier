@@ -26,6 +26,10 @@ def _write_legacy(repo: Path) -> Path:
         "signal_id,status\ncanal_test_1,closed\n",
         encoding="utf-8",
     )
+    (data / "strategy_shadow_incidents.jsonl").write_text(
+        '{"ev":"strategy_shadow_parity_incident"}\n',
+        encoding="utf-8",
+    )
     return data
 
 

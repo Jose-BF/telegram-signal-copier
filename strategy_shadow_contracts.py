@@ -132,6 +132,13 @@ class ShadowManagementEvent:
         if self.price is not None:
             _positive_finite(self.price, "management price")
 
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "ShadowManagementEvent":
+        return cls(**dict(payload))
+
 
 @dataclass(frozen=True)
 class ShadowPosition:
@@ -197,10 +204,31 @@ class ShadowPolicy:
     schema_version: int = 1
     fill_rule: str = "first_subsequent_tick"
     money_rounding: str = "leg_cent_then_sum"
+    pending_entry_policy: str | None = None
+    automatic_flat_policy: str | None = None
+    require_zero_positions: bool | None = None
 
     def __post_init__(self) -> None:
         if not self.candidate_id:
             raise ValueError("candidate_id is required")
+        terminal_values = (
+            self.pending_entry_policy, self.automatic_flat_policy,
+            self.require_zero_positions,
+        )
+        if self.schema_version == 1:
+            if any(value is not None for value in terminal_values):
+                raise ValueError("schema 1 cannot encode explicit terminal rules")
+        elif self.schema_version == 2:
+            if self.pending_entry_policy not in {"none", "until_expiry"}:
+                raise ValueError("unsupported pending entry policy")
+            if self.automatic_flat_policy not in {"finalize", "keep_if_eligible"}:
+                raise ValueError("unsupported automatic flat policy")
+            if not isinstance(self.require_zero_positions, bool):
+                raise ValueError("require_zero_positions must be explicit")
+            if self.pending_entry_policy == "until_expiry" and self.ladder_expiry_minutes is None:
+                raise ValueError("pending entries require an expiry")
+        else:
+            raise ValueError("unsupported shadow policy schema")
         if self.channel not in {"canal1", "canal2"}:
             raise ValueError("channel must be canal1 or canal2")
         if self.role not in {"live_control", "candidate"}:
@@ -261,6 +289,14 @@ class ShadowPolicy:
         payload = asdict(self)
         payload.pop("role")
         payload.pop("strategy_fingerprint")
+        if self.schema_version == 1:
+            # Keep the original evidence identity, never reinterpret it as v2.
+            for field in ("pending_entry_policy", "automatic_flat_policy", "require_zero_positions"):
+                payload.pop(field)
+        else:
+            payload["management_availability"] = (
+                "tick_observed_at_utc_gte_event_observed_at_utc"
+            )
         payload["entry_volumes"] = list(self.entry_volumes)
         payload["target_steps"] = list(self.target_steps)
         payload["entry_quote"] = "ask_buy_bid_sell"
@@ -296,6 +332,7 @@ class ShadowSignalState:
     adverse_armed: bool = False
     adverse_extreme: float | None = None
     pending_provider_close: bool = False
+    pending_provider_management: tuple[ShadowManagementEvent, ...] = ()
     exit_reason: str | None = None
     last_tick_identity: tuple[int, float, float, float, int, float] | None = None
     processed_management_ids: tuple[str, ...] = ()
@@ -346,6 +383,12 @@ class ShadowSignalState:
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["positions"] = [item.to_dict() for item in self.positions]
+        if self.pending_provider_management:
+            payload["pending_provider_management"] = [
+                item.to_dict() for item in self.pending_provider_management
+            ]
+        else:
+            payload.pop("pending_provider_management")
         if self.last_tick_identity is not None:
             payload["last_tick_identity"] = list(self.last_tick_identity)
         payload["processed_management_ids"] = list(self.processed_management_ids)
@@ -358,6 +401,10 @@ class ShadowSignalState:
         values["positions"] = tuple(
             ShadowPosition.from_dict(item)
             for item in values.get("positions", ())
+        )
+        values["pending_provider_management"] = tuple(
+            ShadowManagementEvent.from_dict(item)
+            for item in values.get("pending_provider_management", ())
         )
         identity = values.get("last_tick_identity")
         values["last_tick_identity"] = (

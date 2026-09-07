@@ -6,7 +6,11 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from strategy_shadow_catalog import policy_by_id
-from strategy_shadow_contracts import ShadowManagementEvent, ShadowTick
+from strategy_shadow_contracts import (
+    ShadowManagementEvent,
+    ShadowSignalState,
+    ShadowTick,
+)
 from strategy_shadow_engine import advance_tick, apply_management, register_signal
 
 
@@ -76,6 +80,56 @@ def test_dubai_market_and_adverse_ladder_fill_on_subsequent_ticks():
         (0, 0.01),
         (1, 0.04),
     ]
+
+
+@pytest.mark.parametrize("pending,flat,expected_status", [
+    ("until_expiry", "keep_if_eligible", "open"),
+    ("until_expiry", "finalize", "closed"),
+    ("none", "keep_if_eligible", "closed"),
+])
+def test_terminal_rules_control_flat_basket_reentry(pending, flat, expected_status):
+    policy = replace(policy_by_id("dubai_balanced_v1"),
+                     pending_entry_policy=pending, automatic_flat_policy=flat,
+                     target_steps=(0.5, 0.5, 0.5), basket_stop_eur=None)
+    state = register_signal(policy, signal_id="canal1_123", source_message_id=123,
+                            direction="BUY", registered_at_utc=iso(), registered_tick_msc=100)
+    state = advance_tick(policy, state, tick(101, bid=4300, ask=4300.2)).state
+    flat_state = advance_tick(policy, state, tick(102, bid=4301, ask=4301.2)).state
+    later = advance_tick(policy, flat_state, tick(103, bid=4296, ask=4296.2)).state
+
+    assert flat_state.status == expected_status
+    assert len(later.positions) == (2 if expected_status == "open" else 1)
+
+
+def test_finalize_happens_before_same_tick_pending_fill_after_stop():
+    policy = replace(policy_by_id("dubai_balanced_v1"),
+                     automatic_flat_policy="finalize", trailing_distance=1,
+                     basket_stop_eur=None)
+    state = register_signal(policy, signal_id="canal1_123", source_message_id=123,
+                            direction="BUY", registered_at_utc=iso(), registered_tick_msc=100)
+    state = advance_tick(policy, state, tick(101, bid=4300, ask=4300.2)).state
+    result = advance_tick(policy, state, tick(102, bid=4295, ask=4295.2))
+
+    assert result.state.status == "closed"
+    assert len(result.state.positions) == 1
+    assert not any(t.event == "virtual_fill" for t in result.transitions)
+
+
+def test_no_pending_policy_does_not_add_legs_while_initial_leg_open():
+    policy = replace(policy_by_id("dubai_balanced_v1"), pending_entry_policy="none",
+                     basket_stop_eur=None)
+    state = register_signal(policy, signal_id="canal1_123", source_message_id=123,
+                            direction="BUY", registered_at_utc=iso(), registered_tick_msc=100)
+    state = advance_tick(policy, state, tick(101, bid=4300, ask=4300.2)).state
+    state = advance_tick(policy, state, tick(102, bid=4295, ask=4295.2)).state
+    assert len(state.positions) == 1
+
+
+def test_engine_rejects_unsupported_nonzero_position_finalization():
+    policy = replace(policy_by_id("dubai_balanced_v1"), require_zero_positions=False)
+    with pytest.raises(ValueError, match="zero positions"):
+        register_signal(policy, signal_id="canal1_123", source_message_id=123,
+                        direction="BUY", registered_at_utc=iso(), registered_tick_msc=100)
 
 
 def test_sell_ladder_fills_all_crossed_levels_in_rank_order():
@@ -301,28 +355,40 @@ def test_time_exit_modes_respect_profit_sign():
     assert balanced_closed.exit_reason == "loss_time_exit"
 
 
-def test_provider_close_is_pending_until_next_unique_tick_and_deduplicated():
+def test_provider_close_waits_for_causally_available_tick_and_deduplicates():
     policy, state = new_state("dubai_balanced_v1")
     state = advance_tick(policy, state, tick(101, bid=4300.0, ask=4300.2)).state
     management = ShadowManagementEvent(
         event_id="m1",
         signal_id=state.signal_id,
         action="CLOSE_ALL",
-        observed_at_utc=iso(1),
-        observed_tick_msc=101,
+        observed_at_utc=iso(2),
+        observed_tick_msc=100,
+        price=4400.0,
     )
 
     pending = apply_management(policy, state, management)
     duplicate = apply_management(policy, pending.state, management)
-    closed = advance_tick(
+    historical = advance_tick(
         policy,
         duplicate.state,
-        tick(102, bid=4301.0, ask=4301.2, minutes=1.1),
+        tick(102, bid=4301.0, ask=4301.2, minutes=1.9),
+    )
+    closed = advance_tick(
+        policy,
+        historical.state,
+        tick(103, bid=4301.0, ask=4301.2, minutes=2.0),
     )
 
     assert pending.state.pending_provider_close is True
+    assert pending.state.pending_provider_management == (management,)
     assert duplicate.transitions == ()
+    assert historical.state.status == "open"
+    assert historical.state.pending_provider_close is True
+    assert historical.state.positions[0].close_price is None
     assert closed.state.exit_reason == "provider_close"
+    assert closed.state.positions[0].close_price == 4301.0
+    assert "pending_provider_management" not in closed.state.to_dict()
 
 
 def test_provider_close_vocabulary_depends_on_declared_strategy_mode():
@@ -368,6 +434,24 @@ def test_provider_close_before_555_entry_waits_for_next_unique_tick():
     assert pending.state.status == "waiting"
     assert cancelled.state.status == "cancelled"
     assert cancelled.state.exit_reason == "provider_close_before_entry"
+
+
+def test_schema2_pending_close_without_availability_fails_incomplete():
+    policy, state = new_state("dubai_balanced_v1")
+    state = advance_tick(policy, state, tick(101, bid=4300.0, ask=4300.2)).state
+    state = replace(state, pending_provider_close=True)
+
+    result = advance_tick(
+        policy,
+        state,
+        tick(102, bid=4301.0, ask=4301.2, minutes=1),
+    )
+
+    assert result.state.status == "incomplete"
+    assert result.state.positions[0].status == "open"
+    assert result.state.positions[0].close_price is None
+    assert "provider_management_availability_missing" in result.state.evidence_blockers
+    assert result.transitions[-1].event == "evidence_blocker"
 
 
 def test_555_non_negative_timer_starts_at_first_fill_not_signal_arrival():
@@ -433,19 +517,30 @@ def test_dubai_control_observes_provider_be_without_changing_its_positions():
 
 
 @pytest.mark.parametrize(
-    "action, price, expected_stop",
+    "action, price, expected_stop, expected_reason",
     [
-        ("MOVE_SL_TO_BE", None, 4300.2),
-        ("MOVE_SL_TO_PRICE", 4298.5, 4298.5),
+        ("MOVE_SL_TO_BE", None, 4300.2, "break_even"),
+        ("MOVE_SL_TO_PRICE", 4298.5, 4298.5, "protective_stop"),
     ],
 )
 def test_explicit_provider_protection_policy_updates_open_positions(
     action,
     price,
     expected_stop,
+    expected_reason,
 ):
     policy, _state = new_state("dubai_balanced_v1")
-    policy = replace(policy, provider_protection_mode="exact")
+    policy = replace(
+        policy,
+        provider_protection_mode="exact",
+        target_steps=(),
+        trailing_distance=None,
+        break_even_trigger_xau=None,
+        hard_stop_eur_per_leg=None,
+        basket_stop_eur=None,
+        time_exit_minutes=None,
+        time_exit_mode="none",
+    )
     state = register_signal(
         policy,
         signal_id="canal1_123",
@@ -459,15 +554,132 @@ def test_explicit_provider_protection_policy_updates_open_positions(
         event_id=f"m-{action}",
         signal_id=state.signal_id,
         action=action,
-        observed_at_utc=iso(1),
-        observed_tick_msc=101,
+        observed_at_utc=iso(2),
+        observed_tick_msc=100,
         price=price,
     )
 
-    result = apply_management(policy, state, event)
+    pending = apply_management(policy, state, event)
+    historical = advance_tick(
+        policy,
+        pending.state,
+        tick(102, bid=expected_stop - 0.5, ask=expected_stop - 0.3, minutes=1.9),
+    )
+    result = advance_tick(
+        policy,
+        historical.state,
+        tick(103, bid=expected_stop - 0.5, ask=expected_stop - 0.3, minutes=2.0),
+    )
 
+    assert pending.state.positions[0].stop_price is None
+    assert pending.state.pending_provider_management == (event,)
+    assert pending.transitions[0].event == "provider_protection_pending"
+    assert historical.state.positions[0].status == "open"
+    assert historical.state.positions[0].stop_price is None
     assert result.state.positions[0].stop_price == expected_stop
+    assert result.state.positions[0].close_reason == expected_reason
     assert result.transitions[0].event == "provider_protection_applied"
+
+
+def test_pending_management_round_trip_survives_restart_and_keeps_order():
+    policy = replace(
+        policy_by_id("dubai_balanced_v1"),
+        provider_protection_mode="exact",
+    )
+    state = register_signal(
+        policy,
+        signal_id="canal1_123",
+        source_message_id=123,
+        direction="BUY",
+        registered_at_utc=iso(),
+        registered_tick_msc=100,
+    )
+    state = advance_tick(policy, state, tick(101, bid=4300.0, ask=4300.2)).state
+    first = ShadowManagementEvent(
+        event_id="m-be",
+        signal_id=state.signal_id,
+        action="MOVE_SL_TO_BE",
+        observed_at_utc=iso(2),
+        observed_tick_msc=101,
+        raw_hash="a" * 64,
+    )
+    close = ShadowManagementEvent(
+        event_id="m-close",
+        signal_id=state.signal_id,
+        action="CLOSE_ALL",
+        observed_at_utc=iso(3),
+        observed_tick_msc=102,
+        raw_hash="b" * 64,
+    )
+    state = apply_management(policy, state, first).state
+    state = apply_management(policy, state, close).state
+
+    payload = state.to_dict()
+    restored = ShadowSignalState.from_dict(payload)
+
+    assert payload["pending_provider_management"] == [
+        first.to_dict(),
+        close.to_dict(),
+    ]
+    assert restored == state
+    assert restored.state_hash == state.state_hash
+    assert restored.pending_provider_management == (first, close)
+
+    protected = advance_tick(
+        policy,
+        restored,
+        tick(102, bid=4301.0, ask=4301.2, minutes=2.5),
+    )
+    closed = advance_tick(
+        policy,
+        protected.state,
+        tick(103, bid=4301.0, ask=4301.2, minutes=3.0),
+    )
+
+    assert protected.transitions[0].event == "provider_protection_applied"
+    assert protected.state.positions[0].stop_price == 4300.2
+    assert protected.state.pending_provider_management == (close,)
+    assert closed.state.exit_reason == "provider_close"
+    assert closed.state.pending_provider_management == ()
+
+
+def test_legacy_state_round_trip_omits_empty_queue_and_keeps_source_hash():
+    legacy_payload = {
+        "signal_id": "canal1_20700",
+        "source_message_id": 20700,
+        "candidate_id": "dubai_balanced_v1",
+        "channel": "canal1",
+        "direction": "BUY",
+        "registered_at_utc": "2026-08-27T08:00:00+00:00",
+        "registered_tick_msc": 100,
+        "strategy_fingerprint": "",
+        "execution_fingerprint": "",
+        "reference_price": None,
+        "status": "waiting",
+        "positions": [],
+        "realized_eur": 0.0,
+        "floating_eur": 0.0,
+        "max_favourable_eur": 0.0,
+        "max_adverse_eur": 0.0,
+        "profit_lock_armed": False,
+        "peak_total_eur": None,
+        "adverse_armed": False,
+        "adverse_extreme": None,
+        "pending_provider_close": False,
+        "exit_reason": None,
+        "last_tick_identity": None,
+        "processed_management_ids": [],
+        "evidence_blockers": [],
+        "complete": True,
+    }
+
+    restored = ShadowSignalState.from_dict(legacy_payload)
+
+    assert restored.to_dict() == legacy_payload
+    assert "pending_provider_management" not in restored.to_dict()
+    assert restored.state_hash == (
+        "615413b778a351c0fa57d7f305a0cb9f1013675ff31c81b3ac89875c80795484"
+    )
 
 
 def test_555_observes_but_does_not_apply_non_close_provider_management():

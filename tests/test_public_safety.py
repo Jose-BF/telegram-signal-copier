@@ -84,6 +84,8 @@ def test_strategy_shadow_modules_cannot_reach_live_order_execution():
         "strategy_shadow_engine.py",
         "strategy_shadow_runtime.py",
         "strategy_shadow_report.py",
+        "parity_incident_registry.py",
+        "parity_incident_journal.py",
     )
     forbidden_import = re.compile(
         r"(?m)^\s*(?:from|import)\s+(?:executor|pending_actions|MetaTrader5)\b"

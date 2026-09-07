@@ -29,6 +29,7 @@ AUTHORITATIVE_STREAMS = (
     "trade_journal.csv",
     "trade_events_TEST.jsonl",
     "trade_journal_TEST.csv",
+    "strategy_shadow_incidents.jsonl",
 )
 
 

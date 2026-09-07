@@ -76,6 +76,7 @@ from listener import (
     drain_media_capture_tasks,
     gold_555_entry_watch_loop,
     notify,
+    pending_entry_count,
     poll_loop_supervised,
     restore_gold_555_entry_watches_from_journal,
     schedule_pending_media_recovery,
@@ -270,7 +271,7 @@ def _write_runtime_heartbeat(path: Path | None = None) -> None:
     path = path or Path(config.BOT_RUNTIME_HEARTBEAT_FILE)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
-        "schema_version": 2,
+        "schema_version": 3,
         "pid": os.getpid(),
         "utc": datetime.utcnow().isoformat(timespec="milliseconds"),
         **_runtime_exposure_snapshot(),
@@ -288,6 +289,13 @@ def _runtime_exposure_snapshot(state_manager=None, positions_get=None) -> dict:
         open_signal_count = _count_open_signals_unique(state_manager)
     except Exception:
         open_signal_count = None
+
+    try:
+        pending_count = pending_entry_count()
+        if type(pending_count) is not int or pending_count < 0:
+            raise ValueError("Invalid pending entry count")
+    except Exception:
+        pending_count = None
 
     if positions_get is None:
         try:
@@ -314,9 +322,11 @@ def _runtime_exposure_snapshot(state_manager=None, positions_get=None) -> dict:
 
     if ((open_signal_count is not None and open_signal_count > 0)
             or (bot_position_count is not None
-                and bot_position_count > 0)):
+                and bot_position_count > 0)
+            or (pending_count is not None and pending_count > 0)):
         exposure_state = "open"
-    elif open_signal_count is None or bot_position_count is None:
+    elif (open_signal_count is None or bot_position_count is None
+          or pending_count is None):
         exposure_state = "unknown"
     else:
         exposure_state = "flat"
@@ -325,6 +335,7 @@ def _runtime_exposure_snapshot(state_manager=None, positions_get=None) -> dict:
         "exposure_state": exposure_state,
         "bot_position_count": bot_position_count,
         "open_signal_count": open_signal_count,
+        "pending_entry_count": pending_count,
     }
 
 
@@ -3626,15 +3637,15 @@ def _shadow_tick_history(
                 money_evidence_id=evidence_id,
             ))
         if after_identity is not None:
+            cursor_market_identity = _shadow_market_tick_identity(
+                after_identity
+            )
             cursor_indexes = [
                 index
                 for index, observed in enumerate(ticks)
                 if observed.identity == tuple(after_identity)
             ]
             if not cursor_indexes:
-                cursor_market_identity = _shadow_market_tick_identity(
-                    after_identity
-                )
                 cursor_indexes = [
                     index
                     for index, observed in enumerate(ticks)
@@ -3647,6 +3658,14 @@ def _shadow_tick_history(
                     )
             if not cursor_indexes:
                 raise ValueError("historical tick cursor unavailable")
+            if any(
+                _shadow_market_tick_identity(observed.identity)
+                != cursor_market_identity
+                for observed in ticks[
+                    cursor_indexes[0] + 1:cursor_indexes[-1]
+                ]
+            ):
+                raise ValueError("historical tick cursor ambiguous")
             ticks = ticks[cursor_indexes[-1] + 1:]
         evidence_id = canonical_hash({
             **evidence_seed,
@@ -3666,6 +3685,9 @@ def _shadow_tick_history(
             "XAUUSD history unavailable": "xau_history_unavailable",
             "historical tick cursor unavailable": (
                 "historical_tick_cursor_unavailable"
+            ),
+            "historical tick cursor ambiguous": (
+                "historical_tick_cursor_ambiguous"
             ),
         }.get(message, "tick_history_unavailable")
         return strategy_shadow_runtime.ShadowTickHistory(
@@ -3847,6 +3869,10 @@ async def _initialize_strategy_shadows(path: Path) -> int:
         runtime = strategy_shadow_runtime.ShadowRuntime(
             catalog=catalog,
             journal_sink=journal.event,
+            journal_confirmer=lambda receipt: asyncio.to_thread(
+                journal.confirm_event,
+                receipt,
+            ),
             checkpoint_seconds=config.STRATEGY_SHADOW_CHECKPOINT_SECONDS,
             slowdown_threshold_ms=(
                 config.STRATEGY_SHADOW_SLOWDOWN_THRESHOLD_MS
@@ -3909,6 +3935,35 @@ async def _process_strategy_shadow_tick(runtime, observed: ShadowTick) -> bool:
                 "bot",
                 "strategy_shadow_runtime_disabled",
                 operation="process_tick",
+                error_type=type(exc).__name__,
+                error=str(exc)[:300],
+            )
+        except Exception:
+            pass
+        print(
+            "[Shadow] observacion desactivada tras un fallo aislado; "
+            "el bot live continua"
+        )
+        return False
+    return True
+
+
+async def _process_strategy_shadow_tick_batch(
+    runtime,
+    cursor: strategy_shadow_runtime.ShadowTickCursor,
+    history: strategy_shadow_runtime.ShadowTickHistory,
+) -> bool:
+    try:
+        await runtime.process_tick_batch(cursor, history)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        strategy_shadow_runtime.install_runtime(None)
+        try:
+            journal.event(
+                "bot",
+                "strategy_shadow_runtime_disabled",
+                operation="process_tick_batch",
                 error_type=type(exc).__name__,
                 error=str(exc)[:300],
             )
@@ -4010,20 +4065,33 @@ async def _telemetry_publication_health_monitor(
 
 
 async def _strategy_shadow_loop(interval_s: float = 0.25) -> None:
-    continuity_failures = 0
+    historical_cursor_retry_budget = 60
+    quarantinable_cursor_blockers = {
+        "historical_tick_cursor_unavailable",
+        "historical_tick_cursor_ambiguous",
+    }
+    continuity_retries = {}
+    continuity_runtime = None
     archive_tail_waits = 0
     while config.STRATEGY_SHADOW_ENABLED:
         runtime = strategy_shadow_runtime.installed_runtime()
+        if runtime is not continuity_runtime:
+            continuity_retries.clear()
+            continuity_runtime = runtime
         if runtime is None:
+            continuity_retries.clear()
             archive_tail_waits = 0
             await asyncio.sleep(max(0.1, float(interval_s)))
             continue
         cursor = runtime.active_tick_cursor()
         if cursor is None:
-            continuity_failures = 0
+            continuity_retries.clear()
             archive_tail_waits = 0
             await asyncio.sleep(max(0.1, float(interval_s)))
             continue
+        for tracked_cursor in tuple(continuity_retries):
+            if tracked_cursor.from_msc < cursor.from_msc:
+                continuity_retries.pop(tracked_cursor, None)
         latest = await asyncio.to_thread(_shadow_tick_snapshot)
         if latest is None:
             await asyncio.sleep(max(0.1, float(interval_s)))
@@ -4044,7 +4112,17 @@ async def _strategy_shadow_loop(interval_s: float = 0.25) -> None:
             )
             if not history.complete:
                 archive_tail_waits = 0
-                continuity_failures += 1
+                previous_retry = continuity_retries.get(cursor)
+                continuity_failures = 1
+                if (
+                    previous_retry is not None
+                    and previous_retry[0] == history.blocker
+                ):
+                    continuity_failures = previous_retry[1] + 1
+                continuity_retries[cursor] = (
+                    history.blocker,
+                    continuity_failures,
+                )
                 if (
                     continuity_failures == 3
                     or continuity_failures % 60 == 0
@@ -4070,11 +4148,50 @@ async def _strategy_shadow_loop(interval_s: float = 0.25) -> None:
                             "[Shadow] continuidad pendiente; no se procesa "
                             "ningun tick hasta que MT5 permita demostrarla"
                         )
+                if (
+                    history.blocker in quarantinable_cursor_blockers
+                    and continuity_failures == historical_cursor_retry_budget
+                ):
+                    try:
+                        await runtime.quarantine_tick_cursor(
+                            cursor,
+                            history=history,
+                            consecutive_failures=continuity_failures,
+                        )
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as exc:
+                        strategy_shadow_runtime.install_runtime(None)
+                        try:
+                            journal.event(
+                                "bot",
+                                "strategy_shadow_runtime_disabled",
+                                operation="quarantine_tick_cursor",
+                                error_type=type(exc).__name__,
+                                error=str(exc)[:300],
+                            )
+                        except Exception:
+                            pass
+                        print(
+                            "[Shadow] observacion desactivada tras un fallo "
+                            "aislado; el bot live continua"
+                        )
+                        continuity_runtime = None
+                        continuity_retries.clear()
+                        await asyncio.sleep(max(0.1, float(interval_s)))
+                        continue
+                    continuity_retries.pop(cursor, None)
+                    await asyncio.sleep(max(0.01, float(interval_s)))
+                    continue
                 await asyncio.sleep(max(
                     1.0 if continuity_failures >= 3 else 0.1,
                     float(interval_s),
                 ))
                 continue
+            previous_retry = continuity_retries.pop(cursor, None)
+            continuity_failures = (
+                0 if previous_retry is None else previous_retry[1]
+            )
             if continuity_failures >= 3:
                 try:
                     journal.event(
@@ -4089,7 +4206,6 @@ async def _strategy_shadow_loop(interval_s: float = 0.25) -> None:
                     "[Shadow] continuidad de ticks demostrada; "
                     "observacion reanudada"
                 )
-            continuity_failures = 0
             if history.pending_reason == "live_archive_tail_pending":
                 archive_tail_waits += 1
                 next_delay_s = max(1.0, float(interval_s))
@@ -4126,12 +4242,10 @@ async def _strategy_shadow_loop(interval_s: float = 0.25) -> None:
                     except Exception:
                         pass
                 archive_tail_waits = 0
-            for observed in history.ticks:
-                # Yield so Telegram and live-order work already scheduled for
-                # this event-loop turn keeps priority over observation.
-                await asyncio.sleep(0)
-                if not await _process_strategy_shadow_tick(runtime, observed):
-                    break
+            # Yield so Telegram and live-order work already scheduled for this
+            # event-loop turn keeps priority over observation.
+            await asyncio.sleep(0)
+            await _process_strategy_shadow_tick_batch(runtime, cursor, history)
             await asyncio.sleep(next_delay_s)
             continue
         await asyncio.sleep(max(0.01, float(interval_s)))

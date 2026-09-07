@@ -9,9 +9,11 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import datetime
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import math
 from typing import Any, Iterable, Mapping
 
+from parity_incident_registry import reconcile_parity_incidents
 from strategy_shadow_catalog import build_shadow_catalog
 from strategy_shadow_parity import compare_logic_signatures
 
@@ -22,6 +24,8 @@ _ADOPTION_ONLY_BLOCKERS = {
     "actual_evidence_missing",
     "control_mirror_mismatch",
     "control_mirror_unverified",
+    "control_outcome_unverified",
+    "control_repair_outcome_unverified",
     "duplicate_actual_result",
     "invalid_actual_identity",
     "invalid_actual_result",
@@ -32,6 +36,7 @@ _ADOPTION_ONLY_BLOCKERS = {
     "source_commit_mismatch",
     "source_commit_unverified",
     "telegram_lineage_incomplete",
+    "open_parity_incidents",
 }
 _UNSCOPED_INTEGRITY_BLOCKERS = {
     "invalid_actual_identity",
@@ -147,6 +152,118 @@ def _optional_metric(value: object) -> float | None:
     return round(float(value), 2) if _is_finite_number(value) else None
 
 
+def _money_cents(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        amount = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+    if not amount.is_finite():
+        return None
+    return int(
+        amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) * 100
+    )
+
+
+def _control_outcome_parity(
+    *,
+    actual: Mapping[str, Any] | None,
+    control: Mapping[str, Any] | None,
+    control_blockers: set[str],
+) -> dict[str, Any]:
+    candidate_id = None if control is None else str(
+        control.get("candidate_id") or ""
+    ) or None
+    reasons: list[str] = []
+    if actual is None:
+        reasons.append("actual_evidence_missing")
+    elif (
+        not _is_non_negative_count(actual.get("entry_count"))
+        or _money_cents(actual.get("net_eur")) is None
+        or actual.get("mt5_reconciled") is not True
+    ):
+        reasons.append("actual_result_unverified")
+    if control is None:
+        reasons.append("live_control_missing")
+    elif (
+        str(control.get("status") or "") not in _TERMINAL_STATUSES
+        or control.get("complete") is not True
+        or control_blockers
+        or not _is_non_negative_count(control.get("entry_count"))
+        or _money_cents(control.get("net_eur")) is None
+    ):
+        reasons.append("live_control_result_unverified")
+    if reasons:
+        return {
+            "status": "unverified",
+            "candidate_id": candidate_id,
+            "reasons": sorted(set(reasons)),
+        }
+
+    actual_entries = int(actual["entry_count"])
+    shadow_entries = int(control["entry_count"])
+    actual_cents = _money_cents(actual["net_eur"])
+    shadow_cents = _money_cents(control["net_eur"])
+    assert actual_cents is not None and shadow_cents is not None
+    entry_delta = shadow_entries - actual_entries
+    money_delta = shadow_cents - actual_cents
+    return {
+        "status": (
+            "exact" if entry_delta == 0 and money_delta == 0 else "mismatch"
+        ),
+        "candidate_id": candidate_id,
+        "actual_entry_count": actual_entries,
+        "shadow_entry_count": shadow_entries,
+        "entry_count_delta": entry_delta,
+        "actual_net_eur": actual_cents / 100,
+        "shadow_net_eur": shadow_cents / 100,
+        "net_eur_delta": money_delta / 100,
+    }
+
+
+def _repair_replay_view(value: object) -> dict[str, Any] | None:
+    """Normalize diagnostic repair evidence without making it rankable."""
+
+    if not isinstance(value, Mapping):
+        return None
+    blockers = sorted({
+        str(item) for item in value.get("blockers") or () if str(item)
+    })
+    status = str(value.get("status") or "")
+    complete = bool(
+        value.get("evidence_role") == "retrospective_same_signal_repair"
+        and value.get("engine_contract") == "current_worktree"
+        and value.get("complete") is True
+        and status in _TERMINAL_STATUSES
+        and not blockers
+        and _is_non_negative_count(value.get("entry_count"))
+        and all(
+            _is_finite_number(value.get(field))
+            for field in ("net_eur", "mfe_eur", "mae_eur")
+        )
+    )
+    return {
+        "evidence_role": "retrospective_same_signal_repair",
+        "engine_contract": "current_worktree",
+        "source_registration_commit": value.get(
+            "source_registration_commit"
+        ),
+        "status": status or "incomplete",
+        "entry_count": (
+            int(value["entry_count"])
+            if _is_non_negative_count(value.get("entry_count"))
+            else None
+        ),
+        "exit_reason": value.get("exit_reason"),
+        "net_eur": _optional_metric(value.get("net_eur")) if complete else None,
+        "mfe_eur": _optional_metric(value.get("mfe_eur")) if complete else None,
+        "mae_eur": _optional_metric(value.get("mae_eur")) if complete else None,
+        "complete": complete,
+        "blockers": blockers,
+    }
+
+
 def _finalize_candidate_summary(payload: dict[str, Any]) -> None:
     _rounded(payload)
     payload["settled_net_eur"] = payload["net_eur"]
@@ -176,6 +293,9 @@ def _finalize_actual_summary(payload: dict[str, Any]) -> None:
 def build_report(
     candidate_rows: Iterable[Mapping[str, Any]],
     actual_rows: Iterable[Mapping[str, Any]],
+    *,
+    previous_incident_register: Mapping[str, Any] | None = None,
+    observation_id: str | None = None,
 ) -> dict[str, Any]:
     """Build a deterministic report without fitting or mutating candidates."""
 
@@ -336,8 +456,13 @@ def build_report(
             signal_blockers[signal_key].add("live_control_identity_mismatch")
             continue
         controls_by_channel[signal_key[0]].add(control_ids[0])
-    if any(len(values) != 1 for values in controls_by_channel.values()):
+    for channel, values in controls_by_channel.items():
+        if len(values) == 1:
+            continue
         blockers.add("live_control_changed")
+        for signal_key in set(actual_by_key) | candidate_signal_keys:
+            if signal_key[0] == channel:
+                signal_blockers[signal_key].add("live_control_changed")
 
     for signal_key, actual in actual_by_key.items():
         control_rows = [
@@ -411,6 +536,62 @@ def build_report(
                 blockers.add("source_commit_mismatch")
                 signal_blockers[signal_key].add("source_commit_mismatch")
 
+    control_outcomes: dict[tuple[str, str], dict[str, Any]] = {}
+    control_repair_outcomes: dict[tuple[str, str], dict[str, Any] | None] = {}
+    for signal_key in set(actual_by_key) | candidate_signal_keys:
+        controls = [
+            (key, row)
+            for key, row in candidate_by_key.items()
+            if key[:2] == signal_key and row.get("role") == "live_control"
+        ]
+        control_key: tuple[str, str, str] | None = None
+        control_row: dict[str, Any] | None = None
+        if len(controls) == 1:
+            control_key, control_row = controls[0]
+        outcome = _control_outcome_parity(
+            actual=actual_by_key.get(signal_key),
+            control=control_row,
+            control_blockers=(
+                set() if control_key is None else candidate_blockers[control_key]
+            ),
+        )
+        control_outcomes[signal_key] = outcome
+        repair_outcome = None
+        repair = (
+            None
+            if control_row is None
+            else _repair_replay_view(control_row.get("repair_replay"))
+        )
+        if repair is not None:
+            repair_outcome = _control_outcome_parity(
+                actual=actual_by_key.get(signal_key),
+                control=repair,
+                control_blockers=set(repair.get("blockers") or ()),
+            )
+            repair_outcome["candidate_id"] = (
+                None if control_row is None else control_row.get("candidate_id")
+            )
+            repair_outcome["evidence_role"] = (
+                "retrospective_same_signal_repair"
+            )
+            if repair_outcome["status"] == "mismatch":
+                blockers.add("control_repair_outcome_mismatch")
+                signal_blockers[signal_key].add(
+                    "control_repair_outcome_mismatch"
+                )
+            elif repair_outcome["status"] == "unverified":
+                blockers.add("control_repair_outcome_unverified")
+                signal_blockers[signal_key].add(
+                    "control_repair_outcome_unverified"
+                )
+        control_repair_outcomes[signal_key] = repair_outcome
+        if outcome["status"] == "mismatch":
+            blockers.add("control_outcome_mismatch")
+            signal_blockers[signal_key].add("control_outcome_mismatch")
+        elif outcome["status"] == "unverified":
+            blockers.add("control_outcome_unverified")
+            signal_blockers[signal_key].add("control_outcome_unverified")
+
     channel_counts = {
         channel: sum(1 for key in actual_by_key if key[0] == channel)
         for channel in _CHANNELS
@@ -468,7 +649,6 @@ def build_report(
                 day_summary["actual"]["blocked_signals"] += 1
 
         candidates: dict[str, Any] = {}
-        control_prediction: dict[str, Any] = {}
         for policy in catalog.get(channel, ()):
             candidate_key = (channel, signal_id, policy.candidate_id)
             row = candidate_by_key.get(candidate_key)
@@ -500,6 +680,9 @@ def build_report(
                 "complete": result_complete,
                 "blockers": sorted(candidate_blockers[candidate_key]),
             }
+            repair_replay = _repair_replay_view(row.get("repair_replay"))
+            if repair_replay is not None:
+                candidate["repair_replay"] = repair_replay
             candidates[policy.candidate_id] = candidate
             total = candidate_totals[policy.candidate_id]
             daily = day_summary["candidates"][policy.candidate_id]
@@ -515,10 +698,9 @@ def build_report(
                     summary["blocked_signals"] += 1
                 else:
                     summary["open_signals"] += 1
-            if row.get("role") == "live_control":
-                prediction = row.get("control_prediction")
-                if isinstance(prediction, Mapping):
-                    control_prediction = dict(prediction)
+
+        control_outcome = control_outcomes[(channel, signal_id)]
+        control_strategy_id = control_outcome.get("candidate_id")
 
         signal_rows.append(
             {
@@ -531,15 +713,22 @@ def build_report(
                     "net_eur": _optional_metric(actual.get("net_eur")),
                     "complete": actual_complete,
                     "mt5_reconciled": actual.get("mt5_reconciled") is True,
+                    "telegram_lineage_complete": (
+                        actual.get("telegram_lineage_complete") is True
+                    ),
                     "control_mirror_match": actual.get("control_mirror_match") is True,
                     "control_parity": actual.get("_control_parity"),
+                    "control_strategy_id": control_strategy_id,
                     "logic_signature_blockers": list(
                         actual.get("logic_signature_blockers") or []
                     ),
                     "source_commit": actual.get("source_commit"),
                 },
                 "candidates": candidates,
-                "control_prediction": control_prediction,
+                "control_outcome_parity": control_outcome,
+                "control_repair_outcome": control_repair_outcomes[
+                    (channel, signal_id)
+                ],
                 "blockers": sorted(signal_blockers[(channel, signal_id)]),
             }
         )
@@ -630,6 +819,26 @@ def build_report(
     if not any(values["eligible_signals"] for values in matrix.values()):
         blockers.add("no_eligible_signals")
 
+    parity_incidents = reconcile_parity_incidents(
+        signal_rows=signal_rows,
+        global_blockers=blockers,
+        previous=previous_incident_register,
+        observation_id=observation_id,
+    )
+    incident_channels = {
+        str(row.get("channel") or "")
+        for row in parity_incidents["incidents"]
+        if row.get("status") != "resolved" and row.get("channel")
+    }
+    has_global_open_incident = any(
+        row.get("status") != "resolved" and not row.get("channel")
+        for row in parity_incidents["incidents"]
+    )
+    if parity_incidents["open_count"]:
+        blockers.add("open_parity_incidents")
+    if parity_incidents["comparison_blocking_open_count"]:
+        blockers.add("open_comparison_incidents")
+
     comparison_blockers = {
         blocker
         for blocker in blockers
@@ -701,6 +910,15 @@ def build_report(
             for blocker in values
         }
         channel_blockers.update(blockers & _UNSCOPED_INTEGRITY_BLOCKERS)
+        if channel in incident_channels or has_global_open_incident:
+            channel_blockers.add("open_parity_incidents")
+        if any(
+            row.get("status") != "resolved"
+            and row.get("blocks_comparison") is True
+            and (not row.get("channel") or row.get("channel") == channel)
+            for row in parity_incidents["incidents"]
+        ):
+            channel_blockers.add("open_comparison_incidents")
         if len(controls_by_channel[channel]) != 1:
             channel_blockers.add("live_control_changed")
         if channel_counts[channel] < 15:
@@ -771,6 +989,16 @@ def build_report(
             cohort[status] += 1
         control_parity[channel] = summary
 
+    control_outcome_summary = {
+        channel: {"exact": 0, "mismatch": 0, "unverified": 0}
+        for channel in _CHANNELS
+    }
+    for (channel, _signal_id), outcome in control_outcomes.items():
+        status = str(outcome.get("status") or "unverified")
+        if status not in control_outcome_summary[channel]:
+            status = "unverified"
+        control_outcome_summary[channel][status] += 1
+
     label = _checkpoint_label(checkpoint_count)
     return {
         "schema_version": 1,
@@ -798,4 +1026,6 @@ def build_report(
         "matrix": matrix,
         "channels": channel_verdicts,
         "control_parity": control_parity,
+        "control_outcome_parity": control_outcome_summary,
+        "parity_incidents": parity_incidents,
     }

@@ -118,15 +118,40 @@ Prospective strategy shadows:
   `ranking_allowed` is stricter and additionally requires an independently
   verified live-control mirror plus the minimum prospective sample. Neither
   status changes the production strategy automatically.
+- The active control is calibrated basket by basket against reconciled MT5.
+  Its settled entry count and account-currency P/L must match exactly to one
+  cent; a known difference blocks comparison as well as ranking. Values copied
+  from a shadow record are never trusted as parity evidence.
+- Every hard parity defect is retained in
+  `runtime_data/strategy_shadow_incident_registry.json` with its source basket,
+  evidence digest, repair category and required action. Re-running a report
+  cannot duplicate or hide it. It resolves only when that same basket is
+  replayed without the blocker, and a later recurrence reopens it as a
+  regression.
+- The same incident history is appended to
+  `runtime_data/strategy_shadow_incidents.jsonl` and transported with telemetry,
+  so another checkout can rebuild the repair queue even when the local JSON
+  sidecar is unavailable. A malformed event history fails closed; a stale
+  sidecar is rebuilt from that authoritative history, and publication requires
+  both views to agree.
+- A basket registered by an older engine is never silently recalculated as
+  fresh forward evidence. The current engine may replay it only under the
+  explicit `retrospective_same_signal_repair` role. That result can verify a
+  code fix on the affected basket, but it remains excluded from totals,
+  comparisons and strategy selection. A repair replay that still differs from
+  MT5 opens its own `control_repair_outcome_mismatch` incident, classified as
+  entry-lifecycle or money/exit execution work; it cannot remain hidden under
+  the older source-version blocker.
 - `channels.canal1` and `channels.canal2` publish those verdicts independently.
   Missing access, evidence or sample in one provider cannot hide a valid
   diagnostic from the other. The top-level pairing remains the stricter joint
   verdict.
-- Live-control parity is calculated from a deterministic per-leg signature:
+- Live-control structural parity is calculated from a deterministic per-leg signature:
   strategy identity, leg order, volume, target assignment, protection state
-  and exit class. Fill-price, timing and money differences remain separate
-  execution observations. `control_parity.by_source_commit` also separates
-  pre-fix and post-fix cohorts.
+  and exit class. Outcome parity separately requires exact MT5 entry count and
+  P/L to the cent. Fill-price and timing remain visible execution observations;
+  they cannot be used to excuse an outcome mismatch.
+  `control_parity.by_source_commit` also separates pre-fix and post-fix cohorts.
 - A candidate that crosses broker midnight is explicitly blocked while swap
   is not part of every intermediate basket decision. Adding swap only to the
   final total could change when a guard would have closed and is therefore not

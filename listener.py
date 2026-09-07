@@ -6756,6 +6756,97 @@ def _unique_canal2_zone_plans() -> list[dict]:
     return plans
 
 
+def _zone_plan_can_open_from_tick(plan: dict, *, now: datetime) -> bool:
+    if not isinstance(plan, dict):
+        raise TypeError("zone plan must be a mapping")
+    if plan.get("lifecycle_schema_version") != LIFECYCLE_SCHEMA_VERSION:
+        raise ValueError("unsupported zone plan lifecycle schema")
+
+    status = plan.get("status")
+    supported_statuses = {
+        "draft",
+        "activation_pending",
+        "armed",
+        "approaching",
+        "rearmed",
+        "missed",
+        "invalidated",
+        "expired",
+        "triggered",
+    }
+    if status not in supported_statuses:
+        raise ValueError("unsupported zone plan status")
+    for field_name in (
+        "activation_requested",
+        "consumed",
+        "execution_eligible",
+    ):
+        if not isinstance(plan.get(field_name), bool):
+            raise ValueError(f"zone plan {field_name} must be boolean")
+
+    expires_value = plan.get("expires_utc")
+    if not isinstance(expires_value, str):
+        raise ValueError("zone plan expiry is required")
+    try:
+        expires_at = datetime.fromisoformat(expires_value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError("zone plan expiry is invalid") from exc
+    if expires_at.tzinfo is None:
+        raise ValueError("zone plan expiry must include a timezone")
+
+    if (
+        now >= expires_at.astimezone(timezone.utc)
+        or not plan["execution_eligible"]
+        or plan["consumed"]
+        or plan.get("trigger_claim") is not None
+        or status in {"invalidated", "expired"}
+        or not zone_plan_is_executable(plan)
+    ):
+        return False
+    if plan["activation_requested"]:
+        return True
+    return bool(
+        config.STRATEGY_C2_ZONE_FIRST_TOUCH_EXECUTION_ENABLED
+        and status in {"armed", "approaching", "rearmed"}
+    )
+
+
+def pending_entry_count() -> int:
+    """Count durable pre-entry work that can still start an MT5 opening."""
+    now = datetime.now(timezone.utc)
+    pending = 0
+    seen_watches: set[int] = set()
+    for record in _gold_555_entry_watches.values():
+        identity = id(record)
+        if identity in seen_watches:
+            continue
+        seen_watches.add(identity)
+        if not isinstance(record, _Gold555PendingEntry):
+            raise TypeError("Gold 555 pending entry record is invalid")
+        watch = record.watch
+        if not isinstance(watch, gold_555_entry_watch.EntryWatch):
+            raise TypeError("Gold 555 entry watch is invalid")
+        if not isinstance(watch.expires_at, datetime):
+            raise ValueError("Gold 555 entry watch expiry is invalid")
+        if watch.status == "confirmed":
+            if watch.confirmed_quote is None:
+                raise ValueError("confirmed Gold 555 watch has no quote")
+            pending += 1
+        elif watch.status == "waiting":
+            expires_at = watch.expires_at
+            if expires_at.tzinfo is None:
+                raise ValueError("Gold 555 entry watch expiry must be timezone-aware")
+            if now < expires_at.astimezone(timezone.utc):
+                pending += 1
+        elif watch.status not in {"expired", "cancelled"}:
+            raise ValueError("unsupported Gold 555 entry watch status")
+
+    for plan in _unique_canal2_zone_plans():
+        if _zone_plan_can_open_from_tick(plan, now=now):
+            pending += 1
+    return pending
+
+
 def _zone_trigger_evidence(plan: dict, tick: dict, kind: str) -> dict:
     """Freeze the broker-side price and clock that authorized an entry."""
     direction = str(plan.get("direction") or "").upper()
@@ -7064,7 +7155,7 @@ async def _trigger_canal2_zone_entry(
     return signal
 
 
-async def _process_canal2_zone_tick(tick: dict) -> int:
+async def _process_canal2_zone_tick_uncontrolled(tick: dict) -> int:
     """Evaluate one fresh broker tick against every unique active plan."""
     opened = 0
     for plan in _unique_canal2_zone_plans():
@@ -7117,6 +7208,46 @@ async def _process_canal2_zone_tick(tick: dict) -> int:
     return opened
 
 
+_pending_entry_processor_tasks: set[asyncio.Task] = set()
+
+
+def _pending_entry_processor_done(task: asyncio.Task) -> None:
+    _pending_entry_processor_tasks.discard(task)
+    if not task.cancelled():
+        task.exception()
+
+
+async def _run_registered_pending_entry_processor(processor, *args, **kwargs):
+    try:
+        return await processor(*args, **kwargs)
+    finally:
+        runtime_control.end_handler()
+
+
+async def _run_pending_entry_processor(processor, *args, **kwargs):
+    if not runtime_control.begin_handler():
+        return False, 0
+    processor_task = asyncio.create_task(
+        _run_registered_pending_entry_processor(processor, *args, **kwargs)
+    )
+    _pending_entry_processor_tasks.add(processor_task)
+    processor_task.add_done_callback(_pending_entry_processor_done)
+    return True, await asyncio.shield(processor_task)
+
+
+async def _process_canal2_zone_tick_with_admission(tick: dict) -> tuple[bool, int]:
+    return await _run_pending_entry_processor(
+        _process_canal2_zone_tick_uncontrolled,
+        tick,
+    )
+
+
+async def _process_canal2_zone_tick(tick: dict) -> int:
+    """Evaluate a zone tick unless restart draining has begun."""
+    _, opened = await _process_canal2_zone_tick_with_admission(tick)
+    return opened
+
+
 async def canal2_zone_touch_loop(interval_s: float = 0.1) -> None:
     """Observe fresh MT5 ticks without blocking Telegram delivery."""
     last_tick_identity = None
@@ -7148,8 +7279,13 @@ async def canal2_zone_touch_loop(interval_s: float = 0.1) -> None:
                     tick.get("time"), tick.get("bid"), tick.get("ask")
                 )
                 if identity != last_tick_identity:
-                    last_tick_identity = identity
-                    await _process_canal2_zone_tick(tick)
+                    admitted, _ = await _process_canal2_zone_tick_with_admission(
+                        tick
+                    )
+                    if admitted:
+                        last_tick_identity = identity
+                    else:
+                        await asyncio.sleep(max(float(interval_s), 0.01))
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -8287,7 +8423,7 @@ async def _open_gold_555_confirmed_intent_bound(
     return sig
 
 
-async def process_gold_555_entry_tick(
+async def _process_gold_555_entry_tick_uncontrolled(
     tick,
     *,
     now: datetime | None = None,
@@ -8407,6 +8543,28 @@ async def process_gold_555_entry_tick(
     return opened
 
 
+async def _process_gold_555_entry_tick_with_admission(
+    tick,
+    *,
+    now: datetime | None = None,
+) -> tuple[bool, int]:
+    return await _run_pending_entry_processor(
+        _process_gold_555_entry_tick_uncontrolled,
+        tick,
+        now=now,
+    )
+
+
+async def process_gold_555_entry_tick(
+    tick,
+    *,
+    now: datetime | None = None,
+) -> int:
+    """Advance 555 watches unless restart draining has begun."""
+    _, opened = await _process_gold_555_entry_tick_with_admission(tick, now=now)
+    return opened
+
+
 async def gold_555_entry_watch_loop(interval_s: float = 0.01) -> None:
     journal.event(
         "bot",
@@ -8431,9 +8589,12 @@ async def gold_555_entry_watch_loop(interval_s: float = 0.01) -> None:
         if tick_msc == last_tick_msc:
             await asyncio.sleep(max(0.01, float(interval_s)))
             continue
-        last_tick_msc = tick_msc
         try:
-            await process_gold_555_entry_tick(tick)
+            admitted, _ = await _process_gold_555_entry_tick_with_admission(tick)
+            if admitted:
+                last_tick_msc = tick_msc
+            else:
+                await asyncio.sleep(max(0.01, float(interval_s)))
         except asyncio.CancelledError:
             raise
         except Exception as exc:

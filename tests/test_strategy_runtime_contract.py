@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 
 import pytest
 
@@ -99,3 +99,37 @@ def test_strategy_contracts_are_immutable_and_unknown_ids_fail_closed():
         contract.strategy_id = "changed"
     with pytest.raises(KeyError, match="unknown strategy contract"):
         strategy_contract_by_id("missing")
+
+
+@pytest.mark.parametrize("field,value", [
+    ("pending_entry_policy", "none"),
+    ("automatic_flat_policy", "finalize"),
+    ("require_zero_positions", False),
+])
+def test_each_terminal_rule_changes_execution_identity(field, value):
+    original = strategy_contract_by_id("gold_now_555_v1")
+    changed = replace(original, terminal=replace(original.terminal, **{field: value}))
+
+    assert changed.strategy_fingerprint == original.strategy_fingerprint
+    assert changed.execution_fingerprint != original.execution_fingerprint
+
+
+@pytest.mark.parametrize("strategy_id", EXPECTED_IDS)
+def test_shadow_serializes_the_complete_terminal_contract(strategy_id):
+    contract = strategy_contract_by_id(strategy_id)
+    payload = contract.to_shadow_policy(role="candidate").execution_payload()
+
+    assert payload["schema_version"] == 2
+    for field in ("pending_entry_policy", "automatic_flat_policy", "require_zero_positions"):
+        assert payload[field] == getattr(contract.terminal, field)
+
+
+def test_legacy_shadow_policy_keeps_original_identity_without_new_semantics():
+    policy = strategy_contract_by_id("gold_now_555_v1").to_shadow_policy(role="candidate")
+    legacy = replace(policy, schema_version=1, pending_entry_policy=None,
+                     automatic_flat_policy=None, require_zero_positions=None)
+
+    assert legacy.execution_fingerprint == "32ece4caad7772a113c8833b0cf65d48d426731e219fe3b2658e8fabeb35bcf0"
+    assert legacy.execution_fingerprint != policy.execution_fingerprint
+    with pytest.raises(ValueError, match="schema 1"):
+        replace(policy, schema_version=1)

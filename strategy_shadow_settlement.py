@@ -27,10 +27,12 @@ _PROVIDER_TRANSITIONS = {
     "provider_action_ignored",
     "provider_action_observed",
     "provider_close_pending",
+    "provider_protection_pending",
     "provider_protection_applied",
 }
 _MATERIAL_PROVIDER_TRANSITIONS = {
     "provider_close_pending",
+    "provider_protection_pending",
     "provider_protection_applied",
 }
 _VERIFIED_NO_ENTRY_EVENTS = {
@@ -1104,19 +1106,46 @@ def _management_events(
             or str(record.get("transition") or "") not in _PROVIDER_TRANSITIONS
         ):
             continue
+        transition = str(record.get("transition") or "")
+        original_payload = record.get("management_event")
+        if (
+            record.get("policy_schema_version") == 2
+            and original_payload is None
+            and transition in {"provider_protection_applied", "provider_action_observed"}
+        ):
+            # Consuming a queued instruction is not another provider message.
+            continue
         state = _registration_state(record)
         if state is None:
             blockers.add("management_transition_invalid")
         processed = () if state is None else state.processed_management_ids
         event_id = str(processed[-1] if processed else "")
-        observed = _parse_utc(record.get("ts"))
+        original = None
         try:
-            observed_tick_msc = int(record.get("transition_tick_msc"))
+            if isinstance(original_payload, Mapping):
+                original = ShadowManagementEvent.from_dict(original_payload)
+            elif state is not None:
+                original = next((item for item in state.pending_provider_management
+                                 if item.event_id == event_id), None)
+        except (TypeError, ValueError):
+            blockers.add("management_event_payload_invalid")
+            continue
+        if original is not None:
+            if original.signal_id != signal_id or original.action.upper() != str(record.get("reason") or "").upper():
+                blockers.add("management_event_identity_mismatch")
+                continue
+            event_id = original.event_id
+        elif record.get("policy_schema_version") == 2:
+            blockers.add("management_event_payload_missing")
+            continue
+        observed = _parse_utc(original.observed_at_utc if original else record.get("ts"))
+        try:
+            observed_tick_msc = int(original.observed_tick_msc if original else record.get("transition_tick_msc"))
         except (TypeError, ValueError):
             observed_tick_msc = (
                 None if observed is None else int(observed.timestamp() * 1000)
             )
-        if observed_tick_msc is not None and observed_tick_msc >= 0:
+        if original is None and observed_tick_msc is not None and observed_tick_msc >= 0:
             observed = datetime.fromtimestamp(
                 observed_tick_msc / 1000.0,
                 tz=timezone.utc,
@@ -1136,7 +1165,7 @@ def _management_events(
         details = record.get("transition_details")
         price = details.get("price") if isinstance(details, Mapping) else None
         candidate = _ReplayManagement(
-            event=ShadowManagementEvent(
+            event=original or ShadowManagementEvent(
                 event_id=event_id,
                 signal_id=signal_id,
                 action=action,
@@ -1260,6 +1289,41 @@ def _result_row(
         "complete": state.complete and not blockers,
         "evidence_blockers": blockers,
         "logic_signature": shadow_logic_signature(state, policy),
+    }
+
+
+def _repair_replay_row(
+    state: ShadowSignalState,
+    *,
+    policy,
+    horizon: datetime,
+    lineage_complete: bool,
+    source_commit: str | None,
+) -> dict[str, Any]:
+    """Expose a same-signal replay without promoting it as forward evidence."""
+
+    result = _result_row(
+        state,
+        policy=policy,
+        role="repair_only",
+        horizon=horizon,
+        lineage_complete=lineage_complete,
+        registration_source="historical_registration",
+        source_commit=source_commit,
+    )
+    return {
+        "evidence_role": "retrospective_same_signal_repair",
+        "engine_contract": "current_worktree",
+        "source_registration_commit": source_commit,
+        "status": result["status"],
+        "entry_count": result["entry_count"],
+        "exit_reason": result["exit_reason"],
+        "net_eur": result["net_eur"],
+        "mfe_eur": result["mfe_eur"],
+        "mae_eur": result["mae_eur"],
+        "complete": result["complete"],
+        "blockers": result["evidence_blockers"],
+        "logic_signature": result["logic_signature"],
     }
 
 
@@ -1478,9 +1542,15 @@ def settle_shadow_records(
     actual_rows: Iterable[Mapping[str, Any]] = (),
     provider_catalog: Mapping[str, Any] | None = None,
     trusted_source_commits: Mapping[str, str] | None = None,
+    previous_incident_register: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Rebuild every frozen candidate from causal registration evidence."""
 
+    source_contracts = (
+        None
+        if trusted_source_commits is None
+        else dict(trusted_source_commits)
+    )
     source_records = [dict(record) for record in records]
     actual_list = sorted(
         (dict(row) for row in actual_rows),
@@ -1544,6 +1614,22 @@ def settle_shadow_records(
         signal_registration.setdefault(signal_key, observed)
 
     candidate_rows: list[dict[str, Any]] = []
+    runtime_incomplete: dict[tuple[str, str], list[str]] = {}
+    for record in source_records:
+        event = str(record.get("ev") or "")
+        if event not in {"strategy_shadow_tick_gap", "strategy_shadow_recovered",
+                         "strategy_shadow_candidate_disabled"}:
+            continue
+        recorded_state = _registration_state(record)
+        if event == "strategy_shadow_recovered" and (
+            recorded_state is not None and recorded_state.complete
+            and recorded_state.status != "incomplete"
+        ):
+            continue
+        key = (str(record.get("sig") or ""), str(record.get("candidate_id") or ""))
+        reasons = runtime_incomplete.setdefault(key, ["prospective_runtime_incomplete"])
+        if recorded_state is not None:
+            reasons.extend(recorded_state.evidence_blockers)
     tick_evidence: dict[str, dict[str, Any]] = {}
     ordered_signals = sorted(
         signal_registration,
@@ -1559,6 +1645,7 @@ def settle_shadow_records(
         registration_sources: dict[str, str] = {}
         registration_commits: dict[str, str | None] = {}
         blocked: dict[str, list[str]] = {}
+        repair_only: dict[str, list[str]] = {}
         has_any_registration = any(
             (signal_id, policy.candidate_id) in registrations
             for policy in policies
@@ -1593,6 +1680,16 @@ def settle_shadow_records(
             )
             state = _registration_state(record)
             reasons: list[str] = []
+            if key in runtime_incomplete:
+                repair_only[policy.candidate_id] = list(runtime_incomplete[key])
+            source_commit = str(record.get("code_commit") or "")
+            if (
+                source_contracts is not None
+                and source_commit not in source_contracts
+            ):
+                repair_only.setdefault(policy.candidate_id, []).append(
+                    "candidate_source_code_unverified"
+                )
             if key in registration_conflicts:
                 reasons.append("candidate_registration_conflict")
             if state is None:
@@ -1836,18 +1933,36 @@ def settle_shadow_records(
 
         for policy in policies:
             candidate_id = policy.candidate_id
-            if candidate_id in blocked:
-                candidate_rows.append(_blocked_row(
+            row_blockers = [
+                *repair_only.get(candidate_id, ()),
+                *blocked.get(candidate_id, ()),
+            ]
+            if row_blockers:
+                state = states.get(candidate_id)
+                row = _blocked_row(
                     signal_id=signal_id,
                     channel=channel,
                     policy=policy,
                     role=roles.get(candidate_id, policy.role),
                     registered_at=registered_at,
-                    blockers=blocked[candidate_id],
-                    state=states.get(candidate_id),
+                    blockers=row_blockers,
+                    state=state,
                     registration_source=registration_sources.get(candidate_id),
                     source_commit=registration_commits.get(candidate_id),
-                ))
+                )
+                if (
+                    candidate_id in repair_only
+                    and candidate_id not in blocked
+                    and state is not None
+                ):
+                    row["repair_replay"] = _repair_replay_row(
+                        state,
+                        policy=policy,
+                        horizon=end,
+                        lineage_complete=lineage.get(candidate_id, False),
+                        source_commit=registration_commits.get(candidate_id),
+                    )
+                candidate_rows.append(row)
                 continue
             candidate_rows.append(_result_row(
                 states[candidate_id],
@@ -1859,7 +1974,12 @@ def settle_shadow_records(
                 source_commit=registration_commits.get(candidate_id),
             ))
 
-    report = build_report(candidate_rows, actual_list)
+    report = build_report(
+        candidate_rows,
+        actual_list,
+        previous_incident_register=previous_incident_register,
+        observation_id=f"{since.isoformat()}..{until.isoformat()}",
+    )
     evidence = {
         "schema_version": 1,
         "since": since.isoformat(),

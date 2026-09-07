@@ -7,6 +7,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from parity_incident_journal import append_registry
+from parity_incident_registry import reconcile_parity_incidents
 import replay_source_contract
 from strategy_shadow_contracts import canonical_hash
 import tools.run_bot_watch as watch
@@ -1256,6 +1258,25 @@ def _valid_strategy_shadow_publication():
         "tick_evidence": {},
         "report": {
             "comparison_allowed": False,
+            "ranking_allowed": False,
+            "blockers": ["no_eligible_signals"],
+            "signals": [],
+            "control_outcome_parity": {
+                "canal1": {"exact": 0, "mismatch": 0, "unverified": 0},
+                "canal2": {"exact": 0, "mismatch": 0, "unverified": 0},
+            },
+            "parity_incidents": {
+                "schema_version": 1,
+                "observation_id": "2026-08-27..2026-08-28",
+                "open_count": 0,
+                "comparison_blocking_open_count": 0,
+                "regressed_count": 0,
+                "resolved_count": 0,
+                "ranking_blocked": False,
+                "comparison_blocked": False,
+                "unresolved_incident_ids": [],
+                "incidents": [],
+            },
             "matrix": {
                 channel: {
                     "eligible_signals": 0,
@@ -1273,14 +1294,321 @@ def _valid_strategy_shadow_publication():
     return {**payload, "settlement_hash": canonical_hash(payload)}
 
 
+def _valid_strategy_shadow_publication_with_exact_control():
+    publication = _valid_strategy_shadow_publication()
+    payload = {
+        key: value for key, value in publication.items()
+        if key != "settlement_hash"
+    }
+    payload["candidate_rows"] = [
+        {"channel": "canal1", "candidate_id": candidate_id}
+        for candidate_id in (
+            "dubai_balanced_v1",
+            "dubai_frontloaded_30m_v1",
+            "dubai_frontloaded_40m_v1",
+        )
+    ]
+    report = payload["report"]
+    report["blockers"] = ["minimum_sample_not_reached"]
+    report["matrix"]["canal1"] = {
+        "eligible_signals": 1,
+        "expected_rows": 3,
+        "observed_rows": 3,
+        "settled_rows": 3,
+        "blocked_rows": 0,
+        "open_rows": 0,
+        "complete": True,
+    }
+    report["control_outcome_parity"]["canal1"]["exact"] = 1
+    report["signals"] = [{
+        "channel": "canal1",
+        "signal_id": "canal1_1000",
+        "actual": {
+            "entry_count": 1,
+            "net_eur": 3.0,
+            "complete": True,
+            "mt5_reconciled": True,
+        },
+        "candidates": {
+            "dubai_balanced_v1": {
+                "candidate_id": "dubai_balanced_v1",
+                "role": "live_control",
+                "entry_count": 1,
+                "net_eur": 3.0,
+                "complete": True,
+            },
+        },
+        "control_outcome_parity": {
+            "status": "exact",
+            "candidate_id": "dubai_balanced_v1",
+            "actual_entry_count": 1,
+            "shadow_entry_count": 1,
+            "entry_count_delta": 0,
+            "actual_net_eur": 3.0,
+            "shadow_net_eur": 3.0,
+            "net_eur_delta": 0.0,
+        },
+        "blockers": [],
+    }]
+    return {**payload, "settlement_hash": canonical_hash(payload)}
+
+
+def test_strategy_shadow_publication_requires_consistent_incident_registry(
+        tmp_path):
+    output = tmp_path / "strategy_shadow_report.json"
+    payload = _valid_strategy_shadow_publication()
+    evidence = {
+        key: value for key, value in payload.items()
+        if key != "settlement_hash"
+    }
+    evidence["report"].pop("parity_incidents")
+    payload = {**evidence, "settlement_hash": canonical_hash(evidence)}
+    output.write_text(json.dumps(payload), encoding="utf-8")
+
+    assert watch._strategy_shadow_publication_valid(output) is False
+
+
+def test_strategy_shadow_publication_recomputes_control_outcome(tmp_path):
+    output = tmp_path / "strategy_shadow_report.json"
+    payload = _valid_strategy_shadow_publication_with_exact_control()
+    output.write_text(json.dumps(payload), encoding="utf-8")
+    assert watch._strategy_shadow_publication_valid(output) is True
+
+    evidence = {
+        key: value for key, value in payload.items()
+        if key != "settlement_hash"
+    }
+    evidence["report"]["signals"][0]["actual"]["net_eur"] = 2.99
+    tampered = {**evidence, "settlement_hash": canonical_hash(evidence)}
+    output.write_text(json.dumps(tampered), encoding="utf-8")
+
+    assert watch._strategy_shadow_publication_valid(output) is False
+
+
+def test_strategy_shadow_publication_recomputes_repair_outcome():
+    signal = _valid_strategy_shadow_publication_with_exact_control()[
+        "report"
+    ]["signals"][0]
+    control = signal["candidates"]["dubai_balanced_v1"]
+    control["repair_replay"] = {
+        "evidence_role": "retrospective_same_signal_repair",
+        "engine_contract": "current_worktree",
+        "status": "closed",
+        "entry_count": 1,
+        "net_eur": 3.0,
+        "complete": True,
+        "blockers": [],
+    }
+    signal["control_repair_outcome"] = {
+        "status": "exact",
+        "candidate_id": "dubai_balanced_v1",
+        "evidence_role": "retrospective_same_signal_repair",
+        "actual_entry_count": 1,
+        "shadow_entry_count": 1,
+        "entry_count_delta": 0,
+        "actual_net_eur": 3.0,
+        "shadow_net_eur": 3.0,
+        "net_eur_delta": 0.0,
+    }
+
+    assert watch._strategy_shadow_repair_outcome_valid(
+        signal,
+        actual=signal["actual"],
+        control=control,
+        candidate_id="dubai_balanced_v1",
+    ) is True
+
+    signal["control_repair_outcome"]["shadow_net_eur"] = 3.01
+    assert watch._strategy_shadow_repair_outcome_valid(
+        signal,
+        actual=signal["actual"],
+        control=control,
+        candidate_id="dubai_balanced_v1",
+    ) is False
+
+
+def test_strategy_shadow_validator_requires_repair_mismatch_blockers():
+    report = _valid_strategy_shadow_publication_with_exact_control()["report"]
+    signal = report["signals"][0]
+    control = signal["candidates"]["dubai_balanced_v1"]
+    control.update({
+        "complete": False,
+        "net_eur": None,
+        "blockers": ["candidate_source_code_unverified"],
+        "repair_replay": {
+            "evidence_role": "retrospective_same_signal_repair",
+            "engine_contract": "current_worktree",
+            "status": "closed",
+            "entry_count": 2,
+            "net_eur": 4.0,
+            "complete": True,
+            "blockers": [],
+        },
+    })
+    signal["control_outcome_parity"] = {
+        "status": "unverified",
+        "candidate_id": "dubai_balanced_v1",
+        "reasons": ["live_control_result_unverified"],
+    }
+    signal["control_repair_outcome"] = {
+        "status": "mismatch",
+        "candidate_id": "dubai_balanced_v1",
+        "evidence_role": "retrospective_same_signal_repair",
+        "actual_entry_count": 1,
+        "shadow_entry_count": 2,
+        "entry_count_delta": 1,
+        "actual_net_eur": 3.0,
+        "shadow_net_eur": 4.0,
+        "net_eur_delta": 1.0,
+    }
+    signal["blockers"] = [
+        "control_outcome_unverified",
+        "control_repair_outcome_mismatch",
+    ]
+    report["control_outcome_parity"]["canal1"] = {
+        "exact": 0,
+        "mismatch": 0,
+        "unverified": 1,
+    }
+    report["blockers"] = [
+        "minimum_sample_not_reached",
+        "control_outcome_unverified",
+        "control_repair_outcome_mismatch",
+    ]
+
+    assert watch._strategy_shadow_control_outcomes_valid(report) is True
+
+    signal["blockers"].remove("control_repair_outcome_mismatch")
+    assert watch._strategy_shadow_control_outcomes_valid(report) is False
+    signal["blockers"].append("control_repair_outcome_mismatch")
+    report["blockers"].remove("control_repair_outcome_mismatch")
+    assert watch._strategy_shadow_control_outcomes_valid(report) is False
+
+
+def test_strategy_shadow_validator_recomputes_current_incident_coverage():
+    signal = {
+        "channel": "canal2",
+        "signal_id": "canal2_100",
+        "actual": {
+            "entry_count": 1,
+            "net_eur": 1.72,
+            "complete": True,
+            "mt5_reconciled": True,
+        },
+        "candidates": {},
+        "control_repair_outcome": {
+            "status": "mismatch",
+            "evidence_role": "retrospective_same_signal_repair",
+            "entry_count_delta": 4,
+            "net_eur_delta": 18.03,
+        },
+        "blockers": ["control_repair_outcome_mismatch"],
+    }
+    registry = reconcile_parity_incidents(
+        signal_rows=(signal,),
+        global_blockers=("control_repair_outcome_mismatch",),
+        observation_id="same-basket-audit",
+    )
+    report = {
+        "signals": [signal],
+        "blockers": [
+            "control_repair_outcome_mismatch",
+            "open_parity_incidents",
+            "open_comparison_incidents",
+        ],
+        "parity_incidents": registry,
+    }
+
+    assert watch._strategy_shadow_incidents_cover_current_findings(report) is True
+
+    report["parity_incidents"] = {
+        **registry,
+        "open_count": 0,
+        "comparison_blocking_open_count": 0,
+        "ranking_blocked": False,
+        "comparison_blocked": False,
+        "unresolved_incident_ids": [],
+        "incidents": [],
+    }
+    assert watch._strategy_shadow_incidents_cover_current_findings(report) is False
+
+
+def test_strategy_shadow_incident_sidecar_must_match_embedded_registry(
+        tmp_path):
+    report = _valid_strategy_shadow_publication()["report"]
+    sidecar = tmp_path / "strategy_shadow_incident_registry.json"
+    sidecar.write_text(
+        json.dumps({
+            **report["parity_incidents"],
+            "observation_id": "different-observation",
+        }),
+        encoding="utf-8",
+    )
+
+    assert watch._strategy_shadow_incident_sidecar_matches(
+        sidecar, report,
+    ) is False
+
+    sidecar.write_text(
+        json.dumps(report["parity_incidents"]),
+        encoding="utf-8",
+    )
+    assert watch._strategy_shadow_incident_sidecar_matches(
+        sidecar, report,
+    ) is True
+
+
+def test_strategy_shadow_incident_history_must_match_embedded_registry(
+        tmp_path):
+    report = _valid_strategy_shadow_publication()["report"]
+    history = tmp_path / "strategy_shadow_incidents.jsonl"
+
+    assert watch._strategy_shadow_incident_history_matches(
+        history, report,
+    ) is True
+
+    incident = {
+        "incident_id": "parity_mismatch",
+        "status": "open",
+        "blocks_comparison": True,
+        "channel": "canal1",
+        "signal_id": "canal1_1",
+        "blocker": "control_outcome_mismatch",
+    }
+    mismatched = {
+        "schema_version": 1,
+        "observation_id": "different-observation",
+        "open_count": 1,
+        "comparison_blocking_open_count": 1,
+        "resolved_count": 0,
+        "regressed_count": 0,
+        "ranking_blocked": True,
+        "comparison_blocked": True,
+        "unresolved_incident_ids": ["parity_mismatch"],
+        "incidents": [incident],
+    }
+    append_registry(history, mismatched)
+    assert watch._strategy_shadow_incident_history_matches(
+        history, report,
+    ) is False
+
+
 def test_regenerate_strategy_shadow_report_uses_complete_offline_inputs(
         tmp_path, monkeypatch):
     data_dir = tmp_path / "runtime"
     data_dir.mkdir()
     output = data_dir / "strategy_shadow_report.json"
+    incidents = data_dir / "strategy_shadow_incident_registry.json"
+    incident_events = data_dir / "strategy_shadow_incidents.jsonl"
     monkeypatch.setattr(watch, "REPO_DIR", tmp_path)
     monkeypatch.setattr(watch, "RUNTIME_DATA_DIR", data_dir)
     monkeypatch.setattr(watch, "STRATEGY_SHADOW_REPORT_FILE", output)
+    monkeypatch.setattr(
+        watch, "STRATEGY_SHADOW_INCIDENT_REGISTRY_FILE", incidents,
+    )
+    monkeypatch.setattr(
+        watch, "STRATEGY_SHADOW_INCIDENT_EVENTS_FILE", incident_events,
+    )
     monkeypatch.setattr(
         watch,
         "PROVIDER_SIGNAL_CATALOG_FILE",
@@ -1313,11 +1641,21 @@ def test_regenerate_strategy_shadow_report_uses_complete_offline_inputs(
             "--money-ticks-cache", str(data_dir / "money_ticks_cache"),
             "--money-contract", str(data_dir / "broker_money_contract.json"),
             "--provider-catalog", str(data_dir / "provider_signal_catalog.json"),
+            "--incident-registry", str(incidents),
+            "--incident-events", str(incident_events),
             "--output", str(output),
         ]
         assert kwargs["capture_output"] is False
         output.write_text(
             json.dumps(_valid_strategy_shadow_publication()),
+            encoding="utf-8",
+        )
+        incidents.write_text(
+            json.dumps(
+                _valid_strategy_shadow_publication()["report"][
+                    "parity_incidents"
+                ]
+            ),
             encoding="utf-8",
         )
         return subprocess.CompletedProcess(
@@ -1673,6 +2011,7 @@ def test_interrupted_pipeline_restores_previous_mutable_reports(
         data_dir / "provider_result_scorecard.json",
         data_dir / "strategy_farm.json",
         data_dir / "strategy_shadow_report.json",
+        data_dir / "strategy_shadow_incident_registry.json",
         data_dir / "log_learning_report.json",
         data_dir / "log_pattern_registry.json",
         data_dir / "log_learning_status.json",
@@ -1684,13 +2023,19 @@ def test_interrupted_pipeline_restores_previous_mutable_reports(
     monkeypatch.setattr(watch, "PROVIDER_RESULT_SCORECARD_FILE", paths[1])
     monkeypatch.setattr(watch, "STRATEGY_FARM_FILE", paths[2])
     monkeypatch.setattr(watch, "STRATEGY_SHADOW_REPORT_FILE", paths[3])
-    monkeypatch.setattr(watch, "LOG_LEARNING_REPORT_FILE", paths[4])
-    monkeypatch.setattr(watch, "LOG_PATTERN_REGISTRY_FILE", paths[5])
-    monkeypatch.setattr(watch, "LOG_LEARNING_STATUS_FILE", paths[6])
     monkeypatch.setattr(
-        watch,
-        "_regenerate_ledger",
-        lambda: (_ for _ in ()).throw(KeyboardInterrupt("stop")),
+        watch, "STRATEGY_SHADOW_INCIDENT_REGISTRY_FILE", paths[4],
+    )
+    monkeypatch.setattr(watch, "LOG_LEARNING_REPORT_FILE", paths[5])
+    monkeypatch.setattr(watch, "LOG_PATTERN_REGISTRY_FILE", paths[6])
+    monkeypatch.setattr(watch, "LOG_LEARNING_STATUS_FILE", paths[7])
+    def interrupt_after_mutation():
+        for path in paths:
+            path.write_text("new\n", encoding="utf-8")
+        raise KeyboardInterrupt("stop")
+
+    monkeypatch.setattr(
+        watch, "_regenerate_ledger", interrupt_after_mutation,
     )
 
     with pytest.raises(KeyboardInterrupt):

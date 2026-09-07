@@ -101,6 +101,8 @@ def register_signal(
     reference_price: float | None = None,
 ) -> ShadowSignalState:
     normalized = normalize_direction(direction)
+    if policy.require_zero_positions is False:
+        raise ValueError("shadow finalization requires zero positions")
     if policy.entry_mode == "adverse_reversal" and reference_price is not None:
         reference_price = float(reference_price)
         if not math.isfinite(reference_price) or reference_price <= 0.0:
@@ -330,7 +332,7 @@ def _process_market_ladder_entries(
             ))
             return updated
         return _append_fill(policy, state, tick, 0, transitions)
-    if expired:
+    if expired or policy.pending_entry_policy == "none":
         return state
 
     anchor = _first_fill_price(state)
@@ -681,7 +683,14 @@ def _finalize_if_exhausted(
     ):
         return state
     all_legs_filled = len(state.positions) >= len(policy.entry_volumes)
-    if not all_legs_filled and not _entry_expired(policy, state, tick):
+    keep_pending = (
+        policy.schema_version == 1
+        or (
+            policy.pending_entry_policy == "until_expiry"
+            and policy.automatic_flat_policy == "keep_if_eligible"
+        )
+    )
+    if keep_pending and not all_legs_filled and not _entry_expired(policy, state, tick):
         return state
     reason = state.positions[-1].close_reason or "positions_exhausted"
     updated = replace(
@@ -697,6 +706,155 @@ def _finalize_if_exhausted(
         reason=reason,
         net_eur=updated.realized_eur,
     ))
+    return updated
+
+
+def _is_close_action(action: str, provider_management_mode: str) -> bool:
+    return is_strategy_close_action(action, provider_management_mode)
+
+
+def _is_provider_protection_action(
+    policy: ShadowPolicy,
+    event: ShadowManagementEvent,
+) -> bool:
+    action = str(event.action or "").upper()
+    return (
+        policy.provider_management_mode == "exact"
+        and policy.provider_protection_mode == "exact"
+        and (
+            action == "MOVE_SL_TO_BE"
+            or (action == "MOVE_SL_TO_PRICE" and event.price is not None)
+        )
+    )
+
+
+def _apply_provider_protection(
+    state: ShadowSignalState,
+    event: ShadowManagementEvent,
+    transitions: list[ShadowTransition],
+    *,
+    tick_msc: int | None,
+) -> tuple[ShadowSignalState, bool]:
+    action = str(event.action or "").upper()
+    positions: list[ShadowPosition] = []
+    changed: list[int] = []
+    for position in state.positions:
+        candidate = position
+        if position.status == "open" and action == "MOVE_SL_TO_BE":
+            candidate = replace(
+                position,
+                stop_price=position.entry_price,
+                break_even_applied=True,
+            )
+        elif (
+            position.status == "open"
+            and action == "MOVE_SL_TO_PRICE"
+            and event.price is not None
+        ):
+            candidate = replace(position, stop_price=float(event.price))
+        if candidate != position:
+            changed.append(position.leg_index)
+        positions.append(candidate)
+    if not changed:
+        return state, False
+    updated = replace(state, positions=tuple(positions))
+    transitions.append(_transition(
+        updated,
+        "provider_protection_applied",
+        tick_msc=tick_msc,
+        reason=action,
+        leg_indexes=changed,
+        price=event.price,
+    ))
+    return updated, True
+
+
+def _execute_provider_close(
+    state: ShadowSignalState,
+    tick: ShadowTick,
+    transitions: list[ShadowTransition],
+) -> ShadowSignalState:
+    open_positions = tuple(
+        item for item in state.positions if item.status == "open"
+    )
+    if open_positions:
+        return _close_all_for_guard(
+            state, tick, transitions, "provider_close",
+        )
+    updated = replace(
+        state,
+        status="cancelled",
+        pending_provider_close=False,
+        exit_reason="provider_close_before_entry",
+    )
+    transitions.append(_transition(
+        updated,
+        "entry_cancelled",
+        tick_msc=tick.time_msc,
+        reason="provider_close_before_entry",
+    ))
+    return updated
+
+
+def _management_event_available(
+    event: ShadowManagementEvent,
+    tick: ShadowTick,
+) -> bool:
+    return _parse_utc(tick.observed_at_utc) >= _parse_utc(event.observed_at_utc)
+
+
+def _consume_pending_provider_management(
+    policy: ShadowPolicy,
+    state: ShadowSignalState,
+    tick: ShadowTick,
+    transitions: list[ShadowTransition],
+) -> ShadowSignalState:
+    pending = list(state.pending_provider_management)
+    has_queued_close = any(
+        _is_close_action(
+            str(event.action or "").upper(),
+            policy.provider_management_mode,
+        )
+        for event in pending
+    )
+    if state.pending_provider_close and not has_queued_close:
+        reason = "provider_management_availability_missing"
+        updated, _ = _with_blocker(state, reason)
+        updated = replace(updated, status="incomplete", exit_reason=reason)
+        transitions.append(_transition(
+            updated,
+            "evidence_blocker",
+            tick_msc=tick.time_msc,
+            reason=reason,
+        ))
+        return updated
+
+    updated = state
+    while pending and _management_event_available(pending[0], tick):
+        event = pending.pop(0)
+        updated = replace(
+            updated,
+            pending_provider_management=tuple(pending),
+        )
+        action = str(event.action or "").upper()
+        if _is_close_action(action, policy.provider_management_mode):
+            updated = replace(updated, pending_provider_management=())
+            return _execute_provider_close(updated, tick, transitions)
+        if _is_provider_protection_action(policy, event):
+            updated, changed = _apply_provider_protection(
+                updated,
+                event,
+                transitions,
+                tick_msc=tick.time_msc,
+            )
+            if changed:
+                continue
+        transitions.append(_transition(
+            updated,
+            "provider_action_observed",
+            tick_msc=tick.time_msc,
+            reason=action,
+        ))
     return updated
 
 
@@ -730,30 +888,21 @@ def advance_tick(
     transitions: list[ShadowTransition] = []
     updated = replace(state, last_tick_identity=tick.identity)
 
-    if updated.pending_provider_close:
-        open_positions = tuple(
-            item for item in updated.positions if item.status == "open"
+    if policy.schema_version >= 2:
+        updated = _consume_pending_provider_management(
+            policy, updated, tick, transitions,
         )
-        if open_positions:
-            updated = _close_all_for_guard(
-                updated, tick, transitions, "provider_close",
-            )
-        else:
-            updated = replace(
-                updated,
-                status="cancelled",
-                pending_provider_close=False,
-                exit_reason="provider_close_before_entry",
-            )
-            transitions.append(_transition(
-                updated,
-                "entry_cancelled",
-                tick_msc=tick.time_msc,
-                reason="provider_close_before_entry",
-            ))
+        if updated.status in TERMINAL_STATUSES:
+            return ShadowAdvance(updated, tuple(transitions))
+    elif updated.pending_provider_close:
+        updated = _execute_provider_close(updated, tick, transitions)
         return ShadowAdvance(updated, tuple(transitions))
 
     updated = _process_price_exits(updated, tick, transitions)
+    if policy.schema_version >= 2:
+        updated = _finalize_if_exhausted(policy, updated, tick, transitions)
+        if updated.status in TERMINAL_STATUSES:
+            return ShadowAdvance(updated, tuple(transitions))
 
     if policy.entry_mode == "market_ladder":
         updated = _process_market_ladder_entries(
@@ -777,10 +926,6 @@ def advance_tick(
             policy, updated, tick, transitions,
         )
     return ShadowAdvance(updated, tuple(transitions))
-
-
-def _is_close_action(action: str, provider_management_mode: str) -> bool:
-    return is_strategy_close_action(action, provider_management_mode)
 
 
 def apply_management(
@@ -811,7 +956,14 @@ def apply_management(
         return ShadowAdvance(updated, tuple(transitions))
 
     if _is_close_action(action, policy.provider_management_mode):
-        updated = replace(updated, pending_provider_close=True)
+        pending = updated.pending_provider_management
+        if policy.schema_version >= 2:
+            pending = pending + (event,)
+        updated = replace(
+            updated,
+            pending_provider_close=True,
+            pending_provider_management=pending,
+        )
         transitions.append(_transition(
             updated,
             "provider_close_pending",
@@ -820,39 +972,29 @@ def apply_management(
         ))
         return ShadowAdvance(updated, tuple(transitions))
 
-    if (
-        policy.provider_management_mode == "exact"
-        and policy.provider_protection_mode == "exact"
-    ):
-        positions: list[ShadowPosition] = []
-        changed: list[int] = []
-        for position in updated.positions:
-            candidate = position
-            if position.status == "open" and action == "MOVE_SL_TO_BE":
-                candidate = replace(
-                    position,
-                    stop_price=position.entry_price,
-                    break_even_applied=True,
-                )
-            elif (
-                position.status == "open"
-                and action == "MOVE_SL_TO_PRICE"
-                and event.price is not None
-            ):
-                candidate = replace(position, stop_price=float(event.price))
-            if candidate != position:
-                changed.append(position.leg_index)
-            positions.append(candidate)
-        if changed:
-            updated = replace(updated, positions=tuple(positions))
+    if _is_provider_protection_action(policy, event):
+        if policy.schema_version >= 2:
+            updated = replace(
+                updated,
+                pending_provider_management=(
+                    updated.pending_provider_management + (event,)
+                ),
+            )
             transitions.append(_transition(
                 updated,
-                "provider_protection_applied",
+                "provider_protection_pending",
                 tick_msc=event.observed_tick_msc,
                 reason=action,
-                leg_indexes=changed,
                 price=event.price,
             ))
+            return ShadowAdvance(updated, tuple(transitions))
+        updated, changed = _apply_provider_protection(
+            updated,
+            event,
+            transitions,
+            tick_msc=event.observed_tick_msc,
+        )
+        if changed:
             return ShadowAdvance(updated, tuple(transitions))
 
     transitions.append(_transition(

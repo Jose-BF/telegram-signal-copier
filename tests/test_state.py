@@ -10,15 +10,54 @@ Cubre:
   - StateManager.add / get / latest_open / close
   - StateManager.alias (mismo signal bajo dos message_ids)
 
-NO toca build_context (depende de MT5 — se cubrirá con mocks en futura
-fase si es necesario, hoy no es crítico).
+También cubre build_context con un doble local de MT5 para verificar unidades,
+propiedad de niveles y política sin conectarse al broker.
 """
+
+import sys
+from types import SimpleNamespace
 
 import pytest
 from datetime import datetime, timedelta
 
 from state import Signal, StateManager
 import config
+
+
+def test_build_context_separates_account_money_provider_levels_and_bot_protection(
+        monkeypatch):
+    position = SimpleNamespace(profit=12.34, sl=3998.0, tp=4020.0)
+    fake_mt5 = SimpleNamespace(
+        positions_get=lambda ticket: (position,) if ticket == 101 else (),
+        symbol_info_tick=lambda symbol: SimpleNamespace(bid=4010.0, ask=4010.2),
+        account_info=lambda: SimpleNamespace(currency="EUR"),
+    )
+    monkeypatch.setitem(sys.modules, "MetaTrader5", fake_mt5)
+
+    sig = Signal(
+        channel="canal1",
+        message_id=99,
+        direction="BUY",
+        timestamp=datetime.now(),
+        market_ticket=101,
+        market_fill_price=4005.0,
+        tps=[4012.0, 4018.0],
+        sl=3990.0,
+        provider_tps=[4012.0, 4018.0],
+        provider_sl_received=True,
+        live_strategy_id="dubai-balanced-v1",
+        entry_mode="adverse_ladder",
+    )
+
+    ctx = sig.build_context()
+
+    assert ctx.account_currency == "EUR"
+    assert ctx.provider_tps == [4012.0, 4018.0]
+    assert ctx.provider_sl == 3990.0
+    assert ctx.effective_tps == [4020.0]
+    assert ctx.effective_sls == [3998.0]
+    assert ctx.live_strategy_id == "dubai-balanced-v1"
+    assert ctx.entry_mode == "adverse_ladder"
 
 
 # ─── Signal.tp_for_position ─────────────────────────────────────────────────

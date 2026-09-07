@@ -21,6 +21,7 @@ import argparse
 import os
 import json
 import math
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import signal
 import socket
 import subprocess
@@ -43,6 +44,8 @@ if str(REPO_DIR) not in sys.path:
 
 import runtime_paths
 import replay_source_contract
+from parity_incident_journal import load_registry as load_incident_journal
+from parity_incident_registry import reconcile_parity_incidents
 from strategy_shadow_contracts import canonical_hash
 
 RUNTIME_DATA_DIR = Path(os.getenv(
@@ -89,6 +92,12 @@ PROVIDER_RESULT_SCORECARD_FILE = (
 STRATEGY_FARM_FILE = RUNTIME_DATA_DIR / "strategy_farm.json"
 STRATEGY_SHADOW_REPORT_FILE = (
     RUNTIME_DATA_DIR / "strategy_shadow_report.json"
+)
+STRATEGY_SHADOW_INCIDENT_REGISTRY_FILE = (
+    RUNTIME_DATA_DIR / "strategy_shadow_incident_registry.json"
+)
+STRATEGY_SHADOW_INCIDENT_EVENTS_FILE = (
+    RUNTIME_DATA_DIR / "strategy_shadow_incidents.jsonl"
 )
 STRATEGY_SHADOW_TICK_CACHE_STATUS_FILE = (
     RUNTIME_DATA_DIR / "strategy_shadow_tick_cache_status.json"
@@ -587,6 +596,7 @@ def _read_runtime_exposure(
         "exposure_state": "unknown",
         "bot_position_count": None,
         "open_signal_count": None,
+        "pending_entry_count": None,
     }
     try:
         stat = path.stat()
@@ -618,7 +628,9 @@ def _read_runtime_exposure(
             "error": str(exc)[:200],
         }
 
-    if int(payload.get("schema_version") or 0) < 2:
+    if (not isinstance(payload, dict)
+            or type(payload.get("schema_version")) is not int
+            or payload["schema_version"] != 3):
         return {
             **unknown,
             "reason": "heartbeat_schema_unsupported",
@@ -636,8 +648,16 @@ def _read_runtime_exposure(
 
     bot_position_count = payload.get("bot_position_count")
     open_signal_count = payload.get("open_signal_count")
+    pending_entry_count = payload.get("pending_entry_count")
+    counts = (bot_position_count, open_signal_count, pending_entry_count)
+    if any(type(count) is not int or count < 0 for count in counts):
+        return {
+            **unknown,
+            "reason": "heartbeat_exposure_unverified",
+            "heartbeat_age_s": round(age_s, 3),
+        }
     if (exposure_state == "flat"
-            and (bot_position_count != 0 or open_signal_count != 0)):
+            and any(count != 0 for count in counts)):
         return {
             **unknown,
             "reason": "heartbeat_exposure_inconsistent",
@@ -648,6 +668,7 @@ def _read_runtime_exposure(
         "exposure_state": exposure_state,
         "bot_position_count": bot_position_count,
         "open_signal_count": open_signal_count,
+        "pending_entry_count": pending_entry_count,
         "reason": f"heartbeat_reported_{exposure_state}",
         "heartbeat_age_s": round(age_s, 3),
         "heartbeat_utc": payload.get("utc"),
@@ -1865,6 +1886,62 @@ def _strategy_shadow_publication_valid(
     matrix = report.get("matrix")
     if not isinstance(matrix, dict) or set(matrix) != {"canal1", "canal2"}:
         return False
+    if not _strategy_shadow_control_outcomes_valid(report):
+        return False
+    incident_registry = report.get("parity_incidents")
+    if not isinstance(incident_registry, dict):
+        return False
+    incident_rows = incident_registry.get("incidents")
+    if (
+        incident_registry.get("schema_version") != 1
+        or not isinstance(incident_rows, list)
+        or not isinstance(incident_registry.get("observation_id"), str)
+    ):
+        return False
+    incident_ids: set[str] = set()
+    open_incidents: list[dict] = []
+    for incident in incident_rows:
+        if not isinstance(incident, dict):
+            return False
+        incident_id = str(incident.get("incident_id") or "")
+        status = incident.get("status")
+        if (
+            not incident_id
+            or incident_id in incident_ids
+            or status not in {"open", "resolved", "regressed"}
+        ):
+            return False
+        incident_ids.add(incident_id)
+        if status != "resolved":
+            open_incidents.append(incident)
+    comparison_open = sum(
+        incident.get("blocks_comparison") is True
+        for incident in open_incidents
+    )
+    unresolved_ids = [
+        incident["incident_id"] for incident in open_incidents
+    ]
+    report_blockers = set(report.get("blockers") or ())
+    if (
+        incident_registry.get("open_count") != len(open_incidents)
+        or incident_registry.get("comparison_blocking_open_count")
+        != comparison_open
+        or incident_registry.get("resolved_count")
+        != sum(row.get("status") == "resolved" for row in incident_rows)
+        or incident_registry.get("regressed_count")
+        != sum(row.get("status") == "regressed" for row in incident_rows)
+        or incident_registry.get("ranking_blocked") is not bool(open_incidents)
+        or incident_registry.get("comparison_blocked") is not bool(comparison_open)
+        or incident_registry.get("unresolved_incident_ids") != unresolved_ids
+        or ("open_parity_incidents" in report_blockers) is not bool(open_incidents)
+        or ("open_comparison_incidents" in report_blockers)
+        is not bool(comparison_open)
+        or (bool(open_incidents) and report.get("ranking_allowed") is not False)
+        or (bool(comparison_open) and report.get("comparison_allowed") is not False)
+    ):
+        return False
+    if not _strategy_shadow_incidents_cover_current_findings(report):
+        return False
 
     observed_by_channel = {"canal1": 0, "canal2": 0}
     for row in candidate_rows:
@@ -1909,6 +1986,339 @@ def _strategy_shadow_publication_valid(
     return True
 
 
+def _strategy_shadow_money_cents(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        amount = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+    if not amount.is_finite():
+        return None
+    return int(
+        amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) * 100
+    )
+
+
+def _strategy_shadow_count(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        normalized = int(value)
+    except (TypeError, ValueError):
+        return None
+    return normalized if normalized >= 0 and normalized == value else None
+
+
+def _strategy_shadow_repair_outcome_valid(
+    signal: dict,
+    *,
+    actual: object,
+    control: object,
+    candidate_id: str,
+) -> bool:
+    reported = signal.get("control_repair_outcome")
+    repair = (
+        control.get("repair_replay")
+        if isinstance(control, dict)
+        else None
+    )
+    if repair is None:
+        return reported is None
+    if not isinstance(repair, dict) or not isinstance(reported, dict):
+        return False
+    comparable = bool(
+        isinstance(actual, dict)
+        and actual.get("complete") is True
+        and actual.get("mt5_reconciled") is True
+        and repair.get("evidence_role")
+        == "retrospective_same_signal_repair"
+        and repair.get("engine_contract") == "current_worktree"
+        and repair.get("complete") is True
+        and not repair.get("blockers")
+    )
+    actual_entries = (
+        _strategy_shadow_count(actual.get("entry_count"))
+        if comparable else None
+    )
+    repair_entries = (
+        _strategy_shadow_count(repair.get("entry_count"))
+        if comparable else None
+    )
+    actual_cents = (
+        _strategy_shadow_money_cents(actual.get("net_eur"))
+        if comparable else None
+    )
+    repair_cents = (
+        _strategy_shadow_money_cents(repair.get("net_eur"))
+        if comparable else None
+    )
+    comparable = bool(
+        comparable
+        and actual_entries is not None
+        and repair_entries is not None
+        and actual_cents is not None
+        and repair_cents is not None
+    )
+    if not comparable:
+        return bool(
+            reported.get("status") == "unverified"
+            and reported.get("evidence_role")
+            == "retrospective_same_signal_repair"
+        )
+    assert actual_entries is not None and repair_entries is not None
+    assert actual_cents is not None and repair_cents is not None
+    entry_delta = repair_entries - actual_entries
+    money_delta = repair_cents - actual_cents
+    status = "exact" if entry_delta == 0 and money_delta == 0 else "mismatch"
+    return bool(
+        reported.get("status") == status
+        and reported.get("candidate_id") == candidate_id
+        and reported.get("evidence_role")
+        == "retrospective_same_signal_repair"
+        and reported.get("actual_entry_count") == actual_entries
+        and reported.get("shadow_entry_count") == repair_entries
+        and reported.get("entry_count_delta") == entry_delta
+        and _strategy_shadow_money_cents(reported.get("actual_net_eur"))
+        == actual_cents
+        and _strategy_shadow_money_cents(reported.get("shadow_net_eur"))
+        == repair_cents
+        and _strategy_shadow_money_cents(reported.get("net_eur_delta"))
+        == money_delta
+    )
+
+
+def _strategy_shadow_control_outcomes_valid(report: dict) -> bool:
+    signals = report.get("signals")
+    summaries = report.get("control_outcome_parity")
+    if not isinstance(signals, list) or not isinstance(summaries, dict):
+        return False
+    expected = {
+        channel: {"exact": 0, "mismatch": 0, "unverified": 0}
+        for channel in ("canal1", "canal2")
+    }
+    for signal in signals:
+        if not isinstance(signal, dict):
+            return False
+        channel = str(signal.get("channel") or "")
+        outcome = signal.get("control_outcome_parity")
+        signal_blockers = set(signal.get("blockers") or ())
+        if channel not in expected or not isinstance(outcome, dict):
+            return False
+        status = str(outcome.get("status") or "")
+        if status not in expected[channel]:
+            return False
+        expected[channel][status] += 1
+        if (
+            (status == "mismatch")
+            is ("control_outcome_mismatch" not in signal_blockers)
+            or (status == "unverified")
+            is ("control_outcome_unverified" not in signal_blockers)
+        ):
+            return False
+        if status == "exact" and signal_blockers & {
+            "control_outcome_mismatch",
+            "control_outcome_unverified",
+        }:
+            return False
+
+        actual = signal.get("actual")
+        candidates = signal.get("candidates")
+        candidate_id = str(outcome.get("candidate_id") or "")
+        control = (
+            candidates.get(candidate_id)
+            if isinstance(candidates, dict) and candidate_id
+            else None
+        )
+        if not _strategy_shadow_repair_outcome_valid(
+            signal,
+            actual=actual,
+            control=control,
+            candidate_id=candidate_id,
+        ):
+            return False
+        repair_outcome = signal.get("control_repair_outcome")
+        repair_status = (
+            str(repair_outcome.get("status") or "")
+            if isinstance(repair_outcome, dict)
+            else ""
+        )
+        if (
+            (repair_status == "mismatch")
+            is ("control_repair_outcome_mismatch" not in signal_blockers)
+            or (repair_status == "unverified")
+            is ("control_repair_outcome_unverified" not in signal_blockers)
+            or (
+                repair_status not in {"mismatch", "unverified"}
+                and signal_blockers & {
+                    "control_repair_outcome_mismatch",
+                    "control_repair_outcome_unverified",
+                }
+            )
+        ):
+            return False
+        comparable = bool(
+            isinstance(actual, dict)
+            and isinstance(control, dict)
+            and control.get("role") == "live_control"
+            and actual.get("complete") is True
+            and actual.get("mt5_reconciled") is True
+            and control.get("complete") is True
+        )
+        actual_entries = (
+            _strategy_shadow_count(actual.get("entry_count"))
+            if comparable else None
+        )
+        shadow_entries = (
+            _strategy_shadow_count(control.get("entry_count"))
+            if comparable else None
+        )
+        actual_cents = (
+            _strategy_shadow_money_cents(actual.get("net_eur"))
+            if comparable else None
+        )
+        shadow_cents = (
+            _strategy_shadow_money_cents(control.get("net_eur"))
+            if comparable else None
+        )
+        comparable = bool(
+            comparable
+            and actual_entries is not None
+            and shadow_entries is not None
+            and actual_cents is not None
+            and shadow_cents is not None
+        )
+        if not comparable:
+            if status != "unverified":
+                return False
+            continue
+        entry_delta = int(shadow_entries) - int(actual_entries)
+        money_delta = int(shadow_cents) - int(actual_cents)
+        calculated = (
+            "exact" if entry_delta == 0 and money_delta == 0 else "mismatch"
+        )
+        if (
+            status != calculated
+            or outcome.get("actual_entry_count") != actual_entries
+            or outcome.get("shadow_entry_count") != shadow_entries
+            or outcome.get("entry_count_delta") != entry_delta
+            or _strategy_shadow_money_cents(outcome.get("actual_net_eur"))
+            != actual_cents
+            or _strategy_shadow_money_cents(outcome.get("shadow_net_eur"))
+            != shadow_cents
+            or _strategy_shadow_money_cents(outcome.get("net_eur_delta"))
+            != money_delta
+        ):
+            return False
+
+    for channel, counts in expected.items():
+        if summaries.get(channel) != counts:
+            return False
+    blockers = set(report.get("blockers") or ())
+    has_mismatch = any(
+        counts["mismatch"] for counts in expected.values()
+    )
+    has_unverified = any(
+        counts["unverified"] for counts in expected.values()
+    )
+    repair_statuses = [
+        str(signal.get("control_repair_outcome", {}).get("status") or "")
+        for signal in signals
+        if isinstance(signal.get("control_repair_outcome"), dict)
+    ]
+    has_repair_mismatch = "mismatch" in repair_statuses
+    has_repair_unverified = "unverified" in repair_statuses
+    return bool(
+        ("control_outcome_mismatch" in blockers) is has_mismatch
+        and ("control_outcome_unverified" in blockers) is has_unverified
+        and ("control_repair_outcome_mismatch" in blockers)
+        is has_repair_mismatch
+        and ("control_repair_outcome_unverified" in blockers)
+        is has_repair_unverified
+    )
+
+
+def _strategy_shadow_incident_sidecar_matches(
+    path: Path,
+    report: dict,
+) -> bool:
+    try:
+        registry = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return False
+    return registry == report.get("parity_incidents")
+
+
+def _strategy_shadow_incidents_cover_current_findings(report: dict) -> bool:
+    """Ensure no current parity defect was omitted from the repair queue."""
+
+    registry = report.get("parity_incidents")
+    signals = report.get("signals")
+    blockers = report.get("blockers")
+    if (
+        not isinstance(registry, dict)
+        or not isinstance(signals, list)
+        or not isinstance(blockers, list)
+    ):
+        return False
+    observation_id = str(registry.get("observation_id") or "")
+    if not observation_id:
+        return False
+    try:
+        current = reconcile_parity_incidents(
+            signal_rows=signals,
+            global_blockers=blockers,
+            observation_id=observation_id,
+        )
+    except (TypeError, ValueError):
+        return False
+    reported = {
+        str(row.get("incident_id") or ""): row
+        for row in registry.get("incidents") or ()
+        if isinstance(row, dict)
+    }
+    stable_fields = (
+        "scope",
+        "channel",
+        "signal_id",
+        "blocker",
+        "candidate_id",
+        "category",
+        "required_action",
+        "diagnosis",
+        "verification_required",
+        "blocks_comparison",
+        "evidence_digest",
+    )
+    for expected in current["incidents"]:
+        observed = reported.get(expected["incident_id"])
+        if (
+            not isinstance(observed, dict)
+            or observed.get("status") == "resolved"
+            or any(observed.get(field) != expected.get(field)
+                   for field in stable_fields)
+        ):
+            return False
+    return True
+
+
+def _strategy_shadow_incident_history_matches(
+    path: Path,
+    report: dict,
+) -> bool:
+    try:
+        registry = load_incident_journal(path)
+    except ValueError:
+        return False
+    expected = report.get("parity_incidents")
+    if registry is None:
+        return bool(
+            isinstance(expected, dict)
+            and not expected.get("incidents")
+        )
+    return registry == expected
+
+
 def _regenerate_strategy_shadow_report() -> bool:
     """Settle the frozen three-candidate matrix without touching live orders."""
     STRATEGY_SHADOW_REPORT_FILE.unlink(missing_ok=True)
@@ -1937,6 +2347,12 @@ def _regenerate_strategy_shadow_report() -> bool:
             "--money-ticks-cache", str(MONEY_TICK_CACHE_DIR),
             "--money-contract", str(BROKER_MONEY_CONTRACT_FILE),
             "--provider-catalog", str(PROVIDER_SIGNAL_CATALOG_FILE),
+            "--incident-registry", str(
+                STRATEGY_SHADOW_INCIDENT_REGISTRY_FILE
+            ),
+            "--incident-events", str(
+                STRATEGY_SHADOW_INCIDENT_EVENTS_FILE
+            ),
             "--output", str(STRATEGY_SHADOW_REPORT_FILE),
         ]
         rec = subprocess.run(
@@ -1946,7 +2362,7 @@ def _regenerate_strategy_shadow_report() -> bool:
             text=True,
             timeout=900,
         )
-        if (
+        publication_valid = (
             rec.returncode == 0
             and STRATEGY_SHADOW_REPORT_FILE.is_file()
             and _strategy_shadow_publication_valid(
@@ -1954,7 +2370,21 @@ def _regenerate_strategy_shadow_report() -> bool:
                 expected_since=since.isoformat(),
                 expected_until=until.isoformat(),
             )
-        ):
+        )
+        if publication_valid:
+            publication = json.loads(
+                STRATEGY_SHADOW_REPORT_FILE.read_text(encoding="utf-8")
+            )
+            publication_valid = _strategy_shadow_incident_sidecar_matches(
+                STRATEGY_SHADOW_INCIDENT_REGISTRY_FILE,
+                publication["report"],
+            )
+        if publication_valid:
+            publication_valid = _strategy_shadow_incident_history_matches(
+                STRATEGY_SHADOW_INCIDENT_EVENTS_FILE,
+                publication["report"],
+            )
+        if publication_valid:
             print("[Watch] comparativa en sombra verificada.", flush=True)
             return True
         STRATEGY_SHADOW_REPORT_FILE.unlink(missing_ok=True)
@@ -1977,6 +2407,7 @@ def _mutable_offline_output_paths() -> tuple[Path, ...]:
         PROVIDER_RESULT_SCORECARD_FILE,
         STRATEGY_FARM_FILE,
         STRATEGY_SHADOW_REPORT_FILE,
+        STRATEGY_SHADOW_INCIDENT_REGISTRY_FILE,
         STRATEGY_SHADOW_TICK_CACHE_STATUS_FILE,
         LOG_LEARNING_REPORT_FILE,
         LOG_PATTERN_REGISTRY_FILE,
