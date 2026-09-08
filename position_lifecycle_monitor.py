@@ -34,6 +34,7 @@ from datetime import datetime, timedelta
 import MetaTrader5 as mt5
 
 import causal_trace
+from management_decision_evidence import capture_management_decision, utc_text
 import config
 import dubai_live_candidate
 import gold_555_live_candidate
@@ -141,6 +142,22 @@ def _store_guard_state(
 
 
 def _apply_candidate_basket_guard(
+    signal: Signal,
+    summary: dict,
+    *,
+    now: datetime | None = None,
+) -> dubai_live_candidate.DubaiGuardDecision:
+    observed_now = datetime.utcnow() if now is None else now
+    with capture_management_decision(
+        signal, kind="dubai_basket_guard",
+        inputs={"summary": summary, "now_utc": utc_text(observed_now)},
+    ) as evidence:
+        result = _apply_candidate_basket_guard_unrecorded(signal, summary, now=observed_now)
+        evidence["result"] = result
+        return result
+
+
+def _apply_candidate_basket_guard_unrecorded(
     signal: Signal,
     summary: dict,
     *,
@@ -632,6 +649,22 @@ def _maybe_alert_gold_555_prolonged_exposure(
 
 
 def _apply_gold_555_basket_guard(
+    signal: Signal,
+    summary: dict,
+    *,
+    now: datetime | None = None,
+) -> gold_555_live_candidate.Gold555GuardDecision:
+    observed_now = datetime.utcnow() if now is None else now
+    with capture_management_decision(
+        signal, kind="gold_555_basket_guard",
+        inputs={"summary": summary, "now_utc": utc_text(observed_now)},
+    ) as evidence:
+        result = _apply_gold_555_basket_guard_unrecorded(signal, summary, now=observed_now)
+        evidence["result"] = result
+        return result
+
+
+def _apply_gold_555_basket_guard_unrecorded(
     signal: Signal,
     summary: dict,
     *,
@@ -1212,6 +1245,24 @@ def _queue_gold_555_leg_protection(
     fill_price: float,
     leg_index: int,
 ) -> tuple[float, float]:
+    with capture_management_decision(
+        signal, kind="gold_555_leg_protection",
+        inputs={"ticket": ticket, "fill_price": fill_price, "leg_index": leg_index},
+    ) as evidence:
+        result = _queue_gold_555_leg_protection_unrecorded(
+            signal, ticket=ticket, fill_price=fill_price, leg_index=leg_index,
+        )
+        evidence["result"] = result
+        return result
+
+
+def _queue_gold_555_leg_protection_unrecorded(
+    signal: Signal,
+    *,
+    ticket: int,
+    fill_price: float,
+    leg_index: int,
+) -> tuple[float, float]:
     policy = gold_555_live_candidate.Gold555Policy()
     exact_sl = policy.initial_stop(signal.direction, fill_price)
     exact_tp = policy.target_price(signal.direction, fill_price, leg_index)
@@ -1247,6 +1298,29 @@ def _queue_gold_555_leg_protection(
 
 
 async def _apply_gold_555_trailing_stops(
+    signal: Signal,
+    tick,
+    *,
+    open_tickets: set[int] | None = None,
+) -> int:
+    if signal.live_strategy_id != gold_555_live_candidate.CANDIDATE_ID:
+        return 0
+    with capture_management_decision(
+        signal, kind="gold_555_trailing",
+        inputs={
+            "bid": getattr(tick, "bid", None), "ask": getattr(tick, "ask", None),
+            "tick_time_msc": getattr(tick, "time_msc", None),
+            "open_tickets": sorted(open_tickets) if open_tickets is not None else None,
+        },
+    ) as evidence:
+        result = await _apply_gold_555_trailing_stops_unrecorded(
+            signal, tick, open_tickets=open_tickets,
+        )
+        evidence["result"] = result
+        return result
+
+
+async def _apply_gold_555_trailing_stops_unrecorded(
     signal: Signal,
     tick,
     *,

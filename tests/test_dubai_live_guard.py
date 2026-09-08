@@ -75,9 +75,15 @@ def test_candidate_guard_tracks_dynamic_peak_and_closes_after_two_euro_giveback(
         True,
     )]
     assert [ev for _, ev, _ in events] == [
+        "bot_internal_decision_started",
         "basket_guard_armed",
+        "bot_internal_decision",
+        "bot_internal_decision_started",
         "basket_guard_peak_advanced",
+        "bot_internal_decision",
+        "bot_internal_decision_started",
         "basket_guard_triggered",
+        "bot_internal_decision",
     ]
 
 
@@ -150,7 +156,11 @@ def test_candidate_does_not_make_profit_decisions_on_incomplete_money(
 
     assert decision.action == "evidence_incomplete"
     assert signal.basket_guard_armed is False
-    assert events[0][1] == "basket_guard_total_pl_degraded"
+    assert [ev for _, ev, _ in events] == [
+        "bot_internal_decision_started",
+        "basket_guard_total_pl_degraded",
+        "bot_internal_decision",
+    ]
 
 
 def test_candidate_guard_is_sampled_on_every_new_tick():

@@ -47,6 +47,7 @@ def _timestamped_print(*args, **kwargs):
 builtins.print = _timestamped_print
 
 import causal_trace
+import management_decision_evidence
 import broker_money
 import broker_tick_clock
 import config
@@ -2998,6 +2999,12 @@ def _live_strategy_contract() -> dict:
     return {
         "contract_schema_version": 1,
         "evidence_status": "forward_trial",
+        "management_capture": {
+            "contract": management_decision_evidence.CONTRACT,
+            "supported_kinds": list(management_decision_evidence.KINDS),
+            "includes_no_action_evaluations": True,
+            "journal_mode": "existing_async_writer",
+        },
         "dubai": dubai,
         "gold": gold,
         "risk": {
