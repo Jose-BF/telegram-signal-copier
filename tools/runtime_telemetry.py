@@ -41,6 +41,8 @@ DEFAULT_STREAM_NAMES = (
 DEFAULT_MAX_CHUNK_BYTES = 4 * 1024 * 1024
 DEFAULT_GIT_TIMEOUT_SEC = 30.0
 DEFAULT_PUBLISH_LOCK_STALE_SEC = 15 * 60.0
+DEFAULT_PUBLISH_MAX_FILES = 100
+DEFAULT_GIT_COMMAND_MAX_CHARS = 16_000
 PUBLICATION_STATUS_FILE_NAME = "publication_status.json"
 # The raw byte range is the chunk identity. Compressed size/hash are transport
 # details: Python 3.11 and 3.14 can emit different gzip headers for the same
@@ -872,6 +874,108 @@ def _publication_outbox_files(runtime_dir: Path) -> list[Path]:
     )
 
 
+def _select_publication_batch(
+    files: Iterable[Path],
+    *,
+    maximum_files: int = DEFAULT_PUBLISH_MAX_FILES,
+) -> list[Path]:
+    """Select bounded pairs, retaining missing paths for committed recovery."""
+
+    if maximum_files < 2:
+        raise ValueError("telemetry publication batch must hold a complete pair")
+    available = {Path(path) for path in files}
+    manifests = {
+        path for path in available if path.name.endswith(".manifest.json")
+    }
+    for payload in available:
+        if not payload.name.endswith(".gz"):
+            continue
+        suffix = _payload_suffix(payload.parent.name)
+        if not payload.name.endswith(suffix):
+            raise ValueError(f"invalid telemetry payload filename: {payload}")
+        manifests.add(payload.with_name(
+            payload.name.removesuffix(suffix) + ".manifest.json"
+        ))
+    selected = []
+    for manifest in sorted(manifests)[:maximum_files // 2]:
+        payload = manifest.with_name(
+            manifest.name.removesuffix(".manifest.json")
+            + _payload_suffix(manifest.parent.name)
+        )
+        if manifest in available:
+            declared = _manifest_payload_path(manifest, _read_json(manifest))
+            if declared != payload:
+                raise ValueError(f"invalid telemetry payload path: {manifest}")
+        selected.extend((payload, manifest))
+    if not selected:
+        raise ValueError("telemetry outbox has no complete chunk pairs")
+    return sorted(selected)
+
+
+def _git_add_path_batches(
+    paths: Iterable[str],
+    *,
+    maximum_files: int = DEFAULT_PUBLISH_MAX_FILES,
+    maximum_command_chars: int = DEFAULT_GIT_COMMAND_MAX_CHARS,
+) -> Iterable[tuple[str, ...]]:
+    prefix = ["git", "-c", "core.safecrlf=false", "add", "--"]
+    batch = []
+    for path in paths:
+        value = str(path)
+        candidate = [*batch, value]
+        if batch and (
+            len(candidate) > maximum_files
+            or len(subprocess.list2cmdline([*prefix, *candidate]))
+            > maximum_command_chars
+        ):
+            yield tuple(batch)
+            candidate = [value]
+        if (
+            len(subprocess.list2cmdline([*prefix, *candidate]))
+            > maximum_command_chars
+        ):
+            raise ValueError(f"telemetry path exceeds Git command limit: {value}")
+        batch = candidate
+    if batch:
+        yield tuple(batch)
+
+
+def _committed_checkout_payload(
+    checkout: Path, destination: Path, *, timeout_sec: float,
+) -> bytes:
+    """An interrupted post-push cleanup may leave only one outbox pair member."""
+    relative = destination.relative_to(checkout).as_posix()
+    committed_hash = _git_output(
+        checkout, "rev-parse", "--verify", f"HEAD:{relative}",
+        timeout_sec=timeout_sec,
+    )
+    working_hash = _git_output(
+        checkout, "-c", "core.safecrlf=false", "hash-object",
+        f"--path={relative}", "--", relative,
+        timeout_sec=timeout_sec,
+    )
+    if not committed_hash or committed_hash != working_hash:
+        raise ValueError(f"missing chunk member has no committed copy: {relative}")
+    return destination.read_bytes()
+
+
+def _commit_publication_batch(
+    checkout: Path, runtime_dir: Path, paths: list[str], *, timeout_sec: float,
+) -> subprocess.CompletedProcess:
+    # --only retains any old staged paths without leaking them into this batch.
+    pathspec = runtime_dir / TELEMETRY_DIR_NAME / f"publish-paths-{uuid.uuid4().hex}"
+    try:
+        _atomic_write(pathspec, b"".join(path.encode("utf-8") + b"\0" for path in paths))
+        return _run_git(
+            checkout, "-c", "core.safecrlf=false", "commit", "--only",
+            f"--pathspec-from-file={pathspec}",
+            "--pathspec-file-nul", "-m", f"telemetry: publish {len(paths)} immutable files",
+            timeout_sec=timeout_sec,
+        )
+    finally:
+        pathspec.unlink(missing_ok=True)
+
+
 def publication_health(
     runtime_dir: Path,
     *,
@@ -1281,14 +1385,18 @@ def _publish_outbox_locked(
     source_repo = Path(source_repo).resolve()
     runtime_dir = Path(runtime_dir).resolve()
     outbox = runtime_dir / TELEMETRY_DIR_NAME / "outbox"
-    files = sorted(
+    pending_files = sorted(
         path
         for path in outbox.rglob("*")
         if path.is_file()
         and (path.name.endswith(".gz") or path.name.endswith(".manifest.json"))
     )
-    if not files:
+    if not pending_files:
         return PublishResult(ok=True, published_files=0)
+    try:
+        files = _select_publication_batch(pending_files)
+    except (OSError, ValueError) as exc:
+        return PublishResult(False, 0, error=str(exc))
     if remote_url is None:
         remote_url = _git_output(
             source_repo,
@@ -1320,10 +1428,17 @@ def _publish_outbox_locked(
             return PublishResult(False, 0, error=str(error or "checkout failed"))
         copied = 0
         destination_root = checkout / "chunks"
+        destination_paths = []
         for source in files:
             relative = source.relative_to(outbox)
             destination = destination_root / relative
-            payload = source.read_bytes()
+            destination_paths.append(destination.relative_to(checkout).as_posix())
+            payload = (
+                source.read_bytes() if source.is_file()
+                else _committed_checkout_payload(
+                    checkout, destination, timeout_sec=timeout_sec,
+                )
+            )
             if destination.exists():
                 if not _published_file_matches(destination, payload):
                     return PublishResult(
@@ -1335,32 +1450,41 @@ def _publish_outbox_locked(
             _atomic_write(destination, payload)
             copied += 1
 
-        added = _run_git(
-            checkout, "add", "chunks", timeout_sec=timeout_sec
-        )
-        if added.returncode != 0:
-            return PublishResult(False, copied, error=added.stderr or added.stdout)
-        dirty = _run_git(
-            checkout,
-            "diff",
-            "--cached",
-            "--quiet",
-            timeout_sec=timeout_sec,
-        )
-        if dirty.returncode == 1:
-            committed = _run_git(
+        for batch in _git_add_path_batches(destination_paths):
+            added = _run_git(
                 checkout,
-                "commit",
-                "-m",
-                f"telemetry: publish {copied} immutable files",
+                "-c",
+                "core.safecrlf=false",
+                "add",
+                "--",
+                *batch,
                 timeout_sec=timeout_sec,
+            )
+            if added.returncode != 0:
+                return PublishResult(
+                    False,
+                    copied,
+                    error=added.stderr or added.stdout,
+                )
+        selected_dirty = False
+        for batch in _git_add_path_batches(destination_paths):
+            dirty = _run_git(
+                checkout, "diff", "--cached", "--quiet", "--", *batch,
+                timeout_sec=timeout_sec,
+            )
+            if dirty.returncode == 1:
+                selected_dirty = True
+                break
+            if dirty.returncode != 0:
+                return PublishResult(False, copied, error=dirty.stderr or dirty.stdout)
+        if selected_dirty:
+            committed = _commit_publication_batch(
+                checkout, runtime_dir, destination_paths, timeout_sec=timeout_sec,
             )
             if committed.returncode != 0:
                 return PublishResult(
                     False, copied, error=committed.stderr or committed.stdout
                 )
-        elif dirty.returncode != 0:
-            return PublishResult(False, copied, error=dirty.stderr or dirty.stdout)
 
         pushed = _run_git(
             checkout,

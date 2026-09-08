@@ -38,6 +38,33 @@ def _runtime(tmp_path: Path) -> Path:
     return runtime
 
 
+def _source_repo_with_bare_remote(tmp_path: Path) -> tuple[Path, Path, str]:
+    source = tmp_path / "source"
+    source.mkdir()
+    _must_git(source, "init")
+    _must_git(source, "config", "user.name", "Code Owner")
+    _must_git(source, "config", "user.email", "code@example.com")
+    (source / "main.py").write_text("print('safe')\n", encoding="utf-8")
+    _must_git(source, "add", "main.py")
+    _must_git(source, "commit", "-m", "feat: code")
+    source_head = _must_git(source, "rev-parse", "HEAD")
+
+    remote = tmp_path / "remote.git"
+    remote.mkdir()
+    _must_git(remote, "init", "--bare")
+    _must_git(source, "remote", "add", "origin", str(remote))
+    _must_git(source, "push", "origin", "HEAD:main")
+    return source, remote, source_head
+
+
+def _large_jsonl_backlog(records: int = 121) -> bytes:
+    return b"".join(
+        json.dumps({"sequence": sequence}, separators=(",", ":")).encode()
+        + b"\n"
+        for sequence in range(records)
+    )
+
+
 def test_default_export_includes_console_diagnostics():
     assert "bot_runtime.log" in runtime_telemetry.DEFAULT_STREAM_NAMES
     assert "telegram_media.jsonl" in runtime_telemetry.DEFAULT_STREAM_NAMES
@@ -85,6 +112,30 @@ def test_run_git_timeout_terminates_the_complete_process_tree(
     assert terminated == [(4321, 5.0)]
     assert result.stdout == "partial stdout"
     assert "timed out" in result.stderr
+
+
+def test_git_add_batches_respect_the_command_length_limit():
+    paths = [
+        f"chunks/{'stream-name-' * 7}/{index:03d}.manifest.json"
+        for index in range(5)
+    ]
+
+    batches = list(
+        runtime_telemetry._git_add_path_batches(
+            paths,
+            maximum_files=100,
+            maximum_command_chars=220,
+        )
+    )
+
+    assert len(batches) > 1
+    assert [path for batch in batches for path in batch] == paths
+    assert all(
+        len(subprocess.list2cmdline([
+            "git", "-c", "core.safecrlf=false", "add", "--", *batch
+        ])) <= 220
+        for batch in batches
+    )
 
 
 def test_publication_health_reports_oldest_local_backlog(
@@ -608,6 +659,439 @@ def test_publish_uses_isolated_checkout_and_never_changes_source_repo(tmp_path):
     assert (
         materialized / runtime_telemetry.runtime_paths.RUNTIME_MANIFEST_NAME
     ).is_file()
+
+
+def test_large_backlog_is_staged_in_bounded_batches_and_reconstructs(
+    tmp_path,
+    monkeypatch,
+):
+    source, remote, source_head = _source_repo_with_bare_remote(tmp_path)
+    runtime = source / "runtime_data"
+    runtime.mkdir()
+    payload = _large_jsonl_backlog()
+    (runtime / "trade_events.jsonl").write_bytes(payload)
+    checkpoint = runtime_telemetry.checkpoint_runtime(
+        runtime,
+        stream_names=("trade_events.jsonl",),
+        max_chunk_bytes=1,
+        code_commit=source_head,
+    )
+    assert checkpoint.ok is True
+    assert len(checkpoint.chunks) == 121
+    source_status = _must_git(source, "status", "--porcelain")
+    checkout = tmp_path / "telemetry-checkout"
+    real_run_git = runtime_telemetry._run_git
+    add_batches = []
+
+    def timeout_unbounded_add(cwd, *args, **kwargs):
+        if Path(cwd).resolve() == checkout.resolve():
+            if args == ("add", "chunks"):
+                return subprocess.CompletedProcess(
+                    ["git", *args],
+                    124,
+                    "",
+                    "simulated unbounded git add timeout",
+                )
+            if args[:4] == ("-c", "core.safecrlf=false", "add", "--"):
+                batch = args[4:]
+                add_batches.append(batch)
+                if (
+                    len(batch) > 100
+                    or len(subprocess.list2cmdline(["git", *args])) > 16_000
+                ):
+                    return subprocess.CompletedProcess(
+                        ["git", *args],
+                        124,
+                        "",
+                        "simulated oversized git add timeout",
+                    )
+        return real_run_git(cwd, *args, **kwargs)
+
+    monkeypatch.setattr(
+        runtime_telemetry,
+        "_run_git",
+        timeout_unbounded_add,
+    )
+
+    published_counts = []
+    published_files = 0
+    while runtime_telemetry._publication_outbox_files(runtime):
+        result = runtime_telemetry.publish_outbox(
+            source,
+            runtime,
+            remote_url=str(remote),
+            checkout_dir=checkout,
+        )
+        assert result.ok is True
+        published_counts.append(result.published_files)
+        published_files += result.published_files
+        remote_paths = set(
+            _must_git(
+                remote,
+                "ls-tree",
+                "-r",
+                "--name-only",
+                "telemetry",
+            ).splitlines()
+        )
+        manifests = {
+            path for path in remote_paths if path.endswith(".manifest.json")
+        }
+        assert len(remote_paths) == published_files == 2 * len(manifests)
+        for manifest in manifests:
+            parent, name = manifest.rsplit("/", 1)
+            stem = name.removesuffix(".manifest.json")
+            matching_payloads = {
+                path
+                for path in remote_paths
+                if path.startswith(f"{parent}/{stem}.") and path.endswith(".gz")
+            }
+            assert len(matching_payloads) == 1
+
+    assert published_counts == [100, 100, 42]
+    assert len(add_batches) == 3
+    assert all(0 < len(batch) <= 100 for batch in add_batches)
+    assert all(
+        len(subprocess.list2cmdline([
+            "git", "-c", "core.safecrlf=false", "add", "--", *batch
+        ])) <= 16_000
+        for batch in add_batches
+    )
+    assert _must_git(source, "rev-parse", "HEAD") == source_head
+    assert _must_git(source, "status", "--porcelain") == source_status
+    assert not runtime_telemetry._publication_outbox_files(runtime)
+
+    materialized = tmp_path / "materialized"
+    pulled = runtime_telemetry.pull_and_materialize(
+        source,
+        materialized,
+        checkout_dir=tmp_path / "pull-checkout",
+    )
+    assert pulled.ok is True
+    assert (materialized / "trade_events.jsonl").read_bytes() == payload
+
+
+def test_failed_add_batch_never_commits_pushes_or_deletes_and_retry_resumes(
+    tmp_path,
+    monkeypatch,
+):
+    source, remote, source_head = _source_repo_with_bare_remote(tmp_path)
+    runtime = source / "runtime_data"
+    runtime.mkdir()
+    stream = runtime / "trade_events.jsonl"
+    baseline_payload = b'{"sequence":"baseline"}\n'
+    stream.write_bytes(baseline_payload)
+    runtime_telemetry.checkpoint_runtime(
+        runtime,
+        stream_names=("trade_events.jsonl",),
+        max_chunk_bytes=1,
+        code_commit=source_head,
+    )
+    checkout = tmp_path / "telemetry-checkout"
+    baseline = runtime_telemetry.publish_outbox(
+        source,
+        runtime,
+        remote_url=str(remote),
+        checkout_dir=checkout,
+    )
+    assert baseline.ok is True
+    remote_head = _must_git(remote, "rev-parse", "telemetry")
+
+    backlog_payload = _large_jsonl_backlog()
+    with stream.open("ab") as handle:
+        handle.write(backlog_payload)
+    checkpoint = runtime_telemetry.checkpoint_runtime(
+        runtime,
+        stream_names=("trade_events.jsonl",),
+        max_chunk_bytes=1,
+        code_commit=source_head,
+    )
+    assert checkpoint.ok is True
+    outbox = runtime / runtime_telemetry.TELEMETRY_DIR_NAME / "outbox"
+    pending_before = {
+        path.relative_to(outbox).as_posix(): path.read_bytes()
+        for path in runtime_telemetry._publication_outbox_files(runtime)
+    }
+    source_status = _must_git(source, "status", "--porcelain")
+    real_run_git = runtime_telemetry._run_git
+    add_batches = []
+    forbidden_calls = []
+
+    def fail_completed_add_batch(cwd, *args, **kwargs):
+        if Path(cwd).resolve() == checkout.resolve():
+            if args[:4] == ("-c", "core.safecrlf=false", "add", "--"):
+                add_batches.append(args[4:])
+                if len(add_batches) == 1:
+                    staged = real_run_git(cwd, *args, **kwargs)
+                    assert staged.returncode == 0, staged.stderr or staged.stdout
+                    return subprocess.CompletedProcess(
+                        ["git", *args],
+                        124,
+                        "",
+                        "simulated completed git add reported as timed out",
+                    )
+            elif (args and args[0] in {"commit", "push"}) or args[:3] == (
+                "-c", "core.safecrlf=false", "commit",
+            ):
+                forbidden_calls.append(args)
+        return real_run_git(cwd, *args, **kwargs)
+
+    monkeypatch.setattr(
+        runtime_telemetry,
+        "_run_git",
+        fail_completed_add_batch,
+    )
+
+    failed = runtime_telemetry.publish_outbox(
+        source,
+        runtime,
+        remote_url=str(remote),
+        checkout_dir=checkout,
+    )
+
+    assert failed.ok is False
+    assert "simulated completed git add reported as timed out" in str(failed.error)
+    assert len(add_batches) == 1
+    assert len(add_batches[0]) == 100
+    assert forbidden_calls == []
+    assert _must_git(checkout, "rev-parse", "HEAD") == remote_head
+    assert _must_git(remote, "rev-parse", "telemetry") == remote_head
+    assert len(
+        _must_git(checkout, "diff", "--cached", "--name-only").splitlines()
+    ) == 100
+    assert {
+        path.relative_to(outbox).as_posix(): path.read_bytes()
+        for path in runtime_telemetry._publication_outbox_files(runtime)
+    } == pending_before
+    assert _must_git(source, "rev-parse", "HEAD") == source_head
+    assert _must_git(source, "status", "--porcelain") == source_status
+
+    monkeypatch.setattr(runtime_telemetry, "_run_git", real_run_git)
+    real_atomic_write = runtime_telemetry._atomic_write
+    retry_checkout_writes = []
+
+    def record_retry_writes(path, payload):
+        if checkout.resolve() in Path(path).resolve().parents:
+            retry_checkout_writes.append(Path(path))
+        return real_atomic_write(path, payload)
+
+    monkeypatch.setattr(runtime_telemetry, "_atomic_write", record_retry_writes)
+    retried = runtime_telemetry.publish_outbox(
+        source,
+        runtime,
+        remote_url=str(remote),
+        checkout_dir=checkout,
+    )
+
+    assert retried.ok is True
+    assert retried.published_files == 100
+    assert retried.commit != remote_head
+    assert _must_git(remote, "rev-parse", "telemetry") == retried.commit
+    assert retry_checkout_writes == []
+
+    monkeypatch.setattr(runtime_telemetry, "_atomic_write", real_atomic_write)
+    remaining_counts = []
+    while runtime_telemetry._publication_outbox_files(runtime):
+        result = runtime_telemetry.publish_outbox(
+            source,
+            runtime,
+            remote_url=str(remote),
+            checkout_dir=checkout,
+        )
+        assert result.ok is True
+        remaining_counts.append(result.published_files)
+    assert remaining_counts == [100, 42]
+    assert _must_git(source, "rev-parse", "HEAD") == source_head
+    assert _must_git(source, "status", "--porcelain") == source_status
+
+    materialized = tmp_path / "materialized-after-retry"
+    pulled = runtime_telemetry.pull_and_materialize(
+        source,
+        materialized,
+        checkout_dir=tmp_path / "pull-after-retry",
+    )
+    assert pulled.ok is True
+    assert (materialized / "trade_events.jsonl").read_bytes() == (
+        baseline_payload + backlog_payload
+    )
+
+
+def test_publish_keeps_line_ending_override_local_through_partial_commit(tmp_path):
+    source, remote, source_head = _source_repo_with_bare_remote(tmp_path)
+    runtime = source / "runtime_data"
+    runtime.mkdir()
+    (runtime / "trade_events.jsonl").write_bytes(_large_jsonl_backlog(1))
+    runtime_telemetry.checkpoint_runtime(
+        runtime, stream_names=("trade_events.jsonl",), code_commit=source_head,
+    )
+    checkout = tmp_path / "telemetry-checkout"
+    assert runtime_telemetry._ensure_checkout(checkout, str(remote), "telemetry", 5)[0]
+    _must_git(checkout, "config", "core.autocrlf", "true")
+    _must_git(checkout, "config", "core.safecrlf", "true")
+    published = runtime_telemetry.publish_outbox(
+        source, runtime, remote_url=str(remote), checkout_dir=checkout,
+    )
+    assert published.ok is True, published.error
+    assert not runtime_telemetry._publication_outbox_files(runtime)
+    assert _must_git(checkout, "config", "core.autocrlf") == "true"
+    assert _must_git(checkout, "config", "core.safecrlf") == "true"
+
+
+@pytest.mark.parametrize("committed_then_changed", [False, True])
+def test_missing_pair_member_requires_unchanged_committed_copy(tmp_path, committed_then_changed):
+    source, _remote, _head = _source_repo_with_bare_remote(tmp_path)
+    destination = source / "chunks" / "payload.gz"
+    destination.parent.mkdir()
+    destination.write_bytes(b"original payload")
+    _must_git(source, "add", "chunks")
+    if committed_then_changed:
+        _must_git(source, "commit", "-m", "test: confirmed copy")
+        destination.write_bytes(b"modified after commit")
+    before = destination.read_bytes()
+    with pytest.raises(ValueError, match="no committed copy"):
+        runtime_telemetry._committed_checkout_payload(
+            source, destination, timeout_sec=5,
+        )
+    assert destination.read_bytes() == before
+
+
+@pytest.mark.parametrize("remove_manifest_first", [False, True])
+def test_interrupted_confirmed_cleanup_recovers_both_orphan_kinds(
+    tmp_path, monkeypatch, remove_manifest_first,
+):
+    source, remote, source_head = _source_repo_with_bare_remote(tmp_path)
+    runtime = source / "runtime_data"
+    runtime.mkdir()
+    payload = _large_jsonl_backlog(2)
+    (runtime / "trade_events.jsonl").write_bytes(payload)
+    runtime_telemetry.checkpoint_runtime(
+        runtime, stream_names=("trade_events.jsonl",), max_chunk_bytes=1,
+        code_commit=source_head,
+    )
+    checkout = tmp_path / "telemetry-checkout"
+    original_remove = runtime_telemetry._remove_confirmed_outbox_files
+    assert runtime_telemetry._ensure_checkout(checkout, str(remote), "telemetry", 5)[0]
+    _must_git(checkout, "config", "core.autocrlf", "true")
+    _must_git(checkout, "config", "core.safecrlf", "true")
+
+    def interrupt_cleanup(files, outbox):
+        first = next(path for path in files
+                     if path.name.endswith(".manifest.json") == remove_manifest_first)
+        first.unlink()
+        raise OSError("simulated crash during confirmed cleanup")
+
+    monkeypatch.setattr(runtime_telemetry, "_remove_confirmed_outbox_files", interrupt_cleanup)
+    failed = runtime_telemetry.publish_outbox(
+        source, runtime, remote_url=str(remote), checkout_dir=checkout,
+    )
+    assert failed.ok is False
+    confirmed_head = _must_git(remote, "rev-parse", "telemetry")
+    assert len(runtime_telemetry._publication_outbox_files(runtime)) == 3
+
+    monkeypatch.setattr(runtime_telemetry, "_remove_confirmed_outbox_files", original_remove)
+    retried = runtime_telemetry.publish_outbox(
+        source, runtime, remote_url=str(remote), checkout_dir=checkout,
+    )
+    assert retried.ok is True, retried.error
+    assert retried.commit == confirmed_head
+    assert not runtime_telemetry._publication_outbox_files(runtime)
+    materialized = tmp_path / "materialized-orphans"
+    assert runtime_telemetry.pull_and_materialize(
+        source, materialized, checkout_dir=tmp_path / "pull-orphans",
+    ).ok
+    assert (materialized / "trade_events.jsonl").read_bytes() == payload
+
+
+def test_next_incomplete_pair_does_not_block_current_complete_batch(tmp_path):
+    source, remote, source_head = _source_repo_with_bare_remote(tmp_path)
+    runtime = source / "runtime_data"
+    runtime.mkdir()
+    (runtime / "trade_events.jsonl").write_bytes(_large_jsonl_backlog(51))
+    checkpoint = runtime_telemetry.checkpoint_runtime(
+        runtime, stream_names=("trade_events.jsonl",), max_chunk_bytes=1,
+        code_commit=source_head,
+    )
+    checkpoint.chunks[-1].payload_path.unlink()
+    checkout = tmp_path / "telemetry-checkout"
+    first = runtime_telemetry.publish_outbox(
+        source, runtime, remote_url=str(remote), checkout_dir=checkout,
+    )
+    assert first.ok is True, first.error
+    assert first.published_files == 100
+    second = runtime_telemetry.publish_outbox(
+        source, runtime, remote_url=str(remote), checkout_dir=checkout,
+    )
+    assert second.ok is False
+    assert len(runtime_telemetry._publication_outbox_files(runtime)) == 1
+    assert checkpoint.chunks[-1].manifest_path.is_file()
+    assert _must_git(remote, "rev-parse", "telemetry") == first.commit
+
+
+def test_changed_selection_does_not_commit_partial_previous_index(tmp_path, monkeypatch):
+    source, remote, source_head = _source_repo_with_bare_remote(tmp_path)
+    runtime = source / "runtime_data"
+    runtime.mkdir()
+    old_payload = _large_jsonl_backlog(50)
+    (runtime / "trade_events.jsonl").write_bytes(old_payload)
+    runtime_telemetry.checkpoint_runtime(
+        runtime, stream_names=("trade_events.jsonl",), max_chunk_bytes=1,
+        code_commit=source_head,
+    )
+    checkout = tmp_path / "telemetry-checkout"
+    real_batches = runtime_telemetry._git_add_path_batches
+    real_git = runtime_telemetry._run_git
+    calls = []
+
+    def small_batches(paths):
+        return real_batches(paths, maximum_files=49)
+
+    def fail_second_batch(cwd, *args, **kwargs):
+        if Path(cwd).resolve() == checkout.resolve() and args[:4] == (
+            "-c", "core.safecrlf=false", "add", "--",
+        ):
+            calls.append(args[4:])
+            if len(calls) == 2:
+                return subprocess.CompletedProcess(["git", *args], 124, "", "second batch timeout")
+        return real_git(cwd, *args, **kwargs)
+
+    monkeypatch.setattr(runtime_telemetry, "_git_add_path_batches", small_batches)
+    monkeypatch.setattr(runtime_telemetry, "_run_git", fail_second_batch)
+    failed = runtime_telemetry.publish_outbox(
+        source, runtime, remote_url=str(remote), checkout_dir=checkout,
+    )
+    assert failed.ok is False
+    staged_before = set(_must_git(checkout, "diff", "--cached", "--name-only").splitlines())
+    assert len(staged_before) == 49
+
+    new_payload = b"new console line\n" * 50
+    (runtime / "bot_runtime.log").write_bytes(new_payload)
+    runtime_telemetry.checkpoint_runtime(
+        runtime, stream_names=("bot_runtime.log",), max_chunk_bytes=1,
+        code_commit=source_head,
+    )
+    monkeypatch.setattr(runtime_telemetry, "_run_git", real_git)
+    monkeypatch.setattr(runtime_telemetry, "_git_add_path_batches", real_batches)
+    retried = runtime_telemetry.publish_outbox(
+        source, runtime, remote_url=str(remote), checkout_dir=checkout,
+    )
+    assert retried.ok is True, retried.error
+    published_paths = set(_must_git(remote, "ls-tree", "-r", "--name-only", "telemetry").splitlines())
+    assert len(published_paths) == retried.published_files == 100
+    assert all(path.startswith("chunks/bot_runtime.log/") for path in published_paths)
+    assert set(_must_git(checkout, "diff", "--cached", "--name-only").splitlines()) == staged_before
+
+    final = runtime_telemetry.publish_outbox(
+        source, runtime, remote_url=str(remote), checkout_dir=checkout,
+    )
+    assert final.ok is True, final.error
+    assert final.published_files == 100
+    assert not runtime_telemetry._publication_outbox_files(runtime)
+    materialized = tmp_path / "materialized-changed-selection"
+    assert runtime_telemetry.pull_and_materialize(
+        source, materialized, checkout_dir=tmp_path / "pull-changed-selection",
+    ).ok
+    assert (materialized / "trade_events.jsonl").read_bytes() == old_payload
+    assert (materialized / "bot_runtime.log").read_bytes() == new_payload
 
 
 def test_publish_prefers_configured_origin_push_url(tmp_path):
