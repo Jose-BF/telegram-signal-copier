@@ -1261,6 +1261,39 @@ def _ensure_checkout(
     return True, None
 
 
+def _recover_abandoned_index_lock(checkout: Path) -> str | None:
+    """Caller holds publish.lock for this isolated, publisher-owned checkout."""
+    git_dir = checkout / ".git"
+    lock = git_dir / "index.lock"
+    if not lock.exists() and not lock.is_symlink():
+        return None
+    if git_dir.is_symlink() or lock.is_symlink() or not git_dir.is_dir():
+        return "telemetry index lock is not in a regular isolated Git directory"
+    if lock.resolve().parent != git_dir.resolve():
+        return "telemetry index lock resolves outside its Git directory"
+    before = lock.stat()
+    if time.time() - before.st_mtime <= DEFAULT_PUBLISH_LOCK_STALE_SEC:
+        return "telemetry index lock is recent; recovery deferred"
+    try:
+        import psutil
+    except ImportError:
+        return "cannot verify abandoned telemetry index lock: psutil unavailable"
+    try:
+        for process in psutil.process_iter(["name"]):
+            name = str(process.info.get("name") or "").lower()
+            if not name or name in {"git", "git.exe"} or name.startswith("git-"):
+                return "telemetry index lock retained while Git may be active"
+    except (OSError, psutil.Error) as exc:
+        return f"cannot verify abandoned telemetry index lock: {type(exc).__name__}"
+    after = lock.stat()
+    identity = lambda value: (value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns)
+    if identity(before) != identity(after):
+        return "telemetry index lock changed during recovery check"
+    archive = lock.with_name(f"index.lock.recovered.{uuid.uuid4().hex}")
+    os.replace(lock, archive)
+    return None
+
+
 def _acquire_publish_lock(
     runtime_dir: Path,
     *,
@@ -1421,6 +1454,9 @@ def _publish_outbox_locked(
         return PublishResult(False, 0, error=isolation_error)
 
     try:
+        lock_error = _recover_abandoned_index_lock(checkout)
+        if lock_error:
+            return PublishResult(False, 0, error=lock_error)
         ready, error = _ensure_checkout(
             checkout, remote_url, branch, timeout_sec
         )

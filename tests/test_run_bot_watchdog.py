@@ -41,3 +41,10 @@ def test_normal_supervisor_loop_delay_does_not_trigger_resume_recovery():
         current_tick=102.2,
         timeout_s=90.0,
     )
+def test_startup_grace_is_separate_from_active_heartbeat_timeout():
+    from tools import run_bot_watch
+
+    assert not run_bot_watch._runtime_heartbeat_is_stale(None, 240, 180, startup_timeout_s=600)
+    assert run_bot_watch._runtime_heartbeat_is_stale(None, 601, 180, startup_timeout_s=600)
+    assert run_bot_watch._runtime_heartbeat_is_stale(181, 240, 180, startup_timeout_s=600)
+    assert not run_bot_watch._runtime_heartbeat_is_stale(15, 900, 180, startup_timeout_s=600)

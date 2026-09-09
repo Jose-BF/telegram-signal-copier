@@ -2374,20 +2374,21 @@ def _finalize_journal_orphans():
     filled_tickets = defaultdict(set)
     fill_events = live_basket_guard.FILLED_TICKET_EVENTS
     try:
-        for line in events_file.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
-            e = _json.loads(line)
-            ev, sid = e.get("ev"), e.get("sig")
-            if ev == "signal_received":
-                received[sid] = e.get("ts", "")
-            elif ev == "signal_closed":
-                closed.add(sid)
-            elif ev in fill_events and e.get("ticket") is not None:
-                try:
-                    filled_tickets[sid].add(int(e["ticket"]))
-                except (TypeError, ValueError):
-                    pass
+        with events_file.open("r", encoding="utf-8") as stream:
+            for line in stream:
+                if not line.strip():
+                    continue
+                e = _json.loads(line)
+                ev, sid = e.get("ev"), e.get("sig")
+                if ev == "signal_received":
+                    received[sid] = e.get("ts", "")
+                elif ev == "signal_closed":
+                    closed.add(sid)
+                elif ev in fill_events and e.get("ticket") is not None:
+                    try:
+                        filled_tickets[sid].add(int(e["ticket"]))
+                    except (TypeError, ValueError):
+                        pass
     except Exception as e:
         print(f"[OrphanFinalizer] error leyendo journal: {e}")
         return

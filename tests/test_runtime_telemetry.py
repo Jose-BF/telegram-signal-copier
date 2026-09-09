@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -71,6 +72,67 @@ def test_default_export_includes_console_diagnostics():
     assert "strategy_shadow_incidents.jsonl" in (
         runtime_telemetry.DEFAULT_STREAM_NAMES
     )
+
+
+@pytest.mark.parametrize("blocked", [False, True])
+def test_publication_recovers_only_an_abandoned_index_lock(tmp_path, monkeypatch, blocked):
+    import psutil
+    source, remote, source_head = _source_repo_with_bare_remote(tmp_path)
+    runtime = _runtime(tmp_path)
+    checkout = runtime / ".telemetry" / "publisher-repo"
+    checkout.mkdir(parents=True)
+    _must_git(checkout, "init")
+    _must_git(checkout, "remote", "add", "origin", str(remote))
+    _must_git(checkout, "config", "user.name", "Telemetry Test")
+    _must_git(checkout, "config", "user.email", "telemetry@example.invalid")
+    index_lock = checkout / ".git" / "index.lock"
+    index_lock.write_bytes(b"retained interrupted index")
+    old = time.time() - 3600
+    os.utime(index_lock, (old, old))
+    from types import SimpleNamespace
+    monkeypatch.setattr(psutil, "process_iter", lambda attrs: (
+        [SimpleNamespace(info={"name": "git.exe"})] if blocked else []
+    ))
+    checkpoint = runtime_telemetry.checkpoint_runtime(runtime, stream_names=("trade_events.jsonl",))
+    assert checkpoint.ok
+    result = runtime_telemetry.publish_outbox(source, runtime, remote_url=str(remote))
+    assert result.ok is (not blocked), result.error
+    assert _must_git(source, "rev-parse", "HEAD") == source_head
+    if blocked:
+        assert index_lock.read_bytes() == b"retained interrupted index"
+    else:
+        assert not index_lock.exists()
+        archives = list((checkout / ".git").glob("index.lock.recovered.*"))
+        assert len(archives) == 1
+        assert archives[0].read_bytes() == b"retained interrupted index"
+
+
+@pytest.mark.parametrize("condition", ["fresh", "unknown_process", "probe_error", "missing_psutil", "changed"])
+def test_index_lock_recovery_fails_closed(tmp_path, monkeypatch, condition):
+    import psutil
+    import sys
+    from types import SimpleNamespace
+    checkout = tmp_path / "publisher"
+    git_dir = checkout / ".git"
+    git_dir.mkdir(parents=True)
+    lock = git_dir / "index.lock"
+    lock.write_bytes(b"keep this")
+    age = 0 if condition == "fresh" else 3600
+    os.utime(lock, (time.time() - age, time.time() - age))
+
+    def probe(attrs):
+        if condition == "probe_error":
+            raise psutil.AccessDenied(1)
+        if condition == "changed":
+            lock.write_bytes(b"changed by another writer")
+        return [SimpleNamespace(info={"name": None})] if condition == "unknown_process" else []
+
+    monkeypatch.setattr(psutil, "process_iter", probe)
+    if condition == "missing_psutil":
+        monkeypatch.setitem(sys.modules, "psutil", None)
+    assert runtime_telemetry._recover_abandoned_index_lock(checkout) is not None
+    assert lock.exists()
+    assert not list(git_dir.glob("index.lock.recovered.*"))
 
 
 def test_run_git_timeout_terminates_the_complete_process_tree(

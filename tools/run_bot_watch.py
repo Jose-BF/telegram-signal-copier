@@ -162,6 +162,8 @@ WATCHER_SELF_UPDATE_PATHS = {
 }
 WATCHDOG_HEARTBEAT_TIMEOUT_SEC = float(os.getenv(
     "WATCHDOG_HEARTBEAT_TIMEOUT_SEC", "180"))
+WATCHDOG_STARTUP_TIMEOUT_SEC = float(os.getenv(
+    "WATCHDOG_STARTUP_TIMEOUT_SEC", "600"))
 UPDATE_EXPOSURE_HEARTBEAT_MAX_AGE_SEC = float(os.getenv(
     "BOT_UPDATE_EXPOSURE_HEARTBEAT_MAX_AGE_SEC", "45"))
 UPDATE_QUIESCE_CONFIRM_TIMEOUT_SEC = float(os.getenv(
@@ -169,12 +171,13 @@ UPDATE_QUIESCE_CONFIRM_TIMEOUT_SEC = float(os.getenv(
 WATCHDOG_SUPERVISOR_GAP_SEC = float(os.getenv(
     "WATCHDOG_SUPERVISOR_GAP_SEC", "90"))
 GIT_TIMEOUT_SEC = float(os.getenv("BOT_GIT_TIMEOUT_SEC", "15"))
+TELEMETRY_GIT_TIMEOUT_SEC = float(os.getenv("BOT_TELEMETRY_GIT_TIMEOUT_SEC", "120"))
 WATCHER_QUIESCE_TIMEOUT_SEC = float(os.getenv(
     "BOT_HANDLER_QUIESCE_TIMEOUT_SEC", "30"))
 TELEMETRY_PUBLISH_SEC = float(os.getenv(
     "BOT_TELEMETRY_PUBLISH_SEC", "300"))
 TELEMETRY_PROCESS_MAX_SEC = float(os.getenv(
-    "BOT_TELEMETRY_PROCESS_MAX_SEC", "240"))
+    "BOT_TELEMETRY_PROCESS_MAX_SEC", "600"))
 TELEMETRY_PROCESS_STOP_TIMEOUT_SEC = 5.0
 _telemetry_publish_process = None
 _telemetry_publish_started_at = None
@@ -366,7 +369,7 @@ def _trigger_telemetry_publication(*, now: float | None = None) -> bool:
         "--runtime-dir",
         str(RUNTIME_DATA_DIR),
         "--timeout",
-        str(GIT_TIMEOUT_SEC),
+        str(TELEMETRY_GIT_TIMEOUT_SEC),
     ]
     environment = os.environ.copy()
     environment["BOT_RUNTIME_DATA_DIR"] = str(RUNTIME_DATA_DIR)
@@ -844,11 +847,13 @@ def _quiesce_code_update(
 
 def _runtime_heartbeat_is_stale(heartbeat_age_s: float | None,
                                 process_uptime_s: float,
-                                timeout_s: float) -> bool:
+                                timeout_s: float,
+                                *, startup_timeout_s: float | None = None) -> bool:
     if timeout_s <= 0:
         return False
     if heartbeat_age_s is None:
-        return process_uptime_s > timeout_s
+        limit = timeout_s if startup_timeout_s is None else startup_timeout_s
+        return process_uptime_s > limit
     return heartbeat_age_s > timeout_s
 
 
@@ -899,7 +904,7 @@ def _spawn_bot(*, verified_head: str | None = None) -> subprocess.Popen | None:
     kwargs = {"env": child_env}
     if sys.platform == "win32":
         kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
-    return subprocess.Popen([sys.executable, str(MAIN_PY)], cwd=REPO_DIR, **kwargs)
+    return subprocess.Popen([sys.executable, "-u", str(MAIN_PY)], cwd=REPO_DIR, **kwargs)
 
 
 def _stop_bot(proc: subprocess.Popen) -> None:
@@ -2714,7 +2719,8 @@ def _run_main() -> int:
             heartbeat_age_s = _runtime_heartbeat_age_s(now=now)
             uptime_s = now - bot_started_at
             if _runtime_heartbeat_is_stale(
-                    heartbeat_age_s, uptime_s, WATCHDOG_HEARTBEAT_TIMEOUT_SEC):
+                    heartbeat_age_s, uptime_s, WATCHDOG_HEARTBEAT_TIMEOUT_SEC,
+                    startup_timeout_s=WATCHDOG_STARTUP_TIMEOUT_SEC):
                 if heartbeat_age_s is None:
                     detail = "no hay heartbeat runtime"
                 else:

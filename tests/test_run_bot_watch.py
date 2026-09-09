@@ -501,6 +501,18 @@ def test_telemetry_publication_failure_is_nonblocking(monkeypatch):
     assert watch._trigger_telemetry_publication() is False
 
 
+def test_telemetry_uses_its_own_git_timeout(monkeypatch):
+    captured = []
+    monkeypatch.setattr(watch, "_telemetry_publish_process", None)
+    monkeypatch.setattr(watch, "_telemetry_publish_started_at", None)
+    monkeypatch.setattr(watch, "GIT_TIMEOUT_SEC", 15.0)
+    monkeypatch.setattr(watch, "TELEMETRY_GIT_TIMEOUT_SEC", 120.0, raising=False)
+    monkeypatch.setattr(watch.subprocess, "Popen", lambda command, **kwargs: captured.append(command))
+    assert watch._trigger_telemetry_publication()
+    command = captured[0]
+    assert float(command[command.index("--timeout") + 1]) == 120.0
+
+
 def test_stale_telemetry_publication_is_terminated_and_replaced(monkeypatch):
     class StaleProcess:
         def __init__(self):
@@ -620,6 +632,7 @@ def test_spawn_bot_attests_the_exact_verified_head(monkeypatch):
     monkeypatch.setattr(watch.subprocess, "Popen", fake_popen)
 
     assert watch._spawn_bot() == "process"
+    assert captured["args"] == [watch.sys.executable, "-u", str(watch.MAIN_PY)]
     assert captured["kwargs"]["env"]["BOT_WATCHER_VERIFIED_HEAD"] == full_head
     assert captured["kwargs"]["env"]["BOT_WATCHER_PID"] == str(watch.os.getpid())
     assert captured["kwargs"]["env"]["BOT_RUNTIME_DATA_DIR"] == str(

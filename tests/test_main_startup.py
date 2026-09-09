@@ -1,6 +1,7 @@
 """Tests for production startup confirmation and orphan recovery."""
 
 import json
+import tracemalloc
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
@@ -14,6 +15,22 @@ import position_lifecycle_monitor
 import gold_live_candidate
 import state as state_module
 from state import StateManager
+
+
+def test_orphan_scan_does_not_materialize_whole_history(tmp_path, monkeypatch):
+    source = tmp_path / "trade_events.jsonl"
+    record = json.dumps({"ev": "heartbeat", "padding": "x" * 1000}).encode() + b"\n"
+    with source.open("wb") as handle:
+        for _ in range(16384):
+            handle.write(record)
+    monkeypatch.setattr(main.journal, "EVENTS_FILE", source)
+    tracemalloc.start()
+    try:
+        main._finalize_journal_orphans()
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert peak < 8 * 1024 * 1024
 
 
 def test_startup_status_message_confirms_active_production_version():

@@ -11085,6 +11085,7 @@ _POLL_INTERVAL_S = 0.5   # segundos de sleep entre ciclos de poll
 _POLL_MSG_LIMIT  = 10    # últimos N mensajes a revisar por canal en cada ciclo
 _POLL_STARTUP_SCAN_LIMIT = 200
 _POLL_STARTUP_MAX_MESSAGES = 2000
+_POLL_STARTUP_GAP_RETRY_S = 300.0
 _POLL_COVERAGE_LOG_INTERVAL_S = 300
 _POLL_COVERAGE_OVERLAP_S = 120
 _POLL_LEGACY_COVERAGE_LOOKBACK_S = 24 * 60 * 60
@@ -11100,6 +11101,7 @@ _POLLER_ACCESS_BACKOFF_BASE_S = 300.0
 _POLLER_ACCESS_BACKOFF_MAX_S = 1800.0
 _poller_history_backoff_until: dict[str, float] = {}
 _poller_history_failures: dict[str, int] = {}
+_poller_startup_gap_retry_after: dict[str, float] = {}
 _poller_access_backoff_until: dict[str, float] = {}
 _poller_access_failures: dict[str, int] = {}
 _poller_dispatch_retry_state: dict[tuple, tuple[int, float]] = {}
@@ -11261,6 +11263,24 @@ def _poller_message_edit_token(msg) -> str | None:
     return edit_date.isoformat(timespec="seconds") if edit_date else None
 
 
+def _poller_text_revision_content(row: dict) -> str | None:
+    """Only prove equivalence for fully captured, text-only messages."""
+    if (
+        row.get("has_media") is not False
+        or row.get("has_photo")
+        or row.get("has_document")
+        or row.get("sticker_id") is not None
+        or not isinstance(row.get("text"), str)
+        or not row["text"]
+        or not isinstance(row.get("is_reply"), bool)
+        or "reply_to_msg_id" not in row
+        or _as_utc_datetime(row.get("date_utc")) is None
+    ):
+        return None
+    payload = [row["text"], row["date_utc"], row["is_reply"], row["reply_to_msg_id"]]
+    return hashlib.sha256(json.dumps(payload).encode("utf-8")).hexdigest()
+
+
 def _load_poller_startup_history(
     channel_name: str,
     channel_id: int,
@@ -11273,6 +11293,9 @@ def _load_poller_startup_history(
     raw_revisions: dict[tuple[int, str], datetime | None] = {}
     raw_revision_dates: dict[tuple[int, str], datetime | None] = {}
     processed_revisions: set[tuple[int, str]] = set()
+    confirmed_processed_revisions: set[tuple[int, str]] = set()
+    raw_revision_content: dict[tuple[int, str], str | None] = {}
+    conflicting_content: set[tuple[int, str]] = set()
     previous_event_ts = None
     fallback_coverage_cutoff = None
     explicit_coverage_cutoff = None
@@ -11356,9 +11379,14 @@ def _load_poller_startup_history(
                 raw_revision_dates[revision] = _as_utc_datetime(
                     row.get("date_utc")
                 )
+                content = _poller_text_revision_content(row)
+                if revision in raw_revision_content and raw_revision_content[revision] != content:
+                    conflicting_content.add(revision)
+                raw_revision_content[revision] = content
             elif row.get("ev") == "telegram_processed":
                 revision_token = str(row.get("revision_token") or "new")
                 processed_revisions.add((message_id, revision_token))
+                confirmed_processed_revisions.add((message_id, revision_token))
 
     for revision, captured_at in raw_revisions.items():
         if (
@@ -11376,8 +11404,36 @@ def _load_poller_startup_history(
         else fallback_coverage_cutoff
     )
     unprocessed_revisions = set(raw_revisions) - processed_revisions
-    unresolved_dates = []
+    latest_equivalent = {}
+    for revision in confirmed_processed_revisions:
+        content = raw_revision_content.get(revision)
+        edited_at = _as_utc_datetime(revision[1]) if revision[1] != "new" else None
+        if content is None or edited_at is None or revision in conflicting_content:
+            continue
+        key = (revision[0], content)
+        previous = latest_equivalent.get(key)
+        if previous is None or edited_at > previous[0]:
+            latest_equivalent[key] = (edited_at, revision)
+    equivalent_processed_revisions = {}
     for revision in unprocessed_revisions:
+        content = raw_revision_content.get(revision)
+        previous_at = (
+            raw_revision_dates.get(revision) if revision[1] == "new"
+            else _as_utc_datetime(revision[1])
+        )
+        candidate = latest_equivalent.get((revision[0], content))
+        if (
+            revision not in conflicting_content
+            and previous_at is not None
+            and candidate is not None
+            and candidate[0] > previous_at
+        ):
+            equivalent_processed_revisions[revision] = candidate[1]
+
+    # Keep historical failures visible; an identical confirmed edit only removes
+    # the need to fetch an obsolete Telegram revision again during live recovery.
+    unresolved_dates = []
+    for revision in unprocessed_revisions - equivalent_processed_revisions.keys():
         message_date = raw_revision_dates.get(revision)
         if message_date is None:
             captured_at = raw_revisions.get(revision)
@@ -11404,6 +11460,7 @@ def _load_poller_startup_history(
         "message_versions": message_versions,
         "raw_revisions": raw_revisions,
         "unprocessed_revisions": unprocessed_revisions,
+        "equivalent_processed_revisions": equivalent_processed_revisions,
         "processed_revisions": processed_revisions,
         "processing_contract_utc": processing_contract_utc,
     }
@@ -11694,9 +11751,13 @@ async def _poller_initial_scan_channel(
     if (
         _poller_in_history_backoff(channel_name)
         or _poller_in_access_backoff(channel_name)
+        or _poller_now_monotonic()
+        < _poller_startup_gap_retry_after.get(channel_name, 0.0)
     ):
         return False
-    history = _load_poller_startup_history(channel_name, channel_id)
+    history = await asyncio.to_thread(
+        _load_poller_startup_history, channel_name, channel_id
+    )
     scan_started_utc = datetime.now(timezone.utc)
     if history.get("processing_contract_utc") is None:
         journal.event(
@@ -11726,6 +11787,10 @@ async def _poller_initial_scan_channel(
         return False
 
     if not coverage_complete:
+        # Keep the coverage gap explicit without rescanning on every poll cycle.
+        _poller_startup_gap_retry_after[channel_name] = (
+            _poller_now_monotonic() + _POLL_STARTUP_GAP_RETRY_S
+        )
         journal.anomaly(
             "bot",
             "channel_msg",
@@ -11735,14 +11800,11 @@ async def _poller_initial_scan_channel(
             channel_id=channel_id,
             fetched=len(msgs),
             limit=_POLL_STARTUP_MAX_MESSAGES,
-        )
-        await notify(
-            "ATENCION: no pude revisar todo el intervalo sin conexion de "
-            f"{provider_display_name(channel_name)}. El canal sigue protegido "
-            "por los eventos en vivo, pero hace falta revisar el historial."
+            retry_after_s=_POLL_STARTUP_GAP_RETRY_S,
         )
         return False
 
+    _poller_startup_gap_retry_after.pop(channel_name, None)
     counts = {"baseline": 0, "seen": 0, "new": 0, "edit": 0}
     failed_message_ids = []
     for msg in reversed(msgs):
@@ -11802,6 +11864,11 @@ async def _poller_initial_scan_channel(
         channel_id=channel_id,
         history_known=history.get("has_channel_history", False),
         coverage_cutoff=(cutoff.isoformat() if cutoff else None),
+        equivalent_processed_revisions=[
+            {"message_id": old[0], "unprocessed_revision": old[1],
+             "confirmed_equivalent_revision": newer[1]}
+            for old, newer in sorted(history.get("equivalent_processed_revisions", {}).items())
+        ],
         fetched=len(msgs),
         **{f"count_{key}": value for key, value in counts.items()},
     )
