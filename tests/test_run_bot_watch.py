@@ -77,7 +77,7 @@ def test_prepare_repository_for_runtime_delegates_to_state_machine(monkeypatch):
     monkeypatch.setattr(
         watch.runtime_recovery,
         "prepare_runtime_worktree",
-        lambda repo_dir, *, runtime_dir: calls.append(
+        lambda repo_dir, *, runtime_dir, code_commit: calls.append(
             ("recover", repo_dir, runtime_dir)
         )
         or _recovery_result(),
@@ -152,6 +152,25 @@ def test_prepare_repository_passes_unsafe_local_code_to_sync_state_machine(
     assert result.ok is False
     assert result.action == "unsafe_worktree"
     assert result.error == "source changes require manual review"
+
+
+def test_watcher_initializes_store_only_inside_recovery(monkeypatch):
+    calls = []
+    monkeypatch.setattr(watch, "_local_head", lambda: "a" * 40)
+    monkeypatch.setattr(
+        watch.runtime_paths, "initialize_runtime_store",
+        lambda *args, **kwargs: calls.append(kwargs) or SimpleNamespace(
+            ok=True, copied=(), archived_tails=(),
+        ),
+    )
+
+    def recover(repo_dir, **kwargs):
+        watch.runtime_paths.initialize_runtime_store(repo_dir, **kwargs)
+        return _recovery_result()
+
+    monkeypatch.setattr(watch.runtime_recovery, "prepare_runtime_worktree", recover)
+    watch._recover_runtime_worktree(watch.REPO_DIR)
+    assert calls == [{"runtime_dir": watch.RUNTIME_DATA_DIR, "code_commit": "a" * 40}]
 
 
 def test_fast_checkpoint_is_local_and_never_calls_remote_sync(monkeypatch):

@@ -271,20 +271,10 @@ def _print_git_progress(stage: str) -> None:
 
 
 def _recover_runtime_worktree(repo_dir: Path):
-    migration = runtime_paths.initialize_runtime_store(
-        repo_dir,
-        runtime_dir=RUNTIME_DATA_DIR,
-        code_commit=_local_head() or None,
-    )
-    if migration.copied or migration.archived_tails:
-        print(
-            f"[Watch] Runtime: migrados={len(migration.copied)} "
-            f"colas_rescatadas={len(migration.archived_tails)}",
-            flush=True,
-        )
     recovery = runtime_recovery.prepare_runtime_worktree(
         repo_dir,
         runtime_dir=RUNTIME_DATA_DIR,
+        code_commit=_local_head() or None,
     )
     if recovery.action != "clean":
         print(

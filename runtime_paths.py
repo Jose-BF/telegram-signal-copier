@@ -195,6 +195,85 @@ def _archive_partial_tail(
     return target.relative_to(runtime_dir).as_posix()
 
 
+def _inspect_stream_prefix(path: Path) -> tuple[int, str, bytes]:
+    """Validate and hash complete records without retaining the whole history."""
+    digest = hashlib.sha256()
+    byte_count = 0
+    tail = b""
+    with path.open("rb") as handle:
+        def complete_lines():
+            nonlocal byte_count, tail
+            for raw in handle:
+                if not raw.endswith(b"\n"):
+                    tail = raw
+                    break
+                digest.update(raw)
+                byte_count += len(raw)
+                yield raw
+
+        if path.suffix == ".jsonl":
+            for line_number, raw in enumerate(complete_lines(), start=1):
+                if not raw.strip():
+                    continue
+                try:
+                    json.loads(raw.decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                    raise ValueError(
+                        f"invalid legacy JSONL line {line_number}: {exc}"
+                    ) from exc
+        else:
+            decoded = (
+                raw.decode("utf-8-sig" if index == 0 else "utf-8")
+                for index, raw in enumerate(complete_lines())
+            )
+            width = None
+            try:
+                for row in csv.reader(decoded, strict=True):
+                    if width is None:
+                        width = len(row)
+                    if width == 0 or len(row) != width:
+                        raise ValueError("invalid legacy CSV row width")
+            except (UnicodeDecodeError, csv.Error) as exc:
+                raise ValueError(f"invalid legacy CSV: {exc}") from exc
+    return byte_count, digest.hexdigest(), tail
+
+
+def _source_signature(stat: os.stat_result) -> tuple[int, int, int, int]:
+    return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns
+
+
+def _atomic_copy_prefix(
+    source: Path, target: Path, byte_count: int, expected_hash: str,
+    source_stat: os.stat_result,
+) -> None:
+    temporary = target.with_name(f".{target.name}.{uuid.uuid4().hex}.tmp")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        digest = hashlib.sha256()
+        with source.open("rb") as reader, temporary.open("xb") as writer:
+            remaining = byte_count
+            while remaining:
+                chunk = reader.read(min(1024 * 1024, remaining))
+                if not chunk:
+                    raise ValueError(f"runtime source shortened: {source}")
+                writer.write(chunk)
+                digest.update(chunk)
+                remaining -= len(chunk)
+            writer.flush()
+            os.fsync(writer.fileno())
+        if (
+            digest.hexdigest() != expected_hash
+            or _source_signature(source.stat()) != _source_signature(source_stat)
+        ):
+            raise ValueError(f"runtime source changed during validation: {source}")
+        os.replace(temporary, target)
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+
+
 def initialize_runtime_store(
     repo: Path | None = None,
     *,
@@ -223,18 +302,20 @@ def initialize_runtime_store(
         source = source_dir / name
         target = target_dir / name
         if target.exists():
-            existing_payload = target.read_bytes()
-            payload, tail = _complete_stream_prefix(name, existing_payload)
+            before = target.stat()
+            byte_count, digest, tail = _inspect_stream_prefix(target)
+            if _source_signature(target.stat()) != _source_signature(before):
+                raise ValueError(f"runtime source changed during validation: {target}")
             if tail:
                 archived_tails.append(
                     _archive_partial_tail(target_dir, name, tail)
                 )
-                _atomic_write(target, payload)
+                _atomic_copy_prefix(target, target, byte_count, digest, before)
             preserved.append(name)
             stream_manifest[name] = {
                 "action": "preserved",
-                "bytes": len(payload),
-                "sha256": _sha256(payload),
+                "bytes": byte_count,
+                "sha256": digest,
                 "source": "runtime-existing",
             }
             continue
@@ -247,13 +328,13 @@ def initialize_runtime_store(
             }
             continue
 
-        source_payload = source.read_bytes()
-        payload, tail = _complete_stream_prefix(name, source_payload)
+        before = source.stat()
+        byte_count, digest, tail = _inspect_stream_prefix(source)
         if tail:
             archived_tails.append(
                 _archive_partial_tail(target_dir, name, tail)
             )
-        _atomic_write(target, payload)
+        _atomic_copy_prefix(source, target, byte_count, digest, before)
         copied.append(name)
         try:
             relative_source = source.relative_to(root).as_posix()
@@ -261,8 +342,8 @@ def initialize_runtime_store(
             relative_source = str(source)
         stream_manifest[name] = {
             "action": "copied",
-            "bytes": len(payload),
-            "sha256": _sha256(payload),
+            "bytes": byte_count,
+            "sha256": digest,
             "source": relative_source,
         }
 

@@ -254,3 +254,18 @@ def test_canonical_catalog_is_archived_before_head_is_restored(tmp_path):
     assert archived.read_text(encoding="utf-8") == (
         '{"version":"new-canonical"}\n'
     )
+
+
+def test_recovery_retains_io_failure_traceback(tmp_path, monkeypatch):
+    repo = _repo(tmp_path)
+
+    def broken_store(*args, **kwargs):
+        raise OSError(22, "Invalid argument")
+
+    monkeypatch.setattr(runtime_recovery.runtime_paths, "initialize_runtime_store", broken_store)
+    result = runtime_recovery.prepare_runtime_worktree(repo)
+    assert result.action == "recovery_io_failed"
+    assert "broken_store" in result.error
+    assert "Traceback" in result.error
+    assert "Invalid argument" in result.error
+    assert _must_git(repo, "status", "--porcelain") == ""

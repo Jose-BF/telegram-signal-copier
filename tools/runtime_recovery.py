@@ -8,6 +8,7 @@ import json
 import os
 import shutil
 import subprocess
+import traceback
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -301,6 +302,7 @@ def prepare_runtime_worktree(
     *,
     timestamp: str | None = None,
     runtime_dir: Path | None = None,
+    code_commit: str | None = None,
 ) -> RecoveryResult:
     """Move legacy evidence out of Git and repair reproducible output.
 
@@ -391,6 +393,7 @@ def prepare_runtime_worktree(
         migration = runtime_paths.initialize_runtime_store(
             repo_dir,
             runtime_dir=runtime_dir,
+            code_commit=code_commit,
             initialized_at=datetime.now(timezone.utc).isoformat(
                 timespec="seconds"
             ),
@@ -481,7 +484,7 @@ def prepare_runtime_worktree(
     except (OSError, ValueError) as exc:
         return _failure(
             "recovery_io_failed",
-            str(exc),
+            f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}",
             source_paths=source_paths,
             restored_paths=tuple(restored),
             archived_paths=tuple(archived),

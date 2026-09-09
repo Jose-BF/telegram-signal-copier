@@ -1,5 +1,6 @@
 import hashlib
 import json
+import tracemalloc
 from pathlib import Path
 
 import pytest
@@ -206,3 +207,93 @@ def test_data_path_rejects_directory_escape(tmp_path):
 
     with pytest.raises(ValueError, match="simple filename"):
         runtime_paths.data_path("../outside.jsonl", repo=repo)
+
+
+@pytest.mark.parametrize("existing", [False, True])
+def test_large_stream_initialization_has_bounded_memory(tmp_path, existing):
+    repo = tmp_path / "repo"
+    folder = repo / ("runtime_data" if existing else "data")
+    folder.mkdir(parents=True)
+    source = folder / "trade_events.jsonl"
+    record = json.dumps({"ev": "decision", "input": "x" * 1000}).encode() + b"\n"
+    digest = hashlib.sha256()
+    with source.open("wb") as stream:
+        for _ in range(16384):
+            stream.write(record)
+            digest.update(record)
+    tracemalloc.start()
+    try:
+        result = runtime_paths.initialize_runtime_store(repo, runtime_dir=repo / "runtime_data")
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert peak < 8 * 1024 * 1024
+    manifest = json.loads(result.manifest_path.read_text())
+    assert manifest["streams"][source.name]["sha256"] == digest.hexdigest()
+    assert manifest["streams"][source.name]["bytes"] == len(record) * 16384
+
+
+@pytest.mark.parametrize("name,payload", [
+    ("trade_events.jsonl", b'{"ev":"valid"}\ninvalid\npartial'),
+    ("trade_journal.csv", b'a,b\n1,2,3\npartial'),
+    ("trade_journal.csv", b'a,b\n1,"unclosed\n'),
+])
+def test_invalid_runtime_stream_is_preserved_without_manifest(tmp_path, name, payload):
+    runtime = tmp_path / "runtime_data"
+    runtime.mkdir()
+    source = runtime / name
+    source.write_bytes(payload)
+    with pytest.raises(ValueError):
+        runtime_paths.initialize_runtime_store(tmp_path, runtime_dir=runtime)
+    assert source.read_bytes() == payload
+    assert not (runtime / runtime_paths.RUNTIME_MANIFEST_NAME).exists()
+
+
+def test_streamed_csv_preserves_bom_crlf_and_multiline_fields(tmp_path):
+    source = tmp_path / "data" / "trade_journal.csv"
+    source.parent.mkdir()
+    payload = b'\xef\xbb\xbfa,b\r\n1,"two\r\nlines"\r\n'
+    source.write_bytes(payload + b'partial')
+    result = runtime_paths.initialize_runtime_store(tmp_path)
+    assert (result.runtime_dir / source.name).read_bytes() == payload
+    assert (result.runtime_dir / "recovery" / (source.name + ".partial-tail")).read_bytes() == b'partial'
+
+
+def test_tail_repair_failure_preserves_original_and_archived_tail(tmp_path, monkeypatch):
+    runtime = tmp_path / "runtime_data"
+    runtime.mkdir()
+    source = runtime / "trade_events.jsonl"
+    original = b'{"ev":"valid"}\npartial'
+    source.write_bytes(original)
+    replace = runtime_paths.os.replace
+
+    def fail_runtime_replace(src, dst):
+        if Path(dst) == source:
+            raise OSError("replace failed")
+        return replace(src, dst)
+
+    monkeypatch.setattr(runtime_paths.os, "replace", fail_runtime_replace)
+    with pytest.raises(OSError, match="replace failed"):
+        runtime_paths.initialize_runtime_store(tmp_path)
+    assert source.read_bytes() == original
+    assert (runtime / "recovery" / "trade_events.jsonl.partial-tail").read_bytes() == b'partial'
+    assert not list(runtime.glob("*.tmp"))
+
+
+def test_changed_source_is_not_published_after_validation(tmp_path, monkeypatch):
+    source = tmp_path / "data" / "trade_events.jsonl"
+    source.parent.mkdir()
+    source.write_bytes(b'{"ev":"first"}\n')
+    inspect = runtime_paths._inspect_stream_prefix
+
+    def inspect_then_append(path):
+        result = inspect(path)
+        with path.open("ab") as handle:
+            handle.write(b'{"ev":"arrived"}\n')
+        return result
+
+    monkeypatch.setattr(runtime_paths, "_inspect_stream_prefix", inspect_then_append)
+    with pytest.raises(ValueError, match="changed during validation"):
+        runtime_paths.initialize_runtime_store(tmp_path)
+    assert not (tmp_path / "runtime_data" / source.name).exists()
+    assert source.read_bytes().endswith(b'{"ev":"arrived"}\n')
