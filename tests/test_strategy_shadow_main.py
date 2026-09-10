@@ -496,6 +496,119 @@ def test_shadow_history_preserves_price_ticks_when_conversion_evidence_is_stale(
     assert history.ticks[0].money_factor("BUY", favourable=True) is None
 
 
+def _conversion_tail_case(monkeypatch, *, now_msc):
+    missing_msc = 1_788_947_213_543
+    prior_msc = 1_788_947_208_324
+    next_msc = 1_788_947_215_976
+    queries = []
+    xau = {"time_msc": missing_msc, "bid": 4394.71, "ask": 4394.92}
+    eur = [
+        {"time_msc": prior_msc, "bid": 1.16293, "ask": 1.16307},
+        {"time_msc": next_msc, "bid": 1.15293, "ask": 1.15307},
+    ]
+
+    def copy_ticks(symbol, from_dt, until_dt, _flags):
+        first = int(from_dt.timestamp() * 1000)
+        last = int(until_dt.timestamp() * 1000)
+        queries.append((symbol, first, last))
+        rows = [xau] if symbol == "XAUUSD" else eur
+        return [row for row in rows if first <= row["time_msc"] <= min(last, now_msc)]
+
+    monkeypatch.setattr(main.executor, "mt5", SimpleNamespace(
+        COPY_TICKS_ALL=0, copy_ticks_range=copy_ticks,
+    ))
+    monkeypatch.setattr(main, "_load_shadow_money_contract", money_contract)
+    monkeypatch.setattr(main.broker_tick_clock, "utc_now", lambda: datetime.fromtimestamp(now_msc / 1000, timezone.utc))
+    latest = main._shadow_tick_from_values(
+        time_msc=missing_msc, bid=xau["bid"], ask=xau["ask"], last=0,
+        flags=0, volume_real=0, factors=None, money_evidence_id=None,
+    )
+    cursor = strategy_shadow_runtime.ShadowTickCursor(missing_msc - 1, None)
+    return cursor, latest, queries, eur
+
+
+def test_live_conversion_tail_waits_without_poisoning_shadow(monkeypatch):
+    cursor, latest, _, _ = _conversion_tail_case(monkeypatch, now_msc=1_788_947_214_634)
+    history = main._shadow_live_tick_batch(cursor, latest)
+    assert history.complete is True
+    assert history.ticks == ()
+    assert history.pending_reason == "live_conversion_tail_pending"
+    assert history.blocker is None
+
+
+def test_historical_conversion_bracket_does_not_replace_prior_price(monkeypatch):
+    cursor, latest, queries, eur = _conversion_tail_case(monkeypatch, now_msc=1_788_947_216_000)
+    history = main._shadow_tick_history(cursor.from_msc, until_msc=latest.time_msc)
+    assert len(history.ticks) == 1
+    assert history.ticks[0].money_factor("BUY", favourable=True) == pytest.approx(100 / eur[0]["ask"])
+    assert history.ticks[0].time_msc == latest.time_msc
+    fx_query = next(row for row in queries if row[0] == "EURUSD")
+    assert fx_query[2] <= 1_788_947_216_000
+
+
+def test_pending_conversion_resumes_same_tick_when_interval_becomes_known(monkeypatch):
+    cursor, latest, _, _ = _conversion_tail_case(monkeypatch, now_msc=1_788_947_214_634)
+    pending = main._shadow_live_tick_batch(cursor, latest)
+    assert pending.ticks == ()
+    cursor, latest, _, eur = _conversion_tail_case(monkeypatch, now_msc=1_788_947_216_000)
+    resumed = main._shadow_live_tick_batch(cursor, latest)
+    assert resumed.pending_reason is None
+    assert [row.identity for row in resumed.ticks] == [latest.identity]
+    assert resumed.ticks[0].money_factor("SELL", favourable=False) == pytest.approx(100 / eur[0]["bid"])
+
+
+def test_conversion_wait_keeps_every_ready_tick_before_the_unresolved_one(monkeypatch):
+    from dataclasses import replace
+    _, missing, _, _ = _conversion_tail_case(monkeypatch, now_msc=1_788_947_214_634)
+    ready = replace(missing, time_msc=missing.time_msc - 1, money_evidence_id="known")
+    later = replace(ready, time_msc=missing.time_msc + 1)
+    original = strategy_shadow_runtime.ShadowTickHistory(
+        ticks=(ready, missing, later), complete=True, evidence_id="unmodified-input",
+    )
+    pending = main._shadow_conversion_ready_prefix(original)
+    assert pending.ticks == (ready,)
+    assert original.ticks == (ready, missing, later)
+    assert pending.pending_reason == "live_conversion_tail_pending"
+
+
+@pytest.mark.parametrize("age", [60_000, 60_001, -1])
+def test_conversion_wait_never_hides_expired_or_future_evidence(monkeypatch, age):
+    _, missing, _, _ = _conversion_tail_case(monkeypatch, now_msc=1_788_947_213_543 + age)
+    original = strategy_shadow_runtime.ShadowTickHistory(
+        ticks=(missing,), complete=True, evidence_id="missing-money",
+    )
+    assert main._shadow_conversion_ready_prefix(original) is original
+    assert original.ticks[0].money_evidence_id is None
+
+
+def test_conversion_interval_outside_contract_is_still_rejected():
+    rows = [{"bid": 1.16, "ask": 1.17}, {"bid": 1.15, "ask": 1.16}]
+    assert main._shadow_conversion_quote_at(
+        rows, [10_000, 70_001], 16_000, money_contract(), utc_offset_seconds=0,
+    ) is None
+
+
+def test_conversion_proof_identity_includes_the_interval_endpoint():
+    rows = [{"bid": 1.16, "ask": 1.17}, {"bid": 1.15, "ask": 1.16}]
+    earlier = main._shadow_conversion_quote_at(
+        rows, [10_000, 18_000], 16_000, money_contract(), utc_offset_seconds=0,
+    )
+    later = main._shadow_conversion_quote_at(
+        rows, [10_000, 19_000], 16_000, money_contract(), utc_offset_seconds=0,
+    )
+    assert earlier[0] == later[0]
+    assert earlier[1] != later[1]
+
+
+def test_future_conversion_rows_returned_outside_query_cannot_resolve_tail(monkeypatch):
+    cursor, latest, _, eur = _conversion_tail_case(monkeypatch, now_msc=1_788_947_214_634)
+    xau = {"time_msc": latest.time_msc, "bid": latest.bid, "ask": latest.ask}
+    monkeypatch.setattr(main.executor.mt5, "copy_ticks_range", lambda symbol, *_: [xau] if symbol == "XAUUSD" else eur)
+    history = main._shadow_live_tick_batch(cursor, latest)
+    assert history.ticks == ()
+    assert history.pending_reason == "live_conversion_tail_pending"
+
+
 def test_shadow_history_resumes_after_full_tick_identity_without_skipping(
     monkeypatch,
 ):
@@ -1136,8 +1249,9 @@ async def test_tick_continuity_pause_keeps_shadow_runtime_installed(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("tail", ["archive", "conversion"])
 async def test_sustained_archive_tail_delay_is_recorded_without_pausing_prefix(
-    monkeypatch,
+    monkeypatch, tail,
 ):
     events = []
     sleep_calls = []
@@ -1191,7 +1305,7 @@ async def test_sustained_archive_tail_delay_is_recorded_without_pausing_prefix(
             ticks=(),
             complete=True,
             evidence_id=f"pending-{calls}",
-            pending_reason="live_archive_tail_pending",
+            pending_reason=f"live_{tail}_tail_pending",
         )
 
     monkeypatch.setattr(main, "_shadow_live_tick_batch", pending_batch)
@@ -1203,11 +1317,11 @@ async def test_sustained_archive_tail_delay_is_recorded_without_pausing_prefix(
     assert max(sleep_calls) >= 1.0
     assert events == [(
         "bot",
-        "strategy_shadow_tick_archive_tail_waiting",
+        f"strategy_shadow_tick_{tail}_tail_waiting",
         {
             "consecutive_waits": 3,
             "evidence_id": "pending-3",
-            "reason": "live_archive_tail_pending",
+            "reason": f"live_{tail}_tail_pending",
             "cursor_from_msc": 20_000,
             "cursor_after_identity": list(cursor),
             "latest_identity": list(latest.identity),

@@ -3220,8 +3220,9 @@ def _shadow_money_evidence_id(
     conversion_time_msc: int | None,
     conversion_bid: float | None,
     conversion_ask: float | None,
+    interval_end_time_msc: int | None = None,
 ) -> str:
-    return canonical_hash({
+    evidence = {
         "contract_captured_at_utc": contract.get("captured_at_utc"),
         "instrument": contract.get("instrument"),
         "conversion": contract.get("conversion"),
@@ -3229,7 +3230,10 @@ def _shadow_money_evidence_id(
         "conversion_time_msc": conversion_time_msc,
         "conversion_bid": conversion_bid,
         "conversion_ask": conversion_ask,
-    })
+    }
+    if interval_end_time_msc is not None:
+        evidence["conversion_interval_end_time_msc"] = interval_end_time_msc
+    return canonical_hash(evidence)
 
 
 def _shadow_tick_from_values(
@@ -3373,6 +3377,7 @@ def _shadow_conversion_quote_at(
     quote_msc = times[index]
     age_ms = int(at_msc) - quote_msc
     max_age = int(conversion.get("max_quote_age_ms", 5000))
+    interval_end_time_msc = None
     if age_ms < 0:
         return None
     if age_ms > max_age:
@@ -3388,6 +3393,7 @@ def _shadow_conversion_quote_at(
             or next_msc - quote_msc > max_interval
         ):
             return None
+        interval_end_time_msc = next_msc
     bid = float(_shadow_row_value(row, "bid", 0.0) or 0.0)
     ask = float(_shadow_row_value(row, "ask", 0.0) or 0.0)
     try:
@@ -3404,6 +3410,7 @@ def _shadow_conversion_quote_at(
         conversion_time_msc=quote_msc,
         conversion_bid=bid,
         conversion_ask=ask,
+        interval_end_time_msc=interval_end_time_msc,
     )
     return factors, evidence
 
@@ -3591,19 +3598,29 @@ def _shadow_tick_history(
         conversion_times: list[int] = []
         if orientation != "identity":
             symbol = str(conversion.get("symbol") or "")
+            # A later known quote can prove the preceding quote's interval;
+            # its price is never used for an earlier tick's conversion.
+            conversion_until_msc = min(
+                until_msc + max_interval_ms,
+                int(broker_tick_clock.utc_now().timestamp() * 1000),
+            )
             raw_conversion = executor.mt5.copy_ticks_range(
                 symbol,
                 conversion_from_dt,
-                until_dt,
+                broker_tick_clock.server_query_datetime(
+                    conversion_until_msc, utc_offset_seconds,
+                ),
                 flags,
             )
             conversion_rows = []
             for row in (() if raw_conversion is None else raw_conversion):
                 try:
-                    conversion_rows.append(_shadow_normalized_tick_row(
+                    normalized = _shadow_normalized_tick_row(
                         row,
                         utc_offset_seconds,
-                    ))
+                    )
+                    if normalized["time_msc"] <= conversion_until_msc:
+                        conversion_rows.append(normalized)
                 except (TypeError, ValueError, OSError, OverflowError):
                     continue
             conversion_rows.sort(key=lambda row: int(row["time_msc"]))
@@ -3710,6 +3727,46 @@ def _shadow_tick_history(
         )
 
 
+def _shadow_conversion_ready_prefix(
+    history: strategy_shadow_runtime.ShadowTickHistory,
+) -> strategy_shadow_runtime.ShadowTickHistory:
+    if not history.complete:
+        return history
+    missing = next((
+        index for index, tick in enumerate(history.ticks)
+        if not tick.money_evidence_id
+    ), None)
+    if missing is None:
+        return history
+    contract = _load_shadow_money_contract()
+    if contract is None:
+        return history
+    conversion = contract.get("conversion") or {}
+    if conversion.get("orientation") == "identity":
+        return history
+    interval_ms = int(conversion.get(
+        "max_quote_interval_ms", conversion.get("max_quote_age_ms", 5000),
+    ))
+    unresolved = history.ticks[missing]
+    observed_msc = int(broker_tick_clock.utc_now().timestamp() * 1000)
+    if not 0 <= observed_msc - unresolved.time_msc < interval_ms:
+        return history
+    # Leave the cursor before the unresolved tick. An expired or genuinely
+    # missing interval still reaches the engine with its original blocker.
+    return strategy_shadow_runtime.ShadowTickHistory(
+        ticks=history.ticks[:missing],
+        complete=True,
+        evidence_id=canonical_hash({
+            "mode": "live_conversion_tail_pending",
+            "history_evidence_id": history.evidence_id,
+            "unresolved_tick_identity": list(unresolved.identity),
+            "max_quote_interval_ms": interval_ms,
+            "observed_at_msc": observed_msc,
+        }),
+        pending_reason="live_conversion_tail_pending",
+    )
+
+
 def _shadow_live_tick_batch(
     cursor: strategy_shadow_runtime.ShadowTickCursor,
     latest: ShadowTick,
@@ -3769,6 +3826,9 @@ def _shadow_live_tick_batch(
     )
     if not history.complete:
         return history
+    history = _shadow_conversion_ready_prefix(history)
+    if history.pending_reason == "live_conversion_tail_pending":
+        return history
     if query_until_msc < latest.time_msc and history.ticks:
         return strategy_shadow_runtime.ShadowTickHistory(
             ticks=history.ticks,
@@ -3798,6 +3858,9 @@ def _shadow_live_tick_batch(
             after_identity=last_identity,
         )
         if not history.complete:
+            return history
+        history = _shadow_conversion_ready_prefix(history)
+        if history.pending_reason == "live_conversion_tail_pending":
             return history
     if _shadow_market_tick_identity(latest.identity) not in {
         _shadow_market_tick_identity(tick.identity)
@@ -4080,21 +4143,22 @@ async def _strategy_shadow_loop(interval_s: float = 0.25) -> None:
     }
     continuity_retries = {}
     continuity_runtime = None
-    archive_tail_waits = 0
+    tail_waits = {"archive": 0, "conversion": 0}
     while config.STRATEGY_SHADOW_ENABLED:
         runtime = strategy_shadow_runtime.installed_runtime()
         if runtime is not continuity_runtime:
             continuity_retries.clear()
             continuity_runtime = runtime
+            tail_waits = {"archive": 0, "conversion": 0}
         if runtime is None:
             continuity_retries.clear()
-            archive_tail_waits = 0
+            tail_waits = {"archive": 0, "conversion": 0}
             await asyncio.sleep(max(0.1, float(interval_s)))
             continue
         cursor = runtime.active_tick_cursor()
         if cursor is None:
             continuity_retries.clear()
-            archive_tail_waits = 0
+            tail_waits = {"archive": 0, "conversion": 0}
             await asyncio.sleep(max(0.1, float(interval_s)))
             continue
         for tracked_cursor in tuple(continuity_retries):
@@ -4119,7 +4183,7 @@ async def _strategy_shadow_loop(interval_s: float = 0.25) -> None:
                 latest,
             )
             if not history.complete:
-                archive_tail_waits = 0
+                tail_waits = {"archive": 0, "conversion": 0}
                 previous_retry = continuity_retries.get(cursor)
                 continuity_failures = 1
                 if (
@@ -4214,42 +4278,41 @@ async def _strategy_shadow_loop(interval_s: float = 0.25) -> None:
                     "[Shadow] continuidad de ticks demostrada; "
                     "observacion reanudada"
                 )
-            if history.pending_reason == "live_archive_tail_pending":
-                archive_tail_waits += 1
-                next_delay_s = max(1.0, float(interval_s))
-                if (
-                    archive_tail_waits == 3
-                    or archive_tail_waits % 20 == 0
-                ):
-                    try:
-                        journal.event(
-                            "bot",
-                            "strategy_shadow_tick_archive_tail_waiting",
-                            consecutive_waits=archive_tail_waits,
-                            evidence_id=history.evidence_id,
-                            reason=history.pending_reason,
-                            cursor_from_msc=cursor.from_msc,
-                            cursor_after_identity=(
-                                list(cursor.after_identity)
-                                if cursor.after_identity is not None else None
-                            ),
-                            latest_identity=list(latest.identity),
-                            batch_tick_count=len(history.ticks),
-                        )
-                    except Exception:
-                        pass
-            else:
-                if archive_tail_waits >= 3:
-                    try:
-                        journal.event(
-                            "bot",
-                            "strategy_shadow_tick_archive_tail_resumed",
-                            consecutive_waits=archive_tail_waits,
-                            evidence_id=history.evidence_id,
-                        )
-                    except Exception:
-                        pass
-                archive_tail_waits = 0
+            for tail, waits in tail_waits.items():
+                if history.pending_reason == f"live_{tail}_tail_pending":
+                    waits += 1
+                    tail_waits[tail] = waits
+                    next_delay_s = max(1.0, float(interval_s))
+                    if waits == 3 or waits % 20 == 0:
+                        try:
+                            journal.event(
+                                "bot",
+                                f"strategy_shadow_tick_{tail}_tail_waiting",
+                                consecutive_waits=waits,
+                                evidence_id=history.evidence_id,
+                                reason=history.pending_reason,
+                                cursor_from_msc=cursor.from_msc,
+                                cursor_after_identity=(
+                                    list(cursor.after_identity)
+                                    if cursor.after_identity is not None else None
+                                ),
+                                latest_identity=list(latest.identity),
+                                batch_tick_count=len(history.ticks),
+                            )
+                        except Exception:
+                            pass
+                else:
+                    if waits >= 3:
+                        try:
+                            journal.event(
+                                "bot",
+                                f"strategy_shadow_tick_{tail}_tail_resumed",
+                                consecutive_waits=waits,
+                                evidence_id=history.evidence_id,
+                            )
+                        except Exception:
+                            pass
+                    tail_waits[tail] = 0
             # Yield so Telegram and live-order work already scheduled for this
             # event-loop turn keeps priority over observation.
             await asyncio.sleep(0)
