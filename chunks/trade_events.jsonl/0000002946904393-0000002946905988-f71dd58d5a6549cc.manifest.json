@@ -1,0 +1,14 @@
+{
+  "byte_end": 2946905988,
+  "byte_start": 2946904393,
+  "code_commit": "d9037c5c1ac3b91814ec73a00278e6d6c7b52aad",
+  "compressed_bytes": 591,
+  "compressed_sha256": "9efe36722f2ee7883bb143c4000924c9c8aa12dd080ae481f6018e8986167563",
+  "compression": "gzip",
+  "created_at": "2026-09-11T08:42:21+00:00",
+  "payload_file": "0000002946904393-0000002946905988-f71dd58d5a6549cc.jsonl.gz",
+  "schema_version": 1,
+  "sha256": "f71dd58d5a6549cceddcb659144e628fb3ea8018d99eec1094992a78629c3a40",
+  "stream": "trade_events.jsonl",
+  "uncompressed_bytes": 1595
+}
