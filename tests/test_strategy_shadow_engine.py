@@ -194,6 +194,28 @@ def test_555_targets_use_each_fill_and_buy_exit_quote():
     assert result.state.positions[0].close_reason == "target"
 
 
+@pytest.mark.parametrize("direction", ["BUY", "SELL"])
+def test_flat_555_waiting_for_later_legs_has_no_floating_money(direction):
+    policy, state = new_state("gold_now_555_v1", direction=direction, reference=4300.0)
+    if direction == "BUY":
+        quotes = [(4298.7, 4298.9), (4300.2, 4300.4), (4300.75, 4300.95), (4300.91, 4301.11)]
+    else:
+        quotes = [(4301.1, 4301.3), (4299.6, 4299.8), (4299.05, 4299.25), (4298.89, 4299.09)]
+    for index, (bid, ask) in enumerate(quotes, 101):
+        state = advance_tick(policy, state, tick(index, bid=bid, ask=ask)).state
+
+    assert len(state.positions) == 1
+    assert state.positions[0].status == "closed"
+    assert state.status == "open"
+    assert state.realized_eur == 2.0
+    assert state.floating_eur == 0.0
+    assert state.max_favourable_eur == 2.0
+    assert state.peak_total_eur == 2.0
+    later = advance_tick(policy, state, tick(110, bid=quotes[-1][0], ask=quotes[-1][1])).state
+    assert later.floating_eur == 0.0
+    assert later.realized_eur == 2.0
+
+
 def test_555_trailing_stop_tightens_but_never_loosens():
     policy, state = new_state("gold_now_555_v1", reference=4300.0)
     state = advance_tick(policy, state, tick(101, bid=4298.7, ask=4298.9)).state

@@ -606,8 +606,6 @@ def _process_guard(
     transitions: list[ShadowTransition],
 ) -> ShadowSignalState:
     open_positions = [item for item in state.positions if item.status == "open"]
-    if not open_positions:
-        return state
     floating, total, exact = _basket_money(state, tick)
     updated = replace(
         state,
@@ -619,6 +617,9 @@ def _process_guard(
             else max(state.peak_total_eur, total)
         ),
     )
+    # A flat basket may still have eligible entries, but has no floating P/L.
+    if not open_positions:
+        return updated
     if not exact:
         updated, blocker_added = _with_blocker(
             updated, "money_contract_missing",

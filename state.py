@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
@@ -195,6 +196,11 @@ class Signal:
     # MT5 confirms every ticket closed. The lifecycle monitor uses this tag
     # when it performs the definitive journal finalization.
     requested_close_reason: Optional[str] = None
+
+    # Runtime-only coordination of repeated MT5 close confirmations.
+    finalization_lock: Optional[asyncio.Lock] = field(
+        default=None, repr=False, compare=False)
+    journal_finalized: bool = field(default=False, repr=False, compare=False)
 
     # Tickets cerrados explícitamente por acción CLOSE_FIRST.
     # Se rellena en listener.py al ejecutar el action. Usado en

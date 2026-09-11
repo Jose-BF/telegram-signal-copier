@@ -2000,7 +2000,13 @@ async def _finalize_signal(
     cada posicion (tipo, tp asignado, P&L individual). Util para diagnostico
     posterior — especialmente para validar la estrategia double_market.
     """
+    if signal.finalization_lock is None:
+        signal.finalization_lock = asyncio.Lock()
+    lock = signal.finalization_lock
+    await lock.acquire()
     try:
+        if signal.journal_finalized:
+            return True
         sig_id = _sig_id(signal)
         positions_complete, open_positions = (
             await _finalization_position_evidence(signal, closed_by)
@@ -2090,11 +2096,17 @@ async def _finalize_signal(
             n_tickets_opened=len(signal.all_filled_tickets),
             notes=notes,
         )
+        signal.journal_finalized = True
         return True
+    except asyncio.CancelledError:
+        signal.status = "open"
+        raise
     except Exception as e:
         print(f"[Journal] _finalize_signal error: {e}")
         signal.status = "open"
         return False
+    finally:
+        lock.release()
 
 client = TelegramClient("signal_session", config.TELEGRAM_API_ID, config.TELEGRAM_API_HASH)
 _media_capture_tasks: set[asyncio.Future] = set()

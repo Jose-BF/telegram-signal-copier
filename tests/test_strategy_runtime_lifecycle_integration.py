@@ -1,3 +1,4 @@
+import asyncio
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -224,6 +225,133 @@ async def test_explicit_close_does_not_finalize_while_mt5_position_remains(
     assert signal.status == "open"
     assert signal.lifecycle_state == "closing"
     assert journal.finalized == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("concurrent", [False, True])
+async def test_repeated_close_confirmation_records_one_final_result(monkeypatch, concurrent):
+    signal, _ = _load_signal()
+    signal.requested_close_reason = "PROVIDER_CLOSE"
+    journal = _Journal()
+    monkeypatch.setattr(listener, "journal", journal)
+    monkeypatch.setattr(listener, "_open_mt5_positions_for_signal", lambda _signal: [])
+    monkeypatch.setattr(listener, "_realized_pl", lambda _signal: -24.99)
+    monkeypatch.setattr(listener.executor, "account_evidence", lambda: {"currency": "EUR"})
+    monkeypatch.setattr("MetaTrader5.history_deals_get", lambda **kwargs: [])
+    original_sleep = asyncio.sleep
+
+    async def yield_once(_seconds):
+        await original_sleep(0)
+
+    monkeypatch.setattr(listener.asyncio, "sleep", yield_once)
+    if concurrent:
+        results = await asyncio.gather(*(
+            listener._finalize_signal(signal, closed_by="PROVIDER_CLOSE") for _ in range(3)
+        ))
+    else:
+        results = [await listener._finalize_signal(signal, closed_by="PROVIDER_CLOSE") for _ in range(3)]
+
+    assert results == [True, True, True]
+    assert signal.status == "closed"
+    assert len(journal.finalized) == 1
+    assert journal.finalized[0]["total_pnl_usd"] == -24.99
+    assert sum(row["event"] == "pos_summary" for row in journal.events) == 1
+
+
+@pytest.mark.asyncio
+async def test_failed_finalization_remains_retryable(monkeypatch):
+    signal, _ = _load_signal()
+    signal.requested_close_reason = "PROVIDER_CLOSE"
+    journal = _Journal()
+    monkeypatch.setattr(listener, "journal", journal)
+    monkeypatch.setattr(listener, "_open_mt5_positions_for_signal", lambda _signal: [])
+    monkeypatch.setattr(listener, "_realized_pl", lambda _signal: 1.72)
+    monkeypatch.setattr(listener.executor, "account_evidence", lambda: {"currency": "EUR"})
+    monkeypatch.setattr("MetaTrader5.history_deals_get", lambda **kwargs: [])
+
+    async def no_sleep(_seconds):
+        pass
+
+    monkeypatch.setattr(listener.asyncio, "sleep", no_sleep)
+    original_finalize = journal.finalize_trade
+
+    def fail_once(*args, **kwargs):
+        monkeypatch.setattr(journal, "finalize_trade", original_finalize)
+        raise OSError("simulated unavailable journal")
+
+    monkeypatch.setattr(journal, "finalize_trade", fail_once)
+    assert await listener._finalize_signal(signal, closed_by="PROVIDER_CLOSE") is False
+    assert signal.status == "open"
+    assert await listener._finalize_signal(signal, closed_by="PROVIDER_CLOSE") is True
+    assert len(journal.finalized) == 1
+
+
+@pytest.mark.asyncio
+async def test_cancelled_finalization_releases_guard_and_can_retry(monkeypatch):
+    signal, _ = _load_signal()
+    signal.requested_close_reason = "PROVIDER_CLOSE"
+    journal = _Journal()
+    monkeypatch.setattr(listener, "journal", journal)
+    monkeypatch.setattr(listener, "_open_mt5_positions_for_signal", lambda _signal: [])
+    monkeypatch.setattr(listener, "_realized_pl", lambda _signal: 1.72)
+    monkeypatch.setattr(listener.executor, "account_evidence", lambda: {"currency": "EUR"})
+    monkeypatch.setattr("MetaTrader5.history_deals_get", lambda **kwargs: [])
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    async def interrupted_sleep(_seconds):
+        entered.set()
+        await release.wait()
+
+    monkeypatch.setattr(listener.asyncio, "sleep", interrupted_sleep)
+    closing = asyncio.create_task(listener._finalize_signal(signal, closed_by="PROVIDER_CLOSE"))
+    await entered.wait()
+    closing.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await closing
+    assert signal.status == "open"
+    assert signal.journal_finalized is False
+    assert journal.finalized == []
+    release.set()
+    assert await listener._finalize_signal(signal, closed_by="PROVIDER_CLOSE") is True
+    assert len(journal.finalized) == 1
+
+
+@pytest.mark.asyncio
+async def test_finalization_guard_is_not_shared_between_signals(monkeypatch):
+    first, _ = _load_signal()
+    second, _ = _load_signal()
+    second.message_id += 1
+    for signal in (first, second):
+        signal.requested_close_reason = "PROVIDER_CLOSE"
+    journal = _Journal()
+    monkeypatch.setattr(listener, "journal", journal)
+    monkeypatch.setattr(listener, "_open_mt5_positions_for_signal", lambda _signal: [])
+    monkeypatch.setattr(listener, "_realized_pl", lambda _signal: 1.72)
+    monkeypatch.setattr(listener.executor, "account_evidence", lambda: {"currency": "EUR"})
+    monkeypatch.setattr("MetaTrader5.history_deals_get", lambda **kwargs: [])
+    first_paused = asyncio.Event()
+    release_first = asyncio.Event()
+    calls = 0
+
+    async def pause_first(_seconds):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            first_paused.set()
+            await release_first.wait()
+
+    monkeypatch.setattr(listener.asyncio, "sleep", pause_first)
+    first_task = asyncio.create_task(listener._finalize_signal(first, closed_by="PROVIDER_CLOSE"))
+    await first_paused.wait()
+    try:
+        assert await asyncio.wait_for(listener._finalize_signal(second, closed_by="PROVIDER_CLOSE"), 1) is True
+        assert first.journal_finalized is False
+        assert second.journal_finalized is True
+    finally:
+        release_first.set()
+        await first_task
+    assert len(journal.finalized) == 2
 
 
 @pytest.mark.asyncio
