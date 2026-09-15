@@ -242,12 +242,28 @@ def _source_signature(stat: os.stat_result) -> tuple[int, int, int, int]:
     return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns
 
 
+def _ends_with_record_boundary(path: Path) -> bool:
+    """Check the cheap crash-recovery boundary without reading the stream."""
+
+    with path.open("rb") as handle:
+        handle.seek(0, os.SEEK_END)
+        if handle.tell() == 0:
+            return True
+        handle.seek(-1, os.SEEK_END)
+        return handle.read(1) == b"\n"
+
+
 def _cached_stream_metadata(
     path: Path,
     name: str,
     previous: Mapping[str, object],
-) -> tuple[int, str] | None:
-    """Reuse a prior full validation when the runtime stream is unchanged."""
+) -> tuple[int, str, int] | None:
+    """Reuse append-only evidence without rescanning the whole runtime stream.
+
+    Runtime streams are append-only.  A manifest therefore remains useful when
+    the file grows: the prior digest covers the validated prefix and the cheap
+    newline check rules out the partial-record case that needs a full scan.
+    """
 
     streams = previous.get("streams")
     if not isinstance(streams, Mapping):
@@ -263,28 +279,15 @@ def _cached_stream_metadata(
     if byte_count < 0 or len(digest) != 64:
         return None
     current = path.stat()
-    if current.st_size != byte_count:
+    if current.st_size < byte_count or not _ends_with_record_boundary(path):
         return None
-    cached_mtime = entry.get("mtime_ns")
-    if cached_mtime is not None:
-        try:
-            if current.st_mtime_ns != int(cached_mtime):
-                return None
-        except (TypeError, ValueError):
-            return None
-    else:
-        initialized_at = previous.get("initialized_at")
-        if not isinstance(initialized_at, str):
-            return None
-        try:
-            initialized_ns = int(
-                datetime.fromisoformat(initialized_at).timestamp() * 1_000_000_000
-            )
-        except (TypeError, ValueError, OverflowError):
-            return None
-        if current.st_mtime_ns > initialized_ns:
-            return None
-    return byte_count, digest
+    try:
+        digest_scope = int(entry.get("sha256_scope_bytes", byte_count))
+    except (TypeError, ValueError):
+        return None
+    if digest_scope < 0 or digest_scope > current.st_size:
+        return None
+    return current.st_size, digest, digest_scope
 
 
 def _atomic_copy_prefix(
@@ -357,15 +360,19 @@ def initialize_runtime_store(
             before = target.stat()
             cached = _cached_stream_metadata(target, name, previous)
             if cached is not None:
-                byte_count, digest = cached
+                byte_count, digest, digest_scope = cached
                 preserved.append(name)
-                stream_manifest[name] = {
+                entry = {
                     "action": "preserved",
                     "bytes": byte_count,
                     "sha256": digest,
                     "source": "runtime-existing",
                     "mtime_ns": before.st_mtime_ns,
                 }
+                if digest_scope != byte_count:
+                    entry["sha256_scope_bytes"] = digest_scope
+                    entry["validation"] = "append-only-manifest"
+                stream_manifest[name] = entry
                 continue
             byte_count, digest, tail = _inspect_stream_prefix(target)
             if _source_signature(target.stat()) != _source_signature(before):

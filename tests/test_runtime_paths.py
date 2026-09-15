@@ -126,6 +126,61 @@ def test_initialize_reuses_manifest_for_unchanged_runtime_streams(
     assert result.copied == ()
 
 
+def test_initialize_reuses_manifest_after_append_without_full_scan(
+    tmp_path, monkeypatch
+):
+    repo = tmp_path / "repo"
+    _write_legacy(repo)
+    runtime = repo / "runtime_data"
+    monkeypatch.delenv("BOT_RUNTIME_DATA_DIR", raising=False)
+    runtime_paths.initialize_runtime_store(repo, runtime_dir=runtime)
+
+    original = (runtime / "trade_events.jsonl").read_bytes()
+    appended = b'{"ev":"new"}\n'
+    with (runtime / "trade_events.jsonl").open("ab") as handle:
+        handle.write(appended)
+
+    def unexpected_full_scan(path):
+        raise AssertionError(f"unexpected full scan: {path}")
+
+    monkeypatch.setattr(runtime_paths, "_inspect_stream_prefix", unexpected_full_scan)
+    result = runtime_paths.initialize_runtime_store(repo, runtime_dir=runtime)
+
+    entry = json.loads(
+        (runtime / runtime_paths.RUNTIME_MANIFEST_NAME).read_text(
+            encoding="utf-8"
+        )
+    )["streams"]["trade_events.jsonl"]
+    assert result.ok is True
+    assert entry["bytes"] == len(original) + len(appended)
+    assert entry["sha256"] == hashlib.sha256(original).hexdigest()
+    assert entry["sha256_scope_bytes"] == len(original)
+    assert entry["validation"] == "append-only-manifest"
+
+
+def test_initialize_reuses_manifest_when_timestamp_changes_without_growth(
+    tmp_path, monkeypatch
+):
+    repo = tmp_path / "repo"
+    _write_legacy(repo)
+    runtime = repo / "runtime_data"
+    monkeypatch.delenv("BOT_RUNTIME_DATA_DIR", raising=False)
+    runtime_paths.initialize_runtime_store(repo, runtime_dir=runtime)
+    target = runtime / "trade_events.jsonl"
+    stat = target.stat()
+    target.touch()
+    assert target.stat().st_mtime_ns != stat.st_mtime_ns
+
+    def unexpected_full_scan(path):
+        raise AssertionError(f"unexpected full scan: {path}")
+
+    monkeypatch.setattr(runtime_paths, "_inspect_stream_prefix", unexpected_full_scan)
+    result = runtime_paths.initialize_runtime_store(repo, runtime_dir=runtime)
+
+    assert result.ok is True
+    assert "trade_events.jsonl" in result.preserved
+
+
 def test_initialize_repairs_partial_tails_in_existing_runtime_store(
     tmp_path,
     monkeypatch,
