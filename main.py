@@ -54,6 +54,17 @@ try:
 except (TypeError, ValueError):
     ORPHAN_FINALIZER_MAX_SCAN_BYTES = 128 * 1024 * 1024
 
+try:
+    STARTUP_JOURNAL_RESTORE_MAX_SCAN_BYTES = max(
+        0,
+        int(os.getenv(
+            "BOT_STARTUP_JOURNAL_RESTORE_MAX_SCAN_BYTES",
+            str(128 * 1024 * 1024),
+        )),
+    )
+except (TypeError, ValueError):
+    STARTUP_JOURNAL_RESTORE_MAX_SCAN_BYTES = 128 * 1024 * 1024
+
 import causal_trace
 import management_decision_evidence
 import broker_money
@@ -554,6 +565,27 @@ def _try_capture_broker_money_contract_snapshot(
         return False
     _last_broker_contract_error = None
     _broker_contract_ready = True
+    return True
+
+
+def _startup_journal_restore_deferred(path) -> bool:
+    """Keep a large append-only journal out of the live startup path."""
+
+    source = Path(path)
+    if not source.exists() or STARTUP_JOURNAL_RESTORE_MAX_SCAN_BYTES <= 0:
+        return False
+    try:
+        size = source.stat().st_size
+    except OSError as exc:
+        print(f"[Resync] no pude consultar el tamano del journal: {exc}")
+        return True
+    if size <= STARTUP_JOURNAL_RESTORE_MAX_SCAN_BYTES:
+        return False
+    print(
+        "[Resync] restauracion historica de Canal 2 aplazada: journal de "
+        f"{size} bytes supera el limite de arranque "
+        f"({STARTUP_JOURNAL_RESTORE_MAX_SCAN_BYTES} bytes)."
+    )
     return True
 
 
@@ -4701,14 +4733,15 @@ async def main():
             f"[Resync] cierres de proveedor recuperados: "
             f"{recovered_closes}"
         )
-    _restore_live_candidate_runtime(journal.EVENTS_FILE)
-    restored_zone_plans = restore_canal2_zone_plans_from_journal(
-        journal.EVENTS_FILE
-    )
-    print(
-        f"[Resync] contextos vigentes de zonas Gold Signals: "
-        f"{restored_zone_plans}"
-    )
+    if not _startup_journal_restore_deferred(journal.EVENTS_FILE):
+        _restore_live_candidate_runtime(journal.EVENTS_FILE)
+        restored_zone_plans = restore_canal2_zone_plans_from_journal(
+            journal.EVENTS_FILE
+        )
+        print(
+            f"[Resync] contextos vigentes de zonas Gold Signals: "
+            f"{restored_zone_plans}"
+        )
 
     # Finaliza huerfanos del journal: senales que cerraron en MT5 mientras
     # el bot no las trackeaba (reinicio + posiciones ya cerradas). Registra
