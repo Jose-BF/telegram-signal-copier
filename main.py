@@ -432,32 +432,50 @@ def _capture_broker_money_contract_snapshot(
     previous_snapshots: list[dict] = []
     existing: dict | None = None
     output_exists = output.is_file()
+    same_contract_identity = False
     if output_exists:
         existing = json.loads(output.read_text(encoding="utf-8"))
         if not isinstance(existing, dict):
             raise ValueError("broker money contract must be an object")
         existing_account = existing.get("account") or {}
         existing_instrument = existing.get("instrument") or {}
-        if (
+        same_contract_identity = (
             existing_account.get("server") == account.get("server")
             and existing_account.get("fingerprint")
             == account.get("fingerprint")
             and existing_instrument.get("symbol")
             == instrument.get("symbol")
-        ):
+        )
+        if same_contract_identity:
             previous_snapshots = list(
                 existing.get("swap_snapshots") or []
             )
-    if force or not output_exists:
-        previous_snapshots = broker_contract.merge_swap_snapshots(
-            previous_snapshots,
-            broker_contract.load_event_snapshots(
-                events_path or Path(journal.EVENTS_FILE),
-                account_server=account["server"],
-                account_fingerprint=account["fingerprint"],
-                instrument_symbol=instrument["symbol"],
-            ),
-        )
+
+    needs_event_history = not output_exists or not same_contract_identity
+    event_source = Path(events_path or journal.EVENTS_FILE)
+    if needs_event_history:
+        try:
+            event_source_size = event_source.stat().st_size
+        except OSError:
+            event_source_size = 0
+        if (
+            ORPHAN_FINALIZER_MAX_SCAN_BYTES <= 0
+            or event_source_size <= ORPHAN_FINALIZER_MAX_SCAN_BYTES
+        ):
+            previous_snapshots = broker_contract.merge_swap_snapshots(
+                previous_snapshots,
+                broker_contract.load_event_snapshots(
+                    event_source,
+                    account_server=account["server"],
+                    account_fingerprint=account["fingerprint"],
+                    instrument_symbol=instrument["symbol"],
+                ),
+            )
+        else:
+            print(
+                "[BrokerMoney] historial de snapshots aplazado: journal de "
+                f"{event_source_size} bytes supera el limite de arranque."
+            )
 
     current = contract["swap_snapshots"][-1]
     previous = previous_snapshots[-1] if previous_snapshots else None
