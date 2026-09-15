@@ -96,6 +96,31 @@ def test_crash_recovery_migrates_raw_evidence_and_restores_reports(tmp_path):
     assert _must_git(repo, "show", "--format=%s", "-s", "HEAD") == "feat: base"
 
 
+def test_runtime_merge_compares_large_existing_stream_in_chunks(tmp_path, monkeypatch):
+    repo = _repo(tmp_path)
+    runtime = repo / "runtime_data"
+    runtime.mkdir()
+    source = repo / "data" / "trade_events.jsonl"
+    target = runtime / "trade_events.jsonl"
+    target.write_bytes(source.read_bytes() + b'{"ev":"runtime-only"}\n')
+
+    original_read_bytes = Path.read_bytes
+
+    def reject_large_target_read(path):
+        if path == target:
+            raise AssertionError("the existing runtime stream must be chunked")
+        return original_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", reject_large_target_read)
+
+    merged, error = runtime_recovery._merge_source_into_runtime(
+        repo, "data/trade_events.jsonl", runtime
+    )
+
+    assert (merged, error) == (True, None)
+    assert original_read_bytes(target).endswith(b'{"ev":"runtime-only"}\n')
+
+
 def test_crash_recovery_blocks_and_preserves_source_changes(tmp_path):
     repo = _repo(tmp_path)
     (repo / "main.py").write_text("print('local edit')\n", encoding="utf-8")

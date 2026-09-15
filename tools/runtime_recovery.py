@@ -16,6 +16,7 @@ from pathlib import Path
 import runtime_paths
 
 GIT_TIMEOUT_SEC = float(os.getenv("BOT_GIT_TIMEOUT_SEC", "15"))
+FILE_COPY_CHUNK_BYTES = 1024 * 1024
 
 AUTHORITATIVE_RUNTIME_PATHS = frozenset({
     "data/trade_events.jsonl",
@@ -266,6 +267,37 @@ def _append_durable(path: Path, payload: bytes) -> None:
         os.fsync(handle.fileno())
 
 
+def _is_file_prefix(shorter: Path, longer: Path) -> bool:
+    """Compare two files without loading the larger runtime stream in memory."""
+
+    shorter_size = shorter.stat().st_size
+    longer_size = longer.stat().st_size
+    if shorter_size > longer_size:
+        return False
+    with shorter.open("rb") as left, longer.open("rb") as right:
+        remaining = shorter_size
+        while remaining:
+            chunk_size = min(FILE_COPY_CHUNK_BYTES, remaining)
+            if left.read(chunk_size) != right.read(chunk_size):
+                return False
+            remaining -= chunk_size
+    return True
+
+
+def _append_file_suffix(source: Path, target: Path, offset: int) -> None:
+    """Append a source suffix durably while keeping memory bounded."""
+
+    with source.open("rb") as source_stream, target.open("ab") as target_stream:
+        source_stream.seek(offset)
+        while True:
+            payload = source_stream.read(FILE_COPY_CHUNK_BYTES)
+            if not payload:
+                break
+            target_stream.write(payload)
+        target_stream.flush()
+        os.fsync(target_stream.fileno())
+
+
 def _merge_source_into_runtime(
     repo_dir: Path,
     relative_path: str,
@@ -276,18 +308,17 @@ def _merge_source_into_runtime(
     source = repo_dir / relative_path
     target = runtime_dir / Path(relative_path).name
     try:
-        source_payload = source.read_bytes()
         if not target.exists():
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(source_payload)
+            shutil.copy2(source, target)
             return True, None
-        runtime_payload = target.read_bytes()
-        if runtime_payload == source_payload:
+        source_size = source.stat().st_size
+        target_size = target.stat().st_size
+        if source_size >= target_size and _is_file_prefix(target, source):
+            if source_size > target_size:
+                _append_file_suffix(source, target, target_size)
             return True, None
-        if source_payload.startswith(runtime_payload):
-            _append_durable(target, source_payload[len(runtime_payload):])
-            return True, None
-        if runtime_payload.startswith(source_payload):
+        if target_size > source_size and _is_file_prefix(source, target):
             return True, None
         return False, (
             f"legacy/runtime evidence diverged for {relative_path}; "
