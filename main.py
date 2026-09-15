@@ -46,6 +46,14 @@ def _timestamped_print(*args, **kwargs):
 
 builtins.print = _timestamped_print
 
+try:
+    ORPHAN_FINALIZER_MAX_SCAN_BYTES = max(
+        0,
+        int(os.getenv("BOT_ORPHAN_FINALIZER_MAX_SCAN_BYTES", str(128 * 1024 * 1024))),
+    )
+except (TypeError, ValueError):
+    ORPHAN_FINALIZER_MAX_SCAN_BYTES = 128 * 1024 * 1024
+
 import causal_trace
 import management_decision_evidence
 import broker_money
@@ -2366,6 +2374,16 @@ def _finalize_journal_orphans():
 
     events_file = journal.EVENTS_FILE
     if not events_file.exists():
+        return
+    if (
+        ORPHAN_FINALIZER_MAX_SCAN_BYTES > 0
+        and events_file.stat().st_size > ORPHAN_FINALIZER_MAX_SCAN_BYTES
+    ):
+        print(
+            "[OrphanFinalizer] recuperacion aplazada: journal de "
+            f"{events_file.stat().st_size} bytes supera el limite de "
+            f"arranque ({ORPHAN_FINALIZER_MAX_SCAN_BYTES} bytes)."
+        )
         return
 
     # 1. Detectar huerfanos del journal

@@ -33,6 +33,17 @@ def test_orphan_scan_does_not_materialize_whole_history(tmp_path, monkeypatch):
     assert peak < 8 * 1024 * 1024
 
 
+def test_orphan_scan_defers_large_journal_before_reading_it(tmp_path, monkeypatch, capsys):
+    source = tmp_path / "trade_events.jsonl"
+    source.write_text('{"ev":"heartbeat"}\n', encoding="utf-8")
+    monkeypatch.setattr(main.journal, "EVENTS_FILE", source)
+    monkeypatch.setattr(main, "ORPHAN_FINALIZER_MAX_SCAN_BYTES", 1)
+
+    main._finalize_journal_orphans()
+
+    assert "recuperacion aplazada" in capsys.readouterr().out
+
+
 def test_startup_status_message_confirms_active_production_version():
     text = main._startup_status_message({
         "git_commit": "0457a0e",
