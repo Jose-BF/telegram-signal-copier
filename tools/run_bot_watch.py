@@ -144,6 +144,7 @@ WATCHER_RELOAD_EXIT_CODE = 75
 WATCHER_GIT_BLOCKED_EXIT_CODE = 76
 WATCHER_GIT_RETRY_EXIT_CODE = 77
 WATCHER_DUPLICATE_EXIT_CODE = 78
+WATCHER_STARTUP_FAILURE_EXIT_CODE = 79
 WATCHER_INSTANCE_PORT = int(os.getenv("BOT_WATCHER_INSTANCE_PORT", "47628"))
 RETRYABLE_GIT_ACTIONS = {
     "fetch_failed",
@@ -504,6 +505,12 @@ def _sync_failure_exit_code(result: git_sync.SyncResult) -> int:
     if result.action in RETRYABLE_GIT_ACTIONS:
         return WATCHER_GIT_RETRY_EXIT_CODE
     return WATCHER_GIT_BLOCKED_EXIT_CODE
+
+
+def _child_failure_requires_operator(returncode: int | None) -> bool:
+    """Do not spin when the child failed before it became a live bot."""
+
+    return returncode in {1, WATCHER_DUPLICATE_EXIT_CODE}
 
 
 def _local_head() -> str:
@@ -2694,6 +2701,15 @@ def _run_main() -> int:
 
             # Si el bot murió inesperadamente, relanzar
             if proc.poll() is not None:
+                if _child_failure_requires_operator(proc.returncode):
+                    print(
+                        f"[Watch] El bot no pudo completar el arranque "
+                        f"(codigo {proc.returncode}). Queda detenido para "
+                        "evitar un bucle de reintentos; revisa MT5 y relanza "
+                        "la tarea cuando la cuenta este autorizada.",
+                        flush=True,
+                    )
+                    return WATCHER_STARTUP_FAILURE_EXIT_CODE
                 print(f"[Watch] Bot terminó con código {proc.returncode}. "
                       f"Relanzo en {RELAUNCH_DELAY_SEC}s.", flush=True)
                 session_sync = _checkpoint_runtime_data()

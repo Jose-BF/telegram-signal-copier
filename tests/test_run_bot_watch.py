@@ -2464,3 +2464,12 @@ def test_runtime_log_health_change_requires_watcher_self_update():
 def test_invalid_runtime_log_threshold_falls_back_without_crashing():
     assert watch._runtime_log_warn_bytes("not-a-number") == 512 * 1024 * 1024
     assert watch._runtime_log_warn_bytes("-1") == 512 * 1024 * 1024
+
+
+def test_startup_failure_does_not_enter_a_relaunch_loop():
+    assert watch._child_failure_requires_operator(1) is True
+    assert watch._child_failure_requires_operator(
+        watch.WATCHER_DUPLICATE_EXIT_CODE
+    ) is True
+    assert watch._child_failure_requires_operator(0) is False
+    assert watch._child_failure_requires_operator(None) is False
