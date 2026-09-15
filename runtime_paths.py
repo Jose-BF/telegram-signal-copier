@@ -242,6 +242,51 @@ def _source_signature(stat: os.stat_result) -> tuple[int, int, int, int]:
     return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns
 
 
+def _cached_stream_metadata(
+    path: Path,
+    name: str,
+    previous: Mapping[str, object],
+) -> tuple[int, str] | None:
+    """Reuse a prior full validation when the runtime stream is unchanged."""
+
+    streams = previous.get("streams")
+    if not isinstance(streams, Mapping):
+        return None
+    entry = streams.get(name)
+    if not isinstance(entry, Mapping):
+        return None
+    try:
+        byte_count = int(entry["bytes"])
+        digest = str(entry["sha256"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if byte_count < 0 or len(digest) != 64:
+        return None
+    current = path.stat()
+    if current.st_size != byte_count:
+        return None
+    cached_mtime = entry.get("mtime_ns")
+    if cached_mtime is not None:
+        try:
+            if current.st_mtime_ns != int(cached_mtime):
+                return None
+        except (TypeError, ValueError):
+            return None
+    else:
+        initialized_at = previous.get("initialized_at")
+        if not isinstance(initialized_at, str):
+            return None
+        try:
+            initialized_ns = int(
+                datetime.fromisoformat(initialized_at).timestamp() * 1_000_000_000
+            )
+        except (TypeError, ValueError, OverflowError):
+            return None
+        if current.st_mtime_ns > initialized_ns:
+            return None
+    return byte_count, digest
+
+
 def _atomic_copy_prefix(
     source: Path, target: Path, byte_count: int, expected_hash: str,
     source_stat: os.stat_result,
@@ -297,12 +342,31 @@ def initialize_runtime_store(
     preserved: list[str] = []
     archived_tails: list[str] = []
     stream_manifest: dict[str, dict] = {}
+    manifest_path = target_dir / RUNTIME_MANIFEST_NAME
+    previous: dict = {}
+    if manifest_path.is_file():
+        try:
+            previous = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            previous = {}
 
     for name in AUTHORITATIVE_STREAMS:
         source = source_dir / name
         target = target_dir / name
         if target.exists():
             before = target.stat()
+            cached = _cached_stream_metadata(target, name, previous)
+            if cached is not None:
+                byte_count, digest = cached
+                preserved.append(name)
+                stream_manifest[name] = {
+                    "action": "preserved",
+                    "bytes": byte_count,
+                    "sha256": digest,
+                    "source": "runtime-existing",
+                    "mtime_ns": before.st_mtime_ns,
+                }
+                continue
             byte_count, digest, tail = _inspect_stream_prefix(target)
             if _source_signature(target.stat()) != _source_signature(before):
                 raise ValueError(f"runtime source changed during validation: {target}")
@@ -317,6 +381,7 @@ def initialize_runtime_store(
                 "bytes": byte_count,
                 "sha256": digest,
                 "source": "runtime-existing",
+                "mtime_ns": target.stat().st_mtime_ns,
             }
             continue
         if not source.is_file():
@@ -345,15 +410,8 @@ def initialize_runtime_store(
             "bytes": byte_count,
             "sha256": digest,
             "source": relative_source,
+            "mtime_ns": target.stat().st_mtime_ns,
         }
-
-    manifest_path = target_dir / RUNTIME_MANIFEST_NAME
-    previous: dict = {}
-    if manifest_path.is_file():
-        try:
-            previous = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            previous = {}
     timestamp = (
         initialized_at
         or previous.get("initialized_at")

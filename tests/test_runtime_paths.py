@@ -82,6 +82,7 @@ def test_initialize_runtime_store_copies_and_hashes_authoritative_streams(
         "bytes": len(expected),
         "sha256": hashlib.sha256(expected).hexdigest(),
         "source": "data/trade_events.jsonl",
+        "mtime_ns": (runtime / "trade_events.jsonl").stat().st_mtime_ns,
     }
     assert runtime_paths.active_data_dir(repo) == runtime
 
@@ -103,6 +104,26 @@ def test_initialize_never_overwrites_existing_runtime_evidence(
     assert (runtime / "trade_events.jsonl").read_bytes() == existing
     assert "trade_events.jsonl" in result.preserved
     assert "trade_events.jsonl" not in result.copied
+
+
+def test_initialize_reuses_manifest_for_unchanged_runtime_streams(
+    tmp_path, monkeypatch
+):
+    repo = tmp_path / "repo"
+    _write_legacy(repo)
+    runtime = repo / "runtime_data"
+    monkeypatch.delenv("BOT_RUNTIME_DATA_DIR", raising=False)
+    runtime_paths.initialize_runtime_store(repo, runtime_dir=runtime)
+
+    def unexpected_full_scan(path):
+        raise AssertionError(f"unexpected full scan: {path}")
+
+    monkeypatch.setattr(runtime_paths, "_inspect_stream_prefix", unexpected_full_scan)
+    result = runtime_paths.initialize_runtime_store(repo, runtime_dir=runtime)
+
+    assert result.ok is True
+    assert set(result.preserved) == set(runtime_paths.AUTHORITATIVE_STREAMS)
+    assert result.copied == ()
 
 
 def test_initialize_repairs_partial_tails_in_existing_runtime_store(
