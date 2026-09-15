@@ -557,6 +557,20 @@ def _try_capture_broker_money_contract_snapshot(
     return True
 
 
+async def _run_startup_broker_money_capture() -> bool:
+    """Capture money metadata without delaying Telegram startup."""
+
+    ready = await asyncio.to_thread(
+        _try_capture_broker_money_contract_snapshot,
+        force=True,
+    )
+    print(
+        "[BrokerMoney] captura inicial "
+        f"{'completada' if ready else 'pendiente'}"
+    )
+    return ready
+
+
 async def _broker_money_contract_monitor(
     interval_sec: float | None = None,
 ) -> None:
@@ -4702,13 +4716,10 @@ async def main():
     # descuadra la contabilidad (auditoria 2026-05-16).
     _finalize_journal_orphans()
 
-    # Captura local y barata: no descarga ticks, no usa Git y no toca ordenes.
-    # Se ejecuta fuera del loop y despues del resync para que una recuperacion
-    # historica grande nunca retrase la proteccion de posiciones abiertas.
-    money_capture_ready = await asyncio.to_thread(
-        _try_capture_broker_money_contract_snapshot,
-        force=True,
-    )
+    # La captura puede depender de IPC/MT5. Se ejecuta en segundo plano para
+    # que una latencia del terminal nunca retrase la escucha de Telegram.
+    money_capture_ready = None
+    asyncio.ensure_future(_run_startup_broker_money_capture())
 
     # Iniciar Telethon
     await client.start(phone=config.TELEGRAM_PHONE)
