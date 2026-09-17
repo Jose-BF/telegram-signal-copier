@@ -266,6 +266,58 @@ def test_checkpoint_exports_only_complete_records_and_advances_cursor(
     assert cursor["offset"] == chunk.end
 
 
+def test_checkpoint_can_stage_a_large_suffix_in_bounded_passes(tmp_path):
+    runtime = _runtime(tmp_path)
+    events = runtime / "trade_events.jsonl"
+    payload = b'{"ev":"one"}\n{"ev":"two"}\n{"ev":"three"}\n'
+    events.write_bytes(payload)
+
+    first = runtime_telemetry.checkpoint_runtime(
+        runtime,
+        stream_names=("trade_events.jsonl",),
+        max_read_bytes=len(b'{"ev":"one"}\n{"ev":"two"}\n'),
+    )
+    assert first.ok is True
+    assert first.chunks[-1].end == len(b'{"ev":"one"}\n{"ev":"two"}\n')
+
+    second = runtime_telemetry.checkpoint_runtime(
+        runtime,
+        stream_names=("trade_events.jsonl",),
+        max_read_bytes=len(payload),
+    )
+    assert second.ok is True
+    assert second.chunks[-1].end == len(payload)
+
+
+def test_anchor_validation_avoids_rehashing_the_entire_exported_prefix(
+    tmp_path,
+    monkeypatch,
+):
+    runtime = _runtime(tmp_path)
+    events = runtime / "trade_events.jsonl"
+    events.write_bytes(b'{"ev":"one"}\n')
+    first = runtime_telemetry.checkpoint_runtime(
+        runtime,
+        stream_names=("trade_events.jsonl",),
+    )
+    assert first.ok is True
+    with events.open("ab") as handle:
+        handle.write(b'{"ev":"two"}\n')
+
+    monkeypatch.setattr(
+        runtime_telemetry,
+        "_sha256_file_prefix",
+        lambda *_args: pytest.fail("full prefix hash must not run"),
+    )
+    resumed = runtime_telemetry.checkpoint_runtime(
+        runtime,
+        stream_names=("trade_events.jsonl",),
+        verify_full_prefix=False,
+    )
+    assert resumed.ok is True
+    assert len(resumed.chunks) == 1
+
+
 def test_checkpoint_normalizes_platform_specific_gzip_header(
     tmp_path,
     monkeypatch,

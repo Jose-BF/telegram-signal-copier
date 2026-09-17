@@ -55,6 +55,9 @@ from state import Signal
 # el broker o MT5 esta down. Antes giraba indefinidamente sin anomaly. Ahora
 # tras alcanzar threshold emite warning una vez por episodio.
 NULL_TICK_STREAK_THRESHOLD = 3000   # ~30s a 10ms por ciclo
+CANDIDATE_ENTRY_RETRY_INITIAL_S = 1.0
+CANDIDATE_ENTRY_RETRY_MAX_S = 60.0
+GOLD_555_TRAILING_INTERVAL_S = 1.0
 
 
 def _basket_guard_policy() -> live_basket_guard.GuardPolicy:
@@ -118,6 +121,20 @@ def _journal_anomaly(
         detail,
         **fields,
     )
+
+
+def _gold_555_trailing_due(
+    *,
+    now_monotonic: float,
+    last_sample_monotonic: float,
+) -> bool:
+    """Avoid turning every broker tick into a journal and MT5 write burst."""
+    return now_monotonic - last_sample_monotonic >= GOLD_555_TRAILING_INTERVAL_S
+
+
+def _candidate_entry_retry_delay_s(failures: int) -> float:
+    exponent = max(0, min(int(failures) - 1, 6))
+    return min(CANDIDATE_ENTRY_RETRY_MAX_S, CANDIDATE_ENTRY_RETRY_INITIAL_S * (2 ** exponent))
 
 
 def _guard_state(signal: Signal) -> live_basket_guard.GuardState:
@@ -1392,6 +1409,8 @@ async def _process_candidate_entry_tick(
         return 0
     if signal.requested_close_reason or signal.basket_guard_triggered:
         return 0
+    if time.monotonic() < float(signal.candidate_entry_retry_not_before or 0.0):
+        return 0
     now = datetime.utcnow() if now is None else now
     expires_at = signal.candidate_entry_expires_at
     if now > expires_at:
@@ -1439,6 +1458,13 @@ async def _process_candidate_entry_tick(
 
         result = await _open_candidate_leg(signal, leg, observed_price)
         if not result:
+            signal.candidate_entry_retry_failures += 1
+            retry_after_s = _candidate_entry_retry_delay_s(
+                signal.candidate_entry_retry_failures,
+            )
+            signal.candidate_entry_retry_not_before = (
+                time.monotonic() + retry_after_s
+            )
             _journal_event(
                 f"{signal.channel}_{signal.message_id}",
                 "dubai_candidate_leg_fill_failed",
@@ -1447,12 +1473,16 @@ async def _process_candidate_entry_tick(
                 volume=float(leg["volume"]),
                 observed_price=observed_price,
                 retry_pending=True,
+                retry_after_s=retry_after_s,
+                retry_failures=signal.candidate_entry_retry_failures,
                 expires_at=expires_at.isoformat(timespec="milliseconds"),
             )
             break
 
         ticket, fill_price = int(result[0]), float(result[1])
         signal.dca_tickets.append(ticket)
+        signal.candidate_entry_retry_failures = 0
+        signal.candidate_entry_retry_not_before = 0.0
         filled_indexes.append(leg_index)
         signal.candidate_filled_leg_indexes = list(filled_indexes)
         exact_sl = None
@@ -2214,6 +2244,7 @@ async def run(signal: Signal, levels: list[float]):
     last_gold_sl_check_ts = 0.0
     gold_sl_check_interval_s = 5.0
     gold_sl_check_error_alerted = False
+    last_gold_555_trailing_ts = 0.0
     last_dubai_sl_check_ts = 0.0
     dubai_sl_check_interval_s = 5.0
     dubai_sl_check_error_alerted = False
@@ -2514,7 +2545,15 @@ async def run(signal: Signal, levels: list[float]):
                         pass
                 basket_guard_error_alerted = True
 
-        if gold_555_active and guard_summary is not None:
+        if (
+            gold_555_active
+            and guard_summary is not None
+            and _gold_555_trailing_due(
+                now_monotonic=time.monotonic(),
+                last_sample_monotonic=last_gold_555_trailing_ts,
+            )
+        ):
+            last_gold_555_trailing_ts = time.monotonic()
             try:
                 await _apply_gold_555_trailing_stops(
                     signal,

@@ -143,6 +143,8 @@ class Signal:
     candidate_filled_leg_indexes: list[int] = field(default_factory=list)
     candidate_entry_expiry_logged: bool = False
     candidate_entry_plan_error_alerted: bool = False
+    candidate_entry_retry_not_before: float = 0.0
+    candidate_entry_retry_failures: int = 0
     candidate_trailing_error_alerted: bool = False
     candidate_prolonged_exposure_alerted: bool = False
     candidate_provisional_sl: Optional[float] = None

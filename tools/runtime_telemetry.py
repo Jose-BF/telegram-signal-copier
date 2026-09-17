@@ -304,6 +304,8 @@ def _outbox_stream_dir(runtime_dir: Path, stream: str) -> Path:
 def _validate_exported_prefix(
     source: Path,
     state: dict,
+    *,
+    verify_full_prefix: bool = True,
 ) -> tuple[int, str | None]:
     offset = int(state.get("offset") or 0)
     size = source.stat().st_size
@@ -312,7 +314,7 @@ def _validate_exported_prefix(
     if offset <= 0:
         return 0, None
     expected_prefix = str(state.get("prefix_sha256") or "")
-    if expected_prefix:
+    if expected_prefix and verify_full_prefix:
         try:
             actual_prefix = _sha256_file_prefix(source, offset)
         except (OSError, ValueError) as exc:
@@ -438,7 +440,12 @@ def _write_chunk(
     )
 
 
-def _cursor_payload(source: Path, offset: int) -> bytes:
+def _cursor_payload(
+    source: Path,
+    offset: int,
+    *,
+    include_full_prefix: bool = True,
+) -> bytes:
     anchor_start = max(0, offset - 4096)
     with source.open("rb") as handle:
         handle.seek(anchor_start)
@@ -449,9 +456,10 @@ def _cursor_payload(source: Path, offset: int) -> bytes:
         "offset": offset,
         "anchor_start": anchor_start,
         "anchor_sha256": _sha256(anchor),
-        "prefix_sha256": _sha256_file_prefix(source, offset),
         "updated_at": _now_iso(),
     }
+    if include_full_prefix:
+        state["prefix_sha256"] = _sha256_file_prefix(source, offset)
     return (json.dumps(state, indent=2, sort_keys=True) + "\n").encode(
         "utf-8"
     )
@@ -462,6 +470,8 @@ def checkpoint_runtime(
     *,
     stream_names: Iterable[str] = DEFAULT_STREAM_NAMES,
     max_chunk_bytes: int = DEFAULT_MAX_CHUNK_BYTES,
+    max_read_bytes: int | None = None,
+    verify_full_prefix: bool = True,
     code_commit: str | None = None,
     created_at: str | None = None,
 ) -> CheckpointResult:
@@ -476,6 +486,8 @@ def checkpoint_runtime(
             runtime_dir,
             stream_names=stream_names,
             max_chunk_bytes=max_chunk_bytes,
+            max_read_bytes=max_read_bytes,
+            verify_full_prefix=verify_full_prefix,
             code_commit=code_commit,
             created_at=created_at,
         )
@@ -488,6 +500,8 @@ def _checkpoint_runtime_locked(
     *,
     stream_names: Iterable[str] = DEFAULT_STREAM_NAMES,
     max_chunk_bytes: int = DEFAULT_MAX_CHUNK_BYTES,
+    max_read_bytes: int | None = None,
+    verify_full_prefix: bool = True,
     code_commit: str | None = None,
     created_at: str | None = None,
 ) -> CheckpointResult:
@@ -511,13 +525,20 @@ def _checkpoint_runtime_locked(
         state_path = _stream_state_path(runtime_dir, stream)
         try:
             state = _read_json(state_path, {})
-            offset, prefix_error = _validate_exported_prefix(source, state)
+            offset, prefix_error = _validate_exported_prefix(
+                source,
+                state,
+                verify_full_prefix=verify_full_prefix,
+            )
             if prefix_error:
                 errors.append(prefix_error)
                 continue
             with source.open("rb") as handle:
                 handle.seek(offset)
-                appended = handle.read()
+                limit = None if max_read_bytes is None else int(max_read_bytes)
+                if limit is not None and limit <= 0:
+                    raise ValueError("max_read_bytes must be positive")
+                appended = handle.read(limit)
             complete, tail = _complete_prefix(appended)
             pending[stream] = len(tail)
             _validate_jsonl(stream, complete)
@@ -533,7 +554,14 @@ def _checkpoint_runtime_locked(
                 )
                 chunks.append(record)
                 current = record.end
-                _atomic_write(state_path, _cursor_payload(source, current))
+                _atomic_write(
+                    state_path,
+                    _cursor_payload(
+                        source,
+                        current,
+                        include_full_prefix=verify_full_prefix,
+                    ),
+                )
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             errors.append(f"{stream}: {exc}")
 
@@ -1619,6 +1647,8 @@ def cli(argv: list[str] | None = None) -> int:
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--checkout-dir", type=Path)
     parser.add_argument("--timeout", type=float, default=DEFAULT_GIT_TIMEOUT_SEC)
+    parser.add_argument("--max-staged-bytes", type=int)
+    parser.add_argument("--anchor-prefix-validation", action="store_true")
     args = parser.parse_args(argv)
 
     if args.pull:
@@ -1649,6 +1679,8 @@ def cli(argv: list[str] | None = None) -> int:
     checkpoint = checkpoint_runtime(
         runtime,
         code_commit=_code_commit(ROOT),
+        max_read_bytes=args.max_staged_bytes,
+        verify_full_prefix=not args.anchor_prefix_validation,
     )
     if not checkpoint.ok:
         print(f"[Telemetry] ERROR: {'; '.join(checkpoint.errors)}", flush=True)

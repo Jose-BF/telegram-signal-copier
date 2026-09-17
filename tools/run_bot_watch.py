@@ -180,6 +180,9 @@ TELEMETRY_PUBLISH_SEC = float(os.getenv(
 TELEMETRY_PROCESS_MAX_SEC = float(os.getenv(
     "BOT_TELEMETRY_PROCESS_MAX_SEC", "600"))
 TELEMETRY_PROCESS_STOP_TIMEOUT_SEC = 5.0
+WATCHDOG_CHECKPOINT_MAX_READ_BYTES = int(os.getenv(
+    "BOT_WATCHDOG_CHECKPOINT_MAX_READ_BYTES", str(16 * 1024 * 1024),
+))
 _telemetry_publish_process = None
 _telemetry_publish_started_at = None
 
@@ -305,6 +308,8 @@ def _checkpoint_runtime_data() -> git_sync.SyncResult:
     checkpoint = runtime_telemetry.checkpoint_runtime(
         RUNTIME_DATA_DIR,
         code_commit=_local_head() or None,
+        max_read_bytes=WATCHDOG_CHECKPOINT_MAX_READ_BYTES,
+        verify_full_prefix=False,
     )
     local_head = _local_head()
     remote_head = _remote_head()
@@ -371,6 +376,9 @@ def _trigger_telemetry_publication(*, now: float | None = None) -> bool:
         str(RUNTIME_DATA_DIR),
         "--timeout",
         str(TELEMETRY_GIT_TIMEOUT_SEC),
+        "--max-staged-bytes",
+        str(WATCHDOG_CHECKPOINT_MAX_READ_BYTES),
+        "--anchor-prefix-validation",
     ]
     environment = os.environ.copy()
     environment["BOT_RUNTIME_DATA_DIR"] = str(RUNTIME_DATA_DIR)

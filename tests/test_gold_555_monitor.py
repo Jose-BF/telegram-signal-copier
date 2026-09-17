@@ -93,6 +93,17 @@ def test_flat_555_waits_for_unfilled_legs_before_entry_expiry() -> None:
     ) is False
 
 
+def test_555_trailing_is_limited_to_a_stable_management_cadence() -> None:
+    assert monitor._gold_555_trailing_due(
+        now_monotonic=100.99,
+        last_sample_monotonic=100.0,
+    ) is False
+    assert monitor._gold_555_trailing_due(
+        now_monotonic=101.0,
+        last_sample_monotonic=100.0,
+    ) is True
+
+
 @pytest.mark.parametrize(
     ("mutate", "now_offset_s"),
     [
@@ -288,6 +299,34 @@ async def test_555_entry_plan_stops_opening_after_expiry(monkeypatch) -> None:
     assert result == 0
     assert opened == []
     assert signal.candidate_entry_expiry_logged is True
+
+
+@pytest.mark.asyncio
+async def test_555_failed_adverse_leg_uses_backoff_before_retrying(monkeypatch) -> None:
+    signal = _signal()
+    attempted = []
+
+    async def no_fill(*args, **kwargs):
+        attempted.append((args, kwargs))
+        return None
+
+    clock = {"now": 100.0}
+    monkeypatch.setattr(monitor, "_open_candidate_leg", no_fill)
+    monkeypatch.setattr(monitor.time, "monotonic", lambda: clock["now"])
+
+    tick = SimpleNamespace(bid=4298.3, ask=4298.5, time_msc=123)
+    assert await monitor._process_candidate_entry_tick(signal, tick) == 0
+    assert signal.candidate_entry_retry_failures == 1
+    assert signal.candidate_entry_retry_not_before == 101.0
+
+    clock["now"] = 100.5
+    assert await monitor._process_candidate_entry_tick(signal, tick) == 0
+    assert len(attempted) == 1
+
+    clock["now"] = 101.0
+    assert await monitor._process_candidate_entry_tick(signal, tick) == 0
+    assert len(attempted) == 2
+    assert signal.candidate_entry_retry_failures == 2
 
 
 @pytest.mark.asyncio
