@@ -15,6 +15,7 @@ Canal 1 flujo:
 import asyncio
 import hashlib
 import json
+import os
 import re
 import time
 from dataclasses import dataclass, field
@@ -11098,6 +11099,9 @@ _POLL_MSG_LIMIT  = 10    # últimos N mensajes a revisar por canal en cada ciclo
 _POLL_STARTUP_SCAN_LIMIT = 200
 _POLL_STARTUP_MAX_MESSAGES = 2000
 _POLL_STARTUP_GAP_RETRY_S = 300.0
+_POLL_STARTUP_HISTORY_MAX_BYTES = int(
+    os.environ.get("POLL_STARTUP_HISTORY_MAX_BYTES", 16 * 1024 * 1024)
+)
 _POLL_COVERAGE_LOG_INTERVAL_S = 300
 _POLL_COVERAGE_OVERLAP_S = 120
 _POLL_LEGACY_COVERAGE_LOOKBACK_S = 24 * 60 * 60
@@ -11298,9 +11302,15 @@ def _load_poller_startup_history(
     channel_id: int,
     *,
     path: Path | None = None,
+    max_scan_bytes: int | None = None,
 ) -> dict:
-    """Load the previous coverage boundary and Telegram revisions from JSONL."""
+    """Load bounded recent coverage and Telegram revisions from JSONL."""
     path = Path(path or journal.EVENTS_FILE)
+    max_scan_bytes = (
+        _POLL_STARTUP_HISTORY_MAX_BYTES
+        if max_scan_bytes is None
+        else max(0, int(max_scan_bytes))
+    )
     message_versions: dict[int, str | None] = {}
     raw_revisions: dict[tuple[int, str], datetime | None] = {}
     raw_revision_dates: dict[tuple[int, str], datetime | None] = {}
@@ -11315,6 +11325,7 @@ def _load_poller_startup_history(
     if not path.is_file():
         return {
             "has_channel_history": False,
+            "history_truncated": False,
             "coverage_cutoff": None,
             "message_versions": message_versions,
             "raw_revisions": raw_revisions,
@@ -11322,11 +11333,18 @@ def _load_poller_startup_history(
             "processing_contract_utc": None,
         }
 
-    with path.open("r", encoding="utf-8", errors="replace") as source:
+    journal_size = path.stat().st_size
+    scan_start = max(0, journal_size - max_scan_bytes)
+    history_truncated = scan_start > 0
+    with path.open("rb") as source:
+        if history_truncated:
+            source.seek(scan_start)
+            # The first partial JSONL record belongs to the omitted prefix.
+            source.readline()
         for raw_line in source:
             try:
-                row = json.loads(raw_line)
-            except (TypeError, ValueError):
+                row = json.loads(raw_line.decode("utf-8", errors="replace"))
+            except (AttributeError, TypeError, ValueError):
                 continue
             row_ts = _as_utc_datetime(row.get("ts"))
             if row.get("ev") == "session_started":
@@ -11468,6 +11486,8 @@ def _load_poller_startup_history(
         "has_channel_history": bool(message_versions)
         or bool(processed_revisions)
         or explicit_coverage_cutoff is not None,
+        "history_truncated": history_truncated,
+        "history_scanned_bytes": journal_size - scan_start,
         "coverage_cutoff": coverage_cutoff,
         "message_versions": message_versions,
         "raw_revisions": raw_revisions,
@@ -11876,6 +11896,8 @@ async def _poller_initial_scan_channel(
         channel_id=channel_id,
         history_known=history.get("has_channel_history", False),
         coverage_cutoff=(cutoff.isoformat() if cutoff else None),
+        history_truncated=history.get("history_truncated", False),
+        history_scanned_bytes=history.get("history_scanned_bytes"),
         equivalent_processed_revisions=[
             {"message_id": old[0], "unprocessed_revision": old[1],
              "confirmed_equivalent_revision": newer[1]}

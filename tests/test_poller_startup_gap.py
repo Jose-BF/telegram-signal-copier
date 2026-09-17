@@ -104,6 +104,40 @@ async def test_startup_history_does_not_block_the_telegram_event_loop(gap_scan, 
     assert observed_threads and observed_threads[0] != event_loop_thread
 
 
+def test_startup_history_reads_only_the_recent_journal_tail(tmp_path):
+    old_rows = "".join(
+        json.dumps({"ev": "telegram_raw", "channel": "canal2", "chat_id": 2,
+                    "message_id": index, "text": "x" * 200}) + "\n"
+        for index in range(100)
+    )
+    cutoff = "2026-09-17T10:00:00+00:00"
+    recent_rows = "".join([
+        json.dumps({"ev": "telegram_processing_contract", "channel": "canal2",
+                    "channel_id": 2, "activated_utc": cutoff}) + "\n",
+        json.dumps({"ev": "telegram_poll_coverage", "channel": "canal2",
+                    "channel_id": 2, "covered_through_utc": cutoff}) + "\n",
+        json.dumps({"ev": "telegram_raw", "channel": "canal2", "chat_id": 2,
+                    "message_id": 999, "edit_date_utc": None, "ts": cutoff,
+                    "date_utc": cutoff, "text": "recent", "has_media": False,
+                    "has_photo": False, "has_document": False, "sticker_id": None,
+                    "is_reply": False, "reply_to_msg_id": None}) + "\n",
+        json.dumps({"ev": "telegram_processed", "channel": "canal2",
+                    "chat_id": 2, "message_id": 999, "revision_token": "new",
+                    "ts": cutoff}) + "\n",
+    ])
+    path = tmp_path / "events.jsonl"
+    path.write_text(old_rows + recent_rows, encoding="utf-8")
+
+    history = listener._load_poller_startup_history(
+        "canal2", 2, path=path, max_scan_bytes=len(recent_rows) + 10,
+    )
+
+    assert history["history_truncated"] is True
+    assert history["history_scanned_bytes"] <= len(recent_rows) + 10
+    assert history["coverage_cutoff"] == datetime.fromisoformat(cutoff)
+    assert history["message_versions"] == {999: None}
+
+
 @pytest.mark.parametrize("equivalent", [True, False])
 def test_processed_equivalent_edit_does_not_pin_recovery_to_old_revision(
     tmp_path, equivalent,
