@@ -16,15 +16,30 @@ Pipeline:
 import asyncio
 import re
 import json
+import threading
 import time
-from google import genai
 import config
 from interpretation_firewall import (
     extract_provider_stated_be_price,
     normalize_classifier_outputs,
 )
 
-_client = genai.Client(api_key=config.GOOGLE_API_KEY)
+# google.genai loads a large dependency tree and has blocked VM startup in the
+# past. Regex classification must stay available even when that fallback is
+# slow or unavailable, so create the client only on its first real use.
+_client = None
+_client_lock = threading.Lock()
+
+
+def _gemini_client():
+    global _client
+    if _client is not None:
+        return _client
+    with _client_lock:
+        if _client is None:
+            from google import genai
+            _client = genai.Client(api_key=config.GOOGLE_API_KEY)
+    return _client
 
 # ───────────────────────────────────────────────────────────────────────────
 # Prompt LEGACY (sin contexto) — usado cuando classify() se llama sin signal.
@@ -798,7 +813,7 @@ def _gemini_classify(text: str, signal=None, max_retries: int = 3,
     last_error: Exception | None = None
     for attempt in range(max_retries):
         try:
-            resp = _client.models.generate_content(
+            resp = _gemini_client().models.generate_content(
                 model="gemini-2.5-flash",
                 contents=prompt,
             )

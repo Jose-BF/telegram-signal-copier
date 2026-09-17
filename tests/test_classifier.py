@@ -33,6 +33,7 @@ from classifier import (
     classify_one,
 )
 from state import Signal, TradeContext
+import classifier
 
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
@@ -43,6 +44,10 @@ def _actions(text: str) -> list[dict]:
 
 def _action_names(text: str) -> list[str]:
     return [a["action"] for a in _regex_classify_all(text)]
+
+
+def test_gemini_client_is_not_created_during_classifier_import() -> None:
+    assert classifier._client is None
 
 
 def test_context_prompt_separates_bot_protection_from_provider_levels_and_money():
