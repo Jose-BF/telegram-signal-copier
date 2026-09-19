@@ -629,8 +629,18 @@ def account_evidence(info=None) -> dict:
 def init() -> bool:
     global _symbol_point_cache
     if not mt5.initialize():
-        print(f"[MT5] initialize() falló: {mt5.last_error()}")
-        return False
+        error = mt5.last_error()
+        print(f"[MT5] initialize() fallo: {error}")
+        if not error or error[0] != -10005:
+            return False
+        # A cold unattended terminal may not restore its saved account before IPC.
+        print("[MT5] Reintento de IPC con la cuenta configurada.")
+        if not mt5.initialize(
+            login=config.MT5_LOGIN, password=config.MT5_PASSWORD,
+            server=config.MT5_SERVER, timeout=15000,
+        ):
+            print(f"[MT5] Reintento de initialize() fallo: {mt5.last_error()}")
+            return False
 
     # Evita llamar mt5.login() si el terminal ya está en la cuenta correcta.
     # En MT5, la opción "Disable algorithmic trading when the account has been

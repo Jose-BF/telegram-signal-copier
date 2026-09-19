@@ -13,11 +13,16 @@ running task is not duplicated. The watcher also holds an exclusive port lock.
 The task can therefore start before interactive logon, subject to actual MT5
 startup/IPC availability in that Windows session. Test the complete reboot
 before claiming unattended recovery is verified.
+For an intentional maintenance stop, disable the task before stopping its
+processes; otherwise the next one-minute trigger will restore the runtime.
 
 Network/DNS failures keep Telegram's reconnect loop alive. A transient initial
 connection or MT5 IPC failure exits with 77, so the watcher retries with capped
 backoff. Authentication errors and other configuration failures are not
 classified as transient. No historical entry-age checks are relaxed.
+On a cold MT5 IPC timeout, bootstrap first tries a bounded initialization with
+the configured account. An already initialized terminal keeps the existing
+no-relogin path, to preserve its algorithmic trading setting.
 
 The journal queue has a 4096-event cap. If disk I/O stalls until the queue is
 full, new receipts fail explicitly instead of allocating unlimited memory or
@@ -33,8 +38,11 @@ depth. Existing bounded 16 MiB history/checkpoint reads remain in place.
 
 NTFS compression can reduce physical storage without changing raw filenames,
 contents, byte offsets, hashes or replay contracts. Mark `runtime_data` for
-compression inheritance and compress the large existing JSONL/console files
-once at low priority. Never truncate or delete raw evidence as log maintenance.
+compression inheritance. A bulk pass over an existing multi-GB file must run
+in a maintenance window: even low CPU priority can saturate guest disk I/O and
+delay cold imports/MT5 startup. Windows can also take time to cancel an in-flight
+compression operation. Never schedule this bulk pass on the live startup path.
+Never truncate or delete raw evidence as log maintenance.
 Compression does not provide unlimited retention: act on the disk warning by
 expanding storage or arranging a verified archival migration.
 

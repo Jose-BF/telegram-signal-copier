@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 import executor
 import pytest
+from unittest.mock import Mock
 
 
 @pytest.fixture(autouse=True)
@@ -83,3 +84,28 @@ def test_init_journals_connected_account_evidence(monkeypatch):
             "equity": None,
         },
     )]
+
+
+def test_cold_unattended_ipc_timeout_retries_with_configured_account(monkeypatch):
+    initialize = Mock(side_effect=[False, True])
+    monkeypatch.setattr(executor.mt5, "initialize", initialize)
+    monkeypatch.setattr(executor.mt5, "last_error", lambda: (-10005, "IPC timeout"))
+    monkeypatch.setattr(executor.mt5, "account_info", lambda: _account())
+    monkeypatch.setattr(executor.mt5, "symbol_select", lambda *args: True)
+    login = Mock(side_effect=AssertionError("already on the configured account"))
+    monkeypatch.setattr(executor.mt5, "login", login)
+    assert executor.init() is True
+    assert initialize.call_count == 2
+    assert initialize.call_args.kwargs == dict(
+        login=executor.config.MT5_LOGIN, password=executor.config.MT5_PASSWORD,
+        server=executor.config.MT5_SERVER, timeout=15000,
+    )
+    login.assert_not_called()
+
+
+def test_failed_mt5_auth_does_not_retry_initialize(monkeypatch):
+    initialize = Mock(return_value=False)
+    monkeypatch.setattr(executor.mt5, "initialize", initialize)
+    monkeypatch.setattr(executor.mt5, "last_error", lambda: (-6, "Authorization failed"))
+    assert executor.init() is False
+    initialize.assert_called_once_with()
