@@ -43,6 +43,7 @@ if str(REPO_DIR) not in sys.path:
     sys.path.insert(0, str(REPO_DIR))
 
 import runtime_paths
+import runtime_storage
 import replay_source_contract
 from parity_incident_journal import load_registry as load_incident_journal
 from parity_incident_registry import reconcile_parity_incidents
@@ -152,6 +153,8 @@ RETRYABLE_GIT_ACTIONS = {
     "push_failed",
 }
 WATCHER_SELF_UPDATE_PATHS = {
+    "runtime_storage.py",
+    "tools/start_logged_bot.py",
     "runtime_paths.py",
     "tools/git_sync.py",
     "tools/run_bot_watch.py",
@@ -305,6 +308,13 @@ def _prepare_repository_for_runtime() -> git_sync.SyncResult:
 
 def _checkpoint_runtime_data() -> git_sync.SyncResult:
     """Create immutable local chunks without touching Git or the network."""
+    if not runtime_storage.storage_health(RUNTIME_DATA_DIR)["allow_telemetry"]:
+        print("[Watch] Reserva de disco: checkpoint aplazado; originales conservados.", flush=True)
+        return git_sync.SyncResult(
+            ok=True, action="telemetry_checkpoint_degraded", branch=_current_branch(),
+            local_head=_local_head() or None, remote_head=_remote_head() or None,
+            error="disk_reserve",
+        )
     checkpoint = runtime_telemetry.checkpoint_runtime(
         RUNTIME_DATA_DIR,
         code_commit=_local_head() or None,
@@ -368,6 +378,9 @@ def _trigger_telemetry_publication(*, now: float | None = None) -> bool:
         )
         _telemetry_publish_process = None
         _telemetry_publish_started_at = None
+    if not runtime_storage.storage_health(RUNTIME_DATA_DIR)["allow_telemetry"]:
+        print("[Watch] Reserva de disco: publicacion aplazada; el bot sigue activo.", flush=True)
+        return False
     command = [
         sys.executable,
         str(REPO_DIR / "tools" / "runtime_telemetry.py"),
@@ -2675,6 +2688,7 @@ def _run_main() -> int:
     last_telemetry_publish = 0.0
     last_supervisor_tick = time.time()
     pending_code_remote = None
+    consecutive_child_failures = 0
 
     try:
         while True:
@@ -2718,18 +2732,23 @@ def _run_main() -> int:
                         flush=True,
                     )
                     return WATCHER_STARTUP_FAILURE_EXIT_CODE
+                if time.time() - bot_started_at >= 600:
+                    consecutive_child_failures = 0
+                consecutive_child_failures += 1
+                retry_delay = min(300, RELAUNCH_DELAY_SEC * 2 ** min(6, consecutive_child_failures - 1))
                 print(f"[Watch] Bot terminó con código {proc.returncode}. "
-                      f"Relanzo en {RELAUNCH_DELAY_SEC}s.", flush=True)
+                      f"Relanzo en {retry_delay}s.", flush=True)
                 session_sync = _checkpoint_runtime_data()
                 if not session_sync.ok:
                     return _sync_failure_exit_code(session_sync)
                 last_local = str(session_sync.local_head)
                 last_remote = str(session_sync.remote_head)
-                time.sleep(RELAUNCH_DELAY_SEC)
+                time.sleep(retry_delay)
                 proc = _spawn_bot_with_active_channels()
                 if proc is None:
                     return WATCHER_GIT_BLOCKED_EXIT_CODE
                 bot_started_at = time.time()
+                last_supervisor_tick = bot_started_at
                 continue
 
             now = time.time()

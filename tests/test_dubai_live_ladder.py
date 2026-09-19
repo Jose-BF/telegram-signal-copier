@@ -120,6 +120,8 @@ async def test_recovered_filled_leg_index_cannot_be_opened_twice(monkeypatch):
 async def test_failed_fill_stays_pending_until_a_later_tick(monkeypatch):
     signal, observed_at = _candidate_signal("SELL")
     results = iter([None, (6201, 4204.3)])
+    clock = [100.0]
+    monkeypatch.setattr(monitor.time, "monotonic", lambda: clock[0])
 
     async def fake_open(sig, leg, observed_price):
         return next(results)
@@ -132,6 +134,10 @@ async def test_failed_fill_stays_pending_until_a_later_tick(monkeypatch):
     failed = await monitor._process_candidate_entry_tick(
         signal, tick, now=observed_at + timedelta(minutes=1),
     )
+    assert await monitor._process_candidate_entry_tick(
+        signal, tick, now=observed_at + timedelta(minutes=1),
+    ) == 0
+    clock[0] += 1.0
     retried = await monitor._process_candidate_entry_tick(
         signal, tick, now=observed_at + timedelta(minutes=1, seconds=1),
     )

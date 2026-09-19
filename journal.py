@@ -38,7 +38,7 @@ import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from queue import Queue
+from queue import Full, Queue
 from threading import Event as ThreadEvent, Lock, Thread
 from typing import Optional
 
@@ -240,7 +240,7 @@ def _reset_critical_notify_rate_limit() -> None:
     with _critical_notify_lock:
         _critical_notify_seen.clear()
         _critical_notify_inflight.clear()
-_event_queue: Queue = Queue()
+_event_queue: Queue = Queue(maxsize=4096)
 _event_writer_guard = Lock()
 _event_writer_thread: Optional[Thread] = None
 _event_failure_guard = Lock()
@@ -374,8 +374,12 @@ def flush_events(timeout: float = 10.0) -> bool:
         return True
     _ensure_event_writer()
     barrier = _FlushBarrier()
-    _event_queue.put((None, None, None, None, barrier, None))
-    if not barrier.ready.wait(timeout=max(0.0, float(timeout))):
+    deadline = time.monotonic() + max(0.0, float(timeout))
+    try:
+        _event_queue.put((None, None, None, None, barrier, None), timeout=max(0.0, float(timeout)))
+    except Full:
+        return False
+    if not barrier.ready.wait(timeout=max(0.0, deadline - time.monotonic())):
         return False
     observed_failures = int(barrier.failure_count or 0)
     with _event_failure_guard:
@@ -429,7 +433,7 @@ def event(signal_id: str, ev: str, **fields):
         }
         line = json.dumps(record, default=_serialize) + "\n"
         _ensure_event_writer()
-        _event_queue.put((
+        _event_queue.put_nowait((
             target_file,
             line,
             ev,

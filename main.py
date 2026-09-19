@@ -12,11 +12,13 @@ Primera vez (sin sticker IDs de Canal 1):
 import asyncio
 from bisect import bisect_right
 import builtins
+import errno
 import faulthandler
 import io
 import json
 import math
 import os
+import socket
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -75,6 +77,7 @@ import gold_555_live_candidate
 import gold_live_candidate
 import executor
 import journal
+import runtime_storage
 import live_basket_guard
 import live_auditor
 import pending_actions
@@ -155,10 +158,21 @@ def _count_open_signals_unique(state_manager) -> int:
 
 
 def _telegram_run_backoff_seconds(failures: int) -> float:
-    exponent = max(0, failures - 1)
+    exponent = min(20, max(0, failures - 1))
     return min(
         _TELEGRAM_RUN_BACKOFF_MAX_S,
         _TELEGRAM_RUN_BACKOFF_BASE_S * (2 ** exponent),
+    )
+
+
+def _recoverable_connection_error(exc: Exception) -> bool:
+    return isinstance(exc, (ConnectionError, TimeoutError, socket.gaierror)) or (
+        isinstance(exc, OSError) and (
+            exc.errno in {errno.ENETDOWN, errno.ENETUNREACH, errno.EHOSTUNREACH, errno.ETIMEDOUT}
+            or getattr(exc, "winerror", None) in {10050, 10051, 10060, 10065}
+        )
+    ) or (
+        _is_transient_telegram_history_error(exc)
     )
 
 
@@ -169,14 +183,14 @@ async def _run_until_disconnected_with_backoff() -> None:
             await client.run_until_disconnected()
             return
         except Exception as e:
-            if not _is_transient_telegram_history_error(e):
+            if not _recoverable_connection_error(e):
                 raise
 
             failures += 1
             cooldown_s = _telegram_run_backoff_seconds(failures)
             error = str(e)
             print(
-                "[Telegram] Error temporal GetHistoryRequest; "
+                "[Telegram] Error temporal de conexion; "
                 f"reintento en {cooldown_s:.0f}s: {error}"
             )
             journal.event(
@@ -192,6 +206,8 @@ async def _run_until_disconnected_with_backoff() -> None:
                 if not client.is_connected():
                     await client.connect()
             except Exception as reconnect_error:
+                if not _recoverable_connection_error(reconnect_error):
+                    raise
                 journal.event(
                     "bot",
                     "telegram_reconnect_after_history_error_failed",
@@ -281,6 +297,13 @@ async def _heartbeat(interval_sec: float | None = None):
     while True:
         from state import state
         open_signals = _count_open_signals_unique(state)
+        storage = await asyncio.to_thread(runtime_storage.storage_health, journal.DATA_DIR)
+        if storage["warning"]:
+            journal.anomaly(
+                "bot", "outcome", "critical",
+                "Poco espacio disponible para los logs; revisar almacenamiento de la VM",
+                free_bytes=storage["free_bytes"],
+            )
         journal.event("bot", "heartbeat",
                       open_signals=open_signals,
                       utc=datetime.utcnow().isoformat(timespec="seconds"))
@@ -293,6 +316,8 @@ def _write_runtime_heartbeat(path: Path | None = None) -> None:
     payload = {
         "schema_version": 3,
         "pid": os.getpid(),
+        "storage": runtime_storage.storage_health(path.parent),
+        "journal_queue_depth": journal._event_queue.qsize(),
         "utc": datetime.utcnow().isoformat(timespec="milliseconds"),
         **_runtime_exposure_snapshot(),
     }
@@ -4704,7 +4729,9 @@ async def main():
     # Conectar MT5
     if not executor.init():
         print("[ERROR] No se puede conectar a MT5. Asegúrate de que el terminal está abierto.")
-        sys.exit(1)
+        error = executor.mt5.last_error()
+        # MT5 IPC/timeout failures are recoverable; authentication is not.
+        sys.exit(77 if error and error[0] in {-10000, -10001, -10002, -10003, -10004, -10005} else 1)
 
     try:
         account_evidence = executor.account_evidence()
@@ -4824,4 +4851,10 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except Exception as exc:
+        if not _recoverable_connection_error(exc):
+            raise
+        print(f"[Startup] Conexion temporalmente no disponible: {exc}", flush=True)
+        raise SystemExit(77) from exc

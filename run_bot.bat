@@ -59,6 +59,8 @@ REM El watcher guarda solo la evidencia raw en el camino de reinicio. Los
 REM informes y simulaciones pesadas se regeneran fuera del camino critico.
 if "%EXITCODE%"=="77" goto retry_wait
 if "%EXITCODE%"=="78" goto duplicate_exit
+if "%EXITCODE%"=="76" exit /b 76
+if "%EXITCODE%"=="79" exit /b 79
 if "%EXITCODE%"=="0" goto restart_wait
 if "%EXITCODE%"=="75" goto restart_wait
 
