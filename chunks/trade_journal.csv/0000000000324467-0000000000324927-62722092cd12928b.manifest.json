@@ -1,0 +1,14 @@
+{
+  "byte_end": 324927,
+  "byte_start": 324467,
+  "code_commit": "7415941a410d18288fa4e08da76809f70b125efa",
+  "compressed_bytes": 256,
+  "compressed_sha256": "690c9c809e9c0e8998da896717883bad1c64a605271b2d7c3b6845392890f816",
+  "compression": "gzip",
+  "created_at": "2026-09-24T11:49:06+00:00",
+  "payload_file": "0000000000324467-0000000000324927-62722092cd12928b.csv.gz",
+  "schema_version": 1,
+  "sha256": "62722092cd12928b9943136e0364e53b28d17f09572e8f4d8ad9a78038823a59",
+  "stream": "trade_journal.csv",
+  "uncompressed_bytes": 460
+}
