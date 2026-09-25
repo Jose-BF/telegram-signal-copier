@@ -247,13 +247,11 @@ def _simulation_scope_args() -> list[str]:
 def _git(*args: str, capture: bool = True) -> subprocess.CompletedProcess:
     command = ["git", *args]
     try:
-        return subprocess.run(
+        return git_sync.run_bounded(
             command,
             cwd=REPO_DIR,
-            capture_output=capture,
-            text=True,
-            check=False,
-            timeout=GIT_TIMEOUT_SEC,
+            capture=capture,
+            timeout_sec=GIT_TIMEOUT_SEC,
         )
     except subprocess.TimeoutExpired as exc:
         return subprocess.CompletedProcess(
@@ -2787,6 +2785,8 @@ def _run_main() -> int:
             if now - last_check >= POLL_SEC:
                 last_check = now
                 fetched = _git("fetch", "origin", "main")
+                # The watcher's own network wait is not a machine pause.
+                last_supervisor_tick = time.time()
                 if fetched.returncode != 0:
                     print(
                         "[Watch] Git remoto no disponible; el bot sigue "

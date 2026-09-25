@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import signal
 import subprocess
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -11,6 +12,10 @@ from typing import Callable
 
 
 GIT_TIMEOUT_SEC = float(os.getenv("BOT_GIT_TIMEOUT_SEC", "15"))
+# After a timeout, the whole command tree is killed and its output drained for
+# at most this long, so a stuck child can never block the caller.
+BOUNDED_KILL_TIMEOUT_SEC = 10.0
+BOUNDED_DRAIN_TIMEOUT_SEC = 2.0
 
 
 @dataclass(frozen=True)
@@ -37,6 +42,96 @@ def _notify(
         pass
 
 
+def _process_group_kwargs() -> dict:
+    if os.name == "nt":
+        return {
+            "creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        }
+    return {"start_new_session": True}
+
+
+def _kill_process_tree(process: subprocess.Popen) -> None:
+    """Kill a command and every descendant that may still hold its pipes."""
+    pid = getattr(process, "pid", None)
+    if pid and os.name == "nt":
+        try:
+            subprocess.run(
+                ["taskkill", "/PID", str(int(pid)), "/T", "/F"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                timeout=BOUNDED_KILL_TIMEOUT_SEC,
+            )
+        except (OSError, subprocess.TimeoutExpired, ValueError):
+            pass
+    elif pid:
+        try:
+            os.killpg(os.getpgid(int(pid)), signal.SIGKILL)
+        except (AttributeError, OSError, ValueError):
+            pass
+    try:
+        process.kill()
+    except OSError:
+        pass
+
+
+def _as_text(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return str(value)
+
+
+def run_bounded(
+    command: list[str],
+    *,
+    cwd: Path,
+    timeout_sec: float,
+    capture: bool = True,
+) -> subprocess.CompletedProcess:
+    """subprocess.run(text=True) whose wall time stays bounded on Windows.
+
+    On Windows, subprocess.run(timeout=...) kills only the direct child and
+    then reads its pipes without any timeout. git fetch leaves
+    git-remote-https alive holding those pipes, so a 15 s timeout could block
+    the watcher for 95-135 s and trip the system-pause restart. Here the whole
+    process tree is killed and the drain is bounded. Raises
+    subprocess.TimeoutExpired (text output) like subprocess.run.
+    """
+    streams = (
+        {"stdout": subprocess.PIPE, "stderr": subprocess.PIPE}
+        if capture else {}
+    )
+    process = subprocess.Popen(
+        command,
+        cwd=cwd,
+        text=True,
+        **streams,
+        **_process_group_kwargs(),
+    )
+    try:
+        stdout, stderr = process.communicate(timeout=float(timeout_sec))
+    except subprocess.TimeoutExpired as exc:
+        _kill_process_tree(process)
+        try:
+            stdout, stderr = process.communicate(
+                timeout=BOUNDED_DRAIN_TIMEOUT_SEC)
+        except (OSError, ValueError, subprocess.TimeoutExpired):
+            stdout, stderr = exc.stdout, exc.stderr
+        raise subprocess.TimeoutExpired(
+            command,
+            timeout_sec,
+            output=_as_text(stdout),
+            stderr=_as_text(stderr),
+        ) from None
+    except BaseException:
+        _kill_process_tree(process)
+        raise
+    return subprocess.CompletedProcess(
+        command, process.returncode, stdout, stderr)
+
+
 def _run_git(
     repo_dir: Path,
     *args: str,
@@ -48,13 +143,11 @@ def _run_git(
         GIT_TIMEOUT_SEC if timeout_sec is None else float(timeout_sec)
     )
     try:
-        return subprocess.run(
+        return run_bounded(
             command,
             cwd=Path(repo_dir),
-            capture_output=capture,
-            text=True,
-            check=False,
-            timeout=effective_timeout,
+            capture=capture,
+            timeout_sec=effective_timeout,
         )
     except subprocess.TimeoutExpired as exc:
         return subprocess.CompletedProcess(

@@ -92,9 +92,9 @@ def test_sync_progress_reports_fetch_push_and_final_verification(tmp_path):
 
 def test_git_timeout_becomes_a_bounded_failure(monkeypatch, tmp_path):
     def timeout(*args, **kwargs):
-        raise subprocess.TimeoutExpired(args[0], kwargs["timeout"])
+        raise subprocess.TimeoutExpired(args[0], kwargs["timeout_sec"])
 
-    monkeypatch.setattr(git_sync.subprocess, "run", timeout)
+    monkeypatch.setattr(git_sync, "run_bounded", timeout)
 
     result = git_sync._run_git(tmp_path, "fetch", "origin", "main")
 
@@ -423,3 +423,68 @@ def test_reverted_code_commit_is_still_not_auto_published(tmp_path):
     assert _must_git(vm, "rev-parse", result.rescue_branch) == local_head
     assert _must_git(vm, "rev-parse", "HEAD") == remote_head
     assert _must_git(vm, "rev-parse", "origin/main") == remote_head
+
+
+def test_run_bounded_returns_text_output(tmp_path):
+    import sys
+
+    result = git_sync.run_bounded(
+        [sys.executable, "-c", "print('hello')"],
+        cwd=tmp_path,
+        timeout_sec=30,
+    )
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == "hello"
+
+
+def test_run_bounded_kills_descendant_that_holds_output_pipes(tmp_path):
+    import os
+    import sys
+    import time
+
+    import pytest
+
+    if os.name == "nt":
+        pytest.skip("POSIX process-group variant; Windows uses taskkill /T")
+    pid_file = tmp_path / "grandchild.pid"
+    script = (
+        "import subprocess, sys, time\n"
+        "child = subprocess.Popen([sys.executable, '-c', "
+        "'import time; time.sleep(60)'])\n"
+        f"open({str(pid_file)!r}, 'w').write(str(child.pid))\n"
+        "time.sleep(60)\n"
+    )
+    started = time.monotonic()
+    with pytest.raises(subprocess.TimeoutExpired) as raised:
+        git_sync.run_bounded(
+            [sys.executable, "-c", script], cwd=tmp_path, timeout_sec=1.0)
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 1.0 + git_sync.BOUNDED_DRAIN_TIMEOUT_SEC + 3.0
+    assert isinstance(raised.value.stdout, str)
+    grandchild = int(pid_file.read_text())
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        try:
+            os.kill(grandchild, 0)
+        except ProcessLookupError:
+            break
+        time.sleep(0.05)
+    else:
+        pytest.fail("descendant holding the pipes survived the timeout")
+
+
+def test_run_git_reports_bounded_timeout(monkeypatch, tmp_path):
+    def slow(command, **kwargs):
+        raise subprocess.TimeoutExpired(
+            command, kwargs["timeout_sec"], output="partial", stderr="")
+
+    monkeypatch.setattr(git_sync, "run_bounded", slow)
+
+    result = git_sync._run_git(tmp_path, "fetch", "origin", "main",
+                               timeout_sec=15)
+
+    assert result.returncode == 124
+    assert result.stdout == "partial"
+    assert result.stderr == "git fetch origin main timed out after 15s"

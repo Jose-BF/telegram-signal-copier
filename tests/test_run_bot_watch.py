@@ -2473,3 +2473,67 @@ def test_startup_failure_does_not_enter_a_relaunch_loop():
     ) is True
     assert watch._child_failure_requires_operator(0) is False
     assert watch._child_failure_requires_operator(None) is False
+
+
+def test_watcher_git_uses_bounded_runner(monkeypatch):
+    calls = []
+
+    def slow(command, **kwargs):
+        calls.append((command, kwargs))
+        raise subprocess.TimeoutExpired(
+            command, kwargs["timeout_sec"], output="", stderr="")
+
+    monkeypatch.setattr(watch.git_sync, "run_bounded", slow)
+    monkeypatch.setattr(watch, "GIT_TIMEOUT_SEC", 15.0)
+
+    result = watch._git("fetch", "origin", "main")
+
+    assert calls[0][0] == ["git", "fetch", "origin", "main"]
+    assert calls[0][1]["timeout_sec"] == 15.0
+    assert result.returncode == 124
+    assert result.stderr == "git fetch origin main timed out after 15s"
+
+
+def test_slow_git_fetch_is_not_treated_as_system_pause(monkeypatch, capsys):
+    clock = {"now": 1_000.0, "fetched": False}
+    stops = []
+
+    class RunningProcess:
+        def poll(self):
+            if clock["fetched"]:
+                raise KeyboardInterrupt
+            return None
+
+    def fake_git(*args, capture=True):
+        if args[:1] == ("fetch",):
+            clock["now"] += 120.0  # longer than WATCHDOG_SUPERVISOR_GAP_SEC
+            clock["fetched"] = True
+            return subprocess.CompletedProcess(
+                ["git", *args], 124, stdout="",
+                stderr="git fetch origin main timed out after 15s")
+        return subprocess.CompletedProcess(
+            ["git", *args], 0, stdout="a" * 40, stderr="")
+
+    def fake_sleep(seconds):
+        clock["now"] += float(seconds)
+
+    verified = _sync_result()
+    monkeypatch.setattr(watch, "_prepare_repository_for_runtime", lambda: verified)
+    monkeypatch.setattr(watch, "_apply_active_channel_manifest", lambda: True)
+    monkeypatch.setattr(watch, "_spawn_bot", lambda: RunningProcess())
+    monkeypatch.setattr(watch, "_stop_bot", lambda proc: stops.append(proc))
+    monkeypatch.setattr(
+        watch, "_checkpoint_runtime_data",
+        lambda: _sync_result(action="telemetry_checkpointed"))
+    monkeypatch.setattr(watch, "_trigger_telemetry_publication", lambda: True)
+    monkeypatch.setattr(watch, "_runtime_heartbeat_age_s", lambda **kwargs: 1.0)
+    monkeypatch.setattr(watch, "_git", fake_git)
+    monkeypatch.setattr(watch, "WATCHDOG_SUPERVISOR_GAP_SEC", 90.0)
+    monkeypatch.setattr(watch.time, "time", lambda: clock["now"])
+    monkeypatch.setattr(watch.time, "sleep", fake_sleep)
+
+    assert watch.main() == 0
+    assert clock["fetched"]
+    output = capsys.readouterr().out
+    assert "timed out after 15s" in output
+    assert "Pausa del sistema" not in output
