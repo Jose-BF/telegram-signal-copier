@@ -12,6 +12,7 @@ Cubre:
 """
 
 import asyncio
+from datetime import datetime, timezone
 import json
 import threading
 import time
@@ -31,6 +32,9 @@ from pending_actions import (
     snapshot,
 )
 from state import Signal
+from durable_execution import DurableExecutionResult, ExecutionDisposition
+from execution_intents import IntentRecord
+from mt5_protocol import BrokerRequest, IntentKey, IntentState
 
 
 def _make_action(label="test", new_sl=None, new_tp=None, kind="MODIFY_SLTP"):
@@ -43,6 +47,75 @@ def _make_action(label="test", new_sl=None, new_tp=None, kind="MODIFY_SLTP"):
         new_tp=new_tp,
         label=label,
     )
+
+
+class _DurableServiceDouble:
+    def __init__(self, result):
+        self.result = result
+        self.requests = []
+        self.retry_calls = []
+        self.resolve_calls = []
+        self.release_calls = []
+        self.store = SimpleNamespace(
+            release_reservation=lambda *args, **kwargs:
+                self.release_calls.append((args, kwargs)),
+        )
+
+    def request(self, **values):
+        key = IntentKey(
+            "demo/7",
+            values["channel"],
+            values["signal_root"],
+            values["generation"],
+            values["leg"],
+            values["operation"],
+            values["revision"],
+        )
+        request = BrokerRequest.create(
+            key,
+            values["payload"],
+            request_id="durable-request",
+            attempt_id="durable-attempt",
+            action_id=values["action_id"],
+        )
+        self.requests.append(request)
+        return request
+
+    async def execute(self, request, **_kwargs):
+        return self.result
+
+    async def retry_rejected(self, *args, **kwargs):
+        self.retry_calls.append((args, kwargs))
+        raise AssertionError("ambiguous outcomes must never enter retry")
+
+    def resolve_predispatch(self, request, outcome, **kwargs):
+        self.resolve_calls.append((request, outcome, kwargs))
+        state = outcome.state
+        record = IntentRecord(
+            request.intent_id,
+            state,
+            None,
+            dict(request.payload),
+            outcome.to_dict(),
+            1,
+            "2026-09-20T00:00:00+00:00",
+        )
+        disposition = (
+            ExecutionDisposition.APPLIED
+            if state is IntentState.DONE
+            else ExecutionDisposition.REJECTED
+        )
+        return DurableExecutionResult(record, disposition, {"state": state.value})
+
+
+class _DurableSequenceService(_DurableServiceDouble):
+    def __init__(self, results):
+        super().__init__(results[0])
+        self.results = list(results)
+
+    async def execute(self, request, **kwargs):
+        self.requests.append((request, kwargs))
+        return self.results.pop(0)
 
 
 def test_pending_action_spool_survives_process_restart(tmp_path, monkeypatch):
@@ -104,6 +177,34 @@ def test_pending_action_captures_bound_causal_context():
     assert action.action_id.startswith("action_")
     assert action.decision_id == "decision_source"
     assert action.message_revision_id == "msgrev_source"
+
+
+@pytest.mark.parametrize(
+    ("direction", "stronger", "weaker"),
+    [("BUY", 2495.0, 2470.0), ("SELL", 2505.0, 2530.0)],
+)
+def test_recovery_modify_does_not_replace_stronger_pending_stop(
+    monkeypatch, direction, stronger, weaker,
+):
+    signal = Signal(
+        channel="canal2", message_id=384, direction=direction
+    )
+    local_queue = PendingQueue()
+    monkeypatch.setattr(pending_actions, "queue", local_queue)
+    monkeypatch.setattr(local_queue, "_ensure_runner", lambda: None)
+    monkeypatch.setattr(local_queue, "_persist_spool", lambda: None)
+    monkeypatch.setattr(local_queue, "_log_request", lambda *args: None)
+    monkeypatch.setattr(local_queue, "_log_coalesced", lambda *args, **kwargs: None)
+
+    pending_actions.enqueue_modify_sl(
+        signal, 701, stronger, preserve_stronger=True
+    )
+    pending_actions.enqueue_modify_sl(
+        signal, 701, weaker, preserve_stronger=True
+    )
+
+    assert len(local_queue._actions) == 1
+    assert local_queue._actions[0].new_sl == stronger
 
 
 def test_legacy_spool_restores_with_explicit_recovered_lineage(
@@ -358,6 +459,198 @@ class TestC4LogFailureDoesNotResetTask:
             await original_task
         except asyncio.CancelledError:
             pass
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "state",
+    [IntentState.UNKNOWN, IntentState.PLACED, IntentState.DONE_PARTIAL],
+)
+async def test_durable_pending_action_holds_ambiguous_results_for_reconciliation(state):
+    outcome = {
+        "state": state.value,
+        "retcode": 10010 if state is IntentState.DONE_PARTIAL else 10008,
+        "order": 701,
+        "deal": 702 if state is IntentState.DONE_PARTIAL else None,
+        "filled_volume": 0.005 if state is IntentState.DONE_PARTIAL else None,
+        "price": 2500.2,
+        "error": None,
+        "raw_result": None,
+    }
+    record = IntentRecord(
+        intent_id="intent-1",
+        state=state,
+        attempt_id="durable-attempt",
+        payload={"ticket": 12345},
+        outcome=outcome,
+        outcome_revision=1,
+        applied_utc="2026-09-20T00:00:00+00:00",
+    )
+    service = _DurableServiceDouble(
+        DurableExecutionResult(record, ExecutionDisposition.RECONCILE, {"state": state.value})
+    )
+    queue = PendingQueue(execution_service=service)
+    action = _make_action(kind="CLOSE_POSITION")
+
+    result = await queue._try_once(action)
+
+    assert result == "WAIT_RECONCILIATION"
+    assert action.attempts == 1
+    assert action.last_attempt_id == "durable-attempt"
+    assert service.retry_calls == []
+
+
+@pytest.mark.asyncio
+async def test_durable_pending_action_consumes_confirmed_done_state():
+    record = IntentRecord(
+        intent_id="intent-1",
+        state=IntentState.DONE,
+        attempt_id="durable-attempt",
+        payload={"ticket": 12345},
+        outcome={
+            "state": "DONE",
+            "retcode": 10009,
+            "order": 701,
+            "deal": 702,
+            "filled_volume": 0.01,
+            "price": 2500.2,
+            "error": None,
+            "raw_result": None,
+        },
+        outcome_revision=1,
+        applied_utc="2026-09-20T00:00:00+00:00",
+    )
+    service = _DurableServiceDouble(
+        DurableExecutionResult(record, ExecutionDisposition.APPLIED, {"state": "DONE"})
+    )
+    queue = PendingQueue(execution_service=service)
+    action = _make_action(kind="CLOSE_POSITION")
+
+    assert await queue._try_once(action) == "DONE"
+    assert action.last_retcode == 10009
+
+
+@pytest.mark.asyncio
+async def test_durable_modify_applies_tp_once_then_keeps_waiting_for_sl():
+    original_record = IntentRecord(
+        intent_id="intent-original",
+        state=IntentState.PREPARED,
+        attempt_id=None,
+        payload={"ticket": 12345},
+        outcome=None,
+        outcome_revision=0,
+        applied_utc=None,
+    )
+    tp_record = IntentRecord(
+        intent_id="intent-tp",
+        state=IntentState.DONE,
+        attempt_id="attempt-tp",
+        payload={"ticket": 12345},
+        outcome={
+            "state": "DONE",
+            "retcode": 10009,
+            "order": 12345,
+            "deal": None,
+            "filled_volume": None,
+            "price": None,
+            "error": None,
+            "raw_result": None,
+        },
+        outcome_revision=1,
+        applied_utc="2026-09-20T00:00:00+00:00",
+    )
+    service = _DurableSequenceService([
+        DurableExecutionResult(
+            original_record,
+            ExecutionDisposition.NOT_SENT,
+            None,
+            predispatch_error="requested_sl_waits_for_market",
+        ),
+        DurableExecutionResult(
+            tp_record,
+            ExecutionDisposition.APPLIED,
+            {"state": "DONE"},
+        ),
+    ])
+    service.store = SimpleNamespace()
+    queue = PendingQueue(execution_service=service)
+    action = _make_action(new_sl=2500.0, new_tp=2510.0)
+
+    result = await queue._try_once(action)
+
+    assert result == "WAIT_PRECONDITION"
+    assert action.new_sl == 2500.0
+    assert action.new_tp is None
+    assert action.applied_tp == 2510.0
+    assert action.revision == 1
+    assert len(service.requests) == 4
+    tp_request, tp_kwargs = service.requests[-1]
+    assert dict(tp_request.payload) == {
+        "symbol": pending_actions.config.MT5_SYMBOL,
+        "ticket": 12345,
+        "expected_magic": action.signal.magic,
+        "new_sl": None,
+        "new_tp": 2510.0,
+    }
+    assert tp_request.intent_key.leg == "ticket-12345-tp-prerequisite-r0"
+    assert tp_kwargs["release_on_terminal"] is True
+
+
+@pytest.mark.asyncio
+async def test_durable_missing_ticket_is_terminal_success_without_retry():
+    request_record = IntentRecord(
+        "intent-missing",
+        IntentState.PREPARED,
+        None,
+        {"ticket": 12345},
+        None,
+        0,
+        None,
+    )
+    service = _DurableServiceDouble(DurableExecutionResult(
+        request_record,
+        ExecutionDisposition.NOT_SENT,
+        None,
+        predispatch_error="ticket_not_found",
+    ))
+    queue = PendingQueue(execution_service=service)
+    action = _make_action(kind="CLOSE_POSITION")
+
+    result = await queue._try_once(action)
+
+    assert result == "DONE"
+    assert action.last_retcode == 10036
+    assert len(service.resolve_calls) == 1
+    assert service.retry_calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("reason", ["magic_mismatch", "symbol_mismatch"])
+async def test_durable_ownership_mismatch_is_permanent_rejection(reason):
+    request_record = IntentRecord(
+        "intent-mismatch",
+        IntentState.PREPARED,
+        None,
+        {"ticket": 12345},
+        None,
+        0,
+        None,
+    )
+    service = _DurableServiceDouble(DurableExecutionResult(
+        request_record,
+        ExecutionDisposition.NOT_SENT,
+        None,
+        predispatch_error=reason,
+    ))
+    queue = PendingQueue(execution_service=service)
+    action = _make_action(kind="CANCEL_PENDING")
+
+    result = await queue._try_once(action)
+
+    assert result == "DROP"
+    assert action.last_retcode == 10013
+    assert len(service.resolve_calls) == 1
+    assert len(service.release_calls) == 1
 
 
 class TestModifyPreconditions:
@@ -1177,6 +1470,35 @@ class TestForensicLifecycleLogging:
         assert snapshot[2]["tp"] == 4708.5
         assert snapshot[2]["price_current"] == 4701.25
         assert snapshot[2]["action_id"] == act.action_id
+
+    def test_position_snapshot_bounds_the_existing_mt5_read(self, monkeypatch):
+        read_at = []
+
+        def positions_get(*, ticket):
+            read_at.append(datetime.now(timezone.utc))
+            return []
+
+        monkeypatch.setattr(pending_actions.mt5, "positions_get", positions_get)
+        act = _make_action(label="close", kind="CLOSE_POSITION")
+        snapshot = PendingQueue()._position_snapshot(act)
+        started = datetime.fromisoformat(snapshot["positions_read_started_utc"])
+        completed = datetime.fromisoformat(snapshot["positions_read_completed_utc"])
+        assert started <= read_at[0] <= completed
+        assert snapshot["positions_read_elapsed_ms"] >= 0
+        assert snapshot["position_exists"] is False
+        assert len(read_at) == 1
+
+    def test_position_snapshot_records_failed_read_interval(self, monkeypatch):
+        def positions_get(*, ticket):
+            raise RuntimeError("MT5 unavailable")
+
+        monkeypatch.setattr(pending_actions.mt5, "positions_get", positions_get)
+        act = _make_action(label="close", kind="CLOSE_POSITION")
+        snapshot = PendingQueue()._position_snapshot(act)
+        assert snapshot["position_exists"] is None
+        assert "positions_read_started_utc" in snapshot
+        assert "positions_read_completed_utc" in snapshot
+        assert snapshot["positions_read_elapsed_ms"] >= 0
 
     def test_final_sl_confirmation_retains_the_tp_applied_earlier(
             self, monkeypatch):

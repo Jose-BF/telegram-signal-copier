@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timedelta
 from decimal import Decimal
 import hashlib
+from functools import partial
 import json
 import os
 from pathlib import Path
@@ -19,11 +20,28 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from research.iterative_provenance import implementation_identity
+from research.execution_profile import execution_to_scenario
+
 from provider_result_scorecard import (
     build_scorecard,
     load_hash_bound_media_summaries,
 )
 from research.dubai_iterative.contracts import SearchBudget, SearchSpace
+from research.dubai_iterative.__main__ import (
+    _ExplicitDatasetOption,
+    _ExplicitHorizonOption,
+    _add_execution_arguments,
+    _bind_study_artifacts,
+    _execution_from_args,
+    _load_own_rules_plan,
+    _load_study_bundle,
+    _portfolio_summary,
+    _profile_search_space,
+    _study_context,
+    _verify_study_seed,
+    _verified_portfolio_tape,
+)
 from research.dubai_iterative.certification import certify_genome_worlds
 from research.dubai_iterative.dataset import (
     LevelEvent,
@@ -33,10 +51,9 @@ from research.dubai_iterative.dataset import (
     StrategyDataset,
     VerifiedParquetTickSource,
 )
-from research.dubai_iterative.engine import ExecutionAssumptions
 from research.dubai_iterative.evolution import CandidateEvaluation
 from research.dubai_iterative.fast_engine import FastEvaluator
-from research.dubai_iterative.oracle import ExecutionScenario
+from research.dubai_iterative.portfolio import reconstruct_portfolio
 from research.dubai_iterative.reporting import (
     ProvenanceConflictError,
     publish_run,
@@ -45,6 +62,7 @@ from research.dubai_iterative.reporting import (
 from research.dubai_iterative.search import (
     GenerationProgress,
     cross_validate_frontier_candidates,
+    run_chronological_search,
 )
 
 from .dataset import load_gold_direct_dataset, load_gold_now_dataset
@@ -55,7 +73,7 @@ from .reporting import (
     ProviderPipHypothesis,
     build_gold_research_artifacts,
 )
-from .search import run_gold_chronological_search
+from .search import GoldSearchReport, _GoldCritic, run_gold_chronological_search
 from .validation import (
     GoldStabilityPolicy,
     validate_gold_candidates,
@@ -87,13 +105,30 @@ class _CompleteDatasetView:
 class _CandidateFragmentSpool:
     """Persist one deterministic Parquet fragment per completed generation."""
 
-    def __init__(self, history_dir: Path, output_root: Path) -> None:
+    def __init__(
+        self, history_dir: Path, output_root: Path, *, experiment_key: str,
+    ) -> None:
         self.history_dir = Path(history_dir)
         self.output_root = Path(output_root)
-        self.history_dir.mkdir(parents=True, exist_ok=True)
-        self.output_root.mkdir(parents=True, exist_ok=True)
+        self.implementation = implementation_identity()
+        self.schema = _CANDIDATE_SCHEMA.with_metadata({
+            b"iterative_implementation_sha256": self.implementation["sha256"].encode(),
+            b"gold_experiment_key": experiment_key.encode(),
+        })
+        self._validate_fragments()
+
+    def _validate_fragments(self) -> None:
+        self._check_implementation()
+        for fragment in sorted(self.history_dir.glob("*/generation-*.parquet")):
+            if not pq.read_schema(fragment).equals(self.schema, check_metadata=True):
+                raise ValueError(f"candidate fragment provenance mismatch: {fragment}")
+
+    def _check_implementation(self) -> None:
+        if implementation_identity() != self.implementation:
+            raise ValueError("iterative implementation changed during Gold search")
 
     def append(self, fold, generation, evaluations) -> None:
+        self._check_implementation()
         rows = [
             {
                 "fold": fold.name,
@@ -122,7 +157,7 @@ class _CandidateFragmentSpool:
             }
             for item in evaluations
         ]
-        table = pa.Table.from_pylist(rows, schema=_CANDIDATE_SCHEMA)
+        table = pa.Table.from_pylist(rows, schema=self.schema)
         fold_dir = self.history_dir / fold.name
         fold_dir.mkdir(parents=True, exist_ok=True)
         target = fold_dir / f"generation-{int(generation):06d}.parquet"
@@ -139,6 +174,8 @@ class _CandidateFragmentSpool:
         os.replace(temporary, target)
 
     def materialize(self) -> tuple[Path, int]:
+        self._validate_fragments()
+        self.output_root.mkdir(parents=True, exist_ok=True)
         handle = tempfile.NamedTemporaryFile(
             prefix="gold-candidates-",
             suffix=".parquet",
@@ -148,11 +185,11 @@ class _CandidateFragmentSpool:
         handle.close()
         output = Path(handle.name)
         output.unlink(missing_ok=True)
-        writer = pq.ParquetWriter(output, _CANDIDATE_SCHEMA, compression="zstd")
+        writer = pq.ParquetWriter(output, self.schema, compression="zstd")
         row_count = 0
         try:
             for fragment in sorted(self.history_dir.glob("*/generation-*.parquet")):
-                table = pq.read_table(fragment, schema=_CANDIDATE_SCHEMA)
+                table = pq.read_table(fragment, schema=self.schema)
                 writer.write_table(table)
                 row_count += table.num_rows
         finally:
@@ -169,7 +206,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _search(args, resume=args.command == "resume")
         if args.command == "verify":
             published = verify_published_run(Path(args.run_dir))
-            _emit(f"VERIFICADO: {published.run_id}")
+            _emit(f"VERIFICADO (bytes archivados; no revalidacion del motor): {published.run_id}")
             return 0
         if args.command == "compare-provider-claims":
             return _compare_provider_claims(Path(args.run_dir))
@@ -203,9 +240,27 @@ def _inspect(args) -> int:
     return 0
 
 
+def _run_own_rules_gold_search(dataset, *, own_rules, fold_plan, experiment_context, signal_scope, **kwargs):
+    context = {
+        **experiment_context, "channel": "canal2", "signal_scope": signal_scope,
+        "day_partition": "complete_explicit_days_v1", "strategy_grammar": "gold_schema_v2",
+    }
+    search = run_chronological_search(
+        dataset, folds=fold_plan.folds, experiment_context=context,
+        critic=_GoldCritic(), **own_rules.search_options(), **kwargs,
+    )
+    return GoldSearchReport(fold_plan=fold_plan, search=search)
+
+
+def _fixture_portfolio(paths, results, *, execution, portfolio_tape):
+    # The fixture's paths are its complete synthetic tape, with no external sources.
+    return reconstruct_portfolio(portfolio_tape.paths, results, execution=execution)
+
+
 def _search(args, *, resume: bool) -> int:
-    dataset = _load_dataset(args)
-    fold_plan = build_gold_fold_plan(dataset)
+    execution = _execution_from_args(args)
+    study_bundle = _load_study_bundle(args, execution, channel="canal2")
+    explicit_profile = args.execution_profile is not None
     budget = SearchBudget(
         max_generations=args.max_generations,
         max_evaluations=args.max_evaluations,
@@ -222,13 +277,14 @@ def _search(args, *, resume: bool) -> int:
         max_time_exit_min=args.max_time_exit_minutes,
         max_path_horizon_min=args.max_hold_minutes,
     )
-    execution = ExecutionAssumptions(
-        latency_ms=args.search_latency_ms,
-        entry_slippage=args.search_entry_slippage,
-        exit_slippage=args.search_exit_slippage,
-        spread_addition=args.search_spread_addition,
-    )
-    validation_worlds = _execution_validation_worlds(execution)
+    own_rules = None
+    if explicit_profile:
+        search_space = _profile_search_space(search_space, execution)
+        own_rules = _load_own_rules_plan(args.own_rules_config, search_space, population_size=args.population_size)
+    _verify_study_seed(study_bundle, own_rules)
+    dataset = _load_dataset(args)
+    fold_plan = build_gold_fold_plan(dataset)
+    validation_worlds = _execution_validation_worlds(execution, preserve_costs=explicit_profile)
     stability_policy = GoldStabilityPolicy(
         bootstrap_samples=args.bootstrap_samples,
         seed=args.seed,
@@ -253,33 +309,40 @@ def _search(args, *, resume: bool) -> int:
     )
     output_root = Path(args.output_root)
     checkpoint_base = output_root / ".checkpoints"
-    signal_scope = _signal_scope_label(args.signal_scope)
+    signal_scope = "m7_declared_cohort" if study_bundle is not None else _signal_scope_label(args.signal_scope)
     context = {
         "engine": "numba_fixed_point_gold_v2",
         "execution": asdict(execution),
         "signal_scope": signal_scope,
     }
+    if explicit_profile:
+        context["execution_profile_scope"] = "own_rules_v1"
+        context["own_rules_config"] = own_rules.identity()
+    if study_bundle is not None:
+        context["study_input"] = _study_context(study_bundle)
+    implementation = implementation_identity()
     experiment_key = _experiment_key(
         dataset.source_hashes,
         search_space,
         execution,
         args.seed,
+        signal_scope=signal_scope,
+        population_size=args.population_size,
+        execution_profile_scope="own_rules_v1" if explicit_profile else None,
+        own_rules_config=own_rules.identity() if own_rules is not None else None,
+        study_input=_study_context(study_bundle) if study_bundle is not None else None,
     )
     checkpoint_root = checkpoint_base / experiment_key
-    legacy_checkpoint_root = checkpoint_base
-    if (
-        resume
-        and not any(checkpoint_root.glob("gold_fold_*/checkpoint.json"))
-        and args.signal_scope == "now"
-        and any(legacy_checkpoint_root.glob("gold_fold_*/checkpoint.json"))
-    ):
-        checkpoint_root = legacy_checkpoint_root
+    if resume and not any(checkpoint_root.glob("gold_fold_*/checkpoint.json")):
+        raise ValueError(
+            "no compatible Gold checkpoint exists to resume for this implementation; "
+            "legacy histories are not migrated"
+        )
     spool = _CandidateFragmentSpool(
         checkpoint_base / ".candidate_fragments" / experiment_key,
         output_root,
+        experiment_key=experiment_key,
     )
-    if resume and not any(checkpoint_root.glob("gold_fold_*/checkpoint.json")):
-        raise ValueError("no Gold checkpoint exists to resume")
     if resume:
         _emit("Reanudando busqueda Gold desde checkpoints verificados...")
 
@@ -304,7 +367,13 @@ def _search(args, *, resume: bool) -> int:
     evaluator = FastEvaluator(execution=execution)
     candidate_path = None
     try:
-        report = run_gold_chronological_search(
+        search_runner = (
+            partial(_run_own_rules_gold_search, own_rules=own_rules)
+            if own_rules is not None else run_gold_chronological_search
+        )
+        if study_bundle is not None:
+            study_bundle.verify_sources()
+        report = search_runner(
             dataset,
             fold_plan=fold_plan,
             budget=budget,
@@ -321,6 +390,8 @@ def _search(args, *, resume: bool) -> int:
             resume_from_root=checkpoint_root if resume else None,
             retain_result_rows=False,
         )
+        if study_bundle is not None:
+            study_bundle.verify_sources()
         candidate_path, candidate_count = spool.materialize()
         complete_days = set(fold_plan.complete_days)
         complete_paths = tuple(
@@ -386,6 +457,17 @@ def _search(args, *, resume: bool) -> int:
         selected_assessments = tuple(
             item.assessment for item in selected_validations
         )
+        profile_certification_options = {}
+        if explicit_profile and selected_validations:
+            if args.fixture == "tiny":
+                profile_certification_options = {
+                    "portfolio_tape": complete_dataset,
+                    "portfolio_reconstructor": _fixture_portfolio,
+                }
+            else:
+                profile_certification_options["portfolio_tape"] = _verified_portfolio_tape(
+                    args, complete_dataset,
+                )
         world_certifications = tuple(
             certify_genome_worlds(
                 complete_paths,
@@ -394,6 +476,7 @@ def _search(args, *, resume: bool) -> int:
                 evaluator_factory=lambda active_execution: FastEvaluator(
                     execution=active_execution
                 ),
+                **profile_certification_options,
             )
             for item in selected_validations
         )
@@ -451,6 +534,8 @@ def _search(args, *, resume: bool) -> int:
             for update in fold_report.generation_summaries
         )
         run_metadata = {
+            "implementation": implementation,
+            "experiment_key": experiment_key,
             "seed": args.seed,
             "budget": asdict(budget),
             "search_space": asdict(search_space),
@@ -530,6 +615,17 @@ def _search(args, *, resume: bool) -> int:
             "live_code_changed": False,
             "automatic_deployment": False,
         }
+        if explicit_profile:
+            run_metadata["execution_profile_scope"] = "own_rules_v1"
+            run_metadata["own_rules_config"] = own_rules.identity()
+            run_metadata["historical_admission_interface"] = "not_connected_to_m7"
+        if study_bundle is not None:
+            run_metadata["historical_admission_interface"] = "connected_to_m7_diagnostic"
+            run_metadata["study_input"] = _study_context(study_bundle)
+            run_metadata["provider_accounting_contract"] = {"status": "not_applicable_own_rules_diagnostic"}
+            run_metadata["cross_fold_validation"]["diagnostic_finalists"] = (
+                run_metadata["cross_fold_validation"].pop("selected")
+            )
         artifacts = build_gold_research_artifacts(
             dataset,
             fold_plan=fold_plan,
@@ -549,6 +645,15 @@ def _search(args, *, resume: bool) -> int:
             ),
             run_metadata=run_metadata,
         )
+        if study_bundle is not None:
+            artifacts = _bind_study_artifacts(artifacts, study_bundle)
+            artifacts = replace(artifacts, run_card={
+                **artifacts.run_card, "research_kind": "gold_m7_own_rules_diagnostic",
+            })
+        if implementation_identity() != implementation:
+            raise ValueError("iterative implementation changed before Gold publication")
+        if study_bundle is not None:
+            study_bundle.verify_sources()
         published = publish_run(artifacts, output_root)
     finally:
         if candidate_path is not None:
@@ -585,6 +690,8 @@ def _compare_provider_claims(run_dir: Path) -> int:
 
 
 def _load_dataset(args) -> StrategyDataset:
+    if getattr(args, "_study_bundle", None) is not None:
+        return args._study_bundle.dataset
     if args.fixture == "tiny":
         return _tiny_dataset()
     contract = json.loads(Path(args.money_contract).read_text(encoding="utf-8"))
@@ -618,6 +725,8 @@ def _load_dataset(args) -> StrategyDataset:
 
 
 def _provider_scorecard(args) -> Mapping[str, object]:
+    if getattr(args, "_study_bundle", None) is not None:
+        return {"status": "not_applicable_own_rules_diagnostic"}
     if args.fixture == "tiny":
         return _tiny_scorecard()
     catalog = json.loads(
@@ -650,6 +759,8 @@ def _provider_hypotheses(
     paths: Sequence[object] = (),
     provider_scorecard: Mapping[str, object] | None = None,
 ) -> tuple[ProviderPipHypothesis, ...]:
+    if getattr(args, "_study_bundle", None) is not None:
+        return ()
     if args.fixture == "tiny":
         return (ProviderPipHypothesis(
             hypothesis_id="fixture_sum_exit_moves_x100",
@@ -747,15 +858,20 @@ def _chronological_diagnostics(report) -> dict[str, object]:
     }
 
 
-def _execution_validation_worlds(search_execution):
+def _execution_validation_worlds(search_execution, *, preserve_costs=False):
+    latency_base = search_execution if preserve_costs else replace(
+        search_execution, entry_slippage=0.0, exit_slippage=0.0,
+        spread_addition=0.0,
+    )
     worlds = (
         ("full_window", search_execution),
-        ("latency_250ms", ExecutionAssumptions(latency_ms=250)),
-        ("latency_1s", ExecutionAssumptions(latency_ms=1_000)),
-        ("latency_2s", ExecutionAssumptions(latency_ms=2_000)),
+        ("latency_250ms", replace(latency_base, latency_ms=250)),
+        ("latency_1s", replace(latency_base, latency_ms=1_000)),
+        ("latency_2s", replace(latency_base, latency_ms=2_000)),
         (
             "mild_costs",
-            ExecutionAssumptions(
+            replace(
+                search_execution,
                 latency_ms=250,
                 entry_slippage=0.03,
                 exit_slippage=0.03,
@@ -764,7 +880,8 @@ def _execution_validation_worlds(search_execution):
         ),
         (
             "adverse_costs",
-            ExecutionAssumptions(
+            replace(
+                search_execution,
                 latency_ms=500,
                 entry_slippage=0.10,
                 exit_slippage=0.10,
@@ -776,7 +893,7 @@ def _execution_validation_worlds(search_execution):
         (
             name,
             world_execution,
-            ExecutionScenario(name, **asdict(world_execution)),
+            execution_to_scenario(world_execution, name),
         )
         for name, world_execution in worlds
     )
@@ -864,20 +981,37 @@ def _world_certification_summary(report) -> Mapping[str, object]:
                 "oracle_mismatch_count": len(item.certificate.mismatches),
                 "net_eur": _decimal_text(item.net_eur),
                 "blockers": list(item.blockers),
+                **({"portfolio": _portfolio_summary(item.portfolio)}
+                   if item.portfolio is not None else {}),
             }
             for item in report.worlds
         ],
     }
 
 
-def _experiment_key(source_hashes, search_space, execution, seed) -> str:
+def _experiment_key(
+    source_hashes, search_space, execution, seed, *,
+    signal_scope="formal_telegram_now", population_size=64,
+    execution_profile_scope=None,
+    own_rules_config=None,
+    study_input=None,
+) -> str:
     payload = {
         "source_hashes": dict(sorted(source_hashes.items())),
         "search_space": asdict(search_space),
         "execution": asdict(execution),
         "seed": int(seed),
         "operators": "gold_iterative_v1",
+        "implementation": implementation_identity(),
+        "signal_scope": signal_scope,
+        "population_size": population_size,
     }
+    if execution_profile_scope is not None:
+        payload["execution_profile_scope"] = execution_profile_scope
+    if own_rules_config is not None:
+        payload["own_rules_config"] = own_rules_config
+    if study_input is not None:
+        payload["study_input"] = study_input
     encoded = json.dumps(
         payload,
         sort_keys=True,
@@ -1046,46 +1180,54 @@ def _sha256_file(path: Path) -> str:
 
 
 def _add_dataset_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--fixture", choices=("tiny",), default=None)
+    parser.add_argument("--fixture", choices=("tiny",), default=None, action=_ExplicitDatasetOption)
     parser.add_argument(
         "--signal-scope",
         choices=("now", "direct"),
         default="now",
+        action=_ExplicitDatasetOption,
         help="NOW only, or NOW plus explicit priced direct entries",
     )
-    parser.add_argument("--from", dest="from_date", default="2026-07-27")
-    parser.add_argument("--to", dest="to_date", default=None)
-    parser.add_argument("--replay-path", default="runtime_data/replay_trades.jsonl")
+    parser.add_argument("--from", dest="from_date", default="2026-07-27", action=_ExplicitDatasetOption)
+    parser.add_argument("--to", dest="to_date", default=None, action=_ExplicitDatasetOption)
+    parser.add_argument("--replay-path", default="runtime_data/replay_trades.jsonl", action=_ExplicitDatasetOption)
     parser.add_argument(
         "--audit-path",
         default="runtime_data/observed_tick_replay_audit.jsonl",
+        action=_ExplicitDatasetOption,
     )
     parser.add_argument(
         "--provider-catalog-path",
         default="runtime_data/provider_signal_catalog.json",
+        action=_ExplicitDatasetOption,
     )
     parser.add_argument(
         "--provider-media-annotations",
         default="research/gold_iterative/provider_claim_annotations.json",
+        action=_ExplicitDatasetOption,
     )
     parser.add_argument(
         "--provider-media-evidence",
         default="runtime_data/telemetry_latest/telegram_media.jsonl",
+        action=_ExplicitDatasetOption,
     )
     parser.add_argument(
         "--raw-events-path",
         default="runtime_data/trade_events.jsonl",
+        action=_ExplicitDatasetOption,
     )
     parser.add_argument(
         "--money-contract",
         default="runtime_data/broker_money_contract.json",
+        action=_ExplicitDatasetOption,
     )
-    parser.add_argument("--market-tick-cache", default="runtime_data/ticks_cache")
+    parser.add_argument("--market-tick-cache", default="runtime_data/ticks_cache", action=_ExplicitDatasetOption)
     parser.add_argument(
         "--conversion-tick-cache",
         default="runtime_data/money_ticks_cache",
+        action=_ExplicitDatasetOption,
     )
-    parser.add_argument("--max-hold-minutes", type=int, default=240)
+    parser.add_argument("--max-hold-minutes", type=int, default=240, action=_ExplicitHorizonOption)
 
 
 def _add_search_arguments(parser: argparse.ArgumentParser) -> None:
@@ -1137,10 +1279,7 @@ def _add_search_arguments(parser: argparse.ArgumentParser) -> None:
         type=float,
         default=1.0,
     )
-    parser.add_argument("--search-latency-ms", type=int, default=0)
-    parser.add_argument("--search-entry-slippage", type=float, default=0.0)
-    parser.add_argument("--search-exit-slippage", type=float, default=0.0)
-    parser.add_argument("--search-spread-addition", type=float, default=0.0)
+    _add_execution_arguments(parser)
     parser.add_argument("--progress", action="store_true")
     parser.add_argument(
         "--workers",

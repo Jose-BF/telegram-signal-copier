@@ -1,0 +1,175 @@
+{
+ "frozen_at_utc": "2026-09-28",
+ "note": "Congelado antes de ver cualquier semana posterior al 25/09. No modificar: el examen semanal (M9) usa exactamente esto.",
+ "recipes": [
+  {
+   "id": "R1",
+   "family": "c2_escalera",
+   "channel": "canal2",
+   "universe": "runtime_data/signal_universe_v1/signals.jsonl",
+   "filter": {
+    "cond": [
+     [
+      "asia_loc",
+      ">",
+      0.8
+     ]
+    ]
+   },
+   "genome": {
+    "schema_version": 2,
+    "entry_mode": "signal_market",
+    "entry_value": null,
+    "entry_expiry_min": 15,
+    "entry_ladder_mode": "adverse",
+    "entry_ladder_step": 2.0,
+    "leg_count": 6,
+    "volume_weights": [
+     0.01,
+     0.01,
+     0.01,
+     0.01,
+     0.01,
+     0.01
+    ],
+    "target_mode": "none",
+    "target_value": null,
+    "partial_fraction": 0.0,
+    "runner_target": null,
+    "be_mode": "none",
+    "be_trigger": null,
+    "stop_mode": "basket_money",
+    "stop_value": 100.0,
+    "profit_lock_arm": 15.0,
+    "profit_lock_giveback": 5.0,
+    "time_exit_min": 3,
+    "provider_management_mode": "ignore",
+    "context_filter_mode": "none",
+    "context_filter_value": null,
+    "entry_confirmation_value": null,
+    "target_steps": [],
+    "trailing_distance": null,
+    "hard_stop_eur_per_leg": null,
+    "time_exit_mode": "profit_only",
+    "pending_entry_policy": "until_expiry",
+    "source_strategy_fingerprint": null,
+    "parent_fingerprints": [],
+    "mutation_reason": null,
+    "lineage_depth": 0
+   },
+   "genome_fingerprint": "70e5dc0dc0c615a76a91803ea15c7574623ec5b1922ddb6377c37b8d6e5fcc5d",
+   "carril": "A"
+  },
+  {
+   "id": "R2",
+   "family": "c1_seguir_1pata",
+   "channel": "canal1",
+   "universe": "runtime_data/signal_universe_v1/signals.jsonl",
+   "filter": {
+    "cond": [
+     [
+      "rsi_m5",
+      "<",
+      30
+     ]
+    ]
+   },
+   "genome": {
+    "schema_version": 2,
+    "entry_mode": "signal_market",
+    "entry_value": null,
+    "entry_expiry_min": 15,
+    "entry_ladder_mode": "simultaneous",
+    "entry_ladder_step": null,
+    "leg_count": 1,
+    "volume_weights": [
+     0.01
+    ],
+    "target_mode": "per_leg_steps",
+    "target_value": null,
+    "partial_fraction": 0.0,
+    "runner_target": null,
+    "be_mode": "none",
+    "be_trigger": null,
+    "stop_mode": "fixed_move",
+    "stop_value": 40.0,
+    "profit_lock_arm": null,
+    "profit_lock_giveback": null,
+    "time_exit_min": 240,
+    "provider_management_mode": "ignore",
+    "context_filter_mode": "none",
+    "context_filter_value": null,
+    "entry_confirmation_value": null,
+    "target_steps": [
+     10.0
+    ],
+    "trailing_distance": null,
+    "hard_stop_eur_per_leg": null,
+    "time_exit_mode": "always",
+    "pending_entry_policy": "none",
+    "source_strategy_fingerprint": null,
+    "parent_fingerprints": [],
+    "mutation_reason": null,
+    "lineage_depth": 0
+   },
+   "genome_fingerprint": "982d815056e4090af121aa763fea7558724dd207ca97d26365f3177b2d278352",
+   "carril": "A/B"
+  },
+  {
+   "id": "R3",
+   "family": "c2_invertir_1pata",
+   "channel": "canal2",
+   "universe": "runtime_data/signal_universe_v1/placebo_flipped_s0.jsonl",
+   "filter": {
+    "cond": [
+     [
+      "vol_regime",
+      ">",
+      1.2
+     ]
+    ]
+   },
+   "genome": {
+    "schema_version": 2,
+    "entry_mode": "signal_market",
+    "entry_value": null,
+    "entry_expiry_min": 15,
+    "entry_ladder_mode": "simultaneous",
+    "entry_ladder_step": null,
+    "leg_count": 1,
+    "volume_weights": [
+     0.01
+    ],
+    "target_mode": "per_leg_steps",
+    "target_value": null,
+    "partial_fraction": 0.0,
+    "runner_target": null,
+    "be_mode": "none",
+    "be_trigger": null,
+    "stop_mode": "fixed_move",
+    "stop_value": 20.0,
+    "profit_lock_arm": null,
+    "profit_lock_giveback": null,
+    "time_exit_min": 30,
+    "provider_management_mode": "ignore",
+    "context_filter_mode": "none",
+    "context_filter_value": null,
+    "entry_confirmation_value": null,
+    "target_steps": [
+     5.0
+    ],
+    "trailing_distance": null,
+    "hard_stop_eur_per_leg": null,
+    "time_exit_mode": "always",
+    "pending_entry_policy": "none",
+    "source_strategy_fingerprint": null,
+    "parent_fingerprints": [],
+    "mutation_reason": null,
+    "lineage_depth": 0
+   },
+   "genome_fingerprint": "bdd8c4bc73e000f7ba7c142cd9024be5e8045d8bd040ab8c6d96d44c035d41e2",
+   "carril": "A"
+  }
+ ],
+ "sha256": "532661a9c33ee83b227e5908a70d06f6226e4d042ed31864d5ed506c961b996c"
+}

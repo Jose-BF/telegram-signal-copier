@@ -1,194 +1,79 @@
-# AGENTS.md - telegram-signal-copier
+# Telegram Signal Copier
 
-Project: Telegram signal copier for MT5, focused on exact replay and simulation readiness.
+Copy authorized Telegram signals to MT5 and evaluate strategies with auditable
+evidence. Canal 1 is Dubai Investing; Canal 2 is Gold Signals. Check current
+code/configuration and VM evidence before describing the active strategy.
 
-Use these current file names when navigating the repo. Some historical docs may mention older names; prefer the names below for all new work.
+## Scope and authorization
 
-## Runtime Entry Points
+- Preserve user edits, raw logs, sessions and historical research. On resume,
+  recover branch/status and known evidence; do not restart completed work.
+- Local analysis, scoped fixes and offline tests can proceed within the request.
+  Do not send emails or external messages without authorization for that action.
+- A push may trigger the VM watcher. Obtain explicit publication authorization
+  for the current change; verify update/restart safety and open exposure before
+  deploying. If exposure is open or unknown, do not trigger an unapproved restart.
+- Research never changes live policy or promotes a candidate automatically.
+  Do not change the live 555 to a different simulated interpretation implicitly.
+- Make remote work observable through its output, logs or a user-requested
+  visible terminal. Respect host window rules; avoid untracked background jobs.
+- Finish by distinguishing local changes, commit, push and verified VM version.
+  Explicitly state when changes remain unpublished; do not imply local = live.
 
-- `run_bot.bat`: Windows production launcher.
-- `tools/run_bot_watch.py`: watcher that pulls code, restarts the bot, regenerates reports and pushes session data.
-- `main.py`: runtime bootstrap for Telegram, MT5, resync and monitors.
-- `listener.py`: Telegram message interpretation and signal/management routing.
-- `executor.py`: MT5 order open/modify/close operations.
-- `position_lifecycle_monitor.py`: open-position lifecycle monitor. It handles BE, time-stop, auto-finalize and leftover position handling. This replaces the old mental model/name `dca_monitor.py`.
+## Shared process and user visibility
 
-## Replay Pipeline
+Use `docs/development/2026-09-08-simulation-foundation-readiness.md` as the
+shared process map, not just a collection of technical audit results. Before
+each meaningful work block, explain in concise Spanish where it fits, why it
+is needed, what result would finish it and what follows. At completion, report
+what the evidence establishes and what remains open. Announce material changes
+of priority or scope; do not let a diagnostic case silently become the goal.
 
-Run order:
+Historical broker sessions are controls for general simulation mechanisms, not
+an objective of matching one day to the millisecond. Distinguish engine
+validation, historical data admission and later strategy validation. Detailed
+new telemetry is not a universal prerequisite for historical counterfactuals;
+requirements depend on the policy and available causal inputs. Preserve all
+applicable evidence gates and the joint review before a massive search.
 
-1. `reconcile_mt5_ledger.py` -> `data/ledger.jsonl`
-2. `build_replay_trades.py` -> `data/replay_trades.jsonl` plus its deterministic
-   `replay_trades.jsonl.manifest.json` source contract
-3. `accounting_replay_validator.py` -> `data/accounting_replay_audit.jsonl`
-4. `tools/ensure_replay_tick_cache.py` -> `data/replay_tick_cache_status.json`
-5. `replay_readiness_report.py` -> `data/replay_readiness_report.json`
-6. `observed_tick_replay_validator.py` -> `data/observed_tick_replay_audit.jsonl`
-7. `provider_signal_catalog.py` -> `data/provider_signal_catalog.json`
-8. `strategy_simulator.py` + `executed_simulation_contract.py` -> primary
-   executed-MT5 counterfactuals and immutable-entry validation
-9. `provider_trade_spec.py` + `provider_strategy_simulator.py` -> secondary
-   provider-coverage diagnostics
-10. `strategy_farm.py` -> `data/strategy_farm.json`
-11. `recursive_log_learning.py` -> `data/log_learning_report.json` and `data/log_pattern_registry.json`
-12. `simulation_run_provenance.py` -> `data/simulation_runs/<fingerprint>/run_card.json`
+## Evidence that must survive every task
 
-`data/provider_signal_catalog.json` is a canonical versioned input, not a
-disposable intermediate. The watcher must stage it together with the farm
-report and run archive.
+- Preserve channel, signal/basket identity, strategy version, source hashes,
+  causal message/edit availability, timezone, Bid/Ask, volume and account currency.
+- Reconcile observed deals and costs before claiming observed monetary totals.
+  Pips, XAUUSD price movement and account-currency P/L are different units.
+- Distinguish observed accounting, policy decisions and hypothetical execution.
+  Exact accounting from actual fills does not certify alternative fills.
+- Preserve missing/blocked cases and reasons; never silently remove them from
+  denominators. A discrepancy is a repair incident with a regression case,
+  not a sample to discard. Keep certification gates intact.
+- Freeze experiments and untouched validation cohorts before selection.
+  Data reused in discovery is retrospective evidence, not fresh OOS.
+- Keep research offline, results immutable and candidate loops bounded by an
+  explicit budget, checkpoint identity and useful stopping condition.
 
-## Support Modules
+## Read only the relevant reference
 
-- `state.py`: in-memory signal model and helpers.
-- `journal.py`: event-sourced JSONL/CSV logging.
-- `pending_actions.py`: retry queue for MT5 actions.
-- `live_auditor.py`: runtime consistency checks against MT5.
-- `parser.py`: rule-based signal parsing.
-- `classifier.py`: Gemini/regex message classification.
-- `strategies.py`: current strategy guards and helper decisions.
-- `canal2_zone_lifecycle.py`: pure Gold Signals zone lifecycle rules. A
-  complete single-zone plan is live on demo; multi-zone/incomplete plans are
-  observation-only. First touch uses Ask for BUY and Bid for SELL.
-- `mt5_tick_cache.py`: parquet cache helper for MT5 ticks. Exact replay accepts only a matching `mt5_server_epoch_utc_v3` sidecar whose hash and semantic time/anchor checks pass. V1/V2 caches are diagnostic-only and must be regenerated by `tools/ensure_replay_tick_cache.py`.
-- `provider_trade_spec.py`: immutable causal virtual-trade contract built from one formal provider signal. It never requires an MT5 ticket.
-- `provider_strategy_simulator.py`: provider-first Ask/Bid entry and policy price-path replay. It emits one honest simulated or blocked row per signal/policy/latency combination.
-- `strategy_policies.py`: declarative close/BE/runner policy catalog shared by both channels.
-- `strategy_simulator.py`: primary management counterfactual over observed MT5
-  ticket entries and confirmed MT5 level history. Canonical provider events may
-  trigger a policy but may not replace entry facts.
-- `executed_simulation_contract.py`: fail-closed matrix and immutable-entry
-  validator for the primary executed-MT5 universe.
-- `replay_source_contract.py`: binds every replay to the exact ledger and raw
-  event hashes that produced it. A missing or stale contract stops the farm.
-- `strategy_farm.py`: executed-MT5 policy matrix plus secondary provider-first
-  diagnostics. It verifies both `executed trades x policies` and
-  `formal signals x policies x latency scenarios` row accounting.
-- `simulation_run_provenance.py`: deterministic farm-run identity from selected payloads, policy order, source hashes, runtime versions and already-verified tick contracts. Repeated identical runs reuse their immutable archive; conflicting results fail closed.
-- `broker_money.py`: account-currency conversion and rollover pricing. Exact
-  overnight alternatives require matching native broker snapshots and
-  historical conversion ticks.
-- `mql5/Services/BrokerMoneySnapshotService.mq5`: read-only MT5 service that
-  exposes terminal-local native swap, weekday and broker-clock evidence. It
-  has no trading path; recovered snapshots are account/server/symbol bound,
-  and the service is installed transactionally with
-  `tools/install_broker_money_snapshot_service.py`.
-- `recursive_log_learning.py`: offline, deterministic whole-corpus learner. It normalizes recurring reliability patterns, prioritizes candidates and detects covered-pattern regressions. It must never be imported by a live order module.
+- Live, parser, zones, logs or replay preparation:
+  `docs/development/runtime-and-replay.md`.
+- Strategy search, changed entries/volume, accounting or provenance:
+  `docs/development/research-contracts.md`.
+- Live/shadow differences, repair or prospective comparison:
+  `docs/development/shadow-evidence.md`.
 
-## Iterative Dubai Research
+These references preserve detailed contracts. Do not load them all for a
+simple question or document edit. The normal log-review entry point is
+`python tools/analyze_new_logs.py`; inspect its options for the requested
+period. Do not add whole-corpus analysis to a live order path.
 
-- `research/dubai_iterative/contracts.py`: immutable strategy grammar, explicit
-  volume/time search envelope and finite stopping budgets. The observed `0.04`
-  lots is a baseline only; it is never a hard-coded maximum.
-- `research/dubai_iterative/dataset.py`: fail-closed loader for the certified
-  Dubai replay, broker tick paths, conversion ticks and money contract.
-- `research/dubai_iterative/fast_engine.py`: Numba fixed-point search engine.
-  `research/dubai_iterative/oracle.py` is its independent scalar verifier and
-  must not import either simulation engine.
-- `research/dubai_iterative/evolution.py` and `search.py`: structured failure
-  diagnosis, deterministic mutation/crossover/scouts, normalized Pareto
-  ranking, chronological folds, checkpoints and hard anti-loop limits.
-- `research/dubai_iterative/refinement.py`, `robustness.py` and `statistics.py`:
-  dense one-block sensitivity, observational-equivalence collapse and complete
-  trading-day stability checks. Chronological blocks reused during discovery
-  are retrospective robustness evidence, never untouched OOS evidence.
-- `research/dubai_iterative/risk.py` and `portfolio.py`: prospective configured
-  loss for concurrent signals and exact joint-equity reconstruction over one
-  canonical market/conversion tape.
-- `research/dubai_iterative/certification.py`: chronological finalist selection,
-  cent-exact oracle replay, six-world latency/slippage/spread certification and
-  mandatory complete portfolio reconstruction.
-- `research/dubai_iterative/__main__.py`: research CLI and immutable artifacts
-  under ignored `runtime_data/dubai_strategy_runs/`.
-- No module in `research/dubai_iterative/` may import live order/runtime modules,
-  change bot configuration, publish to the VM or promote a candidate. Adoption
-  is a separate reviewed live change after untouched forward evidence.
-- Imported winners are research seeds whose history has already been seen. A
-  seeded run must label them `research_seed_only_full_sample_origin_not_oos`;
-  it cannot reset or improve the confidence class by itself.
+## Verification and completion
 
-## Iterative Gold NOW Research
+Use a regression case and focused tests for a narrow behavior fix. Include
+integration checks and `python -m pytest -q` for changes to shared execution,
+money, replay contracts, persistence, concurrency or deployment safety.
+Documentation-only work needs document/structure checks, not a trading suite.
 
-- `research/gold_iterative/` owns Canal 2 formal `BUY/SELL NOW` discovery.
-  Gold zone plans are a separate universe and must never be included by an
-  implicit fallback.
-- Account for every eligible formal signal. Preserve blocked and unexecuted
-  signals and their observed trading day; only complete days may enter folds.
-- Keep all baskets from one day together. Development data may diagnose and
-  mutate; later challenge data may evaluate only and must never feed mutation.
-- Gold 555, c490 and provider baselines are genomes through the common scalar,
-  fixed-point and independent-oracle path. Do not add strategy-specific replay
-  branches to make one policy match live results.
-- Candidate populations must stream to deterministic Parquet fragments. Resume
-  only from checkpoints whose dataset, search envelope, operators and seed
-  match the current experiment.
-- Never compare provider pips with account-currency P&L as if they shared a
-  unit. Provider scorecards are accounting hypotheses and cannot select a
-  strategy.
-- Any incomplete MT5, tick, money, oracle, chronological or source-manifest
-  gate forces `diagnostic_only`. A complete retrospective run still requires a
-  frozen untouched forward cohort before any promotion claim.
-- `python -m research.gold_iterative verify --run-dir <path>` must pass before
-  quoting a run. Research code cannot import live order modules, deploy, restart
-  the VM or change the active policy.
-
-## Recursive Reliability Evidence
-
-- Logs may propose patterns; they never modify runtime rules or promote themselves.
-- `data/log_pattern_registry.json` is rebuilt from the complete retained corpus, so reruns do not double-count evidence.
-- A pattern becomes `covered` only with a versioned rule, a permanent regression test, a successful whole-corpus shadow evaluation and explicit review metadata.
-- A covered pattern observed after its coverage timestamp becomes `regressed` automatically.
-- `data/log_learning_report.json` keeps capture, semantics, execution, accounting, market replay, provenance and strategy-simulation gates independent. Any failed hard gate forces `diagnostic_only` and forbids policy ranking.
-
-## Simulation Evidence
-
-- `data/simulation_runs/<fingerprint>/run_card.json` is immutable evidence for one computational identity.
-- Primary rankings use only `replay_trades.jsonl` MT5 executions. Every policy
-  row preserves ticket identity, fill time, fill price and volume.
-- Every formal provider signal must appear once per policy and ordered latency scenario. Missing evidence creates a named blocked row; it never removes a signal from the denominator.
-- `provider_policy_results[*].strategy_value` is a secondary diagnostic sum of directional XAUUSD price movement across virtual legs. It is not volume-weighted money, must never be labelled USD, EUR, profit or P&L, and cannot select a strategy.
-- The farm may use `money_mode=verified_account_currency` only when symbol,
-  account currency, causal conversion ticks, commission, swap and every
-  observed MT5 deal reconcile to account-currency precision.
-- Keep `money_contract_verified` (broker metadata/formula) separate from
-  `account_currency_money_verified` (every selected observed and
-  counterfactual row priced). Conclusions require both.
-- `selection.selected_policy` must remain `null` while the money gate, complete
-  executed-trade matrix, or untouched OOS validation is open.
-- A recorded external intervention may be strategy-eligible only for the
-  executed-MT5 replay because the goal there is to preserve what MT5 actually
-  executed. It remains non-exact and cannot make provider-first replay exact.
-- Ordered entry-delay assumptions are configured with repeated `--provider-latency-ms` arguments or watcher `STRATEGY_FARM_LATENCY_MS`; volume is configured with `--provider-volume-per-leg` or `STRATEGY_FARM_VOLUME_PER_LEG`. Both are part of the run fingerprint.
-- Compact runs retain `strategy_farm.json` in that directory. Detailed `--include-trades` outputs record the first-published path, exact size and SHA-256 rather than being copied.
-- Tick digests verify the bytes used, but tick Parquet retention is currently local-only. A card cannot recreate a deleted cache file and must state that limitation.
-- Git branch, absolute machine paths and run timestamp are diagnostics, not parts of computational identity.
-- No live order module may import `provider_trade_spec`, `provider_strategy_simulator`, `strategy_farm` or `simulation_run_provenance`; replay and publication remain offline post-session work.
-
-## Gold Signals Zone Contract
-
-- Keep immediate `BUY/SELL NOW` behavior independent and compatible.
-- One Telegram identity may confirm at most one MT5 exposure generation.
-  Explicit re-entry uses a new message identity and generation.
-- Every reply becomes an alias of the original plan. TP/SL changes applied to
-  a live Signal must also update the retained plan for a later re-entry.
-- Restore only schema-v2 plans. Triggered plans remain available as reply
-  context after restart; legacy observation rows never become executable.
-- Preserve `entry_source_kind`, zone/root message IDs, generation, trigger
-  side, price and broker `time_msc` through reconciliation as
-  `entry_provenance`, then into `replay_trades.jsonl`.
-- Use `python tools\analyze_new_logs.py` for the normal incremental review.
-  Do not add another whole-corpus scan to the live process.
-
-## Analysis Guidance
-
-- Prefer the replay pipeline for new simulation work.
-- `analysis/patterns.py`, `analysis/daily_report.py` and `analysis/bot_execution_quality.py` remain useful for manual session review.
-- `analysis/daily_report.py` distinguishes signal-cohort P&L from the MT5 server-calendar close total. Account currency must come from `mt5_account_connected` evidence; never infer USD/EUR from context.
-- Treat most other `analysis/` scripts as historical research until deliberately promoted or removed.
-
-## Verification
-
-Before claiming a refactor is safe, run:
-
-```powershell
-python -m pytest -q
-```
+Record command/result and relevant code, inputs and environment. Reuse known
+passing evidence when those are unchanged; rerun invalidated or unknown checks.
+Do not widen tolerances, replace independent evidence or alter production
+settings to make a test pass. State limitations and remaining work honestly.

@@ -237,7 +237,7 @@ async def test_repeated_close_confirmation_records_one_final_result(monkeypatch,
     monkeypatch.setattr(listener, "_open_mt5_positions_for_signal", lambda _signal: [])
     monkeypatch.setattr(listener, "_realized_pl", lambda _signal: -24.99)
     monkeypatch.setattr(listener.executor, "account_evidence", lambda: {"currency": "EUR"})
-    monkeypatch.setattr("MetaTrader5.history_deals_get", lambda **kwargs: [])
+    monkeypatch.setattr("mt5_runtime.mt5.history_deals_get", lambda **kwargs: [])
     original_sleep = asyncio.sleep
 
     async def yield_once(_seconds):
@@ -267,7 +267,7 @@ async def test_failed_finalization_remains_retryable(monkeypatch):
     monkeypatch.setattr(listener, "_open_mt5_positions_for_signal", lambda _signal: [])
     monkeypatch.setattr(listener, "_realized_pl", lambda _signal: 1.72)
     monkeypatch.setattr(listener.executor, "account_evidence", lambda: {"currency": "EUR"})
-    monkeypatch.setattr("MetaTrader5.history_deals_get", lambda **kwargs: [])
+    monkeypatch.setattr("mt5_runtime.mt5.history_deals_get", lambda **kwargs: [])
 
     async def no_sleep(_seconds):
         pass
@@ -295,7 +295,7 @@ async def test_cancelled_finalization_releases_guard_and_can_retry(monkeypatch):
     monkeypatch.setattr(listener, "_open_mt5_positions_for_signal", lambda _signal: [])
     monkeypatch.setattr(listener, "_realized_pl", lambda _signal: 1.72)
     monkeypatch.setattr(listener.executor, "account_evidence", lambda: {"currency": "EUR"})
-    monkeypatch.setattr("MetaTrader5.history_deals_get", lambda **kwargs: [])
+    monkeypatch.setattr("mt5_runtime.mt5.history_deals_get", lambda **kwargs: [])
     entered = asyncio.Event()
     release = asyncio.Event()
 
@@ -329,7 +329,7 @@ async def test_finalization_guard_is_not_shared_between_signals(monkeypatch):
     monkeypatch.setattr(listener, "_open_mt5_positions_for_signal", lambda _signal: [])
     monkeypatch.setattr(listener, "_realized_pl", lambda _signal: 1.72)
     monkeypatch.setattr(listener.executor, "account_evidence", lambda: {"currency": "EUR"})
-    monkeypatch.setattr("MetaTrader5.history_deals_get", lambda **kwargs: [])
+    monkeypatch.setattr("mt5_runtime.mt5.history_deals_get", lambda **kwargs: [])
     first_paused = asyncio.Event()
     release_first = asyncio.Event()
     calls = 0

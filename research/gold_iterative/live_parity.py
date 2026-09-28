@@ -18,6 +18,8 @@ from research.dubai_iterative.dataset import SignalPath
 from research.dubai_iterative.engine import SimulationResult, simulate
 from research.dubai_iterative.fast_engine import FastEvaluator
 from research.dubai_iterative.oracle import OracleResult, oracle_simulate
+from research.gold_iterative.ledger_evidence import ledger_ticket_evidence
+from research.gold_iterative.exit_deals import compare_exit_deals, mirror_exit_rows
 
 
 _CENT = Decimal("0.01")
@@ -39,8 +41,9 @@ def certify_live_logic_mirror(
     """Certify strategy management against reconciled MT5 signal baskets.
 
     The gate is deliberately strict: exact tick audit, strategy identity,
-    three-engine agreement, entry count and account-currency result must all
-    agree for every signal.  This intentionally says nothing about whether a
+    three-engine agreement, entry facts and account-currency results must all
+    agree for every signal and ticket. This does not certify the observed exit
+    decision/deal sequence, or say anything about whether a
     prospective replay can predict those fills from Telegram and ticks.
     """
 
@@ -92,12 +95,16 @@ def certify_live_logic_mirror(
         mirror_exit_reason: str | None = None
         engine_agreement = False
         engine_digest: str | None = None
+        simulated_exits = None
+        ticket_rows, ledger_blockers = _bind_ledger(actual, path)
+        blockers.extend(ledger_blockers)
 
         if entry_count == 0 and not blockers:
             mirror_money = Decimal("0.00")
             mirror_entries = 0
             mirror_exit_reason = "verified_no_position"
             engine_agreement = True
+            simulated_exits = []
             if actual_money != Decimal("0.00"):
                 mismatches.append("money_mismatch")
         elif entry_count > 0:
@@ -135,6 +142,7 @@ def certify_live_logic_mirror(
                     mirror_money = _money(scalar.pnl_eur)
                     mirror_entries = len(scalar.entries)
                     mirror_exit_reason = scalar.exit_reason
+                    simulated_exits = mirror_exit_rows(scalar.exits)
                     if mirror_money is None:
                         blockers.append("live_logic_mirror_money_missing")
                     if mirror_entries != entry_count:
@@ -145,6 +153,22 @@ def certify_live_logic_mirror(
                         and mirror_money != actual_money
                     ):
                         mismatches.append("money_mismatch")
+                    ticket_rows, ticket_blockers, ticket_mismatches = (
+                        _compare_tickets(path, scalar, ticket_rows)
+                    )
+                    blockers.extend(ticket_blockers)
+                    mismatches.extend(ticket_mismatches)
+
+        exit_comparison = compare_exit_deals(actual, simulated_exits)
+        blockers.extend(f"exit_deals:{reason}" for reason in exit_comparison["blockers"])
+        mismatches.extend(f"exit_deals:{reason}" for reason in exit_comparison["mismatches"])
+
+        if mirror_entries is None:
+            for ticket_row in ticket_rows:
+                ticket_row["status"] = "blocked"
+                ticket_row["blockers"] = list(dict.fromkeys(
+                    ticket_row["blockers"] + blockers + ["mirror_not_evaluated"]
+                ))
 
         blockers = list(dict.fromkeys(blockers))
         mismatches = list(dict.fromkeys(mismatches))
@@ -165,6 +189,9 @@ def certify_live_logic_mirror(
             "mirror_exit_reason": mirror_exit_reason,
             "engine_agreement": engine_agreement,
             "engine_result_digest": engine_digest,
+            "ticket_rows": ticket_rows,
+            "mirror_exit_rows": simulated_exits,
+            "exit_deal_comparison": exit_comparison,
             "blockers": blockers + mismatches,
         })
 
@@ -191,7 +218,8 @@ def certify_live_logic_mirror(
         parity_status = "exact"
 
     return {
-        "schema_version": 1,
+        "schema_version": 4,
+        "comparison_contract": "ledger_bound_entry_and_exit_deals_v4",
         "research_genome_fingerprint": genome.fingerprint,
         "live_strategy_fingerprint": expected_live_fingerprint,
         "evidence_roles": dict(_EVIDENCE_ROLES),
@@ -226,6 +254,7 @@ def certify_live_logic_mirror(
             "prospective_entry_outcome_parity",
             "prospective_entry_trigger_parity",
             "broker_fill_parity",
+            "observed_exit_decision_and_deal_sequence_parity",
             "deterministic_terminal_lifecycle_parity",
         ],
         "rows": rows,
@@ -274,7 +303,198 @@ def _path_blockers(
         blockers.append("actual_fill_money_missing")
     elif actual_money is not None and path_money != actual_money:
         blockers.append("actual_sources_money_disagree")
+    tickets: set[str] = set()
+    for leg in path.legs:
+        ticket = str(leg.ticket or "")
+        if not ticket:
+            blockers.append("actual_ticket_identity_missing")
+        elif ticket in tickets:
+            blockers.append(f"duplicate_actual_ticket:{ticket}")
+        tickets.add(ticket)
+        if _money(leg.actual_pnl_eur) is None:
+            blockers.append(f"actual_ticket_money_invalid:{ticket}")
+        volume = _number(leg.volume)
+        if volume is None or volume <= 0:
+            blockers.append(f"actual_ticket_volume_invalid:{ticket}")
+        if leg.closed_at is None:
+            blockers.append(f"actual_ticket_not_closed:{ticket}")
+    ticket_total = _sum_money(leg.actual_pnl_eur for leg in path.legs)
+    if ticket_total is not None and path_money is not None and ticket_total != path_money:
+        blockers.append("actual_ticket_money_sum_mismatch")
     return blockers
+
+
+def _bind_ledger(
+    actual: Mapping[str, Any],
+    path: SignalPath | None,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    evidence, ledger_blockers = ledger_ticket_evidence(actual)
+    blockers = list(ledger_blockers)
+    legs = {str(leg.ticket or ""): leg for leg in path.legs} if path else {}
+    rows: list[dict[str, Any]] = []
+    for ticket in sorted(evidence.keys() | legs.keys()):
+        observed = evidence.get(ticket)
+        leg = legs.get(ticket)
+        issues = list(observed["blockers"]) if observed else []
+        if observed is None:
+            issues.append(f"ledger_path_ticket_unbound:{ticket}")
+        elif leg is None:
+            issues.append(f"ledger_path_ticket_missing:{ticket}")
+        else:
+            if path.direction != observed["direction"]:
+                issues.append(f"ledger_path_direction_mismatch:{ticket}")
+            market_symbols = {
+                str(item.get("symbol") or "").strip().upper()
+                for item in path.market_evidence if isinstance(item, Mapping)
+            }
+            if not path.market_evidence or market_symbols != {observed["symbol"]}:
+                issues.append(f"ledger_path_symbol_mismatch_or_missing:{ticket}")
+            if (
+                _number(leg.open_price) != observed["open_price"]
+                or _number(leg.volume) != observed["volume"]
+                or leg.opened_at != observed["opened_at"]
+            ):
+                issues.append(f"ledger_path_entry_facts_mismatch:{ticket}")
+            if _money(leg.actual_pnl_eur) != observed["net_eur"]:
+                issues.append(f"ledger_path_money_mismatch:{ticket}")
+        observed = observed or {}
+        opened = observed.get("opened_at")
+        costs = observed.get("costs")
+        rows.append({
+            "ticket": ticket, "status": "blocked",
+            "actual_mt5_eur": _money_text(observed.get("net_eur")),
+            "mirror_eur": None, "net_delta_eur": None,
+            "actual_volume": str(observed["volume"]) if observed.get("volume") is not None else None,
+            "mirror_closed_volume": None, "mirror_entry_count": None,
+            "mirror_exit_count": None, "blockers": issues,
+            "actual_entry_price": str(observed["open_price"]) if observed.get("open_price") is not None else None,
+            "actual_opened_at": opened.isoformat() if opened is not None else None,
+            "actual_direction": observed.get("direction"),
+            "actual_symbol": observed.get("symbol"),
+            "ledger_closed_volume": str(observed["closed_volume"]) if observed.get("closed_volume") is not None else None,
+            "ledger_deal_count": observed.get("deal_count"),
+            "ledger_costs": {key: _money_text(value) for key, value in costs.items()} if costs is not None else None,
+            "ledger_position_indices": observed.get("source_position_indices", []),
+            "path_net_eur": _money_text(_money(leg.actual_pnl_eur)) if leg else None,
+        })
+        blockers.extend(issues)
+    positions = actual.get("positions")
+    if isinstance(positions, (list, tuple)):
+        represented = {index for row in rows for index in row["ledger_position_indices"]}
+        for index in range(len(positions)):
+            if index not in represented:
+                rows.append({
+                    "ticket": "", "status": "blocked", "actual_mt5_eur": None,
+                    "mirror_eur": None, "net_delta_eur": None, "actual_volume": None,
+                    "mirror_closed_volume": None, "mirror_entry_count": None,
+                    "mirror_exit_count": None, "ledger_position_indices": [index],
+                    "blockers": [f"ledger_position_unbound:{index}"],
+                })
+    return rows, list(dict.fromkeys(blockers))
+
+
+def _compare_tickets(
+    path: SignalPath,
+    result: SimulationResult,
+    ledger_rows: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[str], list[str]]:
+    actual = {str(leg.ticket): leg for leg in path.legs}
+    ledger = {row["ticket"]: row for row in ledger_rows}
+    entries: dict[str, list[Any]] = {}
+    exits: dict[str, list[Any]] = {}
+    for entry in result.entries:
+        entries.setdefault(str(entry.ticket or ""), []).append(entry)
+    for exit_record in result.exits:
+        exits.setdefault(str(exit_record.ticket or ""), []).append(exit_record)
+    blockers: list[str] = []
+    mismatches: list[str] = []
+    rows: list[dict[str, Any]] = []
+    # Partial closes may share a ticket, but cannot offset another ticket's error.
+    for ticket in sorted(actual.keys() | entries.keys() | exits.keys()):
+        leg = actual.get(ticket)
+        ticket_entries = entries.get(ticket, [])
+        ticket_exits = exits.get(ticket, [])
+        issues: list[str] = []
+        missing: list[str] = []
+        observed = ledger.get(ticket, {})
+        actual_money = _money(observed.get("actual_mt5_eur"))
+        simulated_money = (
+            _sum_money(item.pnl_eur for item in ticket_exits)
+            if ticket_exits else None
+        )
+        closed_volume = _sum_numbers(item.volume for item in ticket_exits)
+        if leg is None:
+            issues.append(f"unexpected_mirror_ticket:{ticket}")
+        else:
+            if len(ticket_entries) != 1:
+                issues.append(f"ticket_entry_count_mismatch:{ticket}")
+            else:
+                entry = ticket_entries[0]
+                if (
+                    _number(entry.entry_price) != _number(leg.open_price)
+                    or _number(entry.volume) != _number(leg.volume)
+                    or entry.opened_at != leg.opened_at
+                    or entry.source != "observed_mt5_fill"
+                ):
+                    issues.append(f"ticket_entry_facts_mismatch:{ticket}")
+            if not ticket_exits:
+                issues.append(f"ticket_exit_missing:{ticket}")
+            elif simulated_money is None:
+                missing.append(f"mirror_ticket_money_missing:{ticket}")
+            if closed_volume is None or any(
+                _number(item.volume) is None or _number(item.volume) <= 0
+                for item in ticket_exits
+            ):
+                missing.append(f"mirror_ticket_volume_invalid:{ticket}")
+            elif closed_volume != _number(leg.volume):
+                issues.append(f"ticket_exit_volume_mismatch:{ticket}")
+            if (
+                simulated_money is not None and actual_money is not None
+                and simulated_money != actual_money
+            ):
+                issues.append(f"ticket_money_mismatch:{ticket}")
+        blockers.extend(missing)
+        mismatches.extend(issues)
+        rows.append({
+            **observed,
+            "ticket": ticket,
+            "status": "blocked" if missing else "mismatch" if issues else "exact",
+            "actual_mt5_eur": _money_text(actual_money),
+            "mirror_eur": _money_text(simulated_money),
+            "net_delta_eur": _money_text(
+                None if actual_money is None or simulated_money is None
+                else simulated_money - actual_money
+            ),
+            "actual_volume": observed.get("actual_volume"),
+            "mirror_closed_volume": str(closed_volume) if closed_volume is not None else None,
+            "mirror_entry_count": len(ticket_entries),
+            "mirror_exit_count": len(ticket_exits),
+            "blockers": missing + issues,
+        })
+    ticket_total = _sum_money(item.pnl_eur for item in result.exits)
+    if ticket_total is not None and ticket_total != _money(result.pnl_eur):
+        blockers.append("mirror_ticket_money_sum_mismatch")
+    return rows, blockers, mismatches
+
+
+def _number(value: object) -> Decimal | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        result = Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        return None
+    return result if result.is_finite() else None
+
+
+def _sum_numbers(values: Iterable[object]) -> Decimal | None:
+    total = Decimal(0)
+    for value in values:
+        number = _number(value)
+        if number is None:
+            return None
+        total += number
+    return total
 
 
 def _audit_blockers(

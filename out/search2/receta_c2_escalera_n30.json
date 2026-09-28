@@ -1,0 +1,1 @@
+{"family": "c2_escalera", "filter": {"cond": [["asia_loc", ">", 0.8]]}, "genome_index": 210, "n_min": 30}

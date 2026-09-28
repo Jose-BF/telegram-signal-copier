@@ -28,6 +28,13 @@ ORIENTATION_IDENTITY = 0
 ORIENTATION_ACCOUNT_BASE = 1
 ORIENTATION_PROFIT_BASE = 2
 
+_LIMIT_EXIT_REASONS = frozenset({
+    "per_leg_target",
+    "provider_tp",
+    "provider_target_all",
+})
+_PROTECTED_LIMIT_EXIT_REASONS = _LIMIT_EXIT_REASONS | {"initial_tp"}
+
 
 @dataclass(frozen=True)
 class PortfolioAssessment:
@@ -91,6 +98,8 @@ def reconstruct_portfolio(
     """Rebuild one account equity path and fail closed on inconsistent input."""
 
     execution = execution or ExecutionAssumptions()
+    if execution.client is not None:
+        return _blocked(["client_portfolio_execution_unvalidated"])
     blockers: list[str] = []
     paths_by_signal = _unique_by_signal(paths, "path", blockers)
     results_by_signal = _unique_by_signal(results, "result", blockers)
@@ -394,6 +403,7 @@ def _result_slices(
             blockers.append(f"open_position:{signal_id}:{ticket}")
             continue
         entry_units = _fixed_scalar(float(entry.volume), VOLUME_SCALE)
+        entry_points = _fixed_scalar(float(entry.entry_price), PRICE_SCALE)
         closed_units = 0
         opened_ns = _to_ns(entry.opened_at)
         entry_index = int(entry.tick_index)
@@ -408,6 +418,9 @@ def _result_slices(
             closed_ns = _to_ns(item.closed_at)
             volume_units = _fixed_scalar(float(item.volume), VOLUME_SCALE)
             closed_units += volume_units
+            if _fixed_scalar(float(item.entry_price), PRICE_SCALE) != entry_points:
+                blockers.append(f"exit_entry_price_mismatch:{signal_id}:{ticket}")
+                continue
             if closed_ns < opened_ns:
                 blockers.append(f"exit_before_entry:{signal_id}:{ticket}")
                 continue
@@ -419,11 +432,13 @@ def _result_slices(
             ):
                 blockers.append(f"exit_tick_mismatch:{signal_id}:{ticket}")
                 continue
-            raw_exit = float(path.bid[index] if path.direction == "BUY" else path.ask[index])
-            cost = execution.exit_slippage + execution.spread_addition
-            expected_exit = raw_exit - cost if path.direction == "BUY" else raw_exit + cost
-            if _fixed_scalar(expected_exit, PRICE_SCALE) != _fixed_scalar(
-                float(item.exit_price), PRICE_SCALE
+            if not _exit_price_matches(
+                path,
+                result,
+                item,
+                index=index,
+                closed_ns=closed_ns,
+                execution=execution,
             ):
                 blockers.append(f"execution_scenario_mismatch:{signal_id}:{ticket}")
                 continue
@@ -436,7 +451,7 @@ def _result_slices(
                 1 if path.direction == "BUY" else -1,
                 orientation,
                 contract_size,
-                _fixed_scalar(float(item.entry_price), PRICE_SCALE),
+                entry_points,
                 _fixed_scalar(float(item.exit_price), PRICE_SCALE),
                 volume_units,
                 _fixed_scalar(float(path.fx_bid[index]), FX_SCALE),
@@ -453,7 +468,7 @@ def _result_slices(
                 opened_ns=opened_ns,
                 closed_ns=closed_ns,
                 direction=1 if path.direction == "BUY" else -1,
-                entry_points=_fixed_scalar(float(entry.entry_price), PRICE_SCALE),
+                entry_points=entry_points,
                 volume_units=volume_units,
                 realized_minor=pnl_minor,
                 opened_rank=_timestamp_rank(path.times_ns, entry_index),
@@ -476,6 +491,72 @@ def _result_slices(
     if len(blockers) == initial_blocker_count and summed_minor != expected_result:
         blockers.append(f"result_money_mismatch:{signal_id}")
     return rows
+
+
+def _exit_price_matches(path, result, item, *, index, closed_ns, execution):
+    direction = 1 if path.direction == "BUY" else -1
+    raw_exit = float(path.bid[index] if direction == 1 else path.ask[index])
+    cost = execution.exit_slippage + execution.spread_addition
+    exit_price = float(item.exit_price)
+    reason = str(getattr(item, "reason", ""))
+
+    if reason in _PROTECTED_LIMIT_EXIT_REASONS and execution.protection is not None:
+        return _protected_limit_exit_matches(
+            result,
+            item,
+            index=index,
+            closed_ns=closed_ns,
+            direction=direction,
+            raw_exit=raw_exit,
+            cost=cost,
+        )
+    if reason in _LIMIT_EXIT_REASONS:
+        target = exit_price + direction * cost
+        return _target_crossed(direction, raw_exit, target)
+
+    expected_exit = raw_exit - direction * cost
+    return _fixed_scalar(expected_exit, PRICE_SCALE) == _fixed_scalar(
+        exit_price, PRICE_SCALE
+    )
+
+
+def _protected_limit_exit_matches(
+    result,
+    item,
+    *,
+    index,
+    closed_ns,
+    direction,
+    raw_exit,
+    cost,
+):
+    matches = [
+        event
+        for event in tuple(getattr(result, "protection_events", ()) or ())
+        if (
+            str(getattr(event, "ticket", "")) == str(item.ticket)
+            and getattr(event, "kind", None) == "closed"
+            and int(getattr(event, "tick_index", -1)) == index
+            and int(getattr(event, "timestamp_ns", -1)) == closed_ns
+            and str(getattr(event, "reason", "")) == str(item.reason)
+        )
+    ]
+    if len(matches) != 1 or getattr(matches[0], "tp", None) is None:
+        return False
+    target = float(matches[0].tp)
+    expected_exit = target - direction * cost
+    return (
+        _fixed_scalar(expected_exit, PRICE_SCALE)
+        == _fixed_scalar(float(item.exit_price), PRICE_SCALE)
+        and _target_crossed(direction, raw_exit, target)
+    )
+
+
+def _target_crossed(direction, raw_exit, target):
+    return direction * (
+        _fixed_scalar(raw_exit, PRICE_SCALE)
+        - _fixed_scalar(target, PRICE_SCALE)
+    ) >= 0
 
 
 def _combined_tape(paths, blockers):

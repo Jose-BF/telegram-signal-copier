@@ -316,13 +316,13 @@ class TestRealizedPl:
 
         deals = [
             SimpleNamespace(magic=sig.magic, profit=0.0,
-                            commission=0.0, swap=0.0),
+                            commission=0.0, swap=0.0, entry=0, volume=.04),
             SimpleNamespace(magic=0, profit=-4.62,
-                            commission=0.0, swap=0.0),
+                            commission=0.0, swap=0.0, entry=1, volume=.04),
         ]
 
         monkeypatch.setattr(
-            "MetaTrader5.history_deals_get",
+            "mt5_runtime.mt5.history_deals_get",
             lambda position: deals if position == 111 else [],
         )
 

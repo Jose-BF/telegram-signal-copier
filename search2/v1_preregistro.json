@@ -1,0 +1,15 @@
+{
+ "fecha": "2026-09-29",
+ "que": "V1: placebo del procedimiento entero de la búsqueda 2",
+ "procedimiento": "Las 10 familias de search2/families.py se evalúan con el motor exacto (broker C_p50) sobre universos placebo (semilla s0 y s1 de hora al azar, misma dirección y día; las familias de invertir usan la versión invertida de cada placebo). Sobre cada universo placebo se aplica EXACTAMENTE el juez de search2/judge_run.py (walk-forward, mismas variantes: procedimiento principal, simples_n30, simples_n60, todos_n60, sin_filtro_n60, carriles A y B).",
+ "definicion_hallazgo": {
+  "fuerte": "familia x carril en la que alguna variante de filtros sencillos (simples_n30 o simples_n60) tiene total > 0 y TODOS los meses fuera de muestra positivos (n_months >= 4)",
+  "debil": "familia x carril en la que alguna variante de filtros sencillos tiene total > 0 y como mucho un mes fuera de muestra negativo"
+ },
+ "resultado_real_ya_conocido": {
+  "fuertes": ["c2_escalera (A y B)", "c2_invertir_1pata (A y B)"],
+  "nota": "se recuenta con el mismo código antes de mirar los placebos"
+ },
+ "criterio": "Si alguna búsqueda placebo produce tantos hallazgos fuertes como la real (o más), los hallazgos reales NO se distinguen de la suerte: R1 y R3 pierden la condición de candidatas y pasan a 'no demostradas'. Si las búsquedas placebo producen claramente menos (0 o 1 fuerte cada una), se mantienen. Con solo 2 semillas el resultado es orientativo; si queda en la frontera (una placebo con 2 fuertes) se añade una tercera semilla antes de decidir.",
+ "no_se_cambia_tras_mirar": true
+}

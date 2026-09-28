@@ -471,7 +471,7 @@ def test_orphan_history_waits_for_expected_position_close():
     assert len(calls) == 3
 
 
-def test_orphan_history_default_uses_metatrader5_module(monkeypatch):
+def test_orphan_history_default_uses_isolated_runtime(monkeypatch):
     closing = SimpleNamespace(
         ticket=501,
         position_id=101,
@@ -484,10 +484,9 @@ def test_orphan_history_default_uses_metatrader5_module(monkeypatch):
         calls.append(True)
         return (closing,)
 
-    monkeypatch.setitem(
-        sys.modules,
-        "MetaTrader5",
-        SimpleNamespace(history_deals_get=history_get),
+    monkeypatch.setattr(
+        "mt5_runtime.mt5.history_deals_get",
+        history_get,
     )
 
     deals = main._fetch_orphan_deals_synced(

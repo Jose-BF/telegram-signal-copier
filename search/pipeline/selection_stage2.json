@@ -1,0 +1,680 @@
+{
+ "canal1": [
+  {
+   "genome": {
+    "schema_version": 2,
+    "entry_mode": "signal_market",
+    "entry_value": null,
+    "entry_expiry_min": 15,
+    "entry_ladder_mode": "adverse",
+    "entry_ladder_step": 4.0,
+    "leg_count": 3,
+    "volume_weights": [
+     0.01,
+     0.04,
+     0.04
+    ],
+    "target_mode": "none",
+    "target_value": null,
+    "partial_fraction": 0.0,
+    "runner_target": null,
+    "be_mode": "none",
+    "be_trigger": null,
+    "stop_mode": "basket_money",
+    "stop_value": 25.0,
+    "profit_lock_arm": 10.0,
+    "profit_lock_giveback": 2.0,
+    "time_exit_min": 40,
+    "provider_management_mode": "ignore",
+    "context_filter_mode": "none",
+    "context_filter_value": null,
+    "entry_confirmation_value": null,
+    "target_steps": [],
+    "trailing_distance": null,
+    "hard_stop_eur_per_leg": null,
+    "time_exit_mode": "loss_only",
+    "pending_entry_policy": "until_expiry",
+    "source_strategy_fingerprint": "32cb5c0fe8205ad00a0c655bacd5446c6cc219d1ad7338967212c71781860631",
+    "parent_fingerprints": [],
+    "mutation_reason": null,
+    "lineage_depth": 0
+   },
+   "filter": {},
+   "universe": "real",
+   "label": "estrategia actual (referencia)"
+  },
+  {
+   "genome": {
+    "schema_version": 2,
+    "entry_mode": "signal_market",
+    "entry_value": null,
+    "entry_expiry_min": 15,
+    "entry_ladder_mode": "adverse",
+    "entry_ladder_step": 3.0,
+    "leg_count": 3,
+    "volume_weights": [
+     0.01,
+     0.02,
+     0.04
+    ],
+    "target_mode": "none",
+    "target_value": null,
+    "partial_fraction": 0.0,
+    "runner_target": null,
+    "be_mode": "none",
+    "be_trigger": null,
+    "stop_mode": "basket_money",
+    "stop_value": 50.0,
+    "profit_lock_arm": 10.0,
+    "profit_lock_giveback": 1.0,
+    "time_exit_min": 20,
+    "provider_management_mode": "ignore",
+    "context_filter_mode": "none",
+    "context_filter_value": null,
+    "entry_confirmation_value": null,
+    "target_steps": [],
+    "trailing_distance": null,
+    "hard_stop_eur_per_leg": null,
+    "time_exit_mode": "always",
+    "pending_entry_policy": "until_expiry",
+    "source_strategy_fingerprint": "32cb5c0fe8205ad00a0c655bacd5446c6cc219d1ad7338967212c71781860631",
+    "parent_fingerprints": [],
+    "mutation_reason": null,
+    "lineage_depth": 0
+   },
+   "filter": {
+    "cond": [
+     [
+      "rsi_m15",
+      "<",
+      35
+     ],
+     [
+      "atr_m15",
+      "<",
+      12.0
+     ]
+    ]
+   },
+   "universe": "real",
+   "label": "gesti\u00f3n #132 | RSI15m < 35, ATR15m < 12.0"
+  },
+  {
+   "genome": {
+    "schema_version": 2,
+    "entry_mode": "signal_market",
+    "entry_value": null,
+    "entry_expiry_min": 5,
+    "entry_ladder_mode": "adverse",
+    "entry_ladder_step": 4.0,
+    "leg_count": 3,
+    "volume_weights": [
+     0.01,
+     0.02,
+     0.04
+    ],
+    "target_mode": "none",
+    "target_value": null,
+    "partial_fraction": 0.0,
+    "runner_target": null,
+    "be_mode": "none",
+    "be_trigger": null,
+    "stop_mode": "basket_money",
+    "stop_value": 35.0,
+    "profit_lock_arm": 5.0,
+    "profit_lock_giveback": 2.5,
+    "time_exit_min": 20,
+    "provider_management_mode": "ignore",
+    "context_filter_mode": "none",
+    "context_filter_value": null,
+    "entry_confirmation_value": null,
+    "target_steps": [],
+    "trailing_distance": null,
+    "hard_stop_eur_per_leg": null,
+    "time_exit_mode": "always",
+    "pending_entry_policy": "until_expiry",
+    "source_strategy_fingerprint": "32cb5c0fe8205ad00a0c655bacd5446c6cc219d1ad7338967212c71781860631",
+    "parent_fingerprints": [],
+    "mutation_reason": null,
+    "lineage_depth": 0
+   },
+   "filter": {
+    "hours": [
+     12,
+     17
+    ],
+    "cond": [
+     [
+      "rsi_m15",
+      ">",
+      65
+     ]
+    ]
+   },
+   "universe": "real",
+   "label": "gesti\u00f3n #253 | de 12:00 a 17:00 UTC, RSI15m > 65"
+  },
+  {
+   "genome": {
+    "schema_version": 2,
+    "entry_mode": "pullback",
+    "entry_value": 2.0,
+    "entry_expiry_min": 30,
+    "entry_ladder_mode": "adverse",
+    "entry_ladder_step": 5.0,
+    "leg_count": 3,
+    "volume_weights": [
+     0.01,
+     0.01,
+     0.02
+    ],
+    "target_mode": "none",
+    "target_value": null,
+    "partial_fraction": 0.0,
+    "runner_target": null,
+    "be_mode": "none",
+    "be_trigger": null,
+    "stop_mode": "basket_money",
+    "stop_value": 50.0,
+    "profit_lock_arm": 5.0,
+    "profit_lock_giveback": 3.0,
+    "time_exit_min": 120,
+    "provider_management_mode": "ignore",
+    "context_filter_mode": "none",
+    "context_filter_value": null,
+    "entry_confirmation_value": null,
+    "target_steps": [],
+    "trailing_distance": null,
+    "hard_stop_eur_per_leg": null,
+    "time_exit_mode": "loss_only",
+    "pending_entry_policy": "until_expiry",
+    "source_strategy_fingerprint": "32cb5c0fe8205ad00a0c655bacd5446c6cc219d1ad7338967212c71781860631",
+    "parent_fingerprints": [],
+    "mutation_reason": null,
+    "lineage_depth": 0
+   },
+   "filter": {
+    "cond": [
+     [
+      "rsi_m15",
+      "<",
+      45
+     ],
+     [
+      "pre_range_60",
+      "<",
+      25.0
+     ]
+    ]
+   },
+   "universe": "real",
+   "label": "gesti\u00f3n #106 | RSI15m < 45, rango 60m < 25.0"
+  },
+  {
+   "genome": {
+    "schema_version": 2,
+    "entry_mode": "signal_market",
+    "entry_value": null,
+    "entry_expiry_min": 15,
+    "entry_ladder_mode": "adverse",
+    "entry_ladder_step": 6.0,
+    "leg_count": 3,
+    "volume_weights": [
+     0.01,
+     0.02,
+     0.04
+    ],
+    "target_mode": "none",
+    "target_value": null,
+    "partial_fraction": 0.0,
+    "runner_target": null,
+    "be_mode": "none",
+    "be_trigger": null,
+    "stop_mode": "basket_money",
+    "stop_value": 50.0,
+    "profit_lock_arm": 5.0,
+    "profit_lock_giveback": 2.5,
+    "time_exit_min": 60,
+    "provider_management_mode": "ignore",
+    "context_filter_mode": "none",
+    "context_filter_value": null,
+    "entry_confirmation_value": null,
+    "target_steps": [],
+    "trailing_distance": null,
+    "hard_stop_eur_per_leg": null,
+    "time_exit_mode": "always",
+    "pending_entry_policy": "until_expiry",
+    "source_strategy_fingerprint": "32cb5c0fe8205ad00a0c655bacd5446c6cc219d1ad7338967212c71781860631",
+    "parent_fingerprints": [],
+    "mutation_reason": null,
+    "lineage_depth": 0
+   },
+   "filter": {
+    "cond": [
+     [
+      "loc_4h",
+      "<",
+      0.5
+     ],
+     [
+      "rsi_m15",
+      ">",
+      55
+     ]
+    ]
+   },
+   "universe": "real",
+   "label": "gesti\u00f3n #7 | posici\u00f3n en rango 4h < 0.5, RSI15m > 55"
+  },
+  {
+   "genome": {
+    "schema_version": 2,
+    "entry_mode": "adverse_reversal",
+    "entry_value": 2.0,
+    "entry_expiry_min": 30,
+    "entry_ladder_mode": "adverse",
+    "entry_ladder_step": 6.0,
+    "leg_count": 2,
+    "volume_weights": [
+     0.02,
+     0.02
+    ],
+    "target_mode": "none",
+    "target_value": null,
+    "partial_fraction": 0.0,
+    "runner_target": null,
+    "be_mode": "none",
+    "be_trigger": null,
+    "stop_mode": "basket_money",
+    "stop_value": 50.0,
+    "profit_lock_arm": 5.0,
+    "profit_lock_giveback": 2.0,
+    "time_exit_min": 90,
+    "provider_management_mode": "ignore",
+    "context_filter_mode": "none",
+    "context_filter_value": null,
+    "entry_confirmation_value": 1.5,
+    "target_steps": [],
+    "trailing_distance": null,
+    "hard_stop_eur_per_leg": null,
+    "time_exit_mode": "non_negative",
+    "pending_entry_policy": "until_expiry",
+    "source_strategy_fingerprint": "32cb5c0fe8205ad00a0c655bacd5446c6cc219d1ad7338967212c71781860631",
+    "parent_fingerprints": [],
+    "mutation_reason": null,
+    "lineage_depth": 0
+   },
+   "filter": {
+    "weekdays": [
+     0,
+     1,
+     2
+    ],
+    "cond": [
+     [
+      "pre_range_60",
+      "<",
+      15.0
+     ]
+    ]
+   },
+   "universe": "real",
+   "label": "gesti\u00f3n #1 | d\u00edas LMX, rango 60m < 15.0"
+  },
+  {
+   "genome": {
+    "schema_version": 2,
+    "entry_mode": "signal_market",
+    "entry_value": null,
+    "entry_expiry_min": 30,
+    "entry_ladder_mode": "adverse",
+    "entry_ladder_step": 4.0,
+    "leg_count": 4,
+    "volume_weights": [
+     0.01,
+     0.02,
+     0.02,
+     0.02
+    ],
+    "target_mode": "none",
+    "target_value": null,
+    "partial_fraction": 0.0,
+    "runner_target": null,
+    "be_mode": "none",
+    "be_trigger": null,
+    "stop_mode": "basket_money",
+    "stop_value": 35.0,
+    "profit_lock_arm": 5.0,
+    "profit_lock_giveback": 2.0,
+    "time_exit_min": 30,
+    "provider_management_mode": "ignore",
+    "context_filter_mode": "none",
+    "context_filter_value": null,
+    "entry_confirmation_value": null,
+    "target_steps": [],
+    "trailing_distance": null,
+    "hard_stop_eur_per_leg": null,
+    "time_exit_mode": "always",
+    "pending_entry_policy": "until_expiry",
+    "source_strategy_fingerprint": "32cb5c0fe8205ad00a0c655bacd5446c6cc219d1ad7338967212c71781860631",
+    "parent_fingerprints": [],
+    "mutation_reason": null,
+    "lineage_depth": 0
+   },
+   "filter": {
+    "hours": [
+     12,
+     17
+    ],
+    "cond": [
+     [
+      "rsi_m15",
+      ">",
+      65
+     ]
+    ]
+   },
+   "universe": "real",
+   "label": "gesti\u00f3n #252 | de 12:00 a 17:00 UTC, RSI15m > 65"
+  }
+ ],
+ "canal2": [
+  {
+   "genome": {
+    "schema_version": 2,
+    "entry_mode": "adverse_reversal",
+    "entry_value": 1.0,
+    "entry_expiry_min": 30,
+    "entry_ladder_mode": "adverse",
+    "entry_ladder_step": 1.5,
+    "leg_count": 5,
+    "volume_weights": [
+     0.04,
+     0.03,
+     0.03,
+     0.03,
+     0.03
+    ],
+    "target_mode": "per_leg_steps",
+    "target_value": null,
+    "partial_fraction": 0.0,
+    "runner_target": null,
+    "be_mode": "none",
+    "be_trigger": null,
+    "stop_mode": "none",
+    "stop_value": null,
+    "profit_lock_arm": 30.0,
+    "profit_lock_giveback": 1.0,
+    "time_exit_min": 180,
+    "provider_management_mode": "ignore",
+    "context_filter_mode": "none",
+    "context_filter_value": null,
+    "entry_confirmation_value": 1.5,
+    "target_steps": [
+     0.5,
+     1.0,
+     1.5,
+     2.0,
+     2.5
+    ],
+    "trailing_distance": 30.0,
+    "hard_stop_eur_per_leg": null,
+    "time_exit_mode": "non_negative",
+    "pending_entry_policy": "until_expiry",
+    "source_strategy_fingerprint": "555124a24b534aa2abda53ddaaa2ee35fd3afd07e61d05937eb14c80ad0676f0",
+    "parent_fingerprints": [],
+    "mutation_reason": null,
+    "lineage_depth": 0
+   },
+   "filter": {},
+   "universe": "real",
+   "label": "estrategia actual (referencia)"
+  },
+  {
+   "genome": {
+    "schema_version": 2,
+    "entry_mode": "adverse_reversal",
+    "entry_value": 1.5,
+    "entry_expiry_min": 30,
+    "entry_ladder_mode": "adverse",
+    "entry_ladder_step": 1.0,
+    "leg_count": 3,
+    "volume_weights": [
+     0.04,
+     0.02,
+     0.02
+    ],
+    "target_mode": "per_leg_steps",
+    "target_value": null,
+    "partial_fraction": 0.0,
+    "runner_target": null,
+    "be_mode": "none",
+    "be_trigger": null,
+    "stop_mode": "none",
+    "stop_value": null,
+    "profit_lock_arm": 50.0,
+    "profit_lock_giveback": 2.0,
+    "time_exit_min": 240,
+    "provider_management_mode": "ignore",
+    "context_filter_mode": "none",
+    "context_filter_value": null,
+    "entry_confirmation_value": 2.0,
+    "target_steps": [
+     0.5,
+     1.0,
+     1.5
+    ],
+    "trailing_distance": null,
+    "hard_stop_eur_per_leg": null,
+    "time_exit_mode": "none",
+    "pending_entry_policy": "until_expiry",
+    "source_strategy_fingerprint": "555124a24b534aa2abda53ddaaa2ee35fd3afd07e61d05937eb14c80ad0676f0",
+    "parent_fingerprints": [],
+    "mutation_reason": null,
+    "lineage_depth": 0
+   },
+   "filter": {
+    "cond": [
+     [
+      "rsi_m5",
+      "<",
+      30
+     ],
+     [
+      "atr_m15",
+      ">",
+      8.0
+     ]
+    ]
+   },
+   "universe": "real",
+   "label": "gesti\u00f3n #434 | RSI5m < 30, ATR15m > 8.0"
+  },
+  {
+   "genome": {
+    "schema_version": 2,
+    "entry_mode": "adverse_reversal",
+    "entry_value": 1.0,
+    "entry_expiry_min": 30,
+    "entry_ladder_mode": "adverse",
+    "entry_ladder_step": 1.0,
+    "leg_count": 4,
+    "volume_weights": [
+     0.04,
+     0.03,
+     0.03,
+     0.03
+    ],
+    "target_mode": "per_leg_steps",
+    "target_value": null,
+    "partial_fraction": 0.0,
+    "runner_target": null,
+    "be_mode": "none",
+    "be_trigger": null,
+    "stop_mode": "none",
+    "stop_value": null,
+    "profit_lock_arm": 50.0,
+    "profit_lock_giveback": 2.0,
+    "time_exit_min": 180,
+    "provider_management_mode": "ignore",
+    "context_filter_mode": "none",
+    "context_filter_value": null,
+    "entry_confirmation_value": 1.0,
+    "target_steps": [
+     0.3,
+     0.6,
+     0.9,
+     1.2
+    ],
+    "trailing_distance": null,
+    "hard_stop_eur_per_leg": null,
+    "time_exit_mode": "always",
+    "pending_entry_policy": "until_expiry",
+    "source_strategy_fingerprint": "555124a24b534aa2abda53ddaaa2ee35fd3afd07e61d05937eb14c80ad0676f0",
+    "parent_fingerprints": [],
+    "mutation_reason": null,
+    "lineage_depth": 0
+   },
+   "filter": {
+    "cond": [
+     [
+      "loc_4h",
+      "<",
+      0.2
+     ],
+     [
+      "rsi_m15",
+      "<",
+      35
+     ]
+    ]
+   },
+   "universe": "real",
+   "label": "gesti\u00f3n #444 | posici\u00f3n en rango 4h < 0.2, RSI15m < 35"
+  },
+  {
+   "genome": {
+    "schema_version": 2,
+    "entry_mode": "adverse_reversal",
+    "entry_value": 1.0,
+    "entry_expiry_min": 30,
+    "entry_ladder_mode": "adverse",
+    "entry_ladder_step": 1.0,
+    "leg_count": 4,
+    "volume_weights": [
+     0.04,
+     0.03,
+     0.03,
+     0.03
+    ],
+    "target_mode": "per_leg_steps",
+    "target_value": null,
+    "partial_fraction": 0.0,
+    "runner_target": null,
+    "be_mode": "none",
+    "be_trigger": null,
+    "stop_mode": "none",
+    "stop_value": null,
+    "profit_lock_arm": 50.0,
+    "profit_lock_giveback": 2.0,
+    "time_exit_min": 180,
+    "provider_management_mode": "ignore",
+    "context_filter_mode": "none",
+    "context_filter_value": null,
+    "entry_confirmation_value": 1.0,
+    "target_steps": [
+     0.3,
+     0.6,
+     0.9,
+     1.2
+    ],
+    "trailing_distance": null,
+    "hard_stop_eur_per_leg": null,
+    "time_exit_mode": "always",
+    "pending_entry_policy": "until_expiry",
+    "source_strategy_fingerprint": "555124a24b534aa2abda53ddaaa2ee35fd3afd07e61d05937eb14c80ad0676f0",
+    "parent_fingerprints": [],
+    "mutation_reason": null,
+    "lineage_depth": 0
+   },
+   "filter": {
+    "cond": [
+     [
+      "rsi_m15",
+      "<",
+      35
+     ],
+     [
+      "atr_m15",
+      ">",
+      8.0
+     ]
+    ]
+   },
+   "universe": "real",
+   "label": "gesti\u00f3n #444 | RSI15m < 35, ATR15m > 8.0"
+  },
+  {
+   "genome": {
+    "schema_version": 2,
+    "entry_mode": "adverse_reversal",
+    "entry_value": 2.0,
+    "entry_expiry_min": 30,
+    "entry_ladder_mode": "adverse",
+    "entry_ladder_step": 1.0,
+    "leg_count": 4,
+    "volume_weights": [
+     0.03,
+     0.02,
+     0.02,
+     0.02
+    ],
+    "target_mode": "per_leg_steps",
+    "target_value": null,
+    "partial_fraction": 0.0,
+    "runner_target": null,
+    "be_mode": "none",
+    "be_trigger": null,
+    "stop_mode": "none",
+    "stop_value": null,
+    "profit_lock_arm": 30.0,
+    "profit_lock_giveback": 5.0,
+    "time_exit_min": 120,
+    "provider_management_mode": "ignore",
+    "context_filter_mode": "none",
+    "context_filter_value": null,
+    "entry_confirmation_value": 0.5,
+    "target_steps": [
+     0.5,
+     1.0,
+     1.5,
+     2.0
+    ],
+    "trailing_distance": null,
+    "hard_stop_eur_per_leg": null,
+    "time_exit_mode": "non_negative",
+    "pending_entry_policy": "until_expiry",
+    "source_strategy_fingerprint": "555124a24b534aa2abda53ddaaa2ee35fd3afd07e61d05937eb14c80ad0676f0",
+    "parent_fingerprints": [],
+    "mutation_reason": null,
+    "lineage_depth": 0
+   },
+   "filter": {
+    "cond": [
+     [
+      "loc_4h",
+      "<",
+      0.2
+     ],
+     [
+      "rsi_m15",
+      "<",
+      35
+     ]
+    ]
+   },
+   "universe": "real",
+   "label": "gesti\u00f3n #53 | posici\u00f3n en rango 4h < 0.2, RSI15m < 35"
+  }
+ ]
+}

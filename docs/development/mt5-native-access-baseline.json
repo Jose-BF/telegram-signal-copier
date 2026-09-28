@@ -1,0 +1,586 @@
+{
+  "files": {
+    "analysis/download_xauusd_2026.py": {
+      "references": [
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "copy_rates_range"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "initialize"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "last_error"
+        },
+        {
+          "count": 2,
+          "kind": "access",
+          "target": "shutdown"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "symbol_select"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "version"
+        },
+        {
+          "count": 1,
+          "kind": "constant",
+          "target": "TIMEFRAME_M1"
+        },
+        {
+          "count": 1,
+          "kind": "import",
+          "target": "MetaTrader5"
+        }
+      ],
+      "scope": "offline_or_tool_requires_reachability_review"
+    },
+    "analysis/mt5_tick_simulator.py": {
+      "references": [
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "copy_ticks_range"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "initialize"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "last_error"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "shutdown"
+        },
+        {
+          "count": 2,
+          "kind": "access",
+          "target": "symbol_info"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "symbol_info_tick"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "symbol_select"
+        },
+        {
+          "count": 1,
+          "kind": "constant",
+          "target": "COPY_TICKS_ALL"
+        },
+        {
+          "count": 1,
+          "kind": "import",
+          "target": "MetaTrader5"
+        }
+      ],
+      "scope": "offline_or_tool_requires_reachability_review"
+    },
+    "analysis/mt5_validate_tick.py": {
+      "references": [
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "account_info"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "copy_ticks_range"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "initialize"
+        },
+        {
+          "count": 2,
+          "kind": "access",
+          "target": "last_error"
+        },
+        {
+          "count": 4,
+          "kind": "access",
+          "target": "shutdown"
+        },
+        {
+          "count": 2,
+          "kind": "access",
+          "target": "symbol_info"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "symbol_info_tick"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "symbol_select"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "symbols_get"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "terminal_info"
+        },
+        {
+          "count": 1,
+          "kind": "constant",
+          "target": "COPY_TICKS_ALL"
+        },
+        {
+          "count": 1,
+          "kind": "import",
+          "target": "MetaTrader5"
+        }
+      ],
+      "scope": "offline_or_tool_requires_reachability_review"
+    },
+    "mt5_tester_replay.py": {
+      "references": [
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "history_deals_get"
+        },
+        {
+          "count": 2,
+          "kind": "access",
+          "target": "initialize"
+        },
+        {
+          "count": 3,
+          "kind": "access",
+          "target": "last_error"
+        },
+        {
+          "count": 2,
+          "kind": "access",
+          "target": "shutdown"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "terminal_info"
+        },
+        {
+          "count": 2,
+          "kind": "import",
+          "target": "MetaTrader5"
+        }
+      ],
+      "scope": "offline_or_tool_requires_reachability_review"
+    },
+    "mt5_worker.py": {
+      "references": [
+        {
+          "count": 1,
+          "kind": "import",
+          "target": "MetaTrader5"
+        }
+      ],
+      "scope": "isolated_live_owner"
+    },
+    "reconcile_mt5_ledger.py": {
+      "references": [
+        {
+          "count": 2,
+          "kind": "access",
+          "target": "history_deals_get"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "initialize"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "last_error"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "shutdown"
+        },
+        {
+          "count": 1,
+          "kind": "import",
+          "target": "MetaTrader5"
+        }
+      ],
+      "scope": "offline_or_tool_requires_reachability_review"
+    },
+    "tools/capture_broker_money_contract.py": {
+      "references": [
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "account_info"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "initialize"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "last_error"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "shutdown"
+        },
+        {
+          "count": 3,
+          "kind": "access",
+          "target": "symbol_info"
+        },
+        {
+          "count": 2,
+          "kind": "access",
+          "target": "symbol_info_tick"
+        },
+        {
+          "count": 3,
+          "kind": "access",
+          "target": "symbol_select"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "terminal_info"
+        },
+        {
+          "count": 1,
+          "kind": "import",
+          "target": "MetaTrader5"
+        }
+      ],
+      "scope": "offline_or_tool_requires_reachability_review"
+    },
+    "tools/check_mt5_ticket.py": {
+      "references": [
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "account_info"
+        },
+        {
+          "count": 2,
+          "kind": "access",
+          "target": "history_deals_get"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "history_orders_get"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "initialize"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "last_error"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "orders_get"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "positions_get"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "shutdown"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "terminal_info"
+        },
+        {
+          "count": 1,
+          "kind": "import",
+          "target": "MetaTrader5"
+        }
+      ],
+      "scope": "offline_or_tool_requires_reachability_review"
+    },
+    "tools/collect_simulator_window.py": {
+      "references": [
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "account_info"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "copy_ticks_range"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "history_deals_get"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "history_orders_get"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "initialize"
+        },
+        {
+          "count": 4,
+          "kind": "access",
+          "target": "last_error"
+        },
+        {
+          "count": 2,
+          "kind": "access",
+          "target": "orders_get"
+        },
+        {
+          "count": 2,
+          "kind": "access",
+          "target": "positions_get"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "shutdown"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "symbol_info"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "symbol_info_tick"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "terminal_info"
+        },
+        {
+          "count": 1,
+          "kind": "constant",
+          "target": "ACCOUNT_TRADE_MODE_DEMO"
+        },
+        {
+          "count": 1,
+          "kind": "constant",
+          "target": "COPY_TICKS_ALL"
+        },
+        {
+          "count": 1,
+          "kind": "import",
+          "target": "MetaTrader5"
+        }
+      ],
+      "scope": "offline_or_tool_requires_reachability_review"
+    },
+    "tools/ensure_replay_tick_cache.py": {
+      "references": [
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "initialize"
+        },
+        {
+          "count": 2,
+          "kind": "access",
+          "target": "last_error"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "symbol_select"
+        },
+        {
+          "count": 1,
+          "kind": "import",
+          "target": "MetaTrader5"
+        }
+      ],
+      "scope": "offline_or_tool_requires_reachability_review"
+    },
+    "tools/install_broker_money_snapshot_service.py": {
+      "references": [
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "initialize"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "last_error"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "shutdown"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "terminal_info"
+        },
+        {
+          "count": 1,
+          "kind": "import",
+          "target": "MetaTrader5"
+        }
+      ],
+      "scope": "offline_or_tool_requires_reachability_review"
+    },
+    "tools/isolated_mt5_history.py": {
+      "references": [
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "__version__"
+        },
+        {
+          "count": 2,
+          "kind": "access",
+          "target": "account_info"
+        },
+        {
+          "count": 2,
+          "kind": "access",
+          "target": "copy_ticks_range"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "initialize"
+        },
+        {
+          "count": 3,
+          "kind": "access",
+          "target": "last_error"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "shutdown"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "symbol_info"
+        },
+        {
+          "count": 2,
+          "kind": "access",
+          "target": "symbol_select"
+        },
+        {
+          "count": 2,
+          "kind": "access",
+          "target": "terminal_info"
+        },
+        {
+          "count": 2,
+          "kind": "constant",
+          "target": "COPY_TICKS_ALL"
+        },
+        {
+          "count": 1,
+          "kind": "import",
+          "target": "MetaTrader5"
+        }
+      ],
+      "scope": "offline_or_tool_requires_reachability_review"
+    },
+    "tools/vm_runtime_probe.py": {
+      "references": [
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "account_info"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "initialize"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "orders_get"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "positions_get"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "shutdown"
+        },
+        {
+          "count": 1,
+          "kind": "access",
+          "target": "terminal_info"
+        },
+        {
+          "count": 1,
+          "kind": "import",
+          "target": "MetaTrader5"
+        }
+      ],
+      "scope": "offline_or_tool_requires_reachability_review"
+    }
+  },
+  "scan_scope": [
+    "root/*.py",
+    "tools/**/*.py",
+    "analysis/**/*.py"
+  ],
+  "schema_version": 1,
+  "status": "temporary_baseline_not_live_approval"
+}

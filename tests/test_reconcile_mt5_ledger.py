@@ -1075,7 +1075,9 @@ class TestLoadJournalForensicEvents:
         }
         mt5_pos = [_pos("market_a", 0.0), _pos("scale_out_leg", 0.0)]
         mt5_pos[0]["ticket"] = 111
+        mt5_pos[0]["position_id"] = 111
         mt5_pos[1]["ticket"] = 222
+        mt5_pos[1]["position_id"] = 222
 
         row = reconcile_signal("canal2_13254", journal, mt5_pos)
 

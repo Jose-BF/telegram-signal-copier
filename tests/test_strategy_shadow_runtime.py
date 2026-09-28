@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from strategy_shadow_contracts import ShadowManagementEvent, ShadowTick
+from strategy_shadow_contracts import ShadowManagementEvent, ShadowSignalState, ShadowTick
 from strategy_shadow_engine import advance_tick
 from strategy_shadow_catalog import build_shadow_catalog
 from strategy_shadow_runtime import (
@@ -604,6 +604,34 @@ async def test_batch_rejects_incomplete_history_without_processing_ticks():
         await runtime.process_tick_batch(runtime.active_tick_cursor(), ShadowTickHistory(
             ticks=(tick(101, 4300, 4300.2, 1),), complete=False, evidence_id="gap"))
     assert runtime.states_for_signal("canal1_20700") == before
+
+
+@pytest.mark.asyncio
+async def test_batch_transition_records_read_clocks_without_changing_state_hash():
+    journal = JournalCapture()
+    runtime = ShadowRuntime(journal_sink=journal)
+    await register_dubai(runtime)
+    observed = tick(101, 4300.0, 4300.2, 1)
+    await runtime.process_tick_batch(
+        runtime.active_tick_cursor(),
+        ShadowTickHistory(ticks=(observed,), complete=True, evidence_id="batch-1",
+                          read_started_at_utc=iso(1.1),
+                          read_completed_at_utc=iso(1.2)),
+    )
+    transitions = [row for row in journal.records
+                   if row["ev"] == "strategy_shadow_transition"]
+    assert transitions
+    assert all(row["tick_batch_read_started_utc"] == iso(1.1)
+               and row["tick_batch_read_completed_utc"] == iso(1.2)
+               and row["state_hash"] == ShadowSignalState.from_dict(row["state"]).state_hash
+               for row in transitions)
+    with pytest.raises(ValueError, match="read clocks reversed"):
+        ShadowTickHistory(ticks=(), complete=True, evidence_id="bad",
+                          read_started_at_utc=iso(2),
+                          read_completed_at_utc=iso(1))
+    with pytest.raises(ValueError, match="must be paired"):
+        ShadowTickHistory(ticks=(), complete=True, evidence_id="bad",
+                          read_started_at_utc=iso(1))
 
 
 @pytest.mark.asyncio

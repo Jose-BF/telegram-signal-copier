@@ -1,0 +1,3158 @@
+[
+ {
+  "family": "c1_invertir_1pata",
+  "channel": "canal1",
+  "carril_family": "A",
+  "codes": "D2 E1 L1 X1 X7 R1 R2",
+  "real": {
+   "A": {
+    "walk_forward": {
+     "months": [
+      {
+       "month": "2026-04",
+       "net": -14.33000135421753,
+       "n": 13,
+       "choice": {
+        "filter": "posici\u00f3n en rango 4h > 0.5, session > 0.5, session < 1.5",
+        "genome": 12
+       },
+       "choose_t": 465.2119691064647
+      },
+      {
+       "month": "2026-05",
+       "net": -0.24000072479248047,
+       "n": 9,
+       "choice": {
+        "filter": "posici\u00f3n en rango 4h > 0.5, RSI15m < 45",
+        "genome": 14
+       },
+       "choose_t": 478.43471192763684
+      },
+      {
+       "month": "2026-06",
+       "net": 26.22000026702881,
+       "n": 6,
+       "choice": {
+        "filter": "posici\u00f3n en rango 4h > 0.5, RSI15m < 45",
+        "genome": 12
+       },
+       "choose_t": 6.687193383851926
+      },
+      {
+       "month": "2026-07",
+       "net": -26.76000165939331,
+       "n": 3,
+       "choice": {
+        "filter": "posici\u00f3n en rango 4h > 0.5, RSI15m < 45",
+        "genome": 12
+       },
+       "choose_t": 7.754747938609697
+      },
+      {
+       "month": "2026-08",
+       "net": 21.59999990463257,
+       "n": 5,
+       "choice": {
+        "filter": "mov. previo 15m < -3.0, pd_loc > 0.8",
+        "genome": 14
+       },
+       "choose_t": 6.7610698221817165
+      },
+      {
+       "month": "2026-09",
+       "net": 21.710000038146973,
+       "n": 5,
+       "choice": {
+        "filter": "mov. previo 15m < -3.0, pd_loc > 0.8",
+        "genome": 14
+       },
+       "choose_t": 7.702561896555377
+      }
+     ],
+     "total": 28.19999647140503,
+     "pos_months": 3,
+     "traded_months": 6,
+     "n_months": 6,
+     "distinct_choices": 4
+    },
+    "walk_forward_no_filter": {
+     "total": -593.7700096126646,
+     "pos_months": 3,
+     "traded_months": 6,
+     "n_months": 6
+    },
+    "variants": {
+     "simples_n30": {
+      "total": -70.6000012755394,
+      "pos_months": 4,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "simples_n60": {
+      "total": 167.629998318851,
+      "pos_months": 5,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "todos_n60": {
+      "total": -21.550001084804535,
+      "pos_months": 2,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "sin_filtro_n60": {
+      "total": -593.7700096126646,
+      "pos_months": 3,
+      "traded_months": 6,
+      "n_months": 6
+     }
+    },
+    "final_pick": {
+     "filter": {
+      "cond": [
+       [
+        "rsi_m5",
+        "<",
+        30
+       ],
+       [
+        "atr_m15",
+        ">",
+        8.0
+       ]
+      ]
+     },
+     "filter_text": "RSI5m < 30, ATR15m > 8.0",
+     "genome_index": 14,
+     "rule": "BasketRule(invert=False, entry='market', e_x=0.0, e_y=0.0, expiry_min=15, delay_min=0.0, weights=(0.01,), ladder='adverse', step=0.0, tp_steps=(5.0,), sl_move=40.0, trail=0.0, be_trigger=0.0, basket_stop_eur=0.0, lock_arm_eur=0.0, lock_give_eur=0.0, time_min=240, time_mode='always', hard_stop_eur_leg=0.0, partial_frac=0.0, partial_tp=0.0, runner_tp=0.0, tags=())",
+     "t": 10.652659868632357,
+     "net": 113.63000059127808,
+     "n": 30,
+     "monthly": {
+      "2026-01": 25.4,
+      "2026-02": 8.8,
+      "2026-03": 8.7,
+      "2026-04": 12.9,
+      "2026-05": -2.8,
+      "2026-06": 13.0,
+      "2026-07": 13.1,
+      "2026-08": 13.0,
+      "2026-09": 21.5
+     }
+    }
+   },
+   "B": {
+    "walk_forward": {
+     "months": [
+      {
+       "month": "2026-04",
+       "net": -14.33000135421753,
+       "n": 13,
+       "choice": {
+        "filter": "posici\u00f3n en rango 4h > 0.5, session > 0.5, session < 1.5",
+        "genome": 12
+       },
+       "choose_t": 465.2119691064647
+      },
+      {
+       "month": "2026-05",
+       "net": -0.24000072479248047,
+       "n": 9,
+       "choice": {
+        "filter": "posici\u00f3n en rango 4h > 0.5, RSI15m < 45",
+        "genome": 14
+       },
+       "choose_t": 478.43471192763684
+      },
+      {
+       "month": "2026-06",
+       "net": 12.25,
+       "n": 6,
+       "choice": {
+        "filter": "posici\u00f3n en rango 4h > 0.5, RSI15m < 45",
+        "genome": 39
+       },
+       "choose_t": 11.862787976278398
+      },
+      {
+       "month": "2026-07",
+       "net": -54.019999980926514,
+       "n": 3,
+       "choice": {
+        "filter": "posici\u00f3n en rango 4h > 0.5, RSI15m < 45",
+        "genome": 19
+       },
+       "choose_t": 12.407459480624526
+      },
+      {
+       "month": "2026-08",
+       "net": -4.0,
+       "n": 1,
+       "choice": {
+        "filter": "mov. del d\u00eda > 20.0, session > 0.5, session < 1.5",
+        "genome": 59
+       },
+       "choose_t": 8.497379136847766
+      },
+      {
+       "month": "2026-09",
+       "net": -32.11000061035156,
+       "n": 5,
+       "choice": {
+        "filter": "mov. previo 15m < -3.0, pd_loc > 0.8",
+        "genome": 38
+       },
+       "choose_t": 8.612034611606074
+      }
+     ],
+     "total": -92.45000267028809,
+     "pos_months": 1,
+     "traded_months": 6,
+     "n_months": 6,
+     "distinct_choices": 6
+    },
+    "walk_forward_no_filter": {
+     "total": -130.96000638604164,
+     "pos_months": 3,
+     "traded_months": 6,
+     "n_months": 6
+    },
+    "variants": {
+     "simples_n30": {
+      "total": 7.370000600814819,
+      "pos_months": 1,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "simples_n60": {
+      "total": 122.33999025076628,
+      "pos_months": 4,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "todos_n60": {
+      "total": 30.78999888896942,
+      "pos_months": 3,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "sin_filtro_n60": {
+      "total": -130.96000638604164,
+      "pos_months": 3,
+      "traded_months": 6,
+      "n_months": 6
+     }
+    },
+    "final_pick": {
+     "filter": {
+      "cond": [
+       [
+        "rsi_m5",
+        "<",
+        30
+       ],
+       [
+        "atr_m15",
+        ">",
+        8.0
+       ]
+      ]
+     },
+     "filter_text": "RSI5m < 30, ATR15m > 8.0",
+     "genome_index": 14,
+     "rule": "BasketRule(invert=False, entry='market', e_x=0.0, e_y=0.0, expiry_min=15, delay_min=0.0, weights=(0.01,), ladder='adverse', step=0.0, tp_steps=(5.0,), sl_move=40.0, trail=0.0, be_trigger=0.0, basket_stop_eur=0.0, lock_arm_eur=0.0, lock_give_eur=0.0, time_min=240, time_mode='always', hard_stop_eur_leg=0.0, partial_frac=0.0, partial_tp=0.0, runner_tp=0.0, tags=())",
+     "t": 10.652659868632357,
+     "net": 113.63000059127808,
+     "n": 30,
+     "monthly": {
+      "2026-01": 25.4,
+      "2026-02": 8.8,
+      "2026-03": 8.7,
+      "2026-04": 12.9,
+      "2026-05": -2.8,
+      "2026-06": 13.0,
+      "2026-07": 13.1,
+      "2026-08": 13.0,
+      "2026-09": 21.5
+     }
+    }
+   }
+  },
+  "placebo": {}
+ },
+ {
+  "family": "c1_seguir_1pata",
+  "channel": "canal1",
+  "carril_family": "A",
+  "codes": "D1 E1 L1 X1 X7 R1 R2",
+  "real": {
+   "A": {
+    "walk_forward": {
+     "months": [
+      {
+       "month": "2026-04",
+       "net": -88.97999930381775,
+       "n": 19,
+       "choice": {
+        "filter": "RSI15m > 55, mov. del d\u00eda > 20.0",
+        "genome": 13
+       },
+       "choose_t": 3.115126132087071
+      },
+      {
+       "month": "2026-05",
+       "net": 21.449999809265137,
+       "n": 5,
+       "choice": {
+        "filter": "vol_regime < 0.8, dir_streak < 0.5",
+        "genome": 14
+       },
+       "choose_t": 7.654058906029007
+      },
+      {
+       "month": "2026-06",
+       "net": -22.34999990463257,
+       "n": 4,
+       "choice": {
+        "filter": "vol_regime < 0.8, dir_streak < 0.5",
+        "genome": 14
+       },
+       "choose_t": 8.863583791383933
+      },
+      {
+       "month": "2026-07",
+       "net": 6.059999465942383,
+       "n": 5,
+       "choice": {
+        "filter": "RSI15m > 65, dir_streak < 0.5",
+        "genome": 14
+       },
+       "choose_t": 523.2459477662774
+      },
+      {
+       "month": "2026-08",
+       "net": -1.489999771118164,
+       "n": 5,
+       "choice": {
+        "filter": "de 12:00 a 17:00 UTC, rango 60m < 15.0",
+        "genome": 13
+       },
+       "choose_t": 13.665355751561815
+      },
+      {
+       "month": "2026-09",
+       "net": -75.89999771118164,
+       "n": 5,
+       "choice": {
+        "filter": "RSI15m > 65, dir_streak < 0.5",
+        "genome": 14
+       },
+       "choose_t": 10.601214671041667
+      }
+     ],
+     "total": -161.2099974155426,
+     "pos_months": 2,
+     "traded_months": 6,
+     "n_months": 6,
+     "distinct_choices": 4
+    },
+    "walk_forward_no_filter": {
+     "total": -92.01998601481318,
+     "pos_months": 3,
+     "traded_months": 5,
+     "n_months": 6
+    },
+    "variants": {
+     "simples_n30": {
+      "total": 116.6899983882904,
+      "pos_months": 4,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "simples_n60": {
+      "total": 46.32000267505646,
+      "pos_months": 4,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "todos_n60": {
+      "total": 209.87000200152397,
+      "pos_months": 5,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "sin_filtro_n60": {
+      "total": -92.01998601481318,
+      "pos_months": 3,
+      "traded_months": 5,
+      "n_months": 6
+     }
+    },
+    "final_pick": {
+     "filter": {
+      "cond": [
+       [
+        "pd_loc",
+        "<",
+        0.2
+       ],
+       [
+        "sweep_fav",
+        ">",
+        0.5
+       ]
+      ]
+     },
+     "filter_text": "pd_loc < 0.2, sweep_fav > 0.5",
+     "genome_index": 14,
+     "rule": "BasketRule(invert=False, entry='market', e_x=0.0, e_y=0.0, expiry_min=15, delay_min=0.0, weights=(0.01,), ladder='adverse', step=0.0, tp_steps=(5.0,), sl_move=40.0, trail=0.0, be_trigger=0.0, basket_stop_eur=0.0, lock_arm_eur=0.0, lock_give_eur=0.0, time_min=240, time_mode='always', hard_stop_eur_leg=0.0, partial_frac=0.0, partial_tp=0.0, runner_tp=0.0, tags=())",
+     "t": 21.522307869151103,
+     "net": 127.42000114917755,
+     "n": 31,
+     "monthly": {
+      "2026-01": 25.4,
+      "2026-02": 16.9,
+      "2026-03": 8.7,
+      "2026-04": 0.0,
+      "2026-05": 8.6,
+      "2026-06": 26.1,
+      "2026-07": 7.2,
+      "2026-08": 17.2,
+      "2026-09": 17.5
+     }
+    }
+   },
+   "B": {
+    "walk_forward": {
+     "months": [
+      {
+       "month": "2026-04",
+       "net": 12.270000457763672,
+       "n": 20,
+       "choice": {
+        "filter": "tendencia15m < 0.0, dist_round50 < 8.0",
+        "genome": 19
+       },
+       "choose_t": 439.9857300876646
+      },
+      {
+       "month": "2026-05",
+       "net": 25.5,
+       "n": 8,
+       "choice": {
+        "filter": "posici\u00f3n en rango 4h < 0.5, RSI15m > 55",
+        "genome": 19
+       },
+       "choose_t": 17.123869189223385
+      },
+      {
+       "month": "2026-06",
+       "net": 32.11000108718872,
+       "n": 11,
+       "choice": {
+        "filter": "RSI5m < 30, burst_60 > 0.5",
+        "genome": 19
+       },
+       "choose_t": 18.78678564425194
+      },
+      {
+       "month": "2026-07",
+       "net": 6.059999465942383,
+       "n": 5,
+       "choice": {
+        "filter": "RSI15m > 65, dir_streak < 0.5",
+        "genome": 14
+       },
+       "choose_t": 523.2459477662774
+      },
+      {
+       "month": "2026-08",
+       "net": 15.010000467300415,
+       "n": 7,
+       "choice": {
+        "filter": "RSI15m > 65, mov. previo 15m > 0.0",
+        "genome": 19
+       },
+       "choose_t": 38.75953185234914
+      },
+      {
+       "month": "2026-09",
+       "net": 30.829999923706055,
+       "n": 9,
+       "choice": {
+        "filter": "RSI15m < 45, burst_60 > 1.5",
+        "genome": 18
+       },
+       "choose_t": 17.98161787802746
+      }
+     ],
+     "total": 121.78000140190125,
+     "pos_months": 6,
+     "traded_months": 6,
+     "n_months": 6,
+     "distinct_choices": 6
+    },
+    "walk_forward_no_filter": {
+     "total": -92.01998601481318,
+     "pos_months": 3,
+     "traded_months": 5,
+     "n_months": 6
+    },
+    "variants": {
+     "simples_n30": {
+      "total": -14.500011771917343,
+      "pos_months": 4,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "simples_n60": {
+      "total": 89.939992249012,
+      "pos_months": 5,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "todos_n60": {
+      "total": 44.719994470477104,
+      "pos_months": 5,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "sin_filtro_n60": {
+      "total": -92.01998601481318,
+      "pos_months": 3,
+      "traded_months": 5,
+      "n_months": 6
+     }
+    },
+    "final_pick": {
+     "filter": {
+      "cond": [
+       [
+        "pd_loc",
+        "<",
+        0.2
+       ],
+       [
+        "sweep_fav",
+        ">",
+        0.5
+       ]
+      ]
+     },
+     "filter_text": "pd_loc < 0.2, sweep_fav > 0.5",
+     "genome_index": 14,
+     "rule": "BasketRule(invert=False, entry='market', e_x=0.0, e_y=0.0, expiry_min=15, delay_min=0.0, weights=(0.01,), ladder='adverse', step=0.0, tp_steps=(5.0,), sl_move=40.0, trail=0.0, be_trigger=0.0, basket_stop_eur=0.0, lock_arm_eur=0.0, lock_give_eur=0.0, time_min=240, time_mode='always', hard_stop_eur_leg=0.0, partial_frac=0.0, partial_tp=0.0, runner_tp=0.0, tags=())",
+     "t": 21.522307869151103,
+     "net": 127.42000114917755,
+     "n": 31,
+     "monthly": {
+      "2026-01": 25.4,
+      "2026-02": 16.9,
+      "2026-03": 8.7,
+      "2026-04": 0.0,
+      "2026-05": 8.6,
+      "2026-06": 26.1,
+      "2026-07": 7.2,
+      "2026-08": 17.2,
+      "2026-09": 17.5
+     }
+    }
+   }
+  },
+  "placebo": {
+   "A": {
+    "walk_forward": {
+     "months": [
+      {
+       "month": "2026-04",
+       "net": 3.9300003051757812,
+       "n": 10,
+       "choice": {
+        "filter": "posici\u00f3n en rango 4h < 0.2, mov. previo 60m < -10.0",
+        "genome": 14
+       },
+       "choose_t": 412.2993392354049
+      },
+      {
+       "month": "2026-05",
+       "net": -17.800000190734863,
+       "n": 5,
+       "choice": {
+        "filter": "RSI5m < 30, ATR15m > 8.0",
+        "genome": 11
+       },
+       "choose_t": 35.634711330342704
+      },
+      {
+       "month": "2026-06",
+       "net": 16.730000972747803,
+       "n": 13,
+       "choice": {
+        "filter": "d\u00edas LMX, RSI15m < 35",
+        "genome": 14
+       },
+       "choose_t": 20.269407648072022
+      },
+      {
+       "month": "2026-07",
+       "net": 39.47000026702881,
+       "n": 9,
+       "choice": {
+        "filter": "rango 60m < 15.0, asia_loc < 0.2",
+        "genome": 9
+       },
+       "choose_t": 17.53726097727769
+      },
+      {
+       "month": "2026-08",
+       "net": -17.369998693466187,
+       "n": 12,
+       "choice": {
+        "filter": "rango 60m < 15.0, asia_loc < 0.2",
+        "genome": 9
+       },
+       "choose_t": 22.796061837843638
+      },
+      {
+       "month": "2026-09",
+       "net": -4.28000020980835,
+       "n": 4,
+       "choice": {
+        "filter": "min_in_session < 30, dist_round50 > 15.0",
+        "genome": 8
+       },
+       "choose_t": 11.994483581327614
+      }
+     ],
+     "total": 20.680002450942993,
+     "pos_months": 3,
+     "traded_months": 6,
+     "n_months": 6,
+     "distinct_choices": 5
+    },
+    "walk_forward_no_filter": {
+     "total": 452.290008418262,
+     "pos_months": 3,
+     "traded_months": 6,
+     "n_months": 6
+    },
+    "variants": {
+     "simples_n30": {
+      "total": 7.560002148151398,
+      "pos_months": 3,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "simples_n60": {
+      "total": -178.7600017786026,
+      "pos_months": 1,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "todos_n60": {
+      "total": -282.5500017106533,
+      "pos_months": 0,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "sin_filtro_n60": {
+      "total": 452.290008418262,
+      "pos_months": 3,
+      "traded_months": 6,
+      "n_months": 6
+     }
+    },
+    "final_pick": {
+     "filter": {
+      "cond": [
+       [
+        "rsi_m5",
+        ">",
+        70
+       ],
+       [
+        "dist_round50",
+        ">",
+        15.0
+       ]
+      ]
+     },
+     "filter_text": "RSI5m > 70, dist_round50 > 15.0",
+     "genome_index": 14,
+     "rule": "BasketRule(invert=False, entry='market', e_x=0.0, e_y=0.0, expiry_min=15, delay_min=0.0, weights=(0.01,), ladder='adverse', step=0.0, tp_steps=(5.0,), sl_move=40.0, trail=0.0, be_trigger=0.0, basket_stop_eur=0.0, lock_arm_eur=0.0, lock_give_eur=0.0, time_min=240, time_mode='always', hard_stop_eur_leg=0.0, partial_frac=0.0, partial_tp=0.0, runner_tp=0.0, tags=())",
+     "t": 10.591130435711655,
+     "net": 121.73000049591064,
+     "n": 32,
+     "monthly": {
+      "2026-01": 12.7,
+      "2026-02": 12.7,
+      "2026-03": 26.0,
+      "2026-04": 10.9,
+      "2026-05": 21.4,
+      "2026-06": 17.5,
+      "2026-07": 8.8,
+      "2026-08": 3.1,
+      "2026-09": 8.7
+     }
+    }
+   },
+   "B": {
+    "walk_forward": {
+     "months": [
+      {
+       "month": "2026-04",
+       "net": 0.0,
+       "n": 0,
+       "choice": {
+        "filter": "vol_regime > 1.6",
+        "genome": 19
+       },
+       "choose_t": 444.43867148238496
+      },
+      {
+       "month": "2026-05",
+       "net": 0.0,
+       "n": 0,
+       "choice": {
+        "filter": "vol_regime > 1.6",
+        "genome": 19
+       },
+       "choose_t": 444.43867148238496
+      },
+      {
+       "month": "2026-06",
+       "net": 8.650000095367432,
+       "n": 2,
+       "choice": {
+        "filter": "vol_regime > 1.6",
+        "genome": 19
+       },
+       "choose_t": 444.43867148238496
+      },
+      {
+       "month": "2026-07",
+       "net": -35.970001220703125,
+       "n": 1,
+       "choice": {
+        "filter": "vol_regime > 1.6",
+        "genome": 19
+       },
+       "choose_t": 450.20203814855927
+      },
+      {
+       "month": "2026-08",
+       "net": -17.369998693466187,
+       "n": 12,
+       "choice": {
+        "filter": "rango 60m < 15.0, asia_loc < 0.2",
+        "genome": 9
+       },
+       "choose_t": 22.796061837843638
+      },
+      {
+       "month": "2026-09",
+       "net": -4.28000020980835,
+       "n": 4,
+       "choice": {
+        "filter": "min_in_session < 30, dist_round50 > 15.0",
+        "genome": 8
+       },
+       "choose_t": 11.994483581327614
+      }
+     ],
+     "total": -48.97000002861023,
+     "pos_months": 1,
+     "traded_months": 6,
+     "n_months": 6,
+     "distinct_choices": 3
+    },
+    "walk_forward_no_filter": {
+     "total": 452.290008418262,
+     "pos_months": 3,
+     "traded_months": 6,
+     "n_months": 6
+    },
+    "variants": {
+     "simples_n30": {
+      "total": -43.0700011998415,
+      "pos_months": 1,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "simples_n60": {
+      "total": -10.500000298023224,
+      "pos_months": 2,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "todos_n60": {
+      "total": -72.18000267446041,
+      "pos_months": 2,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "sin_filtro_n60": {
+      "total": 452.290008418262,
+      "pos_months": 3,
+      "traded_months": 6,
+      "n_months": 6
+     }
+    },
+    "final_pick": {
+     "filter": {
+      "cond": [
+       [
+        "rsi_m5",
+        ">",
+        70
+       ],
+       [
+        "dist_round50",
+        ">",
+        15.0
+       ]
+      ]
+     },
+     "filter_text": "RSI5m > 70, dist_round50 > 15.0",
+     "genome_index": 14,
+     "rule": "BasketRule(invert=False, entry='market', e_x=0.0, e_y=0.0, expiry_min=15, delay_min=0.0, weights=(0.01,), ladder='adverse', step=0.0, tp_steps=(5.0,), sl_move=40.0, trail=0.0, be_trigger=0.0, basket_stop_eur=0.0, lock_arm_eur=0.0, lock_give_eur=0.0, time_min=240, time_mode='always', hard_stop_eur_leg=0.0, partial_frac=0.0, partial_tp=0.0, runner_tp=0.0, tags=())",
+     "t": 10.591130435711655,
+     "net": 121.73000049591064,
+     "n": 32,
+     "monthly": {
+      "2026-01": 12.7,
+      "2026-02": 12.7,
+      "2026-03": 26.0,
+      "2026-04": 10.9,
+      "2026-05": 21.4,
+      "2026-06": 17.5,
+      "2026-07": 8.8,
+      "2026-08": 3.1,
+      "2026-09": 8.7
+     }
+    }
+   }
+  }
+ },
+ {
+  "family": "c1_escalera",
+  "channel": "canal1",
+  "carril_family": "A",
+  "codes": "D1 E1 L2 L4 X5 X7 R3",
+  "real": {
+   "A": {
+    "walk_forward": {
+     "months": [
+      {
+       "month": "2026-04",
+       "net": 14.990003108978271,
+       "n": 11,
+       "choice": {
+        "filter": "mov. previo 15m < -3.0, pd_loc < 0.2",
+        "genome": 232
+       },
+       "choose_t": 20.183704216094483
+      },
+      {
+       "month": "2026-05",
+       "net": -52.41999816894531,
+       "n": 15,
+       "choice": {
+        "filter": "posici\u00f3n en rango 4h < 0.2, pd_loc < 0.4",
+        "genome": 233
+       },
+       "choose_t": 21.987763039501598
+      },
+      {
+       "month": "2026-06",
+       "net": 134.39999890327454,
+       "n": 14,
+       "choice": {
+        "filter": "d\u00edas LMX, news_day > 0.5",
+        "genome": 113
+       },
+       "choose_t": 15.118458704483817
+      },
+      {
+       "month": "2026-07",
+       "net": 15.859999656677246,
+       "n": 5,
+       "choice": {
+        "filter": "RSI15m > 65, dir_streak < 0.5",
+        "genome": 221
+       },
+       "choose_t": 24.246921484912562
+      },
+      {
+       "month": "2026-08",
+       "net": 25.74000072479248,
+       "n": 3,
+       "choice": {
+        "filter": "d\u00edas LMX, news_day > 0.5",
+        "genome": 113
+       },
+       "choose_t": 18.85811546834682
+      },
+      {
+       "month": "2026-09",
+       "net": -48.39999580383301,
+       "n": 4,
+       "choice": {
+        "filter": "d\u00edas LMX, news_day > 0.5",
+        "genome": 113
+       },
+       "choose_t": 19.375613539672923
+      }
+     ],
+     "total": 90.17000842094421,
+     "pos_months": 4,
+     "traded_months": 6,
+     "n_months": 6,
+     "distinct_choices": 4
+    },
+    "walk_forward_no_filter": {
+     "total": 51.05000198446214,
+     "pos_months": 3,
+     "traded_months": 6,
+     "n_months": 6
+    },
+    "variants": {
+     "simples_n30": {
+      "total": -7.3299998845905066,
+      "pos_months": 3,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "simples_n60": {
+      "total": -245.0399932935834,
+      "pos_months": 3,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "todos_n60": {
+      "total": -197.5100034158677,
+      "pos_months": 3,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "sin_filtro_n60": {
+      "total": 51.05000198446214,
+      "pos_months": 3,
+      "traded_months": 6,
+      "n_months": 6
+     }
+    },
+    "final_pick": {
+     "filter": {
+      "cond": [
+       [
+        "vol_regime",
+        ">",
+        1.2
+       ],
+       [
+        "burst_60",
+        ">",
+        1.5
+       ]
+      ]
+     },
+     "filter_text": "vol_regime > 1.2, burst_60 > 1.5",
+     "genome_index": 217,
+     "rule": "BasketRule(invert=False, entry='market', e_x=0.0, e_y=0.0, expiry_min=15, delay_min=0.0, weights=(0.01, 0.01, 0.02, 0.04), ladder='adverse', step=6.0, tp_steps=(), sl_move=0.0, trail=0.0, be_trigger=0.0, basket_stop_eur=80.0, lock_arm_eur=10.0, lock_give_eur=2.0, time_min=60, time_mode='loss_only', hard_stop_eur_leg=0.0, partial_frac=0.0, partial_tp=0.0, runner_tp=0.0, tags=())",
+     "t": 16.285664235719953,
+     "net": 361.19000148773193,
+     "n": 31,
+     "monthly": {
+      "2026-01": 69.9,
+      "2026-02": 54.1,
+      "2026-03": 63.2,
+      "2026-04": 16.5,
+      "2026-05": 8.1,
+      "2026-06": 38.2,
+      "2026-07": 0.0,
+      "2026-08": 35.5,
+      "2026-09": 75.5
+     }
+    }
+   },
+   "B": {
+    "walk_forward": {
+     "months": [
+      {
+       "month": "2026-04",
+       "net": 14.990003108978271,
+       "n": 11,
+       "choice": {
+        "filter": "mov. previo 15m < -3.0, pd_loc < 0.2",
+        "genome": 232
+       },
+       "choose_t": 20.183704216094483
+      },
+      {
+       "month": "2026-05",
+       "net": -52.41999816894531,
+       "n": 15,
+       "choice": {
+        "filter": "posici\u00f3n en rango 4h < 0.2, pd_loc < 0.4",
+        "genome": 233
+       },
+       "choose_t": 21.987763039501598
+      },
+      {
+       "month": "2026-06",
+       "net": 134.39999890327454,
+       "n": 14,
+       "choice": {
+        "filter": "d\u00edas LMX, news_day > 0.5",
+        "genome": 113
+       },
+       "choose_t": 15.118458704483817
+      },
+      {
+       "month": "2026-07",
+       "net": 15.859999656677246,
+       "n": 5,
+       "choice": {
+        "filter": "RSI15m > 65, dir_streak < 0.5",
+        "genome": 221
+       },
+       "choose_t": 24.246921484912562
+      },
+      {
+       "month": "2026-08",
+       "net": 25.74000072479248,
+       "n": 3,
+       "choice": {
+        "filter": "d\u00edas LMX, news_day > 0.5",
+        "genome": 113
+       },
+       "choose_t": 18.85811546834682
+      },
+      {
+       "month": "2026-09",
+       "net": -48.39999580383301,
+       "n": 4,
+       "choice": {
+        "filter": "d\u00edas LMX, news_day > 0.5",
+        "genome": 113
+       },
+       "choose_t": 19.375613539672923
+      }
+     ],
+     "total": 90.17000842094421,
+     "pos_months": 4,
+     "traded_months": 6,
+     "n_months": 6,
+     "distinct_choices": 4
+    },
+    "walk_forward_no_filter": {
+     "total": 51.05000198446214,
+     "pos_months": 3,
+     "traded_months": 6,
+     "n_months": 6
+    },
+    "variants": {
+     "simples_n30": {
+      "total": -7.3299998845905066,
+      "pos_months": 3,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "simples_n60": {
+      "total": -245.0399932935834,
+      "pos_months": 3,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "todos_n60": {
+      "total": -197.5100034158677,
+      "pos_months": 3,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "sin_filtro_n60": {
+      "total": 51.05000198446214,
+      "pos_months": 3,
+      "traded_months": 6,
+      "n_months": 6
+     }
+    },
+    "final_pick": {
+     "filter": {
+      "cond": [
+       [
+        "vol_regime",
+        ">",
+        1.2
+       ],
+       [
+        "burst_60",
+        ">",
+        1.5
+       ]
+      ]
+     },
+     "filter_text": "vol_regime > 1.2, burst_60 > 1.5",
+     "genome_index": 217,
+     "rule": "BasketRule(invert=False, entry='market', e_x=0.0, e_y=0.0, expiry_min=15, delay_min=0.0, weights=(0.01, 0.01, 0.02, 0.04), ladder='adverse', step=6.0, tp_steps=(), sl_move=0.0, trail=0.0, be_trigger=0.0, basket_stop_eur=80.0, lock_arm_eur=10.0, lock_give_eur=2.0, time_min=60, time_mode='loss_only', hard_stop_eur_leg=0.0, partial_frac=0.0, partial_tp=0.0, runner_tp=0.0, tags=())",
+     "t": 16.285664235719953,
+     "net": 361.19000148773193,
+     "n": 31,
+     "monthly": {
+      "2026-01": 69.9,
+      "2026-02": 54.1,
+      "2026-03": 63.2,
+      "2026-04": 16.5,
+      "2026-05": 8.1,
+      "2026-06": 38.2,
+      "2026-07": 0.0,
+      "2026-08": 35.5,
+      "2026-09": 75.5
+     }
+    }
+   }
+  },
+  "placebo": {}
+ },
+ {
+  "family": "c1_invertir_escalera",
+  "channel": "canal1",
+  "carril_family": "A",
+  "codes": "D2 E1 L2 L4 X5 X7 R3",
+  "real": {
+   "A": {
+    "walk_forward": {
+     "months": [
+      {
+       "month": "2026-04",
+       "net": -110.53000335767865,
+       "n": 18,
+       "choice": {
+        "filter": "mov. del d\u00eda < 0.0, min_in_session < 90",
+        "genome": 117
+       },
+       "choose_t": 9.866755661205438
+      },
+      {
+       "month": "2026-05",
+       "net": 29.700002670288086,
+       "n": 9,
+       "choice": {
+        "filter": "posici\u00f3n en rango 4h > 0.5, RSI15m < 45",
+        "genome": 72
+       },
+       "choose_t": 15.030731616927403
+      },
+      {
+       "month": "2026-06",
+       "net": 5.410002212971449,
+       "n": 7,
+       "choice": {
+        "filter": "d\u00edas LMX, RSI15m < 35",
+        "genome": 6
+       },
+       "choose_t": 13.451513636454576
+      },
+      {
+       "month": "2026-07",
+       "net": 4.690000772476196,
+       "n": 6,
+       "choice": {
+        "filter": "tendencia15m > 1.0, sweep_adv > 0.5",
+        "genome": 46
+       },
+       "choose_t": 11.319817515870975
+      },
+      {
+       "month": "2026-08",
+       "net": 0.0,
+       "n": 0,
+       "choice": {
+        "filter": "RSI15m < 35, mov. previo 60m > 0.0",
+        "genome": 6
+       },
+       "choose_t": 14.05317223778377
+      },
+      {
+       "month": "2026-09",
+       "net": -3.739999659359455,
+       "n": 8,
+       "choice": {
+        "filter": "RSI15m < 35, mov. previo 60m > 0.0",
+        "genome": 6
+       },
+       "choose_t": 14.05317223778377
+      }
+     ],
+     "total": -74.46999736130238,
+     "pos_months": 3,
+     "traded_months": 6,
+     "n_months": 6,
+     "distinct_choices": 5
+    },
+    "walk_forward_no_filter": {
+     "total": -96.5299923941493,
+     "pos_months": 3,
+     "traded_months": 6,
+     "n_months": 6
+    },
+    "variants": {
+     "simples_n30": {
+      "total": 117.88000261411071,
+      "pos_months": 3,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "simples_n60": {
+      "total": 247.2499955110252,
+      "pos_months": 4,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "todos_n60": {
+      "total": -262.82999995723367,
+      "pos_months": 1,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "sin_filtro_n60": {
+      "total": -96.5299923941493,
+      "pos_months": 3,
+      "traded_months": 6,
+      "n_months": 6
+     }
+    },
+    "final_pick": {
+     "filter": {
+      "cond": [
+       [
+        "atr_m15",
+        "<",
+        8.0
+       ],
+       [
+        "session",
+        ">",
+        0.5
+       ],
+       [
+        "session",
+        "<",
+        1.5
+       ]
+      ]
+     },
+     "filter_text": "ATR15m < 8.0, session > 0.5, session < 1.5",
+     "genome_index": 134,
+     "rule": "BasketRule(invert=False, entry='market', e_x=0.0, e_y=0.0, expiry_min=15, delay_min=0.0, weights=(0.01, 0.02, 0.04), ladder='adverse', step=2.0, tp_steps=(), sl_move=0.0, trail=0.0, be_trigger=0.0, basket_stop_eur=50.0, lock_arm_eur=10.0, lock_give_eur=2.0, time_min=120, time_mode='loss_only', hard_stop_eur_leg=0.0, partial_frac=0.0, partial_tp=0.0, runner_tp=0.0, tags=())",
+     "t": 10.381765021586686,
+     "net": 351.24000034853816,
+     "n": 40,
+     "monthly": {
+      "2026-01": 35.9,
+      "2026-02": 0.0,
+      "2026-03": 0.0,
+      "2026-04": 45.6,
+      "2026-05": 93.1,
+      "2026-06": 31.3,
+      "2026-07": 35.0,
+      "2026-08": 13.8,
+      "2026-09": 96.5
+     }
+    }
+   },
+   "B": {
+    "walk_forward": {
+     "months": [
+      {
+       "month": "2026-04",
+       "net": -110.53000335767865,
+       "n": 18,
+       "choice": {
+        "filter": "mov. del d\u00eda < 0.0, min_in_session < 90",
+        "genome": 117
+       },
+       "choose_t": 9.866755661205438
+      },
+      {
+       "month": "2026-05",
+       "net": 29.700002670288086,
+       "n": 9,
+       "choice": {
+        "filter": "posici\u00f3n en rango 4h > 0.5, RSI15m < 45",
+        "genome": 72
+       },
+       "choose_t": 15.030731616927403
+      },
+      {
+       "month": "2026-06",
+       "net": 5.410002212971449,
+       "n": 7,
+       "choice": {
+        "filter": "d\u00edas LMX, RSI15m < 35",
+        "genome": 6
+       },
+       "choose_t": 13.451513636454576
+      },
+      {
+       "month": "2026-07",
+       "net": 4.690000772476196,
+       "n": 6,
+       "choice": {
+        "filter": "tendencia15m > 1.0, sweep_adv > 0.5",
+        "genome": 46
+       },
+       "choose_t": 11.319817515870975
+      },
+      {
+       "month": "2026-08",
+       "net": 0.0,
+       "n": 0,
+       "choice": {
+        "filter": "RSI15m < 35, mov. previo 60m > 0.0",
+        "genome": 6
+       },
+       "choose_t": 14.05317223778377
+      },
+      {
+       "month": "2026-09",
+       "net": -3.739999659359455,
+       "n": 8,
+       "choice": {
+        "filter": "RSI15m < 35, mov. previo 60m > 0.0",
+        "genome": 6
+       },
+       "choose_t": 14.05317223778377
+      }
+     ],
+     "total": -74.46999736130238,
+     "pos_months": 3,
+     "traded_months": 6,
+     "n_months": 6,
+     "distinct_choices": 5
+    },
+    "walk_forward_no_filter": {
+     "total": -96.5299923941493,
+     "pos_months": 3,
+     "traded_months": 6,
+     "n_months": 6
+    },
+    "variants": {
+     "simples_n30": {
+      "total": 117.88000261411071,
+      "pos_months": 3,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "simples_n60": {
+      "total": 247.2499955110252,
+      "pos_months": 4,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "todos_n60": {
+      "total": -262.82999995723367,
+      "pos_months": 1,
+      "traded_months": 6,
+      "n_months": 6
+     },
+     "sin_filtro_n60": {
+      "total": -96.5299923941493,
+      "pos_months": 3,
+      "traded_months": 6,
+      "n_months": 6
+     }
+    },
+    "final_pick": {
+     "filter": {
+      "cond": [
+       [
+        "atr_m15",
+        "<",
+        8.0
+       ],
+       [
+        "session",
+        ">",
+        0.5
+       ],
+       [
+        "session",
+        "<",
+        1.5
+       ]
+      ]
+     },
+     "filter_text": "ATR15m < 8.0, session > 0.5, session < 1.5",
+     "genome_index": 134,
+     "rule": "BasketRule(invert=False, entry='market', e_x=0.0, e_y=0.0, expiry_min=15, delay_min=0.0, weights=(0.01, 0.02, 0.04), ladder='adverse', step=2.0, tp_steps=(), sl_move=0.0, trail=0.0, be_trigger=0.0, basket_stop_eur=50.0, lock_arm_eur=10.0, lock_give_eur=2.0, time_min=120, time_mode='loss_only', hard_stop_eur_leg=0.0, partial_frac=0.0, partial_tp=0.0, runner_tp=0.0, tags=())",
+     "t": 10.381765021586686,
+     "net": 351.24000034853816,
+     "n": 40,
+     "monthly": {
+      "2026-01": 35.9,
+      "2026-02": 0.0,
+      "2026-03": 0.0,
+      "2026-04": 45.6,
+      "2026-05": 93.1,
+      "2026-06": 31.3,
+      "2026-07": 35.0,
+      "2026-08": 13.8,
+      "2026-09": 96.5
+     }
+    }
+   }
+  },
+  "placebo": {}
+ },
+ {
+  "family": "c2_555",
+  "channel": "canal2",
+  "carril_family": "B",
+  "codes": "D1 E3 L2 X1 X4 X5 X7 R1",
+  "real": {
+   "A": null,
+   "B": {
+    "walk_forward": {
+     "months": [
+      {
+       "month": "2026-06",
+       "net": -324.98000832647085,
+       "n": 16,
+       "choice": {
+        "filter": "ATR15m > 12.0, burst_60 > 0.5",
+        "genome": 0
+       },
+       "choose_t": 21.669660391592462
+      },
+      {
+       "month": "2026-07",
+       "net": 13.609995722770691,
+       "n": 25,
+       "choice": {
+        "filter": "asia_loc > 0.5, dir_streak < 0.5",
+        "genome": 96
+       },
+       "choose_t": 18.92483620025439
+      },
+      {
+       "month": "2026-08",
+       "net": -67.76999270915985,
+       "n": 24,
+       "choice": {
+        "filter": "asia_loc > 0.5, dir_streak < 0.5",
+        "genome": 8
+       },
+       "choose_t": 19.592865439580322
+      },
+      {
+       "month": "2026-09",
+       "net": -168.8800036907196,
+       "n": 8,
+       "choice": {
+        "filter": "posici\u00f3n en rango 4h > 0.65, news_day > 0.5",
+        "genome": 24
+       },
+       "choose_t": 20.002756954639946
+      }
+     ],
+     "total": -548.0200090035796,
+     "pos_months": 1,
+     "traded_months": 4,
+     "n_months": 4,
+     "distinct_choices": 4
+    },
+    "walk_forward_no_filter": {
+     "total": -720.9000134691596,
+     "pos_months": 1,
+     "traded_months": 3,
+     "n_months": 4
+    },
+    "variants": {
+     "simples_n30": {
+      "total": -260.18998251482844,
+      "pos_months": 2,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "simples_n60": {
+      "total": 79.26999972388148,
+      "pos_months": 2,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "todos_n60": {
+      "total": -135.21000397205353,
+      "pos_months": 1,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "sin_filtro_n60": {
+      "total": -720.9000134691596,
+      "pos_months": 1,
+      "traded_months": 3,
+      "n_months": 4
+     }
+    },
+    "final_pick": {
+     "filter": {
+      "cond": [
+       [
+        "session",
+        ">",
+        0.5
+       ],
+       [
+        "session",
+        "<",
+        1.5
+       ],
+       [
+        "pd_loc",
+        ">",
+        0.8
+       ]
+      ]
+     },
+     "filter_text": "session > 0.5, session < 1.5, pd_loc > 0.8",
+     "genome_index": 96,
+     "rule": "BasketRule(invert=False, entry='adverse_reversal', e_x=2.0, e_y=0.5, expiry_min=30, delay_min=0.0, weights=(0.04, 0.03, 0.03, 0.03, 0.03), ladder='adverse', step=1.0, tp_steps=(0.25, 0.5, 0.75, 1.0, 1.25), sl_move=0.0, trail=30.0, be_trigger=0.0, basket_stop_eur=0.0, lock_arm_eur=30.0, lock_give_eur=1.0, time_min=180, time_mode='non_negative', hard_stop_eur_leg=0.0, partial_frac=0.0, partial_tp=0.0, runner_tp=0.0, tags=())",
+     "t": 18.465582047966713,
+     "net": 514.1500036716461,
+     "n": 70,
+     "monthly": {
+      "2026-04": 80.6,
+      "2026-05": 129.4,
+      "2026-06": 121.8,
+      "2026-07": 87.8,
+      "2026-08": 52.7,
+      "2026-09": 41.9
+     }
+    }
+   }
+  },
+  "placebo": {}
+ },
+ {
+  "family": "c2_555_tope",
+  "channel": "canal2",
+  "carril_family": "A",
+  "codes": "D1 E3 L2 X1 X7 R3",
+  "real": {
+   "A": {
+    "walk_forward": {
+     "months": [
+      {
+       "month": "2026-06",
+       "net": -248.6000015065074,
+       "n": 29,
+       "choice": {
+        "filter": "de 12:00 a 17:00 UTC, dir_streak < 0.5",
+        "genome": 73
+       },
+       "choose_t": 12.783178233365794
+      },
+      {
+       "month": "2026-07",
+       "net": -158.60999488830566,
+       "n": 42,
+       "choice": {
+        "filter": "d\u00edas LMXJ, vol_regime < 0.8",
+        "genome": 26
+       },
+       "choose_t": 12.934202286733452
+      },
+      {
+       "month": "2026-08",
+       "net": 79.91999852657318,
+       "n": 58,
+       "choice": {
+        "filter": "RSI5m > 55, ATR15m < 12.0",
+        "genome": 36
+       },
+       "choose_t": 14.551930582730787
+      },
+      {
+       "month": "2026-09",
+       "net": 28.670000433921814,
+       "n": 11,
+       "choice": {
+        "filter": "mov. previo 60m > 10.0, dist_round50 > 15.0",
+        "genome": 128
+       },
+       "choose_t": 13.553392896168049
+      }
+     ],
+     "total": -298.61999743431807,
+     "pos_months": 2,
+     "traded_months": 4,
+     "n_months": 4,
+     "distinct_choices": 4
+    },
+    "walk_forward_no_filter": {
+     "total": 0.0,
+     "pos_months": 0,
+     "traded_months": 0,
+     "n_months": 4
+    },
+    "variants": {
+     "simples_n30": {
+      "total": -608.0800045728683,
+      "pos_months": 0,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "simples_n60": {
+      "total": -214.55999624729156,
+      "pos_months": 1,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "todos_n60": {
+      "total": 65.91000586748123,
+      "pos_months": 3,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "sin_filtro_n60": {
+      "total": 0.0,
+      "pos_months": 0,
+      "traded_months": 0,
+      "n_months": 4
+     }
+    },
+    "final_pick": {
+     "filter": {
+      "cond": [
+       [
+        "pre_move_60",
+        ">",
+        10.0
+       ],
+       [
+        "pd_loc",
+        "<",
+        0.4
+       ]
+      ]
+     },
+     "filter_text": "mov. previo 60m > 10.0, pd_loc < 0.4",
+     "genome_index": 146,
+     "rule": "BasketRule(invert=False, entry='adverse_reversal', e_x=1.0, e_y=1.5, expiry_min=30, delay_min=0.0, weights=(0.04, 0.03, 0.03, 0.03, 0.03), ladder='adverse', step=1.0, tp_steps=(0.25, 0.5, 0.75, 1.0, 1.25), sl_move=0.0, trail=0.0, be_trigger=0.0, basket_stop_eur=100.0, lock_arm_eur=0.0, lock_give_eur=0.0, time_min=180, time_mode='non_negative', hard_stop_eur_leg=0.0, partial_frac=0.0, partial_tp=0.0, runner_tp=0.0, tags=())",
+     "t": 13.439932075929347,
+     "net": 308.1600024700165,
+     "n": 44,
+     "monthly": {
+      "2026-04": 1.7,
+      "2026-05": 41.7,
+      "2026-06": 83.5,
+      "2026-07": 71.9,
+      "2026-08": 34.8,
+      "2026-09": 74.6
+     }
+    }
+   },
+   "B": {
+    "walk_forward": {
+     "months": [
+      {
+       "month": "2026-06",
+       "net": -248.6000015065074,
+       "n": 29,
+       "choice": {
+        "filter": "de 12:00 a 17:00 UTC, dir_streak < 0.5",
+        "genome": 73
+       },
+       "choose_t": 12.783178233365794
+      },
+      {
+       "month": "2026-07",
+       "net": -158.60999488830566,
+       "n": 42,
+       "choice": {
+        "filter": "d\u00edas LMXJ, vol_regime < 0.8",
+        "genome": 26
+       },
+       "choose_t": 12.934202286733452
+      },
+      {
+       "month": "2026-08",
+       "net": 79.91999852657318,
+       "n": 58,
+       "choice": {
+        "filter": "RSI5m > 55, ATR15m < 12.0",
+        "genome": 36
+       },
+       "choose_t": 14.551930582730787
+      },
+      {
+       "month": "2026-09",
+       "net": 28.670000433921814,
+       "n": 11,
+       "choice": {
+        "filter": "mov. previo 60m > 10.0, dist_round50 > 15.0",
+        "genome": 128
+       },
+       "choose_t": 13.553392896168049
+      }
+     ],
+     "total": -298.61999743431807,
+     "pos_months": 2,
+     "traded_months": 4,
+     "n_months": 4,
+     "distinct_choices": 4
+    },
+    "walk_forward_no_filter": {
+     "total": 0.0,
+     "pos_months": 0,
+     "traded_months": 0,
+     "n_months": 4
+    },
+    "variants": {
+     "simples_n30": {
+      "total": -608.0800045728683,
+      "pos_months": 0,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "simples_n60": {
+      "total": -214.55999624729156,
+      "pos_months": 1,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "todos_n60": {
+      "total": 65.91000586748123,
+      "pos_months": 3,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "sin_filtro_n60": {
+      "total": 0.0,
+      "pos_months": 0,
+      "traded_months": 0,
+      "n_months": 4
+     }
+    },
+    "final_pick": {
+     "filter": {
+      "cond": [
+       [
+        "pre_move_60",
+        ">",
+        10.0
+       ],
+       [
+        "pd_loc",
+        "<",
+        0.4
+       ]
+      ]
+     },
+     "filter_text": "mov. previo 60m > 10.0, pd_loc < 0.4",
+     "genome_index": 146,
+     "rule": "BasketRule(invert=False, entry='adverse_reversal', e_x=1.0, e_y=1.5, expiry_min=30, delay_min=0.0, weights=(0.04, 0.03, 0.03, 0.03, 0.03), ladder='adverse', step=1.0, tp_steps=(0.25, 0.5, 0.75, 1.0, 1.25), sl_move=0.0, trail=0.0, be_trigger=0.0, basket_stop_eur=100.0, lock_arm_eur=0.0, lock_give_eur=0.0, time_min=180, time_mode='non_negative', hard_stop_eur_leg=0.0, partial_frac=0.0, partial_tp=0.0, runner_tp=0.0, tags=())",
+     "t": 13.439932075929347,
+     "net": 308.1600024700165,
+     "n": 44,
+     "monthly": {
+      "2026-04": 1.7,
+      "2026-05": 41.7,
+      "2026-06": 83.5,
+      "2026-07": 71.9,
+      "2026-08": 34.8,
+      "2026-09": 74.6
+     }
+    }
+   }
+  },
+  "placebo": {}
+ },
+ {
+  "family": "c2_seguir_1pata",
+  "channel": "canal2",
+  "carril_family": "A",
+  "codes": "D1 E1 L1 X1 X7 R1 R2",
+  "real": {
+   "A": {
+    "walk_forward": {
+     "months": [
+      {
+       "month": "2026-06",
+       "net": 2.360000416636467,
+       "n": 29,
+       "choice": {
+        "filter": "d\u00edas LMXJ, RSI15m < 35",
+        "genome": 11
+       },
+       "choose_t": 6.207930968802552
+      },
+      {
+       "month": "2026-07",
+       "net": 9.540000438690186,
+       "n": 14,
+       "choice": {
+        "filter": "min_in_session < 30, sweep_fav < 0.5, sweep_adv < 0.5",
+        "genome": 14
+       },
+       "choose_t": 734.6761173806055
+      },
+      {
+       "month": "2026-08",
+       "net": 4.28000020980835,
+       "n": 1,
+       "choice": {
+        "filter": "posici\u00f3n en rango 4h < 0.5, pd_break > 0.5",
+        "genome": 14
+       },
+       "choose_t": 5.937818492950358
+      },
+      {
+       "month": "2026-09",
+       "net": -6.469998359680176,
+       "n": 11,
+       "choice": {
+        "filter": "min_in_session < 30, dist_round50 > 15.0",
+        "genome": 11
+       },
+       "choose_t": 8.902245972919395
+      }
+     ],
+     "total": 9.710002705454826,
+     "pos_months": 3,
+     "traded_months": 4,
+     "n_months": 4,
+     "distinct_choices": 4
+    },
+    "walk_forward_no_filter": {
+     "total": -66.08998903259635,
+     "pos_months": 1,
+     "traded_months": 3,
+     "n_months": 4
+    },
+    "variants": {
+     "simples_n30": {
+      "total": -127.40000044368207,
+      "pos_months": 2,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "simples_n60": {
+      "total": -197.86999413743615,
+      "pos_months": 2,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "todos_n60": {
+      "total": -68.3200007379055,
+      "pos_months": 1,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "sin_filtro_n60": {
+      "total": -66.08998903259635,
+      "pos_months": 1,
+      "traded_months": 3,
+      "n_months": 4
+     }
+    },
+    "final_pick": {
+     "filter": {
+      "cond": [
+       [
+        "loc_4h",
+        "<",
+        0.5
+       ],
+       [
+        "pd_break",
+        ">",
+        0.5
+       ]
+      ]
+     },
+     "filter_text": "posici\u00f3n en rango 4h < 0.5, pd_break > 0.5",
+     "genome_index": 14,
+     "rule": "BasketRule(invert=False, entry='market', e_x=0.0, e_y=0.0, expiry_min=15, delay_min=0.0, weights=(0.01,), ladder='adverse', step=0.0, tp_steps=(5.0,), sl_move=40.0, trail=0.0, be_trigger=0.0, basket_stop_eur=0.0, lock_arm_eur=0.0, lock_give_eur=0.0, time_min=240, time_mode='always', hard_stop_eur_leg=0.0, partial_frac=0.0, partial_tp=0.0, runner_tp=0.0, tags=())",
+     "t": 7.465764530814357,
+     "net": 146.7599995136261,
+     "n": 40,
+     "monthly": {
+      "2026-04": 35.4,
+      "2026-05": 25.5,
+      "2026-06": 43.3,
+      "2026-07": 12.2,
+      "2026-08": 4.3,
+      "2026-09": 26.0
+     }
+    }
+   },
+   "B": {
+    "walk_forward": {
+     "months": [
+      {
+       "month": "2026-06",
+       "net": 2.360000416636467,
+       "n": 29,
+       "choice": {
+        "filter": "d\u00edas LMXJ, RSI15m < 35",
+        "genome": 11
+       },
+       "choose_t": 6.207930968802552
+      },
+      {
+       "month": "2026-07",
+       "net": 9.540000438690186,
+       "n": 14,
+       "choice": {
+        "filter": "min_in_session < 30, sweep_fav < 0.5, sweep_adv < 0.5",
+        "genome": 14
+       },
+       "choose_t": 734.6761173806055
+      },
+      {
+       "month": "2026-08",
+       "net": 4.28000020980835,
+       "n": 1,
+       "choice": {
+        "filter": "posici\u00f3n en rango 4h < 0.5, pd_break > 0.5",
+        "genome": 14
+       },
+       "choose_t": 5.937818492950358
+      },
+      {
+       "month": "2026-09",
+       "net": -6.469998359680176,
+       "n": 11,
+       "choice": {
+        "filter": "min_in_session < 30, dist_round50 > 15.0",
+        "genome": 11
+       },
+       "choose_t": 8.902245972919395
+      }
+     ],
+     "total": 9.710002705454826,
+     "pos_months": 3,
+     "traded_months": 4,
+     "n_months": 4,
+     "distinct_choices": 4
+    },
+    "walk_forward_no_filter": {
+     "total": -23.199982281774282,
+     "pos_months": 2,
+     "traded_months": 4,
+     "n_months": 4
+    },
+    "variants": {
+     "simples_n30": {
+      "total": -128.42999798245728,
+      "pos_months": 2,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "simples_n60": {
+      "total": -97.77999776415527,
+      "pos_months": 2,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "todos_n60": {
+      "total": -205.65000066161156,
+      "pos_months": 0,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "sin_filtro_n60": {
+      "total": -23.199982281774282,
+      "pos_months": 2,
+      "traded_months": 4,
+      "n_months": 4
+     }
+    },
+    "final_pick": {
+     "filter": {
+      "cond": [
+       [
+        "loc_4h",
+        "<",
+        0.5
+       ],
+       [
+        "pd_break",
+        ">",
+        0.5
+       ]
+      ]
+     },
+     "filter_text": "posici\u00f3n en rango 4h < 0.5, pd_break > 0.5",
+     "genome_index": 14,
+     "rule": "BasketRule(invert=False, entry='market', e_x=0.0, e_y=0.0, expiry_min=15, delay_min=0.0, weights=(0.01,), ladder='adverse', step=0.0, tp_steps=(5.0,), sl_move=40.0, trail=0.0, be_trigger=0.0, basket_stop_eur=0.0, lock_arm_eur=0.0, lock_give_eur=0.0, time_min=240, time_mode='always', hard_stop_eur_leg=0.0, partial_frac=0.0, partial_tp=0.0, runner_tp=0.0, tags=())",
+     "t": 7.465764530814357,
+     "net": 146.7599995136261,
+     "n": 40,
+     "monthly": {
+      "2026-04": 35.4,
+      "2026-05": 25.5,
+      "2026-06": 43.3,
+      "2026-07": 12.2,
+      "2026-08": 4.3,
+      "2026-09": 26.0
+     }
+    }
+   }
+  },
+  "placebo": {}
+ },
+ {
+  "family": "c2_invertir_1pata",
+  "channel": "canal2",
+  "carril_family": "A",
+  "codes": "D2 E1 L1 X1 X7 R1 R2",
+  "real": {
+   "A": {
+    "walk_forward": {
+     "months": [
+      {
+       "month": "2026-06",
+       "net": 37.83999967575073,
+       "n": 37,
+       "choice": {
+        "filter": "RSI5m < 45, rango 60m < 25.0",
+        "genome": 14
+       },
+       "choose_t": 9.728789215317757
+      },
+      {
+       "month": "2026-07",
+       "net": -38.650001525878906,
+       "n": 16,
+       "choice": {
+        "filter": "dist_round50 < 3.0, burst_60 < 1.5",
+        "genome": 13
+       },
+       "choose_t": 10.772468169189972
+      },
+      {
+       "month": "2026-08",
+       "net": -16.38999843597412,
+       "n": 8,
+       "choice": {
+        "filter": "mov. del d\u00eda < -20.0, burst_60 > 1.5",
+        "genome": 13
+       },
+       "choose_t": 14.394529732822281
+      },
+      {
+       "month": "2026-09",
+       "net": 12.980000019073486,
+       "n": 3,
+       "choice": {
+        "filter": "de 7:00 a 16:00 UTC, vol_regime > 1.2",
+        "genome": 12
+       },
+       "choose_t": 7.470155785160854
+      }
+     ],
+     "total": -4.220000267028809,
+     "pos_months": 2,
+     "traded_months": 4,
+     "n_months": 4,
+     "distinct_choices": 4
+    },
+    "walk_forward_no_filter": {
+     "total": -55.490010906010866,
+     "pos_months": 2,
+     "traded_months": 4,
+     "n_months": 4
+    },
+    "variants": {
+     "simples_n30": {
+      "total": 123.86999547481537,
+      "pos_months": 4,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "simples_n60": {
+      "total": 197.09999397955835,
+      "pos_months": 3,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "todos_n60": {
+      "total": 11.379994750022888,
+      "pos_months": 3,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "sin_filtro_n60": {
+      "total": -55.490010906010866,
+      "pos_months": 2,
+      "traded_months": 4,
+      "n_months": 4
+     }
+    },
+    "final_pick": {
+     "filter": {
+      "hours": [
+       7,
+       16
+      ],
+      "cond": [
+       [
+        "vol_regime",
+        ">",
+        1.2
+       ]
+      ]
+     },
+     "filter_text": "de 7:00 a 16:00 UTC, vol_regime > 1.2",
+     "genome_index": 12,
+     "rule": "BasketRule(invert=False, entry='market', e_x=0.0, e_y=0.0, expiry_min=15, delay_min=0.0, weights=(0.01,), ladder='adverse', step=0.0, tp_steps=(5.0,), sl_move=40.0, trail=0.0, be_trigger=0.0, basket_stop_eur=0.0, lock_arm_eur=0.0, lock_give_eur=0.0, time_min=90, time_mode='always', hard_stop_eur_leg=0.0, partial_frac=0.0, partial_tp=0.0, runner_tp=0.0, tags=())",
+     "t": 7.973637520780277,
+     "net": 201.5100018978119,
+     "n": 58,
+     "monthly": {
+      "2026-04": 0.0,
+      "2026-05": 51.5,
+      "2026-06": 87.6,
+      "2026-07": 8.6,
+      "2026-08": 40.9,
+      "2026-09": 13.0
+     }
+    }
+   },
+   "B": {
+    "walk_forward": {
+     "months": [
+      {
+       "month": "2026-06",
+       "net": 37.83999967575073,
+       "n": 37,
+       "choice": {
+        "filter": "RSI5m < 45, rango 60m < 25.0",
+        "genome": 14
+       },
+       "choose_t": 9.728789215317757
+      },
+      {
+       "month": "2026-07",
+       "net": -38.650001525878906,
+       "n": 16,
+       "choice": {
+        "filter": "dist_round50 < 3.0, burst_60 < 1.5",
+        "genome": 13
+       },
+       "choose_t": 10.772468169189972
+      },
+      {
+       "month": "2026-08",
+       "net": -16.38999843597412,
+       "n": 8,
+       "choice": {
+        "filter": "mov. del d\u00eda < -20.0, burst_60 > 1.5",
+        "genome": 13
+       },
+       "choose_t": 14.394529732822281
+      },
+      {
+       "month": "2026-09",
+       "net": 12.980000019073486,
+       "n": 3,
+       "choice": {
+        "filter": "de 7:00 a 16:00 UTC, vol_regime > 1.2",
+        "genome": 12
+       },
+       "choose_t": 7.470155785160854
+      }
+     ],
+     "total": -4.220000267028809,
+     "pos_months": 2,
+     "traded_months": 4,
+     "n_months": 4,
+     "distinct_choices": 4
+    },
+    "walk_forward_no_filter": {
+     "total": -127.57001464441419,
+     "pos_months": 2,
+     "traded_months": 4,
+     "n_months": 4
+    },
+    "variants": {
+     "simples_n30": {
+      "total": 155.93999730050564,
+      "pos_months": 4,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "simples_n60": {
+      "total": 197.45999649725854,
+      "pos_months": 3,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "todos_n60": {
+      "total": -135.38000357151031,
+      "pos_months": 1,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "sin_filtro_n60": {
+      "total": -127.57001464441419,
+      "pos_months": 2,
+      "traded_months": 4,
+      "n_months": 4
+     }
+    },
+    "final_pick": {
+     "filter": {
+      "hours": [
+       7,
+       16
+      ],
+      "cond": [
+       [
+        "vol_regime",
+        ">",
+        1.2
+       ]
+      ]
+     },
+     "filter_text": "de 7:00 a 16:00 UTC, vol_regime > 1.2",
+     "genome_index": 12,
+     "rule": "BasketRule(invert=False, entry='market', e_x=0.0, e_y=0.0, expiry_min=15, delay_min=0.0, weights=(0.01,), ladder='adverse', step=0.0, tp_steps=(5.0,), sl_move=40.0, trail=0.0, be_trigger=0.0, basket_stop_eur=0.0, lock_arm_eur=0.0, lock_give_eur=0.0, time_min=90, time_mode='always', hard_stop_eur_leg=0.0, partial_frac=0.0, partial_tp=0.0, runner_tp=0.0, tags=())",
+     "t": 7.973637520780277,
+     "net": 201.5100018978119,
+     "n": 58,
+     "monthly": {
+      "2026-04": 0.0,
+      "2026-05": 51.5,
+      "2026-06": 87.6,
+      "2026-07": 8.6,
+      "2026-08": 40.9,
+      "2026-09": 13.0
+     }
+    }
+   }
+  },
+  "placebo": {
+   "A": {
+    "walk_forward": {
+     "months": [
+      {
+       "month": "2026-06",
+       "net": -13.12999963760376,
+       "n": 17,
+       "choice": {
+        "filter": "de 6:00 a 12:00 UTC, mov. previo 15m > 3.0",
+        "genome": 14
+       },
+       "choose_t": 11.689538104924583
+      },
+      {
+       "month": "2026-07",
+       "net": -53.08000087738037,
+       "n": 17,
+       "choice": {
+        "filter": "RSI15m < 45, RSI5m < 30",
+        "genome": 11
+       },
+       "choose_t": 6.230044126456593
+      },
+      {
+       "month": "2026-08",
+       "net": -21.390000231564045,
+       "n": 21,
+       "choice": {
+        "filter": "de 6:00 a 12:00 UTC, posici\u00f3n en rango 4h < 0.2",
+        "genome": 34
+       },
+       "choose_t": 5.263292020483682
+      },
+      {
+       "month": "2026-09",
+       "net": -152.49000072479248,
+       "n": 13,
+       "choice": {
+        "filter": "RSI5m > 70, pd_break > -0.5, pd_break < 0.5",
+        "genome": 14
+       },
+       "choose_t": 7.407278332693637
+      }
+     ],
+     "total": -240.09000147134066,
+     "pos_months": 0,
+     "traded_months": 4,
+     "n_months": 4,
+     "distinct_choices": 4
+    },
+    "walk_forward_no_filter": {
+     "total": 86.47999210655689,
+     "pos_months": 2,
+     "traded_months": 4,
+     "n_months": 4
+    },
+    "variants": {
+     "simples_n30": {
+      "total": -157.64999315142632,
+      "pos_months": 1,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "simples_n60": {
+      "total": -188.34999272227287,
+      "pos_months": 1,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "todos_n60": {
+      "total": 223.16000064462423,
+      "pos_months": 3,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "sin_filtro_n60": {
+      "total": 86.47999210655689,
+      "pos_months": 2,
+      "traded_months": 4,
+      "n_months": 4
+     }
+    },
+    "final_pick": {
+     "filter": {
+      "cond": [
+       [
+        "loc_4h",
+        ">",
+        0.5
+       ],
+       [
+        "session",
+        ">",
+        -0.5
+       ],
+       [
+        "session",
+        "<",
+        0.5
+       ]
+      ]
+     },
+     "filter_text": "posici\u00f3n en rango 4h > 0.5, session > -0.5, session < 0.5",
+     "genome_index": 14,
+     "rule": "BasketRule(invert=False, entry='market', e_x=0.0, e_y=0.0, expiry_min=15, delay_min=0.0, weights=(0.01,), ladder='adverse', step=0.0, tp_steps=(5.0,), sl_move=40.0, trail=0.0, be_trigger=0.0, basket_stop_eur=0.0, lock_arm_eur=0.0, lock_give_eur=0.0, time_min=240, time_mode='always', hard_stop_eur_leg=0.0, partial_frac=0.0, partial_tp=0.0, runner_tp=0.0, tags=())",
+     "t": 7.2330878407807875,
+     "net": 134.97000122070312,
+     "n": 37,
+     "monthly": {
+      "2026-04": 38.4,
+      "2026-05": 1.0,
+      "2026-06": 43.5,
+      "2026-07": 17.5,
+      "2026-08": 12.9,
+      "2026-09": 21.7
+     }
+    }
+   },
+   "B": {
+    "walk_forward": {
+     "months": [
+      {
+       "month": "2026-06",
+       "net": -13.12999963760376,
+       "n": 17,
+       "choice": {
+        "filter": "de 6:00 a 12:00 UTC, mov. previo 15m > 3.0",
+        "genome": 14
+       },
+       "choose_t": 11.689538104924583
+      },
+      {
+       "month": "2026-07",
+       "net": -53.08000087738037,
+       "n": 17,
+       "choice": {
+        "filter": "RSI15m < 45, RSI5m < 30",
+        "genome": 11
+       },
+       "choose_t": 6.230044126456593
+      },
+      {
+       "month": "2026-08",
+       "net": -18.590000994503498,
+       "n": 21,
+       "choice": {
+        "filter": "de 6:00 a 12:00 UTC, posici\u00f3n en rango 4h < 0.2",
+        "genome": 39
+       },
+       "choose_t": 6.3206298798279
+      },
+      {
+       "month": "2026-09",
+       "net": -152.49000072479248,
+       "n": 13,
+       "choice": {
+        "filter": "RSI5m > 70, pd_break > -0.5, pd_break < 0.5",
+        "genome": 14
+       },
+       "choose_t": 7.407278332693637
+      }
+     ],
+     "total": -237.2900022342801,
+     "pos_months": 0,
+     "traded_months": 4,
+     "n_months": 4,
+     "distinct_choices": 4
+    },
+    "walk_forward_no_filter": {
+     "total": 86.47999210655689,
+     "pos_months": 2,
+     "traded_months": 4,
+     "n_months": 4
+    },
+    "variants": {
+     "simples_n30": {
+      "total": -107.13999909162521,
+      "pos_months": 1,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "simples_n60": {
+      "total": -137.83999866247177,
+      "pos_months": 1,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "todos_n60": {
+      "total": 62.31999945640564,
+      "pos_months": 2,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "sin_filtro_n60": {
+      "total": 86.47999210655689,
+      "pos_months": 2,
+      "traded_months": 4,
+      "n_months": 4
+     }
+    },
+    "final_pick": {
+     "filter": {
+      "cond": [
+       [
+        "loc_4h",
+        ">",
+        0.5
+       ],
+       [
+        "session",
+        ">",
+        -0.5
+       ],
+       [
+        "session",
+        "<",
+        0.5
+       ]
+      ]
+     },
+     "filter_text": "posici\u00f3n en rango 4h > 0.5, session > -0.5, session < 0.5",
+     "genome_index": 14,
+     "rule": "BasketRule(invert=False, entry='market', e_x=0.0, e_y=0.0, expiry_min=15, delay_min=0.0, weights=(0.01,), ladder='adverse', step=0.0, tp_steps=(5.0,), sl_move=40.0, trail=0.0, be_trigger=0.0, basket_stop_eur=0.0, lock_arm_eur=0.0, lock_give_eur=0.0, time_min=240, time_mode='always', hard_stop_eur_leg=0.0, partial_frac=0.0, partial_tp=0.0, runner_tp=0.0, tags=())",
+     "t": 7.2330878407807875,
+     "net": 134.97000122070312,
+     "n": 37,
+     "monthly": {
+      "2026-04": 38.4,
+      "2026-05": 1.0,
+      "2026-06": 43.5,
+      "2026-07": 17.5,
+      "2026-08": 12.9,
+      "2026-09": 21.7
+     }
+    }
+   }
+  }
+ },
+ {
+  "family": "c2_escalera",
+  "channel": "canal2",
+  "carril_family": "A",
+  "codes": "D1 E1 L2 X5 X7 R3",
+  "real": {
+   "A": {
+    "walk_forward": {
+     "months": [
+      {
+       "month": "2026-06",
+       "net": -140.32000598311424,
+       "n": 17,
+       "choice": {
+        "filter": "ATR15m > 12.0, burst_60 > 0.5",
+        "genome": 121
+       },
+       "choose_t": 11.340928226311418
+      },
+      {
+       "month": "2026-07",
+       "net": -48.569998383522034,
+       "n": 14,
+       "choice": {
+        "filter": "min_in_session < 30, sweep_fav < 0.5, sweep_adv < 0.5",
+        "genome": 85
+       },
+       "choose_t": 11.399737913131892
+      },
+      {
+       "month": "2026-08",
+       "net": 124.41000122390687,
+       "n": 56,
+       "choice": {
+        "filter": "asia_loc > 0.8",
+        "genome": 210
+       },
+       "choose_t": 9.568481695906273
+      },
+      {
+       "month": "2026-09",
+       "net": 98.63999954424798,
+       "n": 52,
+       "choice": {
+        "filter": "asia_loc > 0.8",
+        "genome": 210
+       },
+       "choose_t": 10.142670281295214
+      }
+     ],
+     "total": 34.15999640151858,
+     "pos_months": 2,
+     "traded_months": 4,
+     "n_months": 4,
+     "distinct_choices": 3
+    },
+    "walk_forward_no_filter": {
+     "total": 334.82999566569924,
+     "pos_months": 2,
+     "traded_months": 4,
+     "n_months": 4
+    },
+    "variants": {
+     "simples_n30": {
+      "total": 334.00999888032675,
+      "pos_months": 4,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "simples_n60": {
+      "total": 334.00999888032675,
+      "pos_months": 4,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "todos_n60": {
+      "total": 138.35999787412584,
+      "pos_months": 2,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "sin_filtro_n60": {
+      "total": 334.82999566569924,
+      "pos_months": 2,
+      "traded_months": 4,
+      "n_months": 4
+     }
+    },
+    "final_pick": {
+     "filter": {
+      "cond": [
+       [
+        "asia_loc",
+        ">",
+        0.8
+       ]
+      ]
+     },
+     "filter_text": "asia_loc > 0.8",
+     "genome_index": 210,
+     "rule": "BasketRule(invert=False, entry='market', e_x=0.0, e_y=0.0, expiry_min=15, delay_min=0.0, weights=(0.01, 0.01, 0.01, 0.01, 0.01, 0.01), ladder='adverse', step=2.0, tp_steps=(), sl_move=0.0, trail=0.0, be_trigger=0.0, basket_stop_eur=100.0, lock_arm_eur=15.0, lock_give_eur=5.0, time_min=3, time_mode='profit_only', hard_stop_eur_leg=0.0, partial_frac=0.0, partial_tp=0.0, runner_tp=0.0, tags=())",
+     "t": 11.402397812460073,
+     "net": 552.8100020177662,
+     "n": 294,
+     "monthly": {
+      "2026-04": 40.9,
+      "2026-05": 91.4,
+      "2026-06": 100.2,
+      "2026-07": 97.2,
+      "2026-08": 124.4,
+      "2026-09": 98.6
+     }
+    }
+   },
+   "B": {
+    "walk_forward": {
+     "months": [
+      {
+       "month": "2026-06",
+       "net": -140.32000598311424,
+       "n": 17,
+       "choice": {
+        "filter": "ATR15m > 12.0, burst_60 > 0.5",
+        "genome": 121
+       },
+       "choose_t": 11.340928226311418
+      },
+      {
+       "month": "2026-07",
+       "net": -48.569998383522034,
+       "n": 14,
+       "choice": {
+        "filter": "min_in_session < 30, sweep_fav < 0.5, sweep_adv < 0.5",
+        "genome": 85
+       },
+       "choose_t": 11.399737913131892
+      },
+      {
+       "month": "2026-08",
+       "net": 124.41000122390687,
+       "n": 56,
+       "choice": {
+        "filter": "asia_loc > 0.8",
+        "genome": 210
+       },
+       "choose_t": 9.568481695906273
+      },
+      {
+       "month": "2026-09",
+       "net": 98.63999954424798,
+       "n": 52,
+       "choice": {
+        "filter": "asia_loc > 0.8",
+        "genome": 210
+       },
+       "choose_t": 10.142670281295214
+      }
+     ],
+     "total": 34.15999640151858,
+     "pos_months": 2,
+     "traded_months": 4,
+     "n_months": 4,
+     "distinct_choices": 3
+    },
+    "walk_forward_no_filter": {
+     "total": 334.82999566569924,
+     "pos_months": 2,
+     "traded_months": 4,
+     "n_months": 4
+    },
+    "variants": {
+     "simples_n30": {
+      "total": 334.00999888032675,
+      "pos_months": 4,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "simples_n60": {
+      "total": 334.00999888032675,
+      "pos_months": 4,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "todos_n60": {
+      "total": 138.35999787412584,
+      "pos_months": 2,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "sin_filtro_n60": {
+      "total": 334.82999566569924,
+      "pos_months": 2,
+      "traded_months": 4,
+      "n_months": 4
+     }
+    },
+    "final_pick": {
+     "filter": {
+      "cond": [
+       [
+        "asia_loc",
+        ">",
+        0.8
+       ]
+      ]
+     },
+     "filter_text": "asia_loc > 0.8",
+     "genome_index": 210,
+     "rule": "BasketRule(invert=False, entry='market', e_x=0.0, e_y=0.0, expiry_min=15, delay_min=0.0, weights=(0.01, 0.01, 0.01, 0.01, 0.01, 0.01), ladder='adverse', step=2.0, tp_steps=(), sl_move=0.0, trail=0.0, be_trigger=0.0, basket_stop_eur=100.0, lock_arm_eur=15.0, lock_give_eur=5.0, time_min=3, time_mode='profit_only', hard_stop_eur_leg=0.0, partial_frac=0.0, partial_tp=0.0, runner_tp=0.0, tags=())",
+     "t": 11.402397812460073,
+     "net": 552.8100020177662,
+     "n": 294,
+     "monthly": {
+      "2026-04": 40.9,
+      "2026-05": 91.4,
+      "2026-06": 100.2,
+      "2026-07": 97.2,
+      "2026-08": 124.4,
+      "2026-09": 98.6
+     }
+    }
+   }
+  },
+  "placebo": {
+   "A": {
+    "walk_forward": {
+     "months": [
+      {
+       "month": "2026-06",
+       "net": -6.750003291293979,
+       "n": 72,
+       "choice": {
+        "filter": "d\u00edas LMXJ, mov. previo 15m < 0.0",
+        "genome": 66
+       },
+       "choose_t": 8.339044527710774
+      },
+      {
+       "month": "2026-07",
+       "net": -218.5499984268099,
+       "n": 68,
+       "choice": {
+        "filter": "min. desde se\u00f1al anterior > 15.0, asia_loc > 0.5",
+        "genome": 204
+       },
+       "choose_t": 9.073959751932376
+      },
+      {
+       "month": "2026-08",
+       "net": -26.789998054504395,
+       "n": 6,
+       "choice": {
+        "filter": "mov. previo 15m < 0.0, dist_round50 < 3.0",
+        "genome": 158
+       },
+       "choose_t": 12.849629647081139
+      },
+      {
+       "month": "2026-09",
+       "net": 52.79999992251396,
+       "n": 35,
+       "choice": {
+        "filter": "de 12:00 a 17:00 UTC, d\u00edas LMX",
+        "genome": 213
+       },
+       "choose_t": 9.45423386925207
+      }
+     ],
+     "total": -199.28999985009432,
+     "pos_months": 1,
+     "traded_months": 4,
+     "n_months": 4,
+     "distinct_choices": 4
+    },
+    "walk_forward_no_filter": {
+     "total": -470.1700104828924,
+     "pos_months": 1,
+     "traded_months": 4,
+     "n_months": 4
+    },
+    "variants": {
+     "simples_n30": {
+      "total": 32.46000054851174,
+      "pos_months": 3,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "simples_n60": {
+      "total": 32.46000054851174,
+      "pos_months": 3,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "todos_n60": {
+      "total": -245.1300036199391,
+      "pos_months": 1,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "sin_filtro_n60": {
+      "total": -470.1700104828924,
+      "pos_months": 1,
+      "traded_months": 4,
+      "n_months": 4
+     }
+    },
+    "final_pick": {
+     "filter": {
+      "hours": [
+       12,
+       17
+      ],
+      "weekdays": [
+       0,
+       1,
+       2
+      ]
+     },
+     "filter_text": "de 12:00 a 17:00 UTC, d\u00edas LMX",
+     "genome_index": 213,
+     "rule": "BasketRule(invert=False, entry='market', e_x=0.0, e_y=0.0, expiry_min=15, delay_min=0.0, weights=(0.01, 0.01, 0.01, 0.01, 0.01, 0.01), ladder='adverse', step=2.0, tp_steps=(), sl_move=0.0, trail=0.0, be_trigger=0.0, basket_stop_eur=100.0, lock_arm_eur=30.0, lock_give_eur=10.0, time_min=3, time_mode='profit_only', hard_stop_eur_leg=0.0, partial_frac=0.0, partial_tp=0.0, runner_tp=0.0, tags=())",
+     "t": 10.603424180207528,
+     "net": 349.9799994006753,
+     "n": 197,
+     "monthly": {
+      "2026-04": 62.0,
+      "2026-05": 59.3,
+      "2026-06": 76.0,
+      "2026-07": 40.5,
+      "2026-08": 59.4,
+      "2026-09": 52.8
+     }
+    }
+   },
+   "B": {
+    "walk_forward": {
+     "months": [
+      {
+       "month": "2026-06",
+       "net": -6.750003291293979,
+       "n": 72,
+       "choice": {
+        "filter": "d\u00edas LMXJ, mov. previo 15m < 0.0",
+        "genome": 66
+       },
+       "choose_t": 8.339044527710774
+      },
+      {
+       "month": "2026-07",
+       "net": -218.5499984268099,
+       "n": 68,
+       "choice": {
+        "filter": "min. desde se\u00f1al anterior > 15.0, asia_loc > 0.5",
+        "genome": 204
+       },
+       "choose_t": 9.073959751932376
+      },
+      {
+       "month": "2026-08",
+       "net": -26.789998054504395,
+       "n": 6,
+       "choice": {
+        "filter": "mov. previo 15m < 0.0, dist_round50 < 3.0",
+        "genome": 158
+       },
+       "choose_t": 12.849629647081139
+      },
+      {
+       "month": "2026-09",
+       "net": 52.79999992251396,
+       "n": 35,
+       "choice": {
+        "filter": "de 12:00 a 17:00 UTC, d\u00edas LMX",
+        "genome": 213
+       },
+       "choose_t": 9.45423386925207
+      }
+     ],
+     "total": -199.28999985009432,
+     "pos_months": 1,
+     "traded_months": 4,
+     "n_months": 4,
+     "distinct_choices": 4
+    },
+    "walk_forward_no_filter": {
+     "total": -470.1700104828924,
+     "pos_months": 1,
+     "traded_months": 4,
+     "n_months": 4
+    },
+    "variants": {
+     "simples_n30": {
+      "total": 32.46000054851174,
+      "pos_months": 3,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "simples_n60": {
+      "total": 32.46000054851174,
+      "pos_months": 3,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "todos_n60": {
+      "total": -245.1300036199391,
+      "pos_months": 1,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "sin_filtro_n60": {
+      "total": -470.1700104828924,
+      "pos_months": 1,
+      "traded_months": 4,
+      "n_months": 4
+     }
+    },
+    "final_pick": {
+     "filter": {
+      "hours": [
+       12,
+       17
+      ],
+      "weekdays": [
+       0,
+       1,
+       2
+      ]
+     },
+     "filter_text": "de 12:00 a 17:00 UTC, d\u00edas LMX",
+     "genome_index": 213,
+     "rule": "BasketRule(invert=False, entry='market', e_x=0.0, e_y=0.0, expiry_min=15, delay_min=0.0, weights=(0.01, 0.01, 0.01, 0.01, 0.01, 0.01), ladder='adverse', step=2.0, tp_steps=(), sl_move=0.0, trail=0.0, be_trigger=0.0, basket_stop_eur=100.0, lock_arm_eur=30.0, lock_give_eur=10.0, time_min=3, time_mode='profit_only', hard_stop_eur_leg=0.0, partial_frac=0.0, partial_tp=0.0, runner_tp=0.0, tags=())",
+     "t": 10.603424180207528,
+     "net": 349.9799994006753,
+     "n": 197,
+     "monthly": {
+      "2026-04": 62.0,
+      "2026-05": 59.3,
+      "2026-06": 76.0,
+      "2026-07": 40.5,
+      "2026-08": 59.4,
+      "2026-09": 52.8
+     }
+    }
+   }
+  }
+ },
+ {
+  "family": "c2_pullback",
+  "channel": "canal2",
+  "carril_family": "A",
+  "codes": "D1 E2 L1 X1 R2",
+  "real": {
+   "A": {
+    "walk_forward": {
+     "months": [
+      {
+       "month": "2026-06",
+       "net": -0.15999960899353027,
+       "n": 11,
+       "choice": {
+        "filter": "vol_regime < 0.8, burst_60 < 0.5",
+        "genome": 76
+       },
+       "choose_t": 999.7170088445541
+      },
+      {
+       "month": "2026-07",
+       "net": -31.110000729560852,
+       "n": 20,
+       "choice": {
+        "filter": "de 6:00 a 12:00 UTC, asia_loc > 0.8",
+        "genome": 29
+       },
+       "choose_t": 727.4813182646649
+      },
+      {
+       "month": "2026-08",
+       "net": -6.949999570846558,
+       "n": 3,
+       "choice": {
+        "filter": "RSI5m > 55, mov. del d\u00eda < -20.0",
+        "genome": 77
+       },
+       "choose_t": 548.0197839422299
+      },
+      {
+       "month": "2026-09",
+       "net": -4.379999756813049,
+       "n": 6,
+       "choice": {
+        "filter": "RSI5m > 55, pd_loc < 0.2",
+        "genome": 77
+       },
+       "choose_t": 626.9905872843408
+      }
+     ],
+     "total": -42.59999966621399,
+     "pos_months": 0,
+     "traded_months": 4,
+     "n_months": 4,
+     "distinct_choices": 4
+    },
+    "walk_forward_no_filter": {
+     "total": -67.4499888420105,
+     "pos_months": 1,
+     "traded_months": 4,
+     "n_months": 4
+    },
+    "variants": {
+     "simples_n30": {
+      "total": 10.770000576972961,
+      "pos_months": 3,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "simples_n60": {
+      "total": 36.65000581741333,
+      "pos_months": 2,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "todos_n60": {
+      "total": -13.89999794960022,
+      "pos_months": 1,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "sin_filtro_n60": {
+      "total": -67.4499888420105,
+      "pos_months": 1,
+      "traded_months": 4,
+      "n_months": 4
+     }
+    },
+    "final_pick": {
+     "filter": {
+      "cond": [
+       [
+        "loc_4h",
+        ">",
+        0.8
+       ],
+       [
+        "atr_m15",
+        "<",
+        8.0
+       ]
+      ]
+     },
+     "filter_text": "posici\u00f3n en rango 4h > 0.8, ATR15m < 8.0",
+     "genome_index": 76,
+     "rule": "BasketRule(invert=False, entry='pullback', e_x=3.0, e_y=0.0, expiry_min=15, delay_min=0.0, weights=(0.01,), ladder='adverse', step=0.0, tp_steps=(1.0,), sl_move=10.0, trail=0.0, be_trigger=0.0, basket_stop_eur=0.0, lock_arm_eur=0.0, lock_give_eur=0.0, time_min=0.0, time_mode='always', hard_stop_eur_leg=0.0, partial_frac=0.0, partial_tp=0.0, runner_tp=0.0, tags=())",
+     "t": 664.0330277623813,
+     "net": 37.170000433921814,
+     "n": 43,
+     "monthly": {
+      "2026-04": 0.9,
+      "2026-05": 4.3,
+      "2026-06": 5.2,
+      "2026-07": 7.9,
+      "2026-08": 8.6,
+      "2026-09": 10.4
+     }
+    }
+   },
+   "B": {
+    "walk_forward": {
+     "months": [
+      {
+       "month": "2026-06",
+       "net": -0.15999960899353027,
+       "n": 11,
+       "choice": {
+        "filter": "vol_regime < 0.8, burst_60 < 0.5",
+        "genome": 76
+       },
+       "choose_t": 999.7170088445541
+      },
+      {
+       "month": "2026-07",
+       "net": -31.110000729560852,
+       "n": 20,
+       "choice": {
+        "filter": "de 6:00 a 12:00 UTC, asia_loc > 0.8",
+        "genome": 29
+       },
+       "choose_t": 727.4813182646649
+      },
+      {
+       "month": "2026-08",
+       "net": -6.949999570846558,
+       "n": 3,
+       "choice": {
+        "filter": "RSI5m > 55, mov. del d\u00eda < -20.0",
+        "genome": 77
+       },
+       "choose_t": 548.0197839422299
+      },
+      {
+       "month": "2026-09",
+       "net": -4.379999756813049,
+       "n": 6,
+       "choice": {
+        "filter": "RSI5m > 55, pd_loc < 0.2",
+        "genome": 77
+       },
+       "choose_t": 626.9905872843408
+      }
+     ],
+     "total": -42.59999966621399,
+     "pos_months": 0,
+     "traded_months": 4,
+     "n_months": 4,
+     "distinct_choices": 4
+    },
+    "walk_forward_no_filter": {
+     "total": -67.4499888420105,
+     "pos_months": 1,
+     "traded_months": 4,
+     "n_months": 4
+    },
+    "variants": {
+     "simples_n30": {
+      "total": 10.770000576972961,
+      "pos_months": 3,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "simples_n60": {
+      "total": 36.65000581741333,
+      "pos_months": 2,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "todos_n60": {
+      "total": -13.89999794960022,
+      "pos_months": 1,
+      "traded_months": 4,
+      "n_months": 4
+     },
+     "sin_filtro_n60": {
+      "total": -67.4499888420105,
+      "pos_months": 1,
+      "traded_months": 4,
+      "n_months": 4
+     }
+    },
+    "final_pick": {
+     "filter": {
+      "cond": [
+       [
+        "loc_4h",
+        ">",
+        0.8
+       ],
+       [
+        "atr_m15",
+        "<",
+        8.0
+       ]
+      ]
+     },
+     "filter_text": "posici\u00f3n en rango 4h > 0.8, ATR15m < 8.0",
+     "genome_index": 76,
+     "rule": "BasketRule(invert=False, entry='pullback', e_x=3.0, e_y=0.0, expiry_min=15, delay_min=0.0, weights=(0.01,), ladder='adverse', step=0.0, tp_steps=(1.0,), sl_move=10.0, trail=0.0, be_trigger=0.0, basket_stop_eur=0.0, lock_arm_eur=0.0, lock_give_eur=0.0, time_min=0.0, time_mode='always', hard_stop_eur_leg=0.0, partial_frac=0.0, partial_tp=0.0, runner_tp=0.0, tags=())",
+     "t": 664.0330277623813,
+     "net": 37.170000433921814,
+     "n": 43,
+     "monthly": {
+      "2026-04": 0.9,
+      "2026-05": 4.3,
+      "2026-06": 5.2,
+      "2026-07": 7.9,
+      "2026-08": 8.6,
+      "2026-09": 10.4
+     }
+    }
+   }
+  },
+  "placebo": {}
+ }
+]

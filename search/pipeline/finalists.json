@@ -1,0 +1,287 @@
+{
+ "canal1": [
+  {
+   "universe": "real",
+   "genome_index": 132,
+   "filter_index": 426,
+   "score": 9.17,
+   "beats_bar": true,
+   "n": 51,
+   "net_search": 389.0,
+   "filter_neighbors_net": [
+    229.3,
+    420.8,
+    217.0,
+    495.8
+   ],
+   "genome_neighbors_net": [
+    256.5,
+    173.0,
+    242.2,
+    347.2,
+    377.1,
+    404.9,
+    383.1,
+    290.3,
+    410.1
+   ],
+   "neighbors_positive_pct": 100.0
+  },
+  {
+   "universe": "real",
+   "genome_index": 253,
+   "filter_index": 306,
+   "score": 6.08,
+   "beats_bar": true,
+   "n": 45,
+   "net_search": 203.9,
+   "filter_neighbors_net": [
+    152.4,
+    163.8,
+    176.9,
+    203.9,
+    178.3,
+    83.8
+   ],
+   "genome_neighbors_net": [
+    83.0,
+    170.7,
+    96.2,
+    203.9,
+    117.2,
+    199.8,
+    237.1
+   ],
+   "neighbors_positive_pct": 100.0
+  },
+  {
+   "universe": "real",
+   "genome_index": 106,
+   "filter_index": 370,
+   "score": 6.07,
+   "beats_bar": true,
+   "n": 52,
+   "net_search": 208.0,
+   "filter_neighbors_net": [
+    121.5,
+    -53.6,
+    134.2,
+    305.3
+   ],
+   "genome_neighbors_net": [
+    169.1,
+    195.3,
+    61.1,
+    95.6,
+    209.1,
+    175.4,
+    187.7,
+    158.0,
+    41.0
+   ],
+   "neighbors_positive_pct": 92.3
+  },
+  {
+   "universe": "real",
+   "genome_index": 7,
+   "filter_index": 67,
+   "score": 5.11,
+   "beats_bar": false,
+   "n": 52,
+   "net_search": 219.9,
+   "filter_neighbors_net": [
+    163.9,
+    255.3,
+    160.5,
+    94.2
+   ],
+   "genome_neighbors_net": [
+    123.2,
+    172.3,
+    142.4,
+    223.2,
+    204.2,
+    146.7,
+    177.8
+   ],
+   "neighbors_positive_pct": 100.0
+  },
+  {
+   "universe": "real",
+   "genome_index": 1,
+   "filter_index": 280,
+   "score": 4.98,
+   "beats_bar": false,
+   "n": 42,
+   "net_search": 162.2,
+   "filter_neighbors_net": [
+    8.3,
+    188.1
+   ],
+   "genome_neighbors_net": [
+    121.5,
+    82.2,
+    101.7,
+    176.2,
+    152.7,
+    156.1,
+    177.1,
+    155.4,
+    179.4,
+    176.9
+   ],
+   "neighbors_positive_pct": 100.0
+  },
+  {
+   "universe": "real",
+   "genome_index": 252,
+   "filter_index": 306,
+   "score": 4.85,
+   "beats_bar": false,
+   "n": 45,
+   "net_search": 223.5,
+   "filter_neighbors_net": [
+    122.7,
+    182.2,
+    190.1,
+    223.5,
+    145.1,
+    55.1
+   ],
+   "genome_neighbors_net": [
+    189.3,
+    103.6,
+    134.8,
+    216.1,
+    206.2,
+    210.1,
+    221.0,
+    229.5,
+    225.9,
+    228.2
+   ],
+   "neighbors_positive_pct": 100.0
+  }
+ ],
+ "canal2": [
+  {
+   "universe": "real",
+   "genome_index": 434,
+   "filter_index": 344,
+   "score": 47.88,
+   "beats_bar": true,
+   "n": 50,
+   "net_search": 289.2,
+   "filter_neighbors_net": [
+    179.8,
+    -99.0,
+    270.3,
+    139.7
+   ],
+   "genome_neighbors_net": [
+    313.3,
+    274.6,
+    284.0,
+    280.6,
+    289.2,
+    289.2,
+    289.2,
+    289.2,
+    -108.6,
+    173.6,
+    462.8
+   ],
+   "neighbors_positive_pct": 86.7
+  },
+  {
+   "universe": "real",
+   "genome_index": 444,
+   "filter_index": 256,
+   "score": 26.87,
+   "beats_bar": false,
+   "n": 63,
+   "net_search": 451.2,
+   "filter_neighbors_net": [
+    392.7,
+    -294.2,
+    281.8,
+    419.8
+   ],
+   "genome_neighbors_net": [
+    467.7,
+    439.7,
+    449.7,
+    449.7,
+    410.2,
+    451.2,
+    451.2,
+    451.2,
+    431.2,
+    451.2,
+    -308.9,
+    752.0
+   ],
+   "neighbors_positive_pct": 87.5
+  },
+  {
+   "universe": "real",
+   "genome_index": 444,
+   "filter_index": 242,
+   "score": 26.51,
+   "beats_bar": false,
+   "n": 70,
+   "net_search": 489.1,
+   "filter_neighbors_net": [
+    304.8,
+    563.2,
+    -220.0,
+    308.2
+   ],
+   "genome_neighbors_net": [
+    279.2,
+    477.5,
+    493.0,
+    400.6,
+    442.6,
+    489.1,
+    489.1,
+    489.1,
+    364.4,
+    489.1,
+    -607.6,
+    815.1
+   ],
+   "neighbors_positive_pct": 87.5
+  },
+  {
+   "universe": "real",
+   "genome_index": 53,
+   "filter_index": 256,
+   "score": 25.11,
+   "beats_bar": false,
+   "n": 60,
+   "net_search": 467.7,
+   "filter_neighbors_net": [
+    398.9,
+    -111.4,
+    294.0,
+    554.5
+   ],
+   "genome_neighbors_net": [
+    484.8,
+    432.1,
+    467.3,
+    423.0,
+    467.7,
+    467.7,
+    467.7,
+    432.5,
+    467.7,
+    -178.6,
+    280.6,
+    720.0
+   ],
+   "neighbors_positive_pct": 87.5
+  }
+ ]
+}

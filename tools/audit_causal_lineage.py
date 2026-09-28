@@ -103,6 +103,17 @@ _ATTEMPT_OPERATIONS = {
     "CLOSE_POSITION",
     "CANCEL_PENDING",
 }
+_RETRYABLE_MODIFY_RETCODES = frozenset({
+    10004,
+    10008,
+    10015,
+    10016,
+    10017,
+    10018,
+    10021,
+    10027,
+    10029,
+})
 _LOOKUP_STATES = {
     "not_queried",
     "found",
@@ -945,12 +956,116 @@ def _attempt_owner_matches_action_root(
     return True
 
 
+def _retryable_modify_precedes_position_gone(
+    terminal: dict,
+    action_root: dict,
+    attempt_evidence_rows: Optional[dict[str, list[dict]]],
+) -> bool:
+    if (
+        terminal.get("preflight_status") != "position_gone"
+        or not isinstance(terminal.get("preflight_reason"), str)
+        or not terminal.get("preflight_reason").strip()
+        or terminal.get("preflight_effective_sl") is not None
+        or terminal.get("preflight_effective_tp") is not None
+        or terminal.get("preflight_deferred_sl") is not None
+    ):
+        return False
+
+    attempt_id = str(terminal.get("attempt_id") or "")
+    evidence_rows = (attempt_evidence_rows or {}).get(attempt_id, [])
+    if len(evidence_rows) != 1:
+        return False
+    attempt = evidence_rows[0]
+    result = attempt.get("result")
+    return (
+        _has_attempt_evidence(attempt)
+        and _attempt_matches_action_root(attempt, action_root)
+        and _event_precedes_or_equals(attempt, terminal)
+        and attempt.get("broker_request_sent") is True
+        and attempt.get("position_lookup_state") == "found"
+        and attempt.get("preflight_status") in {
+            "ready",
+            "apply_tp_defer_sl",
+        }
+        and isinstance(result, dict)
+        and result.get("retcode") in _RETRYABLE_MODIFY_RETCODES
+    )
+
+
+def _broker_position_gone_attempt_matches(
+    terminal: dict,
+    action_root: dict,
+    attempt_evidence_rows: Optional[dict[str, list[dict]]],
+) -> bool:
+    effective_sl = terminal.get("preflight_effective_sl")
+    effective_tp = terminal.get("preflight_effective_tp")
+    deferred_sl = terminal.get("preflight_deferred_sl")
+    if (
+        terminal.get("preflight_status") != "ready"
+        or terminal.get("preflight_reason") is not None
+        or not all(
+            _valid_optional_evidence_level(terminal, field)
+            for field in (
+                "preflight_effective_sl",
+                "preflight_effective_tp",
+                "preflight_deferred_sl",
+            )
+        )
+        or not (
+            _same_level(effective_sl, action_root.get("new_sl"))
+            or _same_level(deferred_sl, action_root.get("new_sl"))
+        )
+    ):
+        return False
+
+    attempt_id = str(terminal.get("attempt_id") or "")
+    evidence_rows = (attempt_evidence_rows or {}).get(attempt_id, [])
+    if len(evidence_rows) != 1:
+        return False
+    attempt = evidence_rows[0]
+    position = attempt.get("position_before")
+    tp_matches = _same_level(effective_tp, action_root.get("new_tp"))
+    if not tp_matches:
+        tp_matches = (
+            action_root.get("new_tp") is None
+            and terminal.get("new_tp") is None
+            and _valid_positive_number(effective_tp)
+            and isinstance(position, dict)
+            and _same_level(position.get("tp"), effective_tp)
+        )
+
+    return (
+        tp_matches
+        and _has_attempt_evidence(attempt)
+        and _attempt_matches_action_root(attempt, action_root)
+        and _event_precedes_or_equals(attempt, terminal)
+        and attempt.get("broker_request_sent") is True
+        and attempt.get("position_lookup_state") == "found"
+        and attempt.get("preflight_status") == "ready"
+        and attempt.get("preflight_reason") is None
+        and _same_level(
+            attempt.get("preflight_effective_sl"),
+            effective_sl,
+        )
+        and _same_level(
+            attempt.get("preflight_effective_tp"),
+            effective_tp,
+        )
+        and _same_level(
+            attempt.get("preflight_deferred_sl"),
+            deferred_sl,
+        )
+        and _broker_result_matches_attempt(terminal, attempt)
+    )
+
+
 def _terminal_action_matches_root(
     terminal: dict,
     action_root: dict,
     *,
     attempt_ids: set[str],
     attempt_actions: dict[str, set[str]],
+    attempt_evidence_rows: Optional[dict[str, list[dict]]] = None,
 ) -> bool:
     operation = _action_root_operation(action_root)
     if operation not in _PENDING_KIND_OPERATIONS:
@@ -1012,34 +1127,30 @@ def _terminal_action_matches_root(
             }.issubset(terminal)
         ):
             return False
-        if attempts == 0:
+        if (
+            attempts == 0
+            and terminal.get("preflight_status") == "position_gone"
+        ):
             if (
-                terminal.get("preflight_status") != "position_gone"
-                or not isinstance(terminal.get("preflight_reason"), str)
+                not isinstance(terminal.get("preflight_reason"), str)
                 or not terminal.get("preflight_reason").strip()
                 or terminal.get("preflight_effective_sl") is not None
                 or terminal.get("preflight_effective_tp") is not None
                 or terminal.get("preflight_deferred_sl") is not None
             ):
                 return False
+        elif terminal.get("preflight_status") == "position_gone":
+            if not _retryable_modify_precedes_position_gone(
+                terminal,
+                action_root,
+                attempt_evidence_rows,
+            ):
+                return False
         else:
-            preflight_reason = terminal.get("preflight_reason")
-            effective_sl = terminal.get("preflight_effective_sl")
-            deferred_sl = terminal.get("preflight_deferred_sl")
-            if (
-                terminal.get("preflight_status") != "ready"
-                or (
-                    preflight_reason is not None
-                    and not isinstance(preflight_reason, str)
-                )
-                or not (
-                    _same_level(effective_sl, action_root.get("new_sl"))
-                    or _same_level(deferred_sl, action_root.get("new_sl"))
-                )
-                or not _same_level(
-                    terminal.get("preflight_effective_tp"),
-                    action_root.get("new_tp"),
-                )
+            if not _broker_position_gone_attempt_matches(
+                terminal,
+                action_root,
+                attempt_evidence_rows,
             ):
                 return False
     elif event_name in {
@@ -1092,17 +1203,21 @@ def _terminal_action_matches_root(
 
     attempt_id = terminal.get("attempt_id")
     if attempts == 0:
-        if attempt_id not in (None, ""):
-            return False
-        if event_name == "mt5_modify_skipped_position_gone":
-            return True
-        if (
-            event_name == "mt5_action_failed"
-            and terminal.get("last_retcode") == 10013
-            and terminal.get("preflight_status") == "invalid_magic"
+        if attempt_id in (None, ""):
+            if event_name == "mt5_modify_skipped_position_gone":
+                return True
+            if (
+                event_name == "mt5_action_failed"
+                and terminal.get("last_retcode") == 10013
+                and terminal.get("preflight_status") == "invalid_magic"
+            ):
+                return True
+            return terminal.get("last_retcode") is None
+        if not (
+            event_name == "mt5_modify_skipped_position_gone"
+            and terminal.get("preflight_status") == "ready"
         ):
-            return True
-        return terminal.get("last_retcode") is None
+            return False
     return (
         _valid_runtime_id(attempt_id, "attempt_")
         and str(attempt_id) in attempt_ids
@@ -2026,6 +2141,7 @@ def audit_rows(
                     root_row,
                     attempt_ids=attempt_ids,
                     attempt_actions=attempt_actions,
+                    attempt_evidence_rows=attempt_evidence_rows,
                 )
                 for root_row in root_rows
             )

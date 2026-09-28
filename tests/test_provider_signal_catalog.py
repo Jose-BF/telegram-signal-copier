@@ -2496,10 +2496,11 @@ def test_versioned_catalog_uses_current_schema_and_public_entry_contract():
         assert private_paths(record) == []
 
 
-def test_default_corpus_uses_hybrid_canal1_identity_links():
+def test_historical_corpus_uses_hybrid_canal1_identity_links():
+    historical = runtime_paths.legacy_data_dir()
     report = provider_signal_catalog.build_catalog_report(
-        provider_signal_catalog.load_jsonl(provider_signal_catalog.DEFAULT_EVENTS),
-        provider_signal_catalog.load_jsonl(provider_signal_catalog.DEFAULT_REPLAY),
+        provider_signal_catalog.load_jsonl(historical / "trade_events.jsonl"),
+        provider_signal_catalog.load_jsonl(historical / "replay_trades.jsonl"),
     )
 
     def record_for(message_id):

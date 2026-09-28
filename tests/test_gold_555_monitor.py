@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -8,6 +8,9 @@ import pytest
 import gold_555_live_candidate
 import pending_actions
 import position_lifecycle_monitor as monitor
+from durable_entry_execution import DurableEntryExecutor
+from durable_execution import DurableExecutionService
+from execution_intents import IntentStore
 from state import Signal
 
 
@@ -195,6 +198,45 @@ async def test_delayed_leg_provisional_levels_use_current_executable_quote(
         "c2_380_B1_g55",
         signal.magic,
     )]
+
+
+@pytest.mark.asyncio
+async def test_durable_delayed_leg_reuses_frozen_payload_after_unsent_attempt(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    class PrepareOnlyClient:
+        config = SimpleNamespace(expected_server="demo", expected_login=7)
+
+        def __init__(self):
+            self.store = IntentStore(tmp_path / "gold-delayed.sqlite3")
+
+        async def execute(self, request, **kwargs):
+            return self.store.prepare_reserved(
+                request,
+                reservation_key=kwargs["reservation_key"],
+                policy_revision=kwargs["policy_revision"],
+                expires_utc=kwargs.get("expires_utc"),
+            )
+
+    service = DurableExecutionService(PrepareOnlyClient())
+    monkeypatch.setattr(
+        monitor,
+        "_durable_entry_executor",
+        DurableEntryExecutor(service, symbol="XAUUSD"),
+    )
+    signal = _signal()
+    signal.candidate_entry_expires_at = datetime.now(timezone.utc) + timedelta(
+        minutes=20
+    )
+    leg = signal.candidate_entry_legs[1]
+
+    assert await monitor._open_candidate_leg(signal, leg, 4298.8) is None
+    assert await monitor._open_candidate_leg(signal, leg, 4298.7) is None
+
+    recovered = DurableEntryExecutor(service, symbol="XAUUSD").reconstruct()
+    assert len(recovered) == 1
+    assert recovered[0].payload["sl"] == pytest.approx(4268.8)
 
 
 @pytest.mark.asyncio

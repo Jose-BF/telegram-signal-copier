@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Any
 
+from .ledger_evidence import ledger_ticket_evidence
+from .exit_deals import compare_exit_deals
 
 _CENT = Decimal("0.01")
 
@@ -50,6 +52,7 @@ def build_pipeline_truth_report(
         and row.get("strategy_id") == "gold_now_555_v1"
     }
     rows: list[dict[str, Any]] = []
+    management_evidence_blockers: list[str] = []
     causes: Counter[str] = Counter()
     for signal_id in sorted(actual_rows, key=_signal_sort_key):
         actual = actual_rows[signal_id]
@@ -57,6 +60,17 @@ def build_pipeline_truth_report(
         actual_money = _money(actual.get("actual_mt5_eur"))
         mirror_money = _money(actual.get("live_logic_mirror_eur"))
         actual_entries = _integer(actual.get("actual_entry_count"))
+        ticket_blockers = _management_ticket_blockers(actual, ledger_by_id.get(signal_id))
+        exit_comparison = compare_exit_deals(
+            ledger_by_id.get(signal_id) or {}, actual.get("mirror_exit_rows"),
+        )
+        ticket_blockers.extend(
+            f"exit_deals:{reason}"
+            for reason in exit_comparison["blockers"] + exit_comparison["mismatches"]
+        )
+        management_evidence_blockers.extend(
+            f"management_ticket_evidence:{signal_id}:{reason}" for reason in ticket_blockers
+        )
         predicted_money = (
             _money(predicted.get("net_eur"))
             if predicted is not None
@@ -73,7 +87,10 @@ def build_pipeline_truth_report(
             else None
         )
         exact = (
-            actual.get("status") == "exact"
+            not ticket_blockers
+            and actual_money is not None
+            and actual_entries is not None
+            and actual.get("status") == "exact"
             and actual_money == mirror_money
             and actual_money == predicted_money
             and actual_entries == predicted_entries
@@ -100,6 +117,8 @@ def build_pipeline_truth_report(
             "actual_entry_count": actual_entries,
             "prospective_entry_count": predicted_entries,
             "difference_cause": cause,
+            "management_blockers": ticket_blockers,
+            "exit_deal_comparison": exit_comparison,
         })
 
     actual_total = _sum(row["actual_mt5_eur"] for row in rows)
@@ -121,9 +140,26 @@ def build_pipeline_truth_report(
     if predicted_total != declared_predicted:
         blockers.append("prospective_total_disagrees_with_rows")
 
+    ticket_contract_verified = (
+        management_report.get("schema_version") == 4
+        and management_report.get("comparison_contract")
+        == "ledger_bound_entry_and_exit_deals_v4"
+    )
+    if not ticket_contract_verified:
+        blockers.append("management_ticket_comparison_contract_unverified")
+    blockers.extend(management_evidence_blockers)
     management_exact = (
-        management_report.get("management_replay_allowed") is True
+        ticket_contract_verified
+        and bool(rows)
+        and not management_evidence_blockers
+        and not duplicate_actual
+        and not duplicate_ledger
+        and actual_total is not None
+        and actual_total == declared_actual
+        and mirror_total == declared_mirror
+        and management_report.get("management_replay_allowed") is True
         and (management_report.get("parity") or {}).get("status") == "exact"
+        and not (management_report.get("parity") or {}).get("blockers")
     )
     entry_outcome_exact = (
         entry_watch_report.get("prospective_entry_outcome_allowed") is True
@@ -142,6 +178,9 @@ def build_pipeline_truth_report(
         }
         for row in rows
     )
+    # Exact exit fills still cannot verify intervening policy decisions or
+    # request/attempt/confirmation lineage before each broker deal.
+    blockers.append("exit_decision_and_deal_sequence_not_verified")
     end_to_end = (
         not blockers
         and management_exact
@@ -188,6 +227,10 @@ def build_pipeline_truth_report(
             "entry_outcome": "pass" if entry_outcome_exact else "fail",
             "entry_trigger": "pass" if entry_trigger_exact else "fail",
             "broker_fill_model": "pass" if fill_exact else "fail",
+            "exit_decision_and_deal_sequence": "unverified",
+            "exit_deal_facts": "pass" if rows and not duplicate_actual and not duplicate_ledger and all(
+                row["exit_deal_comparison"]["exit_deal_facts_verified"] for row in rows
+            ) else "fail",
             "deterministic_terminal_lifecycle": (
                 "pass" if lifecycle_exact else "fail"
             ),
@@ -196,6 +239,96 @@ def build_pipeline_truth_report(
         "blockers": list(dict.fromkeys(blockers)),
         "rows": rows,
     }
+
+
+def _management_ticket_blockers(
+    summary: Mapping[str, Any],
+    ledger: Mapping[str, Any] | None,
+) -> list[str]:
+    issues: list[str] = []
+    if summary.get("status") != "exact" or summary.get("blockers"):
+        issues.append("management_row_not_exact")
+    if summary.get("engine_agreement") is not True:
+        issues.append("engine_agreement_missing")
+    if ledger is None:
+        observed = {}
+        issues.append("ledger_signal_missing")
+    else:
+        observed, ledger_blockers = ledger_ticket_evidence(ledger)
+        issues.extend(f"ledger:{reason}" for reason in ledger_blockers)
+    raw = summary.get("ticket_rows")
+    if not isinstance(raw, (list, tuple)):
+        return issues + ["ticket_rows_missing"]
+    reported: dict[str, Mapping[str, Any]] = {}
+    for row in raw:
+        if not isinstance(row, Mapping) or not str(row.get("ticket") or ""):
+            issues.append("ticket_row_identity_missing")
+            continue
+        ticket = str(row["ticket"])
+        if ticket in reported:
+            issues.append(f"duplicate_ticket:{ticket}")
+        reported[ticket] = row
+    if set(reported) != set(observed):
+        issues.append("ticket_coverage_mismatch")
+    if _integer(summary.get("actual_entry_count")) != len(observed):
+        issues.append("ticket_count_mismatch")
+    for ticket, row in reported.items():
+        truth = observed.get(ticket)
+        if truth is None:
+            continue
+        try:
+            opened_at = datetime.fromisoformat(str(row.get("actual_opened_at")).replace("Z", "+00:00"))
+            if opened_at.tzinfo is None:
+                opened_at = None
+        except (TypeError, ValueError, OverflowError):
+            opened_at = None
+        if (
+            opened_at is None or opened_at != truth.get("opened_at")
+            or _number(row.get("actual_entry_price")) != truth.get("open_price")
+            or row.get("actual_direction") != truth.get("direction")
+            or row.get("actual_symbol") != truth.get("symbol")
+        ):
+            issues.append(f"ticket_entry_facts_mismatch:{ticket}")
+        actual_money = _money(row.get("actual_mt5_eur"))
+        mirror_money = _money(row.get("mirror_eur"))
+        if (
+            row.get("status") != "exact" or row.get("blockers")
+            or actual_money is None or mirror_money is None
+            or actual_money != _money(truth.get("net_eur"))
+            or mirror_money != actual_money
+            or _money(row.get("net_delta_eur")) != mirror_money - actual_money
+        ):
+            issues.append(f"ticket_money_mismatch:{ticket}")
+        actual_volume = _number(row.get("actual_volume"))
+        mirror_volume = _number(row.get("mirror_closed_volume"))
+        if (
+            actual_volume is None or actual_volume <= 0
+            or actual_volume != _number(truth.get("volume"))
+            or mirror_volume != actual_volume
+            or _integer(row.get("mirror_entry_count")) != 1
+            or (_integer(row.get("mirror_exit_count")) or 0) < 1
+        ):
+            issues.append(f"ticket_volume_or_count_mismatch:{ticket}")
+    observed_total = _sum(row.get("net_eur") for row in observed.values())
+    actual_total = _sum(row.get("actual_mt5_eur") for row in reported.values())
+    mirror_total = _sum(row.get("mirror_eur") for row in reported.values())
+    if (
+        observed_total is None or actual_total != observed_total
+        or actual_total != _money(summary.get("actual_mt5_eur"))
+        or mirror_total != _money(summary.get("live_logic_mirror_eur"))
+    ):
+        issues.append("ticket_totals_mismatch")
+    return list(dict.fromkeys(issues))
+
+
+def _number(value: object) -> Decimal | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        parsed = Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        return None
+    return parsed if parsed.is_finite() else None
 
 
 def _difference_cause(
@@ -276,7 +409,10 @@ def _money(value: object) -> Decimal | None:
         return None
     if not parsed.is_finite():
         return None
-    return parsed.quantize(_CENT, rounding=ROUND_HALF_UP)
+    try:
+        return parsed.quantize(_CENT, rounding=ROUND_HALF_UP)
+    except InvalidOperation:
+        return None
 
 
 def _sum(values: Iterable[object]) -> Decimal | None:
@@ -295,9 +431,9 @@ def _integer(value: object) -> int | None:
         return None
     try:
         parsed = int(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
-    return parsed if parsed >= 0 else None
+    return parsed if parsed >= 0 and _number(value) == Decimal(parsed) else None
 
 
 def _optional_datetime(value: object) -> datetime | None:

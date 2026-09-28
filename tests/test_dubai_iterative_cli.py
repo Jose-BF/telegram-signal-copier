@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import json
+from dataclasses import asdict
 from decimal import Decimal
 from types import SimpleNamespace
 
 import pandas as pd
+import pytest
+
+import research.dubai_iterative.__main__ as dubai_cli
 
 from research.dubai_iterative.__main__ import (
     _certification_worlds,
@@ -24,6 +28,103 @@ from research.dubai_iterative.oracle import (
     StressReport,
     StressScenarioResult,
 )
+from tests.test_search_execution_profiles import (
+    control_portfolio_tape, fixed_control_dataset, integrated_execution, own_rules_config,
+)
+
+
+def test_dubai_profile_is_opt_in_and_loads_nested_json_without_legacy_overrides(tmp_path):
+    execution = integrated_execution()
+    config = tmp_path / "execution.json"
+    config.write_text(json.dumps(asdict(execution)), encoding="utf-8")
+    assert dubai_cli._execution_from_args(_parser().parse_args([])) == ExecutionAssumptions()
+    args = _parser().parse_args(["--execution-profile", str(config)])
+    assert dubai_cli._execution_from_args(args) == execution
+    conflicting = _parser().parse_args([
+        "--execution-profile", str(config), "--search-entry-slippage", "0",
+    ])
+    with pytest.raises(ValueError, match="cannot be combined"):
+        dubai_cli._execution_from_args(conflicting)
+
+
+def test_dubai_profile_rejects_legacy_baseline_before_inputs_or_spool(tmp_path, monkeypatch, capsys):
+    config = tmp_path / "execution.json"
+    config.write_text(json.dumps(asdict(integrated_execution())), encoding="utf-8")
+    output = tmp_path / "must-not-exist"
+    def expensive(*args):
+        pytest.fail("incompatible profile must fail before inputs or spool")
+    monkeypatch.setattr(dubai_cli, "_real_dataset", expensive)
+    monkeypatch.setattr(dubai_cli, "_load_parent_genomes", expensive)
+    assert main(["--execution-profile", str(config), "--output-root", str(output)]) == 2
+    message = capsys.readouterr().out
+    assert "--own-rules-config is required" in message
+    assert "no seeds or mutations were dropped" in message
+    assert not output.exists()
+
+
+def test_dubai_artificial_fixture_cannot_claim_execution_profile_support(tmp_path, capsys):
+    config = tmp_path / "execution.json"
+    config.write_text(json.dumps(asdict(integrated_execution())), encoding="utf-8")
+    output = tmp_path / "must-not-exist"
+    assert main(["--fixture", "tiny", "--execution-profile", str(config), "--output-root", str(output)]) == 2
+    assert "tiny fixture does not simulate execution profiles" in capsys.readouterr().out
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("payload, expected", [
+    ('{"latency_ms":0,"latency_ms":1}', "duplicate"),
+    ('{"entry_slippage":NaN}', "nonfinite"),
+    ('{"unknown":1}', "unknown"),
+    ('{"entry_fill_latency_ms":1.5}', "integer"),
+    ('{"market":{}}', "required"),
+])
+def test_dubai_profile_json_fails_closed_before_loading_data(tmp_path, monkeypatch, capsys, payload, expected):
+    config = tmp_path / "bad.json"
+    config.write_text(payload, encoding="utf-8")
+    monkeypatch.setattr(dubai_cli, "_real_dataset", lambda args: pytest.fail("unexpected data access"))
+    assert main(["--execution-profile", str(config)]) == 2
+    assert expected in capsys.readouterr().out
+
+
+def test_dubai_cli_profile_runs_fixed_control_with_six_world_stress_and_portfolio(tmp_path, monkeypatch, capsys):
+    from research.dubai_iterative.search import ChronologicalFold
+    execution = integrated_execution()
+    config = tmp_path / "profile.json"
+    config.write_text(json.dumps(asdict(execution)), encoding="utf-8")
+    rules = tmp_path / "rules.json"
+    rules.write_text(json.dumps(own_rules_config()), encoding="utf-8")
+    output = tmp_path / "control"
+    monkeypatch.setattr(dubai_cli, "_real_dataset", lambda args: fixed_control_dataset())
+    monkeypatch.setattr(dubai_cli, "DEFAULT_DUBAI_FOLDS", (
+        ChronologicalFold("fixed", "2026-08-24", "2026-08-25", "2026-08-26", "2026-08-26"),
+    ))
+    monkeypatch.setattr(dubai_cli, "_verified_portfolio_tape", control_portfolio_tape)
+    assert main([
+        "--execution-profile", str(config), "--own-rules-config", str(rules),
+        "--max-generations", "1", "--max-evaluations", "1", "--population-size", "1",
+        "--oracle-finalists", "1", "--workers", "1", "--output-root", str(output),
+    ]) == 0, capsys.readouterr().out
+    run_file, = output.glob("*/run_card.json")
+    card = json.loads(run_file.read_text(encoding="utf-8"))
+    assert card["execution_profile_scope"] == "own_rules_v1"
+    assert card["historical_admission_interface"] == "not_connected_to_m7"
+    assert card["own_rules_config"]["domain_size"] == 6
+    assert card["imported_parent_role"] == "not_used"
+    assert card["search_execution"] == json.loads(json.dumps(asdict(execution)))
+    certificate, = card["oracle_certificates"].values()
+    assert certificate["world_certification"]["certified_worlds"] == 6
+    assert all(world["portfolio"]["status"] == "passed" for world in certificate["world_certification"]["worlds"])
+    stress = certificate["execution_stress"]
+    assert stress["status"] == "passed"
+    assert stress["base_world"]["entry_fill_latency_ms"] == 1_000
+    assert stress["base_world"]["market"] == asdict(execution.market)
+    assert len(stress["scenarios"]) == 5
+    for world in stress["scenarios"]:
+        assert world["entry_fill_latency_ms"] == 1_000
+        assert world["market"] == asdict(execution.market)
+        assert world["protection"] == json.loads(json.dumps(asdict(execution.protection)))
+    matrix = pd.read_parquet(run_file.parent / "candidate_matrix.parquet")
+    assert len(matrix) == 1
 
 
 def test_adverse_certification_world_combines_latency_and_costs():
@@ -100,9 +201,13 @@ def test_cli_fixture_publishes_a_bound_run(tmp_path):
     assert card["grammar_version"] == 2
     assert card["imported_parent_role"] == "not_used"
     assert card["search_execution"] == {
+        "entry_fill_latency_ms": 0,
         "entry_slippage": 0.0,
         "exit_slippage": 0.0,
         "latency_ms": 0,
+        "protection": None,
+        "market": None,
+        "client": None,
         "spread_addition": 0.0,
     }
     assert card["max_hold_minutes"] == 240
@@ -411,7 +516,7 @@ def test_stress_summary_keeps_every_scenario_and_gate_visible():
         base_blockers=(),
         scenarios=(
             StressScenarioResult(
-                scenario=ExecutionScenario("latency_1s", latency_ms=1_000),
+                scenario=ExecutionScenario("latency_1s", latency_ms=1_000, entry_fill_latency_ms=250),
                 net_eur=Decimal("9.87"),
                 blockers=(),
                 results=(),
@@ -438,17 +543,20 @@ def test_stress_summary_keeps_every_scenario_and_gate_visible():
     assert summary["base_world"] == {
         "name": "zero_cost_zero_latency",
         "latency_ms": 0,
+        "entry_fill_latency_ms": 0,
         "entry_slippage": 0.0,
         "exit_slippage": 0.0,
         "spread_addition": 0.0,
     }
     assert summary["scenarios"][0]["name"] == "latency_1s"
+    assert summary["scenarios"][0]["entry_fill_latency_ms"] == 250
     assert summary["scenarios"][1]["blockers"] == ["stale_fx"]
 
 
 def test_report_separates_measured_execution_from_zero_cost_stress_base():
     execution = ExecutionAssumptions(
         latency_ms=500,
+        entry_fill_latency_ms=1000,
         entry_slippage=0.05,
         exit_slippage=0.05,
         spread_addition=0.05,
@@ -475,6 +583,7 @@ def test_report_separates_measured_execution_from_zero_cost_stress_base():
         oracle_scenario=ExecutionScenario(
             "measured",
             latency_ms=500,
+            entry_fill_latency_ms=1000,
             entry_slippage=0.05,
             exit_slippage=0.05,
             spread_addition=0.05,
@@ -496,5 +605,36 @@ def test_report_separates_measured_execution_from_zero_cost_stress_base():
     assert measured["name"] == "search_execution"
     assert measured["net_eur"] == 1.75
     assert measured["latency_ms"] == 500
+    assert measured["entry_fill_latency_ms"] == 1000
+    assert worlds["worlds"][0]["entry_fill_latency_ms"] == 1000
     assert worlds["worlds"][0]["portfolio"]["max_drawdown_eur"] == 3.5
     assert worlds["worlds"][0]["portfolio"]["max_concurrent_volume"] == 0.06
+
+
+@pytest.mark.parametrize("interval_ms", [5000, 60000])
+def test_study_portfolio_contract_keeps_fx_age_separate_from_interval(monkeypatch, interval_ms):
+    events = []
+    paths = (object(),)
+    expected_tape = object()
+    bundle = SimpleNamespace(
+        market_tick_source=object(), conversion_tick_source=object(),
+        max_fx_age_ms=5000, max_fx_interval_ms=interval_ms,
+        verify_sources=lambda: events.append("verify"),
+    )
+
+    def build(received_paths, **kwargs):
+        assert received_paths is paths
+        assert kwargs == {
+            "market_tick_source": bundle.market_tick_source,
+            "conversion_tick_source": bundle.conversion_tick_source,
+            "max_conversion_age_ms": 5000, "max_conversion_interval_ms": interval_ms,
+        }
+        events.append("build")
+        return expected_tape
+
+    monkeypatch.setattr(dubai_cli, "build_portfolio_tape", build)
+    actual = dubai_cli._verified_portfolio_tape(
+        SimpleNamespace(_study_bundle=bundle), SimpleNamespace(paths=paths),
+    )
+    assert actual is expected_tape
+    assert events == ["verify", "build", "verify"]

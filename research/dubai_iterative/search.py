@@ -13,6 +13,8 @@ from typing import Callable, Mapping, Protocol, Sequence
 
 import numpy as np
 
+from research.iterative_provenance import implementation_identity
+
 from .contracts import SearchBudget, SearchSpace, StrategyGenome
 from .engine import SimulationResult, simulate
 from .evolution import (
@@ -37,7 +39,7 @@ from .robustness import (
 )
 
 
-CHECKPOINT_SCHEMA_VERSION = 3
+CHECKPOINT_SCHEMA_VERSION = 4
 
 
 class SearchDataset(Protocol):
@@ -484,8 +486,25 @@ def run_chronological_search(
 
     if not isinstance(retain_result_rows, bool):
         raise ValueError("retain_result_rows must be boolean")
+    context = _bound_experiment_context(
+        experiment_context, initial_genomes, seed_population_factory,
+        scout_population_factory, neighborhood_factory, critic, mutator,
+        baseline_genome or StrategyGenome.baseline(), population_size, evaluator,
+    )
+    # Validate every existing fold before an earlier fold can overwrite evidence.
+    if resume_from_root is not None:
+        for fold in folds:
+            candidate = Path(resume_from_root) / fold.name / "checkpoint.json"
+            if candidate.is_file():
+                _load_checkpoint(
+                    candidate, dataset=dataset, fold=fold,
+                    search_space=search_space, seed=seed,
+                    experiment_context=context,
+                )
     reports = []
     for fold in folds:
+        if implementation_identity() != context["implementation"]:
+            raise SearchCheckpointError("iterative implementation changed between folds")
         resume_from = None
         if resume_from_root is not None:
             candidate = Path(resume_from_root) / fold.name / "checkpoint.json"
@@ -515,6 +534,8 @@ def run_chronological_search(
                 baseline_genome=baseline_genome,
                 resume_from=resume_from,
             )
+            if implementation_identity() != context["implementation"]:
+                raise SearchCheckpointError("iterative implementation changed during fold")
             if not retain_result_rows:
                 fold_report = replace(
                     fold_report,
@@ -584,20 +605,11 @@ def run_search(
                 "invalid initial genome "
                 f"{genome.fingerprint[:12]}: {','.join(sorted(set(errors)))}"
             )
-    context = dict(experiment_context or {})
-    if initial_genomes:
-        context["initial_genome_fingerprints"] = sorted(
-            item.fingerprint for item in initial_genomes
-        )
-    context["search_operators"] = {
-        "seed_population": _callable_identity(seed_population_factory),
-        "scout_population": _callable_identity(scout_population_factory),
-        "neighborhood": _callable_identity(neighborhood_factory),
-        "critic": _callable_identity(critic),
-        "mutator": _callable_identity(mutator),
-        "baseline_fingerprint": baseline.fingerprint,
-    }
-    experiment_context = _normalize_experiment_context(context)
+    experiment_context = _bound_experiment_context(
+        experiment_context, initial_genomes, seed_population_factory,
+        scout_population_factory, neighborhood_factory, critic, mutator,
+        baseline, population_size, evaluator,
+    )
     development_paths = tuple(
         path for path in dataset.paths if fold.development_contains(str(path.day))
     )
@@ -608,7 +620,6 @@ def run_search(
         raise ValueError(f"fold {fold.name} has no development paths")
 
     output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_path = output_dir / "checkpoint.json"
     rng = np.random.default_rng(seed)
     start_clock = clock()
@@ -711,6 +722,7 @@ def run_search(
                 stop_reason = "max_evaluations"
                 break
             current_population = tuple(next_population[:remaining])
+            deferred_population = tuple(next_population[len(current_population):])
             current = _evaluate_population(
                 current_population,
                 development_paths,
@@ -731,7 +743,7 @@ def run_search(
                 stale_generations += 1
             generation_completed = generation_index + 1
 
-            next_population = _next_population(
+            proposed_population = _next_population(
                 archive=archive,
                 current=current,
                 critic=critic,
@@ -741,12 +753,14 @@ def run_search(
                 seen=seen,
                 rng=rng,
                 seed=seed + generation_completed * 10_000,
-                population_size=population_size,
+                population_size=population_size - len(deferred_population),
                 max_lineage_depth=budget.max_lineage_depth,
                 scout_population_factory=scout_population_factory,
                 neighborhood_factory=neighborhood_factory,
                 baseline_genome=baseline,
             )
+            # Budget-truncated proposals are already in seen; keep them pending.
+            next_population = (*deferred_population, *proposed_population)
             elapsed = _elapsed(clock, start_clock, carried_elapsed)
             progress = GenerationProgress(
                 fold=fold.name,
@@ -1176,6 +1190,8 @@ def _write_checkpoint(
     stop_reason: str | None,
     generation_summaries: Sequence[GenerationProgress],
 ) -> None:
+    if experiment_context.get("implementation") != implementation_identity():
+        raise SearchCheckpointError("iterative implementation changed during search")
     payload = {
         "schema_version": CHECKPOINT_SCHEMA_VERSION,
         "source_hashes": dict(sorted(dataset.source_hashes.items())),
@@ -1238,6 +1254,12 @@ def _load_checkpoint(
         raise SearchCheckpointError(f"cannot read checkpoint: {exc}") from exc
     if payload.get("schema_version") != CHECKPOINT_SCHEMA_VERSION:
         raise SearchCheckpointError("checkpoint schema version does not match")
+    recorded_context = payload.get("experiment_context")
+    if (
+        not isinstance(recorded_context, dict)
+        or recorded_context.get("implementation") != implementation_identity()
+    ):
+        raise SearchCheckpointError("checkpoint implementation identity does not match")
     if payload.get("source_hashes") != dict(sorted(dataset.source_hashes.items())):
         raise SearchCheckpointError("checkpoint source hashes do not match")
     if payload.get("fold") != _normalize_json_mapping(asdict(fold)):
@@ -1249,6 +1271,49 @@ def _load_checkpoint(
     if payload.get("experiment_context") != experiment_context:
         raise SearchCheckpointError("checkpoint experiment context does not match")
     return payload
+
+
+def _bound_experiment_context(
+    context: Mapping[str, object] | None,
+    initial_genomes: Sequence[StrategyGenome],
+    seed_population_factory: PopulationFactory,
+    scout_population_factory: PopulationFactory,
+    neighborhood_factory: NeighborhoodFactory,
+    critic: Critic | None,
+    mutator: Mutator | None,
+    baseline: StrategyGenome,
+    population_size: int,
+    evaluator: Evaluator,
+) -> dict[str, object]:
+    context = dict(context or {})
+    # Reserved fields are derived here; a stale caller cannot replace identity.
+    context["implementation"] = implementation_identity()
+    context["population_size"] = population_size
+    context["evaluator"] = _callable_identity(evaluator)
+    context["evaluator_configuration"] = _evaluator_configuration(evaluator)
+    if initial_genomes:
+        context["initial_genome_fingerprints"] = sorted({
+            item.fingerprint for item in initial_genomes
+        })
+    context["search_operators"] = {
+        "seed_population": _callable_identity(seed_population_factory),
+        "scout_population": _callable_identity(scout_population_factory),
+        "neighborhood": _callable_identity(neighborhood_factory),
+        "critic": _callable_identity(critic),
+        "mutator": _callable_identity(mutator),
+        "baseline_fingerprint": baseline.fingerprint,
+    }
+    return _normalize_experiment_context(context)
+
+
+def _evaluator_configuration(evaluator: Evaluator) -> dict[str, object] | None:
+    # Read the actual supported evaluator, never a caller-supplied declaration.
+    # Keep the JIT dependency lazy for module imports of the shared search API.
+    from .fast_engine import FastEvaluator
+
+    if isinstance(evaluator, FastEvaluator):
+        return {"execution": asdict(evaluator.execution)}
+    return None
 
 
 def _normalize_experiment_context(

@@ -1,0 +1,1 @@
+{"family": "c1_seguir_1pata", "filter": {"cond": [["rsi_m5", "<", 30]]}, "genome_index": 34, "n_min": 60, "carril": "B"}

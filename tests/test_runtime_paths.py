@@ -330,7 +330,7 @@ def test_streamed_csv_preserves_bom_crlf_and_multiline_fields(tmp_path):
     source.parent.mkdir()
     payload = b'\xef\xbb\xbfa,b\r\n1,"two\r\nlines"\r\n'
     source.write_bytes(payload + b'partial')
-    result = runtime_paths.initialize_runtime_store(tmp_path)
+    result = runtime_paths.initialize_runtime_store(tmp_path, runtime_dir=tmp_path / "runtime_data")
     assert (result.runtime_dir / source.name).read_bytes() == payload
     assert (result.runtime_dir / "recovery" / (source.name + ".partial-tail")).read_bytes() == b'partial'
 
@@ -350,7 +350,7 @@ def test_tail_repair_failure_preserves_original_and_archived_tail(tmp_path, monk
 
     monkeypatch.setattr(runtime_paths.os, "replace", fail_runtime_replace)
     with pytest.raises(OSError, match="replace failed"):
-        runtime_paths.initialize_runtime_store(tmp_path)
+        runtime_paths.initialize_runtime_store(tmp_path, runtime_dir=runtime)
     assert source.read_bytes() == original
     assert (runtime / "recovery" / "trade_events.jsonl.partial-tail").read_bytes() == b'partial'
     assert not list(runtime.glob("*.tmp"))
@@ -370,6 +370,6 @@ def test_changed_source_is_not_published_after_validation(tmp_path, monkeypatch)
 
     monkeypatch.setattr(runtime_paths, "_inspect_stream_prefix", inspect_then_append)
     with pytest.raises(ValueError, match="changed during validation"):
-        runtime_paths.initialize_runtime_store(tmp_path)
+        runtime_paths.initialize_runtime_store(tmp_path, runtime_dir=tmp_path / "runtime_data")
     assert not (tmp_path / "runtime_data" / source.name).exists()
     assert source.read_bytes().endswith(b'{"ev":"arrived"}\n')
