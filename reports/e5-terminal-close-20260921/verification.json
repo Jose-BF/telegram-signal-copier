@@ -1,0 +1,12 @@
+{
+  "controls_sha256": "a167483359f39c02e735faaa24a965908c9d104ea12b6aed11260f2a807a3dde",
+  "elapsed_seconds": 99.67199999999139,
+  "exit_code": 4294967295,
+  "full_live_parity_verified": false,
+  "goal_complete": false,
+  "implementation_unchanged": true,
+  "protocol_sha256": "2c75c75acb407b6978dce06e2e725f3d70f84aebd6394e18666babe0f9f2a263",
+  "published": false,
+  "pytest_xml_sha256": null,
+  "sources_unchanged": true
+}

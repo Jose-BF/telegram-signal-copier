@@ -78,6 +78,10 @@ MT5_LOGIN    = _int("MT5_LOGIN")
 MT5_PASSWORD = _require("MT5_PASSWORD")
 MT5_SERVER   = _require("MT5_SERVER")
 MT5_SYMBOL   = "XAUUSD"
+BOT_EXECUTION_LEDGER_FILE = os.getenv(
+    "BOT_EXECUTION_LEDGER_FILE",
+    str(runtime_paths.data_path("execution_intents.sqlite3")),
+)
 
 # Magic numbers separados por canal. Permite que el bot distinga al modificar/
 # cerrar qué operación vino de qué canal, y que nunca toque la del otro canal
@@ -130,6 +134,9 @@ STRATEGY_SHADOW_LIVE_MAX_BATCH_MS = int(
 # Heartbeat de runtime para el watcher externo. Si el proceso queda vivo pero
 # congelado, tools/run_bot_watch.py reinicia el bot al ver este fichero viejo.
 BOT_RUNTIME_HEARTBEAT_SEC = _float("BOT_RUNTIME_HEARTBEAT_SEC", 15.0)
+BOT_MT5_SNAPSHOT_PROBE_SEC = _float("BOT_MT5_SNAPSHOT_PROBE_SEC", 5.0)
+BOT_MT5_SNAPSHOT_MAX_AGE_SEC = _float("BOT_MT5_SNAPSHOT_MAX_AGE_SEC", 30.0)
+BOT_MT5_OWNER_STALL_SEC = _float("BOT_MT5_OWNER_STALL_SEC", 30.0)
 BOT_RUNTIME_HEARTBEAT_FILE = os.getenv(
     "BOT_RUNTIME_HEARTBEAT_FILE",
     str(runtime_paths.data_path("runtime_heartbeat.json")),

@@ -1,0 +1,174 @@
+{
+ "R1": {
+  "base | comision 0.0": {
+   "n": 294,
+   "net": 552.8,
+   "pos_months": 6,
+   "months": 6,
+   "lots_mean": 0.021
+  },
+  "base | comision 5.81": {
+   "n": 294,
+   "net": 522.3,
+   "pos_months": 6,
+   "months": 6,
+   "lots_mean": 0.021
+  },
+  "base | comision 22.5": {
+   "n": 294,
+   "net": 434.6,
+   "pos_months": 6,
+   "months": 6,
+   "lots_mean": 0.021
+  },
+  "spread+0.10 | comision 0.0": {
+   "n": 294,
+   "net": 544.0,
+   "pos_months": 6,
+   "months": 6,
+   "lots_mean": 0.022
+  },
+  "spread+0.10 | comision 5.81": {
+   "n": 294,
+   "net": 512.2,
+   "pos_months": 6,
+   "months": 6,
+   "lots_mean": 0.022
+  },
+  "spread+0.10 | comision 22.5": {
+   "n": 294,
+   "net": 420.9,
+   "pos_months": 6,
+   "months": 6,
+   "lots_mean": 0.022
+  },
+  "spread+0.20 | comision 0.0": {
+   "n": 294,
+   "net": 405.4,
+   "pos_months": 5,
+   "months": 6,
+   "lots_mean": 0.022
+  },
+  "spread+0.20 | comision 5.81": {
+   "n": 294,
+   "net": 372.7,
+   "pos_months": 5,
+   "months": 6,
+   "lots_mean": 0.022
+  },
+  "spread+0.20 | comision 22.5": {
+   "n": 294,
+   "net": 278.6,
+   "pos_months": 5,
+   "months": 6,
+   "lots_mean": 0.022
+  },
+  "retraso_2min | comision 0.0": {
+   "n": 294,
+   "net": 334.8,
+   "pos_months": 5,
+   "months": 6,
+   "lots_mean": 0.019
+  },
+  "retraso_2min | comision 5.81": {
+   "n": 294,
+   "net": 306.1,
+   "pos_months": 5,
+   "months": 6,
+   "lots_mean": 0.019
+  },
+  "retraso_2min | comision 22.5": {
+   "n": 294,
+   "net": 223.9,
+   "pos_months": 5,
+   "months": 6,
+   "lots_mean": 0.019
+  }
+ },
+ "R2": {
+  "base | comision 0.0": {
+   "n": 140,
+   "net": 569.9,
+   "pos_months": 8,
+   "months": 9,
+   "lots_mean": 0.01
+  },
+  "base | comision 5.81": {
+   "n": 140,
+   "net": 562.9,
+   "pos_months": 8,
+   "months": 9,
+   "lots_mean": 0.01
+  },
+  "base | comision 22.5": {
+   "n": 140,
+   "net": 542.7,
+   "pos_months": 8,
+   "months": 9,
+   "lots_mean": 0.01
+  },
+  "spread+0.10 | comision 0.0": {
+   "n": 140,
+   "net": 556.3,
+   "pos_months": 8,
+   "months": 9,
+   "lots_mean": 0.01
+  },
+  "spread+0.10 | comision 5.81": {
+   "n": 140,
+   "net": 549.2,
+   "pos_months": 8,
+   "months": 9,
+   "lots_mean": 0.01
+  },
+  "spread+0.10 | comision 22.5": {
+   "n": 140,
+   "net": 529.1,
+   "pos_months": 8,
+   "months": 9,
+   "lots_mean": 0.01
+  },
+  "spread+0.20 | comision 0.0": {
+   "n": 139,
+   "net": 537.1,
+   "pos_months": 8,
+   "months": 9,
+   "lots_mean": 0.01
+  },
+  "spread+0.20 | comision 5.81": {
+   "n": 139,
+   "net": 530.2,
+   "pos_months": 8,
+   "months": 9,
+   "lots_mean": 0.01
+  },
+  "spread+0.20 | comision 22.5": {
+   "n": 139,
+   "net": 510.2,
+   "pos_months": 8,
+   "months": 9,
+   "lots_mean": 0.01
+  },
+  "retraso_2min | comision 0.0": {
+   "n": 140,
+   "net": 428.0,
+   "pos_months": 7,
+   "months": 9,
+   "lots_mean": 0.01
+  },
+  "retraso_2min | comision 5.81": {
+   "n": 140,
+   "net": 421.0,
+   "pos_months": 7,
+   "months": 9,
+   "lots_mean": 0.01
+  },
+  "retraso_2min | comision 22.5": {
+   "n": 140,
+   "net": 400.9,
+   "pos_months": 7,
+   "months": 9,
+   "lots_mean": 0.01
+  }
+ }
+}

@@ -33,6 +33,7 @@ import contextvars
 import csv
 import hashlib
 import json
+import math
 import os
 import time
 from contextlib import contextmanager
@@ -45,6 +46,7 @@ from typing import Optional
 import causal_trace
 from provider_names import provider_display_name
 import runtime_paths
+import runtime_storage
 
 # ─── Paths ──────────────────────────────────────────────────────────────────
 DATA_DIR = runtime_paths.active_data_dir()
@@ -246,6 +248,14 @@ _event_writer_thread: Optional[Thread] = None
 _event_failure_guard = Lock()
 _event_write_failures = 0
 _event_acknowledged_failures = 0
+_event_active_since = None
+_event_active_kind = None
+_storage_observation = None
+_telemetry_suppressed = {}
+_telemetry_gap_started = None
+_telemetry_gap_last = None
+_OPTIONAL_SNAPSHOT_EVENTS = frozenset({"audit_snapshot", "floating_pl_snapshot"})
+EVIDENCE_ADMISSION_POLICY = "journal-evidence-admission-v1"
 PROCESS_SESSION_ID = causal_trace.new_session_id()
 
 
@@ -287,9 +297,11 @@ def _payload_sha256(payload: dict) -> str:
 # ─── API: eventos atómicos (JSONL) ──────────────────────────────────────────
 
 class _FlushBarrier:
-    def __init__(self) -> None:
+    def __init__(self, target_file=None) -> None:
         self.ready = ThreadEvent()
         self.failure_count: Optional[int] = None
+        self.target_file = target_file
+        self.succeeded = False
 
 
 class _EventReceipt:
@@ -297,6 +309,7 @@ class _EventReceipt:
         self.ready = ThreadEvent()
         self.succeeded = False
         self.error: Optional[str] = None
+        self.target_file = None
 
 
 def _record_event_write_failure() -> None:
@@ -310,7 +323,102 @@ def _event_failure_count() -> int:
         return _event_write_failures
 
 
+class EvidenceUnavailable(RuntimeError):
+    pass
+
+
+def admission_contract() -> dict:
+    return {
+        "policy": EVIDENCE_ADMISSION_POLICY,
+        "entry_checkpoint": "request_fsync_before_transport",
+        "journal_write_failure": "block_new_entries_until_process_restart",
+        "management": "continue_only_through_durable_intent_ledger",
+        "telemetry_reserve_bytes": runtime_storage.TELEMETRY_RESERVE_BYTES,
+        "optional_snapshot_events": sorted(_OPTIONAL_SNAPSHOT_EVENTS),
+        "shadow_storage_pause": "preserve_as_incomplete_not_complete_reconstruction",
+    }
+
+
+def persistence_health(*, max_active_seconds=10.0) -> dict:
+    """Constant-cost health; reading status never acknowledges lost evidence."""
+    with _event_failure_guard:
+        failures = _event_write_failures
+        started = _event_active_since
+        kind = _event_active_kind
+        storage = dict(_storage_observation) if _storage_observation is not None else None
+        suppressed = dict(_telemetry_suppressed)
+        gap_started, gap_last = _telemetry_gap_started, _telemetry_gap_last
+    age = max(0.0, time.monotonic() - started) if started is not None else 0.0
+    depth = _event_queue.qsize()
+    alive = _event_writer_thread is not None and _event_writer_thread.is_alive()
+    storage_stale = storage is not None and (
+        time.monotonic() - storage["observed_monotonic"] > storage["max_age_seconds"]
+    )
+    storage_ok = storage is None or (storage["allow_telemetry"] and not storage_stale)
+    ready = (
+        failures == 0 and age <= max_active_seconds
+        and depth < _event_queue.maxsize and (depth == 0 or alive)
+        and storage_ok
+    )
+    return {
+        "write_failures": failures, "active_kind": kind, "active_age_seconds": age,
+        "queue_depth": depth, "queue_capacity": _event_queue.maxsize,
+        "writer_alive": alive, "allow_new_entries": ready,
+        "policy": EVIDENCE_ADMISSION_POLICY,
+        "storage": storage, "storage_stale": storage_stale,
+        "telemetry_suppressed": suppressed,
+        "telemetry_gap_started_utc": gap_started, "telemetry_gap_last_utc": gap_last,
+    }
+
+
+def observe_storage_health(status, *, max_age_seconds=45.0) -> None:
+    global _storage_observation
+    if not math.isfinite(max_age_seconds) or max_age_seconds <= 0:
+        raise ValueError("storage observation age must be positive and finite")
+    free = status.get("free_bytes")
+    allowed = (
+        isinstance(free, int) and not isinstance(free, bool)
+        and free >= runtime_storage.TELEMETRY_RESERVE_BYTES
+        and status.get("allow_telemetry") is True
+    )
+    observation = {
+        "free_bytes": free, "allow_telemetry": allowed,
+        "observed_monotonic": time.monotonic(), "max_age_seconds": max_age_seconds,
+    }
+    with _event_failure_guard:
+        previous = _storage_observation
+        _storage_observation = observation
+        suppressed = dict(_telemetry_suppressed)
+    if (previous is None and not allowed) or (
+        previous is not None and previous["allow_telemetry"] != allowed
+    ):
+        event("bot", "storage_capacity_transition", **observation,
+              telemetry_suppressed=suppressed)
+
+
+def optional_telemetry_allowed() -> bool:
+    return persistence_health()["allow_new_entries"]
+
+
+def assert_entry_evidence_ready(_request=None) -> None:
+    if not persistence_health()["allow_new_entries"]:
+        raise EvidenceUnavailable("journal evidence unavailable; new exposure blocked")
+
+
+async def confirm_entry_intent(request, *, timeout=2.0) -> bool:
+    assert_entry_evidence_ready(request)
+    receipt = event(
+        request.intent_key.signal_root,
+        "entry_admission_evidence",
+        broker_request=request.to_dict(),
+        evidence_policy=EVIDENCE_ADMISSION_POLICY,
+    )
+    return await asyncio.to_thread(confirm_event, receipt, timeout=timeout)
+
+
 def _event_writer_loop() -> None:
+    global _event_active_since, _event_active_kind
+    dirty_files = set()
     while True:
         (
             target_file,
@@ -320,13 +428,30 @@ def _event_writer_loop() -> None:
             barrier,
             receipt,
         ) = _event_queue.get()
+        with _event_failure_guard:
+            _event_active_since = time.monotonic()
+            _event_active_kind = "sync" if barrier is not None else "append"
         try:
             if target_file is not None:
                 with _file_lock:
                     with open(target_file, "a", encoding="utf-8") as handle:
+                        dirty_files.add(target_file)
                         handle.write(line)
                 if receipt is not None:
                     receipt.succeeded = True
+            if barrier is not None:
+                targets = (
+                    {barrier.target_file} & dirty_files
+                    if barrier.target_file is not None else set(dirty_files)
+                )
+                with _file_lock:
+                    for path in targets:
+                        # Existing readers require append-only paths. Never
+                        # recreate a missing file and call its old event durable.
+                        with open(path, "r+b") as handle:
+                            os.fsync(handle.fileno())
+                        dirty_files.discard(path)
+                barrier.succeeded = True
         except Exception as exc:
             _record_event_write_failure()
             if receipt is not None:
@@ -336,6 +461,8 @@ def _event_writer_loop() -> None:
                 f"para {signal_id}: {exc}"
             )
         finally:
+            with _event_failure_guard:
+                _event_active_since = _event_active_kind = None
             if receipt is not None:
                 receipt.ready.set()
             if barrier is not None:
@@ -387,7 +514,7 @@ def flush_events(timeout: float = 10.0) -> bool:
             _event_acknowledged_failures,
             observed_failures,
         )
-    return observed_failures == acknowledged_before
+    return barrier.succeeded and observed_failures == acknowledged_before
 
 
 def confirm_event(receipt, timeout: float = 10.0) -> bool:
@@ -396,9 +523,20 @@ def confirm_event(receipt, timeout: float = 10.0) -> bool:
         return flush_events(timeout=timeout)
     if not isinstance(receipt, _EventReceipt):
         return False
-    if not receipt.ready.wait(timeout=max(0.0, float(timeout))):
+    deadline = time.monotonic() + max(0.0, float(timeout))
+    if not receipt.ready.wait(timeout=max(0.0, deadline - time.monotonic())):
         return False
-    return receipt.succeeded
+    if not receipt.succeeded or receipt.target_file is None:
+        return False
+    barrier = _FlushBarrier(receipt.target_file)
+    try:
+        _event_queue.put((None, None, "durability_sync", None, barrier, None),
+                         timeout=max(0.0, deadline - time.monotonic()))
+    except Full:
+        return False
+    if not barrier.ready.wait(timeout=max(0.0, deadline - time.monotonic())):
+        return False
+    return barrier.succeeded
 
 
 def _flush_events_at_exit() -> None:
@@ -411,9 +549,34 @@ atexit.register(_flush_events_at_exit)
 
 def event(signal_id: str, ev: str, **fields):
     """Queue one JSONL event without blocking Telegram on disk I/O."""
+    global _telemetry_gap_started, _telemetry_gap_last
     receipt = _EventReceipt()
     is_test = _mark_and_get_test(signal_id)
     target_file = EVENTS_TEST_FILE if is_test else EVENTS_FILE
+    receipt.target_file = target_file
+    if ev in _OPTIONAL_SNAPSHOT_EVENTS and not optional_telemetry_allowed():
+        now = _now_iso()
+        with _event_failure_guard:
+            first = _telemetry_gap_started is None
+            _telemetry_gap_started = _telemetry_gap_started or now
+            _telemetry_gap_last = now
+            _telemetry_suppressed[ev] = _telemetry_suppressed.get(ev, 0) + 1
+        receipt.error = "optional_telemetry_capacity_suppressed"
+        receipt.ready.set()
+        if first:
+            event("bot", "telemetry_capacity_gap", first_signal=signal_id,
+                  first_event=ev, observed_utc=now,
+                  evidence_policy=EVIDENCE_ADMISSION_POLICY)
+        return receipt
+    if ev in _OPTIONAL_SNAPSHOT_EVENTS:
+        with _event_failure_guard:
+            gap_started = _telemetry_gap_started
+            _telemetry_gap_started = None
+            suppressed = dict(_telemetry_suppressed)
+        if gap_started is not None:
+            event("bot", "telemetry_capacity_resumed", gap_started_utc=gap_started,
+                  telemetry_suppressed=suppressed,
+                  evidence_policy=EVIDENCE_ADMISSION_POLICY)
     try:
         semantic = {"sig": signal_id, "ev": ev}
         if is_test:

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Búsqueda 2: recetas</title>
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1d1b;--mut:#6b6a66;--card:#fff;--line:#e6e3dc;--ok:#1f7a4d;--bad:#b3261e;--warn:#9a6700;--acc:#2f5d8a}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161615;--fg:#ecebe7;--mut:#a3a19b;--card:#1f1f1d;--line:#34332f;--ok:#5cc28e;--bad:#f2837a;--warn:#e0b44c;--acc:#8db4dc}}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;margin:0;padding:16px;max-width:980px;margin-inline:auto}
+h1{font-size:1.5rem;margin:.2em 0}h2{font-size:1.15rem;margin:1.6em 0 .5em}
+.lead{font-size:1.05rem;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:8px;padding:12px 14px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.card h3{margin:.1em 0 .4em;font-size:1rem}.big{font-size:1.6rem;font-weight:700}
+.mut{color:var(--mut);font-size:.9rem}.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+.wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:.9rem;background:var(--card)}
+th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:right;vertical-align:top}th{color:var(--mut);font-weight:600}
+td:first-child,th:first-child{text-align:left}
+ul{padding-left:1.2em}li{margin:.25em 0}
+</style></head><body>
+<h1>Búsqueda 2: la fórmula y su dinero</h1>
+<p class="mut">28/09/2026 · motor exacto validado contra operaciones reales · 3 brokers · walk-forward honesto · control con señales falsas</p>
+
+<div class="lead"><b>Haciendo esto:</b> R1 en canal 2 (escalera solo cuando la señal va a favor de la ruptura del rango asiático) + R2 en canal 1 (seguir solo tras una caída fuerte, RSI 5m &lt; 30), en una cuenta de fondeo de 100k con lotes R1 ×20 y R2 ×30.<br>
+<b>Obtienes esto:</b> reto pasado en la simulación el <b>99–100 %</b> de las veces en unos <b>4–5 meses</b>, y después <b>~2.100 €/mes</b> según la estimación honesta (≈3.000–4.000 €/mes según la muestra), antes del reparto con la empresa.<br>
+<b>Pero:</b> antes de dinero real, 4 semanas de examen en papel y confirmar con FTMO por escrito que se puede operar con señales de un canal.</div>
+
+<h2>Las recetas</h2>
+<div class="cards">
+<div class="card"><h3>R1 · Canal 2 (Gold) · escalera en ruptura asiática</h3>
+<div class="big ok">+553 €</div><div class="mut">6 meses a lote base (0,01 × 6 patas) · 6/6 meses positivos con los 3 brokers</div>
+<ul><li><b>Señales:</b> solo si el precio está en el extremo del rango asiático (00–07 UTC) del lado de la señal (~1 de cada 3).</li>
+<li><b>Gestión:</b> 6 entradas de 0,01, en escalera en contra cada 2 $ · tope de cesta −100 € · asegurar a +15 € (cierra si devuelve 5 €) · pasados 3 min, cerrar si hay beneficio.</li>
+<li><b>Señales falsas, misma receta:</b> <span class="bad">−177 € y 4 topes</span>. Con las reales: 0–1 topes.</li>
+<li class="warn"><b>Riesgo:</b> gana aguantando (flotante hasta −94 €). Deja de ganar si más del ~1,8 % de las cestas tocan el tope.</li></ul></div>
+<div class="card"><h3>R2 · Canal 1 (Dubai) · seguir tras caída fuerte</h3>
+<div class="big ok">+545 €</div><div class="mut">9 meses a 0,01 lotes · 8/9 meses positivos con los 3 brokers</div>
+<ul><li><b>Señales:</b> solo si el RSI de 5 min está por debajo de 30 en su contra (~1 de cada 5).</li>
+<li><b>Gestión:</b> 1 entrada · objetivo +10 $ · stop −40 $ · cierre a las 4 h.</li>
+<li>Walk-forward honesto: +90 € (señales falsas −10 €).</li>
+<li>Peor operación −37 € · peor día −72 €.</li></ul></div>
+<div class="card"><h3>R3 · Canal 2 · invertir con volatilidad alta (reserva)</h3>
+<div class="big ok">+166 €</div><div class="mut">5 meses · 5/5 meses positivos · solo 19 días con operaciones</div>
+<ul><li>Invertir la señal cuando la volatilidad es más de 1,2 veces lo normal · +5 $ / −20 $ · 30 min.</li>
+<li class="warn">Muestra pequeña: solo como reserva.</li></ul></div>
+</div>
+
+<h2>Cartera R1 + R2 en FTMO 100k</h2>
+<p class="mut">Monte Carlo por bloques de días con flotante minuto a minuto. Los "topes" son cestas de R1 forzadas a −100 € a propósito, para ver qué pasa si el filtro falla más de lo visto.</p>
+<div class="wrap"><table>
+<tr><th>Lotes</th><th>Topes R1</th><th>Pasa</th><th>Suspende</th><th>Días</th><th>€/mes simulación</th><th>Peor día mediano</th></tr>
+<tr><td><b>R1 ×20 + R2 ×30 (recomendado)</b></td><td>0 %</td><td class="ok">100 %</td><td>0 %</td><td>116</td><td>4.006</td><td>−2.281</td></tr>
+<tr><td></td><td>0,5 %</td><td class="ok">100 %</td><td>0 %</td><td>130</td><td>3.493</td><td>−2.946</td></tr>
+<tr><td></td><td>1 %</td><td class="ok">99 %</td><td>1 %</td><td>148</td><td>2.978</td><td>−3.304</td></tr>
+<tr><td>R1 ×30 + R2 ×40 (agresivo)</td><td>0,5 %</td><td>93 %</td><td class="warn">7 %</td><td>91</td><td>4.892</td><td>−4.318</td></tr>
+<tr><td></td><td>1 %</td><td>84 %</td><td class="bad">16 %</td><td>101</td><td>4.135</td><td>−4.957</td></tr>
+</table></div>
+<p><b>Estimación honesta con el lote recomendado:</b> R1 ≈ 1.670 €/mes + R2 ≈ 450 €/mes ≈ <b>2.100 €/mes</b> (walk-forward, no la muestra). Límite diario de FTMO: −5.000 €.</p>
+
+<h2>Lo que se probó y no funciona</h2>
+<div class="wrap"><table>
+<tr><th>Idea</th><th>Resultado honesto</th></tr>
+<tr><td>Elegir la mejor de miles de reglas</td><td class="bad">fuera de muestra gana el 31 % de las veces: suerte</td></tr>
+<tr><td>555 y 555 con tope</td><td class="bad">−548 € / −299 € en walk-forward</td></tr>
+<tr><td>Invertir Dubai (la pista del mapa)</td><td>ruido (−594 … +168 €)</td></tr>
+<tr><td>Escaleras de Dubai, invertir con escalera</td><td>ruido</td></tr>
+<tr><td>Retroceso, confirmación, espera, escalera a favor, parciales, break-even</td><td>ruido</td></tr>
+<tr><td>Dirección del mercado, las dos direcciones, lote por volatilidad, selector aprendido</td><td>ruido o mejoras pequeñas que las señales falsas igualan</td></tr>
+</table></div>
+
+<h2>Límites y siguientes pasos</h2>
+<ul>
+<li>Se probaron ~40 hipótesis; alguna de las que pasan puede ser un falso positivo. Por eso el examen en semanas futuras es obligatorio.</li>
+<li>Recetas congeladas (huella <code>532661a9…</code>): el examen semanal usa exactamente eso.</li>
+<li>El bot necesita código nuevo para los filtros (rango asiático, RSI 5m). La gestión de R1 se parece a la b210 que ya existe.</li>
+<li><b>Pasos:</b> 1) examen semanal en papel · 2) pregunta a FTMO por escrito · 3) tras 4 semanas buenas, filtros en el bot (con tu OK) → demo → reto.</li>
+</ul>
+</body></html>

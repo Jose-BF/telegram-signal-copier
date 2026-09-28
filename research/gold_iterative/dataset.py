@@ -154,20 +154,28 @@ def _load_scopes(
         )
         if observed_at is None or not start <= observed_at.date() <= end:
             continue
-        direction = str(row.get("direction") or "").upper()
-        is_now = _has_now_revision(row, direction)
+        signal_id = str(row.get("provider_signal_id") or "")
+        if not signal_id:
+            raise ValueError("formal Gold signal is missing provider_signal_id")
+        direction = _entry_direction(row, entry_contract, observed_at)
+        if direction not in {"BUY", "SELL"}:
+            raise ValueError(
+                f"formal Gold signal {signal_id} has no causal entry direction "
+                "at trigger"
+            )
+        is_now = _has_now_revision(
+            row,
+            direction,
+            entry_contract,
+            observed_at,
+        )
         is_direct_priced = str(
             (row.get("entry_contract") or {}).get("trigger_kind") or ""
         ).startswith("direct_priced_")
-        if direction not in {"BUY", "SELL"}:
-            continue
         if signal_scope == "now" and not is_now:
             continue
         if signal_scope == "direct" and not (is_now or is_direct_priced):
             continue
-        signal_id = str(row.get("provider_signal_id") or "")
-        if not signal_id:
-            raise ValueError("formal Gold NOW signal is missing provider_signal_id")
         if signal_id in seen_signal_ids:
             raise ValueError(f"duplicate provider signal identity: {signal_id}")
         execution_ids = tuple(
@@ -187,7 +195,7 @@ def _load_scopes(
                 signal_id=signal_id,
                 execution_signal_ids=execution_ids,
                 observed_at=observed_at,
-                provider_trade=_provider_trade(row, observed_at),
+                provider_trade=_provider_trade(row, observed_at, direction),
             ),
         ))
     return tuple(
@@ -202,6 +210,7 @@ def _load_scopes(
 def _provider_trade(
     row: Mapping[str, Any],
     observed_at: datetime,
+    direction: str,
 ) -> Mapping[str, Any]:
     """Compile one formal NOW signal into an execution-independent template."""
 
@@ -214,12 +223,8 @@ def _provider_trade(
         entry_contract.get("trigger_observed_utc")
         or row.get("first_observed_utc")
     ) or observed_at
-    direction = str(row.get("direction") or "").upper()
-    level_rows = _provider_level_rows(row, trigger)
-    target_count = max(
-        [len(item[1]) for item in level_rows]
-        + [len(row.get("effective_tps") or ()), 1]
-    )
+    level_rows = _provider_level_rows(row)
+    target_count = max([len(item[1]) for item in level_rows] + [1])
     effective_range = [
         float(value)
         for value in row.get("effective_range") or ()
@@ -292,7 +297,6 @@ def _provider_trade(
 
 def _provider_level_rows(
     row: Mapping[str, Any],
-    trigger: datetime,
 ) -> tuple[tuple[datetime, tuple[float, ...], float | None], ...]:
     candidates = list(row.get("level_timeline") or ())
     if not candidates:
@@ -311,10 +315,7 @@ def _provider_level_rows(
     for candidate in candidates:
         if not isinstance(candidate, Mapping):
             continue
-        timestamp = _parse_datetime(
-            candidate.get("observed_ts_utc")
-            or candidate.get("telegram_ts_utc")
-        )
+        timestamp = _parse_datetime(candidate.get("observed_ts_utc"))
         if timestamp is None:
             continue
         targets = tuple(
@@ -327,15 +328,6 @@ def _provider_level_rows(
         if (targets or stop is not None) and identity not in seen:
             seen.add(identity)
             rows.append(identity)
-    if not rows:
-        targets = tuple(
-            value
-            for raw in row.get("effective_tps") or ()
-            if (value := _positive_number(raw)) is not None
-        )
-        stop = _positive_number(row.get("effective_sl"))
-        if targets or stop is not None:
-            rows.append((trigger, targets, stop))
     return tuple(sorted(rows, key=lambda item: item[0]))
 
 
@@ -347,10 +339,78 @@ def _positive_number(value: object) -> float | None:
     return number if number > 0 else None
 
 
-def _has_now_revision(row: Mapping[str, Any], direction: str) -> bool:
+def _entry_direction(
+    row: Mapping[str, Any],
+    entry_contract: Mapping[str, Any],
+    trigger: datetime,
+) -> str:
+    direction = str(entry_contract.get("direction") or "").upper()
+    if direction in {"BUY", "SELL"}:
+        return direction
+
+    latest_observed_at: datetime | None = None
+    latest_directions: set[str] = set()
     for revision in row.get("revisions") or ():
         if not isinstance(revision, Mapping):
             continue
+        observed_at = _parse_datetime(revision.get("observed_ts_utc"))
+        if observed_at is None or observed_at > trigger:
+            continue
+        parsed = revision.get("parsed") or {}
+        if not isinstance(parsed, Mapping):
+            continue
+        revision_direction = str(parsed.get("direction") or "").upper()
+        if revision_direction not in {"BUY", "SELL"}:
+            continue
+        if latest_observed_at is None or observed_at > latest_observed_at:
+            latest_observed_at = observed_at
+            latest_directions = {revision_direction}
+        elif observed_at == latest_observed_at:
+            latest_directions.add(revision_direction)
+
+    if len(latest_directions) > 1:
+        signal_id = str(row.get("provider_signal_id") or "")
+        raise ValueError(
+            f"formal Gold signal {signal_id} has causal_direction_ambiguous "
+            f"at {latest_observed_at.isoformat()}"
+        )
+    return next(iter(latest_directions), "")
+
+
+def _has_now_revision(
+    row: Mapping[str, Any],
+    direction: str,
+    entry_contract: Mapping[str, Any],
+    trigger: datetime,
+) -> bool:
+    trigger_message_id = entry_contract.get("trigger_message_id")
+    causal_revisions: list[tuple[datetime, Mapping[str, Any]]] = []
+    for revision in row.get("revisions") or ():
+        if not isinstance(revision, Mapping):
+            continue
+        observed_at = _parse_datetime(revision.get("observed_ts_utc"))
+        if observed_at is None or observed_at > trigger:
+            continue
+        if trigger_message_id is not None and (
+            observed_at != trigger
+            or str(revision.get("message_id")) != str(trigger_message_id)
+        ):
+            continue
+        causal_revisions.append((observed_at, revision))
+
+    if not causal_revisions:
+        signal_id = str(row.get("provider_signal_id") or "")
+        raise ValueError(
+            f"formal Gold signal {signal_id} has missing_causal_entry_revision "
+            "at trigger"
+        )
+    if trigger_message_id is None and causal_revisions:
+        latest_observed_at = max(item[0] for item in causal_revisions)
+        causal_revisions = [
+            item for item in causal_revisions if item[0] == latest_observed_at
+        ]
+
+    for _observed_at, revision in causal_revisions:
         text = str(revision.get("text") or "")
         if NOW_TOKEN.search(text) and re.search(rf"\b{direction}\b", text, re.IGNORECASE):
             return True

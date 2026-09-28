@@ -1,0 +1,1 @@
+{"family": "c2_invertir_1pata", "filter": {"cond": [["vol_regime", ">", 1.2]]}, "genome_index": 5, "n_min": 30, "carril": "A"}

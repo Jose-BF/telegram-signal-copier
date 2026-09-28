@@ -1,0 +1,1286 @@
+{
+ "canal1|E4_momentum|seguir": {
+  "real": {
+   "con_filtros": {
+    "total": -35.16262105938872,
+    "pos_months": 2,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": -69.46563222659051,
+    "pos_months": 0,
+    "n_months": 6,
+    "traded_months": 3
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": 71.47573409941994,
+    "pos_months": 5,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": -104.9216134477163,
+    "pos_months": 3,
+    "n_months": 6,
+    "traded_months": 5
+   }
+  }
+ },
+ "canal1|E4_momentum|invertir": {
+  "real": {
+   "con_filtros": {
+    "total": -171.36772775955583,
+    "pos_months": 0,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": -215.52460974147198,
+    "pos_months": 1,
+    "n_months": 6,
+    "traded_months": 6
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": -22.418675471821835,
+    "pos_months": 2,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": -46.164153237221186,
+    "pos_months": 0,
+    "n_months": 6,
+    "traded_months": 6
+   }
+  }
+ },
+ "canal1|E5_delay|seguir": {
+  "real": {
+   "con_filtros": {
+    "total": -66.43359195264786,
+    "pos_months": 4,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": -176.1233921886934,
+    "pos_months": 1,
+    "n_months": 6,
+    "traded_months": 6
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": 49.83892258925749,
+    "pos_months": 5,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": -67.35350497865376,
+    "pos_months": 2,
+    "n_months": 6,
+    "traded_months": 4
+   }
+  }
+ },
+ "canal1|E5_delay|invertir": {
+  "real": {
+   "con_filtros": {
+    "total": 14.56988091499021,
+    "pos_months": 4,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": -86.32041837189654,
+    "pos_months": 1,
+    "n_months": 6,
+    "traded_months": 6
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": -116.3712076372132,
+    "pos_months": 1,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": -221.2368654908385,
+    "pos_months": 1,
+    "n_months": 6,
+    "traded_months": 6
+   }
+  }
+ },
+ "canal1|L3_escalera_a_favor|seguir": {
+  "real": {
+   "con_filtros": {
+    "total": -17.944551663272897,
+    "pos_months": 4,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": -205.1251619182488,
+    "pos_months": 0,
+    "n_months": 6,
+    "traded_months": 2
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": -334.87096800838253,
+    "pos_months": 2,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": -169.28658459312322,
+    "pos_months": 1,
+    "n_months": 6,
+    "traded_months": 2
+   }
+  }
+ },
+ "canal1|L3_escalera_a_favor|invertir": {
+  "real": {
+   "con_filtros": {
+    "total": -101.48816853922088,
+    "pos_months": 4,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": 51.44733389560256,
+    "pos_months": 3,
+    "n_months": 6,
+    "traded_months": 6
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": -281.4371311939068,
+    "pos_months": 0,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": -226.11752327773422,
+    "pos_months": 1,
+    "n_months": 6,
+    "traded_months": 4
+   }
+  }
+ },
+ "canal1|X3_parcial_y_resto|seguir": {
+  "real": {
+   "con_filtros": {
+    "total": -166.19729653697226,
+    "pos_months": 1,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": -145.51231886765228,
+    "pos_months": 0,
+    "n_months": 6,
+    "traded_months": 3
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": 70.39463884940594,
+    "pos_months": 3,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": 0.0,
+    "pos_months": 0,
+    "n_months": 6,
+    "traded_months": 0
+   }
+  }
+ },
+ "canal1|X3_parcial_y_resto|invertir": {
+  "real": {
+   "con_filtros": {
+    "total": -99.61924624353993,
+    "pos_months": 3,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": -39.14792219609685,
+    "pos_months": 2,
+    "n_months": 6,
+    "traded_months": 6
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": -90.97177266084562,
+    "pos_months": 2,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": -349.58988551927047,
+    "pos_months": 0,
+    "n_months": 6,
+    "traded_months": 3
+   }
+  }
+ },
+ "canal1|X6_break_even|seguir": {
+  "real": {
+   "con_filtros": {
+    "total": -55.074905794994514,
+    "pos_months": 1,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": 49.204968899648776,
+    "pos_months": 4,
+    "n_months": 6,
+    "traded_months": 6
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": 22.053838713740014,
+    "pos_months": 2,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": -100.95650137799926,
+    "pos_months": 0,
+    "n_months": 6,
+    "traded_months": 1
+   }
+  }
+ },
+ "canal1|X6_break_even|invertir": {
+  "real": {
+   "con_filtros": {
+    "total": -28.02982780873773,
+    "pos_months": 2,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": -76.51552913158994,
+    "pos_months": 2,
+    "n_months": 6,
+    "traded_months": 6
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": -63.301168511546926,
+    "pos_months": 3,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": -149.4849422956779,
+    "pos_months": 2,
+    "n_months": 6,
+    "traded_months": 5
+   }
+  }
+ },
+ "canal1|R4_stop_duro_555|seguir": {
+  "real": {
+   "con_filtros": {
+    "total": 101.07829477222246,
+    "pos_months": 4,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": 0.0,
+    "pos_months": 0,
+    "n_months": 6,
+    "traded_months": 0
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": -127.36460226332926,
+    "pos_months": 4,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": 0.0,
+    "pos_months": 0,
+    "n_months": 6,
+    "traded_months": 0
+   }
+  }
+ },
+ "canal1|R4_stop_duro_555|invertir": {
+  "real": {
+   "con_filtros": {
+    "total": -208.13369541901304,
+    "pos_months": 2,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": 0.0,
+    "pos_months": 0,
+    "n_months": 6,
+    "traded_months": 0
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": -48.8427992144091,
+    "pos_months": 3,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": 0.0,
+    "pos_months": 0,
+    "n_months": 6,
+    "traded_months": 0
+   }
+  }
+ },
+ "canal1|D3_direccion_mercado_x1.0|-": {
+  "real": {
+   "con_filtros": {
+    "total": -88.42434496584966,
+    "pos_months": 2,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": -106.21630710974327,
+    "pos_months": 0,
+    "n_months": 6,
+    "traded_months": 2
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": -1.13736231822977,
+    "pos_months": 3,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": 9.512429057318169,
+    "pos_months": 2,
+    "n_months": 6,
+    "traded_months": 5
+   }
+  }
+ },
+ "canal1|D3_direccion_mercado_x2.0|-": {
+  "real": {
+   "con_filtros": {
+    "total": -190.0010199304998,
+    "pos_months": 0,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": -335.52468645935704,
+    "pos_months": 0,
+    "n_months": 6,
+    "traded_months": 6
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": -9.514766683022675,
+    "pos_months": 3,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": 0.0,
+    "pos_months": 0,
+    "n_months": 6,
+    "traded_months": 0
+   }
+  }
+ },
+ "canal1|D3_direccion_mercado_x3.0|-": {
+  "real": {
+   "con_filtros": {
+    "total": -23.312973651101046,
+    "pos_months": 3,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": 91.71134499820491,
+    "pos_months": 5,
+    "n_months": 6,
+    "traded_months": 6
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": -51.03509407396966,
+    "pos_months": 2,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": 0.0,
+    "pos_months": 0,
+    "n_months": 6,
+    "traded_months": 0
+   }
+  }
+ },
+ "canal1|D3_direccion_mercado_x5.0|-": {
+  "real": {
+   "con_filtros": {
+    "total": -177.1866422782937,
+    "pos_months": 0,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": -306.57476481144505,
+    "pos_months": 1,
+    "n_months": 6,
+    "traded_months": 6
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": -26.841438918494926,
+    "pos_months": 2,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": -159.71240445084,
+    "pos_months": 0,
+    "n_months": 6,
+    "traded_months": 2
+   }
+  }
+ },
+ "canal1|D4_dos_direcciones|-": {
+  "real": {
+   "con_filtros": {
+    "total": -150.6789930295123,
+    "pos_months": 0,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": -131.41275953224496,
+    "pos_months": 0,
+    "n_months": 6,
+    "traded_months": 3
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": -45.652805343534716,
+    "pos_months": 2,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": -123.92218656908386,
+    "pos_months": 0,
+    "n_months": 6,
+    "traded_months": 2
+   }
+  }
+ },
+ "canal2|E4_momentum|seguir": {
+  "real": {
+   "con_filtros": {
+    "total": -58.39443804725475,
+    "pos_months": 1,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": -107.69765340975853,
+    "pos_months": 0,
+    "n_months": 4,
+    "traded_months": 3
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": -38.11406120672305,
+    "pos_months": 1,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": -119.53299575138895,
+    "pos_months": 1,
+    "n_months": 4,
+    "traded_months": 4
+   }
+  }
+ },
+ "canal2|E4_momentum|invertir": {
+  "real": {
+   "con_filtros": {
+    "total": -16.827044285265572,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": -74.98820213944191,
+    "pos_months": 1,
+    "n_months": 4,
+    "traded_months": 4
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": -36.98858556734311,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": -121.7851876799935,
+    "pos_months": 0,
+    "n_months": 4,
+    "traded_months": 4
+   }
+  }
+ },
+ "canal2|E5_delay|seguir": {
+  "real": {
+   "con_filtros": {
+    "total": -36.99691300727983,
+    "pos_months": 1,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": -74.03679165485782,
+    "pos_months": 0,
+    "n_months": 4,
+    "traded_months": 1
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": -60.63510392326023,
+    "pos_months": 1,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": -53.41901640232927,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   }
+  }
+ },
+ "canal2|E5_delay|invertir": {
+  "real": {
+   "con_filtros": {
+    "total": -24.704233848328514,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": 34.4344369676823,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": -18.12839832635227,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": -93.20097186475698,
+    "pos_months": 0,
+    "n_months": 4,
+    "traded_months": 2
+   }
+  }
+ },
+ "canal2|L3_escalera_a_favor|seguir": {
+  "real": {
+   "con_filtros": {
+    "total": 40.51309359647187,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": -73.08753003673236,
+    "pos_months": 0,
+    "n_months": 4,
+    "traded_months": 1
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": 160.88237297018253,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": -140.10257203644844,
+    "pos_months": 1,
+    "n_months": 4,
+    "traded_months": 4
+   }
+  }
+ },
+ "canal2|L3_escalera_a_favor|invertir": {
+  "real": {
+   "con_filtros": {
+    "total": 42.18741607951928,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": 198.12203363610178,
+    "pos_months": 3,
+    "n_months": 4,
+    "traded_months": 4
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": 124.31582804094452,
+    "pos_months": 3,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": -161.86843470007597,
+    "pos_months": 1,
+    "n_months": 4,
+    "traded_months": 3
+   }
+  }
+ },
+ "canal2|X3_parcial_y_resto|seguir": {
+  "real": {
+   "con_filtros": {
+    "total": 35.90015537717465,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": -159.87722842055973,
+    "pos_months": 0,
+    "n_months": 4,
+    "traded_months": 1
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": -87.44230776621438,
+    "pos_months": 1,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": -407.05623327257115,
+    "pos_months": 0,
+    "n_months": 4,
+    "traded_months": 3
+   }
+  }
+ },
+ "canal2|X3_parcial_y_resto|invertir": {
+  "real": {
+   "con_filtros": {
+    "total": 33.471318561971046,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": 133.708962087016,
+    "pos_months": 3,
+    "n_months": 4,
+    "traded_months": 4
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": -65.55523244341583,
+    "pos_months": 1,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": 0.0,
+    "pos_months": 0,
+    "n_months": 4,
+    "traded_months": 0
+   }
+  }
+ },
+ "canal2|X6_break_even|seguir": {
+  "real": {
+   "con_filtros": {
+    "total": 29.849884542414888,
+    "pos_months": 3,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": -174.80923554786648,
+    "pos_months": 0,
+    "n_months": 4,
+    "traded_months": 3
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": 3.4443062360100676,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": -278.53690738082844,
+    "pos_months": 0,
+    "n_months": 4,
+    "traded_months": 3
+   }
+  }
+ },
+ "canal2|X6_break_even|invertir": {
+  "real": {
+   "con_filtros": {
+    "total": 70.77065510416043,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": -65.879042237387,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": -60.33072189904165,
+    "pos_months": 0,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": 0.0,
+    "pos_months": 0,
+    "n_months": 4,
+    "traded_months": 0
+   }
+  }
+ },
+ "canal2|R4_stop_duro_555|seguir": {
+  "real": {
+   "con_filtros": {
+    "total": -318.5347100507818,
+    "pos_months": 1,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": -288.571190051961,
+    "pos_months": 0,
+    "n_months": 4,
+    "traded_months": 1
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": -247.9853019690783,
+    "pos_months": 1,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": 0.0,
+    "pos_months": 0,
+    "n_months": 4,
+    "traded_months": 0
+   }
+  }
+ },
+ "canal2|R4_stop_duro_555|invertir": {
+  "real": {
+   "con_filtros": {
+    "total": -381.1536202422114,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": 0.0,
+    "pos_months": 0,
+    "n_months": 4,
+    "traded_months": 0
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": 140.49135161032373,
+    "pos_months": 3,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": -824.151891022477,
+    "pos_months": 1,
+    "n_months": 4,
+    "traded_months": 3
+   }
+  }
+ },
+ "canal2|D3_direccion_mercado_x1.0|-": {
+  "real": {
+   "con_filtros": {
+    "total": 91.50223239394057,
+    "pos_months": 3,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": -3.290852090623684,
+    "pos_months": 1,
+    "n_months": 4,
+    "traded_months": 4
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": 3.313097781240856,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": 0.0,
+    "pos_months": 0,
+    "n_months": 4,
+    "traded_months": 0
+   }
+  }
+ },
+ "canal2|D3_direccion_mercado_x2.0|-": {
+  "real": {
+   "con_filtros": {
+    "total": 53.871955775775035,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": -94.83549864867126,
+    "pos_months": 0,
+    "n_months": 4,
+    "traded_months": 3
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": 13.389175572355986,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": 111.1336182169653,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   }
+  }
+ },
+ "canal2|D3_direccion_mercado_x3.0|-": {
+  "real": {
+   "con_filtros": {
+    "total": 4.187382411689299,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": 10.795566487801533,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": -159.7172770769594,
+    "pos_months": 1,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": -218.61980353957716,
+    "pos_months": 0,
+    "n_months": 4,
+    "traded_months": 1
+   }
+  }
+ },
+ "canal2|D3_direccion_mercado_x5.0|-": {
+  "real": {
+   "con_filtros": {
+    "total": -36.72592513819926,
+    "pos_months": 1,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": -64.97509420155176,
+    "pos_months": 1,
+    "n_months": 4,
+    "traded_months": 3
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": -10.494295313330014,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": -3.760306043619959,
+    "pos_months": 1,
+    "n_months": 4,
+    "traded_months": 4
+   }
+  }
+ },
+ "canal2|D4_dos_direcciones|-": {
+  "real": {
+   "con_filtros": {
+    "total": -40.646021739152495,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": 0.0,
+    "pos_months": 0,
+    "n_months": 4,
+    "traded_months": 0
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": -82.05174295406432,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": -96.73812485490234,
+    "pos_months": 0,
+    "n_months": 4,
+    "traded_months": 1
+   }
+  }
+ },
+ "canal1|K2_lote_por_volatilidad|-": {
+  "real": {
+   "con_filtros": {
+    "total": 3.7188536189786703,
+    "pos_months": 4,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": -55.53261820039958,
+    "pos_months": 2,
+    "n_months": 6,
+    "traded_months": 6
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": 22.256632328623787,
+    "pos_months": 4,
+    "n_months": 6,
+    "traded_months": 6
+   },
+   "sin_filtro": {
+    "total": -27.085028359772245,
+    "pos_months": 3,
+    "n_months": 6,
+    "traded_months": 6
+   }
+  }
+ },
+ "canal1|S6_selector_aprendido|-": {
+  "real": {
+   "seguir TP 5.0 SL 5.0 T 60": {
+    "total": -33.7,
+    "pos_months": 2,
+    "n_months": 6,
+    "without_selector": -150.8
+   },
+   "seguir TP 5.0 SL 20.0 T 120": {
+    "total": -177.2,
+    "pos_months": 2,
+    "n_months": 6,
+    "without_selector": -196.5
+   },
+   "seguir TP 10.0 SL 10.0 T 60": {
+    "total": -22.4,
+    "pos_months": 3,
+    "n_months": 6,
+    "without_selector": -206.4
+   },
+   "seguir TP 20.0 SL 10.0 T 60": {
+    "total": 18.7,
+    "pos_months": 3,
+    "n_months": 6,
+    "without_selector": -120.6
+   },
+   "invertir TP 5.0 SL 5.0 T 60": {
+    "total": -77.6,
+    "pos_months": 1,
+    "n_months": 6,
+    "without_selector": -14.9
+   },
+   "invertir TP 5.0 SL 20.0 T 120": {
+    "total": 128.1,
+    "pos_months": 4,
+    "n_months": 6,
+    "without_selector": 96.5
+   },
+   "invertir TP 10.0 SL 10.0 T 60": {
+    "total": 71.1,
+    "pos_months": 3,
+    "n_months": 6,
+    "without_selector": 2.7
+   },
+   "invertir TP 20.0 SL 10.0 T 60": {
+    "total": 83.9,
+    "pos_months": 4,
+    "n_months": 6,
+    "without_selector": 117.2
+   }
+  },
+  "placebo": {
+   "seguir TP 5.0 SL 5.0 T 60": {
+    "total": -17.7,
+    "pos_months": 3,
+    "n_months": 6,
+    "without_selector": 69.5
+   },
+   "seguir TP 5.0 SL 20.0 T 120": {
+    "total": 151.8,
+    "pos_months": 4,
+    "n_months": 6,
+    "without_selector": 132.8
+   },
+   "seguir TP 10.0 SL 10.0 T 60": {
+    "total": -75.9,
+    "pos_months": 1,
+    "n_months": 6,
+    "without_selector": -14.2
+   },
+   "seguir TP 20.0 SL 10.0 T 60": {
+    "total": -18.2,
+    "pos_months": 1,
+    "n_months": 6,
+    "without_selector": -14.1
+   },
+   "invertir TP 5.0 SL 5.0 T 60": {
+    "total": -66.3,
+    "pos_months": 2,
+    "n_months": 6,
+    "without_selector": -261.3
+   },
+   "invertir TP 5.0 SL 20.0 T 120": {
+    "total": -177.6,
+    "pos_months": 2,
+    "n_months": 6,
+    "without_selector": -184.9
+   },
+   "invertir TP 10.0 SL 10.0 T 60": {
+    "total": -217.5,
+    "pos_months": 2,
+    "n_months": 6,
+    "without_selector": -250.5
+   },
+   "invertir TP 20.0 SL 10.0 T 60": {
+    "total": -29.1,
+    "pos_months": 2,
+    "n_months": 6,
+    "without_selector": -407.6
+   }
+  }
+ },
+ "canal2|K2_lote_por_volatilidad|-": {
+  "real": {
+   "con_filtros": {
+    "total": 124.12094162173534,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": 38.09434941577909,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   }
+  },
+  "placebo": {
+   "con_filtros": {
+    "total": 16.537014472445875,
+    "pos_months": 2,
+    "n_months": 4,
+    "traded_months": 4
+   },
+   "sin_filtro": {
+    "total": -74.10226908887628,
+    "pos_months": 1,
+    "n_months": 4,
+    "traded_months": 4
+   }
+  }
+ },
+ "canal2|S6_selector_aprendido|-": {
+  "real": {
+   "seguir TP 5.0 SL 5.0 T 60": {
+    "total": 10.0,
+    "pos_months": 2,
+    "n_months": 4,
+    "without_selector": -179.6
+   },
+   "seguir TP 5.0 SL 20.0 T 120": {
+    "total": -82.7,
+    "pos_months": 2,
+    "n_months": 4,
+    "without_selector": -99.3
+   },
+   "seguir TP 10.0 SL 10.0 T 60": {
+    "total": -107.6,
+    "pos_months": 1,
+    "n_months": 4,
+    "without_selector": -377.6
+   },
+   "seguir TP 20.0 SL 10.0 T 60": {
+    "total": 48.6,
+    "pos_months": 3,
+    "n_months": 4,
+    "without_selector": -304.3
+   },
+   "invertir TP 5.0 SL 5.0 T 60": {
+    "total": -60.5,
+    "pos_months": 1,
+    "n_months": 4,
+    "without_selector": -98.2
+   },
+   "invertir TP 5.0 SL 20.0 T 120": {
+    "total": -214.6,
+    "pos_months": 2,
+    "n_months": 4,
+    "without_selector": -253.8
+   },
+   "invertir TP 10.0 SL 10.0 T 60": {
+    "total": 10.8,
+    "pos_months": 2,
+    "n_months": 4,
+    "without_selector": 180.5
+   },
+   "invertir TP 20.0 SL 10.0 T 60": {
+    "total": -26.5,
+    "pos_months": 1,
+    "n_months": 4,
+    "without_selector": -4.8
+   }
+  },
+  "placebo": {
+   "seguir TP 5.0 SL 5.0 T 60": {
+    "total": -73.0,
+    "pos_months": 1,
+    "n_months": 4,
+    "without_selector": -170.7
+   },
+   "seguir TP 5.0 SL 20.0 T 120": {
+    "total": -261.8,
+    "pos_months": 1,
+    "n_months": 4,
+    "without_selector": -239.7
+   },
+   "seguir TP 10.0 SL 10.0 T 60": {
+    "total": -64.7,
+    "pos_months": 1,
+    "n_months": 4,
+    "without_selector": -305.4
+   },
+   "seguir TP 20.0 SL 10.0 T 60": {
+    "total": 56.0,
+    "pos_months": 2,
+    "n_months": 4,
+    "without_selector": -239.8
+   },
+   "invertir TP 5.0 SL 5.0 T 60": {
+    "total": -64.6,
+    "pos_months": 1,
+    "n_months": 4,
+    "without_selector": 2.3
+   },
+   "invertir TP 5.0 SL 20.0 T 120": {
+    "total": -160.2,
+    "pos_months": 1,
+    "n_months": 4,
+    "without_selector": -163.0
+   },
+   "invertir TP 10.0 SL 10.0 T 60": {
+    "total": 33.7,
+    "pos_months": 3,
+    "n_months": 4,
+    "without_selector": 44.1
+   },
+   "invertir TP 20.0 SL 10.0 T 60": {
+    "total": 239.5,
+    "pos_months": 4,
+    "n_months": 4,
+    "without_selector": 189.7
+   }
+  }
+ }
+}

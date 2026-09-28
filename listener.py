@@ -15,6 +15,7 @@ Canal 1 flujo:
 import asyncio
 import hashlib
 import json
+import math
 import os
 import re
 import time
@@ -30,6 +31,13 @@ import broker_tick_clock
 import config
 import alert_graphics
 import dubai_live_candidate
+from basket_stop import basket_stop_requirement
+from basket_observation import confirmed_realized_profit
+from durable_entry_execution import (
+    DurableEntryExecutor,
+    EntryDispatchResult,
+    EntryDispatchState,
+)
 import gold_555_entry_watch
 import gold_555_live_candidate
 import gold_live_candidate
@@ -48,6 +56,7 @@ from signal_lifecycle import (
     TerminalCause,
     apply_lifecycle_decision,
     evaluate_terminal_request,
+    has_unresolved_entry_execution,
     terminal_cause_for_signal,
 )
 from risk_free_basket import BasketLeg, plan_risk_free_basket
@@ -129,6 +138,7 @@ class _Gold555PendingEntry:
     order_started: bool = False
     provider_close_requested: bool = False
     provider_close_action: str | None = None
+    durable_reconcile_pending: bool = False
 
 
 def _sig_id(signal: Signal) -> str:
@@ -547,7 +557,7 @@ async def _ensure_gold_candidate_hard_stops(
         )
         if not force and same_level and now - last_request < 5.0:
             continue
-        pending_actions.enqueue_modify_sl(
+        await pending_actions.persist_async(pending_actions.enqueue_modify_sl,
             signal,
             ticket,
             requested_target,
@@ -668,18 +678,30 @@ async def _ensure_dubai_candidate_hard_stops(
         spec = specs[ticket]
         if common_stop is None:
             continue
-        signal.candidate_hard_stops[ticket] = common_stop
         installed = float(spec.get("sl") or 0.0)
-        point = max(float(spec.get("point") or 0.01), 1e-8)
-        protected = bool(
-            installed > 0
-            and (
-                installed >= common_stop - point / 2
-                if signal.direction == "BUY"
-                else installed <= common_stop + point / 2
-            )
+        requirement = basket_stop_requirement(
+            signal.direction, spec, common_stop,
+            last_level=signal.candidate_sl_requested_levels.get(ticket),
+            last_request=signal.candidate_hard_stop_requested_at.get(ticket, 0.),
+            now=now, force=force,
         )
-        if protected:
+        if requirement == "observed_protected":
+            stop_candidates = [
+                common_stop,
+                installed,
+                signal.sl_by_ticket.get(ticket),
+                signal.candidate_hard_stops.get(ticket),
+            ]
+            valid_stops = [
+                float(value)
+                for value in stop_candidates
+                if value not in (None, 0, 0.0)
+            ]
+            signal.candidate_hard_stops[ticket] = (
+                max(valid_stops)
+                if signal.direction == "BUY"
+                else min(valid_stops)
+            )
             signal.sl_by_ticket[ticket] = installed
             if ticket not in signal.candidate_sl_confirmed_tickets:
                 signal.candidate_sl_confirmed_tickets.append(ticket)
@@ -695,25 +717,38 @@ async def _ensure_dubai_candidate_hard_stops(
             continue
 
         unresolved.append(ticket)
-        last_request = float(
-            signal.candidate_hard_stop_requested_at.get(ticket, 0.0)
-        )
-        last_level = signal.candidate_sl_requested_levels.get(ticket)
-        same_level = bool(
-            last_level is not None
-            and abs(float(last_level) - common_stop) <= point / 2
-        )
-        if not force and same_level and now - last_request < 5.0:
+        if requirement == "retry_deferred":
             continue
-        pending_actions.enqueue_modify_sl(
+        requested_stop = await pending_actions.persist_async(pending_actions.enqueue_modify_sl,
             signal,
             ticket,
             common_stop,
             label=f"DUBAI BASKET SL #{ticket} -> {common_stop:.2f}",
             persist_until_signal_close=True,
+            preserve_stronger=True,
+        )
+        effective_stop = (
+            float(requested_stop)
+            if requested_stop is not None
+            else common_stop
+        )
+        prior_candidates = [
+            effective_stop,
+            signal.sl_by_ticket.get(ticket),
+            signal.candidate_hard_stops.get(ticket),
+        ]
+        prior_stops = [
+            float(value)
+            for value in prior_candidates
+            if value not in (None, 0, 0.0)
+        ]
+        signal.candidate_hard_stops[ticket] = (
+            max(prior_stops)
+            if signal.direction == "BUY"
+            else min(prior_stops)
         )
         signal.candidate_hard_stop_requested_at[ticket] = now
-        signal.candidate_sl_requested_levels[ticket] = common_stop
+        signal.candidate_sl_requested_levels[ticket] = effective_stop
         requested += 1
 
     unresolved = sorted(set(unresolved))
@@ -1311,24 +1346,31 @@ def _realized_pl(signal: Signal):
     (los deals canal2_40/46 del 2026-04-23 quedaron con pnl=None por esto).
     """
     try:
-        import MetaTrader5 as mt5
+        from mt5_runtime import mt5
+        if has_unresolved_entry_execution(signal):
+            return None
         tickets = signal.all_filled_tickets
         if not tickets:
             return None
         total = 0.0
-        found_any = False
+        entry_in = getattr(mt5, "DEAL_ENTRY_IN", 0)
+        exit_entries = (getattr(mt5, "DEAL_ENTRY_OUT", 1),
+                        getattr(mt5, "DEAL_ENTRY_OUT_BY", 3))
         for ticket in tickets:
             deals = mt5.history_deals_get(position=ticket)
-            if not deals:
-                continue
-            if any(d.magic == signal.magic for d in deals):
-                # El deal de apertura conserva el magic del bot. Un cierre
-                # manual desde MT5 puede venir con magic=0, pero sigue siendo
-                # parte de esta posicion y debe contar en el P/L realizado.
-                for d in deals:
-                    total += d.profit + d.commission + d.swap
-                found_any = True
-        return round(total, 2) if found_any else None
+            if not deals or not any(
+                d.magic == signal.magic and getattr(d, "entry", None) == entry_in
+                for d in deals
+            ):
+                return None
+            # Manual exits may have magic=0; opening ownership identifies the
+            # position, while complete closed volume admits its final money.
+            realized = confirmed_realized_profit(
+                deals, entry_in=entry_in, exit_entries=exit_entries)
+            if realized is None:
+                return None
+            total += realized
+        return round(total, 2)
     except Exception as e:
         print(f"[Journal] PnL realizado no calculable: {e}")
         return None
@@ -1536,14 +1578,14 @@ async def _handle_explicit_signal_retraction(msg, channel: str) -> bool:
     if candidate.live_strategy_id == gold_555_live_candidate.CANDIDATE_ID:
         candidate.requested_close_reason = "PROVIDER_RETRACTED"
         for ticket in candidate.all_filled_tickets:
-            pending_actions.enqueue_close_position(
+            await pending_actions.persist_async(pending_actions.enqueue_close_position,
                 candidate,
                 ticket,
                 label=f"GOLD_555_PROVIDER_RETRACTED #{ticket}",
                 persist_until_signal_close=True,
             )
         for ticket in candidate.pending_tickets:
-            pending_actions.enqueue_cancel_pending(
+            await pending_actions.persist_async(pending_actions.enqueue_cancel_pending,
                 candidate,
                 ticket,
                 label=f"GOLD_555_PROVIDER_RETRACTED pending #{ticket}",
@@ -1580,13 +1622,13 @@ async def _handle_explicit_signal_retraction(msg, channel: str) -> bool:
 
     candidate.requested_close_reason = "PROVIDER_RETRACTED"
     for ticket in candidate.all_filled_tickets:
-        pending_actions.enqueue_close_position(
+        await pending_actions.persist_async(pending_actions.enqueue_close_position,
             candidate,
             ticket,
             label=f"PROVIDER_RETRACTED #{ticket}",
         )
     for ticket in candidate.pending_tickets:
-        pending_actions.enqueue_cancel_pending(
+        await pending_actions.persist_async(pending_actions.enqueue_cancel_pending,
             candidate,
             ticket,
             label=f"PROVIDER_RETRACTED pending #{ticket}",
@@ -1835,7 +1877,7 @@ def _open_mt5_positions_for_signal(signal: Signal) -> list[dict] | None:
 
     None means MT5 could not be queried. Empty list means verified clear.
     """
-    import MetaTrader5 as _mt5
+    from mt5_runtime import mt5 as _mt5
 
     positions = _mt5.positions_get()
     if positions is None:
@@ -2050,7 +2092,7 @@ async def _finalize_signal(
 
         # ── pos_summary: detalle por posicion (tipo + TP asignado + P&L) ──
         try:
-            import MetaTrader5 as _mt5
+            from mt5_runtime import mt5 as _mt5
             is_scale_out = (signal.entry_mode == "scale_out")
             positions_info = []
             for ticket in signal.all_filled_tickets:
@@ -2064,7 +2106,10 @@ async def _finalize_signal(
                     pos_type = "dca"
                 tp_override = signal.tp_overrides.get(ticket)
                 # Sumar P&L del ticket via history_deals
-                deals = _mt5.history_deals_get(position=ticket)
+                deals = await _run(
+                    _mt5.history_deals_get,
+                    position=ticket,
+                )
                 pl_ticket = sum(d.profit for d in deals) if deals else None
                 close_price = next((d.price for d in (deals or [])
                                    if getattr(d, "entry", None) == 1), None)
@@ -2084,7 +2129,7 @@ async def _finalize_signal(
         except Exception as e:
             print(f"[Journal] pos_summary error (no critico): {e}")
 
-        pnl = _realized_pl(signal)
+        pnl = await _run(_realized_pl, signal)
         account = await _run(executor.account_evidence)
         journal.finalize_trade(
             sig_id,
@@ -2121,6 +2166,122 @@ async def _run(fn, *args, **kwargs):
         None,
         causal_trace.context_bound_call(fn, *args, **kwargs),
     )
+
+
+_durable_entry_executor: DurableEntryExecutor | None = None
+
+
+def install_durable_execution_service(service) -> None:
+    """Install E3 execution explicitly; importing listener never activates it."""
+    global _durable_entry_executor
+    _durable_entry_executor = (
+        None
+        if service is None
+        else DurableEntryExecutor(service, symbol=config.MT5_SYMBOL)
+    )
+    pending_actions.queue.set_execution_service(service)
+    position_lifecycle_monitor.install_durable_execution_service(service)
+
+
+async def _dispatch_market_entry(
+    *,
+    channel: str,
+    message_id: int,
+    generation: int,
+    leg: str,
+    revision: int,
+    direction: str,
+    lot: float,
+    sl: float | None,
+    tp: float | None,
+    comment: str,
+    magic: int,
+    loss_budget: float | None = None,
+    protection_policy: str | None = None,
+    expires_utc: str | None = None,
+    dispatch_guard=None,
+) -> EntryDispatchResult:
+    """Dispatch through E3 when installed, preserving the legacy path otherwise."""
+    if _durable_entry_executor is None:
+        legacy_kwargs = {}
+        if loss_budget is not None:
+            legacy_kwargs["loss_budget"] = loss_budget
+        result = await _run(
+            executor.open_market_with_fill,
+            direction,
+            lot,
+            sl,
+            tp,
+            comment,
+            magic,
+            **legacy_kwargs,
+        )
+        if not result:
+            return EntryDispatchResult(
+                EntryDispatchState.REJECTED,
+                intent_id="legacy",
+                reason="legacy_executor_returned_no_fill",
+            )
+        return EntryDispatchResult(
+            EntryDispatchState.CONFIRMED,
+            intent_id="legacy",
+            ticket=int(result[0]),
+            fill_price=float(result[1]),
+        )
+
+    policy = protection_policy
+    if policy is None:
+        policy = "required" if sl is not None or loss_budget is not None else "deferred_explicit"
+    return await _durable_entry_executor.open_market(
+        channel=channel,
+        signal_root=f"{channel}_{int(message_id)}",
+        generation=int(generation),
+        leg=leg,
+        revision=int(revision),
+        direction=str(direction).upper(),
+        volume=float(lot),
+        sl=sl,
+        tp=tp,
+        loss_budget=loss_budget,
+        protection_policy=policy,
+        magic=int(magic),
+        comment=comment,
+        action_id=causal_trace.new_action_id(),
+        expires_utc=expires_utc,
+        dispatch_guard=dispatch_guard,
+    )
+
+
+def _journal_unconfirmed_entry(
+    signal_id: str,
+    result: EntryDispatchResult,
+    *,
+    channel: str,
+    leg: str,
+) -> None:
+    journal.event(
+        signal_id,
+        "market_entry_not_confirmed",
+        dispatch_state=result.state.value,
+        intent_id=result.intent_id,
+        retcode=result.retcode,
+        reason=result.reason,
+        channel=channel,
+        leg=leg,
+    )
+    if result.state is EntryDispatchState.RECONCILE:
+        journal.anomaly(
+            signal_id,
+            "fill",
+            "critical",
+            "La apertura puede haber creado exposicion y requiere conciliacion; "
+            "no se enviara otra orden.",
+            intent_id=result.intent_id,
+            retcode=result.retcode,
+            reason=result.reason,
+            channel=channel,
+            leg=leg,
+        )
 
 
 def _schedule_detached(awaitable):
@@ -2624,7 +2785,7 @@ async def notify_ambiguous_decision(signal: "Signal", classification: dict,
                                     raw_text: str):
     """Send one concise human-review alert with fresh MT5 context."""
     try:
-        ctx = signal.build_context()
+        ctx = await _run(signal.build_context)
         action = classification.get("action", "?")
         conf = classification.get("confidence", 0)
         reasoning = classification.get("reasoning") or classification.get("_reason") or "-"
@@ -3462,20 +3623,47 @@ async def _open_extra_legs_impl(sig: Signal, msg_id: int) -> None:
                 gold_live_candidate.market_comment(msg_id, n)
                 if gold_candidate else f"{cprefix}_{msg_id}_B{n}"
             )
-            result = await _run(
-                executor.open_market_with_fill,
-                sig.direction,
-                leg_lot,
-                sig.candidate_provisional_sl if gold_candidate else None,
-                None,
-                comment,
-                magic,
+            result = await _dispatch_market_entry(
+                channel=channel,
+                message_id=msg_id,
+                generation=int(
+                    getattr(sig, "zone_entry_generation", 0) or 0
+                ),
+                leg=f"entry-{n}",
+                revision=0,
+                direction=sig.direction,
+                lot=leg_lot,
+                sl=(
+                    sig.candidate_provisional_sl
+                    if gold_candidate else None
+                ),
+                tp=None,
+                comment=comment,
+                magic=magic,
+                protection_policy=(
+                    "required" if gold_candidate else "deferred_explicit"
+                ),
             )
-            if not result:
-                journal.event(sig_id, "scale_out_leg_fill_failed", leg=n)
+            if result.state is not EntryDispatchState.CONFIRMED:
+                _journal_unconfirmed_entry(
+                    sig_id,
+                    result,
+                    channel=channel,
+                    leg=f"entry-{n}",
+                )
+                journal.event(
+                    sig_id,
+                    "scale_out_leg_fill_failed",
+                    leg=n,
+                    dispatch_state=result.state.value,
+                    intent_id=result.intent_id,
+                    reason=result.reason,
+                )
                 print(f"[{channel}] Scale-out leg B{n} FALLO")
+                if result.state is EntryDispatchState.RECONCILE:
+                    break
                 continue
-            ticket_l, fill_l = result
+            ticket_l, fill_l = int(result.ticket), float(result.fill_price)
             sig.extra_market_tickets.append(ticket_l)
             sig.extra_market_fill_prices.append(fill_l)
             if gold_candidate:
@@ -3514,16 +3702,35 @@ async def _open_extra_legs_impl(sig: Signal, msg_id: int) -> None:
     if not config.STRATEGY_DOUBLE_MARKET_ENABLED:
         return
 
-    result_b = await _run(executor.open_market_with_fill, sig.direction,
-                          config.LOT_SIZE, None, None,
-                          f"{cprefix}_{msg_id}_B", magic)
-    if not result_b:
+    result_b = await _dispatch_market_entry(
+        channel=channel,
+        message_id=msg_id,
+        generation=int(getattr(sig, "zone_entry_generation", 0) or 0),
+        leg="entry-B",
+        revision=0,
+        direction=sig.direction,
+        lot=config.LOT_SIZE,
+        sl=None,
+        tp=None,
+        comment=f"{cprefix}_{msg_id}_B",
+        magic=magic,
+        protection_policy="deferred_explicit",
+    )
+    if result_b.state is not EntryDispatchState.CONFIRMED:
+        _journal_unconfirmed_entry(
+            sig_id,
+            result_b,
+            channel=channel,
+            leg="entry-B",
+        )
         journal.event(sig_id, "market_b_fill_failed",
-                      reason="executor.open_market returned None")
+                      reason=result_b.reason or "executor.open_market returned no fill",
+                      dispatch_state=result_b.state.value,
+                      intent_id=result_b.intent_id)
         print(f"[{channel}] Market B FAILED — operando solo con Market A")
         return
 
-    ticket_b, fill_price_b = result_b
+    ticket_b, fill_price_b = int(result_b.ticket), float(result_b.fill_price)
     sig.extra_market_tickets.append(ticket_b)
     sig.extra_market_fill_prices.append(fill_price_b)
     sig.tp_overrides[ticket_b] = config.STRATEGY_DOUBLE_MARKET_TP_INDEX
@@ -3649,7 +3856,7 @@ async def _apply_sl_tp(signal: Signal):
     tick = None
     min_dist = 0.30
     try:
-        import MetaTrader5 as _mt5
+        from mt5_runtime import mt5 as _mt5
         tick = await _run(_mt5.symbol_info_tick, config.MT5_SYMBOL)
         si = await _run(_mt5.symbol_info, config.MT5_SYMBOL)
         if si:
@@ -3767,7 +3974,7 @@ async def _apply_sl_tp(signal: Signal):
                                       ticket=t, last_tp_objetivo=tp_i,
                                       current_price=cur_price, direction=direction,
                                       tps=list(signal.tps))
-                        pending_actions.enqueue_close_position(
+                        await pending_actions.persist_async(pending_actions.enqueue_close_position,
                             signal, t,
                             label=f"TP_CHASE_CLOSE #{t} (precio paso todos los TPs)")
                         continue  # no encolar modify — ya cerramos esta pos
@@ -3786,7 +3993,7 @@ async def _apply_sl_tp(signal: Signal):
                                       n_tps=len(signal.tps),
                                       levels_predicted=signal.levels_predicted,
                                       trailing_sl=trailing_sl)
-                        pending_actions.enqueue_modify_sl(
+                        await pending_actions.persist_async(pending_actions.enqueue_modify_sl,
                             signal, t, trailing_sl,
                             label=f"TP_CHASE_TRAIL #{t}→{trailing_sl} (lista TPs incompleta)")
                         continue  # no encolar el modify normal
@@ -3803,7 +4010,7 @@ async def _apply_sl_tp(signal: Signal):
             if sl_to_apply is None:
                 # Sin entry legible: aplicar solo TP (no tocar SL existente)
                 if tp_to_apply is not None:
-                    pending_actions.enqueue_modify_tp(
+                    await pending_actions.persist_async(pending_actions.enqueue_modify_tp,
                         signal, t, tp_to_apply,
                         label=f"TP[{i}]→{tp_to_apply} #{t} (BE preserved)"
                     )
@@ -3823,14 +4030,14 @@ async def _apply_sl_tp(signal: Signal):
 
         if sl_to_apply is not None and tp_to_apply is not None:
             label_suffix = " (BE)" if signal.be_armed else ""
-            pending_actions.enqueue_modify_sltp(
+            await pending_actions.persist_async(pending_actions.enqueue_modify_sltp,
                 signal, t, sl_to_apply, tp_to_apply,
                 label=f"SL/TP[{i}]→{tp_to_apply} #{t}{label_suffix}"
             )
         elif sl_to_apply is not None:
-            pending_actions.enqueue_modify_sl(signal, t, sl_to_apply, label=f"SL #{t}")
+            await pending_actions.persist_async(pending_actions.enqueue_modify_sl, signal, t, sl_to_apply, label=f"SL #{t}")
         elif tp_to_apply is not None:
-            pending_actions.enqueue_modify_tp(
+            await pending_actions.persist_async(pending_actions.enqueue_modify_tp,
                 signal, t, tp_to_apply, label=f"TP[{i}]→{tp_to_apply} #{t}"
             )
 
@@ -4012,11 +4219,24 @@ async def _handle_range_arrival_safety(signal: Signal, lo: float, hi: float) -> 
             effective_lot = signal.effective_lot
             magic = signal.magic
             comment = f"c{signal.channel[-1]}_{signal.message_id}_rescue"
-            rescue_ticket = await _run(
-                executor.open_market, signal.direction, effective_lot,
-                signal.sl, None, comment, magic,
+            rescue_result = await _dispatch_market_entry(
+                channel=signal.channel,
+                message_id=signal.message_id,
+                generation=int(
+                    getattr(signal, "zone_entry_generation", 0) or 0
+                ),
+                leg="rescue-market",
+                revision=0,
+                direction=signal.direction,
+                lot=effective_lot,
+                sl=signal.sl,
+                tp=None,
+                comment=comment,
+                magic=magic,
+                protection_policy="required",
             )
-            if rescue_ticket:
+            if rescue_result.state is EntryDispatchState.CONFIRMED:
+                rescue_ticket = int(rescue_result.ticket)
                 signal.dca_tickets.append(rescue_ticket)
                 # Override: rescue ticket → último TP disponible (cuando los
                 # tps reales lleguen, _apply_sl_tp respeta este override).
@@ -4031,23 +4251,35 @@ async def _handle_range_arrival_safety(signal: Signal, lo: float, hi: float) -> 
                               tp_override="last")
                 return False  # flujo normal aplica SL/TP a ambos tickets
             else:
+                _journal_unconfirmed_entry(
+                    sig_id,
+                    rescue_result,
+                    channel=signal.channel,
+                    leg="rescue-market",
+                )
                 print(f"[Layered] rescue_market: open_market falló → fallback close")
                 journal.event(sig_id, "rescue_market_failed",
-                              reason="open_market returned None")
+                              reason=(rescue_result.reason or
+                                      "open_market returned no fill"),
+                              dispatch_state=rescue_result.state.value,
+                              intent_id=rescue_result.intent_id)
+                if rescue_result.state is EntryDispatchState.RECONCILE:
+                    signal.entry_mode = "market_only"
+                    return False
                 action = "close"
 
     if action == "close":
         print(f"[Layered] caso C → close market {signal.market_ticket}")
-        pending_actions.enqueue_close_position(
+        signal.requested_close_reason = "STRATEGY_STOP"
+        signal.dca_placed = True
+        await pending_actions.persist_async(pending_actions.enqueue_close_position,
             signal, signal.market_ticket,
             label=f"layered C close: entry {entry:.2f} fuera de [{lo}-{hi}]"
         )
         for t in signal.pending_tickets:
-            pending_actions.enqueue_cancel_pending(
+            await pending_actions.persist_async(pending_actions.enqueue_cancel_pending,
                 signal, t, label=f"layered C close pend #{t}"
             )
-        signal.requested_close_reason = "STRATEGY_STOP"
-        signal.dca_placed = True  # evita que _place_dca arranque monitor
         return True
 
     elif action == "hold_with_limits":
@@ -4072,12 +4304,12 @@ async def _handle_range_arrival_safety(signal: Signal, lo: float, hi: float) -> 
 
     else:
         print(f"[Layered] adverse_action desconocido '{action}' → caso close (fallback)")
-        pending_actions.enqueue_close_position(
+        signal.requested_close_reason = "STRATEGY_STOP"
+        signal.dca_placed = True
+        await pending_actions.persist_async(pending_actions.enqueue_close_position,
             signal, signal.market_ticket,
             label=f"layered C unknown action {action}: entry {entry:.2f}"
         )
-        signal.requested_close_reason = "STRATEGY_STOP"
-        signal.dca_placed = True
         return True
 
 
@@ -4760,7 +4992,7 @@ async def _close_first_be_rescue(signal: Signal, pos_info: list,
 
     tickets = [p["ticket"] for p in pos_info]
     for t in tickets:
-        pending_actions.enqueue_modify_tp(
+        await pending_actions.persist_async(pending_actions.enqueue_modify_tp,
             signal, t, tp_be,
             label=f"CLOSE_FIRST rescate BE #{t} tp={tp_be:.2f}")
 
@@ -4858,7 +5090,7 @@ async def _close_first_be_timeout(
             )
         if parent_decision_id is None:
             parent_decision_id = signal.source_decision_id
-        _enqueue_internal_closes(
+        await pending_actions.persist_async(_enqueue_internal_closes,
             signal,
             still_open,
             source_message_revision_id=source_message_revision_id,
@@ -4921,7 +5153,7 @@ async def _be_rescue_timeout(
             )
         if parent_decision_id is None:
             parent_decision_id = signal.source_decision_id
-        _enqueue_internal_closes(
+        await pending_actions.persist_async(_enqueue_internal_closes,
             signal,
             still_open,
             source_message_revision_id=source_message_revision_id,
@@ -4979,7 +5211,7 @@ async def _close_all_be_rescue(signal: Signal, pos_info: list,
                         stops_level_pts or 0.0)
     tickets = [p["ticket"] for p in pos_info]
     for t in tickets:
-        pending_actions.enqueue_modify_tp(
+        await pending_actions.persist_async(pending_actions.enqueue_modify_tp,
             signal, t, tp_be,
             label=f"CLOSE_ALL_BE_RESCUE #{t} tp={tp_be:.2f}")
 
@@ -5028,7 +5260,7 @@ async def _maybe_handle_breakeven_close_negative(
         return False
 
     try:
-        ctx = ctx or signal.build_context()
+        ctx = ctx or await _run(signal.build_context)
         pl = float(ctx.floating_pnl_total or 0.0)
         decision = _be_close_negative_decision(
             pl, config.STRATEGY_BE_CLOSE_NEGATIVE_TOLERANCE_USD)
@@ -5537,7 +5769,7 @@ async def _apply_exact_break_even(signal: Signal, *, source: str) -> bool:
     ]
     for ticket, entry in entry_prices.items():
         entry = float(entry)
-        pending_actions.enqueue_modify_sl(
+        await pending_actions.persist_async(pending_actions.enqueue_modify_sl,
             signal,
             ticket,
             entry,
@@ -5573,14 +5805,14 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
         if gold_555_live_candidate.is_provider_close_action(action):
             signal.requested_close_reason = "PROVIDER_CLOSE"
             for ticket in signal.all_filled_tickets:
-                pending_actions.enqueue_close_position(
+                await pending_actions.persist_async(pending_actions.enqueue_close_position,
                     signal,
                     ticket,
                     label=f"GOLD_555_PROVIDER_{action} #{ticket}",
                     persist_until_signal_close=True,
                 )
             for ticket in signal.pending_tickets:
-                pending_actions.enqueue_cancel_pending(
+                await pending_actions.persist_async(pending_actions.enqueue_cancel_pending,
                     signal,
                     ticket,
                     label=f"GOLD_555_PROVIDER_{action} pend #{ticket}",
@@ -5635,13 +5867,13 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
         if dubai_live_candidate.is_provider_close_action(action):
             signal.requested_close_reason = "PROVIDER_CLOSE"
             for ticket in signal.all_filled_tickets:
-                pending_actions.enqueue_close_position(
+                await pending_actions.persist_async(pending_actions.enqueue_close_position,
                     signal,
                     ticket,
                     label=f"PROVIDER_CLOSE_{action} #{ticket}",
                 )
             for ticket in signal.pending_tickets:
-                pending_actions.enqueue_cancel_pending(
+                await pending_actions.persist_async(pending_actions.enqueue_cancel_pending,
                     signal,
                     ticket,
                     label=f"PROVIDER_CLOSE_{action} pend #{ticket}",
@@ -5701,7 +5933,7 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
     # estaba el trade cuando se aplicó cada acción, y si fue un buen
     # momento o no. Crítico para distinguir SKILL vs LUCK en el análisis.
     try:
-        ctx = signal.build_context()
+        ctx = await _run(signal.build_context)
         journal.event(_sig_id(signal), "decision_context",
                       action=action,
                       price=price,
@@ -5757,13 +5989,13 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
         if selected_action == "CLOSE_ALL":
             signal.requested_close_reason = "PROVIDER_CLOSE"
             for ticket in signal.all_filled_tickets:
-                pending_actions.enqueue_close_position(
+                await pending_actions.persist_async(pending_actions.enqueue_close_position,
                     signal,
                     ticket,
                     label=f"CLOSE_PROFIT_OR_BE #{ticket}",
                 )
             for ticket in signal.pending_tickets:
-                pending_actions.enqueue_cancel_pending(
+                await pending_actions.persist_async(pending_actions.enqueue_cancel_pending,
                     signal,
                     ticket,
                     label=f"CANCEL_PENDING #{ticket}",
@@ -5790,9 +6022,9 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
         # si no hay posición (ya cerrada por SL/TP), se considera hecho.
         signal.requested_close_reason = "PROVIDER_CLOSE"
         for t in signal.all_filled_tickets:
-            pending_actions.enqueue_close_position(signal, t, label=f"CLOSE_ALL #{t}")
+            await pending_actions.persist_async(pending_actions.enqueue_close_position, signal, t, label=f"CLOSE_ALL #{t}")
         for t in signal.pending_tickets:
-            pending_actions.enqueue_cancel_pending(signal, t, label=f"CANCEL_PENDING #{t}")
+            await pending_actions.persist_async(pending_actions.enqueue_cancel_pending, signal, t, label=f"CANCEL_PENDING #{t}")
         logger.log_action(signal, action)
         await _finalize_signal(signal, closed_by="CLOSE_ALL",
                                notes=f"reason={classification.get('_reason', 'classifier')}")
@@ -5845,7 +6077,7 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
 
         if plan.status == "secure":
             for ticket in plan.close_tickets:
-                pending_actions.enqueue_close_position(
+                await pending_actions.persist_async(pending_actions.enqueue_close_position,
                     signal,
                     ticket,
                     label=(
@@ -6030,7 +6262,7 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
               f"mantengo {len(to_keep)} de mayor recorrido "
               f"{[round(p['recorrido'],2) for p in to_keep]}")
         for p in to_close:
-            pending_actions.enqueue_close_position(
+            await pending_actions.persist_async(pending_actions.enqueue_close_position,
                 signal, p["ticket"],
                 label=f"CLOSE_FIRST #{p['ticket']} recorrido={p['recorrido']:.2f}"
             )
@@ -6056,7 +6288,7 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
         tickets = signal.all_filled_tickets
         if 0 <= tp_idx < len(tickets):
             target = tickets[tp_idx]
-            pending_actions.enqueue_close_position(
+            await pending_actions.persist_async(pending_actions.enqueue_close_position,
                 signal, target, label=f"CLOSE_AT_TP{tp_idx+1} #{target}"
             )
             logger.log_action(signal, action, float(price))
@@ -6077,11 +6309,11 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
         return "requested" if applied else "failed"
     elif action == "MOVE_SL_TO_PRICE" and price:
         for t in signal.all_filled_tickets:
-            pending_actions.enqueue_modify_sl(
+            await pending_actions.persist_async(pending_actions.enqueue_modify_sl,
                 signal, t, price, label=f"SL→{price} #{t}"
             )
         for t in signal.pending_tickets:
-            pending_actions.enqueue_modify_sl(
+            await pending_actions.persist_async(pending_actions.enqueue_modify_sl,
                 signal, t, price, label=f"SL→{price} pend #{t}"
             )
         logger.log_action(signal, action, price)
@@ -6107,7 +6339,7 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
         # En cualquier caso, también notificar para que el usuario decida si
         # esperar la nueva señal o ignorar.
         try:
-            ctx = signal.build_context()
+            ctx = await _run(signal.build_context)
             pl = ctx.floating_pnl_total
             cur = ctx.current_price
             print(f"[Acción] SIGNAL_UPDATED: P&L={pl:+.2f} cur={cur} → "
@@ -6117,7 +6349,7 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
                 # Cerrar todo — asegurar profit
                 signal.requested_close_reason = "PROVIDER_CLOSE"
                 for t in signal.all_filled_tickets:
-                    pending_actions.enqueue_close_position(
+                    await pending_actions.persist_async(pending_actions.enqueue_close_position,
                         signal, t, label=f"SIGNAL_UPDATED close (profit) #{t}"
                     )
                 await _finalize_signal(signal, closed_by="SIGNAL_UPDATED",
@@ -6126,7 +6358,7 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
                 # Mover SL a precio actual (asegurar BE+, no perder lo poco
                 # que tenemos). Mantener TPs vigentes.
                 for t in signal.all_filled_tickets:
-                    pending_actions.enqueue_modify_sl(
+                    await pending_actions.persist_async(pending_actions.enqueue_modify_sl,
                         signal, t, cur,
                         label=f"SIGNAL_UPDATED SL→{cur:.2f} (BE+) #{t}"
                     )
@@ -7855,7 +8087,7 @@ def restore_gold_555_entry_watches_from_journal(
         return 0
     latest: dict[int, dict] = {}
     causal_origins: dict[int, tuple[str | None, str | None]] = {}
-    terminal: set[int] = set()
+    terminal: dict[int, dict] = {}
     snapshot_events = {
         "gold_555_entry_watch_started",
         "gold_555_entry_watch_state",
@@ -7867,6 +8099,7 @@ def restore_gold_555_entry_watches_from_journal(
         "gold_555_entry_watch_cancelled",
         "gold_555_entry_watch_aborted",
         "gold_555_provider_close_during_open",
+        "gold_555_late_fill_already_closed",
     }
     with source.open("r", encoding="utf-8", errors="replace") as handle:
         for raw_line in handle:
@@ -7880,9 +8113,7 @@ def restore_gold_555_entry_watches_from_journal(
                 continue
             event_name = row.get("ev")
             if event_name in terminal_events:
-                terminal.add(message_id)
-                latest.pop(message_id, None)
-                causal_origins.pop(message_id, None)
+                terminal[message_id] = row
             elif event_name in snapshot_events:
                 latest[message_id] = row
                 payload = row.get("intent")
@@ -7907,11 +8138,6 @@ def restore_gold_555_entry_watches_from_journal(
         observed_now = observed_now.astimezone(timezone.utc)
     restored = 0
     for message_id, row in sorted(latest.items()):
-        if message_id in terminal:
-            continue
-        if state.get("canal2", message_id) is not None:
-            _canal2_open_committed(message_id)
-            continue
         try:
             fallback_revision, fallback_decision = causal_origins.get(
                 message_id,
@@ -7933,7 +8159,41 @@ def restore_gold_555_entry_watches_from_journal(
                 exc_msg=str(exc)[:300],
             )
             continue
-        if watch.expires_at <= observed_now:
+        durable_recovery = None
+        if watch.status == "confirmed" and _durable_entry_executor is not None:
+            durable_recovery = _durable_entry_executor.lookup(
+                channel="canal2",
+                signal_root=f"canal2_{message_id}",
+                generation=int(intent.zone_entry_generation),
+                leg="entry-0",
+                revision=0,
+            )
+        existing_signal = state.get("canal2", message_id)
+        recoverable_state = (
+            durable_recovery is not None
+            and durable_recovery.state in {
+                EntryDispatchState.CONFIRMED,
+                EntryDispatchState.RECONCILE,
+            }
+        )
+        terminal_row = terminal.get(message_id)
+        terminal_event = (
+            terminal_row.get("ev") if terminal_row is not None else None
+        )
+        if terminal_event in {
+            "gold_555_first_leg_filled",
+            "gold_555_late_fill_already_closed",
+        }:
+            continue
+        if terminal_event is not None and not recoverable_state:
+            continue
+        if existing_signal is not None and not recoverable_state:
+            _canal2_open_committed(message_id)
+            continue
+        if (
+            watch.expires_at <= observed_now
+            and not recoverable_state
+        ):
             continue
         if not _canal2_open_claim(message_id):
             continue
@@ -7941,6 +8201,15 @@ def restore_gold_555_entry_watches_from_journal(
             intent=intent,
             watch=watch,
             label="Canal2_recovery",
+            provider_close_requested=(
+                terminal_event == "gold_555_provider_close_during_open"
+            ),
+            provider_close_action=(
+                str(terminal_row.get("classified_action") or "CLOSE")
+                if terminal_event == "gold_555_provider_close_during_open"
+                else None
+            ),
+            durable_reconcile_pending=(watch.status == "confirmed"),
         )
         journal.event(
             f"canal2_{message_id}",
@@ -8033,7 +8302,7 @@ def _handle_gold_555_pending_management(
         "raw_snippet": str(raw_text or "")[:200],
         "watch": record.watch.to_dict(),
     }
-    if not record.order_started:
+    if not record.order_started and not record.durable_reconcile_pending:
         record.watch.status = "cancelled"
         _gold_555_entry_watches.pop(root_message_id, None)
         _canal2_open_finished(root_message_id)
@@ -8173,6 +8442,21 @@ async def _register_gold_555_entry_watch(
     return None
 
 
+def _queue_gold_555_first_leg_protection(signal, ticket, exact_sl, exact_tp):
+    effective_sl = pending_actions.enqueue_modify_sl(
+        signal, ticket, exact_sl,
+        label=f"GOLD 555 SL[0] #{ticket} -> {exact_sl:.2f}",
+        persist_until_signal_close=True,
+        preserve_stronger=True,
+    )
+    pending_actions.enqueue_modify_tp(
+        signal, ticket, exact_tp,
+        label=f"GOLD 555 TP[0] #{ticket} -> {exact_tp:.2f}",
+        persist_until_signal_close=True,
+    )
+    return exact_sl if effective_sl is None else float(effective_sl)
+
+
 async def _open_gold_555_confirmed_intent(
     record: _Gold555PendingEntry,
 ) -> Signal | None:
@@ -8205,6 +8489,57 @@ async def _open_gold_555_confirmed_intent(
                 declared_action_ids=action_ids,
                 declared_action_count=len(action_ids),
             )
+
+
+def _gold_555_closed_fill_time(deals, *, ticket, direction, fill_price, volume, now):
+    """Admit a closed fill only with owned, complete, finite broker history."""
+    if not deals:
+        return None
+    try:
+        seen = set()
+        for deal in deals:
+            if (
+                type(deal.ticket) is not int or deal.ticket <= 0 or deal.ticket in seen
+                or deal.position_id != ticket or deal.symbol != config.MT5_SYMBOL
+                or type(deal.entry) is not int or deal.entry not in (0, 1, 3)
+                or type(deal.time_msc) is not int or deal.time_msc < 0
+            ):
+                return None
+            seen.add(deal.ticket)
+            for field in ("volume", "price", "profit", "commission", "swap", "fee"):
+                value = getattr(deal, field)
+                if type(value) not in (int, float) or not math.isfinite(value):
+                    return None
+            if deal.volume <= 0 or deal.price <= 0:
+                return None
+        ordered = sorted(deals, key=lambda deal: (deal.time_msc, deal.ticket))
+        openings = [deal for deal in ordered if deal.entry == 0]
+        if not openings or any(
+            deal.magic != config.magic_for("canal2")
+            or deal.type != (0 if direction == "BUY" else 1)
+            for deal in openings
+        ):
+            return None
+        opened = sum(deal.volume for deal in openings)
+        average = sum(deal.volume * deal.price for deal in openings) / opened
+        balance = 0.0
+        for deal in ordered:
+            balance += deal.volume if deal.entry == 0 else -deal.volume
+            if balance < -1e-9:
+                return None
+        realized = confirmed_realized_profit(ordered)
+        if (
+            not math.isclose(opened, volume, rel_tol=0, abs_tol=1e-9)
+            or not math.isclose(average, fill_price, rel_tol=0, abs_tol=1e-8)
+            or abs(balance) > 1e-9
+            or realized is None or not math.isfinite(realized)
+        ):
+            return None
+        filled_at = datetime.fromtimestamp(openings[0].time_msc / 1000, timezone.utc).replace(tzinfo=None)
+        last_at = datetime.fromtimestamp(ordered[-1].time_msc / 1000, timezone.utc).replace(tzinfo=None)
+        return filled_at if last_at <= now else None
+    except (AttributeError, TypeError, ValueError, OverflowError, OSError):
+        return None
 
 
 async def _open_gold_555_confirmed_intent_bound(
@@ -8265,39 +8600,240 @@ async def _open_gold_555_confirmed_intent_bound(
             provisional_tp=provisional_tp,
         )
         record.order_started = True
-        result = await _run(
-            executor.open_market_with_fill,
-            str(intent.direction).upper(),
-            policy.entry_volumes[0],
-            provisional_sl,
-            None,
-            gold_555_live_candidate.market_comment(message_id),
-            config.magic_for("canal2"),
+        result = await _dispatch_market_entry(
+            channel="canal2",
+            message_id=message_id,
+            generation=int(intent.zone_entry_generation),
+            leg="entry-0",
+            revision=0,
+            direction=str(intent.direction).upper(),
+            lot=policy.entry_volumes[0],
+            sl=provisional_sl,
+            tp=None,
+            comment=gold_555_live_candidate.market_comment(message_id),
+            magic=config.magic_for("canal2"),
+            protection_policy="required",
+            expires_utc=watch.expires_at.isoformat(),
         )
     except Exception:
-        _canal2_open_finished(message_id)
+        if record.order_started:
+            record.durable_reconcile_pending = True
+            _canal2_open_committed(message_id)
+        else:
+            _canal2_open_finished(message_id)
         raise
 
-    if not result:
-        _canal2_open_finished(message_id)
+    if result.state is not EntryDispatchState.CONFIRMED:
+        _journal_unconfirmed_entry(
+            sig_id,
+            result,
+            channel="canal2",
+            leg="entry-0",
+        )
+        if result.state is EntryDispatchState.RECONCILE:
+            record.durable_reconcile_pending = True
+            _canal2_open_committed(message_id)
+        else:
+            record.durable_reconcile_pending = False
+            _canal2_open_finished(message_id)
         journal.event(
             sig_id,
             "market_fill_failed",
-            reason="Gold 555 first leg returned no fill",
+            reason=result.reason or "Gold 555 first leg returned no fill",
             strategy_id=gold_555_live_candidate.CANDIDATE_ID,
+            dispatch_state=result.state.value,
+            intent_id=result.intent_id,
         )
         return None
 
-    ticket, fill_price = int(result[0]), float(result[1])
+    ticket, fill_price = int(result.ticket), float(result.fill_price)
+    was_reconciling = record.durable_reconcile_pending
+    existing_signal = state.get("canal2", message_id)
+    if existing_signal is not None:
+        if ticket not in existing_signal.all_filled_tickets:
+            raise RuntimeError("durable first fill ticket does not match recovered signal")
+        if existing_signal.status == "closed" or existing_signal.journal_finalized:
+            record.durable_reconcile_pending = False
+            _canal2_open_committed(message_id)
+            return existing_signal
+    record.durable_reconcile_pending = True
+    positions = None
+    closed_fill_time = None
+    if was_reconciling:
+        positions = await _run(executor.mt5.positions_get, ticket=ticket)
+        if positions is None:
+            return None
+        if not positions:
+            try:
+                deals = await _run(executor.mt5.history_deals_get, position=ticket)
+            except Exception as exc:
+                journal.event(
+                    sig_id, "gold_555_closed_fill_recovery_pending",
+                    ticket=ticket, intent_id=result.intent_id,
+                    reason="closed_fill_history_unavailable", exc_type=type(exc).__name__,
+                    watch=watch.to_dict(), intent=_gold_555_intent_payload(intent),
+                )
+                return None
+            closed_fill_time = _gold_555_closed_fill_time(
+                deals, ticket=ticket, direction=intent.direction, fill_price=fill_price,
+                volume=policy.entry_volumes[0], now=datetime.utcnow(),
+            )
+            if closed_fill_time is None:
+                journal.event(
+                    sig_id, "gold_555_closed_fill_recovery_pending",
+                    ticket=ticket, intent_id=result.intent_id,
+                    reason="closed_fill_history_incomplete_or_mismatched",
+                    watch=watch.to_dict(), intent=_gold_555_intent_payload(intent),
+                )
+                return None
+            journal.event(
+                sig_id,
+                "gold_555_late_fill_already_closed",
+                strategy_id=gold_555_live_candidate.CANDIDATE_ID,
+                strategy_fingerprint=(
+                    gold_555_live_candidate.CANDIDATE_FINGERPRINT
+                ),
+                ticket=ticket,
+                fill_price=fill_price,
+                intent_id=result.intent_id,
+            )
+        position = positions[0] if positions else None
+        expected_type = (
+            getattr(executor.mt5, "POSITION_TYPE_BUY", 0)
+            if intent.direction == "BUY"
+            else getattr(executor.mt5, "POSITION_TYPE_SELL", 1)
+        )
+        position_mismatches = []
+        for field_name, expected in (
+            ("ticket", ticket),
+            ("symbol", config.MT5_SYMBOL),
+            ("magic", config.magic_for("canal2")),
+            ("type", expected_type),
+        ):
+            observed = getattr(position, field_name, None)
+            if observed is not None and observed != expected:
+                position_mismatches.append(field_name)
+        observed_volume = getattr(position, "volume", None)
+        if (
+            observed_volume is not None
+            and not abs(float(observed_volume) - policy.entry_volumes[0]) <= 1e-9
+        ):
+            position_mismatches.append("volume")
+        if position_mismatches:
+            journal.anomaly(
+                sig_id,
+                "fill",
+                "critical",
+                "La primera entrada durable no coincide con la posicion actual",
+                ticket=ticket,
+                intent_id=result.intent_id,
+                mismatches=position_mismatches,
+            )
+            return None
     _canal2_open_committed(message_id)
-    market_filled_utc = datetime.utcnow()
+    market_filled_utc = closed_fill_time or datetime.utcnow()
     entry_ts = intent.entry_timestamp
     if entry_ts.tzinfo is not None:
         entry_ts = entry_ts.astimezone(timezone.utc).replace(tzinfo=None)
     expires_at = watch.expires_at.astimezone(timezone.utc).replace(tzinfo=None)
     levels = policy.entry_levels(intent.direction, fill_price)
-    exact_sl = policy.initial_stop(intent.direction, fill_price)
+    fill_based_sl = policy.initial_stop(intent.direction, fill_price)
+    exact_sl = (
+        max(fill_based_sl, provisional_sl)
+        if intent.direction == "BUY"
+        else min(fill_based_sl, provisional_sl)
+    )
     exact_tp = policy.target_price(intent.direction, fill_price, 0)
+    if existing_signal is not None:
+        if ticket not in existing_signal.all_filled_tickets:
+            raise RuntimeError(
+                "durable first fill ticket does not match recovered signal"
+            )
+        existing_signal.market_fill_price = fill_price
+        existing_signal.live_strategy_id = (
+            gold_555_live_candidate.CANDIDATE_ID
+        )
+        existing_signal.live_strategy_fingerprint = (
+            gold_555_live_candidate.CANDIDATE_FINGERPRINT
+        )
+        existing_signal.candidate_entry_anchor = fill_price
+        existing_signal.candidate_entry_expires_at = expires_at
+        existing_signal.candidate_entry_legs = [
+            {
+                "index": index,
+                "volume": policy.entry_volumes[index],
+                "trigger_price": levels[index],
+                "target_step": policy.target_steps[index],
+            }
+            for index in range(len(levels))
+        ]
+        existing_signal.candidate_entry_prices_by_ticket[ticket] = fill_price
+        existing_signal.candidate_provisional_sl = provisional_sl
+        close_requested = bool(
+            record.provider_close_requested
+            or existing_signal.requested_close_reason
+            or existing_signal.basket_guard_triggered
+        )
+        if record.provider_close_requested:
+            existing_signal.requested_close_reason = "PROVIDER_CLOSE"
+        if closed_fill_time is not None:
+            existing_signal.candidate_first_fill_at = closed_fill_time
+        elif close_requested:
+            await pending_actions.persist_async(pending_actions.enqueue_close_position,
+                existing_signal,
+                ticket,
+                label=f"GOLD_555_PROVIDER_CLOSE_RACE #{ticket}",
+                persist_until_signal_close=True,
+            )
+        else:
+            stop_candidates = [
+                exact_sl,
+                existing_signal.sl_by_ticket.get(ticket),
+                existing_signal.candidate_hard_stops.get(ticket),
+            ]
+            if positions:
+                stop_candidates.append(getattr(positions[0], "sl", None))
+            valid_stops = [
+                float(value)
+                for value in stop_candidates
+                if value not in (None, 0, 0.0)
+            ]
+            exact_sl = (
+                max(valid_stops)
+                if existing_signal.direction == "BUY"
+                else min(valid_stops)
+            )
+            exact_sl = await pending_actions.persist_async(
+                _queue_gold_555_first_leg_protection,
+                existing_signal, ticket, exact_sl, exact_tp,
+            )
+            existing_signal.candidate_hard_stops[ticket] = exact_sl
+        journal.event(
+            sig_id,
+            "gold_555_first_leg_filled",
+            strategy_id=existing_signal.live_strategy_id,
+            strategy_fingerprint=existing_signal.live_strategy_fingerprint,
+            ticket=ticket,
+            volume=policy.entry_volumes[0],
+            confirmed_quote=confirmed_quote,
+            confirmed_tick_time_msc=watch.last_tick_msc,
+            confirmed_at=(
+                watch.confirmed_at.isoformat()
+                if watch.confirmed_at is not None else None
+            ),
+            requested_sl=provisional_sl,
+            requested_tp=None,
+            planned_tp=provisional_tp,
+            fill_price=fill_price,
+            exact_sl=exact_sl,
+            exact_tp=exact_tp,
+            entry_levels=list(levels),
+            expires_at=expires_at.isoformat(timespec="milliseconds"),
+            recovered_after_restart=True,
+            durable_intent_id=result.intent_id,
+        )
+        record.durable_reconcile_pending = False
+        return existing_signal
     sig = Signal(
         channel="canal2",
         message_id=message_id,
@@ -8360,28 +8896,19 @@ async def _open_gold_555_confirmed_intent_bound(
         sig.requested_close_reason = "PROVIDER_CLOSE"
     state.add(sig)
     await _place_dca(sig)
-    if close_raced_fill:
-        pending_actions.enqueue_close_position(
+    if close_raced_fill and closed_fill_time is None:
+        await pending_actions.persist_async(pending_actions.enqueue_close_position,
             sig,
             ticket,
             label=f"GOLD_555_PROVIDER_CLOSE_RACE #{ticket}",
             persist_until_signal_close=True,
         )
-    else:
-        pending_actions.enqueue_modify_sl(
-            sig,
-            ticket,
-            exact_sl,
-            label=f"GOLD 555 SL[0] #{ticket} -> {exact_sl:.2f}",
-            persist_until_signal_close=True,
+    elif closed_fill_time is None:
+        exact_sl = await pending_actions.persist_async(
+            _queue_gold_555_first_leg_protection,
+            sig, ticket, exact_sl, exact_tp,
         )
-        pending_actions.enqueue_modify_tp(
-            sig,
-            ticket,
-            exact_tp,
-            label=f"GOLD 555 TP[0] #{ticket} -> {exact_tp:.2f}",
-            persist_until_signal_close=True,
-        )
+        sig.candidate_hard_stops[ticket] = exact_sl
     journal.begin_trade(
         sig_id,
         channel="canal2",
@@ -8426,6 +8953,7 @@ async def _open_gold_555_confirmed_intent_bound(
             pending_tickets=[],
             reason="provider_close_raced_first_fill",
         )
+    record.durable_reconcile_pending = False
     _emit_same_direction_overlap_anomaly(sig)
     _log_strategy_snapshot(
         sig,
@@ -8462,20 +8990,46 @@ async def _process_gold_555_entry_tick_uncontrolled(
             try:
                 signal = await _open_gold_555_confirmed_intent(record)
             except Exception as exc:
-                _canal2_open_finished(message_id)
-                journal.event(
-                    f"canal2_{message_id}",
-                    "gold_555_entry_watch_aborted",
-                    strategy_id=gold_555_live_candidate.CANDIDATE_ID,
-                    strategy_fingerprint=(
-                        gold_555_live_candidate.CANDIDATE_FINGERPRINT
-                    ),
-                    reason="confirmed_watch_open_failed",
-                    exc_type=type(exc).__name__,
-                    exc_msg=str(exc)[:300],
-                )
+                if record.durable_reconcile_pending or record.order_started:
+                    record.durable_reconcile_pending = True
+                    _canal2_open_committed(message_id)
+                    journal.event(
+                        f"canal2_{message_id}",
+                        "gold_555_entry_application_pending",
+                        strategy_id=gold_555_live_candidate.CANDIDATE_ID,
+                        strategy_fingerprint=(
+                            gold_555_live_candidate.CANDIDATE_FINGERPRINT
+                        ),
+                        reason="confirmed_fill_application_failed",
+                        exc_type=type(exc).__name__,
+                        exc_msg=str(exc)[:300],
+                        watch=record.watch.to_dict(),
+                        intent=_gold_555_intent_payload(record.intent),
+                    )
+                else:
+                    _canal2_open_finished(message_id)
+                    _gold_555_entry_watches.pop(message_id, None)
+                    journal.event(
+                        f"canal2_{message_id}",
+                        "gold_555_entry_watch_aborted",
+                        strategy_id=gold_555_live_candidate.CANDIDATE_ID,
+                        strategy_fingerprint=(
+                            gold_555_live_candidate.CANDIDATE_FINGERPRINT
+                        ),
+                        reason="confirmed_watch_open_failed",
+                        exc_type=type(exc).__name__,
+                        exc_msg=str(exc)[:300],
+                    )
                 raise
-            finally:
+            except BaseException:
+                if record.durable_reconcile_pending or record.order_started:
+                    record.durable_reconcile_pending = True
+                    _canal2_open_committed(message_id)
+                else:
+                    _gold_555_entry_watches.pop(message_id, None)
+                    _canal2_open_finished(message_id)
+                raise
+            if signal is not None or not record.durable_reconcile_pending:
                 _gold_555_entry_watches.pop(message_id, None)
             if signal is not None:
                 opened += 1
@@ -8536,20 +9090,46 @@ async def _process_gold_555_entry_tick_uncontrolled(
             try:
                 signal = await _open_gold_555_confirmed_intent(record)
             except Exception as exc:
-                _canal2_open_finished(message_id)
-                journal.event(
-                    f"canal2_{message_id}",
-                    "gold_555_entry_watch_aborted",
-                    strategy_id=gold_555_live_candidate.CANDIDATE_ID,
-                    strategy_fingerprint=(
-                        gold_555_live_candidate.CANDIDATE_FINGERPRINT
-                    ),
-                    reason="confirmed_watch_open_failed",
-                    exc_type=type(exc).__name__,
-                    exc_msg=str(exc)[:300],
-                )
+                if record.durable_reconcile_pending or record.order_started:
+                    record.durable_reconcile_pending = True
+                    _canal2_open_committed(message_id)
+                    journal.event(
+                        f"canal2_{message_id}",
+                        "gold_555_entry_application_pending",
+                        strategy_id=gold_555_live_candidate.CANDIDATE_ID,
+                        strategy_fingerprint=(
+                            gold_555_live_candidate.CANDIDATE_FINGERPRINT
+                        ),
+                        reason="confirmed_fill_application_failed",
+                        exc_type=type(exc).__name__,
+                        exc_msg=str(exc)[:300],
+                        watch=record.watch.to_dict(),
+                        intent=_gold_555_intent_payload(record.intent),
+                    )
+                else:
+                    _canal2_open_finished(message_id)
+                    _gold_555_entry_watches.pop(message_id, None)
+                    journal.event(
+                        f"canal2_{message_id}",
+                        "gold_555_entry_watch_aborted",
+                        strategy_id=gold_555_live_candidate.CANDIDATE_ID,
+                        strategy_fingerprint=(
+                            gold_555_live_candidate.CANDIDATE_FINGERPRINT
+                        ),
+                        reason="confirmed_watch_open_failed",
+                        exc_type=type(exc).__name__,
+                        exc_msg=str(exc)[:300],
+                    )
                 raise
-            finally:
+            except BaseException:
+                if record.durable_reconcile_pending or record.order_started:
+                    record.durable_reconcile_pending = True
+                    _canal2_open_committed(message_id)
+                else:
+                    _gold_555_entry_watches.pop(message_id, None)
+                    _canal2_open_finished(message_id)
+                raise
+            if signal is not None or not record.durable_reconcile_pending:
                 _gold_555_entry_watches.pop(message_id, None)
             if signal is not None:
                 opened += 1
@@ -8802,9 +9382,12 @@ async def _open_canal2_intent(
         provisional_sl = parsed.get("sl")
         first_tp = parsed["tps"][0] if parsed.get("tps") else None
         order_comment = f"c2_{message_id}"
+        entry_loss_budget = None
         if gold_policy is not None:
             calculated_sl = None
-            if reference_price is not None:
+            if _durable_entry_executor is not None:
+                entry_loss_budget = gold_policy.broker_loss_budget_per_leg
+            if _durable_entry_executor is None and reference_price is not None:
                 calculated_sl = await _run(
                     executor.loss_stop_price,
                     direction,
@@ -8813,7 +9396,9 @@ async def _open_canal2_intent(
                     gold_policy.broker_loss_budget_per_leg,
                     config.MT5_SYMBOL,
                 )
-            if calculated_sl is not None:
+            if _durable_entry_executor is not None:
+                provisional_sl = None
+            elif calculated_sl is not None:
                 provisional_sl = float(calculated_sl)
             elif provisional_sl is None and reference_price is not None:
                 provisional_sl = predict_sl_from_entry(
@@ -8839,7 +9424,7 @@ async def _open_canal2_intent(
                     gold_policy.broker_loss_budget_per_leg
                 ),
             )
-            if provisional_sl is None:
+            if provisional_sl is None and _durable_entry_executor is None:
                 journal.anomaly(
                     sig_id_pre,
                     "sl_be",
@@ -8849,26 +9434,47 @@ async def _open_canal2_intent(
                     strategy_id=gold_live_candidate.CANDIDATE_ID,
                     open_without_sl=True,
                 )
-        result = await _run(
-            executor.open_market_with_fill,
-            direction,
-            effective_lot,
-            provisional_sl,
-            first_tp,
-            order_comment,
-            config.magic_for("canal2"),
+        result = await _dispatch_market_entry(
+            channel="canal2",
+            message_id=message_id,
+            generation=int(intent.zone_entry_generation),
+            leg="entry-0",
+            revision=0,
+            direction=direction,
+            lot=effective_lot,
+            sl=provisional_sl,
+            tp=first_tp,
+            comment=order_comment,
+            magic=config.magic_for("canal2"),
+            loss_budget=entry_loss_budget,
+            protection_policy=(
+                "required"
+                if gold_policy is not None or provisional_sl is not None
+                else "deferred_explicit"
+            ),
         )
     except Exception:
         _canal2_open_finished(message_id)
         raise
 
-    if not result:
-        _canal2_open_finished(message_id)
+    if result.state is not EntryDispatchState.CONFIRMED:
+        _journal_unconfirmed_entry(
+            sig_id_pre,
+            result,
+            channel="canal2",
+            leg="entry-0",
+        )
+        if result.state is EntryDispatchState.RECONCILE:
+            _canal2_open_committed(message_id)
+        else:
+            _canal2_open_finished(message_id)
         journal.event(
             sig_id_pre,
             "market_fill_failed",
-            reason="executor.open_market returned None",
+            reason=result.reason or "executor.open_market returned no fill",
             entry_source_kind=intent.source_kind,
+            dispatch_state=result.state.value,
+            intent_id=result.intent_id,
         )
         journal.anomaly(
             sig_id_pre,
@@ -8881,7 +9487,7 @@ async def _open_canal2_intent(
         )
         return None
 
-    ticket, fill_price = result
+    ticket, fill_price = int(result.ticket), float(result.fill_price)
     _canal2_open_committed(message_id)
     market_filled_utc = datetime.utcnow()
     fill_latency_ms = int(
@@ -10408,29 +11014,49 @@ async def _handle_canal1_sticker(msg):
             open_kwargs["loss_budget"] = (
                 dubai_live_candidate.DubaiLivePolicy().stop_value
             )
-        result = await _run(
-            executor.open_market_with_fill,
-            direction,
-            _initial_market_lot("canal1"),
-            None,
-            None,
-            _market_comment("canal1", msg.id),
-            magic,
-            **open_kwargs,
+        result = await _dispatch_market_entry(
+            channel="canal1",
+            message_id=msg.id,
+            generation=0,
+            leg="entry-0",
+            revision=0,
+            direction=direction,
+            lot=_initial_market_lot("canal1"),
+            sl=None,
+            tp=None,
+            comment=_market_comment("canal1", msg.id),
+            magic=magic,
+            loss_budget=open_kwargs.get("loss_budget"),
+            protection_policy=(
+                "required"
+                if open_kwargs.get("loss_budget") is not None
+                else "deferred_explicit"
+            ),
         )
     except Exception:
         _entry_open_finished("canal1", msg.id)
         raise
-    if not result:
-        _entry_open_finished("canal1", msg.id)
+    if result.state is not EntryDispatchState.CONFIRMED:
+        _journal_unconfirmed_entry(
+            sig_id_pre,
+            result,
+            channel="canal1",
+            leg="entry-0",
+        )
+        if result.state is EntryDispatchState.RECONCILE:
+            _entry_open_committed("canal1", msg.id)
+        else:
+            _entry_open_finished("canal1", msg.id)
         journal.event(sig_id_pre, "market_fill_failed",
-                      reason="executor.open_market returned None")
+                      reason=result.reason or "executor.open_market returned no fill",
+                      dispatch_state=result.state.value,
+                      intent_id=result.intent_id)
         journal.anomaly(sig_id_pre, "fill", "critical",
                         "executor.open_market devolvió None — sticker "
                         "recibido pero el bot no abrió posición",
                         channel="canal1", direction=direction)
         return
-    ticket, fill_price = result
+    ticket, fill_price = int(result.ticket), float(result.fill_price)
     _entry_open_committed("canal1", msg.id)
 
     market_filled_utc = datetime.utcnow()
@@ -10650,29 +11276,50 @@ async def _open_canal1_from_text(msg, parsed: dict):
             open_kwargs["loss_budget"] = (
                 dubai_live_candidate.DubaiLivePolicy().stop_value
             )
-        result = await _run(
-            executor.open_market_with_fill,
-            direction,
-            _initial_market_lot("canal1"),
-            None,
-            None,
-            _market_comment("canal1", msg.id),
-            magic,
-            **open_kwargs,
+        result = await _dispatch_market_entry(
+            channel="canal1",
+            message_id=msg.id,
+            generation=0,
+            leg="entry-0",
+            revision=0,
+            direction=direction,
+            lot=_initial_market_lot("canal1"),
+            sl=None,
+            tp=None,
+            comment=_market_comment("canal1", msg.id),
+            magic=magic,
+            loss_budget=open_kwargs.get("loss_budget"),
+            protection_policy=(
+                "required"
+                if open_kwargs.get("loss_budget") is not None
+                else "deferred_explicit"
+            ),
         )
     except Exception:
         _entry_open_finished("canal1", msg.id)
         raise
-    if not result:
-        _entry_open_finished("canal1", msg.id)
+    if result.state is not EntryDispatchState.CONFIRMED:
+        _journal_unconfirmed_entry(
+            sig_id_pre,
+            result,
+            channel="canal1",
+            leg="entry-0",
+        )
+        if result.state is EntryDispatchState.RECONCILE:
+            _entry_open_committed("canal1", msg.id)
+        else:
+            _entry_open_finished("canal1", msg.id)
         journal.event(sig_id_pre, "market_fill_failed",
-                      reason="executor.open_market returned None (text-only path)")
+                      reason=(result.reason or
+                              "executor.open_market returned no fill (text-only path)"),
+                      dispatch_state=result.state.value,
+                      intent_id=result.intent_id)
         journal.anomaly(sig_id_pre, "fill", "critical",
                         "executor.open_market devolvió None en path "
                         "text-only canal1",
                         channel="canal1", direction=direction)
         return None
-    ticket, fill_price = result
+    ticket, fill_price = int(result.ticket), float(result.fill_price)
     _entry_open_committed("canal1", msg.id)
 
     market_filled_utc = datetime.utcnow()

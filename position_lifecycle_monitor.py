@@ -29,23 +29,30 @@ Implementa estos mecanismos defensivos:
 import asyncio
 import math
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
-import MetaTrader5 as mt5
+from mt5_runtime import mt5
 
 import causal_trace
+import basket_observation
 from management_decision_evidence import capture_management_decision, utc_text
 import config
 import dubai_live_candidate
+from durable_entry_execution import (
+    DurableEntryExecutor,
+    EntryDispatchState,
+)
 import gold_555_live_candidate
 import gold_live_candidate
 import executor
 import live_basket_guard
+from basket_management import guard_observation, evaluate_observed_guard
 import pending_actions
 import strategies
 from mt5_deal_reason import close_reason_from_deal
 from signal_lifecycle import (
     evaluate_terminal_request,
+    has_unresolved_entry_execution,
     terminal_cause_for_signal,
 )
 from state import Signal
@@ -58,6 +65,287 @@ NULL_TICK_STREAK_THRESHOLD = 3000   # ~30s a 10ms por ciclo
 CANDIDATE_ENTRY_RETRY_INITIAL_S = 1.0
 CANDIDATE_ENTRY_RETRY_MAX_S = 60.0
 GOLD_555_TRAILING_INTERVAL_S = 1.0
+_durable_entry_executor: DurableEntryExecutor | None = None
+
+
+def install_durable_execution_service(service) -> None:
+    """Route delayed entries through the same durable MT5 owner."""
+    global _durable_entry_executor
+    _durable_entry_executor = (
+        None
+        if service is None
+        else DurableEntryExecutor(service, symbol=config.MT5_SYMBOL)
+    )
+
+
+def _record_recovered_candidate_entry(signal, *, ticket, fill_price, leg_index) -> bool:
+    changed = (
+        ticket not in signal.all_filled_tickets
+        or leg_index not in signal.candidate_filled_leg_indexes
+        or leg_index in signal.candidate_entry_reconcile_pending_indexes
+        or signal.candidate_entry_prices_by_ticket.get(ticket) != fill_price
+    )
+    if ticket not in signal.all_filled_tickets:
+        signal.dca_tickets.append(ticket)
+    if leg_index not in signal.candidate_filled_leg_indexes:
+        signal.candidate_filled_leg_indexes.append(leg_index)
+        signal.candidate_filled_leg_indexes.sort()
+    signal.candidate_entry_prices_by_ticket[ticket] = fill_price
+    if leg_index in signal.candidate_entry_reconcile_pending_indexes:
+        signal.candidate_entry_reconcile_pending_indexes.remove(leg_index)
+    return changed
+
+
+async def recover_durable_candidate_entries(runtime_state) -> int:
+    """Apply confirmed delayed-entry effects that survived a process restart."""
+    if _durable_entry_executor is None:
+        return 0
+    records = await asyncio.to_thread(_durable_entry_executor.reconstruct)
+    recovered = 0
+    for record in records:
+        prefix = "candidate-entry-"
+        if (
+            record.state is not EntryDispatchState.CONFIRMED
+            or not record.leg.startswith(prefix)
+            or record.ticket is None
+            or record.fill_price is None
+        ):
+            continue
+        try:
+            leg_index = int(record.leg[len(prefix):])
+            message_id = int(record.signal_root.rsplit("_", 1)[1])
+        except (ValueError, IndexError):
+            continue
+        signal = runtime_state.get(record.channel, message_id)
+        if signal is None or signal.status != "open":
+            continue
+        payload = dict(record.payload)
+        identity_mismatches = []
+        expected_root = f"{record.channel}_{message_id}"
+        if record.signal_root != expected_root:
+            identity_mismatches.append("signal_root")
+        try:
+            plan = _candidate_entry_plan(signal)
+            expected_leg = plan[leg_index]
+        except (IndexError, KeyError, TypeError, ValueError, RuntimeError):
+            expected_leg = None
+            identity_mismatches.append("frozen_plan")
+        if expected_leg is not None:
+            if int(expected_leg.get("index", -1)) != leg_index:
+                identity_mismatches.append("leg_index")
+            try:
+                payload_volume = float(payload["volume"])
+            except (KeyError, TypeError, ValueError):
+                identity_mismatches.append("volume")
+            else:
+                if not math.isclose(
+                    payload_volume,
+                    float(expected_leg["volume"]),
+                    rel_tol=0.0,
+                    abs_tol=1e-9,
+                ):
+                    identity_mismatches.append("volume")
+        expected_comment = (
+            gold_555_live_candidate.market_comment(message_id, leg_index)
+            if signal.live_strategy_id == gold_555_live_candidate.CANDIDATE_ID
+            else f"DCA_c1_{message_id}_D{leg_index}"
+        )
+        for field_name, observed, expected in (
+            ("direction", str(payload.get("direction") or "").upper(), signal.direction),
+            ("magic", int(payload.get("magic") or -1), signal.magic),
+            ("symbol", payload.get("symbol"), config.MT5_SYMBOL),
+            ("comment", payload.get("comment"), expected_comment),
+            ("protection_policy", payload.get("protection_policy"), "required"),
+            ("policy_revision", int(getattr(record, "policy_revision", -1)), 0),
+            (
+                "generation",
+                int(record.generation),
+                int(getattr(signal, "zone_entry_generation", 0) or 0),
+            ),
+        ):
+            if observed != expected:
+                identity_mismatches.append(field_name)
+        if identity_mismatches:
+            _journal_anomaly(
+                record.signal_root,
+                "fill",
+                "critical",
+                "La entrada durable tardia no coincide con la Signal recuperada",
+                intent_id=record.intent_id,
+                ticket=record.ticket,
+                candidate_leg_index=leg_index,
+                mismatches=sorted(set(identity_mismatches)),
+            )
+            continue
+        positions = await asyncio.to_thread(
+            executor.mt5.positions_get,
+            ticket=int(record.ticket),
+        )
+        if positions is None:
+            _journal_anomaly(
+                record.signal_root,
+                "mt5",
+                "critical",
+                "No se pudo verificar la entrada durable tardia al arrancar",
+                intent_id=record.intent_id,
+                ticket=record.ticket,
+                candidate_leg_index=leg_index,
+            )
+            continue
+        if not positions:
+            # Durable DONE proves an entry even when it is no longer open.
+            # Keep its ticket so monetary completeness still requires its deals.
+            changed = _record_recovered_candidate_entry(
+                signal, ticket=int(record.ticket), fill_price=float(record.fill_price),
+                leg_index=leg_index,
+            )
+            if not changed:
+                continue
+            _journal_event(
+                record.signal_root,
+                "durable_candidate_leg_already_closed",
+                intent_id=record.intent_id,
+                ticket=record.ticket,
+                candidate_leg_index=leg_index,
+            )
+            recovered += 1
+            continue
+
+        ticket = int(record.ticket)
+        fill_price = float(record.fill_price)
+        position = positions[0]
+        expected_type = (
+            getattr(executor.mt5, "POSITION_TYPE_BUY", 0)
+            if signal.direction == "BUY"
+            else getattr(executor.mt5, "POSITION_TYPE_SELL", 1)
+        )
+        position_mismatches = []
+        for field_name, expected in (
+            ("ticket", ticket),
+            ("symbol", str(payload.get("symbol") or config.MT5_SYMBOL)),
+            ("magic", signal.magic),
+            ("type", expected_type),
+        ):
+            observed = getattr(position, field_name, None)
+            if observed is not None and observed != expected:
+                position_mismatches.append(field_name)
+        observed_volume = getattr(position, "volume", None)
+        expected_volume = payload.get("volume")
+        if (
+            observed_volume is not None
+            and expected_volume is not None
+            and not math.isclose(
+                float(observed_volume), float(expected_volume), abs_tol=1e-9
+            )
+        ):
+            position_mismatches.append("volume")
+        if position_mismatches:
+            _journal_anomaly(
+                record.signal_root,
+                "fill",
+                "critical",
+                "La posicion durable tardia no coincide con su identidad",
+                intent_id=record.intent_id,
+                ticket=ticket,
+                mismatches=position_mismatches,
+                candidate_leg_index=leg_index,
+            )
+            continue
+        if leg_index not in signal.candidate_entry_reconcile_pending_indexes:
+            signal.candidate_entry_reconcile_pending_indexes.append(leg_index)
+        if (
+            signal.requested_close_reason
+            or signal.basket_guard_triggered
+            or leg_index in signal.lifecycle_cancelled_entry_indexes
+        ):
+            await pending_actions.persist_async(pending_actions.enqueue_close_position,
+                signal,
+                ticket,
+                label=f"RECOVER_LATE_ENTRY_CLOSE #{ticket}",
+                persist_until_signal_close=True,
+            )
+        elif signal.live_strategy_id == gold_555_live_candidate.CANDIDATE_ID:
+            await pending_actions.persist_async(_queue_gold_555_leg_protection,
+                signal,
+                ticket=ticket,
+                fill_price=fill_price,
+                leg_index=leg_index,
+                current_sl=getattr(position, "sl", None),
+            )
+        else:
+            from listener import _ensure_dubai_candidate_hard_stops
+
+            await _ensure_dubai_candidate_hard_stops(
+                signal,
+                force=True,
+                tickets_override=list(dict.fromkeys([*signal.all_filled_tickets, ticket])),
+            )
+        _record_recovered_candidate_entry(
+            signal, ticket=ticket, fill_price=fill_price, leg_index=leg_index,
+        )
+        _journal_event(
+            record.signal_root,
+            "durable_candidate_leg_recovered",
+            strategy_id=signal.live_strategy_id,
+            strategy_fingerprint=signal.live_strategy_fingerprint,
+            intent_id=record.intent_id,
+            ticket=ticket,
+            fill_price=fill_price,
+            candidate_leg_index=leg_index,
+            recovered_after_restart=True,
+        )
+        recovered += 1
+    return recovered
+
+
+def _durable_leg_level(level: float) -> str:
+    value = f"{float(level):.8f}".rstrip("0").rstrip(".")
+    return value or "0"
+
+
+def _record_unconfirmed_entry(signal: Signal, result, *, leg: str) -> None:
+    signal_id = f"{signal.channel}_{signal.message_id}"
+    leg_index = None
+    prefix = "candidate-entry-"
+    if leg.startswith(prefix):
+        try:
+            leg_index = int(leg[len(prefix):])
+        except ValueError:
+            pass
+    _journal_event(
+        signal_id,
+        "market_entry_not_confirmed",
+        dispatch_state=result.state.value,
+        intent_id=result.intent_id,
+        retcode=result.retcode,
+        reason=result.reason,
+        channel=signal.channel,
+        leg=leg,
+    )
+    if result.state is EntryDispatchState.RECONCILE:
+        if (
+            leg_index is not None
+            and leg_index
+            not in signal.candidate_entry_reconcile_pending_indexes
+        ):
+            signal.candidate_entry_reconcile_pending_indexes.append(leg_index)
+        _journal_anomaly(
+            signal_id,
+            "fill",
+            "critical",
+            "La apertura retrasada puede haber creado exposicion y requiere "
+            "conciliacion; no se enviara otra orden.",
+            intent_id=result.intent_id,
+            retcode=result.retcode,
+            reason=result.reason,
+            channel=signal.channel,
+            leg=leg,
+        )
+    elif (
+        leg_index is not None
+        and leg_index in signal.candidate_entry_reconcile_pending_indexes
+    ):
+        signal.candidate_entry_reconcile_pending_indexes.remove(leg_index)
 
 
 def _basket_guard_policy() -> live_basket_guard.GuardPolicy:
@@ -184,13 +472,10 @@ def _apply_candidate_basket_guard_unrecorded(
         raise RuntimeError("MT5 positions_get unavailable for basket guard")
 
     policy = dubai_live_candidate.DubaiLivePolicy()
-    floating_pl = float(summary.get("floating_pl", summary.get("pl")) or 0.0)
-    realized_pl = float(summary.get("realized_pl") or 0.0)
-    realized_complete = bool(summary.get("realized_complete", True))
-    total_pl = summary.get("total_pl")
-    if total_pl is None and realized_complete:
-        total_pl = summary.get("pl", floating_pl + realized_pl)
-    observed_pl = float(total_pl) if total_pl is not None else floating_pl
+    observation = guard_observation(summary)
+    floating_pl, realized_pl = observation.floating_pl, observation.realized_pl
+    realized_complete, total_pl = observation.realized_complete, observation.total_pl
+    observed_pl = observation.observed_pl
     signal_id = f"{signal.channel}_{signal.message_id}"
 
     if not realized_complete and not signal.basket_guard_realized_degraded_logged:
@@ -222,7 +507,7 @@ def _apply_candidate_basket_guard_unrecorded(
     elapsed_min = max(0.0, (now - first_fill_at).total_seconds() / 60.0)
     previous_peak = signal.basket_guard_peak_pl
     previous_armed = bool(signal.basket_guard_armed)
-    decision = dubai_live_candidate.evaluate_guard(
+    decision = evaluate_observed_guard(
         policy=policy,
         state=dubai_live_candidate.DubaiGuardState(
             armed=bool(signal.basket_guard_armed),
@@ -231,10 +516,8 @@ def _apply_candidate_basket_guard_unrecorded(
             trigger_reason=signal.basket_guard_trigger_reason,
             recovery_pending=bool(signal.basket_guard_recovery_pending),
         ),
-        total_pl=observed_pl,
-        n_open=int(summary.get("n_open") or 0),
+        observation=observation,
         elapsed_min=elapsed_min,
-        money_evidence_complete=realized_complete,
     )
     signal.basket_guard_armed = decision.state.armed
     signal.basket_guard_triggered = decision.state.triggered
@@ -695,13 +978,10 @@ def _apply_gold_555_basket_guard_unrecorded(
     ):
         raise RuntimeError("Gold 555 guard fingerprint mismatch")
 
-    floating_pl = float(summary.get("floating_pl", summary.get("pl")) or 0.0)
-    realized_pl = float(summary.get("realized_pl") or 0.0)
-    realized_complete = bool(summary.get("realized_complete", True))
-    total_pl = summary.get("total_pl")
-    if total_pl is None and realized_complete:
-        total_pl = summary.get("pl", floating_pl + realized_pl)
-    observed_pl = float(total_pl) if total_pl is not None else floating_pl
+    observation = guard_observation(summary)
+    floating_pl, realized_pl = observation.floating_pl, observation.realized_pl
+    realized_complete, total_pl = observation.realized_complete, observation.total_pl
+    observed_pl = observation.observed_pl
     signal_id = f"{signal.channel}_{signal.message_id}"
     observed_now = datetime.utcnow() if now is None else now
     first_fill_at = signal.candidate_first_fill_at or signal.timestamp
@@ -711,7 +991,7 @@ def _apply_gold_555_basket_guard_unrecorded(
     )
     previous_peak = signal.basket_guard_peak_pl
     previous_armed = bool(signal.basket_guard_armed)
-    decision = gold_555_live_candidate.evaluate_guard(
+    decision = evaluate_observed_guard(
         policy=policy,
         state=gold_555_live_candidate.Gold555GuardState(
             armed=bool(signal.basket_guard_armed),
@@ -720,10 +1000,8 @@ def _apply_gold_555_basket_guard_unrecorded(
             trigger_reason=signal.basket_guard_trigger_reason,
             recovery_pending=bool(signal.basket_guard_recovery_pending),
         ),
-        total_pl=observed_pl,
-        n_open=int(summary.get("n_open") or 0),
+        observation=observation,
         elapsed_min=elapsed_min,
-        money_evidence_complete=realized_complete,
     )
     signal.basket_guard_armed = decision.state.armed
     signal.basket_guard_triggered = decision.state.triggered
@@ -841,7 +1119,7 @@ async def _apply_gold_price_be(signal: Signal, tick) -> int:
         )
         if move + 1e-9 < policy.be_trigger:
             continue
-        pending_actions.enqueue_modify_sl(
+        await pending_actions.persist_async(pending_actions.enqueue_modify_sl,
             signal,
             ticket,
             entry,
@@ -975,19 +1253,45 @@ async def _open_market_internal(
         except Exception:
             pass
         try:
-            loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(
-                None,
-                causal_trace.context_bound_call(
-                    executor.open_market,
-                    signal.direction,
-                    lot,
-                    sl=sl,
-                    tp=tp,
-                    comment=comment,
-                    magic=signal.magic,
+            if _durable_entry_executor is None:
+                loop = asyncio.get_event_loop()
+                return await loop.run_in_executor(
+                    None,
+                    causal_trace.context_bound_call(
+                        executor.open_market,
+                        signal.direction,
+                        lot,
+                        sl=sl,
+                        tp=tp,
+                        comment=comment,
+                        magic=signal.magic,
+                    ),
+                )
+            leg = f"dca-{_durable_leg_level(level)}"
+            result = await _durable_entry_executor.open_market(
+                channel=signal.channel,
+                signal_root=f"{signal.channel}_{signal.message_id}",
+                generation=int(
+                    getattr(signal, "zone_entry_generation", 0) or 0
                 ),
+                leg=leg,
+                revision=0,
+                direction=signal.direction,
+                volume=float(lot),
+                sl=sl,
+                tp=tp,
+                loss_budget=None,
+                protection_policy=(
+                    "required" if sl is not None else "deferred_explicit"
+                ),
+                magic=signal.magic,
+                comment=comment,
+                action_id=causal_trace.new_action_id(),
             )
+            if result.state is EntryDispatchState.CONFIRMED:
+                return int(result.ticket)
+            _record_unconfirmed_entry(signal, result, leg=leg)
+            return None
         finally:
             try:
                 import journal
@@ -1140,8 +1444,15 @@ async def _open_candidate_leg(
     observed_price: float,
 ) -> tuple[int, float] | None:
     """Open one delayed candidate leg and retain MT5's real fill price."""
+    leg = dict(leg)
     level = float(leg["trigger_price"])
     leg_index = int(leg["index"])
+    expected_generation = int(
+        getattr(signal, "zone_entry_generation", 0) or 0
+    )
+    was_reconciling = (
+        leg_index in signal.candidate_entry_reconcile_pending_indexes
+    )
     gold_555 = (
         signal.live_strategy_id == gold_555_live_candidate.CANDIDATE_ID
     )
@@ -1180,6 +1491,35 @@ async def _open_candidate_leg(
         provisional_tp = None
         decision_reason = "dubai_balanced_adverse_leg"
         comment = f"DCA_c1_{signal.message_id}_D{leg_index}"
+    if (
+        (
+            signal.requested_close_reason
+            or signal.basket_guard_triggered
+            or leg_index in signal.lifecycle_cancelled_entry_indexes
+        )
+        and not was_reconciling
+    ):
+        return None
+
+    def dispatch_guard(_request) -> None:
+        if signal.status != "open":
+            raise RuntimeError("signal is no longer open")
+        if (
+            signal.requested_close_reason
+            or signal.basket_guard_triggered
+            or leg_index in signal.lifecycle_cancelled_entry_indexes
+        ):
+            raise RuntimeError("signal close requested")
+        hit = observed_price <= level if signal.direction == "BUY" else observed_price >= level
+        if not math.isfinite(observed_price) or not hit:
+            raise RuntimeError("entry price trigger is not met")
+        if int(getattr(signal, "zone_entry_generation", 0) or 0) != (
+            expected_generation
+        ):
+            raise RuntimeError("entry generation changed")
+        current_plan = _candidate_entry_plan(signal)
+        if leg_index >= len(current_plan) or dict(current_plan[leg_index]) != dict(leg):
+            raise RuntimeError("frozen entry leg changed")
     with causal_trace.bind_internal_decision(
         message_revision_id=signal.source_message_revision_id,
         parent_decision_id=signal.source_decision_id,
@@ -1203,15 +1543,70 @@ async def _open_candidate_leg(
         except Exception:
             pass
         try:
-            result = await asyncio.to_thread(
-                executor.open_market_with_fill,
-                signal.direction,
-                float(leg["volume"]),
-                sl=provisional_sl,
-                tp=None if gold_555 else provisional_tp,
-                comment=comment,
-                magic=signal.magic,
-            )
+            durable_leg = f"candidate-entry-{leg_index}"
+            if _durable_entry_executor is None:
+                result = await asyncio.to_thread(
+                    executor.open_market_with_fill,
+                    signal.direction,
+                    float(leg["volume"]),
+                    sl=provisional_sl,
+                    tp=None if gold_555 else provisional_tp,
+                    comment=comment,
+                    magic=signal.magic,
+                )
+            else:
+                if leg_index not in signal.candidate_entry_reconcile_pending_indexes:
+                    signal.candidate_entry_reconcile_pending_indexes.append(
+                        leg_index
+                    )
+                dispatch = await _durable_entry_executor.open_market(
+                    channel=signal.channel,
+                    signal_root=f"{signal.channel}_{signal.message_id}",
+                    generation=expected_generation,
+                    leg=durable_leg,
+                    revision=0,
+                    direction=signal.direction,
+                    volume=float(leg["volume"]),
+                    sl=provisional_sl,
+                    tp=None if gold_555 else provisional_tp,
+                    loss_budget=None,
+                    protection_policy="required",
+                    magic=signal.magic,
+                    comment=comment,
+                    action_id=causal_trace.new_action_id(),
+                    expires_utc=(
+                        (
+                            signal.candidate_entry_expires_at.replace(
+                                tzinfo=timezone.utc,
+                            )
+                            if signal.candidate_entry_expires_at.tzinfo is None
+                            else signal.candidate_entry_expires_at.astimezone(
+                                timezone.utc,
+                            )
+                        ).isoformat()
+                        if signal.candidate_entry_expires_at is not None
+                        else None
+                    ),
+                    dispatch_guard=dispatch_guard,
+                )
+                if dispatch.state is EntryDispatchState.CONFIRMED:
+                    result = (int(dispatch.ticket), float(dispatch.fill_price))
+                    if gold_555 and dispatch.requested_sl not in (None, 0, 0.0):
+                        ticket = int(dispatch.ticket)
+                        stops = [float(dispatch.requested_sl)]
+                        previous = signal.candidate_hard_stops.get(ticket)
+                        if previous not in (None, 0, 0.0):
+                            stops.append(float(previous))
+                        signal.candidate_hard_stops[ticket] = (
+                            max(stops) if signal.direction == "BUY" else min(stops)
+                        )
+                else:
+                    _record_unconfirmed_entry(
+                        signal,
+                        dispatch,
+                        leg=durable_leg,
+                    )
+                    result = None
         finally:
             try:
                 action_ids = causal_trace.declared_action_ids(decision)
@@ -1230,10 +1625,11 @@ async def _open_candidate_leg(
                 )
             except Exception:
                 pass
-    if result and not gold_555:
+    if result and not gold_555 and _durable_entry_executor is None:
         ticket = int(result[0])
         try:
             from listener import _ensure_dubai_candidate_hard_stops
+
             await _ensure_dubai_candidate_hard_stops(
                 signal,
                 force=True,
@@ -1245,7 +1641,7 @@ async def _open_candidate_leg(
                 "sl_be",
                 "critical",
                 "Dubai delayed leg filled but exact basket SL recalculation "
-                "failed; provisional SL remains active and retry continues",
+                "failed; provisional SL remains active",
                 ticket=ticket,
                 provisional_sl=provisional_sl,
                 exc_type=type(exc).__name__,
@@ -1261,13 +1657,23 @@ def _queue_gold_555_leg_protection(
     ticket: int,
     fill_price: float,
     leg_index: int,
+    current_sl: float | None = None,
 ) -> tuple[float, float]:
     with capture_management_decision(
         signal, kind="gold_555_leg_protection",
-        inputs={"ticket": ticket, "fill_price": fill_price, "leg_index": leg_index},
+        inputs={
+            "ticket": ticket,
+            "fill_price": fill_price,
+            "leg_index": leg_index,
+            "current_sl": current_sl,
+        },
     ) as evidence:
         result = _queue_gold_555_leg_protection_unrecorded(
-            signal, ticket=ticket, fill_price=fill_price, leg_index=leg_index,
+            signal,
+            ticket=ticket,
+            fill_price=fill_price,
+            leg_index=leg_index,
+            current_sl=current_sl,
         )
         evidence["result"] = result
         return result
@@ -1279,17 +1685,37 @@ def _queue_gold_555_leg_protection_unrecorded(
     ticket: int,
     fill_price: float,
     leg_index: int,
+    current_sl: float | None = None,
 ) -> tuple[float, float]:
     policy = gold_555_live_candidate.Gold555Policy()
-    exact_sl = policy.initial_stop(signal.direction, fill_price)
+    initial_sl = policy.initial_stop(signal.direction, fill_price)
+    stop_candidates = [
+        initial_sl,
+        current_sl,
+        signal.sl_by_ticket.get(int(ticket)),
+        signal.candidate_hard_stops.get(int(ticket)),
+    ]
+    valid_stops = [
+        float(value)
+        for value in stop_candidates
+        if value not in (None, 0, 0.0)
+    ]
+    exact_sl = (
+        max(valid_stops)
+        if signal.direction == "BUY"
+        else min(valid_stops)
+    )
     exact_tp = policy.target_price(signal.direction, fill_price, leg_index)
-    pending_actions.enqueue_modify_sl(
+    queued_sl = pending_actions.enqueue_modify_sl(
         signal,
         int(ticket),
         exact_sl,
         label=f"GOLD 555 SL[{leg_index}] #{ticket} -> {exact_sl:.2f}",
         persist_until_signal_close=True,
+        preserve_stronger=True,
     )
+    if queued_sl is not None:
+        exact_sl = float(queued_sl)
     pending_actions.enqueue_modify_tp(
         signal,
         int(ticket),
@@ -1373,13 +1799,16 @@ async def _apply_gold_555_trailing_stops_unrecorded(
         )
         if candidate is None:
             continue
-        pending_actions.enqueue_modify_sl(
+        queued_sl = await pending_actions.persist_async(pending_actions.enqueue_modify_sl,
             signal,
             ticket,
             candidate,
             label=f"GOLD 555 TRAIL #{ticket} -> {candidate:.2f}",
             persist_until_signal_close=True,
+            preserve_stronger=True,
         )
+        if queued_sl is not None:
+            candidate = float(queued_sl)
         previous = signal.candidate_hard_stops.get(ticket)
         signal.candidate_hard_stops[ticket] = candidate
         _journal_event(
@@ -1407,38 +1836,8 @@ async def _process_candidate_entry_tick(
     plan = _candidate_entry_plan(signal)
     if not plan:
         return 0
-    if signal.requested_close_reason or signal.basket_guard_triggered:
-        return 0
-    if time.monotonic() < float(signal.candidate_entry_retry_not_before or 0.0):
-        return 0
     now = datetime.utcnow() if now is None else now
     expires_at = signal.candidate_entry_expires_at
-    if now > expires_at:
-        if not signal.candidate_entry_expiry_logged:
-            signal.candidate_entry_expiry_logged = True
-            _journal_event(
-                f"{signal.channel}_{signal.message_id}",
-                (
-                    "gold_555_entry_ladder_expired"
-                    if signal.live_strategy_id
-                    == gold_555_live_candidate.CANDIDATE_ID
-                    else "dubai_entry_plan_expired"
-                ),
-                strategy_id=signal.live_strategy_id,
-                strategy_fingerprint=signal.live_strategy_fingerprint,
-                expires_at=expires_at.isoformat(timespec="milliseconds"),
-                filled_leg_count=1 + len(
-                    _candidate_filled_indexes(signal)
-                ),
-                unfilled_leg_indexes=list(
-                    range(
-                        1 + len(_candidate_filled_indexes(signal)),
-                        len(plan),
-                    )
-                ),
-            )
-        return 0
-
     opened = 0
     filled_indexes = _candidate_filled_indexes(signal)
     while 1 + len(filled_indexes) < len(plan):
@@ -1448,13 +1847,51 @@ async def _process_candidate_entry_tick(
         observed_price = (
             float(tick.ask) if signal.direction == "BUY" else float(tick.bid)
         )
-        hit = (
-            observed_price <= level
-            if signal.direction == "BUY"
-            else observed_price >= level
+        recovering = (
+            leg_index
+            in signal.candidate_entry_reconcile_pending_indexes
         )
-        if not hit:
-            break
+        if not recovering:
+            if (
+                signal.requested_close_reason
+                or signal.basket_guard_triggered
+                or leg_index in signal.lifecycle_cancelled_entry_indexes
+            ):
+                break
+            if time.monotonic() < float(
+                signal.candidate_entry_retry_not_before or 0.0
+            ):
+                break
+            if now > expires_at:
+                if not signal.candidate_entry_expiry_logged:
+                    signal.candidate_entry_expiry_logged = True
+                    _journal_event(
+                        f"{signal.channel}_{signal.message_id}",
+                        (
+                            "gold_555_entry_ladder_expired"
+                            if signal.live_strategy_id
+                            == gold_555_live_candidate.CANDIDATE_ID
+                            else "dubai_entry_plan_expired"
+                        ),
+                        strategy_id=signal.live_strategy_id,
+                        strategy_fingerprint=signal.live_strategy_fingerprint,
+                        expires_at=expires_at.isoformat(timespec="milliseconds"),
+                        filled_leg_count=1 + len(filled_indexes),
+                        unfilled_leg_indexes=list(
+                            range(
+                                1 + len(filled_indexes),
+                                len(plan),
+                            )
+                        ),
+                    )
+                break
+            hit = (
+                observed_price <= level
+                if signal.direction == "BUY"
+                else observed_price >= level
+            )
+            if not hit:
+                break
 
         result = await _open_candidate_leg(signal, leg, observed_price)
         if not result:
@@ -1480,20 +1917,55 @@ async def _process_candidate_entry_tick(
             break
 
         ticket, fill_price = int(result[0]), float(result[1])
-        signal.dca_tickets.append(ticket)
+        if leg_index not in signal.candidate_entry_reconcile_pending_indexes:
+            signal.candidate_entry_reconcile_pending_indexes.append(leg_index)
+        exact_sl = None
+        exact_tp = None
+        try:
+            if (
+                signal.requested_close_reason
+                or signal.basket_guard_triggered
+                or leg_index in signal.lifecycle_cancelled_entry_indexes
+            ):
+                await pending_actions.persist_async(pending_actions.enqueue_close_position,
+                    signal,
+                    ticket,
+                    label=f"RECOVER_LATE_ENTRY_CLOSE #{ticket}",
+                    persist_until_signal_close=True,
+                )
+            elif signal.live_strategy_id == gold_555_live_candidate.CANDIDATE_ID:
+                exact_sl, exact_tp = await pending_actions.persist_async(_queue_gold_555_leg_protection,
+                    signal,
+                    ticket=ticket,
+                    fill_price=fill_price,
+                    leg_index=leg_index,
+                    current_sl=(
+                        None if _durable_entry_executor is not None else
+                        gold_555_live_candidate.Gold555Policy().initial_stop(
+                            signal.direction,
+                            observed_price,
+                        )
+                    ),
+                )
+            elif _durable_entry_executor is not None or recovering:
+                from listener import _ensure_dubai_candidate_hard_stops
+
+                await _ensure_dubai_candidate_hard_stops(
+                    signal,
+                    force=True,
+                    tickets_override=list(signal.all_filled_tickets) + [ticket],
+                )
+        except BaseException:
+            signal.candidate_entry_reconcile_pending_indexes.sort()
+            raise
+        if leg_index in signal.candidate_entry_reconcile_pending_indexes:
+            signal.candidate_entry_reconcile_pending_indexes.remove(leg_index)
+        if ticket not in signal.all_filled_tickets:
+            signal.dca_tickets.append(ticket)
         signal.candidate_entry_retry_failures = 0
         signal.candidate_entry_retry_not_before = 0.0
         filled_indexes.append(leg_index)
         signal.candidate_filled_leg_indexes = list(filled_indexes)
-        exact_sl = None
-        exact_tp = None
-        if signal.live_strategy_id == gold_555_live_candidate.CANDIDATE_ID:
-            exact_sl, exact_tp = _queue_gold_555_leg_protection(
-                signal,
-                ticket=ticket,
-                fill_price=fill_price,
-                leg_index=leg_index,
-            )
         favorable_slippage = (
             level - fill_price
             if signal.direction == "BUY"
@@ -1685,13 +2157,39 @@ def _classify_closures(signal: Signal) -> list[dict]:
             deals = mt5.history_deals_get(position=ticket)
             if not deals:
                 continue
-            # El último deal de la posición es el de cierre (el primero es apertura)
-            close_deal = max(deals, key=lambda d: d.time_msc)
-            # El primer deal es apertura — sin ese no hay PnL realizado
-            open_deal = min(deals, key=lambda d: d.time_msc)
-            if close_deal.ticket == open_deal.ticket:
-                # Solo hay 1 deal → posición aún abierta o algo raro
+            # Broker deal IDs break millisecond ties without inventing clocks.
+            if any(
+                type(getattr(d, "ticket", None)) is not int or d.ticket <= 0
+                or type(getattr(d, "time_msc", None)) is not int or d.time_msc < 0
+                for d in deals
+            ) or len({d.ticket for d in deals}) != len(deals):
                 continue
+            ordered = sorted(deals, key=lambda d: (d.time_msc, d.ticket))
+            if any(hasattr(d, "entry") for d in deals):
+                # Mixed/missing roles and INOUT reversals cannot certify a close.
+                if any(type(getattr(d, "entry", None)) is not int
+                       or d.entry not in (0, 1, 3) for d in deals):
+                    continue
+                if any(type(getattr(d, "volume", None)) not in (int, float)
+                       or not math.isfinite(d.volume) or d.volume <= 0 for d in deals):
+                    continue
+                openings = [d for d in ordered if d.entry == 0]
+                exits = [d for d in ordered if d.entry in (1, 3)]
+                if not openings or not exits:
+                    continue
+                balance = 0.0
+                for deal in ordered:
+                    balance += deal.volume if deal.entry == 0 else -deal.volume
+                    if balance < -1e-9:
+                        break
+                if abs(balance) > 1e-9:
+                    continue
+                open_deal, close_deal = openings[0], exits[-1]
+            else:
+                # Preserve legacy records that never supplied native entry roles.
+                if len(ordered) < 2:
+                    continue
+                open_deal, close_deal = ordered[0], ordered[-1]
             exit_price = close_deal.price
             ticket_entry = open_deal.price  # precio real de apertura de ESTE ticket (no necesariamente = market fill)
             # PnL realizado de TODOS los deals de esta posición (apertura+cierre)
@@ -1712,7 +2210,10 @@ def _classify_closures(signal: Signal) -> list[dict]:
                 "effective_tp": effective_tp,
                 "effective_sl": effective_sl,
             }
-            if ticket in getattr(signal, "basket_guard_close_tickets", []):
+            # A queued client close may lose the race to a native protection.
+            # Preserve the actual exit cause rather than the requested action.
+            native_protection_exit = broker_reason in {"sl", "tp", "be"}
+            if not native_protection_exit and ticket in getattr(signal, "basket_guard_close_tickets", []):
                 reason = str(
                     getattr(signal, "basket_guard_trigger_reason", None)
                     or "triggered"
@@ -1727,7 +2228,7 @@ def _classify_closures(signal: Signal) -> list[dict]:
                     "classification_source": "bot_state",
                 })
                 continue
-            if ticket in getattr(signal, "be_rescue_tickets", []):
+            if not native_protection_exit and ticket in getattr(signal, "be_rescue_tickets", []):
                 out.append({
                     "ticket": int(ticket),
                     "exit_price": round(exit_price, 2),
@@ -1743,7 +2244,7 @@ def _classify_closures(signal: Signal) -> list[dict]:
             # Este cierre no corresponde a ningún TP ni SL; es intencional.
             # Se registra antes del bloque TP/SL para evitar falsos positivos
             # cuando el precio en ese momento está cerca de un nivel.
-            if ticket in signal.close_first_tickets:
+            if not native_protection_exit and ticket in signal.close_first_tickets:
                 out.append({
                     "ticket": int(ticket),
                     "exit_price": round(exit_price, 2),
@@ -1755,7 +2256,7 @@ def _classify_closures(signal: Signal) -> list[dict]:
                 })
                 continue
 
-            if ticket in getattr(signal, "risk_free_close_tickets", []):
+            if not native_protection_exit and ticket in getattr(signal, "risk_free_close_tickets", []):
                 out.append({
                     "ticket": int(ticket),
                     "exit_price": round(exit_price, 2),
@@ -1811,123 +2312,75 @@ def _floating_pl_summary(signal: Signal) -> dict:
     Devuelve dict con: pl, n_open, avg_entry, current_price.
     Si no se puede leer el tick o las posiciones, devuelve dict con None.
     """
-    out = {
-        "pl": 0.0,
-        "n_open": 0,
-        "avg_entry": None,
-        "current_price": None,
-        "lots_total": 0.0,
-        "open_tickets": [],
-        "positions_complete": True,
-    }
-    tick = mt5.symbol_info_tick(config.MT5_SYMBOL)
-    if tick:
-        # Para BUY el "precio actual relevante" para cierre es bid; para SELL ask.
-        out["current_price"] = (tick.bid if signal.direction == "BUY" else tick.ask)
+    read_interval = {}
 
-    all_open = mt5.positions_get()
-    if all_open is None:
-        out["positions_complete"] = False
-        return out
+    def read(request):
+        if request.operation is not basket_observation.ReadOperation.POSITIONS:
+            return _read_basket_summary_stage(request)
+        started = datetime.now(timezone.utc)
+        started_monotonic = time.monotonic()
+        try:
+            return _read_basket_summary_stage(request)
+        finally:
+            read_interval.update(
+                positions_read_started_utc=started.isoformat(timespec="milliseconds"),
+                positions_read_completed_utc=datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+                positions_read_elapsed_ms=round((time.monotonic() - started_monotonic) * 1_000, 3),
+            )
 
-    wanted = set(int(ticket) for ticket in signal.all_filled_tickets)
-    weighted_entry = 0.0
-    for p in all_open:
-        if int(p.ticket) not in wanted:
-            continue
-        out["pl"] += p.profit
-        out["n_open"] += 1
-        out["open_tickets"].append(int(p.ticket))
-        out["lots_total"] += p.volume
-        weighted_entry += p.price_open * p.volume
+    summary = basket_observation.drive_reads(
+        basket_observation.floating_summary_reads(
+            config.MT5_SYMBOL, signal.direction, lambda: signal.all_filled_tickets),
+        read,
+    )
+    summary.update(read_interval)
+    return summary
 
-    if out["lots_total"] > 0:
-        out["avg_entry"] = weighted_entry / out["lots_total"]
 
-    return out
+def _read_basket_summary_stage(request):
+    operation = request.operation
+    if operation is basket_observation.ReadOperation.TICK:
+        return mt5.symbol_info_tick(request.params["symbol"])
+    if operation is basket_observation.ReadOperation.POSITIONS:
+        return mt5.positions_get()
+    if operation is basket_observation.ReadOperation.DEALS_POSITION:
+        return mt5.history_deals_get(position=request.params["position"])
+    raise ValueError("unsupported basket summary read")
 
 
 def _confirmed_realized_ticket_pl(ticket: int) -> float | None:
     deals = mt5.history_deals_get(position=int(ticket))
-    if deals is None or len(deals) < 2:
-        return None
-    entry_in = getattr(mt5, "DEAL_ENTRY_IN", 0)
-    exit_entries = {
-        getattr(mt5, "DEAL_ENTRY_OUT", 1),
-        getattr(mt5, "DEAL_ENTRY_OUT_BY", 3),
-    }
-    opened_volume = sum(
-        float(getattr(deal, "volume", 0.0) or 0.0)
-        for deal in deals
-        if getattr(deal, "entry", None) == entry_in
-    )
-    closed_volume = sum(
-        float(getattr(deal, "volume", 0.0) or 0.0)
-        for deal in deals
-        if getattr(deal, "entry", None) in exit_entries
-    )
-    if opened_volume <= 0.0 or closed_volume + 1e-9 < opened_volume:
-        return None
-    return sum(
-        float(getattr(deal, field, 0.0) or 0.0)
-        for deal in deals
-        for field in ("profit", "commission", "swap", "fee")
+    return basket_observation.confirmed_realized_profit(
+        deals, entry_in=getattr(mt5, "DEAL_ENTRY_IN", 0),
+        exit_entries=(getattr(mt5, "DEAL_ENTRY_OUT", 1), getattr(mt5, "DEAL_ENTRY_OUT_BY", 3)),
     )
 
 
 def _signal_pl_summary(signal: Signal) -> dict:
     """Combine current MT5 exposure with confirmed account-currency closes."""
     summary = _floating_pl_summary(signal)
-    floating_pl = float(summary.get("pl") or 0.0)
-    summary["floating_pl"] = floating_pl
-
-    known_tickets = []
-    seen = set()
-    for ticket in (
-        list(signal.basket_guard_known_tickets)
-        + list(signal.all_filled_tickets)
-    ):
-        ticket = int(ticket)
-        if ticket in seen:
-            continue
-        seen.add(ticket)
-        known_tickets.append(ticket)
+    known_tickets = basket_observation.merge_known_tickets(
+        signal.basket_guard_known_tickets, signal.all_filled_tickets)
     signal.basket_guard_known_tickets = known_tickets
 
-    cache = signal.basket_guard_realized_by_ticket
-    open_tickets = set(int(ticket) for ticket in summary.get("open_tickets") or [])
-    missing = []
-    if summary.get("positions_complete", True):
-        for ticket in known_tickets:
-            if ticket in open_tickets or ticket in cache or str(ticket) in cache:
-                continue
-            realized = _confirmed_realized_ticket_pl(ticket)
-            if realized is None:
-                missing.append(ticket)
-                continue
-            cache[ticket] = float(realized)
-            _journal_event(
-                f"{signal.channel}_{signal.message_id}",
-                "basket_guard_realized_ticket_confirmed",
-                ticket=ticket,
-                realized_pl=round(float(realized), 8),
-                money_fields=["profit", "commission", "swap", "fee"],
-            )
-    else:
-        missing = [ticket for ticket in known_tickets if ticket not in open_tickets]
+    def confirmed(ticket, realized):
+        _journal_event(
+            f"{signal.channel}_{signal.message_id}",
+            "basket_guard_realized_ticket_confirmed", ticket=ticket,
+            realized_pl=round(realized, 8), money_fields=["profit", "commission", "swap", "fee"],
+        )
 
-    realized_pl = sum(float(value) for value in cache.values())
-    realized_complete = bool(
-        summary.get("positions_complete", True) and not missing
+    summary = basket_observation.drive_reads(
+        basket_observation.realized_summary_reads(
+            summary, known_tickets, signal.basket_guard_realized_by_ticket, on_confirmed=confirmed,
+            entry_in=getattr(mt5, "DEAL_ENTRY_IN", 0),
+            exit_entries=(getattr(mt5, "DEAL_ENTRY_OUT", 1), getattr(mt5, "DEAL_ENTRY_OUT_BY", 3))),
+        _read_basket_summary_stage,
     )
-    summary.update({
-        "realized_pl": realized_pl,
-        "realized_complete": realized_complete,
-        "missing_realized_tickets": missing,
-        "total_pl": (
-            floating_pl + realized_pl if realized_complete else None
-        ),
-    })
+    if has_unresolved_entry_execution(signal):
+        # Known tickets are only a subset until the submitted entry is resolved.
+        summary.update(realized_complete=False, total_pl=None,
+                       unresolved_entry_indexes=list(signal.candidate_entry_reconcile_pending_indexes))
     return summary
 
 
@@ -2018,7 +2471,7 @@ async def _notify_time_stop(signal: Signal, elapsed_min: float):
         print(f"[Position Monitor] No pude importar notify(): {e}")
         notify = None
 
-    summary = _floating_pl_summary(signal)
+    summary = await asyncio.to_thread(_floating_pl_summary, signal)
     if summary["n_open"] <= 0:
         signal.time_stop_at = None
         try:
@@ -2125,7 +2578,7 @@ async def _arm_be(signal: Signal):
     loop = asyncio.get_event_loop()
     # Lee tick actual una vez para todos los tickets
     try:
-        import MetaTrader5 as _mt5
+        from mt5_runtime import mt5 as _mt5
         tick = await loop.run_in_executor(
             None, lambda: _mt5.symbol_info_tick(config.MT5_SYMBOL))
         si = await loop.run_in_executor(
@@ -2164,7 +2617,7 @@ async def _arm_be(signal: Signal):
                     skipped_invalid += 1
                     continue
 
-        pending_actions.enqueue_modify_sl(
+        await pending_actions.persist_async(pending_actions.enqueue_modify_sl,
             signal, t, entry, label=f"BE→{entry:.2f} #{t}"
         )
         moved += 1
@@ -2301,7 +2754,7 @@ async def run(signal: Signal, levels: list[float]):
                 # Continuamos el loop — el monitor sigue para BE/DCAs/cierre normal
             else:
                 # Modo legacy: cierra automáticamente
-                _close_all_positions(
+                await pending_actions.persist_async(_close_all_positions,
                     signal,
                     f"TIME-STOP (elapsed {elapsed_min:.1f}min)"
                 )
@@ -2498,7 +2951,7 @@ async def run(signal: Signal, levels: list[float]):
                 guard_summary["source_tick_time_msc"] = getattr(
                     tick, "time_msc", None
                 )
-                decision = _apply_live_basket_guard(signal, guard_summary)
+                decision = await pending_actions.persist_async(_apply_live_basket_guard, signal, guard_summary)
                 _maybe_alert_gold_555_prolonged_exposure(
                     signal,
                     guard_summary,
@@ -2650,7 +3103,10 @@ async def run(signal: Signal, levels: list[float]):
                     # las posiciones vía TP o SL sin que el canal mandara mensaje.
                     # El listener nunca supo del cierre → nunca llamó _finalize_signal.
                     # Detectamos aquí y finalizamos para que el journal quede completo.
-                    closures = _classify_closures(signal)
+                    closures = await asyncio.to_thread(
+                        _classify_closures,
+                        signal,
+                    )
                     by_tag = {}
                     for c in closures:
                         by_tag[c["closed_by_tag"]] = by_tag.get(c["closed_by_tag"], 0) + 1

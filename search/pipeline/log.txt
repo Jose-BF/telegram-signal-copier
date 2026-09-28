@@ -1,0 +1,7 @@
+05:05 luck bars {'canal1': 5.282781115984884, 'canal2': 32.02431167418955}
+05:05 canal1 finalists 6 beating the luck bar 3
+05:05 canal2 finalists 4 beating the luck bar 1
+05:09 canal1 real genome neighbours 52 secs 220
+05:13 canal2 real genome neighbours 35 secs 237
+05:13 neighbours done
+05:16 stage 2 done

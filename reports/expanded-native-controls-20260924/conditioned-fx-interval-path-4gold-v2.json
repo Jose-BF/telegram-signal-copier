@@ -1,0 +1,180 @@
+{
+  "cases": [
+    {
+      "broker_sha256": "cd5b1a326b833412affa75b3b7f7f4c42a4a808f62d423b350814618a809d7c3",
+      "channel": "canal2",
+      "engine_mismatches": {
+        "fast": [],
+        "scalar": []
+      },
+      "money_sha256": "550cbd6176316cb4cb62eb41ed9dc4e0673a0a925319f0b7e041230aa2ecf41d",
+      "native_entry_count": 4,
+      "retrospective_blockers": [],
+      "retrospective_status": "evaluated_conditioned_management",
+      "risk_blockers": [],
+      "risk_gate_evidence": {
+        "booked_native_net_eur": "13.43",
+        "common_grid_model_net_eur": "13.43",
+        "common_grid_native_net_eur": "13.43",
+        "frozen_native_net_eur": "13.43",
+        "model_blockers": [],
+        "native_blockers": []
+      },
+      "signal_id": "canal2_2970",
+      "sources": {
+        "archived_implementation_matches_current": true,
+        "archived_model_outputs_not_used": true,
+        "archived_model_sha256": "10b273e5b658f34bb8fc4ecefb9df7a880b0a6d2f6eb614d57d7b01012f06ed3",
+        "archived_runner_matches_current": false,
+        "changed_archived_implementation_files": [],
+        "native_risk_sha256": "a4c94d417829320cab2f5d17264a7330b43e80730d92b70b94ec79c5e0b4a468",
+        "raw_sha256": "9548ca5ce3fdd27ebe5f488ac97639c7e5cc7001ae0f75c73a40d3828cfd63b0"
+      },
+      "status": "blocked_incomplete_risk_path",
+      "strict_blockers": [
+        "incomplete_equity_conversion",
+        "stale_conversion_during_profit_lock"
+      ],
+      "strict_model_events_available": false,
+      "strict_status": "blocked"
+    },
+    {
+      "broker_sha256": "cd5b1a326b833412affa75b3b7f7f4c42a4a808f62d423b350814618a809d7c3",
+      "channel": "canal2",
+      "engine_mismatches": {
+        "fast": [],
+        "scalar": []
+      },
+      "money_sha256": "550cbd6176316cb4cb62eb41ed9dc4e0673a0a925319f0b7e041230aa2ecf41d",
+      "native_entry_count": 2,
+      "retrospective_blockers": [],
+      "retrospective_status": "evaluated_conditioned_management",
+      "risk_blockers": [],
+      "risk_gate_evidence": {
+        "booked_native_net_eur": "4.33",
+        "common_grid_model_net_eur": "4.33",
+        "common_grid_native_net_eur": "4.33",
+        "frozen_native_net_eur": "4.33",
+        "model_blockers": [],
+        "native_blockers": []
+      },
+      "signal_id": "canal2_2995",
+      "sources": {
+        "archived_implementation_matches_current": true,
+        "archived_model_outputs_not_used": true,
+        "archived_model_sha256": "ecd19b04541556f2f1e501ddbb50351e8911f0862f82f2fda09f0662c71282dd",
+        "archived_runner_matches_current": true,
+        "changed_archived_implementation_files": [],
+        "native_risk_sha256": "a4c94d417829320cab2f5d17264a7330b43e80730d92b70b94ec79c5e0b4a468",
+        "raw_sha256": "9548ca5ce3fdd27ebe5f488ac97639c7e5cc7001ae0f75c73a40d3828cfd63b0"
+      },
+      "status": "blocked_incomplete_risk_path",
+      "strict_blockers": [
+        "incomplete_equity_conversion",
+        "stale_conversion_at_exit:15290",
+        "stale_conversion_during_profit_lock"
+      ],
+      "strict_model_events_available": false,
+      "strict_status": "blocked"
+    },
+    {
+      "broker_sha256": "cd5b1a326b833412affa75b3b7f7f4c42a4a808f62d423b350814618a809d7c3",
+      "channel": "canal2",
+      "engine_mismatches": {
+        "fast": [],
+        "scalar": []
+      },
+      "money_sha256": "550cbd6176316cb4cb62eb41ed9dc4e0673a0a925319f0b7e041230aa2ecf41d",
+      "native_entry_count": 4,
+      "retrospective_blockers": [],
+      "retrospective_status": "evaluated_conditioned_management",
+      "risk_blockers": [],
+      "risk_gate_evidence": {
+        "booked_native_net_eur": "13.53",
+        "common_grid_model_net_eur": "13.53",
+        "common_grid_native_net_eur": "13.53",
+        "frozen_native_net_eur": "13.53",
+        "model_blockers": [],
+        "native_blockers": []
+      },
+      "signal_id": "canal2_3156",
+      "sources": {
+        "archived_implementation_matches_current": true,
+        "archived_model_outputs_not_used": true,
+        "archived_model_sha256": "4e39bfba20b9efe61fb57cca9895afd8c2840d09646e4e5e5a77feeaf8a4c7c4",
+        "archived_runner_matches_current": true,
+        "changed_archived_implementation_files": [],
+        "native_risk_sha256": "a4c94d417829320cab2f5d17264a7330b43e80730d92b70b94ec79c5e0b4a468",
+        "raw_sha256": "9548ca5ce3fdd27ebe5f488ac97639c7e5cc7001ae0f75c73a40d3828cfd63b0"
+      },
+      "status": "blocked_incomplete_risk_path",
+      "strict_blockers": [
+        "incomplete_equity_conversion",
+        "stale_conversion_during_profit_lock"
+      ],
+      "strict_model_events_available": false,
+      "strict_status": "blocked"
+    },
+    {
+      "broker_sha256": "cd5b1a326b833412affa75b3b7f7f4c42a4a808f62d423b350814618a809d7c3",
+      "channel": "canal2",
+      "engine_mismatches": {
+        "fast": [],
+        "scalar": []
+      },
+      "money_sha256": "550cbd6176316cb4cb62eb41ed9dc4e0673a0a925319f0b7e041230aa2ecf41d",
+      "native_entry_count": 2,
+      "retrospective_blockers": [],
+      "retrospective_status": "evaluated_conditioned_management",
+      "risk_blockers": [],
+      "risk_gate_evidence": {
+        "booked_native_net_eur": "4.36",
+        "common_grid_model_net_eur": "4.36",
+        "common_grid_native_net_eur": "4.36",
+        "frozen_native_net_eur": "4.36",
+        "model_blockers": [],
+        "native_blockers": []
+      },
+      "signal_id": "canal2_3180",
+      "sources": {
+        "archived_implementation_matches_current": true,
+        "archived_model_outputs_not_used": true,
+        "archived_model_sha256": "581378e6089e5ef1ec37978f0e7303b51bd77cd81fa67833182e83a2bf152182",
+        "archived_runner_matches_current": false,
+        "changed_archived_implementation_files": [],
+        "native_risk_sha256": "a4c94d417829320cab2f5d17264a7330b43e80730d92b70b94ec79c5e0b4a468",
+        "raw_sha256": "9548ca5ce3fdd27ebe5f488ac97639c7e5cc7001ae0f75c73a40d3828cfd63b0"
+      },
+      "status": "blocked_incomplete_risk_path",
+      "strict_blockers": [
+        "incomplete_equity_conversion",
+        "stale_conversion_during_profit_lock"
+      ],
+      "strict_model_events_available": false,
+      "strict_status": "blocked"
+    }
+  ],
+  "contract": "conditioned_fx_interval_path_sensitivity_v1",
+  "elapsed_seconds": 4.879237000015564,
+  "entry_decisions_verified": false,
+  "full_live_parity_verified": false,
+  "limitations": [
+    "Native entries fixed; shared transport and entry decisions not compared.",
+    "Future FX timestamp is used for retrospective coverage, never future price.",
+    "Common retained XAUUSD ticks and event boundaries, not broker account equity.",
+    "Historical diagnostic, not out-of-sample strategy validation or live policy."
+  ],
+  "retrospective_fx_interval_ms": 60000,
+  "sources": {
+    "research/causal_replay.py": "f470c980d6ccefb9451712a13adb704ee9eb278d331b5cb90c5c19b1df291f5f",
+    "research/conditioned_management.py": "e6942551f9d2e599160096d889ceaffc4c4664ad0638ce2abd44adea3b306e94",
+    "research/risk_trajectory.py": "52d4dd9854bacf8e760e6276e97244ff3ea6b7cf7d58c12cd288989c0a7256f1",
+    "tools/audit_conditioned_fx_path_sensitivity.py": "e344f3eae922787a0f0111f338e8f4d26b589a4bcd92dd4e4af63306a384cc72",
+    "tools/audit_week_conditioned_controls.py": "d5b4cb26592e27884b4115b9e527d0faebfa8b2124e627ddfe5dcc118da8dd1f"
+  },
+  "status": "diagnostic_only",
+  "statuses": {
+    "blocked_incomplete_risk_path": 4
+  },
+  "strict_causal_fx_age_ms": 5000
+}

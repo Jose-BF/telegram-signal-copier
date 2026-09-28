@@ -1,0 +1,25 @@
+{
+  "cases": [
+    "unobserved_peak",
+    "observed_peak",
+    "ladder_after_blocking_read",
+    "invalid_quote"
+  ],
+  "contract": "shared_interquote_reads_v2",
+  "fixtures": "tests/test_shared_management_reads.py",
+  "native_parity_verified": false,
+  "profile": {
+    "account_currency": "EUR",
+    "capacity": 8,
+    "max_events": 100000,
+    "max_quotes": 1000000,
+    "max_read_cycles": 1000,
+    "max_read_payload_bytes": 16777216,
+    "max_rounds_per_quote": 256,
+    "name": "shared_interquote_reads_v2",
+    "read_symbol": "XAUUSD",
+    "request_timeout_ms": 60000
+  },
+  "scope": "generic money rules, fixed or absent native stop; not full Dubai/Gold555",
+  "synthetic": true
+}

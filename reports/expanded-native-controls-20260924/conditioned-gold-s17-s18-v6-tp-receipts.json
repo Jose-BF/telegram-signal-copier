@@ -1,0 +1,2166 @@
+{
+  "client_observation_replay_verified": false,
+  "contract": "weekly_native_entry_conditioned_risk_diagnostic_v1",
+  "elapsed_seconds": 11.614289299992379,
+  "entry_decisions_verified": false,
+  "full_live_parity_verified": false,
+  "input_basket_count": 10,
+  "inputs_sha256": {
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\research\\causal_comparison.py": "8a52c3203d32917d5555b795e8f43e4fd93a6413617b5f7ed3d7213edb52e23c",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\research\\causal_replay.py": "f470c980d6ccefb9451712a13adb704ee9eb278d331b5cb90c5c19b1df291f5f",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\research\\conditioned_management.py": "e6942551f9d2e599160096d889ceaffc4c4664ad0638ce2abd44adea3b306e94",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\research\\dubai_iterative\\engine.py": "f1212c29dafdb5eca27436ab60635ae29fdcb146b6b5f168999c669fb031a134",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\research\\dubai_iterative\\fast_engine.py": "30bfb10acc046fb600a3007d724f1217bc0ddd10a74f620debd059c0adeb6901",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\research\\dubai_iterative\\oracle.py": "97d10fb50c25668c01fbc460cc2c1c603f870a79a85a7e0dc6014eece3e60419",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\research\\gold_iterative\\live_parity.py": "35be1c5e0c8b97fd6a5508011e315ce8899b437cad72ed1fa580179137f4064e",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\research\\observed_tp_receipts.py": "7632aba2eeddafcbd4272b47e7d7b047ac99faa8b1ee1f8df4c4538cbbd69cb9",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\research\\risk_trajectory.py": "52d4dd9854bacf8e760e6276e97244ff3ea6b7cf7d58c12cd288989c0a7256f1",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\tools\\audit_week_conditioned_controls.py": "d5b4cb26592e27884b4115b9e527d0faebfa8b2124e627ddfe5dcc118da8dd1f",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\tools\\compare_risk_trajectories.py": "361ed7df0abb8ed40f3f6c644c53eed0b5a76f71cbadfa4913829bc0d162a6ea",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\tools\\probe_canal1_incremental_window.py": "296ded21b2b2a4ac8ec5bb4a00969c586a19b5b362019956a8911bf7b2375c50",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\tools\\run_week_causal_controls.py": "46228b0daf4653dceb6cf640b3179f8c47dfe23b33d83fde42e8eb59c939238d",
+    "reports\\expanded-native-controls-20260924\\diagnostic-s17-1345-1455-grid-v4.json": "875b25a1643f3424891e4feb6ace0cc7d8480276a9550b83c9c6b2f2618eed2e",
+    "reports\\expanded-native-controls-20260924\\diagnostic-s18-1220-1245-grid-v4.json": "0d9bac9c0e5322e608667c25643a425957d708a544b1369dbc068a8d210397a5",
+    "reports\\expanded-native-controls-20260924\\tick-path-s17-1345-1455-v6.json": "642052961885695482f8272e7e8378222a7543a8cca441d4a878f9db51a57f23",
+    "reports\\expanded-native-controls-20260924\\tick-path-s18-1220-1245-v6.json": "a8877ce3f241c3919290c08e328f147d228a8b554d5834737781958d30725bb0",
+    "runtime_data\\week_native_ticks_20260923_v1\\native_money_anchor_v2.json": "550cbd6176316cb4cb62eb41ed9dc4e0673a0a925319f0b7e041230aa2ecf41d",
+    "runtime_data\\week_native_ticks_20260923_v1\\native_week_risk_path_v1.json": "a4c94d417829320cab2f5d17264a7330b43e80730d92b70b94ec79c5e0b4a468",
+    "runtime_data\\week_native_ticks_20260923_v1\\raw_week_20260914_19_bg_v1.json": "9548ca5ce3fdd27ebe5f488ac97639c7e5cc7001ae0f75c73a40d3828cfd63b0",
+    "runtime_data\\week_native_ticks_20260923_v1\\tp_request_timeline_3148_3168_3171_v1.json": "8d1127b157e8b3c87e2b20c4ba7b6431505f025585c9b71dc8f2d98e13c68dc0",
+    "runtime_data\\weekly_review_20260919\\broker_money_contract_vm.json": "cd5b1a326b833412affa75b3b7f7f4c42a4a808f62d423b350814618a809d7c3"
+  },
+  "limitations": [
+    "Observed entries are fixed inputs; their decisions are not validated.",
+    "Native exits, money and installed protections are not engine inputs.",
+    "The isolated Gold policy does not replay shared client queues or broker acknowledgements.",
+    "Canal1 dynamic management and no-entry scopes remain blocked here.",
+    "Only two retrospective windows are evaluated; this is not fresh holdout evidence.",
+    "Client TP responses do not prove the server installation time or trigger."
+  ],
+  "rows": [
+    {
+      "channel": "canal2",
+      "conditioned_policy_fingerprint": null,
+      "declared_policy_fingerprint": "9b8a08950d6bd319b06f495a9844628c6e9d65bf49770b733f9c123f397ccc91",
+      "engine_mismatches": {
+        "fast": [],
+        "scalar": []
+      },
+      "frozen_native_drawdown_eur": "178.72",
+      "frozen_native_net_eur": "20.02",
+      "management_blockers": [],
+      "management_status": "evaluated_conditioned_management",
+      "native_booked_net_eur": "20.02",
+      "native_entry_count": 5,
+      "risk": {
+        "blockers": [],
+        "first_divergence": {
+          "at": "2026-09-17 13:46:01.434000+00:00",
+          "differences": [
+            "floating",
+            "realized",
+            "short_volume",
+            "open_count",
+            "positions"
+          ],
+          "observed": {
+            "at": "2026-09-17 13:46:01.434000+00:00",
+            "blockers": [],
+            "floating": "1.74",
+            "long_volume": "0",
+            "open_count": 1,
+            "ordinal": 0,
+            "positions": {
+              "1": {
+                "direction": "SELL",
+                "floating": "1.74",
+                "realized": "0",
+                "total": "1.74",
+                "volume": "0.04"
+              }
+            },
+            "quote_at": "2026-09-17 13:46:01.434000+00:00",
+            "realized": "0",
+            "short_volume": "0.04",
+            "total": "1.74"
+          },
+          "ordinal": 0,
+          "simulated": {
+            "at": "2026-09-17 13:46:01.434000+00:00",
+            "blockers": [],
+            "floating": "0",
+            "long_volume": "0",
+            "open_count": 0,
+            "ordinal": 0,
+            "positions": {
+              "1": {
+                "direction": "SELL",
+                "floating": "0",
+                "realized": "1.74",
+                "total": "1.74",
+                "volume": "0.00"
+              }
+            },
+            "quote_at": "2026-09-17 13:46:01.434000+00:00",
+            "realized": "1.74",
+            "short_volume": "0.00",
+            "total": "1.74"
+          }
+        },
+        "first_divergence_scope": "first_comparable_sample_not_proof_before_unknown_intervals",
+        "first_unknown": null,
+        "full_live_parity_verified": false,
+        "max_abs_total_difference": "0.71",
+        "mismatched_pairs": 6,
+        "observed": {
+          "blockers": [],
+          "currency": "EUR",
+          "full_live_parity_verified": false,
+          "fx_coverage_mode": "strict_causal",
+          "known_sample_metrics": {
+            "final_at": "2026-09-17 14:43:13.393000+00:00",
+            "final_net": "20.02",
+            "known_samples": 39787,
+            "max_drawdown": "178.72",
+            "max_gross_volume": "0.12",
+            "maximum_from_origin": "20.02",
+            "minimum_from_origin": "-176.98"
+          },
+          "metrics": {
+            "final_at": "2026-09-17 14:43:13.393000+00:00",
+            "final_net": "20.02",
+            "known_samples": 39787,
+            "max_drawdown": "178.72",
+            "max_gross_volume": "0.12",
+            "maximum_from_origin": "20.02",
+            "minimum_from_origin": "-176.98"
+          },
+          "retrospective_fx_bracketed_samples": 0,
+          "same_time_convention": "confirmed_events_before_quote_mark",
+          "samples_count": 39787,
+          "samples_sha256": "88d772adfea36c80a5cc75fb36c70ba07daeb81c76a16541e76c25d133903bd4",
+          "scope": "retained_grid_including_event_boundaries_not_continuous_market_extrema",
+          "valuation": "realized_booked_at_events_plus_executable_floating"
+        },
+        "simulated": {
+          "blockers": [],
+          "currency": "EUR",
+          "full_live_parity_verified": false,
+          "fx_coverage_mode": "strict_causal",
+          "known_sample_metrics": {
+            "final_at": "2026-09-17 14:43:13.393000+00:00",
+            "final_net": "20.02",
+            "known_samples": 39787,
+            "max_drawdown": "178.72",
+            "max_gross_volume": "0.12",
+            "maximum_from_origin": "20.02",
+            "minimum_from_origin": "-176.98"
+          },
+          "metrics": {
+            "final_at": "2026-09-17 14:43:13.393000+00:00",
+            "final_net": "20.02",
+            "known_samples": 39787,
+            "max_drawdown": "178.72",
+            "max_gross_volume": "0.12",
+            "maximum_from_origin": "20.02",
+            "minimum_from_origin": "-176.98"
+          },
+          "retrospective_fx_bracketed_samples": 0,
+          "same_time_convention": "confirmed_events_before_quote_mark",
+          "samples_count": 39787,
+          "samples_sha256": "221ca34dd18c20d72330d93ad6107b347f4c0ae59382958255fcaed5f3bb841f",
+          "scope": "retained_grid_including_event_boundaries_not_continuous_market_extrema",
+          "valuation": "realized_booked_at_events_plus_executable_floating"
+        },
+        "status": "mismatch",
+        "unknown_pairs": 0
+      },
+      "sequence": {
+        "comparisons": [
+          {
+            "differences": [],
+            "first_possible_time": "2026-09-17 13:45:58.821000+00:00",
+            "kind": "entry",
+            "money_delta": "0",
+            "observed": {
+              "at": "2026-09-17 13:45:58.821000+00:00",
+              "direction": "SELL",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4358.85",
+              "slot": 1,
+              "volume": "0.04"
+            },
+            "ordinal": 0,
+            "price_delta": "0.00",
+            "simulated": {
+              "at": "2026-09-17 13:45:58.821000+00:00",
+              "direction": "SELL",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4358.85",
+              "slot": 1,
+              "volume": "0.04"
+            },
+            "slot": 1,
+            "time_delta_ms": 0.0
+          },
+          {
+            "differences": [
+              "at",
+              "mechanism"
+            ],
+            "first_possible_time": "2026-09-17 13:46:01.434000+00:00",
+            "kind": "exit",
+            "money_delta": "0.00",
+            "observed": {
+              "at": "2026-09-17 13:46:01.447000+00:00",
+              "direction": "SELL",
+              "kind": "exit",
+              "mechanism": "observed_native_exit",
+              "money": "1.74",
+              "price": "4358.35",
+              "slot": 1,
+              "volume": "0.04"
+            },
+            "ordinal": 0,
+            "price_delta": "0.00",
+            "simulated": {
+              "at": "2026-09-17 13:46:01.434000+00:00",
+              "direction": "SELL",
+              "kind": "exit",
+              "mechanism": "per_leg_target",
+              "money": "1.74",
+              "price": "4358.35",
+              "slot": 1,
+              "volume": "0.04"
+            },
+            "slot": 1,
+            "time_delta_ms": -13.0
+          },
+          {
+            "differences": [],
+            "first_possible_time": "2026-09-17 13:46:27.815000+00:00",
+            "kind": "entry",
+            "money_delta": "0",
+            "observed": {
+              "at": "2026-09-17 13:46:27.815000+00:00",
+              "direction": "SELL",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4360.83",
+              "slot": 2,
+              "volume": "0.03"
+            },
+            "ordinal": 0,
+            "price_delta": "0.00",
+            "simulated": {
+              "at": "2026-09-17 13:46:27.815000+00:00",
+              "direction": "SELL",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4360.83",
+              "slot": 2,
+              "volume": "0.03"
+            },
+            "slot": 2,
+            "time_delta_ms": 0.0
+          },
+          {
+            "differences": [],
+            "first_possible_time": "2026-09-17 13:46:30.792000+00:00",
+            "kind": "entry",
+            "money_delta": "0",
+            "observed": {
+              "at": "2026-09-17 13:46:30.792000+00:00",
+              "direction": "SELL",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4362.25",
+              "slot": 3,
+              "volume": "0.03"
+            },
+            "ordinal": 0,
+            "price_delta": "0.00",
+            "simulated": {
+              "at": "2026-09-17 13:46:30.792000+00:00",
+              "direction": "SELL",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4362.25",
+              "slot": 3,
+              "volume": "0.03"
+            },
+            "slot": 3,
+            "time_delta_ms": 0.0
+          },
+          {
+            "differences": [],
+            "first_possible_time": "2026-09-17 13:46:42.843000+00:00",
+            "kind": "entry",
+            "money_delta": "0",
+            "observed": {
+              "at": "2026-09-17 13:46:42.843000+00:00",
+              "direction": "SELL",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4363.99",
+              "slot": 4,
+              "volume": "0.03"
+            },
+            "ordinal": 0,
+            "price_delta": "0.00",
+            "simulated": {
+              "at": "2026-09-17 13:46:42.843000+00:00",
+              "direction": "SELL",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4363.99",
+              "slot": 4,
+              "volume": "0.03"
+            },
+            "slot": 4,
+            "time_delta_ms": 0.0
+          },
+          {
+            "differences": [],
+            "first_possible_time": "2026-09-17 13:47:04.555000+00:00",
+            "kind": "entry",
+            "money_delta": "0",
+            "observed": {
+              "at": "2026-09-17 13:47:04.555000+00:00",
+              "direction": "SELL",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4365.04",
+              "slot": 5,
+              "volume": "0.03"
+            },
+            "ordinal": 0,
+            "price_delta": "0.00",
+            "simulated": {
+              "at": "2026-09-17 13:47:04.555000+00:00",
+              "direction": "SELL",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4365.04",
+              "slot": 5,
+              "volume": "0.03"
+            },
+            "slot": 5,
+            "time_delta_ms": 0.0
+          },
+          {
+            "differences": [
+              "at",
+              "mechanism"
+            ],
+            "first_possible_time": "2026-09-17 14:32:37.337000+00:00",
+            "kind": "exit",
+            "money_delta": "0.00",
+            "observed": {
+              "at": "2026-09-17 14:32:37.343000+00:00",
+              "direction": "SELL",
+              "kind": "exit",
+              "mechanism": "observed_native_exit",
+              "money": "6.53",
+              "price": "4362.54",
+              "slot": 5,
+              "volume": "0.03"
+            },
+            "ordinal": 0,
+            "price_delta": "0.00",
+            "simulated": {
+              "at": "2026-09-17 14:32:37.337000+00:00",
+              "direction": "SELL",
+              "kind": "exit",
+              "mechanism": "per_leg_target",
+              "money": "6.53",
+              "price": "4362.54",
+              "slot": 5,
+              "volume": "0.03"
+            },
+            "slot": 5,
+            "time_delta_ms": -6.0
+          },
+          {
+            "differences": [
+              "at",
+              "mechanism"
+            ],
+            "first_possible_time": "2026-09-17 14:39:58.147000+00:00",
+            "kind": "exit",
+            "money_delta": "0.00",
+            "observed": {
+              "at": "2026-09-17 14:39:58.242000+00:00",
+              "direction": "SELL",
+              "kind": "exit",
+              "mechanism": "observed_native_exit",
+              "money": "5.22",
+              "price": "4361.99",
+              "slot": 4,
+              "volume": "0.03"
+            },
+            "ordinal": 0,
+            "price_delta": "0.00",
+            "simulated": {
+              "at": "2026-09-17 14:39:58.147000+00:00",
+              "direction": "SELL",
+              "kind": "exit",
+              "mechanism": "per_leg_target",
+              "money": "5.22",
+              "price": "4361.99",
+              "slot": 4,
+              "volume": "0.03"
+            },
+            "slot": 4,
+            "time_delta_ms": -95.0
+          },
+          {
+            "differences": [
+              "at",
+              "mechanism"
+            ],
+            "first_possible_time": "2026-09-17 14:43:07.814000+00:00",
+            "kind": "exit",
+            "money_delta": "0.00",
+            "observed": {
+              "at": "2026-09-17 14:43:07.820000+00:00",
+              "direction": "SELL",
+              "kind": "exit",
+              "mechanism": "observed_native_exit",
+              "money": "3.92",
+              "price": "4360.75",
+              "slot": 3,
+              "volume": "0.03"
+            },
+            "ordinal": 0,
+            "price_delta": "0.00",
+            "simulated": {
+              "at": "2026-09-17 14:43:07.814000+00:00",
+              "direction": "SELL",
+              "kind": "exit",
+              "mechanism": "per_leg_target",
+              "money": "3.92",
+              "price": "4360.75",
+              "slot": 3,
+              "volume": "0.03"
+            },
+            "slot": 3,
+            "time_delta_ms": -6.0
+          },
+          {
+            "differences": [
+              "at",
+              "mechanism"
+            ],
+            "first_possible_time": "2026-09-17 14:43:13.375000+00:00",
+            "kind": "exit",
+            "money_delta": "0.00",
+            "observed": {
+              "at": "2026-09-17 14:43:13.393000+00:00",
+              "direction": "SELL",
+              "kind": "exit",
+              "mechanism": "observed_native_exit",
+              "money": "2.61",
+              "price": "4359.83",
+              "slot": 2,
+              "volume": "0.03"
+            },
+            "ordinal": 0,
+            "price_delta": "0.00",
+            "simulated": {
+              "at": "2026-09-17 14:43:13.375000+00:00",
+              "direction": "SELL",
+              "kind": "exit",
+              "mechanism": "per_leg_target",
+              "money": "2.61",
+              "price": "4359.83",
+              "slot": 2,
+              "volume": "0.03"
+            },
+            "slot": 2,
+            "time_delta_ms": -18.0
+          }
+        ],
+        "first_divergence": {
+          "differences": [
+            "at",
+            "mechanism"
+          ],
+          "first_possible_time": "2026-09-17 13:46:01.434000+00:00",
+          "kind": "exit",
+          "money_delta": "0.00",
+          "observed": {
+            "at": "2026-09-17 13:46:01.447000+00:00",
+            "direction": "SELL",
+            "kind": "exit",
+            "mechanism": "observed_native_exit",
+            "money": "1.74",
+            "price": "4358.35",
+            "slot": 1,
+            "volume": "0.04"
+          },
+          "ordinal": 0,
+          "price_delta": "0.00",
+          "simulated": {
+            "at": "2026-09-17 13:46:01.434000+00:00",
+            "direction": "SELL",
+            "kind": "exit",
+            "mechanism": "per_leg_target",
+            "money": "1.74",
+            "price": "4358.35",
+            "slot": 1,
+            "volume": "0.04"
+          },
+          "slot": 1,
+          "time_delta_ms": -13.0
+        },
+        "first_structural_divergence": {
+          "differences": [
+            "at",
+            "mechanism"
+          ],
+          "first_possible_time": "2026-09-17 13:46:01.434000+00:00",
+          "kind": "exit",
+          "money_delta": "0.00",
+          "observed": {
+            "at": "2026-09-17 13:46:01.447000+00:00",
+            "direction": "SELL",
+            "kind": "exit",
+            "mechanism": "observed_native_exit",
+            "money": "1.74",
+            "price": "4358.35",
+            "slot": 1,
+            "volume": "0.04"
+          },
+          "ordinal": 0,
+          "price_delta": "0.00",
+          "simulated": {
+            "at": "2026-09-17 13:46:01.434000+00:00",
+            "direction": "SELL",
+            "kind": "exit",
+            "mechanism": "per_leg_target",
+            "money": "1.74",
+            "price": "4358.35",
+            "slot": 1,
+            "volume": "0.04"
+          },
+          "slot": 1,
+          "time_delta_ms": -13.0
+        },
+        "full_live_parity_verified": false,
+        "observed_event_count": 10,
+        "simulated_event_count": 10,
+        "status": "mismatch",
+        "structural_definition": "missing event, direction, volume or broker mechanism; not a tolerance exemption",
+        "unverified": [
+          "decision_sequence",
+          "modify_reject_confirm_sequence",
+          "alternative_fill_realizability"
+        ]
+      },
+      "signal_id": "canal2_3102",
+      "status": "mismatch",
+      "tick_status": "path_discrepant",
+      "tp_receipt_states": [
+        {
+          "model_exit_at": "2026-09-17T13:46:01.434000+00:00",
+          "slot": 1,
+          "status": "missing_receipt_trace"
+        },
+        {
+          "model_exit_at": "2026-09-17T14:32:37.337000+00:00",
+          "slot": 5,
+          "status": "missing_receipt_trace"
+        },
+        {
+          "model_exit_at": "2026-09-17T14:39:58.147000+00:00",
+          "slot": 4,
+          "status": "missing_receipt_trace"
+        },
+        {
+          "model_exit_at": "2026-09-17T14:43:07.814000+00:00",
+          "slot": 3,
+          "status": "missing_receipt_trace"
+        },
+        {
+          "model_exit_at": "2026-09-17T14:43:13.375000+00:00",
+          "slot": 2,
+          "status": "missing_receipt_trace"
+        }
+      ]
+    },
+    {
+      "channel": "canal2",
+      "conditioned_policy_fingerprint": null,
+      "declared_policy_fingerprint": "9b8a08950d6bd319b06f495a9844628c6e9d65bf49770b733f9c123f397ccc91",
+      "engine_mismatches": {
+        "fast": [],
+        "scalar": []
+      },
+      "frozen_native_drawdown_eur": "6.32",
+      "frozen_native_net_eur": "20.02",
+      "management_blockers": [],
+      "management_status": "evaluated_conditioned_management",
+      "native_booked_net_eur": "20.02",
+      "native_entry_count": 5,
+      "risk": {
+        "blockers": [],
+        "first_divergence": {
+          "at": "2026-09-17 14:13:04.965000+00:00",
+          "differences": [
+            "total",
+            "floating",
+            "realized",
+            "long_volume",
+            "open_count",
+            "positions"
+          ],
+          "observed": {
+            "at": "2026-09-17 14:13:04.965000+00:00",
+            "blockers": [],
+            "floating": "2.64",
+            "long_volume": "0.04",
+            "open_count": 1,
+            "ordinal": 0,
+            "positions": {
+              "1": {
+                "direction": "BUY",
+                "floating": "2.64",
+                "realized": "0",
+                "total": "2.64",
+                "volume": "0.04"
+              }
+            },
+            "quote_at": "2026-09-17 14:13:04.965000+00:00",
+            "realized": "0",
+            "short_volume": "0",
+            "total": "2.64"
+          },
+          "ordinal": 0,
+          "simulated": {
+            "at": "2026-09-17 14:13:04.965000+00:00",
+            "blockers": [],
+            "floating": "0",
+            "long_volume": "0.00",
+            "open_count": 0,
+            "ordinal": 0,
+            "positions": {
+              "1": {
+                "direction": "BUY",
+                "floating": "0",
+                "realized": "1.74",
+                "total": "1.74",
+                "volume": "0.00"
+              }
+            },
+            "quote_at": "2026-09-17 14:13:04.965000+00:00",
+            "realized": "1.74",
+            "short_volume": "0",
+            "total": "1.74"
+          }
+        },
+        "first_divergence_scope": "first_comparable_sample_not_proof_before_unknown_intervals",
+        "first_unknown": null,
+        "full_live_parity_verified": false,
+        "max_abs_total_difference": "3.17",
+        "mismatched_pairs": 286,
+        "observed": {
+          "blockers": [],
+          "currency": "EUR",
+          "full_live_parity_verified": false,
+          "fx_coverage_mode": "strict_causal",
+          "known_sample_metrics": {
+            "final_at": "2026-09-17 14:34:34.203000+00:00",
+            "final_net": "20.02",
+            "known_samples": 14753,
+            "max_drawdown": "6.32",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "20.15",
+            "minimum_from_origin": "-1.77"
+          },
+          "metrics": {
+            "final_at": "2026-09-17 14:34:34.203000+00:00",
+            "final_net": "20.02",
+            "known_samples": 14753,
+            "max_drawdown": "6.32",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "20.15",
+            "minimum_from_origin": "-1.77"
+          },
+          "retrospective_fx_bracketed_samples": 0,
+          "same_time_convention": "confirmed_events_before_quote_mark",
+          "samples_count": 14753,
+          "samples_sha256": "1773f2b1da0ba2c5668855bbed569d18f4dc0a8a9b967cef2de972a7f8a51fdb",
+          "scope": "retained_grid_including_event_boundaries_not_continuous_market_extrema",
+          "valuation": "realized_booked_at_events_plus_executable_floating"
+        },
+        "simulated": {
+          "blockers": [],
+          "currency": "EUR",
+          "full_live_parity_verified": false,
+          "fx_coverage_mode": "strict_causal",
+          "known_sample_metrics": {
+            "final_at": "2026-09-17 14:34:34.203000+00:00",
+            "final_net": "20.02",
+            "known_samples": 14753,
+            "max_drawdown": "5.82",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "20.02",
+            "minimum_from_origin": "-1.77"
+          },
+          "metrics": {
+            "final_at": "2026-09-17 14:34:34.203000+00:00",
+            "final_net": "20.02",
+            "known_samples": 14753,
+            "max_drawdown": "5.82",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "20.02",
+            "minimum_from_origin": "-1.77"
+          },
+          "retrospective_fx_bracketed_samples": 0,
+          "same_time_convention": "confirmed_events_before_quote_mark",
+          "samples_count": 14753,
+          "samples_sha256": "5405de99bd0bfe3e1899861cc4665d3844fe6c696868ec1533378f9f2309ebff",
+          "scope": "retained_grid_including_event_boundaries_not_continuous_market_extrema",
+          "valuation": "realized_booked_at_events_plus_executable_floating"
+        },
+        "status": "mismatch",
+        "unknown_pairs": 0
+      },
+      "sequence": {
+        "comparisons": [
+          {
+            "differences": [],
+            "first_possible_time": "2026-09-17 14:12:58.384000+00:00",
+            "kind": "entry",
+            "money_delta": "0",
+            "observed": {
+              "at": "2026-09-17 14:12:58.384000+00:00",
+              "direction": "BUY",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4370.1",
+              "slot": 1,
+              "volume": "0.04"
+            },
+            "ordinal": 0,
+            "price_delta": "0.0",
+            "simulated": {
+              "at": "2026-09-17 14:12:58.384000+00:00",
+              "direction": "BUY",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4370.1",
+              "slot": 1,
+              "volume": "0.04"
+            },
+            "slot": 1,
+            "time_delta_ms": 0.0
+          },
+          {
+            "differences": [
+              "at",
+              "mechanism"
+            ],
+            "first_possible_time": "2026-09-17 14:13:04.965000+00:00",
+            "kind": "exit",
+            "money_delta": "0.00",
+            "observed": {
+              "at": "2026-09-17 14:13:09.758000+00:00",
+              "direction": "BUY",
+              "kind": "exit",
+              "mechanism": "observed_native_exit",
+              "money": "1.74",
+              "price": "4370.6",
+              "slot": 1,
+              "volume": "0.04"
+            },
+            "ordinal": 0,
+            "price_delta": "0.0",
+            "simulated": {
+              "at": "2026-09-17 14:13:04.965000+00:00",
+              "direction": "BUY",
+              "kind": "exit",
+              "mechanism": "per_leg_target",
+              "money": "1.74",
+              "price": "4370.6",
+              "slot": 1,
+              "volume": "0.04"
+            },
+            "slot": 1,
+            "time_delta_ms": -4793.0
+          },
+          {
+            "differences": [],
+            "first_possible_time": "2026-09-17 14:18:13.587000+00:00",
+            "kind": "entry",
+            "money_delta": "0",
+            "observed": {
+              "at": "2026-09-17 14:18:13.587000+00:00",
+              "direction": "BUY",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4366.81",
+              "slot": 2,
+              "volume": "0.03"
+            },
+            "ordinal": 0,
+            "price_delta": "0.00",
+            "simulated": {
+              "at": "2026-09-17 14:18:13.587000+00:00",
+              "direction": "BUY",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4366.81",
+              "slot": 2,
+              "volume": "0.03"
+            },
+            "slot": 2,
+            "time_delta_ms": 0.0
+          },
+          {
+            "differences": [
+              "at",
+              "mechanism"
+            ],
+            "first_possible_time": "2026-09-17 14:18:23.918000+00:00",
+            "kind": "exit",
+            "money_delta": "0.00",
+            "observed": {
+              "at": "2026-09-17 14:18:42.718000+00:00",
+              "direction": "BUY",
+              "kind": "exit",
+              "mechanism": "observed_native_exit",
+              "money": "2.61",
+              "price": "4367.81",
+              "slot": 2,
+              "volume": "0.03"
+            },
+            "ordinal": 0,
+            "price_delta": "0.00",
+            "simulated": {
+              "at": "2026-09-17 14:18:23.918000+00:00",
+              "direction": "BUY",
+              "kind": "exit",
+              "mechanism": "per_leg_target",
+              "money": "2.61",
+              "price": "4367.81",
+              "slot": 2,
+              "volume": "0.03"
+            },
+            "slot": 2,
+            "time_delta_ms": -18800.0
+          },
+          {
+            "differences": [],
+            "first_possible_time": "2026-09-17 14:20:52.165000+00:00",
+            "kind": "entry",
+            "money_delta": "0",
+            "observed": {
+              "at": "2026-09-17 14:20:52.165000+00:00",
+              "direction": "BUY",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4367.61",
+              "slot": 3,
+              "volume": "0.03"
+            },
+            "ordinal": 0,
+            "price_delta": "0.00",
+            "simulated": {
+              "at": "2026-09-17 14:20:52.165000+00:00",
+              "direction": "BUY",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4367.61",
+              "slot": 3,
+              "volume": "0.03"
+            },
+            "slot": 3,
+            "time_delta_ms": 0.0
+          },
+          {
+            "differences": [
+              "at",
+              "mechanism"
+            ],
+            "first_possible_time": "2026-09-17 14:22:16.449000+00:00",
+            "kind": "exit",
+            "money_delta": "0.00",
+            "observed": {
+              "at": "2026-09-17 14:22:16.453000+00:00",
+              "direction": "BUY",
+              "kind": "exit",
+              "mechanism": "observed_native_exit",
+              "money": "3.92",
+              "price": "4369.11",
+              "slot": 3,
+              "volume": "0.03"
+            },
+            "ordinal": 0,
+            "price_delta": "0.00",
+            "simulated": {
+              "at": "2026-09-17 14:22:16.449000+00:00",
+              "direction": "BUY",
+              "kind": "exit",
+              "mechanism": "per_leg_target",
+              "money": "3.92",
+              "price": "4369.11",
+              "slot": 3,
+              "volume": "0.03"
+            },
+            "slot": 3,
+            "time_delta_ms": -4.0
+          },
+          {
+            "differences": [],
+            "first_possible_time": "2026-09-17 14:30:30.629000+00:00",
+            "kind": "entry",
+            "money_delta": "0",
+            "observed": {
+              "at": "2026-09-17 14:30:30.629000+00:00",
+              "direction": "BUY",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4365.2",
+              "slot": 4,
+              "volume": "0.03"
+            },
+            "ordinal": 0,
+            "price_delta": "0.0",
+            "simulated": {
+              "at": "2026-09-17 14:30:30.629000+00:00",
+              "direction": "BUY",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4365.2",
+              "slot": 4,
+              "volume": "0.03"
+            },
+            "slot": 4,
+            "time_delta_ms": 0.0
+          },
+          {
+            "differences": [
+              "at",
+              "mechanism"
+            ],
+            "first_possible_time": "2026-09-17 14:31:13.220000+00:00",
+            "kind": "exit",
+            "money_delta": "0.00",
+            "observed": {
+              "at": "2026-09-17 14:31:13.225000+00:00",
+              "direction": "BUY",
+              "kind": "exit",
+              "mechanism": "observed_native_exit",
+              "money": "5.22",
+              "price": "4367.2",
+              "slot": 4,
+              "volume": "0.03"
+            },
+            "ordinal": 0,
+            "price_delta": "0.0",
+            "simulated": {
+              "at": "2026-09-17 14:31:13.220000+00:00",
+              "direction": "BUY",
+              "kind": "exit",
+              "mechanism": "per_leg_target",
+              "money": "5.22",
+              "price": "4367.2",
+              "slot": 4,
+              "volume": "0.03"
+            },
+            "slot": 4,
+            "time_delta_ms": -5.0
+          },
+          {
+            "differences": [],
+            "first_possible_time": "2026-09-17 14:32:13.941000+00:00",
+            "kind": "entry",
+            "money_delta": "0",
+            "observed": {
+              "at": "2026-09-17 14:32:13.941000+00:00",
+              "direction": "BUY",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4363.82",
+              "slot": 5,
+              "volume": "0.03"
+            },
+            "ordinal": 0,
+            "price_delta": "0.00",
+            "simulated": {
+              "at": "2026-09-17 14:32:13.941000+00:00",
+              "direction": "BUY",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4363.82",
+              "slot": 5,
+              "volume": "0.03"
+            },
+            "slot": 5,
+            "time_delta_ms": 0.0
+          },
+          {
+            "differences": [
+              "at",
+              "mechanism"
+            ],
+            "first_possible_time": "2026-09-17 14:34:34.200000+00:00",
+            "kind": "exit",
+            "money_delta": "0.00",
+            "observed": {
+              "at": "2026-09-17 14:34:34.203000+00:00",
+              "direction": "BUY",
+              "kind": "exit",
+              "mechanism": "observed_native_exit",
+              "money": "6.53",
+              "price": "4366.32",
+              "slot": 5,
+              "volume": "0.03"
+            },
+            "ordinal": 0,
+            "price_delta": "0.00",
+            "simulated": {
+              "at": "2026-09-17 14:34:34.200000+00:00",
+              "direction": "BUY",
+              "kind": "exit",
+              "mechanism": "per_leg_target",
+              "money": "6.53",
+              "price": "4366.32",
+              "slot": 5,
+              "volume": "0.03"
+            },
+            "slot": 5,
+            "time_delta_ms": -3.0
+          }
+        ],
+        "first_divergence": {
+          "differences": [
+            "at",
+            "mechanism"
+          ],
+          "first_possible_time": "2026-09-17 14:13:04.965000+00:00",
+          "kind": "exit",
+          "money_delta": "0.00",
+          "observed": {
+            "at": "2026-09-17 14:13:09.758000+00:00",
+            "direction": "BUY",
+            "kind": "exit",
+            "mechanism": "observed_native_exit",
+            "money": "1.74",
+            "price": "4370.6",
+            "slot": 1,
+            "volume": "0.04"
+          },
+          "ordinal": 0,
+          "price_delta": "0.0",
+          "simulated": {
+            "at": "2026-09-17 14:13:04.965000+00:00",
+            "direction": "BUY",
+            "kind": "exit",
+            "mechanism": "per_leg_target",
+            "money": "1.74",
+            "price": "4370.6",
+            "slot": 1,
+            "volume": "0.04"
+          },
+          "slot": 1,
+          "time_delta_ms": -4793.0
+        },
+        "first_structural_divergence": {
+          "differences": [
+            "at",
+            "mechanism"
+          ],
+          "first_possible_time": "2026-09-17 14:13:04.965000+00:00",
+          "kind": "exit",
+          "money_delta": "0.00",
+          "observed": {
+            "at": "2026-09-17 14:13:09.758000+00:00",
+            "direction": "BUY",
+            "kind": "exit",
+            "mechanism": "observed_native_exit",
+            "money": "1.74",
+            "price": "4370.6",
+            "slot": 1,
+            "volume": "0.04"
+          },
+          "ordinal": 0,
+          "price_delta": "0.0",
+          "simulated": {
+            "at": "2026-09-17 14:13:04.965000+00:00",
+            "direction": "BUY",
+            "kind": "exit",
+            "mechanism": "per_leg_target",
+            "money": "1.74",
+            "price": "4370.6",
+            "slot": 1,
+            "volume": "0.04"
+          },
+          "slot": 1,
+          "time_delta_ms": -4793.0
+        },
+        "full_live_parity_verified": false,
+        "observed_event_count": 10,
+        "simulated_event_count": 10,
+        "status": "mismatch",
+        "structural_definition": "missing event, direction, volume or broker mechanism; not a tolerance exemption",
+        "unverified": [
+          "decision_sequence",
+          "modify_reject_confirm_sequence",
+          "alternative_fill_realizability"
+        ]
+      },
+      "signal_id": "canal2_3106",
+      "status": "mismatch",
+      "tick_status": "path_discrepant",
+      "tp_receipt_states": [
+        {
+          "model_exit_at": "2026-09-17T14:13:04.965000+00:00",
+          "slot": 1,
+          "status": "missing_receipt_trace"
+        },
+        {
+          "model_exit_at": "2026-09-17T14:18:23.918000+00:00",
+          "slot": 2,
+          "status": "missing_receipt_trace"
+        },
+        {
+          "model_exit_at": "2026-09-17T14:22:16.449000+00:00",
+          "slot": 3,
+          "status": "missing_receipt_trace"
+        },
+        {
+          "model_exit_at": "2026-09-17T14:31:13.220000+00:00",
+          "slot": 4,
+          "status": "missing_receipt_trace"
+        },
+        {
+          "model_exit_at": "2026-09-17T14:34:34.200000+00:00",
+          "slot": 5,
+          "status": "missing_receipt_trace"
+        }
+      ]
+    },
+    {
+      "blockers": [
+        "model_no_entry"
+      ],
+      "channel": "canal2",
+      "signal_id": "canal2_3108",
+      "status": "blocked_prior_tick_gate",
+      "tick_status": "model_no_entry"
+    },
+    {
+      "blockers": [
+        "isolated_policy_omits_dynamic_canal1_management"
+      ],
+      "channel": "canal1",
+      "signal_id": "canal1_22732",
+      "status": "blocked_incremental_canal1_management",
+      "tick_status": "path_discrepant"
+    },
+    {
+      "blockers": [
+        "model_no_entry"
+      ],
+      "channel": "canal1",
+      "signal_id": "canal1_22733",
+      "status": "blocked_prior_tick_gate",
+      "tick_status": "model_no_entry"
+    },
+    {
+      "blockers": [
+        "isolated_policy_omits_dynamic_canal1_management"
+      ],
+      "channel": "canal1",
+      "signal_id": "canal1_22738",
+      "status": "blocked_incremental_canal1_management",
+      "tick_status": "path_discrepant"
+    },
+    {
+      "channel": "canal2",
+      "conditioned_policy_fingerprint": null,
+      "declared_policy_fingerprint": "9b8a08950d6bd319b06f495a9844628c6e9d65bf49770b733f9c123f397ccc91",
+      "engine_mismatches": {
+        "fast": [],
+        "scalar": []
+      },
+      "frozen_native_drawdown_eur": "65.65",
+      "frozen_native_net_eur": "20.09",
+      "management_blockers": [],
+      "management_status": "evaluated_conditioned_management",
+      "native_booked_net_eur": "20.09",
+      "native_entry_count": 5,
+      "risk": {
+        "blockers": [],
+        "first_divergence": {
+          "at": "2026-09-18 12:26:28.562000+00:00",
+          "differences": [
+            "total",
+            "floating",
+            "realized",
+            "long_volume",
+            "open_count",
+            "positions"
+          ],
+          "observed": {
+            "at": "2026-09-18 12:26:28.562000+00:00",
+            "blockers": [],
+            "floating": "-4.14",
+            "long_volume": "0.13",
+            "open_count": 4,
+            "ordinal": 0,
+            "positions": {
+              "1": {
+                "direction": "BUY",
+                "floating": "-9.11",
+                "realized": "0",
+                "total": "-9.11",
+                "volume": "0.04"
+              },
+              "2": {
+                "direction": "BUY",
+                "floating": "-1.86",
+                "realized": "0",
+                "total": "-1.86",
+                "volume": "0.03"
+              },
+              "3": {
+                "direction": "BUY",
+                "floating": "1.49",
+                "realized": "0",
+                "total": "1.49",
+                "volume": "0.03"
+              },
+              "4": {
+                "direction": "BUY",
+                "floating": "5.34",
+                "realized": "0",
+                "total": "5.34",
+                "volume": "0.03"
+              }
+            },
+            "quote_at": "2026-09-18 12:26:28.562000+00:00",
+            "realized": "0",
+            "short_volume": "0",
+            "total": "-4.14"
+          },
+          "ordinal": 0,
+          "simulated": {
+            "at": "2026-09-18 12:26:28.562000+00:00",
+            "blockers": [],
+            "floating": "-9.48",
+            "long_volume": "0.10",
+            "open_count": 3,
+            "ordinal": 0,
+            "positions": {
+              "1": {
+                "direction": "BUY",
+                "floating": "-9.11",
+                "realized": "0",
+                "total": "-9.11",
+                "volume": "0.04"
+              },
+              "2": {
+                "direction": "BUY",
+                "floating": "-1.86",
+                "realized": "0",
+                "total": "-1.86",
+                "volume": "0.03"
+              },
+              "3": {
+                "direction": "BUY",
+                "floating": "1.49",
+                "realized": "0",
+                "total": "1.49",
+                "volume": "0.03"
+              },
+              "4": {
+                "direction": "BUY",
+                "floating": "0",
+                "realized": "5.24",
+                "total": "5.24",
+                "volume": "0.00"
+              }
+            },
+            "quote_at": "2026-09-18 12:26:28.562000+00:00",
+            "realized": "5.24",
+            "short_volume": "0",
+            "total": "-4.24"
+          }
+        },
+        "first_divergence_scope": "first_comparable_sample_not_proof_before_unknown_intervals",
+        "first_unknown": null,
+        "full_live_parity_verified": false,
+        "max_abs_total_difference": "0.76",
+        "mismatched_pairs": 35,
+        "observed": {
+          "blockers": [],
+          "currency": "EUR",
+          "full_live_parity_verified": false,
+          "fx_coverage_mode": "strict_causal",
+          "known_sample_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "20.09",
+            "known_samples": 4885,
+            "max_drawdown": "65.65",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "20.85",
+            "minimum_from_origin": "-64.73"
+          },
+          "metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "20.09",
+            "known_samples": 4885,
+            "max_drawdown": "65.65",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "20.85",
+            "minimum_from_origin": "-64.73"
+          },
+          "retrospective_fx_bracketed_samples": 0,
+          "same_time_convention": "confirmed_events_before_quote_mark",
+          "samples_count": 4885,
+          "samples_sha256": "167530f194f7ffb041fa59521b6ec85e257fe17af471cf17800012de9f69f212",
+          "scope": "retained_grid_including_event_boundaries_not_continuous_market_extrema",
+          "valuation": "realized_booked_at_events_plus_executable_floating"
+        },
+        "simulated": {
+          "blockers": [],
+          "currency": "EUR",
+          "full_live_parity_verified": false,
+          "fx_coverage_mode": "strict_causal",
+          "known_sample_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "20.09",
+            "known_samples": 4885,
+            "max_drawdown": "65.65",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "20.09",
+            "minimum_from_origin": "-64.73"
+          },
+          "metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "20.09",
+            "known_samples": 4885,
+            "max_drawdown": "65.65",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "20.09",
+            "minimum_from_origin": "-64.73"
+          },
+          "retrospective_fx_bracketed_samples": 0,
+          "same_time_convention": "confirmed_events_before_quote_mark",
+          "samples_count": 4885,
+          "samples_sha256": "f334d6c0a0cf339494e8cd483c5447fdf847badd187faccd000bdaf2e2797b79",
+          "scope": "retained_grid_including_event_boundaries_not_continuous_market_extrema",
+          "valuation": "realized_booked_at_events_plus_executable_floating"
+        },
+        "status": "mismatch",
+        "unknown_pairs": 0
+      },
+      "sequence": {
+        "comparisons": [
+          {
+            "differences": [],
+            "first_possible_time": "2026-09-18 12:23:48.805000+00:00",
+            "kind": "entry",
+            "money_delta": "0",
+            "observed": {
+              "at": "2026-09-18 12:23:48.805000+00:00",
+              "direction": "BUY",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4362.5",
+              "slot": 1,
+              "volume": "0.04"
+            },
+            "ordinal": 0,
+            "price_delta": "0.0",
+            "simulated": {
+              "at": "2026-09-18 12:23:48.805000+00:00",
+              "direction": "BUY",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4362.5",
+              "slot": 1,
+              "volume": "0.04"
+            },
+            "slot": 1,
+            "time_delta_ms": 0.0
+          },
+          {
+            "differences": [],
+            "first_possible_time": "2026-09-18 12:24:18.658000+00:00",
+            "kind": "entry",
+            "money_delta": "0",
+            "observed": {
+              "at": "2026-09-18 12:24:18.658000+00:00",
+              "direction": "BUY",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4360.6",
+              "slot": 2,
+              "volume": "0.03"
+            },
+            "ordinal": 0,
+            "price_delta": "0.0",
+            "simulated": {
+              "at": "2026-09-18 12:24:18.658000+00:00",
+              "direction": "BUY",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4360.6",
+              "slot": 2,
+              "volume": "0.03"
+            },
+            "slot": 2,
+            "time_delta_ms": 0.0
+          },
+          {
+            "differences": [],
+            "first_possible_time": "2026-09-18 12:24:32.155000+00:00",
+            "kind": "entry",
+            "money_delta": "0",
+            "observed": {
+              "at": "2026-09-18 12:24:32.155000+00:00",
+              "direction": "BUY",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4359.32",
+              "slot": 3,
+              "volume": "0.03"
+            },
+            "ordinal": 0,
+            "price_delta": "0.00",
+            "simulated": {
+              "at": "2026-09-18 12:24:32.155000+00:00",
+              "direction": "BUY",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4359.32",
+              "slot": 3,
+              "volume": "0.03"
+            },
+            "slot": 3,
+            "time_delta_ms": 0.0
+          },
+          {
+            "differences": [],
+            "first_possible_time": "2026-09-18 12:24:35.053000+00:00",
+            "kind": "entry",
+            "money_delta": "0",
+            "observed": {
+              "at": "2026-09-18 12:24:35.053000+00:00",
+              "direction": "BUY",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4357.85",
+              "slot": 4,
+              "volume": "0.03"
+            },
+            "ordinal": 0,
+            "price_delta": "0.00",
+            "simulated": {
+              "at": "2026-09-18 12:24:35.053000+00:00",
+              "direction": "BUY",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4357.85",
+              "slot": 4,
+              "volume": "0.03"
+            },
+            "slot": 4,
+            "time_delta_ms": 0.0
+          },
+          {
+            "differences": [
+              "at",
+              "mechanism"
+            ],
+            "first_possible_time": "2026-09-18 12:26:28.562000+00:00",
+            "kind": "exit",
+            "money_delta": "0.00",
+            "observed": {
+              "at": "2026-09-18 12:26:28.565000+00:00",
+              "direction": "BUY",
+              "kind": "exit",
+              "mechanism": "observed_native_exit",
+              "money": "5.24",
+              "price": "4359.85",
+              "slot": 4,
+              "volume": "0.03"
+            },
+            "ordinal": 0,
+            "price_delta": "0.00",
+            "simulated": {
+              "at": "2026-09-18 12:26:28.562000+00:00",
+              "direction": "BUY",
+              "kind": "exit",
+              "mechanism": "per_leg_target",
+              "money": "5.24",
+              "price": "4359.85",
+              "slot": 4,
+              "volume": "0.03"
+            },
+            "slot": 4,
+            "time_delta_ms": -3.0
+          },
+          {
+            "differences": [],
+            "first_possible_time": "2026-09-18 12:27:08.948000+00:00",
+            "kind": "entry",
+            "money_delta": "0",
+            "observed": {
+              "at": "2026-09-18 12:27:08.948000+00:00",
+              "direction": "BUY",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4356.38",
+              "slot": 5,
+              "volume": "0.03"
+            },
+            "ordinal": 0,
+            "price_delta": "0.00",
+            "simulated": {
+              "at": "2026-09-18 12:27:08.948000+00:00",
+              "direction": "BUY",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4356.38",
+              "slot": 5,
+              "volume": "0.03"
+            },
+            "slot": 5,
+            "time_delta_ms": 0.0
+          },
+          {
+            "differences": [
+              "at",
+              "mechanism"
+            ],
+            "first_possible_time": "2026-09-18 12:29:40.109000+00:00",
+            "kind": "exit",
+            "money_delta": "0.00",
+            "observed": {
+              "at": "2026-09-18 12:29:40.114000+00:00",
+              "direction": "BUY",
+              "kind": "exit",
+              "mechanism": "observed_native_exit",
+              "money": "6.55",
+              "price": "4358.88",
+              "slot": 5,
+              "volume": "0.03"
+            },
+            "ordinal": 0,
+            "price_delta": "0.00",
+            "simulated": {
+              "at": "2026-09-18 12:29:40.109000+00:00",
+              "direction": "BUY",
+              "kind": "exit",
+              "mechanism": "per_leg_target",
+              "money": "6.55",
+              "price": "4358.88",
+              "slot": 5,
+              "volume": "0.03"
+            },
+            "slot": 5,
+            "time_delta_ms": -5.0
+          },
+          {
+            "differences": [
+              "at",
+              "mechanism"
+            ],
+            "first_possible_time": "2026-09-18 12:30:07.957000+00:00",
+            "kind": "exit",
+            "money_delta": "0.00",
+            "observed": {
+              "at": "2026-09-18 12:30:08.433000+00:00",
+              "direction": "BUY",
+              "kind": "exit",
+              "mechanism": "observed_native_exit",
+              "money": "3.93",
+              "price": "4360.82",
+              "slot": 3,
+              "volume": "0.03"
+            },
+            "ordinal": 0,
+            "price_delta": "0.00",
+            "simulated": {
+              "at": "2026-09-18 12:30:07.957000+00:00",
+              "direction": "BUY",
+              "kind": "exit",
+              "mechanism": "per_leg_target",
+              "money": "3.93",
+              "price": "4360.82",
+              "slot": 3,
+              "volume": "0.03"
+            },
+            "slot": 3,
+            "time_delta_ms": -476.0
+          },
+          {
+            "differences": [
+              "at",
+              "mechanism"
+            ],
+            "first_possible_time": "2026-09-18 12:30:21.736000+00:00",
+            "kind": "exit",
+            "money_delta": "0.00",
+            "observed": {
+              "at": "2026-09-18 12:30:21.740000+00:00",
+              "direction": "BUY",
+              "kind": "exit",
+              "mechanism": "observed_native_exit",
+              "money": "2.62",
+              "price": "4361.6",
+              "slot": 2,
+              "volume": "0.03"
+            },
+            "ordinal": 0,
+            "price_delta": "0.0",
+            "simulated": {
+              "at": "2026-09-18 12:30:21.736000+00:00",
+              "direction": "BUY",
+              "kind": "exit",
+              "mechanism": "per_leg_target",
+              "money": "2.62",
+              "price": "4361.6",
+              "slot": 2,
+              "volume": "0.03"
+            },
+            "slot": 2,
+            "time_delta_ms": -4.0
+          },
+          {
+            "differences": [
+              "at",
+              "mechanism"
+            ],
+            "first_possible_time": "2026-09-18 12:31:10.747000+00:00",
+            "kind": "exit",
+            "money_delta": "0.00",
+            "observed": {
+              "at": "2026-09-18 12:31:12.361000+00:00",
+              "direction": "BUY",
+              "kind": "exit",
+              "mechanism": "observed_native_exit",
+              "money": "1.75",
+              "price": "4363.0",
+              "slot": 1,
+              "volume": "0.04"
+            },
+            "ordinal": 0,
+            "price_delta": "0.0",
+            "simulated": {
+              "at": "2026-09-18 12:31:10.747000+00:00",
+              "direction": "BUY",
+              "kind": "exit",
+              "mechanism": "per_leg_target",
+              "money": "1.75",
+              "price": "4363.0",
+              "slot": 1,
+              "volume": "0.04"
+            },
+            "slot": 1,
+            "time_delta_ms": -1614.0
+          }
+        ],
+        "first_divergence": {
+          "differences": [
+            "at",
+            "mechanism"
+          ],
+          "first_possible_time": "2026-09-18 12:26:28.562000+00:00",
+          "kind": "exit",
+          "money_delta": "0.00",
+          "observed": {
+            "at": "2026-09-18 12:26:28.565000+00:00",
+            "direction": "BUY",
+            "kind": "exit",
+            "mechanism": "observed_native_exit",
+            "money": "5.24",
+            "price": "4359.85",
+            "slot": 4,
+            "volume": "0.03"
+          },
+          "ordinal": 0,
+          "price_delta": "0.00",
+          "simulated": {
+            "at": "2026-09-18 12:26:28.562000+00:00",
+            "direction": "BUY",
+            "kind": "exit",
+            "mechanism": "per_leg_target",
+            "money": "5.24",
+            "price": "4359.85",
+            "slot": 4,
+            "volume": "0.03"
+          },
+          "slot": 4,
+          "time_delta_ms": -3.0
+        },
+        "first_structural_divergence": {
+          "differences": [
+            "at",
+            "mechanism"
+          ],
+          "first_possible_time": "2026-09-18 12:26:28.562000+00:00",
+          "kind": "exit",
+          "money_delta": "0.00",
+          "observed": {
+            "at": "2026-09-18 12:26:28.565000+00:00",
+            "direction": "BUY",
+            "kind": "exit",
+            "mechanism": "observed_native_exit",
+            "money": "5.24",
+            "price": "4359.85",
+            "slot": 4,
+            "volume": "0.03"
+          },
+          "ordinal": 0,
+          "price_delta": "0.00",
+          "simulated": {
+            "at": "2026-09-18 12:26:28.562000+00:00",
+            "direction": "BUY",
+            "kind": "exit",
+            "mechanism": "per_leg_target",
+            "money": "5.24",
+            "price": "4359.85",
+            "slot": 4,
+            "volume": "0.03"
+          },
+          "slot": 4,
+          "time_delta_ms": -3.0
+        },
+        "full_live_parity_verified": false,
+        "observed_event_count": 10,
+        "simulated_event_count": 10,
+        "status": "mismatch",
+        "structural_definition": "missing event, direction, volume or broker mechanism; not a tolerance exemption",
+        "unverified": [
+          "decision_sequence",
+          "modify_reject_confirm_sequence",
+          "alternative_fill_realizability"
+        ]
+      },
+      "signal_id": "canal2_3168",
+      "status": "mismatch",
+      "tick_status": "path_discrepant",
+      "tp_receipt_states": [
+        {
+          "client_confirmed_tp": "4359.85",
+          "first_target_accepted_minus_model_ms": -112826,
+          "inflight_attempt_ids": [
+            "attempt_e9176a2251c84f5eb4f53e68b9091054"
+          ],
+          "model_exit_at": "2026-09-18T12:26:28.562000+00:00",
+          "slot": 4,
+          "status": "client_accepted_target_redundant_pending"
+        },
+        {
+          "client_confirmed_tp": "4358.88",
+          "first_target_accepted_minus_model_ms": -150864,
+          "inflight_attempt_ids": [],
+          "model_exit_at": "2026-09-18T12:29:40.109000+00:00",
+          "slot": 5,
+          "status": "client_accepted_target_broker_unobserved"
+        },
+        {
+          "client_confirmed_tp": "4360.82",
+          "first_target_accepted_minus_model_ms": -334911,
+          "inflight_attempt_ids": [],
+          "model_exit_at": "2026-09-18T12:30:07.957000+00:00",
+          "slot": 3,
+          "status": "client_accepted_target_broker_unobserved"
+        },
+        {
+          "client_confirmed_tp": "4361.6",
+          "first_target_accepted_minus_model_ms": -362589,
+          "inflight_attempt_ids": [],
+          "model_exit_at": "2026-09-18T12:30:21.736000+00:00",
+          "slot": 2,
+          "status": "client_accepted_target_broker_unobserved"
+        },
+        {
+          "client_confirmed_tp": "4363.0",
+          "first_target_accepted_minus_model_ms": -441724,
+          "inflight_attempt_ids": [],
+          "model_exit_at": "2026-09-18T12:31:10.747000+00:00",
+          "slot": 1,
+          "status": "client_accepted_target_broker_unobserved"
+        }
+      ]
+    },
+    {
+      "channel": "canal2",
+      "conditioned_policy_fingerprint": null,
+      "declared_policy_fingerprint": "9b8a08950d6bd319b06f495a9844628c6e9d65bf49770b733f9c123f397ccc91",
+      "engine_mismatches": {
+        "fast": [],
+        "scalar": []
+      },
+      "frozen_native_drawdown_eur": "4.22",
+      "frozen_native_net_eur": "1.75",
+      "management_blockers": [],
+      "management_status": "evaluated_conditioned_management",
+      "native_booked_net_eur": "1.75",
+      "native_entry_count": 1,
+      "risk": {
+        "blockers": [],
+        "first_divergence": {
+          "at": "2026-09-18 12:27:58.962000+00:00",
+          "differences": [
+            "floating",
+            "realized",
+            "long_volume",
+            "open_count",
+            "positions"
+          ],
+          "observed": {
+            "at": "2026-09-18 12:27:58.962000+00:00",
+            "blockers": [],
+            "floating": "1.75",
+            "long_volume": "0.04",
+            "open_count": 1,
+            "ordinal": 0,
+            "positions": {
+              "1": {
+                "direction": "BUY",
+                "floating": "1.75",
+                "realized": "0",
+                "total": "1.75",
+                "volume": "0.04"
+              }
+            },
+            "quote_at": "2026-09-18 12:27:58.962000+00:00",
+            "realized": "0",
+            "short_volume": "0",
+            "total": "1.75"
+          },
+          "ordinal": 0,
+          "simulated": {
+            "at": "2026-09-18 12:27:58.962000+00:00",
+            "blockers": [],
+            "floating": "0",
+            "long_volume": "0.00",
+            "open_count": 0,
+            "ordinal": 0,
+            "positions": {
+              "1": {
+                "direction": "BUY",
+                "floating": "0",
+                "realized": "1.75",
+                "total": "1.75",
+                "volume": "0.00"
+              }
+            },
+            "quote_at": "2026-09-18 12:27:58.962000+00:00",
+            "realized": "1.75",
+            "short_volume": "0",
+            "total": "1.75"
+          }
+        },
+        "first_divergence_scope": "first_comparable_sample_not_proof_before_unknown_intervals",
+        "first_unknown": null,
+        "full_live_parity_verified": false,
+        "max_abs_total_difference": "4.12",
+        "mismatched_pairs": 155,
+        "observed": {
+          "blockers": [],
+          "currency": "EUR",
+          "full_live_parity_verified": false,
+          "fx_coverage_mode": "strict_causal",
+          "known_sample_metrics": {
+            "final_at": "2026-09-18 12:28:14.149000+00:00",
+            "final_net": "1.75",
+            "known_samples": 161,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "metrics": {
+            "final_at": "2026-09-18 12:28:14.149000+00:00",
+            "final_net": "1.75",
+            "known_samples": 161,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "retrospective_fx_bracketed_samples": 0,
+          "same_time_convention": "confirmed_events_before_quote_mark",
+          "samples_count": 161,
+          "samples_sha256": "8daaeea4f6c339e9049686d9f8f3d055977ed6d7e63017168825e425e7c0e13b",
+          "scope": "retained_grid_including_event_boundaries_not_continuous_market_extrema",
+          "valuation": "realized_booked_at_events_plus_executable_floating"
+        },
+        "simulated": {
+          "blockers": [],
+          "currency": "EUR",
+          "full_live_parity_verified": false,
+          "fx_coverage_mode": "strict_causal",
+          "known_sample_metrics": {
+            "final_at": "2026-09-18 12:28:14.149000+00:00",
+            "final_net": "1.75",
+            "known_samples": 161,
+            "max_drawdown": "0",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.75",
+            "minimum_from_origin": "0"
+          },
+          "metrics": {
+            "final_at": "2026-09-18 12:28:14.149000+00:00",
+            "final_net": "1.75",
+            "known_samples": 161,
+            "max_drawdown": "0",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.75",
+            "minimum_from_origin": "0"
+          },
+          "retrospective_fx_bracketed_samples": 0,
+          "same_time_convention": "confirmed_events_before_quote_mark",
+          "samples_count": 161,
+          "samples_sha256": "2925e751e8038ba019e86117287ad1ab1dcec20b8da43b87237a5c730d5322bc",
+          "scope": "retained_grid_including_event_boundaries_not_continuous_market_extrema",
+          "valuation": "realized_booked_at_events_plus_executable_floating"
+        },
+        "status": "mismatch",
+        "unknown_pairs": 0
+      },
+      "sequence": {
+        "comparisons": [
+          {
+            "differences": [],
+            "first_possible_time": "2026-09-18 12:27:58.596000+00:00",
+            "kind": "entry",
+            "money_delta": "0",
+            "observed": {
+              "at": "2026-09-18 12:27:58.596000+00:00",
+              "direction": "BUY",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4355.87",
+              "slot": 1,
+              "volume": "0.04"
+            },
+            "ordinal": 0,
+            "price_delta": "0.00",
+            "simulated": {
+              "at": "2026-09-18 12:27:58.596000+00:00",
+              "direction": "BUY",
+              "kind": "entry",
+              "mechanism": "observed_native_fill",
+              "money": "0",
+              "price": "4355.87",
+              "slot": 1,
+              "volume": "0.04"
+            },
+            "slot": 1,
+            "time_delta_ms": 0.0
+          },
+          {
+            "differences": [
+              "at",
+              "mechanism"
+            ],
+            "first_possible_time": "2026-09-18 12:27:58.962000+00:00",
+            "kind": "exit",
+            "money_delta": "0.00",
+            "observed": {
+              "at": "2026-09-18 12:28:14.149000+00:00",
+              "direction": "BUY",
+              "kind": "exit",
+              "mechanism": "observed_native_exit",
+              "money": "1.75",
+              "price": "4356.37",
+              "slot": 1,
+              "volume": "0.04"
+            },
+            "ordinal": 0,
+            "price_delta": "0.00",
+            "simulated": {
+              "at": "2026-09-18 12:27:58.962000+00:00",
+              "direction": "BUY",
+              "kind": "exit",
+              "mechanism": "per_leg_target",
+              "money": "1.75",
+              "price": "4356.37",
+              "slot": 1,
+              "volume": "0.04"
+            },
+            "slot": 1,
+            "time_delta_ms": -15187.0
+          }
+        ],
+        "first_divergence": {
+          "differences": [
+            "at",
+            "mechanism"
+          ],
+          "first_possible_time": "2026-09-18 12:27:58.962000+00:00",
+          "kind": "exit",
+          "money_delta": "0.00",
+          "observed": {
+            "at": "2026-09-18 12:28:14.149000+00:00",
+            "direction": "BUY",
+            "kind": "exit",
+            "mechanism": "observed_native_exit",
+            "money": "1.75",
+            "price": "4356.37",
+            "slot": 1,
+            "volume": "0.04"
+          },
+          "ordinal": 0,
+          "price_delta": "0.00",
+          "simulated": {
+            "at": "2026-09-18 12:27:58.962000+00:00",
+            "direction": "BUY",
+            "kind": "exit",
+            "mechanism": "per_leg_target",
+            "money": "1.75",
+            "price": "4356.37",
+            "slot": 1,
+            "volume": "0.04"
+          },
+          "slot": 1,
+          "time_delta_ms": -15187.0
+        },
+        "first_structural_divergence": {
+          "differences": [
+            "at",
+            "mechanism"
+          ],
+          "first_possible_time": "2026-09-18 12:27:58.962000+00:00",
+          "kind": "exit",
+          "money_delta": "0.00",
+          "observed": {
+            "at": "2026-09-18 12:28:14.149000+00:00",
+            "direction": "BUY",
+            "kind": "exit",
+            "mechanism": "observed_native_exit",
+            "money": "1.75",
+            "price": "4356.37",
+            "slot": 1,
+            "volume": "0.04"
+          },
+          "ordinal": 0,
+          "price_delta": "0.00",
+          "simulated": {
+            "at": "2026-09-18 12:27:58.962000+00:00",
+            "direction": "BUY",
+            "kind": "exit",
+            "mechanism": "per_leg_target",
+            "money": "1.75",
+            "price": "4356.37",
+            "slot": 1,
+            "volume": "0.04"
+          },
+          "slot": 1,
+          "time_delta_ms": -15187.0
+        },
+        "full_live_parity_verified": false,
+        "observed_event_count": 2,
+        "simulated_event_count": 2,
+        "status": "mismatch",
+        "structural_definition": "missing event, direction, volume or broker mechanism; not a tolerance exemption",
+        "unverified": [
+          "decision_sequence",
+          "modify_reject_confirm_sequence",
+          "alternative_fill_realizability"
+        ]
+      },
+      "signal_id": "canal2_3171",
+      "status": "mismatch",
+      "tick_status": "path_discrepant",
+      "tp_receipt_states": [
+        {
+          "client_confirmed_tp": null,
+          "first_target_accepted_minus_model_ms": 4379,
+          "inflight_attempt_ids": [
+            "attempt_cf16334df1874ba9be5af82b60a18561"
+          ],
+          "model_exit_at": "2026-09-18T12:27:58.962000+00:00",
+          "slot": 1,
+          "status": "pending_target_outcome_unknown"
+        }
+      ]
+    },
+    {
+      "blockers": [
+        "isolated_policy_omits_dynamic_canal1_management"
+      ],
+      "channel": "canal1",
+      "signal_id": "canal1_22768",
+      "status": "blocked_incremental_canal1_management",
+      "tick_status": "path_discrepant"
+    },
+    {
+      "blockers": [
+        "model_no_entry"
+      ],
+      "channel": "canal1",
+      "signal_id": "canal1_22769",
+      "status": "blocked_prior_tick_gate",
+      "tick_status": "model_no_entry"
+    }
+  ],
+  "status": "diagnostic_only",
+  "statuses": {
+    "blocked_incremental_canal1_management": 3,
+    "blocked_prior_tick_gate": 3,
+    "mismatch": 4
+  },
+  "tape_proofs": [
+    {
+      "day": "2026-09-17",
+      "fx_sha256": "e8584d425539096e6502fe1aa250f806981f6225c5b5ed4be1a51c2afff7c5f7",
+      "market_sha256": "d597c1b0c78a7be18145de4b141d6f795ab5cd4c9a5782bca27e150108a92488"
+    },
+    {
+      "day": "2026-09-18",
+      "fx_sha256": "08bbc079f6ce17ecaadd44b632193e6dc295351541927f51b9e6747dc0102147",
+      "market_sha256": "b0ddaa81f9c7391c1161f4239af2a9b932b7c3eb7997a683449fba6c1278670e"
+    }
+  ],
+  "tp_receipt_statuses": {
+    "client_accepted_target_broker_unobserved": 4,
+    "client_accepted_target_redundant_pending": 1,
+    "missing_receipt_trace": 10,
+    "pending_target_outcome_unknown": 1
+  }
+}

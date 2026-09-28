@@ -1,0 +1,14 @@
+{
+  "canonical_guard_components_integrated": true,
+  "complete_live_strategies_admitted": false,
+  "controls_sha256": "afdbf98edd3aac368a3a6b6b3674e9388d1c92de7d918896ecafde9b41449ab9",
+  "elapsed_seconds": 480.8439999999973,
+  "exit_code": 0,
+  "full_live_parity_verified": false,
+  "goal_complete": false,
+  "implementation_unchanged": true,
+  "protocol_sha256": "7398b2eb5ada8c576c4b3807bad31ed8d74ca0ee0b4eb157de4117769d1a326d",
+  "published": false,
+  "pytest_xml_sha256": "112bfeb24ba1c39d405270488d01d64b984539fb057135f4c89e33af4f47a19e",
+  "sources_unchanged": true
+}

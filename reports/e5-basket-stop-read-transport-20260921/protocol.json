@@ -1,0 +1,36 @@
+{
+  "complete_live_strategies_admitted": false,
+  "fixtures": "tests/test_basket_stop_reads.py",
+  "profiles": {
+    "buy": {
+      "max_payload_bytes": 4194304,
+      "max_reads": 1024,
+      "response_delay_ns": 2,
+      "sample_delay_ns": 1,
+      "timeout_ns": 60000000000
+    },
+    "contention": {
+      "max_payload_bytes": 4194304,
+      "max_reads": 1024,
+      "response_delay_ns": 2,
+      "sample_delay_ns": 1,
+      "timeout_ns": 60000000000
+    },
+    "read_limit": {
+      "max_payload_bytes": 4194304,
+      "max_reads": 172,
+      "response_delay_ns": 0,
+      "sample_delay_ns": 0,
+      "timeout_ns": 60000000000
+    },
+    "sell": {
+      "max_payload_bytes": 4194304,
+      "max_reads": 1024,
+      "response_delay_ns": 2,
+      "sample_delay_ns": 1,
+      "timeout_ns": 60000000000
+    }
+  },
+  "scope": "shared canonical basket-stop calculation and position-read plan, not installation or whole strategy",
+  "synthetic": true
+}

@@ -1,0 +1,115 @@
+{
+  "account_path_parity_verified": false,
+  "contract": "incremental_common_tick_path_comparison_v1",
+  "counts": {
+    "blocked_scalar_gate": 1,
+    "model_no_entry": 1,
+    "path_discrepant": 1
+  },
+  "cutoff_utc": "2026-09-15T14:30:00+00:00",
+  "full_live_parity_verified": false,
+  "limitations": [
+    "Native path is reconstructed from actual fills, not an independent account-equity trace.",
+    "The model uses an uncalibrated execution profile and assumed initial completeness.",
+    "Exact quote-grid parity does not prove between-tick or broker-server behavior.",
+    "Native-deal portfolio is reconstructed, not independently observed MT5 account equity.",
+    "Unclosed or unattributed positions, balance, credit and margin remain unverified."
+  ],
+  "native_deal_portfolio": {
+    "blockers": [
+      "native position outside admitted universe"
+    ],
+    "observed_account_equity_compared": false,
+    "status": "blocked_native_deal_portfolio"
+  },
+  "rows": [
+    {
+      "blockers": [
+        "path_ended_before_strategy_exit",
+        "canal2_2982:path_ended_before_strategy_exit",
+        "path_ended_before_strategy_exit",
+        "basket_still_open_at_cutoff"
+      ],
+      "channel": "canal2",
+      "scalar_status": "blocked_comparison",
+      "signal_id": "canal2_2982",
+      "status": "blocked_scalar_gate"
+    },
+    {
+      "channel": "canal1",
+      "comparison": {
+        "different_exposure_ticks": 32,
+        "different_floating_exposed_ticks": 2454,
+        "different_floating_ticks": 2454,
+        "different_open_count_ticks": 32,
+        "different_realized_ticks": 11435,
+        "different_total_exposed_ticks": 2454,
+        "different_total_ticks": 13861,
+        "first_divergence": {
+          "fields": [
+            "total",
+            "floating",
+            "exposure",
+            "open_count"
+          ],
+          "model_gross_volume": "0.01",
+          "model_total_minor": -19,
+          "native_gross_volume": "0",
+          "native_total_minor": 0,
+          "tick_index": 4928,
+          "time_ns": 1789480646493000000,
+          "utc": "2026-09-15T13:57:26.493000+00:00"
+        },
+        "max_abs_exposure_delta": "0.05",
+        "max_abs_total_delta_exposed_minor": 79,
+        "max_abs_total_delta_minor": 79,
+        "model_max_drawdown_minor": 1269,
+        "native_max_drawdown_minor": 1269,
+        "same_grid_fields_equal": false,
+        "sample_count": 25607,
+        "union_exposed_ticks": 9272
+      },
+      "first_entry_evidence": {
+        "model_entry_price": "4295.25",
+        "model_entry_volume": "0.01",
+        "model_minus_native_ms": -34,
+        "model_minus_native_price": "0.00",
+        "model_requested_utc": "2026-09-15T13:57:26.493000+00:00",
+        "native_entry_price": "4295.25",
+        "native_entry_volume": "0.01",
+        "native_fill_utc": "2026-09-15T13:57:26.527000+00:00",
+        "ordinal_pairing_not_ticket_identity": true,
+        "same_entry_volume": true
+      },
+      "native_sample_hash_verified": true,
+      "native_sample_sha256": "630a6a43aa3f3fdaa4094efb257f876626d08894c47b3ed9eae9ce56c07afad0",
+      "scalar_status": "matched_path_discrepant",
+      "signal_id": "canal1_22592",
+      "status": "path_discrepant"
+    },
+    {
+      "blockers": [],
+      "channel": "canal1",
+      "scalar_status": "model_no_entry",
+      "signal_id": "canal1_22593",
+      "status": "model_no_entry"
+    }
+  ],
+  "sources": {
+    "anchor_sha256": "0c5c99f12e5512aabde9680ffaeeba97410a54811afb36f7d6a2d892b94dbf73",
+    "broker_sha256": "cd5b1a326b833412affa75b3b7f7f4c42a4a808f62d423b350814618a809d7c3",
+    "comparator_sha256": "7745aee4255d60b7872506f5abd8285ebf64fe290b920584acd0c49e62c3629c",
+    "deals_sha256": "91723c6cc65070407bbb5a79721a6109896450354fe20b74f3a344ba7206f021",
+    "model_implementation_hash_count": 11,
+    "model_sha256": "a1afb0eeb0a578cf9ab2b12e891bf83f72ebf74795f0b5b4176da7e7c8306c2b",
+    "money_sha256": "550cbd6176316cb4cb62eb41ed9dc4e0673a0a925319f0b7e041230aa2ecf41d",
+    "native_input_count": 28,
+    "native_sha256": "a4c94d417829320cab2f5d17264a7330b43e80730d92b70b94ec79c5e0b4a468",
+    "raw_sha256": "9548ca5ce3fdd27ebe5f488ac97639c7e5cc7001ae0f75c73a40d3828cfd63b0",
+    "reconciled_sha256": "1c4c1eedef5b21b5f0e6d48ad2bc934712c939308b6b7dcec952867c18232aa4",
+    "scalar_sha256": "1455e9298ce1e93d44578bb3812e55957f9fb1c50318125911c247e86fee4b3a",
+    "shared_tape_day": "2026-09-15"
+  },
+  "start_utc": "2026-09-15T13:50:00+00:00",
+  "status": "diagnostic_only"
+}

@@ -1,0 +1,51 @@
+{
+  "contract": "shared_transport_hypotheses_v1",
+  "clock": "session_relative_nanoseconds",
+  "cases": [
+    {
+      "case_id": "two_channels_management_before_entry",
+      "capacity": 8,
+      "cutoff_ns": 2000000000,
+      "jobs": [
+        {"request_id": "read", "channel": "system", "signal_id": null, "operation": "symbol_info_tick", "admitted_ns": 0, "ready_ns": 0, "deadline_ns": 1500000000, "service_ns": 500000000},
+        {"request_id": "entry", "channel": "canal1", "signal_id": "canal1_synthetic", "operation": "PLACE_LIMIT", "admitted_ns": 100000000, "ready_ns": 100000000, "deadline_ns": 1500000000, "service_ns": 100000000},
+        {"request_id": "close", "channel": "canal2", "signal_id": "canal2_synthetic", "operation": "CLOSE_POSITION", "admitted_ns": 200000000, "ready_ns": 200000000, "deadline_ns": 1500000000, "service_ns": 100000000}
+      ],
+      "passive_events": []
+    },
+    {
+      "case_id": "timeout_retains_transport_native_sl_is_independent",
+      "capacity": 8,
+      "cutoff_ns": 2000000000,
+      "jobs": [
+        {"request_id": "modify", "channel": "canal1", "signal_id": "canal1_synthetic", "operation": "MODIFY_SLTP", "admitted_ns": 0, "ready_ns": 0, "deadline_ns": 100000000, "service_ns": 1000000000},
+        {"request_id": "close", "channel": "canal2", "signal_id": "canal2_synthetic", "operation": "CLOSE_POSITION", "admitted_ns": 200000000, "ready_ns": 200000000, "deadline_ns": 1800000000, "service_ns": 100000000}
+      ],
+      "passive_events": [
+        {"event_id": "native-stop", "channel": "canal2", "signal_id": "canal2_synthetic", "at_ns": 300000000, "kind": "native_sl"}
+      ]
+    },
+    {
+      "case_id": "missing_response_never_releases_or_retries",
+      "capacity": 8,
+      "cutoff_ns": 2000000000,
+      "jobs": [
+        {"request_id": "unknown", "channel": "canal1", "signal_id": "canal1_synthetic", "operation": "OPEN_MARKET", "admitted_ns": 0, "ready_ns": 0, "deadline_ns": 100000000, "service_ns": null},
+        {"request_id": "close", "channel": "canal2", "signal_id": "canal2_synthetic", "operation": "CLOSE_POSITION", "admitted_ns": 200000000, "ready_ns": 200000000, "deadline_ns": 800000000, "service_ns": 100000000}
+      ],
+      "passive_events": []
+    },
+    {
+      "case_id": "expired_storage_preserves_reservation_until_drained",
+      "capacity": 1,
+      "cutoff_ns": 2000000000,
+      "jobs": [
+        {"request_id": "storage", "channel": "canal1", "signal_id": "canal1_synthetic", "operation": "OPEN_MARKET", "admitted_ns": 0, "ready_ns": 500000000, "deadline_ns": 100000000, "service_ns": 100000000},
+        {"request_id": "capacity-rejected", "channel": "canal2", "signal_id": "canal2_synthetic", "operation": "OPEN_MARKET", "admitted_ns": 200000000, "ready_ns": 200000000, "deadline_ns": 1000000000, "service_ns": 100000000},
+        {"request_id": "reserved-close", "channel": "canal2", "signal_id": "canal2_synthetic", "operation": "CLOSE_POSITION", "admitted_ns": 300000000, "ready_ns": 300000000, "deadline_ns": 1000000000, "service_ns": 100000000},
+        {"request_id": "after-drain", "channel": "canal1", "signal_id": "canal1_synthetic", "operation": "PLACE_LIMIT", "admitted_ns": 600000000, "ready_ns": 600000000, "deadline_ns": 1000000000, "service_ns": 100000000}
+      ],
+      "passive_events": []
+    }
+  ]
+}

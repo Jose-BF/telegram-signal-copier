@@ -1,0 +1,24 @@
+{
+  "implementation_identity_unchanged": true,
+  "published": false,
+  "sha256": {
+    "pytest-final.xml": "cd5877f619cfda34a1a6502414726ca6defd4338a9d94b4acec689dd37b35983",
+    "pytest.xml": "f7e983e9ff6e0918f57210d8370a65ae7fb0ec42aacecd9f4b977de8baffb57f",
+    "sources-final.json": "9042a8114d00c60726179207e7903b8b9e3268cdf37f84e2e36b882e628e6ef2",
+    "sources.json": "8469a606a565b9dc672347eb7c246bb01b38f2aab84b7322df805117edc499b6",
+    "transport-controls.json": "222aac9df7a0f5c19b7076d856f1ee7d75d458c250a7734d61c44ba6c7e399ea"
+  },
+  "source_files_unchanged": true,
+  "suite": {
+    "errors": "0",
+    "failures": "0",
+    "hostname": "RazerBlade",
+    "name": "pytest",
+    "skipped": "0",
+    "tests": "6617",
+    "time": "460.037",
+    "timestamp": "2026-09-21T11:14:17.951217+02:00"
+  },
+  "transport_control_sources_unchanged": true,
+  "vm_verified": false
+}

@@ -1,0 +1,218 @@
+{
+  "case": "synthetic_gap_risk_definition_incident",
+  "scalar_dd": "0.00",
+  "phase_grid_dd_minor": 1720,
+  "phase_grid_peak_minor": 1920,
+  "risk": [
+    {
+      "channel": "canal1",
+      "signal_id": "canal1_gap",
+      "tick_index": 0,
+      "time_ns": 1788861600000000000,
+      "causal_round": 0,
+      "realized_minor": 0,
+      "floating_minor": 0,
+      "positions": [],
+      "phase": "quote_open"
+    },
+    {
+      "channel": "canal1",
+      "signal_id": "canal1_gap",
+      "tick_index": 0,
+      "time_ns": 1788861600000000000,
+      "causal_round": 0,
+      "realized_minor": 0,
+      "floating_minor": 0,
+      "positions": [],
+      "phase": "settled"
+    },
+    {
+      "channel": "canal1",
+      "signal_id": "canal1_gap",
+      "tick_index": 0,
+      "time_ns": 1788861600000000000,
+      "causal_round": 1,
+      "realized_minor": 0,
+      "floating_minor": 0,
+      "positions": [],
+      "phase": "grant_resume"
+    },
+    {
+      "channel": "canal1",
+      "signal_id": "canal1_gap",
+      "tick_index": 0,
+      "time_ns": 1788861600000000000,
+      "causal_round": 1,
+      "realized_minor": 0,
+      "floating_minor": -80,
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "phase": "entry_fill"
+    },
+    {
+      "channel": "canal1",
+      "signal_id": "canal1_gap",
+      "tick_index": 0,
+      "time_ns": 1788861600000000000,
+      "causal_round": 1,
+      "realized_minor": 0,
+      "floating_minor": -80,
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "phase": "settled"
+    },
+    {
+      "channel": "canal1",
+      "signal_id": "canal1_gap",
+      "tick_index": 0,
+      "time_ns": 1788861600000000000,
+      "causal_round": 2,
+      "realized_minor": 0,
+      "floating_minor": -80,
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "phase": "grant_resume"
+    },
+    {
+      "channel": "canal1",
+      "signal_id": "canal1_gap",
+      "tick_index": 0,
+      "time_ns": 1788861600000000000,
+      "causal_round": 2,
+      "realized_minor": 0,
+      "floating_minor": -80,
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "phase": "settled"
+    },
+    {
+      "channel": "canal1",
+      "signal_id": "canal1_gap",
+      "tick_index": 1,
+      "time_ns": 1788861601000000000,
+      "causal_round": 0,
+      "realized_minor": 0,
+      "floating_minor": -80,
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "phase": "quote_open"
+    },
+    {
+      "channel": "canal1",
+      "signal_id": "canal1_gap",
+      "tick_index": 1,
+      "time_ns": 1788861601000000000,
+      "causal_round": 0,
+      "realized_minor": 0,
+      "floating_minor": -80,
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "phase": "settled"
+    },
+    {
+      "channel": "canal1",
+      "signal_id": "canal1_gap",
+      "tick_index": 2,
+      "time_ns": 1788861602000000000,
+      "causal_round": 0,
+      "realized_minor": 0,
+      "floating_minor": -80,
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "phase": "quote_open"
+    },
+    {
+      "channel": "canal1",
+      "signal_id": "canal1_gap",
+      "tick_index": 2,
+      "time_ns": 1788861602000000000,
+      "causal_round": 0,
+      "realized_minor": 0,
+      "floating_minor": -80,
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "phase": "settled"
+    },
+    {
+      "channel": "canal1",
+      "signal_id": "canal1_gap",
+      "tick_index": 3,
+      "time_ns": 1788861603000000000,
+      "causal_round": 0,
+      "realized_minor": 0,
+      "floating_minor": 1920,
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "phase": "quote_open"
+    },
+    {
+      "channel": "canal1",
+      "signal_id": "canal1_gap",
+      "tick_index": 3,
+      "time_ns": 1788861603000000000,
+      "causal_round": 0,
+      "realized_minor": 200,
+      "floating_minor": 0,
+      "positions": [],
+      "phase": "native_exit"
+    },
+    {
+      "channel": "canal1",
+      "signal_id": "canal1_gap",
+      "tick_index": 3,
+      "time_ns": 1788861603000000000,
+      "causal_round": 0,
+      "realized_minor": 200,
+      "floating_minor": 0,
+      "positions": [],
+      "phase": "settled"
+    }
+  ],
+  "blockers": [],
+  "note": "Logical pre/post broker phase grid is not native micro-time evidence; scalar summary has not been redefined or certified."
+}

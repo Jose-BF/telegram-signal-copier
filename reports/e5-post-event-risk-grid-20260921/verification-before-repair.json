@@ -1,0 +1,25 @@
+{
+  "console_seconds": 472.34,
+  "failures": [
+    {
+      "failure": "tests\\test_channel_msg_detectors.py:2039: in test_successful_new_signal_applies_deferred_entry_edit\n    await _process_canal2_new(msg)\nlistener.py:9625: in _process_canal2_new\n    await _process_canal2_new(\nlistener.py:9872: in _process_canal2_new\n    await _open_canal2_intent(\nlistener.py:9566: in _open_canal2_intent\n    await _ensure_gold_candidate_hard_stops(sig, force=True)\nlistener.py:556: in _ensure_gold_candidate_hard_stops\n    await pending_actions.persist_async(pending_actions.enqueue_modify_sl,\npending_actions.py:1989: in persist_async\n    return await queue.persist_call(operation, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\npending_actions.py:526: in persist_call\n    await self._flush_spool_async()\npending_actions.py:501: in _flush_spool_async\n    await asyncio.shield(future)\n..\\..\\..\\..\\AppData\\Local\\Codex\\offline-runtimes\\copier-python311\\Lib\\concurrent\\futures\\thread.py:58: in run\n    result = self.fn(*self.args, **self.kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\npending_actions.py:430: in _write_spool_payload\n    os.replace(temporary, self._spool_path)\nE   PermissionError: [WinError 5] Acceso denegado: 'C:\\\\Users\\\\josea\\\\OneDrive\\\\Escritorio\\\\proyectos claude\\\\telegram-signal-copier-gold-live\\\\runtime_data\\\\runtime_pending_actions.json.tmp' -> 'C:\\\\Users\\\\josea\\\\OneDrive\\\\Escritorio\\\\proyectos claude\\\\telegram-signal-copier-gold-live\\\\runtime_data\\\\runtime_pending_actions.json'",
+      "test": "tests.test_channel_msg_detectors.TestCanal2OrphanEditRecovery::test_successful_new_signal_applies_deferred_entry_edit"
+    }
+  ],
+  "implementation_unchanged": true,
+  "junit": {
+    "errors": "0",
+    "failures": "1",
+    "hostname": "RazerBlade",
+    "name": "pytest",
+    "skipped": "0",
+    "tests": "6688",
+    "time": "465.823",
+    "timestamp": "2026-09-21T14:41:56.841036+02:00"
+  },
+  "junit_sha256": "6aea8d24ebbbc7bfe5c58b089206b15501fc0f3b98fc2baf0d6f406a8c87185e",
+  "open_review_issue": "stale_settled_state_accepted",
+  "scope_approved": false,
+  "sources_unchanged": true,
+  "vm_accessed": false
+}

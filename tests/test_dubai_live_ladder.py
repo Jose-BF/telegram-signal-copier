@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -7,6 +7,7 @@ import config
 import journal
 import listener
 import position_lifecycle_monitor as monitor
+from durable_entry_execution import EntryDispatchResult, EntryDispatchState
 from state import Signal
 
 
@@ -230,6 +231,61 @@ async def test_candidate_leg_uses_exact_fill_with_a_provisional_broker_sl(
     assert kwargs["sl"] == 4191.25
     assert kwargs["tp"] is None
     assert kwargs["magic"] == config.magic_for("canal1")
+
+
+@pytest.mark.asyncio
+async def test_candidate_leg_uses_durable_identity_and_exact_fill(monkeypatch):
+    signal, _ = _candidate_signal("BUY")
+    calls = []
+
+    class Durable:
+        async def open_market(self, **kwargs):
+            calls.append(kwargs)
+            return EntryDispatchResult(
+                EntryDispatchState.CONFIRMED,
+                intent_id="intent-candidate-leg",
+                ticket=6301,
+                fill_price=4195.73,
+            )
+
+    monkeypatch.setattr(monitor, "_durable_entry_executor", Durable())
+    monkeypatch.setattr(
+        monitor.executor,
+        "open_market_with_fill",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("legacy order path must stay closed")
+        ),
+    )
+    async def provisional_stop(*_args, **_kwargs):
+        return 4191.25
+
+    async def fake_ensure_dubai_stops(*_args, **_kwargs):
+        return 0
+
+    monkeypatch.setattr(monitor, "_dubai_provisional_basket_stop", provisional_stop)
+    monkeypatch.setattr(
+        listener,
+        "_ensure_dubai_candidate_hard_stops",
+        fake_ensure_dubai_stops,
+    )
+    monkeypatch.setattr(journal, "event", lambda *_args, **_kwargs: None)
+
+    result = await monitor._open_candidate_leg(
+        signal,
+        {"index": 1, "volume": 0.04, "trigger_price": 4196.0},
+        4195.9,
+    )
+
+    assert result == (6301, 4195.73)
+    call = calls[0]
+    assert call["channel"] == "canal1"
+    assert call["signal_root"] == f"canal1_{signal.message_id}"
+    assert call["leg"] == "candidate-entry-1"
+    assert call["revision"] == 0
+    assert call["protection_policy"] == "required"
+    assert call["expires_utc"] == signal.candidate_entry_expires_at.replace(
+        tzinfo=timezone.utc,
+    ).isoformat()
 
 
 @pytest.mark.asyncio

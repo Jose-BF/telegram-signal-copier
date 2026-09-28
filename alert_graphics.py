@@ -90,7 +90,7 @@ def collect_recent_prices(
     """Read a bounded real-tick trajectory; return empty on any uncertainty."""
     try:
         if mt5_module is None:
-            import MetaTrader5 as mt5_module
+            from mt5_runtime import mt5 as mt5_module
         now = now or datetime.now(timezone.utc)
         if now.tzinfo is None:
             now = now.replace(tzinfo=timezone.utc)

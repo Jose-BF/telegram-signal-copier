@@ -1,0 +1,3 @@
+utc,server,symbol,leg,retcode,comment,roundtrip_ms,price_requested,price_filled,slippage,spread_points,ping_ms
+2026-09-26T09:32:53.799139+00:00,VTMarkets-Demo,BTCUSD,open,10009,Request executed,118.6,84022.56,84022.56,0.0,1694,111.3
+2026-09-26T09:32:55.915079+00:00,VTMarkets-Demo,BTCUSD,close,10009,Request executed,115.2,84006.7,84005.95,-0.75,1694,111.3

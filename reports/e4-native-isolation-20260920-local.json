@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "passed": true,
+  "scope": "local_offline_fake_backend_native_PyDLL_GIL_hold_not_MT5_or_VM",
+  "requested_native_seconds": 60.0,
+  "elapsed_seconds": 60.0108973000024,
+  "negative_control": {
+    "samples": 8,
+    "max_ms": 402.17390000179876,
+    "p99_ms": 402.17390000179876
+  },
+  "isolated": {
+    "samples": 3865,
+    "max_ms": 23.552800004836172,
+    "p99_ms": 16.43799999874318
+  },
+  "parent_pid": 38868,
+  "worker_pid": 31356,
+  "state": "FOUND",
+  "worker_stopped": true,
+  "python": "3.14.2 (tags/v3.14.2:df79316, Dec  5 2025, 17:18:21) [MSC v.1944 64 bit (AMD64)]",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "utc_ns": 1789936096143470800,
+  "sha256": {
+    "mt5_client.py": "509bdfbd3da9614428100eb7b9c506fe360fae5eea8d96a388c0473b379659f1",
+    "mt5_worker.py": "eae9f36aebd0ac6e2cadcc5c0f5aa41d32856572679a63d14b79dabd61709af9",
+    "mt5_worker_entry.py": "38c8444d0fc63435197fe4383eabc00452f0bedb4a3a03f0faac53ec0819b3ac",
+    "mt5_read_protocol.py": "e1b5bbc12c80c80dfceaea451818ffc76c043a61022719c5e68dec03199062d8",
+    "mt5_protocol.py": "715ab1eb6bb1092aede95cd0a4ac35cde080754b31b4c6c150b61706d57b0bf8",
+    "tests/mt5_read_fakes.py": "450274ad975bab26c23ab1c01ea9b3bf14e256cec4e5ab709ffc89a909235cc6",
+    "tools/probe_mt5_read_isolation.py": "f50f41b5ca8a471cf1d161bf9a8f1aec5c21d2cda866905e80cf7bda267cf0f5"
+  }
+}

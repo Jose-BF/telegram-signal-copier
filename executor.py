@@ -9,8 +9,11 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-import MetaTrader5 as mt5
+from mt5_runtime import mt5
 from typing import Optional
+from basket_observation import drive_reads
+from basket_stop import basket_loss_stop_reads, open_position_specs_reads
+from mt5_read_protocol import ReadOperation
 import causal_trace
 import config
 import mt5_errors
@@ -903,6 +906,18 @@ def loss_stop_price(
     return result
 
 
+def _read_basket_stop_stage(request):
+    params = request.params
+    if request.operation is ReadOperation.SYMBOL:
+        return mt5.symbol_info(params["symbol"])
+    if request.operation is ReadOperation.POSITIONS:
+        return mt5.positions_get()
+    if request.operation is ReadOperation.PROFIT:
+        return mt5.order_calc_profit(params["action"], params["symbol"], params["volume"],
+                                     params["price_open"], params["price_close"])
+    raise ValueError("unsupported basket stop read")
+
+
 def basket_loss_stop_price(
     direction: str,
     positions,
@@ -915,122 +930,9 @@ def basket_loss_stop_price(
     to MT5 so account-currency conversion and the broker contract are not
     approximated in application code.
     """
-    import math
-
-    direction = str(direction).upper()
-    if direction not in {"BUY", "SELL"}:
-        raise ValueError("direction must be BUY or SELL")
-    loss_budget = float(loss_budget)
-    if not math.isfinite(loss_budget) or loss_budget <= 0:
-        raise ValueError("loss budget must be positive")
-
-    rows = [dict(row) for row in positions]
-    if not rows:
-        raise ValueError("positions must not be empty")
-    symbols = {
-        str(row.get("symbol") or symbol or config.MT5_SYMBOL)
-        for row in rows
-    }
-    if len(symbols) != 1:
-        raise ValueError("all basket positions must use the same symbol")
-    basket_symbol = symbols.pop()
-    if symbol is not None and basket_symbol != str(symbol):
-        raise ValueError("all basket positions must use the same symbol")
-
-    parsed = []
-    for row in rows:
-        volume = float(row.get("volume") or 0.0)
-        entry = float(row.get("entry") or 0.0)
-        if any(
-            not math.isfinite(value) or value <= 0
-            for value in (volume, entry)
-        ):
-            raise ValueError("basket entries and volumes must be positive")
-        parsed.append((volume, entry))
-
-    info = mt5.symbol_info(basket_symbol)
-    if info is None:
-        return None
-    point = float(getattr(info, "point", 0.0) or 0.0)
-    digits = int(getattr(info, "digits", 2) or 2)
-    if not math.isfinite(point) or point <= 0:
-        return None
-    order_type = (
-        mt5.ORDER_TYPE_BUY if direction == "BUY" else mt5.ORDER_TYPE_SELL
-    )
-
-    def projected(price: float) -> Optional[float]:
-        total = 0.0
-        for volume, entry in parsed:
-            value = mt5.order_calc_profit(
-                order_type,
-                basket_symbol,
-                volume,
-                entry,
-                float(price),
-            )
-            if value is None:
-                return None
-            value = float(value)
-            if not math.isfinite(value):
-                return None
-            total += value
-        return total
-
-    total_volume = sum(volume for volume, _entry in parsed)
-    safe = sum(volume * entry for volume, entry in parsed) / total_volume
-    safe_pl = projected(safe)
-    target = -loss_budget
-    if safe_pl is None or safe_pl < target:
-        return None
-
-    step = max(1.0, point)
-    adverse = safe - step if direction == "BUY" else safe + step
-    adverse_pl = projected(adverse)
-    for _ in range(64):
-        if adverse_pl is None:
-            return None
-        if adverse_pl <= target:
-            break
-        step *= 2.0
-        adverse = safe - step if direction == "BUY" else safe + step
-        if adverse <= point:
-            adverse = point
-        adverse_pl = projected(adverse)
-    else:
-        return None
-    if adverse_pl is None or adverse_pl > target:
-        return None
-
-    for _ in range(80):
-        midpoint = (safe + adverse) / 2.0
-        value = projected(midpoint)
-        if value is None:
-            return None
-        if value < target:
-            adverse = midpoint
-        else:
-            safe = midpoint
-
-    units = safe / point
-    safe_units = (
-        math.ceil(units - 1e-10)
-        if direction == "BUY"
-        else math.floor(units + 1e-10)
-    )
-    result = round(safe_units * point, digits)
-    result_pl = projected(result)
-    if result_pl is None:
-        return None
-    while result_pl < target - 1e-8:
-        result = round(
-            result + point if direction == "BUY" else result - point,
-            digits,
-        )
-        result_pl = projected(result)
-        if result_pl is None or result <= 0:
-            return None
-    return result
+    return drive_reads(basket_loss_stop_reads(direction, positions, loss_budget, symbol,
+        default_symbol=config.MT5_SYMBOL, buy_action=mt5.ORDER_TYPE_BUY,
+        sell_action=mt5.ORDER_TYPE_SELL), _read_basket_stop_stage)
 
 
 def open_market_with_fill(direction: str, lot: float,
@@ -1871,32 +1773,8 @@ def open_position_levels(tickets: list[int]) -> Optional[dict[int, dict]]:
 
 def open_position_specs(tickets: list[int]) -> Optional[dict[int, dict]]:
     """Return actual entry, volume and installed levels for open tickets."""
-    if not tickets:
-        return {}
-    all_open = mt5.positions_get()
-    if all_open is None:
-        return None
-    wanted = set(int(ticket) for ticket in tickets)
-    symbol_specs = {}
-    result = {}
-    for position in all_open:
-        ticket = int(position.ticket)
-        if ticket not in wanted:
-            continue
-        symbol = str(getattr(position, "symbol", config.MT5_SYMBOL))
-        if symbol not in symbol_specs:
-            symbol_specs[symbol] = mt5.symbol_info(symbol)
-        info = symbol_specs[symbol]
-        result[ticket] = {
-            "symbol": symbol,
-            "entry": float(position.price_open),
-            "volume": float(position.volume),
-            "sl": float(getattr(position, "sl", 0.0) or 0.0),
-            "tp": float(getattr(position, "tp", 0.0) or 0.0),
-            "digits": int(getattr(info, "digits", 2) if info else 2),
-            "point": float(getattr(info, "point", 0.01) if info else 0.01),
-        }
-    return result
+    return drive_reads(open_position_specs_reads(tickets, default_symbol=config.MT5_SYMBOL),
+                       _read_basket_stop_stage)
 
 
 def risk_free_basket_snapshot(tickets: list[int]) -> Optional[dict]:

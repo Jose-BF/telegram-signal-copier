@@ -78,6 +78,24 @@ def load_contract(path: Path) -> dict:
     return payload
 
 
+def convert_profit_amount(amount: Decimal, price: Decimal, *, orientation: str,
+                          currency_digits: int) -> Decimal:
+    """Convert at an already selected causal, sign-appropriate FX quote."""
+    if (not isinstance(amount, Decimal) or not amount.is_finite()
+            or not isinstance(price, Decimal) or not price.is_finite() or price <= 0
+            or type(currency_digits) is not int or not 0 <= currency_digits <= 8):
+        raise ValueError("invalid money conversion inputs")
+    if orientation == "account_base_profit_quote":
+        value = amount / price
+    elif orientation == "profit_base_account_quote":
+        value = amount * price
+    elif orientation == "identity":
+        value = amount
+    else:
+        raise ValueError("unsupported conversion orientation")
+    return value.quantize(Decimal(1).scaleb(-currency_digits), rounding=ROUND_HALF_UP)
+
+
 def validate_contract_metadata(contract: dict) -> list[str]:
     blockers: list[str] = []
     account = contract.get("account") or {}
@@ -454,13 +472,11 @@ class BrokerMoneyConverter:
         if quote is None or quote <= 0:
             return None, None, ["invalid_money_conversion_quote"]
         orientation = self.conversion["orientation"]
-        if orientation == "account_base_profit_quote":
-            account_pnl = profit_currency_pnl / quote
-        elif orientation == "profit_base_account_quote":
-            account_pnl = profit_currency_pnl * quote
-        else:
-            account_pnl = profit_currency_pnl
-        return self._money(account_pnl), conversion, []
+        account_pnl = convert_profit_amount(
+            profit_currency_pnl, quote, orientation=orientation,
+            currency_digits=self.currency_digits,
+        )
+        return account_pnl, conversion, []
 
     def _points_swap(
         self,

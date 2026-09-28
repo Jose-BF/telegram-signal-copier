@@ -1,0 +1,701 @@
+{
+  "client_observation_replay_verified": false,
+  "contract": "weekly_native_entry_conditioned_risk_diagnostic_v1",
+  "elapsed_seconds": 12.188367900031153,
+  "entry_decisions_verified": false,
+  "full_live_parity_verified": false,
+  "input_basket_count": 10,
+  "inputs_sha256": {
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\research\\conditioned_management.py": "e6942551f9d2e599160096d889ceaffc4c4664ad0638ce2abd44adea3b306e94",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\tools\\audit_week_conditioned_controls.py": "d39370166c0997253b0e942566f22179450ecb6e6e7c066dea3c2413903aeb5d",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\tools\\probe_canal1_incremental_window.py": "296ded21b2b2a4ac8ec5bb4a00969c586a19b5b362019956a8911bf7b2375c50",
+    "reports\\expanded-native-controls-20260924\\diagnostic-s17-1345-1455-grid-v4.json": "875b25a1643f3424891e4feb6ace0cc7d8480276a9550b83c9c6b2f2618eed2e",
+    "reports\\expanded-native-controls-20260924\\diagnostic-s18-1220-1245-grid-v4.json": "0d9bac9c0e5322e608667c25643a425957d708a544b1369dbc068a8d210397a5",
+    "reports\\expanded-native-controls-20260924\\tick-path-s17-1345-1455-v6.json": "642052961885695482f8272e7e8378222a7543a8cca441d4a878f9db51a57f23",
+    "reports\\expanded-native-controls-20260924\\tick-path-s18-1220-1245-v6.json": "a8877ce3f241c3919290c08e328f147d228a8b554d5834737781958d30725bb0",
+    "runtime_data\\week_native_ticks_20260923_v1\\native_money_anchor_v2.json": "550cbd6176316cb4cb62eb41ed9dc4e0673a0a925319f0b7e041230aa2ecf41d",
+    "runtime_data\\week_native_ticks_20260923_v1\\raw_week_20260914_19_bg_v1.json": "9548ca5ce3fdd27ebe5f488ac97639c7e5cc7001ae0f75c73a40d3828cfd63b0",
+    "runtime_data\\weekly_review_20260919\\broker_money_contract_vm.json": "cd5b1a326b833412affa75b3b7f7f4c42a4a808f62d423b350814618a809d7c3"
+  },
+  "limitations": [
+    "Observed entries are fixed inputs; their decisions are not validated.",
+    "Native exits, money and installed protections are not engine inputs.",
+    "The isolated Gold policy does not replay shared client queues or broker acknowledgements.",
+    "Canal1 dynamic management and no-entry scopes remain blocked here.",
+    "Only two retrospective windows are evaluated; this is not fresh holdout evidence."
+  ],
+  "rows": [
+    {
+      "channel": "canal2",
+      "conditioned_policy_fingerprint": null,
+      "declared_policy_fingerprint": "9b8a08950d6bd319b06f495a9844628c6e9d65bf49770b733f9c123f397ccc91",
+      "engine_mismatches": {
+        "fast": [],
+        "scalar": []
+      },
+      "management_blockers": [],
+      "management_status": "evaluated_conditioned_management",
+      "native_booked_net_eur": "20.02",
+      "native_entry_count": 5,
+      "risk": {
+        "blockers": [],
+        "first_divergence": {
+          "at": "2026-09-17 13:46:01.434000+00:00",
+          "differences": [
+            "floating",
+            "realized",
+            "short_volume",
+            "open_count",
+            "positions"
+          ],
+          "observed": {
+            "at": "2026-09-17 13:46:01.434000+00:00",
+            "blockers": [],
+            "floating": "1.74",
+            "long_volume": "0",
+            "open_count": 1,
+            "ordinal": 0,
+            "positions": {
+              "1": {
+                "direction": "SELL",
+                "floating": "1.74",
+                "realized": "0",
+                "total": "1.74",
+                "volume": "0.04"
+              }
+            },
+            "quote_at": "2026-09-17 13:46:01.434000+00:00",
+            "realized": "0",
+            "short_volume": "0.04",
+            "total": "1.74"
+          },
+          "ordinal": 0,
+          "simulated": {
+            "at": "2026-09-17 13:46:01.434000+00:00",
+            "blockers": [],
+            "floating": "0",
+            "long_volume": "0",
+            "open_count": 0,
+            "ordinal": 0,
+            "positions": {
+              "1": {
+                "direction": "SELL",
+                "floating": "0",
+                "realized": "1.74",
+                "total": "1.74",
+                "volume": "0.00"
+              }
+            },
+            "quote_at": "2026-09-17 13:46:01.434000+00:00",
+            "realized": "1.74",
+            "short_volume": "0.00",
+            "total": "1.74"
+          }
+        },
+        "first_divergence_scope": "first_comparable_sample_not_proof_before_unknown_intervals",
+        "first_unknown": null,
+        "full_live_parity_verified": false,
+        "max_abs_total_difference": "0.71",
+        "mismatched_pairs": 6,
+        "observed": {
+          "blockers": [],
+          "currency": "EUR",
+          "full_live_parity_verified": false,
+          "fx_coverage_mode": "strict_causal",
+          "known_sample_metrics": {
+            "final_at": "2026-09-17 14:43:13.393000+00:00",
+            "final_net": "20.02",
+            "known_samples": 39787,
+            "max_drawdown": "178.72",
+            "max_gross_volume": "0.12",
+            "maximum_from_origin": "20.02",
+            "minimum_from_origin": "-176.98"
+          },
+          "metrics": {
+            "final_at": "2026-09-17 14:43:13.393000+00:00",
+            "final_net": "20.02",
+            "known_samples": 39787,
+            "max_drawdown": "178.72",
+            "max_gross_volume": "0.12",
+            "maximum_from_origin": "20.02",
+            "minimum_from_origin": "-176.98"
+          },
+          "retrospective_fx_bracketed_samples": 0,
+          "same_time_convention": "confirmed_events_before_quote_mark",
+          "samples_count": 39787,
+          "samples_sha256": "88d772adfea36c80a5cc75fb36c70ba07daeb81c76a16541e76c25d133903bd4",
+          "scope": "retained_grid_including_event_boundaries_not_continuous_market_extrema",
+          "valuation": "realized_booked_at_events_plus_executable_floating"
+        },
+        "simulated": {
+          "blockers": [],
+          "currency": "EUR",
+          "full_live_parity_verified": false,
+          "fx_coverage_mode": "strict_causal",
+          "known_sample_metrics": {
+            "final_at": "2026-09-17 14:43:13.393000+00:00",
+            "final_net": "20.02",
+            "known_samples": 39787,
+            "max_drawdown": "178.72",
+            "max_gross_volume": "0.12",
+            "maximum_from_origin": "20.02",
+            "minimum_from_origin": "-176.98"
+          },
+          "metrics": {
+            "final_at": "2026-09-17 14:43:13.393000+00:00",
+            "final_net": "20.02",
+            "known_samples": 39787,
+            "max_drawdown": "178.72",
+            "max_gross_volume": "0.12",
+            "maximum_from_origin": "20.02",
+            "minimum_from_origin": "-176.98"
+          },
+          "retrospective_fx_bracketed_samples": 0,
+          "same_time_convention": "confirmed_events_before_quote_mark",
+          "samples_count": 39787,
+          "samples_sha256": "221ca34dd18c20d72330d93ad6107b347f4c0ae59382958255fcaed5f3bb841f",
+          "scope": "retained_grid_including_event_boundaries_not_continuous_market_extrema",
+          "valuation": "realized_booked_at_events_plus_executable_floating"
+        },
+        "status": "mismatch",
+        "unknown_pairs": 0
+      },
+      "signal_id": "canal2_3102",
+      "status": "mismatch",
+      "tick_status": "path_discrepant"
+    },
+    {
+      "channel": "canal2",
+      "conditioned_policy_fingerprint": null,
+      "declared_policy_fingerprint": "9b8a08950d6bd319b06f495a9844628c6e9d65bf49770b733f9c123f397ccc91",
+      "engine_mismatches": {
+        "fast": [],
+        "scalar": []
+      },
+      "management_blockers": [],
+      "management_status": "evaluated_conditioned_management",
+      "native_booked_net_eur": "20.02",
+      "native_entry_count": 5,
+      "risk": {
+        "blockers": [],
+        "first_divergence": {
+          "at": "2026-09-17 14:13:04.965000+00:00",
+          "differences": [
+            "total",
+            "floating",
+            "realized",
+            "long_volume",
+            "open_count",
+            "positions"
+          ],
+          "observed": {
+            "at": "2026-09-17 14:13:04.965000+00:00",
+            "blockers": [],
+            "floating": "2.64",
+            "long_volume": "0.04",
+            "open_count": 1,
+            "ordinal": 0,
+            "positions": {
+              "1": {
+                "direction": "BUY",
+                "floating": "2.64",
+                "realized": "0",
+                "total": "2.64",
+                "volume": "0.04"
+              }
+            },
+            "quote_at": "2026-09-17 14:13:04.965000+00:00",
+            "realized": "0",
+            "short_volume": "0",
+            "total": "2.64"
+          },
+          "ordinal": 0,
+          "simulated": {
+            "at": "2026-09-17 14:13:04.965000+00:00",
+            "blockers": [],
+            "floating": "0",
+            "long_volume": "0.00",
+            "open_count": 0,
+            "ordinal": 0,
+            "positions": {
+              "1": {
+                "direction": "BUY",
+                "floating": "0",
+                "realized": "1.74",
+                "total": "1.74",
+                "volume": "0.00"
+              }
+            },
+            "quote_at": "2026-09-17 14:13:04.965000+00:00",
+            "realized": "1.74",
+            "short_volume": "0",
+            "total": "1.74"
+          }
+        },
+        "first_divergence_scope": "first_comparable_sample_not_proof_before_unknown_intervals",
+        "first_unknown": null,
+        "full_live_parity_verified": false,
+        "max_abs_total_difference": "3.17",
+        "mismatched_pairs": 286,
+        "observed": {
+          "blockers": [],
+          "currency": "EUR",
+          "full_live_parity_verified": false,
+          "fx_coverage_mode": "strict_causal",
+          "known_sample_metrics": {
+            "final_at": "2026-09-17 14:34:34.203000+00:00",
+            "final_net": "20.02",
+            "known_samples": 14753,
+            "max_drawdown": "6.32",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "20.15",
+            "minimum_from_origin": "-1.77"
+          },
+          "metrics": {
+            "final_at": "2026-09-17 14:34:34.203000+00:00",
+            "final_net": "20.02",
+            "known_samples": 14753,
+            "max_drawdown": "6.32",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "20.15",
+            "minimum_from_origin": "-1.77"
+          },
+          "retrospective_fx_bracketed_samples": 0,
+          "same_time_convention": "confirmed_events_before_quote_mark",
+          "samples_count": 14753,
+          "samples_sha256": "1773f2b1da0ba2c5668855bbed569d18f4dc0a8a9b967cef2de972a7f8a51fdb",
+          "scope": "retained_grid_including_event_boundaries_not_continuous_market_extrema",
+          "valuation": "realized_booked_at_events_plus_executable_floating"
+        },
+        "simulated": {
+          "blockers": [],
+          "currency": "EUR",
+          "full_live_parity_verified": false,
+          "fx_coverage_mode": "strict_causal",
+          "known_sample_metrics": {
+            "final_at": "2026-09-17 14:34:34.203000+00:00",
+            "final_net": "20.02",
+            "known_samples": 14753,
+            "max_drawdown": "5.82",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "20.02",
+            "minimum_from_origin": "-1.77"
+          },
+          "metrics": {
+            "final_at": "2026-09-17 14:34:34.203000+00:00",
+            "final_net": "20.02",
+            "known_samples": 14753,
+            "max_drawdown": "5.82",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "20.02",
+            "minimum_from_origin": "-1.77"
+          },
+          "retrospective_fx_bracketed_samples": 0,
+          "same_time_convention": "confirmed_events_before_quote_mark",
+          "samples_count": 14753,
+          "samples_sha256": "5405de99bd0bfe3e1899861cc4665d3844fe6c696868ec1533378f9f2309ebff",
+          "scope": "retained_grid_including_event_boundaries_not_continuous_market_extrema",
+          "valuation": "realized_booked_at_events_plus_executable_floating"
+        },
+        "status": "mismatch",
+        "unknown_pairs": 0
+      },
+      "signal_id": "canal2_3106",
+      "status": "mismatch",
+      "tick_status": "path_discrepant"
+    },
+    {
+      "blockers": [
+        "model_no_entry"
+      ],
+      "channel": "canal2",
+      "signal_id": "canal2_3108",
+      "status": "blocked_prior_tick_gate",
+      "tick_status": "model_no_entry"
+    },
+    {
+      "blockers": [
+        "isolated_policy_omits_dynamic_canal1_management"
+      ],
+      "channel": "canal1",
+      "signal_id": "canal1_22732",
+      "status": "blocked_incremental_canal1_management",
+      "tick_status": "path_discrepant"
+    },
+    {
+      "blockers": [
+        "model_no_entry"
+      ],
+      "channel": "canal1",
+      "signal_id": "canal1_22733",
+      "status": "blocked_prior_tick_gate",
+      "tick_status": "model_no_entry"
+    },
+    {
+      "blockers": [
+        "isolated_policy_omits_dynamic_canal1_management"
+      ],
+      "channel": "canal1",
+      "signal_id": "canal1_22738",
+      "status": "blocked_incremental_canal1_management",
+      "tick_status": "path_discrepant"
+    },
+    {
+      "channel": "canal2",
+      "conditioned_policy_fingerprint": null,
+      "declared_policy_fingerprint": "9b8a08950d6bd319b06f495a9844628c6e9d65bf49770b733f9c123f397ccc91",
+      "engine_mismatches": {
+        "fast": [],
+        "scalar": []
+      },
+      "management_blockers": [],
+      "management_status": "evaluated_conditioned_management",
+      "native_booked_net_eur": "20.09",
+      "native_entry_count": 5,
+      "risk": {
+        "blockers": [],
+        "first_divergence": {
+          "at": "2026-09-18 12:26:28.562000+00:00",
+          "differences": [
+            "total",
+            "floating",
+            "realized",
+            "long_volume",
+            "open_count",
+            "positions"
+          ],
+          "observed": {
+            "at": "2026-09-18 12:26:28.562000+00:00",
+            "blockers": [],
+            "floating": "-4.14",
+            "long_volume": "0.13",
+            "open_count": 4,
+            "ordinal": 0,
+            "positions": {
+              "1": {
+                "direction": "BUY",
+                "floating": "-9.11",
+                "realized": "0",
+                "total": "-9.11",
+                "volume": "0.04"
+              },
+              "2": {
+                "direction": "BUY",
+                "floating": "-1.86",
+                "realized": "0",
+                "total": "-1.86",
+                "volume": "0.03"
+              },
+              "3": {
+                "direction": "BUY",
+                "floating": "1.49",
+                "realized": "0",
+                "total": "1.49",
+                "volume": "0.03"
+              },
+              "4": {
+                "direction": "BUY",
+                "floating": "5.34",
+                "realized": "0",
+                "total": "5.34",
+                "volume": "0.03"
+              }
+            },
+            "quote_at": "2026-09-18 12:26:28.562000+00:00",
+            "realized": "0",
+            "short_volume": "0",
+            "total": "-4.14"
+          },
+          "ordinal": 0,
+          "simulated": {
+            "at": "2026-09-18 12:26:28.562000+00:00",
+            "blockers": [],
+            "floating": "-9.48",
+            "long_volume": "0.10",
+            "open_count": 3,
+            "ordinal": 0,
+            "positions": {
+              "1": {
+                "direction": "BUY",
+                "floating": "-9.11",
+                "realized": "0",
+                "total": "-9.11",
+                "volume": "0.04"
+              },
+              "2": {
+                "direction": "BUY",
+                "floating": "-1.86",
+                "realized": "0",
+                "total": "-1.86",
+                "volume": "0.03"
+              },
+              "3": {
+                "direction": "BUY",
+                "floating": "1.49",
+                "realized": "0",
+                "total": "1.49",
+                "volume": "0.03"
+              },
+              "4": {
+                "direction": "BUY",
+                "floating": "0",
+                "realized": "5.24",
+                "total": "5.24",
+                "volume": "0.00"
+              }
+            },
+            "quote_at": "2026-09-18 12:26:28.562000+00:00",
+            "realized": "5.24",
+            "short_volume": "0",
+            "total": "-4.24"
+          }
+        },
+        "first_divergence_scope": "first_comparable_sample_not_proof_before_unknown_intervals",
+        "first_unknown": null,
+        "full_live_parity_verified": false,
+        "max_abs_total_difference": "0.76",
+        "mismatched_pairs": 35,
+        "observed": {
+          "blockers": [],
+          "currency": "EUR",
+          "full_live_parity_verified": false,
+          "fx_coverage_mode": "strict_causal",
+          "known_sample_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "20.09",
+            "known_samples": 4885,
+            "max_drawdown": "65.65",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "20.85",
+            "minimum_from_origin": "-64.73"
+          },
+          "metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "20.09",
+            "known_samples": 4885,
+            "max_drawdown": "65.65",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "20.85",
+            "minimum_from_origin": "-64.73"
+          },
+          "retrospective_fx_bracketed_samples": 0,
+          "same_time_convention": "confirmed_events_before_quote_mark",
+          "samples_count": 4885,
+          "samples_sha256": "167530f194f7ffb041fa59521b6ec85e257fe17af471cf17800012de9f69f212",
+          "scope": "retained_grid_including_event_boundaries_not_continuous_market_extrema",
+          "valuation": "realized_booked_at_events_plus_executable_floating"
+        },
+        "simulated": {
+          "blockers": [],
+          "currency": "EUR",
+          "full_live_parity_verified": false,
+          "fx_coverage_mode": "strict_causal",
+          "known_sample_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "20.09",
+            "known_samples": 4885,
+            "max_drawdown": "65.65",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "20.09",
+            "minimum_from_origin": "-64.73"
+          },
+          "metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "20.09",
+            "known_samples": 4885,
+            "max_drawdown": "65.65",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "20.09",
+            "minimum_from_origin": "-64.73"
+          },
+          "retrospective_fx_bracketed_samples": 0,
+          "same_time_convention": "confirmed_events_before_quote_mark",
+          "samples_count": 4885,
+          "samples_sha256": "f334d6c0a0cf339494e8cd483c5447fdf847badd187faccd000bdaf2e2797b79",
+          "scope": "retained_grid_including_event_boundaries_not_continuous_market_extrema",
+          "valuation": "realized_booked_at_events_plus_executable_floating"
+        },
+        "status": "mismatch",
+        "unknown_pairs": 0
+      },
+      "signal_id": "canal2_3168",
+      "status": "mismatch",
+      "tick_status": "path_discrepant"
+    },
+    {
+      "channel": "canal2",
+      "conditioned_policy_fingerprint": null,
+      "declared_policy_fingerprint": "9b8a08950d6bd319b06f495a9844628c6e9d65bf49770b733f9c123f397ccc91",
+      "engine_mismatches": {
+        "fast": [],
+        "scalar": []
+      },
+      "management_blockers": [],
+      "management_status": "evaluated_conditioned_management",
+      "native_booked_net_eur": "1.75",
+      "native_entry_count": 1,
+      "risk": {
+        "blockers": [],
+        "first_divergence": {
+          "at": "2026-09-18 12:27:58.962000+00:00",
+          "differences": [
+            "floating",
+            "realized",
+            "long_volume",
+            "open_count",
+            "positions"
+          ],
+          "observed": {
+            "at": "2026-09-18 12:27:58.962000+00:00",
+            "blockers": [],
+            "floating": "1.75",
+            "long_volume": "0.04",
+            "open_count": 1,
+            "ordinal": 0,
+            "positions": {
+              "1": {
+                "direction": "BUY",
+                "floating": "1.75",
+                "realized": "0",
+                "total": "1.75",
+                "volume": "0.04"
+              }
+            },
+            "quote_at": "2026-09-18 12:27:58.962000+00:00",
+            "realized": "0",
+            "short_volume": "0",
+            "total": "1.75"
+          },
+          "ordinal": 0,
+          "simulated": {
+            "at": "2026-09-18 12:27:58.962000+00:00",
+            "blockers": [],
+            "floating": "0",
+            "long_volume": "0.00",
+            "open_count": 0,
+            "ordinal": 0,
+            "positions": {
+              "1": {
+                "direction": "BUY",
+                "floating": "0",
+                "realized": "1.75",
+                "total": "1.75",
+                "volume": "0.00"
+              }
+            },
+            "quote_at": "2026-09-18 12:27:58.962000+00:00",
+            "realized": "1.75",
+            "short_volume": "0",
+            "total": "1.75"
+          }
+        },
+        "first_divergence_scope": "first_comparable_sample_not_proof_before_unknown_intervals",
+        "first_unknown": null,
+        "full_live_parity_verified": false,
+        "max_abs_total_difference": "4.12",
+        "mismatched_pairs": 155,
+        "observed": {
+          "blockers": [],
+          "currency": "EUR",
+          "full_live_parity_verified": false,
+          "fx_coverage_mode": "strict_causal",
+          "known_sample_metrics": {
+            "final_at": "2026-09-18 12:28:14.149000+00:00",
+            "final_net": "1.75",
+            "known_samples": 161,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "metrics": {
+            "final_at": "2026-09-18 12:28:14.149000+00:00",
+            "final_net": "1.75",
+            "known_samples": 161,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "retrospective_fx_bracketed_samples": 0,
+          "same_time_convention": "confirmed_events_before_quote_mark",
+          "samples_count": 161,
+          "samples_sha256": "8daaeea4f6c339e9049686d9f8f3d055977ed6d7e63017168825e425e7c0e13b",
+          "scope": "retained_grid_including_event_boundaries_not_continuous_market_extrema",
+          "valuation": "realized_booked_at_events_plus_executable_floating"
+        },
+        "simulated": {
+          "blockers": [],
+          "currency": "EUR",
+          "full_live_parity_verified": false,
+          "fx_coverage_mode": "strict_causal",
+          "known_sample_metrics": {
+            "final_at": "2026-09-18 12:28:14.149000+00:00",
+            "final_net": "1.75",
+            "known_samples": 161,
+            "max_drawdown": "0",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.75",
+            "minimum_from_origin": "0"
+          },
+          "metrics": {
+            "final_at": "2026-09-18 12:28:14.149000+00:00",
+            "final_net": "1.75",
+            "known_samples": 161,
+            "max_drawdown": "0",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.75",
+            "minimum_from_origin": "0"
+          },
+          "retrospective_fx_bracketed_samples": 0,
+          "same_time_convention": "confirmed_events_before_quote_mark",
+          "samples_count": 161,
+          "samples_sha256": "2925e751e8038ba019e86117287ad1ab1dcec20b8da43b87237a5c730d5322bc",
+          "scope": "retained_grid_including_event_boundaries_not_continuous_market_extrema",
+          "valuation": "realized_booked_at_events_plus_executable_floating"
+        },
+        "status": "mismatch",
+        "unknown_pairs": 0
+      },
+      "signal_id": "canal2_3171",
+      "status": "mismatch",
+      "tick_status": "path_discrepant"
+    },
+    {
+      "blockers": [
+        "isolated_policy_omits_dynamic_canal1_management"
+      ],
+      "channel": "canal1",
+      "signal_id": "canal1_22768",
+      "status": "blocked_incremental_canal1_management",
+      "tick_status": "path_discrepant"
+    },
+    {
+      "blockers": [
+        "model_no_entry"
+      ],
+      "channel": "canal1",
+      "signal_id": "canal1_22769",
+      "status": "blocked_prior_tick_gate",
+      "tick_status": "model_no_entry"
+    }
+  ],
+  "status": "diagnostic_only",
+  "statuses": {
+    "blocked_incremental_canal1_management": 3,
+    "blocked_prior_tick_gate": 3,
+    "mismatch": 4
+  },
+  "tape_proofs": [
+    {
+      "day": "2026-09-17",
+      "fx_sha256": "e8584d425539096e6502fe1aa250f806981f6225c5b5ed4be1a51c2afff7c5f7",
+      "market_sha256": "d597c1b0c78a7be18145de4b141d6f795ab5cd4c9a5782bca27e150108a92488"
+    },
+    {
+      "day": "2026-09-18",
+      "fx_sha256": "08bbc079f6ce17ecaadd44b632193e6dc295351541927f51b9e6747dc0102147",
+      "market_sha256": "b0ddaa81f9c7391c1161f4239af2a9b932b7c3eb7997a683449fba6c1278670e"
+    }
+  ]
+}

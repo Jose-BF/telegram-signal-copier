@@ -1,0 +1,12 @@
+{
+  "elapsed_seconds": 462.5,
+  "exit_code": 0,
+  "full_live_parity_verified": false,
+  "goal_complete": false,
+  "implementation_unchanged": true,
+  "parent_controls_sha256": "a167483359f39c02e735faaa24a965908c9d104ea12b6aed11260f2a807a3dde",
+  "parent_protocol_sha256": "2c75c75acb407b6978dce06e2e725f3d70f84aebd6394e18666babe0f9f2a263",
+  "published": false,
+  "pytest_xml_sha256": "4465d526a64edf7fe9b0d1a272ac5ba13470b60a4b87646ed7e14c2f1d2284fa",
+  "sources_unchanged": true
+}

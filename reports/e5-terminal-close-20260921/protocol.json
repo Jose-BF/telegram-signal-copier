@@ -1,0 +1,496 @@
+{
+  "clock_matrix": {
+    "ack_seconds": [
+      0,
+      2,
+      5
+    ],
+    "close_seconds": [
+      1,
+      3,
+      6
+    ],
+    "dispatch_formula": "max(close_seconds, fill_seconds + ack_seconds)",
+    "exit_formula": "dispatch + 1",
+    "fill_seconds": [
+      0,
+      1,
+      3,
+      5
+    ],
+    "modes": [
+      "scalar",
+      "shared"
+    ]
+  },
+  "controls": [
+    {
+      "direction": "BUY",
+      "execution": {
+        "client": {
+          "entry_price_delay_ms": null,
+          "ladder_decision_mode": "snapshot_batch",
+          "max_events": 100000,
+          "name": "single_basket_terminal_v2"
+        },
+        "entry_fill_latency_ms": 3000,
+        "entry_slippage": 0.0,
+        "exit_slippage": 0.0,
+        "latency_ms": 0,
+        "market": {
+          "close_acknowledgement_delay_ms": 1000,
+          "close_processing_delay_ms": 1000,
+          "entry_acknowledgement_delay_ms": 2000,
+          "max_events": 100000,
+          "name": "quote_clock_market_v1",
+          "volume_max": 1.0,
+          "volume_min": 0.01,
+          "volume_step": 0.01
+        },
+        "protection": {
+          "acknowledgement_delay_ms": 1000,
+          "digits": 2,
+          "freeze_level_points": 0,
+          "initial_protections": [],
+          "max_events": 100000,
+          "name": "quote_clock_protection_v1",
+          "point": 0.01,
+          "policy_extension": "none",
+          "processing_delay_ms": 1000,
+          "request_quote_binding": "timestamp_only",
+          "retry_delay_ms": 1000,
+          "stops_level_points": 20
+        },
+        "spread_addition": 0.0
+      },
+      "path": {
+        "actual_pnl_eur": null,
+        "ask": [
+          100.0,
+          100.0,
+          100.0,
+          100.0,
+          100.0,
+          100.0,
+          100.0,
+          100.0,
+          100.0,
+          100.0,
+          100.0,
+          100.0
+        ],
+        "bid": [
+          99.8,
+          99.8,
+          99.8,
+          99.8,
+          99.8,
+          99.8,
+          99.8,
+          99.8,
+          99.8,
+          99.8,
+          99.8,
+          99.8
+        ],
+        "contract_size": 100,
+        "conversion_evidence": [
+          {}
+        ],
+        "conversion_orientation": "identity",
+        "currency_digits": 2,
+        "day": "2026-09-08",
+        "direction": "BUY",
+        "entry_evidence_kind": "provider_signal",
+        "entry_expiry_anchor_at": null,
+        "exit_quotes": [
+          99.8,
+          99.8,
+          99.8,
+          99.8,
+          99.8,
+          99.8,
+          99.8,
+          99.8,
+          99.8,
+          99.8,
+          99.8,
+          99.8
+        ],
+        "fx_age_ms": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "fx_ask": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "fx_bid": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "fx_valid": [
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "legs": [
+          {
+            "actual_pnl_eur": "0",
+            "close_price": null,
+            "close_reason": null,
+            "closed_at": null,
+            "open_price": 1,
+            "opened_at": "2026-09-08T10:00:00+00:00",
+            "role": "market",
+            "sl_events": [],
+            "ticket": "template",
+            "tp_events": [],
+            "volume": 0.04
+          }
+        ],
+        "market_evidence": [
+          {}
+        ],
+        "opened_at": "2026-09-08T10:00:00+00:00",
+        "provider_events": [
+          {
+            "action": "CLOSE_ALL",
+            "observed_at": "2026-09-08T10:00:01+00:00",
+            "payload": {}
+          }
+        ],
+        "rollover_events": [],
+        "signal_id": "control",
+        "signal_observed_at": "2026-09-08T10:00:00+00:00",
+        "times_ns": [
+          1788861600000000000,
+          1788861601000000000,
+          1788861602000000000,
+          1788861603000000000,
+          1788861604000000000,
+          1788861605000000000,
+          1788861606000000000,
+          1788861607000000000,
+          1788861608000000000,
+          1788861609000000000,
+          1788861610000000000,
+          1788861611000000000
+        ]
+      },
+      "strategy": {
+        "be_mode": "none",
+        "be_trigger": null,
+        "context_filter_mode": "none",
+        "context_filter_value": null,
+        "entry_confirmation_value": null,
+        "entry_expiry_min": 1,
+        "entry_ladder_mode": "simultaneous",
+        "entry_ladder_step": null,
+        "entry_mode": "signal_market",
+        "entry_value": null,
+        "hard_stop_eur_per_leg": null,
+        "leg_count": 1,
+        "lineage_depth": 0,
+        "mutation_reason": null,
+        "parent_fingerprints": [],
+        "partial_fraction": 0.0,
+        "pending_entry_policy": "until_expiry",
+        "profit_lock_arm": null,
+        "profit_lock_giveback": null,
+        "provider_management_mode": "explicit_close_only",
+        "runner_target": null,
+        "schema_version": 2,
+        "source_strategy_fingerprint": null,
+        "stop_mode": "none",
+        "stop_value": null,
+        "target_mode": "none",
+        "target_steps": [],
+        "target_value": null,
+        "time_exit_min": 180,
+        "time_exit_mode": "none",
+        "trailing_distance": null,
+        "volume_weights": [
+          0.04
+        ]
+      }
+    },
+    {
+      "direction": "SELL",
+      "execution": {
+        "client": {
+          "entry_price_delay_ms": null,
+          "ladder_decision_mode": "snapshot_batch",
+          "max_events": 100000,
+          "name": "single_basket_terminal_v2"
+        },
+        "entry_fill_latency_ms": 3000,
+        "entry_slippage": 0.0,
+        "exit_slippage": 0.0,
+        "latency_ms": 0,
+        "market": {
+          "close_acknowledgement_delay_ms": 1000,
+          "close_processing_delay_ms": 1000,
+          "entry_acknowledgement_delay_ms": 2000,
+          "max_events": 100000,
+          "name": "quote_clock_market_v1",
+          "volume_max": 1.0,
+          "volume_min": 0.01,
+          "volume_step": 0.01
+        },
+        "protection": {
+          "acknowledgement_delay_ms": 1000,
+          "digits": 2,
+          "freeze_level_points": 0,
+          "initial_protections": [],
+          "max_events": 100000,
+          "name": "quote_clock_protection_v1",
+          "point": 0.01,
+          "policy_extension": "none",
+          "processing_delay_ms": 1000,
+          "request_quote_binding": "timestamp_only",
+          "retry_delay_ms": 1000,
+          "stops_level_points": 20
+        },
+        "spread_addition": 0.0
+      },
+      "path": {
+        "actual_pnl_eur": null,
+        "ask": [
+          100.2,
+          100.2,
+          100.2,
+          100.2,
+          100.2,
+          100.2,
+          100.2,
+          100.2,
+          100.2,
+          100.2,
+          100.2,
+          100.2
+        ],
+        "bid": [
+          100.0,
+          100.0,
+          100.0,
+          100.0,
+          100.0,
+          100.0,
+          100.0,
+          100.0,
+          100.0,
+          100.0,
+          100.0,
+          100.0
+        ],
+        "contract_size": 100,
+        "conversion_evidence": [
+          {}
+        ],
+        "conversion_orientation": "identity",
+        "currency_digits": 2,
+        "day": "2026-09-08",
+        "direction": "SELL",
+        "entry_evidence_kind": "provider_signal",
+        "entry_expiry_anchor_at": null,
+        "exit_quotes": [
+          100.2,
+          100.2,
+          100.2,
+          100.2,
+          100.2,
+          100.2,
+          100.2,
+          100.2,
+          100.2,
+          100.2,
+          100.2,
+          100.2
+        ],
+        "fx_age_ms": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "fx_ask": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "fx_bid": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "fx_valid": [
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "legs": [
+          {
+            "actual_pnl_eur": "0",
+            "close_price": null,
+            "close_reason": null,
+            "closed_at": null,
+            "open_price": 1,
+            "opened_at": "2026-09-08T10:00:00+00:00",
+            "role": "market",
+            "sl_events": [],
+            "ticket": "template",
+            "tp_events": [],
+            "volume": 0.04
+          }
+        ],
+        "market_evidence": [
+          {}
+        ],
+        "opened_at": "2026-09-08T10:00:00+00:00",
+        "provider_events": [
+          {
+            "action": "CLOSE_ALL",
+            "observed_at": "2026-09-08T10:00:01+00:00",
+            "payload": {}
+          }
+        ],
+        "rollover_events": [],
+        "signal_id": "control",
+        "signal_observed_at": "2026-09-08T10:00:00+00:00",
+        "times_ns": [
+          1788861600000000000,
+          1788861601000000000,
+          1788861602000000000,
+          1788861603000000000,
+          1788861604000000000,
+          1788861605000000000,
+          1788861606000000000,
+          1788861607000000000,
+          1788861608000000000,
+          1788861609000000000,
+          1788861610000000000,
+          1788861611000000000
+        ]
+      },
+      "strategy": {
+        "be_mode": "none",
+        "be_trigger": null,
+        "context_filter_mode": "none",
+        "context_filter_value": null,
+        "entry_confirmation_value": null,
+        "entry_expiry_min": 1,
+        "entry_ladder_mode": "simultaneous",
+        "entry_ladder_step": null,
+        "entry_mode": "signal_market",
+        "entry_value": null,
+        "hard_stop_eur_per_leg": null,
+        "leg_count": 1,
+        "lineage_depth": 0,
+        "mutation_reason": null,
+        "parent_fingerprints": [],
+        "partial_fraction": 0.0,
+        "pending_entry_policy": "until_expiry",
+        "profit_lock_arm": null,
+        "profit_lock_giveback": null,
+        "provider_management_mode": "explicit_close_only",
+        "runner_target": null,
+        "schema_version": 2,
+        "source_strategy_fingerprint": null,
+        "stop_mode": "none",
+        "stop_value": null,
+        "target_mode": "none",
+        "target_steps": [],
+        "target_value": null,
+        "time_exit_min": 180,
+        "time_exit_mode": "none",
+        "trailing_distance": null,
+        "volume_weights": [
+          0.04
+        ]
+      }
+    }
+  ],
+  "expected": {
+    "close_dispatch_ordinal": 5,
+    "decision_ordinal": 1,
+    "exit_ordinal": 6,
+    "fill_ordinal": 3
+  },
+  "kind": "hypothetical_terminal_lifecycle_controls_v2",
+  "native_parity_claimed": false
+}

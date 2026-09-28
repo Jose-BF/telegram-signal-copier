@@ -1,5 +1,4 @@
 from datetime import datetime
-from types import SimpleNamespace
 
 import listener
 from state import Signal
@@ -45,19 +44,18 @@ async def test_finalize_signal_blocks_when_mt5_still_has_open_position(
     journal = FakeJournal()
     monkeypatch.setattr(listener, "journal", journal)
     monkeypatch.setattr(
-        "MetaTrader5.positions_get",
-        lambda: [
-            SimpleNamespace(
-                ticket=1380715690,
-                magic=20260422,
-                comment="c2_13288_B4",
-                symbol="XAUUSD",
-                volume=0.01,
-                price_open=4568.20,
-                sl=0.0,
-                tp=0.0,
-            )
-        ],
+        listener,
+        "_open_mt5_positions_for_signal",
+        lambda _signal: [{
+            "ticket": 1380715690,
+            "magic": 20260422,
+            "comment": "c2_13288_B4",
+            "symbol": "XAUUSD",
+            "volume": 0.01,
+            "price_open": 4568.20,
+            "sl": 0.0,
+            "tp": 0.0,
+        }],
     )
 
     sig = _signal()
@@ -81,19 +79,18 @@ async def test_finalize_signal_treats_enqueued_close_as_expected_transition(
     journal = FakeJournal()
     monkeypatch.setattr(listener, "journal", journal)
     monkeypatch.setattr(
-        "MetaTrader5.positions_get",
-        lambda: [
-            SimpleNamespace(
-                ticket=1380715618,
-                magic=20260422,
-                comment="c2_13288",
-                symbol="XAUUSD",
-                volume=0.01,
-                price_open=4568.20,
-                sl=4558.0,
-                tp=4572.0,
-            )
-        ],
+        listener,
+        "_open_mt5_positions_for_signal",
+        lambda _signal: [{
+            "ticket": 1380715618,
+            "magic": 20260422,
+            "comment": "c2_13288",
+            "symbol": "XAUUSD",
+            "volume": 0.01,
+            "price_open": 4568.20,
+            "sl": 4558.0,
+            "tp": 4572.0,
+        }],
     )
 
     sig = _signal()
@@ -113,8 +110,8 @@ async def test_finalize_signal_continues_when_mt5_has_no_open_positions(
         monkeypatch):
     journal = FakeJournal()
     monkeypatch.setattr(listener, "journal", journal)
-    monkeypatch.setattr("MetaTrader5.positions_get", lambda: [])
-    monkeypatch.setattr("MetaTrader5.history_deals_get", lambda position: [])
+    monkeypatch.setattr(listener, "_open_mt5_positions_for_signal", lambda _signal: [])
+    monkeypatch.setattr("mt5_runtime.mt5.history_deals_get", lambda **_kwargs: [])
     monkeypatch.setattr(
         listener.executor,
         "account_evidence",

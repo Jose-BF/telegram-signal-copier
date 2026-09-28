@@ -1,0 +1,183 @@
+{
+  "schema_version": 1,
+  "passed": true,
+  "scope": "offline_durable_service_and_journal_not_live_VM_or_strategy_certification",
+  "entry_evidence_enabled": true,
+  "entry_checkpoints": {
+    "confirmed": 20
+  },
+  "entry_checkpoint_latency": {
+    "samples": 20,
+    "max_ms": 31.000000002677552,
+    "p99_ms": 31.000000002677552
+  },
+  "journal_flushed": true,
+  "journal_health_final": {
+    "write_failures": 0,
+    "active_kind": null,
+    "active_age_seconds": 0.0,
+    "queue_depth": 0,
+    "queue_capacity": 4096,
+    "writer_alive": true,
+    "allow_new_entries": true,
+    "policy": "journal-evidence-admission-v1",
+    "storage": {
+      "free_bytes": 19898441728,
+      "allow_telemetry": true,
+      "observed_monotonic": 88540.75,
+      "max_age_seconds": 45.0
+    },
+    "storage_stale": false,
+    "telemetry_suppressed": {},
+    "telemetry_gap_started_utc": null,
+    "telemetry_gap_last_utc": null
+  },
+  "journal_bytes": 21754,
+  "seconds_requested": 60,
+  "elapsed_seconds": 60.125,
+  "read_rate": 40,
+  "trade_rate": 1,
+  "read_producers": 4,
+  "measured_production_peak": null,
+  "reads": {
+    "FOUND": 2400
+  },
+  "trades": {
+    "OPEN_MARKET:DONE": 20,
+    "MODIFY_SLTP:DONE": 20,
+    "CLOSE_POSITION:DONE": 20
+  },
+  "heartbeat": {
+    "samples": 8922,
+    "max_ms": 32.00000000651926,
+    "p99_ms": 16.00000000325963
+  },
+  "read_latency": {
+    "samples": 2400,
+    "max_ms": 31.999999991967343,
+    "p99_ms": 16.00000000325963
+  },
+  "trade_latency": {
+    "samples": 60,
+    "max_ms": 92.99999999348074,
+    "p99_ms": 92.99999999348074
+  },
+  "max_pending": 3,
+  "memory_first": {
+    "elapsed_s": 0.0,
+    "parent_rss": 32571392,
+    "worker_rss": 21139456,
+    "guard_rss": 16556032,
+    "guard_cpu_seconds": 0.09375,
+    "active": true,
+    "active_kind": "read",
+    "active_age_seconds": 0.0,
+    "trade_waiters": 0,
+    "management_waiters": 0,
+    "entry_waiters": 0,
+    "read_waiters": 0,
+    "consecutive_trades": 0,
+    "pending_count": 1,
+    "capacity": 9,
+    "regular_capacity": 8,
+    "scheduling_policy": "management-first-read-burst4-reserve1-v1",
+    "journal": {
+      "write_failures": 0,
+      "active_kind": "append",
+      "active_age_seconds": 0.0,
+      "queue_depth": 0,
+      "queue_capacity": 4096,
+      "writer_alive": true,
+      "allow_new_entries": true,
+      "policy": "journal-evidence-admission-v1",
+      "storage": {
+        "free_bytes": 19903627264,
+        "allow_telemetry": true,
+        "observed_monotonic": 88481.75,
+        "max_age_seconds": 45.0
+      },
+      "storage_stale": false,
+      "telemetry_suppressed": {},
+      "telemetry_gap_started_utc": null,
+      "telemetry_gap_last_utc": null
+    }
+  },
+  "memory_last": {
+    "elapsed_s": 59.0,
+    "parent_rss": 33390592,
+    "worker_rss": 21266432,
+    "guard_rss": 16556032,
+    "guard_cpu_seconds": 0.15625,
+    "active": true,
+    "active_kind": "read",
+    "active_age_seconds": 0.0,
+    "trade_waiters": 0,
+    "management_waiters": 0,
+    "entry_waiters": 0,
+    "read_waiters": 0,
+    "consecutive_trades": 0,
+    "pending_count": 2,
+    "capacity": 9,
+    "regular_capacity": 8,
+    "scheduling_policy": "management-first-read-burst4-reserve1-v1",
+    "journal": {
+      "write_failures": 0,
+      "active_kind": null,
+      "active_age_seconds": 0.0,
+      "queue_depth": 0,
+      "queue_capacity": 4096,
+      "writer_alive": true,
+      "allow_new_entries": true,
+      "policy": "journal-evidence-admission-v1",
+      "storage": {
+        "free_bytes": 19898441728,
+        "allow_telemetry": true,
+        "observed_monotonic": 88540.75,
+        "max_age_seconds": 45.0
+      },
+      "storage_stale": false,
+      "telemetry_suppressed": {},
+      "telemetry_gap_started_utc": null,
+      "telemetry_gap_last_utc": null
+    }
+  },
+  "parent_rss_peak": 33439744,
+  "worker_rss_peak": 21266432,
+  "guard_rss_peak": 16556032,
+  "guard_cpu_seconds_sampled": 0.0625,
+  "guard_stopped": true,
+  "worker_stopped": true,
+  "drained": true,
+  "limitations": [
+    "No measured production peak: not the 2x-peak acceptance test.",
+    "No live quotes, strategy, VM resource equivalence or broker fills.",
+    "Latency samples use bounded memory proportional to configured duration and rate."
+  ],
+  "sha256": {
+    "mt5_client.py": "cb2d9ef7365d1a94f7b5aac752fe8c651e9148840afc901c1bb768d38aefc34d",
+    "mt5_scheduling.py": "3987f844c6dd7bc20dd09697377521651aa59d4f9a75570ff57beda115de8013",
+    "mt5_worker.py": "d362234cf4b6d2a2cf3e517a91da5c935b877332fbe2e20acd517de296ce2324",
+    "mt5_worker_entry.py": "7f8453d3ef9f00cfdc2e41fb9583d81d3703f737f65d6f62c99f7200128637e0",
+    "mt5_owner_lock.py": "6a2c129edf0f1b53c0cdf32bd48a504d8e423ee8a5c2ba57932580fd8e06c403",
+    "mt5_worker_lifetime.py": "458383e73f3ab46152afed976cda53c62c7cdefd46ca6ea0bee3195ad306b4b0",
+    "mt5_protocol.py": "715ab1eb6bb1092aede95cd0a4ac35cde080754b31b4c6c150b61706d57b0bf8",
+    "mt5_read_protocol.py": "e1b5bbc12c80c80dfceaea451818ffc76c043a61022719c5e68dec03199062d8",
+    "mt5_trade_protocol.py": "20f2dc429b7a288b537c9f3877f3f5df824eb0c3219104b4102508e3048eb1d2",
+    "mt5_trade_worker.py": "410912c1276639b26a5a9ba1665bdbae6603646eea18f35c8e846eae1fa5c6c1",
+    "execution_intents.py": "7c0e813d49d759ba2a7c5e86c41b7b0830b5b153d81abdb281fbbc4c4ac3f282",
+    "tests/mt5_load_fakes.py": "58f82313f27e9452429301033a7adf8fc4076827ae0c86460469f2a28af58557",
+    "tests/mt5_read_fakes.py": "450274ad975bab26c23ab1c01ea9b3bf14e256cec4e5ab709ffc89a909235cc6",
+    "tools/probe_mt5_read_isolation.py": "bf43c2c45142e0f0679551fe0a9a4f9e869154d020e758affb69e40bc512c666",
+    "tools/probe_mt5_mixed_load.py": "30ef38c1ed88c49c91bea735eb07dc38ec186527c445fbca9e81aaba2900b215",
+    "durable_execution.py": "acd0ca292cac47e83f300e8ac1f0255c846e73bca5f939ecdecaf8a6c8468c42",
+    "journal.py": "fc8cc0e4edc34364a9117b8825e0f75e4c0c8e79e05540a0282774f43cd07e3c",
+    "runtime_storage.py": "fdbacd587b8f2c22bd6dc557520603f5ed92301508840f77e76b191d8867630c",
+    "runtime_paths.py": "34ed7a7f9d788fc68a2decf78c69bfba587d6894856b014a4dc5713ef3af593b",
+    "causal_trace.py": "8bd911be15eb419e814d01427a452de2ff4cf4ac2de1accb190620f5da3c5f9e"
+  },
+  "sources_unchanged": true,
+  "python": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
+  "platform": "Windows-10-10.0.26200-SP0",
+  "utc_ns": 1789978283842606300,
+  "monotonic_resolution": 0.015625
+}

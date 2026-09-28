@@ -1,0 +1,25 @@
+{
+  "command": [
+    "C:\\Users\\josea\\AppData\\Local\\Codex\\offline-runtimes\\copier-python311\\python.exe",
+    "-m",
+    "pytest",
+    "-q",
+    "tests/test_runtime_replay_protection.py",
+    "tests/test_runtime_replay_mailbox.py",
+    "tests/test_shared_basket_stop.py",
+    "tests/test_e4_pending_revision.py",
+    "tests/test_e4_pending_spool.py",
+    "tests/test_iterative_provenance.py",
+    "--basetemp=C:\\Users\\josea\\AppData\\Local\\Temp\\copier-runtime-protection-b3f55jik\\focused",
+    "--junitxml=C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\reports\\e5-runtime-protection-control-20260921\\focused.xml"
+  ],
+  "counts": {
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "tests": 109
+  },
+  "elapsed_seconds": 46.61000000000058,
+  "exit_code": 0,
+  "junit_sha256": "686f8ee12823a29cc6a8d0aa179ef28e3222012e0d804a0fa4da3fa1f85363ec"
+}

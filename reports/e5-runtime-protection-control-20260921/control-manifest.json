@@ -1,0 +1,25 @@
+{
+  "controls": {
+    "test_canonical_gold_trailing_c0.json": "c839bf56dad2cc776838dc6f51e7620911300874719efce256992d5d86bbec71",
+    "test_canonical_gold_trailing_c1.json": "ba3d5ca9e8149c5308db0a14f2817ac1c380e9441a6a50696a3af969aba7defb",
+    "test_changed_revision_before_c0.json": "82a3214619877cc6a50aea13b076ab389e4fc95247d96f233e08aadc1f80748a",
+    "test_identical_final_loss_does0.json": "fd8d53646e82382603096df8a4ccc154dfaf8077aadc0e291568f840e993a79c",
+    "test_identical_final_loss_does1.json": "3d4dfe400e7a1e2ca324d43a1a608dd8ee860c60bdd96365b4b13cf07b1b9d9c",
+    "test_native_close_between_real0.json": "31061e22ed89db2b15ff2bd756b1a18a2c98012153f9128c1a6cf95fbad3d1b7",
+    "test_native_exit_precedes_held0.json": "709dd0ede84cb4aa54c89096e02badbc7d54a8aef02b981b6d8db21a332ca11b",
+    "test_native_exit_precedes_held1.json": "9a7d822a85ded4510ada6b6b619581af6530ae8f26c5a30e2876d929bc7b6367",
+    "test_new_revision_survives_old0.json": "28176f935b27da07b51b322e6352e41eb0e0b6d009780bd738cf3fb289b7b162",
+    "test_real_gold_additional_leg_0.json": "e2c9466db1b7fdbb7c56d9b2b5ddfeb8729ff67b12bab5049966c00a176cd162",
+    "test_real_gold_additional_leg_1.json": "ff2da7802008d37ec660a1374668ee42c015c035c1d516d3be77c638a009ee78",
+    "test_real_queue_worker_and_gol0.json": "bce56c032f1de0c17cef6b869202e539ea9bd2e91fdbd086b527ca2d859df5e8",
+    "test_real_queue_worker_and_gol1.json": "f7671beae3ab799c69699a63697f99a59409abf4193292c877c2d4a9e186ea4b",
+    "test_real_worker_defers_invali0.json": "fe1e1c66ee373f49936f747be82ca36c00aa2914215f00950a945f269220ae40",
+    "test_real_worker_defers_invali1.json": "aa39b27f8f884012b0976070f12157bb6b86f2f344c7c11cee2a304fa91349d7",
+    "test_real_worker_rejects_posit0.json": "1652e300d9db9b391af4878dec25b39014b74631947824e04e5eaf3c45812b3e",
+    "test_spool_failure_prevents_na0.json": "23729ed023f5adf089a532c429b2bb83ceffe7dff9af76626ebffbd711bfc38b",
+    "test_unknown_response_keeps_in0.json": "cd3fd6e200ce9e961de8370ada6bba6cfa0aada936eafdb28bc67dd7e1910d53"
+  },
+  "full_live_parity_verified": false,
+  "native_broker_verified": false,
+  "synthetic": true
+}

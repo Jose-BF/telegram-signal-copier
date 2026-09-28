@@ -74,6 +74,9 @@ class CandidateEvaluation:
             for blocker in result.blockers
         ))
         money_complete = all(result.pnl_eur is not None for _day, result in results)
+        risk_complete = money_complete and all(
+            result.max_floating_drawdown_eur is not None for _day, result in results
+        )
         values = [
             result.pnl_eur
             for _day, result in results
@@ -117,7 +120,7 @@ class CandidateEvaluation:
             realized_drawdown = max(realized_drawdown, peak - equity)
             day_totals[day] += result.pnl_eur
         max_drawdown = (
-            max(realized_drawdown, floating_drawdown) if money_complete else None
+            max(realized_drawdown, floating_drawdown) if risk_complete else None
         )
         worst_day = (
             min(day_totals.values(), default=Decimal("0"))

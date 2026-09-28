@@ -20,6 +20,7 @@ import pytest
 import causal_trace
 import journal
 import position_lifecycle_monitor
+from durable_entry_execution import EntryDispatchResult, EntryDispatchState
 from position_lifecycle_monitor import (
     _classify_closures,
     _decide_close_tag,
@@ -106,6 +107,84 @@ async def test_delayed_market_open_emits_internal_decision_manifest(
     assert decision["decision_reason"] == "position_lifecycle_dca"
     assert decision["declared_action_count"] == 1
     assert len(decision["declared_action_ids"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_delayed_market_open_uses_durable_stable_leg(monkeypatch):
+    calls = []
+    signal = Signal(
+        channel="canal2",
+        message_id=380,
+        direction="BUY",
+        source_message_revision_id="msgrev_origin",
+        source_decision_id="decision_origin",
+    )
+
+    class Durable:
+        async def open_market(self, **kwargs):
+            calls.append(kwargs)
+            return EntryDispatchResult(
+                EntryDispatchState.CONFIRMED,
+                intent_id="intent-dca",
+                ticket=12345,
+                fill_price=4050.8,
+            )
+
+    monkeypatch.setattr(
+        position_lifecycle_monitor,
+        "_durable_entry_executor",
+        Durable(),
+    )
+    monkeypatch.setattr(
+        position_lifecycle_monitor.executor,
+        "open_market",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("legacy order path must stay closed")
+        ),
+    )
+    monkeypatch.setattr(journal, "event", lambda *_args, **_kwargs: None)
+
+    ticket = await position_lifecycle_monitor._open_market_internal(
+        signal,
+        level=4051.0,
+        lot=0.01,
+        sl=4047.0,
+        tp=4059.0,
+        comment="DCA_c2_380_4051.0",
+    )
+
+    assert ticket == 12345
+    assert len(calls) == 1
+    call = calls[0]
+    assert call["channel"] == "canal2"
+    assert call["signal_root"] == "canal2_380"
+    assert call["generation"] == 0
+    assert call["leg"] == "dca-4051"
+    assert call["revision"] == 0
+    assert call["protection_policy"] == "required"
+    assert call["direction"] == "BUY"
+    assert call["volume"] == 0.01
+
+
+def test_execution_service_is_installed_in_position_monitor(monkeypatch):
+    installed = []
+
+    class FakeEntryExecutor:
+        def __init__(self, service, *, symbol):
+            installed.append((service, symbol))
+
+    monkeypatch.setattr(
+        position_lifecycle_monitor,
+        "DurableEntryExecutor",
+        FakeEntryExecutor,
+    )
+
+    position_lifecycle_monitor.install_durable_execution_service("service")
+    assert installed == [("service", position_lifecycle_monitor.config.MT5_SYMBOL)]
+    assert position_lifecycle_monitor._durable_entry_executor is not None
+
+    position_lifecycle_monitor.install_durable_execution_service(None)
+    assert position_lifecycle_monitor._durable_entry_executor is None
 
 
 class TestDecideCloseTag:

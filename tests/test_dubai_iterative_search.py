@@ -1,14 +1,19 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from decimal import Decimal
+import json
 
 import numpy as np
 import pytest
+import research.dubai_iterative.search as search_module
 
 from research.dubai_iterative.contracts import SearchBudget, SearchSpace, StrategyGenome
-from research.dubai_iterative.engine import EntryRecord, ExitRecord, SimulationResult
+from research.dubai_iterative.engine import (
+    EntryRecord, ExecutionAssumptions, ExitRecord, SimulationResult,
+)
+from research.dubai_iterative.fast_engine import FastEvaluator
 from research.dubai_iterative.evolution import CandidateEvaluation, Diagnosis
 from research.dubai_iterative.search import (
     ChronologicalFold,
@@ -225,6 +230,176 @@ def test_resume_with_same_budget_preserves_original_stop_reason(tmp_path):
 
     assert first.stop_reason == "max_generations"
     assert resumed.stop_reason == first.stop_reason
+
+
+def test_resume_rejects_changed_implementation_even_with_stale_caller_identity(
+    tmp_path, monkeypatch,
+):
+    old_identity = {"sha256": "old-code", "runtime": {"python": "old"}}
+    monkeypatch.setattr(
+        search_module, "implementation_identity", lambda: old_identity,
+        raising=False,
+    )
+    common = dict(
+        dataset=_dataset(), fold=_fold(), search_space=SearchSpace(),
+        evaluator=_flat_evaluator, population_size=4,
+        budget=SearchBudget(max_generations=1),
+        experiment_context={"implementation": old_identity},
+    )
+    first = run_search(**common, output_dir=tmp_path / "old")
+    before = first.checkpoint_path.read_bytes()
+    monkeypatch.setattr(search_module, "implementation_identity", lambda: {
+        "sha256": "new-code", "runtime": {"python": "new"},
+    })
+
+    with pytest.raises(SearchCheckpointError, match="implementation"):
+        run_search(
+            **common, output_dir=tmp_path / "old" / "must-not-create",
+            resume_from=first.checkpoint_path,
+        )
+    assert first.checkpoint_path.read_bytes() == before
+    assert not (tmp_path / "old" / "must-not-create").exists()
+
+
+def test_resume_rejects_checkpoint_without_implementation(tmp_path):
+    common = dict(
+        dataset=_dataset(), fold=_fold(), search_space=SearchSpace(),
+        evaluator=_flat_evaluator, population_size=4,
+        budget=SearchBudget(max_generations=1), output_dir=tmp_path,
+    )
+    first = run_search(**common)
+    payload = json.loads(first.checkpoint_path.read_text(encoding="utf-8"))
+    payload["experiment_context"].pop("implementation", None)
+    first.checkpoint_path.write_text(json.dumps(payload), encoding="utf-8")
+    before = first.checkpoint_path.read_bytes()
+
+    with pytest.raises(SearchCheckpointError, match="implementation"):
+        run_search(**common, resume_from=first.checkpoint_path)
+    assert first.checkpoint_path.read_bytes() == before
+
+
+def _tiny_fast_search_arguments():
+    from research.gold_iterative.__main__ import _tiny_dataset
+
+    return dict(
+        dataset=_tiny_dataset(),
+        fold=ChronologicalFold(
+            "tiny_execution", "2026-08-24", "2026-08-25",
+            "2026-08-26", "2026-08-26",
+        ),
+        search_space=SearchSpace(), population_size=4,
+        budget=SearchBudget(max_generations=1),
+    )
+
+
+@pytest.mark.parametrize("stale_context", (False, True), ids=("no-context", "stale-context"))
+@pytest.mark.parametrize("changed_execution", (
+    ExecutionAssumptions(latency_ms=500),
+    ExecutionAssumptions(entry_slippage=0.05),
+    ExecutionAssumptions(exit_slippage=0.05),
+    ExecutionAssumptions(spread_addition=0.05),
+), ids=("latency500", "entry005", "exit005", "spread005"))
+def test_resume_rejects_actual_fast_execution_change(
+    tmp_path, stale_context, changed_execution, record_property,
+):
+    old_execution = ExecutionAssumptions()
+    context = {
+        "execution": asdict(old_execution),
+        "evaluator_configuration": {"execution": asdict(old_execution)},
+    } if stale_context else None
+    common = _tiny_fast_search_arguments()
+    record_property("checkpoint_execution", json.dumps(asdict(old_execution), sort_keys=True))
+    record_property("resume_execution", json.dumps(asdict(changed_execution), sort_keys=True))
+    record_property("caller_context", json.dumps(context, sort_keys=True))
+    first = run_search(
+        **common, output_dir=tmp_path / "old",
+        evaluator=FastEvaluator(execution=old_execution), experiment_context=context,
+    )
+    before = {
+        path: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in tmp_path.rglob("*") if path.is_file()
+    }
+    with pytest.raises(SearchCheckpointError, match="experiment context"):
+        run_search(
+            **common, output_dir=tmp_path / "old" / "must-not-create",
+            evaluator=FastEvaluator(execution=changed_execution),
+            experiment_context=context, resume_from=first.checkpoint_path,
+        )
+    assert not (tmp_path / "old" / "must-not-create").exists()
+    assert {
+        path: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in tmp_path.rglob("*") if path.is_file()
+    } == before
+
+
+@pytest.mark.parametrize("stale_context", (False, True), ids=("no-context", "stale-context"))
+def test_resume_accepts_same_actual_fast_execution_and_records_it(tmp_path, stale_context):
+    execution = ExecutionAssumptions(
+        latency_ms=500, entry_slippage=0.05, exit_slippage=0.10, spread_addition=0.20,
+    )
+    context = {
+        "execution": asdict(ExecutionAssumptions()),
+        "evaluator_configuration": {"execution": asdict(ExecutionAssumptions())},
+    } if stale_context else None
+    common = _tiny_fast_search_arguments()
+    first = run_search(
+        **common, output_dir=tmp_path,
+        evaluator=FastEvaluator(execution=execution), experiment_context=context,
+    )
+    payload = json.loads(first.checkpoint_path.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == 4
+    assert payload["experiment_context"]["evaluator_configuration"] == {
+        "execution": asdict(execution),
+    }
+    resumed = run_search(
+        **common, output_dir=tmp_path,
+        evaluator=FastEvaluator(execution=execution), experiment_context=context,
+        resume_from=first.checkpoint_path,
+    )
+    assert resumed.frontier_fingerprints == first.frontier_fingerprints
+    assert resumed.evaluations == first.evaluations
+
+
+def test_resume_preflights_all_fold_identities_before_any_write(tmp_path):
+    folds = (_fold(), replace(_fold(), name="later"))
+    common = dict(
+        dataset=_dataset(), folds=folds, search_space=SearchSpace(),
+        evaluator=_flat_evaluator, population_size=4,
+        budget=SearchBudget(max_generations=1), output_dir=tmp_path,
+    )
+    run_chronological_search(**common)
+    last = tmp_path / "later/checkpoint.json"
+    payload = json.loads(last.read_text(encoding="utf-8"))
+    payload["experiment_context"].pop("implementation")
+    last.write_text(json.dumps(payload), encoding="utf-8")
+    before = {
+        path: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in tmp_path.rglob("*") if path.is_file()
+    }
+    with pytest.raises(SearchCheckpointError, match="implementation"):
+        run_chronological_search(**common, resume_from_root=tmp_path)
+    assert {
+        path: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in tmp_path.rglob("*") if path.is_file()
+    } == before
+
+
+def test_implementation_drift_prevents_checkpoint_write(tmp_path, monkeypatch):
+    monkeypatch.setattr(search_module, "implementation_identity", lambda: {"sha256": "old"})
+
+    def change_implementation(_progress):
+        monkeypatch.setattr(
+            search_module, "implementation_identity", lambda: {"sha256": "new"},
+        )
+
+    with pytest.raises(SearchCheckpointError, match="changed during search"):
+        run_search(
+            _dataset(), fold=_fold(), search_space=SearchSpace(),
+            evaluator=_flat_evaluator, population_size=4,
+            budget=SearchBudget(max_generations=1), output_dir=tmp_path / "output",
+            progress_callback=change_implementation,
+        )
+    assert not (tmp_path / "output").exists()
 
 
 def test_parallel_evaluation_is_identical_to_serial_evaluation(tmp_path):

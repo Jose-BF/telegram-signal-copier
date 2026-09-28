@@ -1,0 +1,13 @@
+{
+  "broker_stop_installed_by_new_flow": false,
+  "controls_sha256": "61aa0b4fb4df58d05ef6be0d36563669cd30e2b75ff9936831328aa3dc30188f",
+  "elapsed_seconds": 482.3600000000006,
+  "exit_code": 0,
+  "full_live_parity_verified": false,
+  "goal_complete": false,
+  "implementation_unchanged": true,
+  "protocol_sha256": "22876d7f70b1a81ee55266c1e6c2ca939a5e3a3d296488d0e1777f349d790346",
+  "published": false,
+  "pytest_xml_sha256": "7cc64fbf43ec44efc3a7da8d6f1bbcd02067607b5c71b3ff2ff0c12e80f038d8",
+  "sources_unchanged": true
+}

@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict, dataclass
+from copy import deepcopy
+from dataclasses import InitVar, asdict, dataclass, replace
 from decimal import Decimal
+from itertools import product
 import json
 import math
 import os
 from pathlib import Path
+import random
 import tempfile
 from typing import Sequence
 
@@ -16,13 +19,16 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from research.execution_profile import execution_to_scenario, load_execution_profile
+
 from .contracts import SearchBudget, SearchSpace, StrategyGenome
 from .certification import certify_finalists
 from .dataset import VerifiedParquetTickSource, load_dubai_dataset
 from .engine import ExecutionAssumptions, SimulationResult
 from .fast_engine import FastEvaluator
-from .oracle import ExecutionScenario
+from .oracle import ExecutionScenario, StressReport, StressScenarioResult, oracle_simulate
 from .portfolio import build_portfolio_tape
+from .protection import profile_blockers
 from .reporting import ResearchArtifacts, publish_run
 from .search import (
     ChronologicalFold,
@@ -51,6 +57,339 @@ class _TinyDataset:
     exclusions: dict[str, tuple[str, ...]]
     actual_pnl_eur: Decimal
     max_hold_minutes: int = 240
+
+
+class _ExplicitExecutionOption(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, values)
+        namespace.execution_cli_overrides = True
+
+
+class _ExplicitDatasetOption(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, values)
+        namespace.dataset_cli_overrides = (*getattr(namespace, "dataset_cli_overrides", ()), option_string)
+
+
+class _ExplicitHorizonOption(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, values)
+        namespace.explicit_path_horizon = True
+
+
+def _add_execution_arguments(parser):
+    parser.add_argument("--execution-profile", default=None)
+    parser.add_argument("--own-rules-config", default=None)
+    parser.add_argument("--study-config", default=None)
+    for name, kind, default in (
+        ("latency-ms", int, 0),
+        ("entry-slippage", float, 0.0),
+        ("exit-slippage", float, 0.0),
+        ("spread-addition", float, 0.0),
+    ):
+        parser.add_argument(
+            f"--search-{name}", type=kind, default=default,
+            action=_ExplicitExecutionOption,
+        )
+
+
+def _execution_from_args(args):
+    if getattr(args, "study_config", None) is not None:
+        if args.execution_profile is None or args.own_rules_config is None:
+            raise ValueError("--study-config requires --execution-profile and --own-rules-config")
+        incompatible = getattr(args, "dataset_cli_overrides", ())
+        if incompatible:
+            raise ValueError(f"--study-config cannot be combined with: {', '.join(incompatible)}")
+        if not getattr(args, "explicit_path_horizon", False):
+            raise ValueError("--study-config requires explicit --max-hold-minutes matching its horizon")
+    if args.own_rules_config is not None and args.execution_profile is None:
+        raise ValueError("--own-rules-config requires --execution-profile")
+    if args.execution_profile is not None:
+        if getattr(args, "execution_cli_overrides", False):
+            raise ValueError("--execution-profile cannot be combined with --search-* execution options")
+        return load_execution_profile(args.execution_profile)
+    return ExecutionAssumptions(
+        latency_ms=args.search_latency_ms,
+        entry_slippage=args.search_entry_slippage,
+        exit_slippage=args.search_exit_slippage,
+        spread_addition=args.search_spread_addition,
+    )
+
+
+def _load_study_bundle(args, execution, *, channel):
+    if getattr(args, "study_config", None) is None:
+        return None
+    from research.strategy_study_dataset import load_study_dataset
+    from research.telegram_export import CHATS
+
+    bundle = load_study_dataset(args.study_config)
+    config = bundle.config
+    if asdict(execution) != config["execution"]:
+        raise ValueError("--execution-profile does not match normalized study execution")
+    if args.max_hold_minutes != math.ceil(config["horizon_seconds"] / 60):
+        raise ValueError("--max-hold-minutes must equal ceil(study horizon_seconds / 60)")
+    cohort_channel = (
+        CHATS[config["cohort"]["chat_id"]][1] if config["input_kind"] == "telegram_export"
+        else config["cohort"]["channel"]
+    )
+    if cohort_channel != channel:
+        raise ValueError(f"study cohort belongs to {cohort_channel}, not this CLI's {channel}")
+    args._study_bundle = bundle
+    return bundle
+
+
+def _verify_study_seed(bundle, own_rules):
+    if bundle is not None:
+        if own_rules.seeds[0].fingerprint != StrategyGenome.from_dict(bundle.config["strategy"]).fingerprint:
+            raise ValueError("first --own-rules-config seed must match study strategy fingerprint")
+        bundle.verify_sources()
+
+
+def _study_context(bundle):
+    return deepcopy({
+        "identity": bundle.identity, "inventory": bundle.inventory,
+        "money": bundle.config["money"], "data_use": bundle.config["data_use"],
+    })
+
+
+def _bind_study_artifacts(artifacts, bundle):
+    # Admission is independent of measured engine/coverage gates and never inferred from them.
+    card = deepcopy(dict(artifacts.run_card))
+    card.update(
+        historical_admission_interface="connected_to_m7_diagnostic",
+        study_input=_study_context(bundle),
+        money_contract_verified=False, account_currency_money_verified=False,
+        observed_accounting_available=False, selection_allowed=False,
+        automatic_admission=False, promotion_eligible=False,
+        signal_coverage={"eligible": len(bundle.dataset.eligible_signal_ids),
+                         "loaded": len(bundle.dataset.paths), "complete": bundle.dataset.coverage_complete},
+    )
+    selection = dict(card.get("selection", {}))
+    selection.update(
+        ranking_allowed=False, status="diagnostic_only", selected_strategy_fingerprint=None,
+        selected_policy=None, promotion_eligible=False,
+        blockers=list(dict.fromkeys([*selection.get("blockers", ()), "m7_diagnostic_input_not_admitted",
+                                    "account_currency_money_unverified", "untouched_oos_not_established"])),
+    )
+    card["selection"] = selection
+    if "confidence" in card:
+        card["measured_engine_confidence"] = card["confidence"]
+        card["confidence"] = "diagnostic_only"
+    for field in ("actual_pnl_eur", "loaded_actual_pnl_eur"):
+        if field in card:
+            card[field] = None
+    if "financial_totals" in card:
+        card["financial_totals"]["actual_mt5"].update(amount=None, known_amount=None)
+        card["actual_mt5_coverage"].update(known_signal_count=0, complete=False)
+    frontier = []
+    for original in artifacts.frontier:
+        row = dict(original)
+        row.pop("retrospective_rank", None)
+        row.update(status="diagnostic_only", promotion_eligible=False)
+        if "confidence" in row:
+            row["measured_engine_confidence"] = row["confidence"]
+            row["confidence"] = "diagnostic_only"
+        frontier.append(row)
+    return replace(artifacts, run_card=card, frontier=tuple(frontier))
+
+
+@dataclass(frozen=True)
+class _ProfileSearchSpace(SearchSpace):
+    """Reject unsupported proposals instead of feeding the legacy filters."""
+
+    execution: InitVar[ExecutionAssumptions] = ExecutionAssumptions()
+
+    def __post_init__(self, execution):
+        super().__post_init__()
+        # Execution is bound in experiment_context, not the flat SearchSpace JSON.
+        object.__setattr__(self, "_execution", execution)
+
+    def validation_errors(self, genome):
+        for field in ("schema_version", "leg_count", "entry_expiry_min", "time_exit_min", "lineage_depth"):
+            if type(getattr(genome, field)) is not int:
+                raise ValueError(f"own-rules {field} must be an integer, not a coercible value")
+        for field in (
+            "entry_value", "entry_ladder_step", "target_value", "partial_fraction", "runner_target",
+            "be_trigger", "stop_value", "profit_lock_arm", "profit_lock_giveback", "context_filter_value",
+            "entry_confirmation_value", "trailing_distance", "hard_stop_eur_per_leg",
+        ):
+            value = getattr(genome, field)
+            if value is not None and (type(value) not in {int, float} or not math.isfinite(value)):
+                raise ValueError(f"own-rules {field} must be a finite number")
+        for field in ("volume_weights", "target_steps"):
+            if any(type(value) not in {int, float} or not math.isfinite(value) for value in getattr(genome, field)):
+                raise ValueError(f"own-rules {field} must contain finite numbers")
+        errors = [*genome.validation_errors(), *super().validation_errors(genome)]
+        if genome.schema_version != 2 or genome.entry_mode == "actual_mt5":
+            errors.append("own_rules_require_hypothetical_schema2_entries")
+        if genome.provider_management_mode != "ignore":
+            errors.append("own_rules_require_provider_management_ignore")
+        if genome.context_filter_mode == "min_reward_risk":
+            errors.append("own_rules_do_not_use_provider_reward_risk")
+        if (genome.stop_mode == "provider" or genome.be_mode == "provider"
+                or genome.target_mode in {"provider_per_leg", "provider_target_all"}):
+            errors.append("own_rules_do_not_use_provider_levels")
+        if genome.entry_mode != "actual_mt5":
+            errors.extend(profile_blockers(None, genome, self._execution.protection))
+        if errors:
+            raise ValueError(
+                "execution profile search domain blocked before evaluation: "
+                f"genome={genome.fingerprint} family={genome.mutation_reason or 'input'} "
+                f"stop={genome.stop_mode} target={genome.target_mode} be={genome.be_mode}: "
+                f"{','.join(sorted(set(errors)))}; no seeds or mutations were dropped; "
+                "the legacy operators are not an admitted own-rules search space"
+            )
+        return ()
+
+
+def _profile_search_space(search_space, execution):
+    protection = execution.protection
+    if protection is not None:
+        if protection.freeze_level_points:
+            raise ValueError("execution profile blocked before search: protection_freeze_semantics_unsupported")
+        if protection.initial_protections:
+            raise ValueError("execution profile blocked before search: observed_protection_requires_actual_entries")
+        if protection.digits != 2:
+            raise ValueError("execution profile blocked before search: fast engine requires protection digits=2")
+    return _ProfileSearchSpace(**asdict(search_space), execution=execution)
+
+
+def _preflight_profile_genomes(search_space, genomes):
+    for genome in genomes:
+        search_space.validation_errors(genome)
+
+
+_OWN_RULE_MUTATIONS = frozenset({
+    "entry_value", "entry_confirmation_value", "entry_expiry_min",
+    "entry_ladder_step", "target_steps", "stop_value", "trailing_distance",
+    "hard_stop_eur_per_leg", "profit_lock_arm", "profit_lock_giveback", "time_exit_min",
+})
+
+
+@dataclass(frozen=True)
+class _OwnRulesPlan:
+    seeds: tuple[StrategyGenome, ...]
+    axes: tuple[tuple[str, tuple], ...]
+    variants: tuple[StrategyGenome, ...]
+
+    def identity(self):
+        return {
+            "schema_version": 1,
+            "seeds": [genome.to_dict() for genome in self.seeds],
+            "mutations": dict(self.axes),
+            "domain_size": len(self.variants),
+        }
+
+    def seed_population(self, search_space, *, seed):
+        _preflight_profile_genomes(search_space, self.seeds)
+        return self.seeds
+
+    def scouts(self, search_space, *, seed, count):
+        choices = list(self.variants)
+        random.Random(seed).shuffle(choices)
+        return tuple(choices[:count])
+
+    def neighborhood(self, parent, search_space):
+        admitted = {genome.fingerprint for genome in self.variants}
+        if parent.fingerprint not in admitted:
+            raise ValueError(f"own-rules parent outside declared domain: {parent.fingerprint}")
+        children = []
+        for field, values in self.axes:
+            for value in values:
+                if getattr(parent, field) == value:
+                    continue
+                child = parent.with_change(**{field: value}).with_lineage(
+                    parent_fingerprints=(parent.fingerprint,),
+                    mutation_reason=f"own_rules:{field}", lineage_depth=parent.lineage_depth + 1,
+                )
+                search_space.validation_errors(child)
+                if child.fingerprint not in admitted:
+                    raise ValueError(f"own-rules mutation outside declared domain: {child.fingerprint}")
+                children.append(child)
+        return tuple(children)
+
+    def mutate(self, parent, diagnosis, *, search_space, seed):
+        children = list(self.neighborhood(parent, search_space))
+        random.Random(seed).shuffle(children)
+        return tuple(children)
+
+    def search_options(self):
+        return {
+            "initial_genomes": self.seeds,
+            "baseline_genome": self.seeds[0],
+            "seed_population_factory": self.seed_population,
+            "scout_population_factory": self.scouts,
+            "neighborhood_factory": self.neighborhood,
+            "mutator": self.mutate,
+        }
+
+
+def _load_own_rules_plan(path_text, search_space, *, population_size):
+    if not path_text:
+        raise ValueError(
+            "execution profile search domain blocked before evaluation: --own-rules-config is required; "
+            "legacy seeds are not substituted and no seeds or mutations were dropped"
+        )
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"duplicate own-rules field: {key}")
+            result[key] = value
+        return result
+    def finite(value):
+        raise ValueError(f"nonfinite own-rules value: {value}")
+    path = Path(path_text)
+    if path.stat().st_size > 131_072:
+        raise ValueError("own-rules config exceeds 128 KiB")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"), object_pairs_hook=unique, parse_constant=finite)
+        if not isinstance(payload, dict) or set(payload) != {"schema_version", "seeds", "mutations"}:
+            raise ValueError("own-rules config requires exactly schema_version, seeds and mutations")
+        if type(payload["schema_version"]) is not int or payload["schema_version"] != 1:
+            raise ValueError("unsupported own-rules schema_version")
+        raw_seeds, raw_axes = payload["seeds"], payload["mutations"]
+        if not isinstance(raw_seeds, list) or not 1 <= len(raw_seeds) <= min(64, population_size):
+            raise ValueError("own-rules seeds must contain 1..min(64, population_size) explicit genomes")
+        seeds = tuple(StrategyGenome.from_dict(row) for row in raw_seeds)
+        _preflight_profile_genomes(search_space, seeds)
+        if len({genome.fingerprint for genome in seeds}) != len(seeds):
+            raise ValueError("duplicate own-rules seeds; none were silently dropped")
+        if not isinstance(raw_axes, dict) or raw_axes.keys() - _OWN_RULE_MUTATIONS:
+            raise ValueError("unsupported own-rules mutation field; family changes require a separate config")
+        axes = []
+        for field, raw_values in sorted(raw_axes.items()):
+            if not isinstance(raw_values, list) or not 1 <= len(raw_values) <= 32:
+                raise ValueError(f"own-rules {field} requires 1..32 mutation values")
+            values = tuple(tuple(value) if field == "target_steps" else value for value in raw_values)
+            if len(set(values)) != len(values):
+                raise ValueError(f"duplicate own-rules mutation values: {field}")
+            for genome in seeds:
+                current = getattr(genome, field)
+                if current is None or current == ():
+                    raise ValueError(f"own-rules mutation requires an active seed parameter: {field}")
+            axes.append((field, tuple(dict.fromkeys((*[getattr(seed, field) for seed in seeds], *values)))))
+        # One structural family makes the shared block crossover closed over this grid.
+        def structure(genome):
+            return {key: value for key, value in genome.to_dict().items() if key not in {
+                *(field for field, _ in axes), "source_strategy_fingerprint", "parent_fingerprints",
+                "mutation_reason", "lineage_depth",
+            }}
+        if any(structure(genome) != structure(seeds[0]) for genome in seeds[1:]):
+            raise ValueError("own-rules seeds must share one structural family; declare differences as mutation axes")
+        size = math.prod(len(values) for _, values in axes)
+        if size > 4_096:
+            raise ValueError("own-rules declared grid exceeds 4096 variants; split the explicit domain")
+        variants = []
+        for values in product(*(values for _, values in axes)):
+            candidate = seeds[0].with_change(**dict(zip((field for field, _ in axes), values)))
+            search_space.validation_errors(candidate)
+            variants.append(candidate)
+        if len({genome.fingerprint for genome in variants}) != len(variants):
+            raise ValueError("duplicate own-rules variants; none were silently dropped")
+        return _OwnRulesPlan(seeds, tuple(axes), tuple(variants))
+    except (TypeError, OverflowError) as exc:
+        raise ValueError(f"invalid own-rules config: {exc}") from exc
 
 
 class _CandidateSpool:
@@ -122,6 +461,19 @@ class _CandidateSpool:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.execution_profile is None and args.own_rules_config is None and args.study_config is None:
+        return _run(args)
+    try:
+        return _run(args)
+    except (OSError, ValueError) as exc:
+        print(f"ERROR: {exc}", flush=True)
+        return 2
+
+
+def _run(args) -> int:
+    search_execution = _execution_from_args(args)
+    study_bundle = _load_study_bundle(args, search_execution, channel="canal1")
+    explicit_profile = args.execution_profile is not None
     budget = SearchBudget(
         max_generations=args.max_generations,
         max_evaluations=args.max_evaluations,
@@ -138,32 +490,41 @@ def main(argv: Sequence[str] | None = None) -> int:
         max_time_exit_min=args.max_time_exit_minutes,
         max_path_horizon_min=args.max_hold_minutes,
     )
+    own_rules = None
+    if explicit_profile:
+        search_space = _profile_search_space(search_space, search_execution)
+        if args.fixture is not None:
+            raise ValueError("Dubai tiny fixture does not simulate execution profiles; no search was started")
+        if args.parent_parquet:
+            raise ValueError("--parent-parquet cannot be combined with an explicit own-rules profile")
+        own_rules = _load_own_rules_plan(args.own_rules_config, search_space, population_size=args.population_size)
+    _verify_study_seed(study_bundle, own_rules)
     initial_genomes = (
-        ()
-        if args.fixture is not None
+        own_rules.seeds if own_rules is not None else ()
+        if args.fixture is not None or explicit_profile
         else _load_parent_genomes(args.parent_parquet, args.parent_limit)
     )
+    if explicit_profile:
+        _preflight_profile_genomes(search_space, initial_genomes)
     output_root = Path(args.output_root)
     output_root.mkdir(parents=True, exist_ok=True)
     spool = _CandidateSpool(output_root)
-    search_execution = ExecutionAssumptions(
-        latency_ms=args.search_latency_ms,
-        entry_slippage=args.search_entry_slippage,
-        exit_slippage=args.search_exit_slippage,
-        spread_addition=args.search_spread_addition,
-    )
-    search_scenario = ExecutionScenario(
-        "search_execution",
-        latency_ms=args.search_latency_ms,
-        entry_slippage=args.search_entry_slippage,
-        exit_slippage=args.search_exit_slippage,
-        spread_addition=args.search_spread_addition,
+    search_scenario = execution_to_scenario(search_execution, "search_execution")
+    profile_worlds = (
+        _certification_worlds(search_execution, search_scenario, preserve_costs=True)
+        if explicit_profile else ()
     )
     experiment_context = {
         "engine": "numba_fixed_point_v2",
         "grammar_version": 2,
         "execution": asdict(search_execution),
     }
+    if explicit_profile:
+        experiment_context["execution_profile_scope"] = "own_rules_v1"
+        experiment_context["own_rules_config"] = own_rules.identity()
+    if study_bundle is not None:
+        experiment_context["study_input"] = _study_context(study_bundle)
+        experiment_context["channel"] = "canal1"
 
     def progress(update: GenerationProgress) -> None:
         if not args.progress:
@@ -207,10 +568,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             search_report = ChronologicalSearchReport((one,))
         else:
             dataset = _real_dataset(args)
+            folds = DEFAULT_DUBAI_FOLDS
+            if study_bundle is not None:
+                from research.gold_iterative.folds import build_gold_fold_plan
+
+                folds = tuple(replace(fold, name=f"study_fold_{index:02d}")
+                              for index, fold in enumerate(build_gold_fold_plan(dataset).folds, 1))
+                study_bundle.verify_sources()
             evaluator = FastEvaluator(execution=search_execution)
+            search_options = own_rules.search_options() if own_rules is not None else {"initial_genomes": initial_genomes}
             search_report = run_chronological_search(
                 dataset,
-                folds=DEFAULT_DUBAI_FOLDS,
+                folds=folds,
                 budget=budget,
                 search_space=search_space,
                 output_dir=output_root / ".checkpoints",
@@ -221,12 +590,22 @@ def main(argv: Sequence[str] | None = None) -> int:
                 evaluation_callback=spool.append,
                 experiment_context=experiment_context,
                 workers=args.workers,
-                initial_genomes=initial_genomes,
+                **search_options,
             )
+            if study_bundle is not None:
+                study_bundle.verify_sources()
+            cross_fold_options = {}
+            if explicit_profile:
+                cross_fold_options["additional_execution_scenarios"] = tuple(
+                    (name, FastEvaluator(execution=execution))
+                    for name, execution, _scenario in profile_worlds
+                    if name != "search_execution"
+                )
             cross_fold_validation = cross_validate_frontier_candidates(
                 dataset,
                 search_report,
                 evaluator=evaluator,
+                **cross_fold_options,
                 workers=args.workers,
                 progress_callback=(
                     lambda completed, total: print(
@@ -259,6 +638,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 certification_worlds = _certification_worlds(
                     search_execution,
                     search_scenario,
+                    preserve_costs=explicit_profile,
                 )
                 if args.progress:
                     print(
@@ -267,12 +647,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                         f"bloqueos {len(portfolio_tape.blockers)}",
                         flush=True,
                     )
+            certification_options = {}
+            if explicit_profile:
+                certification_options["stresser"] = _ProfileStresser(profile_worlds)
             certification_batch = certify_finalists(
                 dataset,
                 search_report,
                 evaluator=evaluator,
                 limit=args.oracle_finalists,
                 execution_scenario=search_scenario,
+                **certification_options,
                 initial_capital_eur=Decimal(str(args.capital_eur)),
                 maximum_loss_fraction=Decimal(str(
                     args.maximum_loss_fraction
@@ -328,7 +712,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             oracle_finalists_requested=args.oracle_finalists,
             cross_fold_validation=cross_fold_validation,
             initial_genomes=initial_genomes,
+            own_rules=own_rules,
         )
+        if study_bundle is not None:
+            artifacts = _bind_study_artifacts(artifacts, study_bundle)
+            study_bundle.verify_sources()
         published = publish_run(artifacts, output_root)
     finally:
         candidate_path = spool.close()
@@ -345,6 +733,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _real_dataset(args):
+    if getattr(args, "_study_bundle", None) is not None:
+        return args._study_bundle.dataset
     money_contract = json.loads(Path(args.money_contract).read_text(encoding="utf-8"))
     conversion = money_contract.get("conversion") or {}
     orientation = conversion.get("orientation")
@@ -370,6 +760,17 @@ def _real_dataset(args):
 
 
 def _verified_portfolio_tape(args, dataset):
+    bundle = getattr(args, "_study_bundle", None)
+    if bundle is not None:
+        bundle.verify_sources()
+        tape = build_portfolio_tape(
+            dataset.paths, market_tick_source=bundle.market_tick_source,
+            conversion_tick_source=bundle.conversion_tick_source,
+            max_conversion_age_ms=bundle.max_fx_age_ms,
+            max_conversion_interval_ms=bundle.max_fx_interval_ms,
+        )
+        bundle.verify_sources()
+        return tape
     contract = json.loads(
         Path(args.money_contract).read_text(encoding="utf-8")
     )
@@ -399,39 +800,37 @@ def _verified_portfolio_tape(args, dataset):
     )
 
 
-def _certification_worlds(search_execution, search_scenario):
-    return (
+def _certification_worlds(search_execution, search_scenario, *, preserve_costs=False):
+    expected = execution_to_scenario(search_execution, "search_execution")
+    if search_scenario != expected:
+        raise ValueError("search execution and oracle scenario do not match")
+    latency_base = search_execution if preserve_costs else replace(
+        search_execution, entry_slippage=0.0, exit_slippage=0.0,
+        spread_addition=0.0,
+    )
+    worlds = (
         (
             "zero_cost_zero_latency",
-            ExecutionAssumptions(),
-            ExecutionScenario("zero_cost_zero_latency"),
+            replace(search_execution, latency_ms=0, entry_slippage=0.0,
+                    exit_slippage=0.0, spread_addition=0.0),
         ),
         (
             "latency_250ms",
-            ExecutionAssumptions(latency_ms=250),
-            ExecutionScenario("latency_250ms", latency_ms=250),
+            replace(latency_base, latency_ms=250),
         ),
-        ("search_execution", search_execution, search_scenario),
+        ("search_execution", search_execution),
         (
             "latency_1s",
-            ExecutionAssumptions(latency_ms=1_000),
-            ExecutionScenario("latency_1s", latency_ms=1_000),
+            replace(latency_base, latency_ms=1_000),
         ),
         (
             "latency_2s",
-            ExecutionAssumptions(latency_ms=2_000),
-            ExecutionScenario("latency_2s", latency_ms=2_000),
+            replace(latency_base, latency_ms=2_000),
         ),
         (
             "adverse_costs",
-            ExecutionAssumptions(
-                latency_ms=500,
-                entry_slippage=0.10,
-                exit_slippage=0.10,
-                spread_addition=0.10,
-            ),
-            ExecutionScenario(
-                "adverse_costs",
+            replace(
+                search_execution,
                 latency_ms=500,
                 entry_slippage=0.10,
                 exit_slippage=0.10,
@@ -439,6 +838,44 @@ def _certification_worlds(search_execution, search_scenario):
             ),
         ),
     )
+    return tuple(
+        (name, execution, execution_to_scenario(execution, name))
+        for name, execution in worlds
+    )
+
+
+@dataclass(frozen=True)
+class _ProfileStressReport(StressReport):
+    base_scenario: ExecutionScenario
+
+
+@dataclass(frozen=True)
+class _ProfileStresser:
+    worlds: tuple
+
+    def __call__(self, paths, genome):
+        # The shared legacy stresser hard-codes an idealized baseline.
+        paths = tuple(paths)
+        if not self.worlds:
+            raise ValueError("profile stress requires explicit execution worlds")
+        rows = []
+        for _name, _execution, scenario in self.worlds:
+            results = tuple(oracle_simulate(path, genome, execution=scenario) for path in paths)
+            blockers = tuple(dict.fromkeys(item for result in results for item in result.blockers))
+            net = (
+                sum((result.pnl_eur for result in results), Decimal("0"))
+                if all(result.pnl_eur is not None for result in results) else None
+            )
+            rows.append(StressScenarioResult(scenario, net, blockers, results))
+        base, *stressed = rows
+        return _ProfileStressReport(
+            base.net_eur, base.blockers, tuple(stressed),
+            bool(paths) and all(
+                row.net_eur is not None and row.net_eur > 0 and not row.blockers
+                for row in rows
+            ),
+            base.scenario,
+        )
 
 
 def _build_artifacts(
@@ -459,6 +896,7 @@ def _build_artifacts(
     maximum_loss_fraction=0.25,
     maximum_concurrent_signals=3,
     oracle_finalists_requested=1,
+    own_rules=None,
     cross_fold_validation=None,
     initial_genomes=(),
 ):
@@ -629,12 +1067,12 @@ def _build_artifacts(
         "folds": [asdict(item.fold) for item in search_report.fold_reports],
         "budget": asdict(budget),
         "search_space": asdict(search_space),
-        "imported_parent_fingerprints": [
+        "imported_parent_fingerprints": [] if own_rules is not None else [
             item.fingerprint for item in initial_genomes
         ],
         "imported_parent_role": (
             "research_seed_only_full_sample_origin_not_oos"
-            if initial_genomes
+            if initial_genomes and own_rules is None
             else "not_used"
         ),
         "search_execution": asdict(
@@ -724,6 +1162,11 @@ def _build_artifacts(
         "live_code_changed": False,
         "automatic_deployment": False,
     }
+    if isinstance(search_space, _ProfileSearchSpace):
+        run_card["execution_profile_scope"] = "own_rules_v1"
+        run_card["historical_admission_interface"] = "not_connected_to_m7"
+        if own_rules is not None:
+            run_card["own_rules_config"] = own_rules.identity()
     return ResearchArtifacts(
         run_card=run_card,
         frontier=tuple(frontier_rows),
@@ -901,9 +1344,10 @@ def _plain_strategy(genome: StrategyGenome) -> str:
 def _stress_summary(report) -> dict[str, object]:
     return {
         "status": "passed" if report.promotion_eligible else "failed",
-        "base_world": {
+        "base_world": asdict(report.base_scenario) if isinstance(report, _ProfileStressReport) else {
             "name": "zero_cost_zero_latency",
             "latency_ms": 0,
+            "entry_fill_latency_ms": 0,
             "entry_slippage": 0.0,
             "exit_slippage": 0.0,
             "spread_addition": 0.0,
@@ -914,9 +1358,11 @@ def _stress_summary(report) -> dict[str, object]:
             {
                 "name": item.scenario.name,
                 "latency_ms": item.scenario.latency_ms,
+                "entry_fill_latency_ms": item.scenario.entry_fill_latency_ms,
                 "entry_slippage": item.scenario.entry_slippage,
                 "exit_slippage": item.scenario.exit_slippage,
                 "spread_addition": item.scenario.spread_addition,
+                **_nested_profile_summary(item.scenario),
                 "net_eur": _number(item.net_eur),
                 "blockers": list(item.blockers),
             }
@@ -942,9 +1388,11 @@ def _certified_execution_summary(certification, execution):
     return {
         "name": "search_execution",
         "latency_ms": execution.latency_ms,
+        "entry_fill_latency_ms": execution.entry_fill_latency_ms,
         "entry_slippage": execution.entry_slippage,
         "exit_slippage": execution.exit_slippage,
         "spread_addition": execution.spread_addition,
+        **_nested_profile_summary(execution),
         "net_eur": _number(net),
         "evidence_complete": complete,
     }
@@ -961,9 +1409,11 @@ def _world_certification_summary(report):
             {
                 "name": item.name,
                 "latency_ms": item.oracle_scenario.latency_ms,
+                "entry_fill_latency_ms": item.oracle_scenario.entry_fill_latency_ms,
                 "entry_slippage": item.oracle_scenario.entry_slippage,
                 "exit_slippage": item.oracle_scenario.exit_slippage,
                 "spread_addition": item.oracle_scenario.spread_addition,
+                **_nested_profile_summary(item.oracle_scenario),
                 "oracle_status": item.certificate.status,
                 "oracle_mismatch_count": len(item.certificate.mismatches),
                 "net_eur": _number(item.net_eur),
@@ -972,6 +1422,13 @@ def _world_certification_summary(report):
             }
             for item in report.worlds
         ],
+    }
+
+
+def _nested_profile_summary(execution):
+    return {
+        name: asdict(value) for name in ("protection", "market")
+        if (value := getattr(execution, name)) is not None
     }
 
 
@@ -1150,16 +1607,16 @@ def _load_parent_genomes(path_text, limit):
 
 def _parser():
     parser = argparse.ArgumentParser(description="Bounded Dubai strategy research")
-    parser.add_argument("--fixture", choices=("tiny",), default=None)
-    parser.add_argument("--from", dest="from_date", default="2026-07-27")
-    parser.add_argument("--to", dest="to_date", default="2026-08-14")
-    parser.add_argument("--replay-path", default="runtime_data/replay_trades.jsonl")
-    parser.add_argument("--audit-path", default="runtime_data/observed_tick_replay_audit.jsonl")
-    parser.add_argument("--money-contract", default="runtime_data/broker_money_contract.json")
-    parser.add_argument("--market-tick-cache", default="runtime_data/ticks_cache")
-    parser.add_argument("--conversion-tick-cache", default="runtime_data/money_ticks_cache")
+    parser.add_argument("--fixture", choices=("tiny",), default=None, action=_ExplicitDatasetOption)
+    parser.add_argument("--from", dest="from_date", default="2026-07-27", action=_ExplicitDatasetOption)
+    parser.add_argument("--to", dest="to_date", default="2026-08-14", action=_ExplicitDatasetOption)
+    parser.add_argument("--replay-path", default="runtime_data/replay_trades.jsonl", action=_ExplicitDatasetOption)
+    parser.add_argument("--audit-path", default="runtime_data/observed_tick_replay_audit.jsonl", action=_ExplicitDatasetOption)
+    parser.add_argument("--money-contract", default="runtime_data/broker_money_contract.json", action=_ExplicitDatasetOption)
+    parser.add_argument("--market-tick-cache", default="runtime_data/ticks_cache", action=_ExplicitDatasetOption)
+    parser.add_argument("--conversion-tick-cache", default="runtime_data/money_ticks_cache", action=_ExplicitDatasetOption)
     parser.add_argument("--output-root", default="runtime_data/dubai_strategy_runs")
-    parser.add_argument("--max-hold-minutes", type=int, default=240)
+    parser.add_argument("--max-hold-minutes", type=int, default=240, action=_ExplicitHorizonOption)
     parser.add_argument("--max-generations", type=int, default=50)
     parser.add_argument("--max-evaluations", type=int, default=1_000_000)
     parser.add_argument("--max-wall-seconds", type=int, default=7_200)
@@ -1173,8 +1630,8 @@ def _parser():
     parser.add_argument("--volume-step", type=float, default=0.01)
     parser.add_argument("--max-entry-expiry-minutes", type=int, default=240)
     parser.add_argument("--max-time-exit-minutes", type=int, default=240)
-    parser.add_argument("--parent-parquet", default=None)
-    parser.add_argument("--parent-limit", type=int, default=12)
+    parser.add_argument("--parent-parquet", default=None, action=_ExplicitDatasetOption)
+    parser.add_argument("--parent-limit", type=int, default=12, action=_ExplicitDatasetOption)
     parser.add_argument("--progress", action="store_true")
     parser.add_argument("--oracle-finalists", type=int, default=1)
     parser.add_argument("--capital-eur", type=float, default=500.0)
@@ -1184,10 +1641,7 @@ def _parser():
     parser.add_argument(
         "--maximum-concurrent-signals", type=int, default=3
     )
-    parser.add_argument("--search-latency-ms", type=int, default=0)
-    parser.add_argument("--search-entry-slippage", type=float, default=0.0)
-    parser.add_argument("--search-exit-slippage", type=float, default=0.0)
-    parser.add_argument("--search-spread-addition", type=float, default=0.0)
+    _add_execution_arguments(parser)
     parser.add_argument(
         "--workers",
         type=int,

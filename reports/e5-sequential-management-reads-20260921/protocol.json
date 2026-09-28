@@ -1,0 +1,108 @@
+{
+  "cache_initial": {},
+  "clock_units": "synthetic_relative_nanoseconds",
+  "contract": "sequential_basket_reads_v1",
+  "controls": [
+    {
+      "cutoff_ns": 100,
+      "jobs": [],
+      "max_events": 100000,
+      "name": "sequential",
+      "profile": {
+        "max_payload_bytes": 4194304,
+        "max_reads": 128,
+        "response_delay_ns": 2,
+        "sample_delay_ns": 1,
+        "timeout_ns": 50
+      }
+    },
+    {
+      "cutoff_ns": 100,
+      "jobs": [
+        {
+          "admitted_ns": 0,
+          "channel": "canal2",
+          "deadline_ns": 90,
+          "operation": "OPEN_MARKET",
+          "ready_ns": 0,
+          "request_id": "entry",
+          "service_ns": 5,
+          "signal_id": "canal2_busy"
+        }
+      ],
+      "max_events": 100000,
+      "name": "contention",
+      "profile": {
+        "max_payload_bytes": 4194304,
+        "max_reads": 128,
+        "response_delay_ns": 2,
+        "sample_delay_ns": 1,
+        "timeout_ns": 50
+      }
+    },
+    {
+      "cutoff_ns": 100,
+      "jobs": [],
+      "max_events": 100000,
+      "name": "late_response",
+      "profile": {
+        "max_payload_bytes": 4194304,
+        "max_reads": 128,
+        "response_delay_ns": 5,
+        "sample_delay_ns": 2,
+        "timeout_ns": 3
+      }
+    },
+    {
+      "cutoff_ns": 100,
+      "jobs": [],
+      "max_events": 11,
+      "name": "missing_transport_confirmation",
+      "profile": {
+        "max_payload_bytes": 4194304,
+        "max_reads": 128,
+        "response_delay_ns": 2,
+        "sample_delay_ns": 1,
+        "timeout_ns": 50
+      }
+    }
+  ],
+  "filled_tickets": [
+    11,
+    12
+  ],
+  "known_tickets_initial": [],
+  "note": "Scheduler controls, not empirical latency or complete strategy replay.",
+  "responses_by_operation": {
+    "history_deals_get_position": [
+      {
+        "commission": -0.1,
+        "entry": 0,
+        "profit": 0.0,
+        "volume": 0.01
+      },
+      {
+        "commission": -0.1,
+        "entry": 1,
+        "fee": -0.01,
+        "profit": 2.0,
+        "swap": -0.05,
+        "volume": 0.01
+      }
+    ],
+    "positions_get": [
+      {
+        "price_open": 100.0,
+        "profit": 4.0,
+        "swap": -99.0,
+        "ticket": 11,
+        "volume": 0.01
+      }
+    ],
+    "symbol_info_tick": {
+      "ask": 105.2,
+      "bid": 105.0
+    }
+  },
+  "source_clock": "sample_ns"
+}

@@ -1,0 +1,1390 @@
+{
+  "backend_calls": [
+    {
+      "args": [
+        "XAUUSD"
+      ],
+      "kwargs": {},
+      "name": "symbol_info",
+      "quote_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "args": [
+        "XAUUSD"
+      ],
+      "kwargs": {},
+      "name": "symbol_info_tick",
+      "quote_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "args": [],
+      "kwargs": {
+        "ticket": 1001
+      },
+      "name": "positions_get",
+      "quote_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "args": [
+        "XAUUSD"
+      ],
+      "kwargs": {},
+      "name": "symbol_info_tick",
+      "quote_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "args": [
+        "XAUUSD"
+      ],
+      "kwargs": {},
+      "name": "symbol_info",
+      "quote_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "args": [
+        {
+          "action_id": "action_93b431e2087a4899b5e7b610f97b9db7",
+          "attempt_id": "6a546d9c24c94e1fbb2e41933566037b",
+          "error": "requested_sl_waits_for_market",
+          "evidence": {},
+          "intent_id": "mt5i-v1-4c6d39e7110423ee5e21a137586c629580403641418770319966d05688ead2ed",
+          "native_request": null,
+          "prepared_monotonic": 119848.968,
+          "protocol_version": 1,
+          "request_id": "a8a4a651d8ac4abbb417262d84df3cc8",
+          "worker_pid": 40580,
+          "worker_session_id": "75a67ffefc0043c985600501bd81eb91"
+        }
+      ],
+      "kwargs": {},
+      "name": "prepared",
+      "quote_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "args": [],
+      "kwargs": {
+        "ticket": 1001
+      },
+      "name": "positions_get",
+      "quote_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "args": [
+        {
+          "action_id": "action_93b431e2087a4899b5e7b610f97b9db7:tp-prerequisite:r0",
+          "attempt_id": "8cf77d04cabc4598a17f73d09ff287d9",
+          "error": null,
+          "evidence": {
+            "effective_sl": 0.0,
+            "effective_tp": 90.0,
+            "observed_kind": "position",
+            "observed_ticket": 1001
+          },
+          "intent_id": "mt5i-v1-e869cd9c8854959e95fdc86b96bddfb2a5b22ab846c0dfdb9d5a2c10aaa85fe8",
+          "native_request": {
+            "action": 6,
+            "position": 1001,
+            "sl": 0.0,
+            "tp": 90.0
+          },
+          "prepared_monotonic": 119849.015,
+          "protocol_version": 1,
+          "request_id": "733fbae61db9436fabea94fd5fdc58c8",
+          "worker_pid": 40580,
+          "worker_session_id": "75a67ffefc0043c985600501bd81eb91"
+        }
+      ],
+      "kwargs": {},
+      "name": "prepared",
+      "quote_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "args": [
+        {
+          "action": 6,
+          "position": 1001,
+          "sl": 0.0,
+          "tp": 90.0
+        }
+      ],
+      "kwargs": {},
+      "name": "order_send",
+      "positions_after": [
+        {
+          "magic": 20260422,
+          "model_ticket": "sim_1",
+          "price_open": 100.0,
+          "sl": 0.0,
+          "symbol": "XAUUSD",
+          "ticket": 1001,
+          "tp": 90.0,
+          "type": 1,
+          "volume": 0.04
+        }
+      ],
+      "quote_index": 0,
+      "result": {
+        "comment": "accepted",
+        "retcode": 10009
+      },
+      "time_ns": 1788861600000000000
+    },
+    {
+      "args": [
+        "XAUUSD"
+      ],
+      "kwargs": {},
+      "name": "symbol_info_tick",
+      "quote_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "args": [],
+      "kwargs": {
+        "ticket": 1001
+      },
+      "name": "positions_get",
+      "quote_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "args": [
+        "XAUUSD"
+      ],
+      "kwargs": {},
+      "name": "symbol_info_tick",
+      "quote_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "args": [
+        "XAUUSD"
+      ],
+      "kwargs": {},
+      "name": "symbol_info",
+      "quote_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "args": [
+        {
+          "action_id": "action_93b431e2087a4899b5e7b610f97b9db7",
+          "attempt_id": "83dd168604144a249f6ebc4942627d7b",
+          "error": null,
+          "evidence": {
+            "effective_sl": 100.0,
+            "effective_tp": 90.0,
+            "observed_kind": "position",
+            "observed_ticket": 1001
+          },
+          "intent_id": "mt5i-v1-5e6397dc0fee2f10f8fe5dca684b702cdb7b072fe45f967a6a83f18d619b50b8",
+          "native_request": {
+            "action": 6,
+            "position": 1001,
+            "sl": 100.0,
+            "tp": 90.0
+          },
+          "prepared_monotonic": 119849.093,
+          "protocol_version": 1,
+          "request_id": "c22a0fa979e64d9ca2450899559b624a",
+          "worker_pid": 40580,
+          "worker_session_id": "75a67ffefc0043c985600501bd81eb91"
+        }
+      ],
+      "kwargs": {},
+      "name": "prepared",
+      "quote_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "args": [
+        {
+          "action": 6,
+          "position": 1001,
+          "sl": 100.0,
+          "tp": 90.0
+        }
+      ],
+      "kwargs": {},
+      "name": "order_send",
+      "positions_after": [
+        {
+          "magic": 20260422,
+          "model_ticket": "sim_1",
+          "price_open": 100.0,
+          "sl": 100.0,
+          "symbol": "XAUUSD",
+          "ticket": 1001,
+          "tp": 90.0,
+          "type": 1,
+          "volume": 0.04
+        }
+      ],
+      "quote_index": 1,
+      "result": {
+        "comment": "accepted",
+        "retcode": 10009
+      },
+      "time_ns": 1788861601000000000
+    }
+  ],
+  "broker": {
+    "entries": [
+      {
+        "acknowledged_ns": 1788861600000000000,
+        "entry_price": 100.0,
+        "opened_at": "2026-09-08 10:00:00+00:00",
+        "price_tick_index": 0,
+        "requested_ns": 1788861600000000000,
+        "runtime_ticket": 1001,
+        "source": "causal_signal_market",
+        "tick_index": 0,
+        "ticket": "sim_1",
+        "volume": 0.04
+      }
+    ],
+    "positions": [],
+    "quote_index": 3,
+    "symbol": {
+      "digits": 2,
+      "name": "XAUUSD",
+      "point": 0.01,
+      "trade_freeze_level": 0,
+      "trade_stops_level": 20
+    },
+    "tick": {
+      "ask": 89.2,
+      "bid": 89.0,
+      "time_msc": 1788861603000
+    },
+    "time_ns": 1788861603000000000
+  },
+  "complete_strategy_admitted": false,
+  "confirmed_sl": {
+    "1001": 100.0
+  },
+  "confirmed_tp": {
+    "1001": 90.0
+  },
+  "contract": "isolated_runtime_protection_control_v1",
+  "envelopes": [
+    {
+      "deadline": 119858.921,
+      "request": {
+        "operation": "initialize",
+        "params": {},
+        "protocol_version": 1,
+        "request_id": "3df5f4a84b7449e0a28a1b3639ef872e"
+      },
+      "session_id": "75a67ffefc0043c985600501bd81eb91"
+    },
+    {
+      "deadline": 119849.921,
+      "request": {
+        "operation": "symbol_info_tick",
+        "params": {
+          "symbol": "XAUUSD"
+        },
+        "protocol_version": 1,
+        "request_id": "f344c5be7dcc4f30baf3c2f3f93efc3f"
+      },
+      "session_id": "75a67ffefc0043c985600501bd81eb91"
+    },
+    {
+      "deadline": 119850.937,
+      "phase": "prepare",
+      "request": {
+        "action_id": "action_93b431e2087a4899b5e7b610f97b9db7",
+        "attempt_id": "6a546d9c24c94e1fbb2e41933566037b",
+        "intent_id": "mt5i-v1-4c6d39e7110423ee5e21a137586c629580403641418770319966d05688ead2ed",
+        "intent_key": {
+          "account_fingerprint": "demo/7",
+          "channel": "canal2",
+          "generation": 0,
+          "leg": "ticket-1001",
+          "operation": "MODIFY_SLTP",
+          "revision": 0,
+          "signal_root": "canal2_98765"
+        },
+        "payload": {
+          "expected_magic": 20260422,
+          "new_sl": 100.0,
+          "new_tp": 90.0,
+          "symbol": "XAUUSD",
+          "ticket": 1001
+        },
+        "protocol_version": 1,
+        "request_id": "a8a4a651d8ac4abbb417262d84df3cc8"
+      },
+      "session_id": "75a67ffefc0043c985600501bd81eb91"
+    },
+    {
+      "deadline": 119850.984,
+      "phase": "prepare",
+      "request": {
+        "action_id": "action_93b431e2087a4899b5e7b610f97b9db7:tp-prerequisite:r0",
+        "attempt_id": "8cf77d04cabc4598a17f73d09ff287d9",
+        "intent_id": "mt5i-v1-e869cd9c8854959e95fdc86b96bddfb2a5b22ab846c0dfdb9d5a2c10aaa85fe8",
+        "intent_key": {
+          "account_fingerprint": "demo/7",
+          "channel": "canal2",
+          "generation": 0,
+          "leg": "ticket-1001-tp-prerequisite-r0",
+          "operation": "MODIFY_SLTP",
+          "revision": 0,
+          "signal_root": "canal2_98765"
+        },
+        "payload": {
+          "expected_magic": 20260422,
+          "new_sl": null,
+          "new_tp": 90.0,
+          "symbol": "XAUUSD",
+          "ticket": 1001
+        },
+        "protocol_version": 1,
+        "request_id": "733fbae61db9436fabea94fd5fdc58c8"
+      },
+      "session_id": "75a67ffefc0043c985600501bd81eb91"
+    },
+    {
+      "deadline": 119850.984,
+      "phase": "commit",
+      "request_id": "733fbae61db9436fabea94fd5fdc58c8",
+      "session_id": "75a67ffefc0043c985600501bd81eb91"
+    },
+    {
+      "deadline": 119850.062,
+      "request": {
+        "operation": "symbol_info_tick",
+        "params": {
+          "symbol": "XAUUSD"
+        },
+        "protocol_version": 1,
+        "request_id": "7695756a066543c99df623b54ad05028"
+      },
+      "session_id": "75a67ffefc0043c985600501bd81eb91"
+    },
+    {
+      "deadline": 119851.062,
+      "phase": "prepare",
+      "request": {
+        "action_id": "action_93b431e2087a4899b5e7b610f97b9db7",
+        "attempt_id": "83dd168604144a249f6ebc4942627d7b",
+        "intent_id": "mt5i-v1-5e6397dc0fee2f10f8fe5dca684b702cdb7b072fe45f967a6a83f18d619b50b8",
+        "intent_key": {
+          "account_fingerprint": "demo/7",
+          "channel": "canal2",
+          "generation": 0,
+          "leg": "ticket-1001",
+          "operation": "MODIFY_SLTP",
+          "revision": 1,
+          "signal_root": "canal2_98765"
+        },
+        "payload": {
+          "expected_magic": 20260422,
+          "new_sl": 100.0,
+          "new_tp": null,
+          "symbol": "XAUUSD",
+          "ticket": 1001
+        },
+        "protocol_version": 1,
+        "request_id": "c22a0fa979e64d9ca2450899559b624a"
+      },
+      "session_id": "75a67ffefc0043c985600501bd81eb91"
+    },
+    {
+      "deadline": 119851.062,
+      "phase": "commit",
+      "request_id": "c22a0fa979e64d9ca2450899559b624a",
+      "session_id": "75a67ffefc0043c985600501bd81eb91"
+    },
+    {
+      "deadline": 119849.656,
+      "request": {
+        "operation": "shutdown",
+        "params": {},
+        "protocol_version": 1,
+        "request_id": "6896ec8572474b1485e470fe1b71da6c"
+      },
+      "session_id": "75a67ffefc0043c985600501bd81eb91"
+    }
+  ],
+  "events": [
+    {
+      "decision_id": "decision_ad47b8fe83fc4c39a0c7cb747e3296dd",
+      "decision_reason": "modify SL\u2192100.0 TP\u219290.0",
+      "ev": "bot_internal_decision_started",
+      "message_revision_id": null,
+      "parent_decision_id": null,
+      "sig": "canal2_98765"
+    },
+    {
+      "action_id": "action_93b431e2087a4899b5e7b610f97b9db7",
+      "action_revision": 0,
+      "decision_id": "decision_ad47b8fe83fc4c39a0c7cb747e3296dd",
+      "ev": "mt5_modify_requested",
+      "expected_magic": 20260422,
+      "label": "modify SL\u2192100.0 TP\u219290.0",
+      "message_revision_id": null,
+      "new_sl": 100.0,
+      "new_tp": 90.0,
+      "sig": "canal2_98765",
+      "ticket": 1001
+    },
+    {
+      "decision_id": "decision_ad47b8fe83fc4c39a0c7cb747e3296dd",
+      "decision_reason": "modify SL\u2192100.0 TP\u219290.0",
+      "declared_action_count": 1,
+      "declared_action_ids": [
+        "action_93b431e2087a4899b5e7b610f97b9db7"
+      ],
+      "ev": "bot_internal_decision",
+      "message_revision_id": null,
+      "parent_decision_id": null,
+      "sig": "canal2_98765"
+    },
+    {
+      "action_id": "action_93b431e2087a4899b5e7b610f97b9db7",
+      "action_revision": 1,
+      "attempt_id": "8cf77d04cabc4598a17f73d09ff287d9",
+      "attempts": 1,
+      "decision_id": "decision_ad47b8fe83fc4c39a0c7cb747e3296dd",
+      "ev": "mt5_modify_confirmed",
+      "expected_magic": 20260422,
+      "label": "modify SL\u2192100.0 TP\u219290.0 (TP aplicado; SL en espera)",
+      "message_revision_id": null,
+      "new_sl": null,
+      "new_tp": 90.0,
+      "preflight_deferred_sl": null,
+      "preflight_effective_sl": null,
+      "preflight_effective_tp": null,
+      "preflight_observed_kind": null,
+      "preflight_observed_magic": null,
+      "preflight_observed_ticket": null,
+      "preflight_reason": null,
+      "preflight_status": null,
+      "retcode": 10009,
+      "sig": "canal2_98765",
+      "ticket": 1001
+    },
+    {
+      "action_id": "action_93b431e2087a4899b5e7b610f97b9db7",
+      "action_revision": 1,
+      "after_action": "MODIFY_SLTP",
+      "attempt_id": "8cf77d04cabc4598a17f73d09ff287d9",
+      "decision_id": "decision_ad47b8fe83fc4c39a0c7cb747e3296dd",
+      "ev": "mt5_position_snapshot",
+      "label": "modify SL\u2192100.0 TP\u219290.0 (TP aplicado; SL en espera)",
+      "message_revision_id": null,
+      "position_exists": null,
+      "requested_sl": null,
+      "requested_tp": 90.0,
+      "retcode": 10009,
+      "sig": "canal2_98765",
+      "snapshot_error": "RuntimeError: MT5 is owned by the isolated worker",
+      "ticket": 1001
+    },
+    {
+      "action_id": "action_93b431e2087a4899b5e7b610f97b9db7",
+      "action_revision": 1,
+      "attempt_id": "83dd168604144a249f6ebc4942627d7b",
+      "attempts": 2,
+      "decision_id": "decision_ad47b8fe83fc4c39a0c7cb747e3296dd",
+      "ev": "mt5_modify_confirmed",
+      "expected_magic": 20260422,
+      "label": "modify SL\u2192100.0 TP\u219290.0",
+      "message_revision_id": null,
+      "new_sl": 100.0,
+      "new_tp": 90.0,
+      "preflight_deferred_sl": null,
+      "preflight_effective_sl": null,
+      "preflight_effective_tp": null,
+      "preflight_observed_kind": null,
+      "preflight_observed_magic": null,
+      "preflight_observed_ticket": null,
+      "preflight_reason": null,
+      "preflight_status": null,
+      "retcode": 10009,
+      "sig": "canal2_98765",
+      "ticket": 1001
+    },
+    {
+      "action_id": "action_93b431e2087a4899b5e7b610f97b9db7",
+      "action_revision": 1,
+      "after_action": "MODIFY_SLTP",
+      "attempt_id": "83dd168604144a249f6ebc4942627d7b",
+      "decision_id": "decision_ad47b8fe83fc4c39a0c7cb747e3296dd",
+      "ev": "mt5_position_snapshot",
+      "label": "modify SL\u2192100.0 TP\u219290.0",
+      "message_revision_id": null,
+      "position_exists": null,
+      "requested_sl": 100.0,
+      "requested_tp": null,
+      "retcode": 10009,
+      "sig": "canal2_98765",
+      "snapshot_error": "RuntimeError: MT5 is owned by the isolated worker",
+      "ticket": 1001
+    }
+  ],
+  "full_live_parity_verified": false,
+  "input": {
+    "channel": "canal2",
+    "execution": {
+      "client": {
+        "entry_price_delay_ms": null,
+        "ladder_decision_mode": "snapshot_batch",
+        "max_events": 100000,
+        "name": "single_basket_terminal_v2"
+      },
+      "entry_fill_latency_ms": 0,
+      "entry_slippage": 0.0,
+      "exit_slippage": 0.0,
+      "latency_ms": 0,
+      "market": {
+        "close_acknowledgement_delay_ms": 0,
+        "close_processing_delay_ms": 1000,
+        "entry_acknowledgement_delay_ms": 0,
+        "max_events": 100000,
+        "name": "quote_clock_market_v1",
+        "volume_max": 1.0,
+        "volume_min": 0.01,
+        "volume_step": 0.01
+      },
+      "protection": {
+        "acknowledgement_delay_ms": 1000,
+        "digits": 2,
+        "freeze_level_points": 0,
+        "initial_protections": [],
+        "max_events": 100000,
+        "name": "quote_clock_protection_v1",
+        "point": 0.01,
+        "policy_extension": "none",
+        "processing_delay_ms": 1000,
+        "request_quote_binding": "timestamp_only",
+        "retry_delay_ms": 1000,
+        "stops_level_points": 20
+      },
+      "spread_addition": 0.0
+    },
+    "genome": {
+      "be_mode": "none",
+      "be_trigger": null,
+      "context_filter_mode": "none",
+      "context_filter_value": null,
+      "entry_confirmation_value": null,
+      "entry_expiry_min": 1,
+      "entry_ladder_mode": "simultaneous",
+      "entry_ladder_step": null,
+      "entry_mode": "signal_market",
+      "entry_value": null,
+      "hard_stop_eur_per_leg": null,
+      "leg_count": 1,
+      "lineage_depth": 0,
+      "mutation_reason": null,
+      "parent_fingerprints": [],
+      "partial_fraction": 0.0,
+      "pending_entry_policy": "until_expiry",
+      "profit_lock_arm": null,
+      "profit_lock_giveback": null,
+      "provider_management_mode": "explicit_close_only",
+      "runner_target": null,
+      "schema_version": 2,
+      "source_strategy_fingerprint": null,
+      "stop_mode": "none",
+      "stop_value": null,
+      "target_mode": "none",
+      "target_steps": [],
+      "target_value": null,
+      "time_exit_min": 180,
+      "time_exit_mode": "none",
+      "trailing_distance": null,
+      "volume_weights": [
+        0.04
+      ]
+    },
+    "guard_component": null,
+    "management_reads": {
+      "max_payload_bytes": 4194304,
+      "max_reads": 128,
+      "response_delay_ns": 0,
+      "sample_delay_ns": 0,
+      "timeout_ns": 60000000000
+    },
+    "path": {
+      "actual_pnl_eur": null,
+      "ask": [
+        100.2,
+        99.2,
+        98.2,
+        89.2,
+        89.2,
+        89.2,
+        89.2,
+        89.2,
+        89.2
+      ],
+      "bid": [
+        100.0,
+        99.0,
+        98.0,
+        89.0,
+        89.0,
+        89.0,
+        89.0,
+        89.0,
+        89.0
+      ],
+      "contract_size": 100,
+      "conversion_evidence": [
+        {}
+      ],
+      "conversion_orientation": "identity",
+      "currency_digits": 2,
+      "day": "2026-09-08",
+      "direction": "SELL",
+      "entry_evidence_kind": "provider_signal",
+      "entry_expiry_anchor_at": null,
+      "exit_quotes": [
+        100.2,
+        99.2,
+        98.2,
+        89.2,
+        89.2,
+        89.2,
+        89.2,
+        89.2,
+        89.2
+      ],
+      "fx_age_ms": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "fx_ask": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "fx_bid": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "fx_valid": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "legs": [
+        {
+          "actual_pnl_eur": "0",
+          "close_price": null,
+          "close_reason": null,
+          "closed_at": null,
+          "open_price": 1,
+          "opened_at": "2026-09-08 10:00:00+00:00",
+          "role": "market",
+          "sl_events": [],
+          "ticket": "template",
+          "tp_events": [],
+          "volume": 0.04
+        }
+      ],
+      "market_evidence": [
+        {}
+      ],
+      "opened_at": "2026-09-08 10:00:00+00:00",
+      "provider_events": [
+        {
+          "action": "CLOSE_ALL",
+          "observed_at": "2026-09-08 10:01:40+00:00",
+          "payload": {}
+        }
+      ],
+      "rollover_events": [],
+      "signal_id": "canal2_runtime",
+      "signal_observed_at": "2026-09-08 10:00:00+00:00",
+      "times_ns": [
+        1788861600000000000,
+        1788861601000000000,
+        1788861602000000000,
+        1788861603000000000,
+        1788861604000000000,
+        1788861605000000000,
+        1788861606000000000,
+        1788861607000000000,
+        1788861608000000000
+      ]
+    },
+    "read_interval_ns": 1000000000,
+    "stop_component": null
+  },
+  "native_broker_verified": false,
+  "pending_actions": {
+    "actions": [],
+    "saved_at": 1790009591.0727468,
+    "version": 2
+  },
+  "result": {
+    "behavior_digest": null,
+    "blockers": [],
+    "client_events": [
+      {
+        "decision_index": 0,
+        "decision_ns": 1788861600000000000,
+        "kind": "queued",
+        "operation": "entry",
+        "tick_index": 0,
+        "ticket": "sim_1",
+        "time_ns": 1788861600000000000
+      },
+      {
+        "decision_index": 0,
+        "decision_ns": 1788861600000000000,
+        "kind": "started",
+        "operation": "entry",
+        "tick_index": 0,
+        "ticket": "sim_1",
+        "time_ns": 1788861600000000000
+      },
+      {
+        "decision_index": 0,
+        "decision_ns": 1788861600000000000,
+        "kind": "released",
+        "operation": "entry",
+        "tick_index": 0,
+        "ticket": "sim_1",
+        "time_ns": 1788861600000000000
+      }
+    ],
+    "confidence_layer": "counterfactual_entry",
+    "entries": [
+      {
+        "acknowledged_ns": 1788861600000000000,
+        "entry_price": 100.0,
+        "opened_at": "2026-09-08 10:00:00+00:00",
+        "price_tick_index": 0,
+        "requested_ns": 1788861600000000000,
+        "source": "causal_signal_market",
+        "tick_index": 0,
+        "ticket": "sim_1",
+        "volume": 0.04
+      }
+    ],
+    "exit_reason": "runtime_native_tp",
+    "exits": [
+      {
+        "closed_at": "2026-09-08 10:00:03+00:00",
+        "entry_price": 100.0,
+        "exit_price": 90.0,
+        "pnl_eur": "40.00",
+        "reason": "runtime_native_tp",
+        "tick_index": 3,
+        "ticket": "sim_1",
+        "volume": 0.04
+      }
+    ],
+    "filled_volume": 0.04,
+    "last_tick_index": 3,
+    "market_events": [
+      {
+        "kind": "entry_requested",
+        "price": 100.0,
+        "reason": "causal_signal_market",
+        "request_id": 1,
+        "tick_index": 0,
+        "ticket": "sim_1",
+        "timestamp_ns": 1788861600000000000,
+        "volume": 0.04
+      },
+      {
+        "kind": "entry_filled",
+        "price": 100.0,
+        "reason": "causal_signal_market",
+        "request_id": 1,
+        "tick_index": 0,
+        "ticket": "sim_1",
+        "timestamp_ns": 1788861600000000000,
+        "volume": 0.04
+      },
+      {
+        "kind": "entry_acknowledged",
+        "price": 100.0,
+        "reason": "accepted",
+        "request_id": 1,
+        "tick_index": 0,
+        "ticket": "sim_1",
+        "timestamp_ns": 1788861600000000000,
+        "volume": 0.04
+      }
+    ],
+    "max_adverse_eur": "-0.80",
+    "max_adverse_move": -0.2,
+    "max_favourable_eur": "43.20",
+    "max_favourable_move": 10.8,
+    "max_floating_drawdown_eur": "0.00",
+    "pnl_eur": "40.00",
+    "protection_events": [
+      {
+        "kind": "open",
+        "reason": "hypothetical_open_request",
+        "request_id": 0,
+        "sl": null,
+        "tick_index": 0,
+        "ticket": "sim_1",
+        "timestamp_ns": 1788861600000000000,
+        "tp": null
+      },
+      {
+        "kind": "requested",
+        "reason": "external_runtime_control",
+        "request_id": 1,
+        "sl": null,
+        "tick_index": 0,
+        "ticket": "sim_1",
+        "timestamp_ns": 1788861600000000000,
+        "tp": 90.0
+      },
+      {
+        "kind": "installed",
+        "reason": "accepted",
+        "request_id": 1,
+        "sl": null,
+        "tick_index": 0,
+        "ticket": "sim_1",
+        "timestamp_ns": 1788861600000000000,
+        "tp": 90.0
+      },
+      {
+        "kind": "requested",
+        "reason": "external_runtime_control",
+        "request_id": 2,
+        "sl": 100.0,
+        "tick_index": 1,
+        "ticket": "sim_1",
+        "timestamp_ns": 1788861601000000000,
+        "tp": 90.0
+      },
+      {
+        "kind": "installed",
+        "reason": "accepted",
+        "request_id": 2,
+        "sl": 100.0,
+        "tick_index": 1,
+        "ticket": "sim_1",
+        "timestamp_ns": 1788861601000000000,
+        "tp": 90.0
+      },
+      {
+        "kind": "closed",
+        "reason": "runtime_native_tp",
+        "request_id": 0,
+        "sl": 100.0,
+        "tick_index": 3,
+        "ticket": "sim_1",
+        "timestamp_ns": 1788861603000000000,
+        "tp": 90.0
+      }
+    ],
+    "signal_id": "canal2_runtime",
+    "strategy_fingerprint": "2367b35ae5c5e14f910b317584ab88d79a5c0ba377a87d25b88ad530e87a66fb",
+    "unfilled": false
+  },
+  "risk": [
+    {
+      "floating_minor": 0,
+      "phase": "quote_open",
+      "positions": [],
+      "realized_minor": 0,
+      "tick_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "entry_fill",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "settled",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "grant_resume",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "settled",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "grant_resume",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "settled",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "grant_resume",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "settled",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "grant_resume",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "settled",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "floating_minor": 320,
+      "phase": "quote_open",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "floating_minor": 320,
+      "phase": "settled",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "floating_minor": 320,
+      "phase": "grant_resume",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "floating_minor": 320,
+      "phase": "settled",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "floating_minor": 320,
+      "phase": "grant_resume",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "floating_minor": 320,
+      "phase": "settled",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "floating_minor": 320,
+      "phase": "grant_resume",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "floating_minor": 320,
+      "phase": "settled",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "floating_minor": 320,
+      "phase": "grant_resume",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "floating_minor": 320,
+      "phase": "settled",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "floating_minor": 720,
+      "phase": "quote_open",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 2,
+      "time_ns": 1788861602000000000
+    },
+    {
+      "floating_minor": 720,
+      "phase": "settled",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 2,
+      "time_ns": 1788861602000000000
+    },
+    {
+      "floating_minor": 720,
+      "phase": "grant_resume",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 2,
+      "time_ns": 1788861602000000000
+    },
+    {
+      "floating_minor": 720,
+      "phase": "settled",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 2,
+      "time_ns": 1788861602000000000
+    },
+    {
+      "floating_minor": 720,
+      "phase": "grant_resume",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 2,
+      "time_ns": 1788861602000000000
+    },
+    {
+      "floating_minor": 720,
+      "phase": "settled",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 2,
+      "time_ns": 1788861602000000000
+    },
+    {
+      "floating_minor": 720,
+      "phase": "grant_resume",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 2,
+      "time_ns": 1788861602000000000
+    },
+    {
+      "floating_minor": 720,
+      "phase": "settled",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 2,
+      "time_ns": 1788861602000000000
+    },
+    {
+      "floating_minor": 720,
+      "phase": "grant_resume",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 2,
+      "time_ns": 1788861602000000000
+    },
+    {
+      "floating_minor": 720,
+      "phase": "settled",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 2,
+      "time_ns": 1788861602000000000
+    },
+    {
+      "floating_minor": 4320,
+      "phase": "quote_open",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 3,
+      "time_ns": 1788861603000000000
+    },
+    {
+      "floating_minor": 0,
+      "phase": "native_exit",
+      "positions": [],
+      "realized_minor": 4000,
+      "tick_index": 3,
+      "time_ns": 1788861603000000000
+    },
+    {
+      "floating_minor": 0,
+      "phase": "settled",
+      "positions": [],
+      "realized_minor": 4000,
+      "tick_index": 3,
+      "time_ns": 1788861603000000000
+    }
+  ],
+  "runtime_identity": {
+    "magic": 20260422,
+    "symbol": "XAUUSD",
+    "ticket_base": 1000
+  }
+}

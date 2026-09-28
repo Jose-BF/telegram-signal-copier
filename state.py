@@ -145,6 +145,9 @@ class Signal:
     candidate_entry_plan_error_alerted: bool = False
     candidate_entry_retry_not_before: float = 0.0
     candidate_entry_retry_failures: int = 0
+    candidate_entry_reconcile_pending_indexes: list[int] = field(
+        default_factory=list
+    )
     candidate_trailing_error_alerted: bool = False
     candidate_prolonged_exposure_alerted: bool = False
     candidate_provisional_sl: Optional[float] = None
@@ -405,7 +408,7 @@ class Signal:
         Usar para alimentar Gemini, decisiones de TP allocation, BE, notify.
         """
         try:
-            import MetaTrader5 as mt5
+            from mt5_runtime import mt5
             import config as _config
 
             # Posiciones abiertas en MT5 entre las que originalmente abrimos

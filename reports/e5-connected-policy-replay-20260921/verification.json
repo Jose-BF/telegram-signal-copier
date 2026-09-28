@@ -1,0 +1,23 @@
+{
+  "console_seconds": 476.17,
+  "implementation_unchanged": true,
+  "junit": {
+    "errors": "0",
+    "failures": "0",
+    "hostname": "RazerBlade",
+    "name": "pytest",
+    "skipped": "0",
+    "tests": "6661",
+    "time": "476.048",
+    "timestamp": "2026-09-21T14:24:14.633196+02:00"
+  },
+  "junit_sha256": "106104c0961674fd2b0471dcca0fc0b1d46773d23a6009089829612e1cc80b11",
+  "production_changed": false,
+  "protocol_unchanged": true,
+  "result_sha256": "769ec466e41ad022e8121fe4dff31ac930ee216ae522dc3a5f134a8918df203c",
+  "source_files_unchanged": true,
+  "warnings": {
+    "existing_pandas": 1,
+    "junit_xunit2_record_property": 9
+  }
+}

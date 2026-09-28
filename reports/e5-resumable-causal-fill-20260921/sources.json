@@ -1,0 +1,146 @@
+{
+  "block_files": {
+    "research/dubai_iterative/engine.py": "21b749d9a283be4f3fe5b00957fd323d3287f8bc20d896b4db02bec83f985d17",
+    "tests/fixtures/iterative_resume_reference.json": "2f2ea07a139a7fa291285cded7c75d22eac96803d4b9c17dc61c634fcfdbfe4d",
+    "tests/test_client_causal_fill.py": "f724300b39051af03da352647577efcdb9f4372141df0784d86ea2ed8cd0ad6e",
+    "tests/test_iterative_resume.py": "76f7f1f8cc1afc0798f5aed360a8bd2b6abea22e98bdff21715c3b86af44c8f3"
+  },
+  "captured_while_suite_running": true,
+  "implementation": {
+    "runtime": {
+      "byteorder": "little",
+      "decimal": {
+        "Emax": 999999,
+        "Emin": -999999,
+        "capitals": 1,
+        "clamp": 0,
+        "prec": 28,
+        "rounding": "ROUND_HALF_EVEN",
+        "traps": [
+          "DivisionByZero",
+          "InvalidOperation",
+          "Overflow"
+        ]
+      },
+      "machine": "AMD64",
+      "numba_environment": {
+        "NUMBA_BOUNDSCHECK": null,
+        "NUMBA_CPU_FEATURES": null,
+        "NUMBA_CPU_NAME": null,
+        "NUMBA_DISABLE_JIT": null,
+        "NUMBA_ENABLE_AVX": null,
+        "NUMBA_NUM_THREADS": null,
+        "NUMBA_OPT": null,
+        "NUMBA_THREADING_LAYER": null
+      },
+      "packages": {
+        "llvmlite": "0.49.0",
+        "matplotlib": "3.11.2",
+        "numba": "0.67.0",
+        "numpy": "2.4.6",
+        "pandas": "3.0.6",
+        "pyarrow": "25.0.1"
+      },
+      "python": "3.11.9",
+      "python_cache_tag": "cpython-311",
+      "python_implementation": "CPython",
+      "system": "Windows"
+    },
+    "schema_version": 1,
+    "sha256": "90f0729ccfaee5310f1a0af222de8e0927ef9adeed48a9bd7a588fa3af107374",
+    "source_sha256": {
+      "broker_market_sessions.py": "942745c5722343a136ed0b64a2b2980f92faf42b950cf41292c3817cef69b368",
+      "broker_money.py": "0a868a7c26ff32064b1beabe5ba046d7ad2a4ac3ecea3b87813a7ff183074a1f",
+      "broker_tick_clock.py": "6aef7d9c38c7e3d9e6e822e293ddb1d80cf9bf394a649a5bbb02dbb96f73fc36",
+      "interpretation_firewall.py": "230a874fa4417009b65e0b715d892d1f052ba1d664263e294704ab9e56677f0c",
+      "mt5_tick_cache.py": "83550bc77289f4d45d2d88d64bf842f1e806ca097262ac39fe004072dcf98842",
+      "parser.py": "b6b303cc35ceec39849633f54b8722ae4aedbfb74b79fc909ce604f354dff84c",
+      "provider_action_semantics.py": "02a6e90829b0f144d8792cdc9f9b2d3382f5400c66eff192736c55d7167941df",
+      "provider_result_scorecard.py": "b6f316f6a760abc99c980e622f0af74a5dd30b07d71c488d7eb6c9df6a2ab959",
+      "provider_signal_catalog.py": "21c8c352398c20501340d2255d01a9be9bf00ec4c01bf25dd1eb77ac61863c71",
+      "provider_trade_spec.py": "6e21c9702f651847c283d39e22ba7e5f9601ef71e708a2140a7ebd235df26d3b",
+      "research/__init__.py": "90e66c991ac20e4e1fb0f4f9ff523a69da11580334dbb93c684a393270bbf0fd",
+      "research/causal_replay.py": "521474868cd960ca15d93d02b8801c03e55d84e627a6a113bbd5548126fa5554",
+      "research/dubai_iterative/__init__.py": "87bdd3a184293975147b5a14c28017d4c8779885cdab26f57304a0c412ac34b6",
+      "research/dubai_iterative/__main__.py": "184cdb8da123896f4f65951e52ea3fd05e9bbd3dc5d90eeddb934dee95832028",
+      "research/dubai_iterative/certification.py": "6d9c0ee22e16248eada9c6a1cebb7df3224b19882f809483d78d600957a9eda4",
+      "research/dubai_iterative/client.py": "582afc83babe2edb4e0ffdd9108afb873143fdba74aaac3c2a4150d8b69a1ca0",
+      "research/dubai_iterative/client_contract.py": "220caf5703a2493d5080aeb9eb97925c90243eea9a39821dc9024a8d23b708f9",
+      "research/dubai_iterative/contracts.py": "445be9a486ed5681d7b98cf70feaf68f5748e2bb8b6595d79bafe82025c34333",
+      "research/dubai_iterative/dataset.py": "9b5f04b4ff78ca8ec2056700f70144149142f9835fe00c757e838ac8587bc309",
+      "research/dubai_iterative/engine.py": "21b749d9a283be4f3fe5b00957fd323d3287f8bc20d896b4db02bec83f985d17",
+      "research/dubai_iterative/evolution.py": "7a4c8173a1a6fcbd9b366d6127973a995a51b62bce0fc215c415139e488bdbda",
+      "research/dubai_iterative/fast_engine.py": "30bfb10acc046fb600a3007d724f1217bc0ddd10a74f620debd059c0adeb6901",
+      "research/dubai_iterative/market.py": "6427cb33765cb8b546d0e998117c8b6bf4882fd329276157136ea94b7e99f534",
+      "research/dubai_iterative/market_contract.py": "1798d270a434e5115fb4d468e8d0570154b47226d77abe954a86075fd8ba6938",
+      "research/dubai_iterative/oracle.py": "97d10fb50c25668c01fbc460cc2c1c603f870a79a85a7e0dc6014eece3e60419",
+      "research/dubai_iterative/portfolio.py": "e83f93f718c4730f76502348138e4a6fbcddbd028b8423de7d4a27adcd2cc7da",
+      "research/dubai_iterative/protection.py": "bf0b4db175dbf627c3ddd6cbbd64e457822261f47898e3f31064bb1c35b483b3",
+      "research/dubai_iterative/protection_contract.py": "bc2501f5c484c0560ffc3a7214c1b74fa25275adab4925239f488b814e77fd17",
+      "research/dubai_iterative/recursive.py": "a56672fb52bb5f2ce1bc4462cb2f7a722660bd826802f2a50fbb8113a5955772",
+      "research/dubai_iterative/refinement.py": "4d8f5aa7fc99bf6e271443f7ff3ca1d9b5f7988e0ac98e67579bc5646f1efe42",
+      "research/dubai_iterative/reporting.py": "df601ebc754c260e0ae0a67abb4b3ae4fa6d43aca475bd23522a40c4b3528200",
+      "research/dubai_iterative/risk.py": "bcae0b51173fb2b0be4f5f874df01225b2e3a9759245a9ee4458ff52ec41f55e",
+      "research/dubai_iterative/robustness.py": "2bc3df1c03b08630878ff83a5d4fa56ca4ea991908188f0735dceea5a6efaad6",
+      "research/dubai_iterative/search.py": "b026118b34e030aad49508a53cbba8e38524cc51af18333a5da8872b6a36b6ee",
+      "research/dubai_iterative/statistics.py": "000cc5dcf08da6812982e7dd111a83d0b07634ea97324174c691cbf046224757",
+      "research/execution_profile.py": "93205f592d99a0eea8bdf6437e866587b785b9b5248c151d2ff442fe91ace3cb",
+      "research/gold_iterative/__init__.py": "b9f91a7e70f92ad155e9e53701c6ae40cc69812d0325579e71319da259797e13",
+      "research/gold_iterative/__main__.py": "8d8da54b0d9990cdcc8809c2e1cc94db7d25db8d74b347c76b5b014cf0ef85d6",
+      "research/gold_iterative/contracts.py": "c8b81081abcbaca4baddedccd644ec279f3fc07f1cb7184294ca306b957fddf1",
+      "research/gold_iterative/dataset.py": "200b12538b78e7b755d297361eeec4b7395495c10d1f93723893bafd0a41e7de",
+      "research/gold_iterative/folds.py": "86f282fec898403d290833880c782b4e1bbe0a5148b7b2b03f626ae284ed57b3",
+      "research/gold_iterative/provider_accounting.py": "3bec62f30b5fc26f05fecc56368961d55323e0f7ca41c1e4b469ae2067a9ae41",
+      "research/gold_iterative/reporting.py": "c23319cc9ace657e93685be5fad7b547c49871aa505a11ddccda88de38764b31",
+      "research/gold_iterative/search.py": "cc3f892e5e722fa9a9af577956e00c636975314624828144040cd1b259fb1d94",
+      "research/gold_iterative/seeds.py": "b82a40350c7046e779a05e2a0d175bf280d9acf96fbabf13cc8633e78c47557e",
+      "research/gold_iterative/validation.py": "2d1e5488c1c15b7e1a3240e3edbcfe1f3cc5c93470f8dcfce6b1e1be4328315d",
+      "research/iterative_provenance.py": "3e884e1961d7095c01c0ae0ef21d4743925df414568ff1262a0efa842dbdc3a8",
+      "research/strategy_study.py": "9a371ffb88cd71c938b3723a5a33ca9d0cb0cdba23745f1a8bbc017b72bb5e77",
+      "research/strategy_study_dataset.py": "95e0d8cd9b7bb872907777d55b571d096da4610e162fa342fb4e19eda6084bc2",
+      "research/telegram_export.py": "ac3200f7a88a68903cb56d6c03953ae093beb8ac9231c220b29b57d278b288d4",
+      "runtime_paths.py": "34ed7a7f9d788fc68a2decf78c69bfba587d6894856b014a4dc5713ef3af593b",
+      "tools/ensure_replay_tick_cache.py": "dca9a2b40e3a41bcb0747e1b05d1354daa669057d3f0010d51126bc6b9014034"
+    }
+  },
+  "runtime": {
+    "byteorder": "little",
+    "decimal": {
+      "Emax": 999999,
+      "Emin": -999999,
+      "capitals": 1,
+      "clamp": 0,
+      "prec": 28,
+      "rounding": "ROUND_HALF_EVEN",
+      "traps": [
+        "DivisionByZero",
+        "InvalidOperation",
+        "Overflow"
+      ]
+    },
+    "machine": "AMD64",
+    "numba_environment": {
+      "NUMBA_BOUNDSCHECK": null,
+      "NUMBA_CPU_FEATURES": null,
+      "NUMBA_CPU_NAME": null,
+      "NUMBA_DISABLE_JIT": null,
+      "NUMBA_ENABLE_AVX": null,
+      "NUMBA_NUM_THREADS": null,
+      "NUMBA_OPT": null,
+      "NUMBA_THREADING_LAYER": null
+    },
+    "packages": {
+      "llvmlite": "0.49.0",
+      "matplotlib": "3.11.2",
+      "numba": "0.67.0",
+      "numpy": "2.4.6",
+      "pandas": "3.0.6",
+      "pyarrow": "25.0.1"
+    },
+    "python": "3.11.9",
+    "python_cache_tag": "cpython-311",
+    "python_implementation": "CPython",
+    "system": "Windows"
+  },
+  "suite_command": "python -m pytest -q --junitxml=reports/e5-resumable-causal-fill-20260921/pytest.xml -o junit_family=legacy"
+}

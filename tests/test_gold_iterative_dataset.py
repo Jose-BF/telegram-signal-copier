@@ -6,6 +6,9 @@ import hashlib
 import json
 
 import pandas as pd
+import pytest
+
+import provider_signal_catalog
 
 from research.gold_iterative.dataset import (
     load_gold_direct_dataset,
@@ -141,6 +144,19 @@ def _catalog_signal(
         "semantic_status": "complete",
         "semantic_gaps": [],
     }
+
+
+def _catalog_signal_with_ambiguous_direction(signal_id):
+    signal = _catalog_signal(signal_id)
+    observed_ts = signal["entry_contract"]["trigger_observed_utc"]
+    buy_revision = signal["revisions"][0]
+    sell_revision = json.loads(json.dumps(buy_revision))
+    sell_revision["observed_ts_utc"] = observed_ts
+    sell_revision["text"] = "Sell Gold Now"
+    sell_revision["parsed"]["direction"] = "SELL"
+    signal["direction"] = "SELL"
+    signal["revisions"] = [buy_revision, sell_revision]
+    return signal
 
 
 def _ticks():
@@ -409,6 +425,126 @@ def test_gold_loader_builds_provider_path_from_telegram_not_mt5(tmp_path):
     )
 
 
+def test_gold_loader_uses_direction_frozen_at_causal_entry_trigger(tmp_path):
+    fixture = _fixture(tmp_path)
+    initial = {
+        "ts": "2026-07-27T09:00:00.100+00:00",
+        "sig": "canal2_640",
+        "ev": "telegram_raw",
+        "channel": "canal2",
+        "message_id": 640,
+        "reply_to_msg_id": None,
+        "update_kind": "new",
+        "date_utc": "2026-07-27T09:00:00+00:00",
+        "edit_date_utc": None,
+        "text": "Buy Gold Now\n100 - 101\nTargets\n102\n103\nSL 98",
+        "sticker_id": None,
+        "has_photo": False,
+        "has_document": False,
+        "is_edit": False,
+        "is_reply": False,
+    }
+    direction_edit = {
+        **initial,
+        "ts": "2026-07-27T09:00:02+00:00",
+        "update_kind": "edit",
+        "edit_date_utc": "2026-07-27T09:00:02+00:00",
+        "text": "Sell Gold Now\n100 - 101\nTargets\n99\n97\nSL 103",
+        "is_edit": True,
+    }
+    catalog = provider_signal_catalog.build_catalog_report(
+        [direction_edit, initial],
+        [],
+    )
+    fixture["provider_catalog_path"] = _write_json(
+        tmp_path / "causal_direction_catalog.json",
+        catalog,
+    )
+
+    dataset = load_gold_now_dataset(**fixture)
+
+    assert catalog["signals"][0]["direction"] == "SELL"
+    assert catalog["signals"][0]["entry_contract"]["direction"] == "BUY"
+    assert dataset.eligible_signal_ids == ("canal2_640",)
+    assert dataset.paths[0].direction == "BUY"
+
+    legacy_catalog = json.loads(json.dumps(catalog))
+    legacy_signal = legacy_catalog["signals"][0]
+    del legacy_signal["entry_contract"]["direction"]
+    legacy_signal["entry_contract"]["trigger_observed_utc"] = (
+        "2026-07-27T09:00:02+00:00"
+    )
+    legacy_signal["revisions"].reverse()
+    fixture["provider_catalog_path"] = _write_json(
+        tmp_path / "legacy_causal_direction_catalog.json",
+        legacy_catalog,
+    )
+
+    legacy_dataset = load_gold_now_dataset(**fixture)
+
+    assert legacy_dataset.eligible_signal_ids == ("canal2_640",)
+    assert legacy_dataset.paths[0].direction == "SELL"
+
+
+def test_gold_loader_rejects_legacy_catalog_with_only_future_direction(tmp_path):
+    fixture = _fixture(tmp_path)
+    signal = _catalog_signal("canal2_future_direction")
+    signal["direction"] = "SELL"
+    signal["revisions"][0]["observed_ts_utc"] = "2026-07-27T09:00:02+00:00"
+    signal["revisions"][0]["text"] = "Sell Gold Now"
+    signal["revisions"][0]["parsed"]["direction"] = "SELL"
+    fixture["provider_catalog_path"] = _write_json(
+        tmp_path / "future_only_direction_catalog.json",
+        {"schema_version": 7, "signals": [signal]},
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "canal2_future_direction.*no causal entry direction at trigger"
+        ),
+    ):
+        load_gold_now_dataset(**fixture)
+
+
+@pytest.mark.parametrize("reverse_revisions", [False, True])
+def test_gold_loader_rejects_ambiguous_legacy_direction_timestamp(
+    tmp_path,
+    reverse_revisions,
+):
+    fixture = _fixture(tmp_path)
+    signal = _catalog_signal_with_ambiguous_direction("canal2_ambiguous_direction")
+    if reverse_revisions:
+        signal["revisions"].reverse()
+    fixture["provider_catalog_path"] = _write_json(
+        tmp_path / f"ambiguous_direction_{reverse_revisions}.json",
+        {"schema_version": 7, "signals": [signal]},
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "canal2_ambiguous_direction.*causal_direction_ambiguous"
+        ),
+    ):
+        load_gold_now_dataset(**fixture)
+
+
+def test_gold_loader_prefers_valid_contract_over_ambiguous_revisions(tmp_path):
+    fixture = _fixture(tmp_path)
+    signal = _catalog_signal_with_ambiguous_direction("canal2_contract_direction")
+    signal["entry_contract"]["direction"] = "BUY"
+    fixture["provider_catalog_path"] = _write_json(
+        tmp_path / "contract_direction_over_ambiguous_revisions.json",
+        {"schema_version": 7, "signals": [signal]},
+    )
+
+    dataset = load_gold_now_dataset(**fixture)
+
+    assert dataset.eligible_signal_ids == ("canal2_contract_direction",)
+    assert dataset.paths[0].direction == "BUY"
+
+
 def test_gold_loader_never_starts_before_the_bot_observed_the_signal(tmp_path):
     fixture = _fixture(tmp_path)
     catalog = json.loads(
@@ -458,6 +594,94 @@ def test_gold_loader_requires_literal_now_semantics(tmp_path):
     dataset = load_gold_now_dataset(**fixture)
 
     assert "canal2_15" not in dataset.eligible_signal_ids
+
+
+def test_gold_loader_rejects_missing_causal_now_revision_without_losing_signal(tmp_path):
+    fixture = _fixture(tmp_path)
+    signal = _catalog_signal("canal2_missing_revision_clock")
+    signal["entry_contract"]["direction"] = "BUY"
+    del signal["revisions"][0]["observed_ts_utc"]
+    fixture["provider_catalog_path"] = _write_json(
+        tmp_path / "missing_revision_clock.json",
+        {"schema_version": 7, "signals": [signal]},
+    )
+
+    with pytest.raises(ValueError, match="canal2_missing_revision_clock.*missing_causal_entry_revision"):
+        load_gold_now_dataset(**fixture)
+
+
+def test_gold_loader_does_not_promote_later_now_edit_to_entry_trigger(tmp_path):
+    fixture = _fixture(tmp_path)
+    initial = {
+        "ts": "2026-07-27T09:00:00.100+00:00",
+        "sig": "canal2_650",
+        "ev": "telegram_raw",
+        "channel": "canal2",
+        "message_id": 650,
+        "reply_to_msg_id": None,
+        "update_kind": "new",
+        "date_utc": "2026-07-27T09:00:00+00:00",
+        "edit_date_utc": None,
+        "text": "Very high risk buy\n\n4530\n\nHave your SL at 4520",
+        "sticker_id": None,
+        "has_photo": False,
+        "has_document": False,
+        "is_edit": False,
+        "is_reply": False,
+    }
+    later_now = {
+        **initial,
+        "ts": "2026-07-27T09:00:02+00:00",
+        "update_kind": "edit",
+        "edit_date_utc": "2026-07-27T09:00:02+00:00",
+        "text": "Buy Gold Now",
+        "is_edit": True,
+    }
+    catalog = provider_signal_catalog.build_catalog_report(
+        [later_now, initial],
+        [],
+    )
+    signal = catalog["signals"][0]
+    assert signal["entry_contract"]["trigger_kind"] == "direct_priced_text"
+    fixture["provider_catalog_path"] = _write_json(
+        tmp_path / "later_now_catalog.json",
+        catalog,
+    )
+
+    now_dataset = load_gold_now_dataset(**fixture)
+    direct_dataset = load_gold_direct_dataset(**fixture)
+
+    assert now_dataset.eligible_signal_ids == ()
+    assert direct_dataset.eligible_signal_ids == ("canal2_650",)
+    assert direct_dataset.paths[0].direction == "BUY"
+    assert direct_dataset.paths[0].signal_observed_at.isoformat() == (
+        "2026-07-27T09:00:00.100000+00:00"
+    )
+
+
+@pytest.mark.parametrize("level_history", ["missing", "telegram_only"])
+def test_gold_loader_does_not_backfill_final_levels_without_observed_history(
+    tmp_path,
+    level_history,
+):
+    fixture = _fixture(tmp_path)
+    signal = _catalog_signal(f"canal2_levels_{level_history}")
+    if level_history == "missing":
+        signal["level_timeline"] = []
+    else:
+        del signal["level_timeline"][0]["observed_ts_utc"]
+    fixture["provider_catalog_path"] = _write_json(
+        tmp_path / f"levels_{level_history}.json",
+        {"schema_version": 7, "signals": [signal]},
+    )
+
+    dataset = load_gold_now_dataset(**fixture)
+
+    assert dataset.eligible_signal_ids == (f"canal2_levels_{level_history}",)
+    assert len(dataset.paths) == 1
+    assert len(dataset.paths[0].legs) == 1
+    assert dataset.paths[0].legs[0].tp_events == ()
+    assert dataset.paths[0].legs[0].sl_events == ()
 
 
 def test_gold_direct_loader_adds_explicit_priced_entries_without_mixing_zones(

@@ -1,0 +1,2439 @@
+{
+  "contract": "native_week_reconciled_v2",
+  "currency": "EUR",
+  "source": "native MT5 deals, complete position volume and costs reconciled",
+  "calendar": "native broker calendar; no UTC conversion claimed",
+  "native_first_day": "2026-09-14",
+  "native_end_day_exclusive": "2026-09-19",
+  "summary": [
+    {
+      "channel": "canal1",
+      "baskets": 17,
+      "positions": 30,
+      "net_eur": "-104.86",
+      "positive": 6,
+      "negative": 11
+    },
+    {
+      "channel": "canal2",
+      "baskets": 23,
+      "positions": 85,
+      "net_eur": "-278.12",
+      "positive": 20,
+      "negative": 3
+    }
+  ],
+  "baskets": [
+    {
+      "signal_id": "canal1_22587",
+      "channel": "canal1",
+      "positions": 2,
+      "net_eur": "7.42",
+      "entry_volume": "0.05",
+      "first_native_msc": 1789488863375,
+      "last_native_msc": 1789489716755,
+      "first_native_calendar": "2026-09-15T16:14:23.375",
+      "last_native_calendar": "2026-09-15T16:28:36.755"
+    },
+    {
+      "signal_id": "canal1_22592",
+      "channel": "canal1",
+      "positions": 2,
+      "net_eur": "8.65",
+      "entry_volume": "0.05",
+      "first_native_msc": 1789491446527,
+      "last_native_msc": 1789492285112,
+      "first_native_calendar": "2026-09-15T16:57:26.527",
+      "last_native_calendar": "2026-09-15T17:11:25.112"
+    },
+    {
+      "signal_id": "canal1_22601",
+      "channel": "canal1",
+      "positions": 1,
+      "net_eur": "-0.11",
+      "entry_volume": "0.01",
+      "first_native_msc": 1789503418027,
+      "last_native_msc": 1789505818273,
+      "first_native_calendar": "2026-09-15T20:16:58.027",
+      "last_native_calendar": "2026-09-15T20:56:58.273"
+    },
+    {
+      "signal_id": "canal1_22635",
+      "channel": "canal1",
+      "positions": 1,
+      "net_eur": "-0.66",
+      "entry_volume": "0.01",
+      "first_native_msc": 1789571724489,
+      "last_native_msc": 1789574124974,
+      "first_native_calendar": "2026-09-16T15:15:24.489",
+      "last_native_calendar": "2026-09-16T15:55:24.974"
+    },
+    {
+      "signal_id": "canal1_22642",
+      "channel": "canal1",
+      "positions": 2,
+      "net_eur": "-24.85",
+      "entry_volume": "0.05",
+      "first_native_msc": 1789574573632,
+      "last_native_msc": 1789575186316,
+      "first_native_calendar": "2026-09-16T16:02:53.632",
+      "last_native_calendar": "2026-09-16T16:13:06.316"
+    },
+    {
+      "signal_id": "canal1_22646",
+      "channel": "canal1",
+      "positions": 2,
+      "net_eur": "-24.97",
+      "entry_volume": "0.05",
+      "first_native_msc": 1789575725591,
+      "last_native_msc": 1789576827111,
+      "first_native_calendar": "2026-09-16T16:22:05.591",
+      "last_native_calendar": "2026-09-16T16:40:27.111"
+    },
+    {
+      "signal_id": "canal1_22652",
+      "channel": "canal1",
+      "positions": 1,
+      "net_eur": "-25.00",
+      "entry_volume": "0.01",
+      "first_native_msc": 1789577654145,
+      "last_native_msc": 1789592439516,
+      "first_native_calendar": "2026-09-16T16:54:14.145",
+      "last_native_calendar": "2026-09-16T21:00:39.516"
+    },
+    {
+      "signal_id": "canal1_22725",
+      "channel": "canal1",
+      "positions": 1,
+      "net_eur": "9.65",
+      "entry_volume": "0.01",
+      "first_native_msc": 1789662202487,
+      "last_native_msc": 1789663364559,
+      "first_native_calendar": "2026-09-17T16:23:22.487",
+      "last_native_calendar": "2026-09-17T16:42:44.559"
+    },
+    {
+      "signal_id": "canal1_22732",
+      "channel": "canal1",
+      "positions": 3,
+      "net_eur": "-24.62",
+      "entry_volume": "0.09",
+      "first_native_msc": 1789664949441,
+      "last_native_msc": 1789665138588,
+      "first_native_calendar": "2026-09-17T17:09:09.441",
+      "last_native_calendar": "2026-09-17T17:12:18.588"
+    },
+    {
+      "signal_id": "canal1_22738",
+      "channel": "canal1",
+      "positions": 2,
+      "net_eur": "-24.96",
+      "entry_volume": "0.05",
+      "first_native_msc": 1789666626236,
+      "last_native_msc": 1789667647124,
+      "first_native_calendar": "2026-09-17T17:37:06.236",
+      "last_native_calendar": "2026-09-17T17:54:07.124"
+    },
+    {
+      "signal_id": "canal1_22741",
+      "channel": "canal1",
+      "positions": 3,
+      "net_eur": "-24.99",
+      "entry_volume": "0.09",
+      "first_native_msc": 1789668186816,
+      "last_native_msc": 1789669066796,
+      "first_native_calendar": "2026-09-17T18:03:06.816",
+      "last_native_calendar": "2026-09-17T18:17:46.796"
+    },
+    {
+      "signal_id": "canal1_22747",
+      "channel": "canal1",
+      "positions": 1,
+      "net_eur": "-3.47",
+      "entry_volume": "0.01",
+      "first_native_msc": 1789669096062,
+      "last_native_msc": 1789671496399,
+      "first_native_calendar": "2026-09-17T18:18:16.062",
+      "last_native_calendar": "2026-09-17T18:58:16.399"
+    },
+    {
+      "signal_id": "canal1_22751",
+      "channel": "canal1",
+      "positions": 2,
+      "net_eur": "13.15",
+      "entry_volume": "0.05",
+      "first_native_msc": 1789674535803,
+      "last_native_msc": 1789675371518,
+      "first_native_calendar": "2026-09-17T19:48:55.803",
+      "last_native_calendar": "2026-09-17T20:02:51.518"
+    },
+    {
+      "signal_id": "canal1_22761",
+      "channel": "canal1",
+      "positions": 1,
+      "net_eur": "-2.79",
+      "entry_volume": "0.01",
+      "first_native_msc": 1789740407385,
+      "last_native_msc": 1789742808045,
+      "first_native_calendar": "2026-09-18T14:06:47.385",
+      "last_native_calendar": "2026-09-18T14:46:48.045"
+    },
+    {
+      "signal_id": "canal1_22768",
+      "channel": "canal1",
+      "positions": 1,
+      "net_eur": "8.13",
+      "entry_volume": "0.01",
+      "first_native_msc": 1789745424575,
+      "last_native_msc": 1789745858778,
+      "first_native_calendar": "2026-09-18T15:30:24.575",
+      "last_native_calendar": "2026-09-18T15:37:38.778"
+    },
+    {
+      "signal_id": "canal1_22778",
+      "channel": "canal1",
+      "positions": 3,
+      "net_eur": "29.53",
+      "entry_volume": "0.09",
+      "first_native_msc": 1789751362793,
+      "last_native_msc": 1789752161974,
+      "first_native_calendar": "2026-09-18T17:09:22.793",
+      "last_native_calendar": "2026-09-18T17:22:41.974"
+    },
+    {
+      "signal_id": "canal1_22781",
+      "channel": "canal1",
+      "positions": 2,
+      "net_eur": "-24.97",
+      "entry_volume": "0.05",
+      "first_native_msc": 1789752242149,
+      "last_native_msc": 1789752570662,
+      "first_native_calendar": "2026-09-18T17:24:02.149",
+      "last_native_calendar": "2026-09-18T17:29:30.662"
+    },
+    {
+      "signal_id": "canal2_2908",
+      "channel": "canal2",
+      "positions": 5,
+      "net_eur": "-302.38",
+      "entry_volume": "0.16",
+      "first_native_msc": 1789379245873,
+      "last_native_msc": 1789388363231,
+      "first_native_calendar": "2026-09-14T09:47:25.873",
+      "last_native_calendar": "2026-09-14T12:19:23.231"
+    },
+    {
+      "signal_id": "canal2_2911",
+      "channel": "canal2",
+      "positions": 1,
+      "net_eur": "1.73",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789383536117,
+      "last_native_msc": 1789383587889,
+      "first_native_calendar": "2026-09-14T10:58:56.117",
+      "last_native_calendar": "2026-09-14T10:59:47.889"
+    },
+    {
+      "signal_id": "canal2_2917",
+      "channel": "canal2",
+      "positions": 5,
+      "net_eur": "-85.87",
+      "entry_volume": "0.16",
+      "first_native_msc": 1789388355721,
+      "last_native_msc": 1789401252928,
+      "first_native_calendar": "2026-09-14T12:19:15.721",
+      "last_native_calendar": "2026-09-14T15:54:12.928"
+    },
+    {
+      "signal_id": "canal2_2919",
+      "channel": "canal2",
+      "positions": 5,
+      "net_eur": "19.93",
+      "entry_volume": "0.16",
+      "first_native_msc": 1789388432739,
+      "last_native_msc": 1789392865523,
+      "first_native_calendar": "2026-09-14T12:20:32.739",
+      "last_native_calendar": "2026-09-14T13:34:25.523"
+    },
+    {
+      "signal_id": "canal2_2970",
+      "channel": "canal2",
+      "positions": 4,
+      "net_eur": "13.43",
+      "entry_volume": "0.13",
+      "first_native_msc": 1789486659948,
+      "last_native_msc": 1789487121597,
+      "first_native_calendar": "2026-09-15T15:37:39.948",
+      "last_native_calendar": "2026-09-15T15:45:21.597"
+    },
+    {
+      "signal_id": "canal2_2977",
+      "channel": "canal2",
+      "positions": 2,
+      "net_eur": "4.33",
+      "entry_volume": "0.07",
+      "first_native_msc": 1789488559140,
+      "last_native_msc": 1789489351651,
+      "first_native_calendar": "2026-09-15T16:09:19.140",
+      "last_native_calendar": "2026-09-15T16:22:31.651"
+    },
+    {
+      "signal_id": "canal2_2982",
+      "channel": "canal2",
+      "positions": 5,
+      "net_eur": "19.92",
+      "entry_volume": "0.16",
+      "first_native_msc": 1789492665096,
+      "last_native_msc": 1789493089013,
+      "first_native_calendar": "2026-09-15T17:17:45.096",
+      "last_native_calendar": "2026-09-15T17:24:49.013"
+    },
+    {
+      "signal_id": "canal2_2986",
+      "channel": "canal2",
+      "positions": 2,
+      "net_eur": "4.33",
+      "entry_volume": "0.07",
+      "first_native_msc": 1789496653172,
+      "last_native_msc": 1789497278123,
+      "first_native_calendar": "2026-09-15T18:24:13.172",
+      "last_native_calendar": "2026-09-15T18:34:38.123"
+    },
+    {
+      "signal_id": "canal2_2995",
+      "channel": "canal2",
+      "positions": 2,
+      "net_eur": "4.33",
+      "entry_volume": "0.07",
+      "first_native_msc": 1789508056578,
+      "last_native_msc": 1789508472315,
+      "first_native_calendar": "2026-09-15T21:34:16.578",
+      "last_native_calendar": "2026-09-15T21:41:12.315"
+    },
+    {
+      "signal_id": "canal2_3000",
+      "channel": "canal2",
+      "positions": 5,
+      "net_eur": "19.93",
+      "entry_volume": "0.16",
+      "first_native_msc": 1789572637318,
+      "last_native_msc": 1789577540985,
+      "first_native_calendar": "2026-09-16T15:30:37.318",
+      "last_native_calendar": "2026-09-16T16:52:20.985"
+    },
+    {
+      "signal_id": "canal2_3003",
+      "channel": "canal2",
+      "positions": 5,
+      "net_eur": "-165.88",
+      "entry_volume": "0.16",
+      "first_native_msc": 1789575422741,
+      "last_native_msc": 1789578366040,
+      "first_native_calendar": "2026-09-16T16:17:02.741",
+      "last_native_calendar": "2026-09-16T17:06:06.040"
+    },
+    {
+      "signal_id": "canal2_3005",
+      "channel": "canal2",
+      "positions": 5,
+      "net_eur": "19.93",
+      "entry_volume": "0.16",
+      "first_native_msc": 1789576987606,
+      "last_native_msc": 1789580331341,
+      "first_native_calendar": "2026-09-16T16:43:07.606",
+      "last_native_calendar": "2026-09-16T17:38:51.341"
+    },
+    {
+      "signal_id": "canal2_3007",
+      "channel": "canal2",
+      "positions": 3,
+      "net_eur": "8.23",
+      "entry_volume": "0.10",
+      "first_native_msc": 1789577797990,
+      "last_native_msc": 1789578725179,
+      "first_native_calendar": "2026-09-16T16:56:37.990",
+      "last_native_calendar": "2026-09-16T17:12:05.179"
+    },
+    {
+      "signal_id": "canal2_3009",
+      "channel": "canal2",
+      "positions": 5,
+      "net_eur": "19.93",
+      "entry_volume": "0.16",
+      "first_native_msc": 1789577798654,
+      "last_native_msc": 1789579292876,
+      "first_native_calendar": "2026-09-16T16:56:38.654",
+      "last_native_calendar": "2026-09-16T17:21:32.876"
+    },
+    {
+      "signal_id": "canal2_3086",
+      "channel": "canal2",
+      "positions": 1,
+      "net_eur": "31.92",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789659067803,
+      "last_native_msc": 1789659331758,
+      "first_native_calendar": "2026-09-17T15:31:07.803",
+      "last_native_calendar": "2026-09-17T15:35:31.758"
+    },
+    {
+      "signal_id": "canal2_3096",
+      "channel": "canal2",
+      "positions": 5,
+      "net_eur": "20.02",
+      "entry_volume": "0.16",
+      "first_native_msc": 1789660043467,
+      "last_native_msc": 1789661560288,
+      "first_native_calendar": "2026-09-17T15:47:23.467",
+      "last_native_calendar": "2026-09-17T16:12:40.288"
+    },
+    {
+      "signal_id": "canal2_3102",
+      "channel": "canal2",
+      "positions": 5,
+      "net_eur": "20.02",
+      "entry_volume": "0.16",
+      "first_native_msc": 1789663558821,
+      "last_native_msc": 1789666993393,
+      "first_native_calendar": "2026-09-17T16:45:58.821",
+      "last_native_calendar": "2026-09-17T17:43:13.393"
+    },
+    {
+      "signal_id": "canal2_3106",
+      "channel": "canal2",
+      "positions": 5,
+      "net_eur": "20.02",
+      "entry_volume": "0.16",
+      "first_native_msc": 1789665178384,
+      "last_native_msc": 1789666474203,
+      "first_native_calendar": "2026-09-17T17:12:58.384",
+      "last_native_calendar": "2026-09-17T17:34:34.203"
+    },
+    {
+      "signal_id": "canal2_3148",
+      "channel": "canal2",
+      "positions": 3,
+      "net_eur": "8.28",
+      "entry_volume": "0.10",
+      "first_native_msc": 1789740341566,
+      "last_native_msc": 1789740448096,
+      "first_native_calendar": "2026-09-18T14:05:41.566",
+      "last_native_calendar": "2026-09-18T14:07:28.096"
+    },
+    {
+      "signal_id": "canal2_3156",
+      "channel": "canal2",
+      "positions": 4,
+      "net_eur": "13.53",
+      "entry_volume": "0.13",
+      "first_native_msc": 1789741889074,
+      "last_native_msc": 1789742586935,
+      "first_native_calendar": "2026-09-18T14:31:29.074",
+      "last_native_calendar": "2026-09-18T14:43:06.935"
+    },
+    {
+      "signal_id": "canal2_3168",
+      "channel": "canal2",
+      "positions": 5,
+      "net_eur": "20.09",
+      "entry_volume": "0.16",
+      "first_native_msc": 1789745028805,
+      "last_native_msc": 1789745472361,
+      "first_native_calendar": "2026-09-18T15:23:48.805",
+      "last_native_calendar": "2026-09-18T15:31:12.361"
+    },
+    {
+      "signal_id": "canal2_3171",
+      "channel": "canal2",
+      "positions": 1,
+      "net_eur": "1.75",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789745278596,
+      "last_native_msc": 1789745294149,
+      "first_native_calendar": "2026-09-18T15:27:58.596",
+      "last_native_calendar": "2026-09-18T15:28:14.149"
+    },
+    {
+      "signal_id": "canal2_3180",
+      "channel": "canal2",
+      "positions": 2,
+      "net_eur": "4.36",
+      "entry_volume": "0.07",
+      "first_native_msc": 1789747390290,
+      "last_native_msc": 1789748781008,
+      "first_native_calendar": "2026-09-18T16:03:10.290",
+      "last_native_calendar": "2026-09-18T16:26:21.008"
+    }
+  ],
+  "positions": [
+    {
+      "position_id": 2004711154,
+      "signal_id": "canal2_2908",
+      "symbol": "XAUUSD",
+      "net_eur": "1.73",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789379245873,
+      "last_native_msc": 1789379267672,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1616143998,
+        1616144803
+      ]
+    },
+    {
+      "position_id": 2004722950,
+      "signal_id": "canal2_2908",
+      "symbol": "XAUUSD",
+      "net_eur": "-78.02",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789379362478,
+      "last_native_msc": 1789388362868,
+      "exit_reasons": [
+        4
+      ],
+      "deal_tickets": [
+        1616150515,
+        1616968195
+      ]
+    },
+    {
+      "position_id": 2004728006,
+      "signal_id": "canal2_2908",
+      "symbol": "XAUUSD",
+      "net_eur": "-78.02",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789379385663,
+      "last_native_msc": 1789388363199,
+      "exit_reasons": [
+        4
+      ],
+      "deal_tickets": [
+        1616154196,
+        1616968512
+      ]
+    },
+    {
+      "position_id": 2004739270,
+      "signal_id": "canal2_2908",
+      "symbol": "XAUUSD",
+      "net_eur": "-75.44",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789379429784,
+      "last_native_msc": 1789388363213,
+      "exit_reasons": [
+        4
+      ],
+      "deal_tickets": [
+        1616162158,
+        1616968521
+      ]
+    },
+    {
+      "position_id": 2004781618,
+      "signal_id": "canal2_2908",
+      "symbol": "XAUUSD",
+      "net_eur": "-72.63",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789379793160,
+      "last_native_msc": 1789388363231,
+      "exit_reasons": [
+        4
+      ],
+      "deal_tickets": [
+        1616188158,
+        1616968533
+      ]
+    },
+    {
+      "position_id": 2005291099,
+      "signal_id": "canal2_2911",
+      "symbol": "XAUUSD",
+      "net_eur": "1.73",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789383536117,
+      "last_native_msc": 1789383587889,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1616537158,
+        1616542815
+      ]
+    },
+    {
+      "position_id": 2005928501,
+      "signal_id": "canal2_2917",
+      "symbol": "XAUUSD",
+      "net_eur": "-104.07",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789388355721,
+      "last_native_msc": 1789401252928,
+      "exit_reasons": [
+        4
+      ],
+      "deal_tickets": [
+        1616959705,
+        1618303376
+      ]
+    },
+    {
+      "position_id": 2005954229,
+      "signal_id": "canal2_2917",
+      "symbol": "XAUUSD",
+      "net_eur": "2.60",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789388385440,
+      "last_native_msc": 1789393146360,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1616985040,
+        1617483015
+      ]
+    },
+    {
+      "position_id": 2005954685,
+      "signal_id": "canal2_2917",
+      "symbol": "XAUUSD",
+      "net_eur": "3.90",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789388385973,
+      "last_native_msc": 1789393154171,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1616985365,
+        1617484497
+      ]
+    },
+    {
+      "position_id": 2005955349,
+      "signal_id": "canal2_2917",
+      "symbol": "XAUUSD",
+      "net_eur": "5.20",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789388386534,
+      "last_native_msc": 1789393288265,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1616985844,
+        1617490456
+      ]
+    },
+    {
+      "position_id": 2005955714,
+      "signal_id": "canal2_2917",
+      "symbol": "XAUUSD",
+      "net_eur": "6.50",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789388386815,
+      "last_native_msc": 1789393330474,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1616986088,
+        1617493946
+      ]
+    },
+    {
+      "position_id": 2005979327,
+      "signal_id": "canal2_2919",
+      "symbol": "XAUUSD",
+      "net_eur": "1.73",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789388432739,
+      "last_native_msc": 1789392865523,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1617002142,
+        1617465707
+      ]
+    },
+    {
+      "position_id": 2005982016,
+      "signal_id": "canal2_2919",
+      "symbol": "XAUUSD",
+      "net_eur": "2.60",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789388441650,
+      "last_native_msc": 1789388449564,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1617004115,
+        1617005481
+      ]
+    },
+    {
+      "position_id": 2006001023,
+      "signal_id": "canal2_2919",
+      "symbol": "XAUUSD",
+      "net_eur": "3.90",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789388535981,
+      "last_native_msc": 1789391947636,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1617016782,
+        1617395167
+      ]
+    },
+    {
+      "position_id": 2006012531,
+      "signal_id": "canal2_2919",
+      "symbol": "XAUUSD",
+      "net_eur": "5.20",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789388574201,
+      "last_native_msc": 1789388628770,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1617025017,
+        1617032392
+      ]
+    },
+    {
+      "position_id": 2006049479,
+      "signal_id": "canal2_2919",
+      "symbol": "XAUUSD",
+      "net_eur": "6.50",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789388762260,
+      "last_native_msc": 1789388998599,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1617050315,
+        1617086843
+      ]
+    },
+    {
+      "position_id": 2018037491,
+      "signal_id": "canal2_2970",
+      "symbol": "XAUUSD",
+      "net_eur": "1.73",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789486659948,
+      "last_native_msc": 1789487121597,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1624536847,
+        1624574117
+      ]
+    },
+    {
+      "position_id": 2018040176,
+      "signal_id": "canal2_2970",
+      "symbol": "XAUUSD",
+      "net_eur": "2.60",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789486676323,
+      "last_native_msc": 1789487121423,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1624538306,
+        1624573928
+      ]
+    },
+    {
+      "position_id": 2018048139,
+      "signal_id": "canal2_2970",
+      "symbol": "XAUUSD",
+      "net_eur": "3.90",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789486736126,
+      "last_native_msc": 1789486743374,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1624543371,
+        1624545947
+      ]
+    },
+    {
+      "position_id": 2018067494,
+      "signal_id": "canal2_2970",
+      "symbol": "XAUUSD",
+      "net_eur": "5.20",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789486851924,
+      "last_native_msc": 1789486893594,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1624555927,
+        1624559492
+      ]
+    },
+    {
+      "position_id": 2018446418,
+      "signal_id": "canal2_2977",
+      "symbol": "XAUUSD",
+      "net_eur": "1.73",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789488559140,
+      "last_native_msc": 1789488634294,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1624817973,
+        1624823708
+      ]
+    },
+    {
+      "position_id": 2018494427,
+      "signal_id": "canal1_22587",
+      "symbol": "XAUUSD",
+      "net_eur": "-1.28",
+      "entry_volume": "0.01",
+      "first_native_msc": 1789488863375,
+      "last_native_msc": 1789489716614,
+      "exit_reasons": [
+        3
+      ],
+      "deal_tickets": [
+        1624846690,
+        1624952284
+      ]
+    },
+    {
+      "position_id": 2018572832,
+      "signal_id": "canal2_2977",
+      "symbol": "XAUUSD",
+      "net_eur": "2.60",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789489345856,
+      "last_native_msc": 1789489351651,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1624897603,
+        1624899760
+      ]
+    },
+    {
+      "position_id": 2018601685,
+      "signal_id": "canal1_22587",
+      "symbol": "XAUUSD",
+      "net_eur": "8.70",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789489480113,
+      "last_native_msc": 1789489716755,
+      "exit_reasons": [
+        3
+      ],
+      "deal_tickets": [
+        1624917365,
+        1624952364
+      ]
+    },
+    {
+      "position_id": 2019021959,
+      "signal_id": "canal1_22592",
+      "symbol": "XAUUSD",
+      "net_eur": "-1.01",
+      "entry_volume": "0.01",
+      "first_native_msc": 1789491446527,
+      "last_native_msc": 1789492284783,
+      "exit_reasons": [
+        3
+      ],
+      "deal_tickets": [
+        1625204841,
+        1625314929
+      ]
+    },
+    {
+      "position_id": 2019135697,
+      "signal_id": "canal1_22592",
+      "symbol": "XAUUSD",
+      "net_eur": "9.66",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789492064900,
+      "last_native_msc": 1789492285112,
+      "exit_reasons": [
+        3
+      ],
+      "deal_tickets": [
+        1625283260,
+        1625315040
+      ]
+    },
+    {
+      "position_id": 2019239778,
+      "signal_id": "canal2_2982",
+      "symbol": "XAUUSD",
+      "net_eur": "1.73",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789492665096,
+      "last_native_msc": 1789492775248,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1625355520,
+        1625367856
+      ]
+    },
+    {
+      "position_id": 2019248635,
+      "signal_id": "canal2_2982",
+      "symbol": "XAUUSD",
+      "net_eur": "2.60",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789492724964,
+      "last_native_msc": 1789492771101,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1625361021,
+        1625365572
+      ]
+    },
+    {
+      "position_id": 2019276778,
+      "signal_id": "canal2_2982",
+      "symbol": "XAUUSD",
+      "net_eur": "3.90",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789492960122,
+      "last_native_msc": 1789493089013,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1625384468,
+        1625413449
+      ]
+    },
+    {
+      "position_id": 2019296809,
+      "signal_id": "canal2_2982",
+      "symbol": "XAUUSD",
+      "net_eur": "5.20",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789492994904,
+      "last_native_msc": 1789493085922,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1625399992,
+        1625411991
+      ]
+    },
+    {
+      "position_id": 2019297348,
+      "signal_id": "canal2_2982",
+      "symbol": "XAUUSD",
+      "net_eur": "6.49",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789492996314,
+      "last_native_msc": 1789493088938,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1625400322,
+        1625413304
+      ]
+    },
+    {
+      "position_id": 2019898565,
+      "signal_id": "canal2_2986",
+      "symbol": "XAUUSD",
+      "net_eur": "1.73",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789496653172,
+      "last_native_msc": 1789496689022,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1625822204,
+        1625826760
+      ]
+    },
+    {
+      "position_id": 2019969132,
+      "signal_id": "canal2_2986",
+      "symbol": "XAUUSD",
+      "net_eur": "2.60",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789497246324,
+      "last_native_msc": 1789497278123,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1625864115,
+        1625870453
+      ]
+    },
+    {
+      "position_id": 2020699301,
+      "signal_id": "canal1_22601",
+      "symbol": "XAUUSD",
+      "net_eur": "-0.11",
+      "entry_volume": "0.01",
+      "first_native_msc": 1789503418027,
+      "last_native_msc": 1789505818273,
+      "exit_reasons": [
+        3
+      ],
+      "deal_tickets": [
+        1626310409,
+        1626444169
+      ]
+    },
+    {
+      "position_id": 2021221846,
+      "signal_id": "canal2_2995",
+      "symbol": "XAUUSD",
+      "net_eur": "1.73",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789508056578,
+      "last_native_msc": 1789508472315,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1626594941,
+        1626612820
+      ]
+    },
+    {
+      "position_id": 2021244212,
+      "signal_id": "canal2_2995",
+      "symbol": "XAUUSD",
+      "net_eur": "2.60",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789508290051,
+      "last_native_msc": 1789508353547,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1626606105,
+        1626608149
+      ]
+    },
+    {
+      "position_id": 2027442331,
+      "signal_id": "canal1_22635",
+      "symbol": "XAUUSD",
+      "net_eur": "-0.66",
+      "entry_volume": "0.01",
+      "first_native_msc": 1789571724489,
+      "last_native_msc": 1789574124974,
+      "exit_reasons": [
+        3
+      ],
+      "deal_tickets": [
+        1630380481,
+        1630555515
+      ]
+    },
+    {
+      "position_id": 2027536316,
+      "signal_id": "canal2_3000",
+      "symbol": "XAUUSD",
+      "net_eur": "1.73",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789572637318,
+      "last_native_msc": 1789577540985,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1630440608,
+        1631000631
+      ]
+    },
+    {
+      "position_id": 2027539121,
+      "signal_id": "canal2_3000",
+      "symbol": "XAUUSD",
+      "net_eur": "2.60",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789572650279,
+      "last_native_msc": 1789573097577,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1630442294,
+        1630474921
+      ]
+    },
+    {
+      "position_id": 2027570216,
+      "signal_id": "canal2_3000",
+      "symbol": "XAUUSD",
+      "net_eur": "3.90",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789572901800,
+      "last_native_msc": 1789572991441,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1630461714,
+        1630469934
+      ]
+    },
+    {
+      "position_id": 2027606132,
+      "signal_id": "canal2_3000",
+      "symbol": "XAUUSD",
+      "net_eur": "5.20",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789573165109,
+      "last_native_msc": 1789577071732,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1630485360,
+        1630941600
+      ]
+    },
+    {
+      "position_id": 2027661607,
+      "signal_id": "canal2_3000",
+      "symbol": "XAUUSD",
+      "net_eur": "6.50",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789573738079,
+      "last_native_msc": 1789573972195,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1630519132,
+        1630542806
+      ]
+    },
+    {
+      "position_id": 2027785504,
+      "signal_id": "canal1_22642",
+      "symbol": "XAUUSD",
+      "net_eur": "-7.79",
+      "entry_volume": "0.01",
+      "first_native_msc": 1789574573632,
+      "last_native_msc": 1789575186315,
+      "exit_reasons": [
+        4
+      ],
+      "deal_tickets": [
+        1630601825,
+        1630678543
+      ]
+    },
+    {
+      "position_id": 2027857592,
+      "signal_id": "canal1_22642",
+      "symbol": "XAUUSD",
+      "net_eur": "-17.06",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789574951596,
+      "last_native_msc": 1789575186316,
+      "exit_reasons": [
+        4
+      ],
+      "deal_tickets": [
+        1630651860,
+        1630678545
+      ]
+    },
+    {
+      "position_id": 2027965710,
+      "signal_id": "canal2_3003",
+      "symbol": "XAUUSD",
+      "net_eur": "-103.43",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789575422741,
+      "last_native_msc": 1789578301209,
+      "exit_reasons": [
+        4
+      ],
+      "deal_tickets": [
+        1630732898,
+        1631103092
+      ]
+    },
+    {
+      "position_id": 2027969515,
+      "signal_id": "canal2_3003",
+      "symbol": "XAUUSD",
+      "net_eur": "-78.05",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789575441891,
+      "last_native_msc": 1789578366040,
+      "exit_reasons": [
+        4
+      ],
+      "deal_tickets": [
+        1630735371,
+        1631118015
+      ]
+    },
+    {
+      "position_id": 2027978223,
+      "signal_id": "canal2_3003",
+      "symbol": "XAUUSD",
+      "net_eur": "3.90",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789575465244,
+      "last_native_msc": 1789575764225,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1630742192,
+        1630783617
+      ]
+    },
+    {
+      "position_id": 2027998180,
+      "signal_id": "canal2_3003",
+      "symbol": "XAUUSD",
+      "net_eur": "5.20",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789575604319,
+      "last_native_msc": 1789575752285,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1630756508,
+        1630781284
+      ]
+    },
+    {
+      "position_id": 2028006409,
+      "signal_id": "canal2_3003",
+      "symbol": "XAUUSD",
+      "net_eur": "6.50",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789575643445,
+      "last_native_msc": 1789575736637,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1630762515,
+        1630778056
+      ]
+    },
+    {
+      "position_id": 2028026016,
+      "signal_id": "canal1_22646",
+      "symbol": "XAUUSD",
+      "net_eur": "-7.71",
+      "entry_volume": "0.01",
+      "first_native_msc": 1789575725591,
+      "last_native_msc": 1789576827051,
+      "exit_reasons": [
+        4
+      ],
+      "deal_tickets": [
+        1630776077,
+        1630910342
+      ]
+    },
+    {
+      "position_id": 2028156226,
+      "signal_id": "canal1_22646",
+      "symbol": "XAUUSD",
+      "net_eur": "-17.26",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789576469534,
+      "last_native_msc": 1789576827111,
+      "exit_reasons": [
+        4
+      ],
+      "deal_tickets": [
+        1630863044,
+        1630910346
+      ]
+    },
+    {
+      "position_id": 2028255880,
+      "signal_id": "canal2_3005",
+      "symbol": "XAUUSD",
+      "net_eur": "1.73",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789576987606,
+      "last_native_msc": 1789577214908,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1630932270,
+        1630960338
+      ]
+    },
+    {
+      "position_id": 2028260884,
+      "signal_id": "canal2_3005",
+      "symbol": "XAUUSD",
+      "net_eur": "2.60",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789577023799,
+      "last_native_msc": 1789577051857,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1630935394,
+        1630937672
+      ]
+    },
+    {
+      "position_id": 2028274973,
+      "signal_id": "canal2_3005",
+      "symbol": "XAUUSD",
+      "net_eur": "3.90",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789577096529,
+      "last_native_msc": 1789577153184,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1630945179,
+        1630951253
+      ]
+    },
+    {
+      "position_id": 2028348779,
+      "signal_id": "canal2_3005",
+      "symbol": "XAUUSD",
+      "net_eur": "5.20",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789577525540,
+      "last_native_msc": 1789580331341,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1630997409,
+        1631333900
+      ]
+    },
+    {
+      "position_id": 2028359804,
+      "signal_id": "canal2_3005",
+      "symbol": "XAUUSD",
+      "net_eur": "6.50",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789577575819,
+      "last_native_msc": 1789578917314,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1631005464,
+        1631206878
+      ]
+    },
+    {
+      "position_id": 2028370661,
+      "signal_id": "canal1_22652",
+      "symbol": "XAUUSD",
+      "net_eur": "-25.00",
+      "entry_volume": "0.01",
+      "first_native_msc": 1789577654145,
+      "last_native_msc": 1789592439516,
+      "exit_reasons": [
+        4
+      ],
+      "deal_tickets": [
+        1631012636,
+        1632263344
+      ]
+    },
+    {
+      "position_id": 2028394723,
+      "signal_id": "canal2_3007",
+      "symbol": "XAUUSD",
+      "net_eur": "1.73",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789577797990,
+      "last_native_msc": 1789577827988,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1631030296,
+        1631033079
+      ]
+    },
+    {
+      "position_id": 2028394995,
+      "signal_id": "canal2_3009",
+      "symbol": "XAUUSD",
+      "net_eur": "1.73",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789577798654,
+      "last_native_msc": 1789577828338,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1631030605,
+        1631033288
+      ]
+    },
+    {
+      "position_id": 2028451087,
+      "signal_id": "canal2_3009",
+      "symbol": "XAUUSD",
+      "net_eur": "2.60",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789578142286,
+      "last_native_msc": 1789578730847,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1631067434,
+        1631179693
+      ]
+    },
+    {
+      "position_id": 2028452956,
+      "signal_id": "canal2_3007",
+      "symbol": "XAUUSD",
+      "net_eur": "2.60",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789578154852,
+      "last_native_msc": 1789578725179,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1631068617,
+        1631177937
+      ]
+    },
+    {
+      "position_id": 2028457494,
+      "signal_id": "canal2_3009",
+      "symbol": "XAUUSD",
+      "net_eur": "3.90",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789578168727,
+      "last_native_msc": 1789578651333,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1631072909,
+        1631167790
+      ]
+    },
+    {
+      "position_id": 2028458585,
+      "signal_id": "canal2_3007",
+      "symbol": "XAUUSD",
+      "net_eur": "3.90",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789578169681,
+      "last_native_msc": 1789578634700,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1631074188,
+        1631164466
+      ]
+    },
+    {
+      "position_id": 2028573125,
+      "signal_id": "canal2_3009",
+      "symbol": "XAUUSD",
+      "net_eur": "5.20",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789578617680,
+      "last_native_msc": 1789578634547,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1631158229,
+        1631164383
+      ]
+    },
+    {
+      "position_id": 2028687945,
+      "signal_id": "canal2_3009",
+      "symbol": "XAUUSD",
+      "net_eur": "6.50",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789579210876,
+      "last_native_msc": 1789579292876,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1631241172,
+        1631250125
+      ]
+    },
+    {
+      "position_id": 2038395764,
+      "signal_id": "canal2_3086",
+      "symbol": "XAUUSD",
+      "net_eur": "31.92",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789659067803,
+      "last_native_msc": 1789659331758,
+      "exit_reasons": [
+        3
+      ],
+      "deal_tickets": [
+        1637895850,
+        1637934873
+      ]
+    },
+    {
+      "position_id": 2038525157,
+      "signal_id": "canal2_3096",
+      "symbol": "XAUUSD",
+      "net_eur": "1.74",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789660043467,
+      "last_native_msc": 1789660063287,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1637995106,
+        1637998085
+      ]
+    },
+    {
+      "position_id": 2038535247,
+      "signal_id": "canal2_3096",
+      "symbol": "XAUUSD",
+      "net_eur": "2.61",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789660108193,
+      "last_native_msc": 1789661560288,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1638002051,
+        1638145101
+      ]
+    },
+    {
+      "position_id": 2038537019,
+      "signal_id": "canal2_3096",
+      "symbol": "XAUUSD",
+      "net_eur": "3.92",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789660134690,
+      "last_native_msc": 1789661551486,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1638003622,
+        1638143310
+      ]
+    },
+    {
+      "position_id": 2038543421,
+      "signal_id": "canal2_3096",
+      "symbol": "XAUUSD",
+      "net_eur": "5.22",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789660336430,
+      "last_native_msc": 1789660804218,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1638008339,
+        1638049938
+      ]
+    },
+    {
+      "position_id": 2038546496,
+      "signal_id": "canal2_3096",
+      "symbol": "XAUUSD",
+      "net_eur": "6.53",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789660385718,
+      "last_native_msc": 1789660803633,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1638010708,
+        1638049468
+      ]
+    },
+    {
+      "position_id": 2038835057,
+      "signal_id": "canal1_22725",
+      "symbol": "XAUUSD",
+      "net_eur": "9.65",
+      "entry_volume": "0.01",
+      "first_native_msc": 1789662202487,
+      "last_native_msc": 1789663364559,
+      "exit_reasons": [
+        3
+      ],
+      "deal_tickets": [
+        1638220476,
+        1638371416
+      ]
+    },
+    {
+      "position_id": 2039085783,
+      "signal_id": "canal2_3102",
+      "symbol": "XAUUSD",
+      "net_eur": "1.74",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789663558821,
+      "last_native_msc": 1789663561447,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1638407263,
+        1638408009
+      ]
+    },
+    {
+      "position_id": 2039090979,
+      "signal_id": "canal2_3102",
+      "symbol": "XAUUSD",
+      "net_eur": "2.61",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789663587815,
+      "last_native_msc": 1789666993393,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1638411054,
+        1638801170
+      ]
+    },
+    {
+      "position_id": 2039092706,
+      "signal_id": "canal2_3102",
+      "symbol": "XAUUSD",
+      "net_eur": "3.92",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789663590792,
+      "last_native_msc": 1789666987820,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1638412638,
+        1638798910
+      ]
+    },
+    {
+      "position_id": 2039097426,
+      "signal_id": "canal2_3102",
+      "symbol": "XAUUSD",
+      "net_eur": "5.22",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789663602843,
+      "last_native_msc": 1789666798242,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1638416472,
+        1638778932
+      ]
+    },
+    {
+      "position_id": 2039103150,
+      "signal_id": "canal2_3102",
+      "symbol": "XAUUSD",
+      "net_eur": "6.53",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789663624555,
+      "last_native_msc": 1789666357343,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1638420969,
+        1638738363
+      ]
+    },
+    {
+      "position_id": 2039327477,
+      "signal_id": "canal1_22732",
+      "symbol": "XAUUSD",
+      "net_eur": "-7.81",
+      "entry_volume": "0.01",
+      "first_native_msc": 1789664949441,
+      "last_native_msc": 1789665135357,
+      "exit_reasons": [
+        4
+      ],
+      "deal_tickets": [
+        1638585972,
+        1638619563
+      ]
+    },
+    {
+      "position_id": 2039360266,
+      "signal_id": "canal1_22732",
+      "symbol": "XAUUSD",
+      "net_eur": "-17.19",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789665092494,
+      "last_native_msc": 1789665135359,
+      "exit_reasons": [
+        4
+      ],
+      "deal_tickets": [
+        1638610816,
+        1638619568
+      ]
+    },
+    {
+      "position_id": 2039372798,
+      "signal_id": "canal1_22732",
+      "symbol": "XAUUSD",
+      "net_eur": "0.38",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789665137938,
+      "last_native_msc": 1789665138588,
+      "exit_reasons": [
+        3
+      ],
+      "deal_tickets": [
+        1638621131,
+        1638621430
+      ]
+    },
+    {
+      "position_id": 2039380161,
+      "signal_id": "canal2_3106",
+      "symbol": "XAUUSD",
+      "net_eur": "1.74",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789665178384,
+      "last_native_msc": 1789665189758,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1638625753,
+        1638626628
+      ]
+    },
+    {
+      "position_id": 2039419968,
+      "signal_id": "canal2_3106",
+      "symbol": "XAUUSD",
+      "net_eur": "2.61",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789665493587,
+      "last_native_msc": 1789665522718,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1638652912,
+        1638659067
+      ]
+    },
+    {
+      "position_id": 2039434068,
+      "signal_id": "canal2_3106",
+      "symbol": "XAUUSD",
+      "net_eur": "3.92",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789665652165,
+      "last_native_msc": 1789665736453,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1638663497,
+        1638675260
+      ]
+    },
+    {
+      "position_id": 2039517191,
+      "signal_id": "canal2_3106",
+      "symbol": "XAUUSD",
+      "net_eur": "5.22",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789666230629,
+      "last_native_msc": 1789666273225,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1638721101,
+        1638727456
+      ]
+    },
+    {
+      "position_id": 2039534630,
+      "signal_id": "canal2_3106",
+      "symbol": "XAUUSD",
+      "net_eur": "6.53",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789666333941,
+      "last_native_msc": 1789666474203,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1638734067,
+        1638751153
+      ]
+    },
+    {
+      "position_id": 2039576137,
+      "signal_id": "canal1_22738",
+      "symbol": "XAUUSD",
+      "net_eur": "-7.73",
+      "entry_volume": "0.01",
+      "first_native_msc": 1789666626236,
+      "last_native_msc": 1789667647038,
+      "exit_reasons": [
+        4
+      ],
+      "deal_tickets": [
+        1638762680,
+        1638861737
+      ]
+    },
+    {
+      "position_id": 2039599707,
+      "signal_id": "canal1_22738",
+      "symbol": "XAUUSD",
+      "net_eur": "-17.23",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789666793549,
+      "last_native_msc": 1789667647124,
+      "exit_reasons": [
+        4
+      ],
+      "deal_tickets": [
+        1638778178,
+        1638861740
+      ]
+    },
+    {
+      "position_id": 2039817267,
+      "signal_id": "canal1_22741",
+      "symbol": "XAUUSD",
+      "net_eur": "-7.37",
+      "entry_volume": "0.01",
+      "first_native_msc": 1789668186816,
+      "last_native_msc": 1789669066793,
+      "exit_reasons": [
+        4
+      ],
+      "deal_tickets": [
+        1638932807,
+        1639025225
+      ]
+    },
+    {
+      "position_id": 2039907560,
+      "signal_id": "canal1_22741",
+      "symbol": "XAUUSD",
+      "net_eur": "-15.08",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789668818356,
+      "last_native_msc": 1789669066795,
+      "exit_reasons": [
+        4
+      ],
+      "deal_tickets": [
+        1638997077,
+        1639025229
+      ]
+    },
+    {
+      "position_id": 2039942699,
+      "signal_id": "canal1_22741",
+      "symbol": "XAUUSD",
+      "net_eur": "-2.54",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789669035389,
+      "last_native_msc": 1789669066796,
+      "exit_reasons": [
+        4
+      ],
+      "deal_tickets": [
+        1639022256,
+        1639025231
+      ]
+    },
+    {
+      "position_id": 2039952351,
+      "signal_id": "canal1_22747",
+      "symbol": "XAUUSD",
+      "net_eur": "-3.47",
+      "entry_volume": "0.01",
+      "first_native_msc": 1789669096062,
+      "last_native_msc": 1789671496399,
+      "exit_reasons": [
+        3
+      ],
+      "deal_tickets": [
+        1639028640,
+        1639196579
+      ]
+    },
+    {
+      "position_id": 2040540227,
+      "signal_id": "canal1_22751",
+      "symbol": "XAUUSD",
+      "net_eur": "-0.24",
+      "entry_volume": "0.01",
+      "first_native_msc": 1789674535803,
+      "last_native_msc": 1789675371312,
+      "exit_reasons": [
+        3
+      ],
+      "deal_tickets": [
+        1639403833,
+        1639477240
+      ]
+    },
+    {
+      "position_id": 2040627420,
+      "signal_id": "canal1_22751",
+      "symbol": "XAUUSD",
+      "net_eur": "13.39",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789675243455,
+      "last_native_msc": 1789675371518,
+      "exit_reasons": [
+        3
+      ],
+      "deal_tickets": [
+        1639459207,
+        1639477260
+      ]
+    },
+    {
+      "position_id": 2046955499,
+      "signal_id": "canal2_3148",
+      "symbol": "XAUUSD",
+      "net_eur": "1.74",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789740341566,
+      "last_native_msc": 1789740448096,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1643180487,
+        1643203020
+      ]
+    },
+    {
+      "position_id": 2046957039,
+      "signal_id": "canal2_3148",
+      "symbol": "XAUUSD",
+      "net_eur": "2.62",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789740344921,
+      "last_native_msc": 1789740411822,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1643181512,
+        1643197729
+      ]
+    },
+    {
+      "position_id": 2046961055,
+      "signal_id": "canal2_3148",
+      "symbol": "XAUUSD",
+      "net_eur": "3.92",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789740354468,
+      "last_native_msc": 1789740387938,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1643184753,
+        1643193171
+      ]
+    },
+    {
+      "position_id": 2046976697,
+      "signal_id": "canal1_22761",
+      "symbol": "XAUUSD",
+      "net_eur": "-2.79",
+      "entry_volume": "0.01",
+      "first_native_msc": 1789740407385,
+      "last_native_msc": 1789742808045,
+      "exit_reasons": [
+        3
+      ],
+      "deal_tickets": [
+        1643196084,
+        1643372989
+      ]
+    },
+    {
+      "position_id": 2047143797,
+      "signal_id": "canal2_3156",
+      "symbol": "XAUUSD",
+      "net_eur": "1.75",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789741889074,
+      "last_native_msc": 1789742586935,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1643307613,
+        1643353457
+      ]
+    },
+    {
+      "position_id": 2047145896,
+      "signal_id": "canal2_3156",
+      "symbol": "XAUUSD",
+      "net_eur": "2.62",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789741909725,
+      "last_native_msc": 1789742422487,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1643308587,
+        1643344727
+      ]
+    },
+    {
+      "position_id": 2047150184,
+      "signal_id": "canal2_3156",
+      "symbol": "XAUUSD",
+      "net_eur": "3.93",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789741940515,
+      "last_native_msc": 1789742299322,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1643311844,
+        1643337646
+      ]
+    },
+    {
+      "position_id": 2047175220,
+      "signal_id": "canal2_3156",
+      "symbol": "XAUUSD",
+      "net_eur": "5.23",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789742169091,
+      "last_native_msc": 1789742280445,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1643326052,
+        1643335093
+      ]
+    },
+    {
+      "position_id": 2047559220,
+      "signal_id": "canal2_3168",
+      "symbol": "XAUUSD",
+      "net_eur": "1.75",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789745028805,
+      "last_native_msc": 1789745472361,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1643591667,
+        1643676937
+      ]
+    },
+    {
+      "position_id": 2047566527,
+      "signal_id": "canal2_3168",
+      "symbol": "XAUUSD",
+      "net_eur": "2.62",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789745058658,
+      "last_native_msc": 1789745421740,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1643596008,
+        1643669310
+      ]
+    },
+    {
+      "position_id": 2047571811,
+      "signal_id": "canal2_3168",
+      "symbol": "XAUUSD",
+      "net_eur": "3.93",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789745072155,
+      "last_native_msc": 1789745408433,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1643600690,
+        1643665313
+      ]
+    },
+    {
+      "position_id": 2047574688,
+      "signal_id": "canal2_3168",
+      "symbol": "XAUUSD",
+      "net_eur": "5.24",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789745075053,
+      "last_native_msc": 1789745188565,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1643603741,
+        1643622644
+      ]
+    },
+    {
+      "position_id": 2047614126,
+      "signal_id": "canal2_3168",
+      "symbol": "XAUUSD",
+      "net_eur": "6.55",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789745228948,
+      "last_native_msc": 1789745380114,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1643630506,
+        1643657686
+      ]
+    },
+    {
+      "position_id": 2047630429,
+      "signal_id": "canal2_3171",
+      "symbol": "XAUUSD",
+      "net_eur": "1.75",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789745278596,
+      "last_native_msc": 1789745294149,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1643642525,
+        1643644672
+      ]
+    },
+    {
+      "position_id": 2047666867,
+      "signal_id": "canal1_22768",
+      "symbol": "XAUUSD",
+      "net_eur": "8.13",
+      "entry_volume": "0.01",
+      "first_native_msc": 1789745424575,
+      "last_native_msc": 1789745858778,
+      "exit_reasons": [
+        3
+      ],
+      "deal_tickets": [
+        1643670053,
+        1643728799
+      ]
+    },
+    {
+      "position_id": 2047922188,
+      "signal_id": "canal2_3180",
+      "symbol": "XAUUSD",
+      "net_eur": "1.74",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789747390290,
+      "last_native_msc": 1789747421797,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1643846641,
+        1643851318
+      ]
+    },
+    {
+      "position_id": 2048051692,
+      "signal_id": "canal2_3180",
+      "symbol": "XAUUSD",
+      "net_eur": "2.62",
+      "entry_volume": "0.03",
+      "first_native_msc": 1789748718778,
+      "last_native_msc": 1789748781008,
+      "exit_reasons": [
+        5
+      ],
+      "deal_tickets": [
+        1643937706,
+        1643947310
+      ]
+    },
+    {
+      "position_id": 2048470277,
+      "signal_id": "canal1_22778",
+      "symbol": "XAUUSD",
+      "net_eur": "-1.04",
+      "entry_volume": "0.01",
+      "first_native_msc": 1789751362793,
+      "last_native_msc": 1789752160247,
+      "exit_reasons": [
+        3
+      ],
+      "deal_tickets": [
+        1644252240,
+        1644338518
+      ]
+    },
+    {
+      "position_id": 2048550584,
+      "signal_id": "canal1_22778",
+      "symbol": "XAUUSD",
+      "net_eur": "9.00",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789751983744,
+      "last_native_msc": 1789752161139,
+      "exit_reasons": [
+        3
+      ],
+      "deal_tickets": [
+        1644309493,
+        1644339595
+      ]
+    },
+    {
+      "position_id": 2048568928,
+      "signal_id": "canal1_22778",
+      "symbol": "XAUUSD",
+      "net_eur": "21.57",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789752069349,
+      "last_native_msc": 1789752161974,
+      "exit_reasons": [
+        3
+      ],
+      "deal_tickets": [
+        1644324867,
+        1644340308
+      ]
+    },
+    {
+      "position_id": 2048602828,
+      "signal_id": "canal1_22781",
+      "symbol": "XAUUSD",
+      "net_eur": "-7.80",
+      "entry_volume": "0.01",
+      "first_native_msc": 1789752242149,
+      "last_native_msc": 1789752570662,
+      "exit_reasons": [
+        4
+      ],
+      "deal_tickets": [
+        1644349456,
+        1644385910
+      ]
+    },
+    {
+      "position_id": 2048633454,
+      "signal_id": "canal1_22781",
+      "symbol": "XAUUSD",
+      "net_eur": "-17.17",
+      "entry_volume": "0.04",
+      "first_native_msc": 1789752411121,
+      "last_native_msc": 1789752567198,
+      "exit_reasons": [
+        4
+      ],
+      "deal_tickets": [
+        1644370085,
+        1644385740
+      ]
+    }
+  ],
+  "open_at_capture": [],
+  "busy_native_intervals_msc": [
+    [
+      1789379245873,
+      1789379267672
+    ],
+    [
+      1789379362478,
+      1789401252928
+    ],
+    [
+      1789486659948,
+      1789487121597
+    ],
+    [
+      1789488559140,
+      1789488634294
+    ],
+    [
+      1789488863375,
+      1789489716755
+    ],
+    [
+      1789491446527,
+      1789492285112
+    ],
+    [
+      1789492665096,
+      1789492775248
+    ],
+    [
+      1789492960122,
+      1789493089013
+    ],
+    [
+      1789496653172,
+      1789496689022
+    ],
+    [
+      1789497246324,
+      1789497278123
+    ],
+    [
+      1789503418027,
+      1789505818273
+    ],
+    [
+      1789508056578,
+      1789508472315
+    ],
+    [
+      1789571724489,
+      1789592439516
+    ],
+    [
+      1789659067803,
+      1789659331758
+    ],
+    [
+      1789660043467,
+      1789660063287
+    ],
+    [
+      1789660108193,
+      1789661560288
+    ],
+    [
+      1789662202487,
+      1789663364559
+    ],
+    [
+      1789663558821,
+      1789663561447
+    ],
+    [
+      1789663587815,
+      1789667647124
+    ],
+    [
+      1789668186816,
+      1789669066796
+    ],
+    [
+      1789669096062,
+      1789671496399
+    ],
+    [
+      1789674535803,
+      1789675371518
+    ],
+    [
+      1789740341566,
+      1789742808045
+    ],
+    [
+      1789745028805,
+      1789745858778
+    ],
+    [
+      1789747390290,
+      1789747421797
+    ],
+    [
+      1789748718778,
+      1789748781008
+    ],
+    [
+      1789751362793,
+      1789752161974
+    ],
+    [
+      1789752242149,
+      1789752570662
+    ]
+  ],
+  "excluded_cash_movements": [
+    {
+      "ticket": 1613508618,
+      "profit": -8731.96,
+      "comment": "reset balance to 800"
+    },
+    {
+      "ticket": 1613510061,
+      "profit": -100.0,
+      "comment": "reset balance to 700"
+    }
+  ],
+  "source_sha256": "91723c6cc65070407bbb5a79721a6109896450354fe20b74f3a344ba7206f021",
+  "source_path": "runtime_data/weekly_review_20260919/native_week_deals_20260919.json"
+}

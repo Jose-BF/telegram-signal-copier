@@ -1,0 +1,384 @@
+[
+  {
+    "behavior_digest": null,
+    "blockers": [],
+    "client_events": [
+      {
+        "decision_index": 0,
+        "decision_ns": 1788861600000000000,
+        "kind": "queued",
+        "operation": "entry",
+        "tick_index": 0,
+        "ticket": "sim_1",
+        "time_ns": 1788861600000000000
+      },
+      {
+        "decision_index": 0,
+        "decision_ns": 1788861600000000000,
+        "kind": "started",
+        "operation": "entry",
+        "tick_index": 0,
+        "ticket": "sim_1",
+        "time_ns": 1788861600000000000
+      },
+      {
+        "decision_index": 1,
+        "decision_ns": 1788861601000000000,
+        "kind": "terminal_requested",
+        "operation": "close",
+        "tick_index": 1,
+        "ticket": "basket",
+        "time_ns": 1788861601000000000
+      },
+      {
+        "decision_index": 1,
+        "decision_ns": 1788861601000000000,
+        "kind": "queued",
+        "operation": "close",
+        "tick_index": 3,
+        "ticket": "sim_1",
+        "time_ns": 1788861603000000000
+      },
+      {
+        "decision_index": 0,
+        "decision_ns": 1788861600000000000,
+        "kind": "released",
+        "operation": "entry",
+        "tick_index": 5,
+        "ticket": "sim_1",
+        "time_ns": 1788861605000000000
+      },
+      {
+        "decision_index": 1,
+        "decision_ns": 1788861601000000000,
+        "kind": "started",
+        "operation": "close",
+        "tick_index": 5,
+        "ticket": "sim_1",
+        "time_ns": 1788861605000000000
+      },
+      {
+        "decision_index": 1,
+        "decision_ns": 1788861601000000000,
+        "kind": "released",
+        "operation": "close",
+        "tick_index": 7,
+        "ticket": "sim_1",
+        "time_ns": 1788861607000000000
+      }
+    ],
+    "confidence_layer": "counterfactual_entry",
+    "entries": [
+      {
+        "acknowledged_ns": 1788861605000000000,
+        "entry_price": 100.0,
+        "opened_at": "2026-09-08T10:00:03+00:00",
+        "price_tick_index": 3,
+        "requested_ns": 1788861600000000000,
+        "source": "causal_signal_market",
+        "tick_index": 3,
+        "ticket": "sim_1",
+        "volume": 0.04
+      }
+    ],
+    "exit_reason": "provider_close",
+    "exits": [
+      {
+        "closed_at": "2026-09-08T10:00:06+00:00",
+        "entry_price": 100.0,
+        "exit_price": 99.8,
+        "pnl_eur": "-0.80",
+        "reason": "provider_close",
+        "tick_index": 6,
+        "ticket": "sim_1",
+        "volume": 0.04
+      }
+    ],
+    "filled_volume": 0.04,
+    "last_tick_index": 7,
+    "market_events": [
+      {
+        "kind": "entry_requested",
+        "price": 100.0,
+        "reason": "causal_signal_market",
+        "request_id": 1,
+        "tick_index": 0,
+        "ticket": "sim_1",
+        "timestamp_ns": 1788861600000000000,
+        "volume": 0.04
+      },
+      {
+        "kind": "entry_filled",
+        "price": 100.0,
+        "reason": "causal_signal_market",
+        "request_id": 1,
+        "tick_index": 3,
+        "ticket": "sim_1",
+        "timestamp_ns": 1788861603000000000,
+        "volume": 0.04
+      },
+      {
+        "kind": "entry_acknowledged",
+        "price": 100.0,
+        "reason": "accepted",
+        "request_id": 1,
+        "tick_index": 5,
+        "ticket": "sim_1",
+        "timestamp_ns": 1788861605000000000,
+        "volume": 0.04
+      },
+      {
+        "kind": "close_requested",
+        "price": 99.8,
+        "reason": "provider_close",
+        "request_id": 2,
+        "tick_index": 5,
+        "ticket": "sim_1",
+        "timestamp_ns": 1788861605000000000,
+        "volume": 0.04
+      },
+      {
+        "kind": "close_filled",
+        "price": 99.8,
+        "reason": "provider_close",
+        "request_id": 2,
+        "tick_index": 6,
+        "ticket": "sim_1",
+        "timestamp_ns": 1788861606000000000,
+        "volume": 0.04
+      },
+      {
+        "kind": "close_acknowledged",
+        "price": 99.8,
+        "reason": "accepted",
+        "request_id": 2,
+        "tick_index": 7,
+        "ticket": "sim_1",
+        "timestamp_ns": 1788861607000000000,
+        "volume": 0.04
+      }
+    ],
+    "max_adverse_eur": "-0.80",
+    "max_adverse_move": -0.2,
+    "max_favourable_eur": "-0.80",
+    "max_favourable_move": 0.0,
+    "max_floating_drawdown_eur": "0.00",
+    "pnl_eur": "-0.80",
+    "protection_events": [
+      {
+        "kind": "open",
+        "reason": "hypothetical_open_request",
+        "request_id": 0,
+        "sl": null,
+        "tick_index": 3,
+        "ticket": "sim_1",
+        "timestamp_ns": 1788861603000000000,
+        "tp": null
+      },
+      {
+        "kind": "closed",
+        "reason": "provider_close",
+        "request_id": 0,
+        "sl": null,
+        "tick_index": 6,
+        "ticket": "sim_1",
+        "timestamp_ns": 1788861606000000000,
+        "tp": null
+      }
+    ],
+    "signal_id": "control",
+    "strategy_fingerprint": "2367b35ae5c5e14f910b317584ab88d79a5c0ba377a87d25b88ad530e87a66fb",
+    "unfilled": false
+  },
+  {
+    "behavior_digest": null,
+    "blockers": [],
+    "client_events": [
+      {
+        "decision_index": 0,
+        "decision_ns": 1788861600000000000,
+        "kind": "queued",
+        "operation": "entry",
+        "tick_index": 0,
+        "ticket": "sim_1",
+        "time_ns": 1788861600000000000
+      },
+      {
+        "decision_index": 0,
+        "decision_ns": 1788861600000000000,
+        "kind": "started",
+        "operation": "entry",
+        "tick_index": 0,
+        "ticket": "sim_1",
+        "time_ns": 1788861600000000000
+      },
+      {
+        "decision_index": 1,
+        "decision_ns": 1788861601000000000,
+        "kind": "terminal_requested",
+        "operation": "close",
+        "tick_index": 1,
+        "ticket": "basket",
+        "time_ns": 1788861601000000000
+      },
+      {
+        "decision_index": 1,
+        "decision_ns": 1788861601000000000,
+        "kind": "queued",
+        "operation": "close",
+        "tick_index": 3,
+        "ticket": "sim_1",
+        "time_ns": 1788861603000000000
+      },
+      {
+        "decision_index": 0,
+        "decision_ns": 1788861600000000000,
+        "kind": "released",
+        "operation": "entry",
+        "tick_index": 5,
+        "ticket": "sim_1",
+        "time_ns": 1788861605000000000
+      },
+      {
+        "decision_index": 1,
+        "decision_ns": 1788861601000000000,
+        "kind": "started",
+        "operation": "close",
+        "tick_index": 5,
+        "ticket": "sim_1",
+        "time_ns": 1788861605000000000
+      },
+      {
+        "decision_index": 1,
+        "decision_ns": 1788861601000000000,
+        "kind": "released",
+        "operation": "close",
+        "tick_index": 7,
+        "ticket": "sim_1",
+        "time_ns": 1788861607000000000
+      }
+    ],
+    "confidence_layer": "counterfactual_entry",
+    "entries": [
+      {
+        "acknowledged_ns": 1788861605000000000,
+        "entry_price": 100.0,
+        "opened_at": "2026-09-08T10:00:03+00:00",
+        "price_tick_index": 3,
+        "requested_ns": 1788861600000000000,
+        "source": "causal_signal_market",
+        "tick_index": 3,
+        "ticket": "sim_1",
+        "volume": 0.04
+      }
+    ],
+    "exit_reason": "provider_close",
+    "exits": [
+      {
+        "closed_at": "2026-09-08T10:00:06+00:00",
+        "entry_price": 100.0,
+        "exit_price": 100.2,
+        "pnl_eur": "-0.80",
+        "reason": "provider_close",
+        "tick_index": 6,
+        "ticket": "sim_1",
+        "volume": 0.04
+      }
+    ],
+    "filled_volume": 0.04,
+    "last_tick_index": 7,
+    "market_events": [
+      {
+        "kind": "entry_requested",
+        "price": 100.0,
+        "reason": "causal_signal_market",
+        "request_id": 1,
+        "tick_index": 0,
+        "ticket": "sim_1",
+        "timestamp_ns": 1788861600000000000,
+        "volume": 0.04
+      },
+      {
+        "kind": "entry_filled",
+        "price": 100.0,
+        "reason": "causal_signal_market",
+        "request_id": 1,
+        "tick_index": 3,
+        "ticket": "sim_1",
+        "timestamp_ns": 1788861603000000000,
+        "volume": 0.04
+      },
+      {
+        "kind": "entry_acknowledged",
+        "price": 100.0,
+        "reason": "accepted",
+        "request_id": 1,
+        "tick_index": 5,
+        "ticket": "sim_1",
+        "timestamp_ns": 1788861605000000000,
+        "volume": 0.04
+      },
+      {
+        "kind": "close_requested",
+        "price": 100.2,
+        "reason": "provider_close",
+        "request_id": 2,
+        "tick_index": 5,
+        "ticket": "sim_1",
+        "timestamp_ns": 1788861605000000000,
+        "volume": 0.04
+      },
+      {
+        "kind": "close_filled",
+        "price": 100.2,
+        "reason": "provider_close",
+        "request_id": 2,
+        "tick_index": 6,
+        "ticket": "sim_1",
+        "timestamp_ns": 1788861606000000000,
+        "volume": 0.04
+      },
+      {
+        "kind": "close_acknowledged",
+        "price": 100.2,
+        "reason": "accepted",
+        "request_id": 2,
+        "tick_index": 7,
+        "ticket": "sim_1",
+        "timestamp_ns": 1788861607000000000,
+        "volume": 0.04
+      }
+    ],
+    "max_adverse_eur": "-0.80",
+    "max_adverse_move": -0.2,
+    "max_favourable_eur": "-0.80",
+    "max_favourable_move": 0.0,
+    "max_floating_drawdown_eur": "0.00",
+    "pnl_eur": "-0.80",
+    "protection_events": [
+      {
+        "kind": "open",
+        "reason": "hypothetical_open_request",
+        "request_id": 0,
+        "sl": null,
+        "tick_index": 3,
+        "ticket": "sim_1",
+        "timestamp_ns": 1788861603000000000,
+        "tp": null
+      },
+      {
+        "kind": "closed",
+        "reason": "provider_close",
+        "request_id": 0,
+        "sl": null,
+        "tick_index": 6,
+        "ticket": "sim_1",
+        "timestamp_ns": 1788861606000000000,
+        "tp": null
+      }
+    ],
+    "signal_id": "control",
+    "strategy_fingerprint": "2367b35ae5c5e14f910b317584ab88d79a5c0ba377a87d25b88ad530e87a66fb",
+    "unfilled": false
+  }
+]

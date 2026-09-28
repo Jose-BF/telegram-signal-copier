@@ -1,0 +1,4748 @@
+{
+ "contract": "week_exam_v1",
+ "status": "diagnostic_only",
+ "first_day": "2026-09-14",
+ "end_day_exclusive": "2026-09-19",
+ "clock_offset_seconds_hypothesis": 10800,
+ "profiles": {
+  "UNCAL": null,
+  "A_p50": "runtime_data/execution_calibration_v1/A_p50.json",
+  "A_p90": "runtime_data/execution_calibration_v1/A_p90.json"
+ },
+ "windows": [
+  {
+   "window": 0,
+   "start_utc": "2026-09-14T06:45:07+00:00",
+   "cutoff_utc": "2026-09-14T13:24:12+00:00",
+   "activity_end_utc": "2026-09-14T12:54:12.928000+00:00",
+   "signal_ids": [
+    "canal2_2908",
+    "canal2_2911",
+    "canal2_2917",
+    "canal2_2919"
+   ],
+   "kinds": [
+    "real"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 1,
+   "start_utc": "2026-09-15T12:35:18+00:00",
+   "cutoff_utc": "2026-09-15T13:07:05+00:00",
+   "activity_end_utc": "2026-09-15T12:45:21.597000+00:00",
+   "signal_ids": [
+    "canal2_2970"
+   ],
+   "kinds": [
+    "real"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 2,
+   "start_utc": "2026-09-15T13:07:06+00:00",
+   "cutoff_utc": "2026-09-15T13:57:20+00:00",
+   "activity_end_utc": "2026-09-15T13:28:36.755000+00:00",
+   "signal_ids": [
+    "canal1_22587",
+    "canal1_22588",
+    "canal2_2977"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 3,
+   "start_utc": "2026-09-15T13:57:21+00:00",
+   "cutoff_utc": "2026-09-15T14:15:52+00:00",
+   "activity_end_utc": "2026-09-15T14:11:25.112000+00:00",
+   "signal_ids": [
+    "canal1_22592",
+    "canal1_22593"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 4,
+   "start_utc": "2026-09-15T14:15:53+00:00",
+   "cutoff_utc": "2026-09-15T14:54:49+00:00",
+   "activity_end_utc": "2026-09-15T14:24:49.013000+00:00",
+   "signal_ids": [
+    "canal2_2982"
+   ],
+   "kinds": [
+    "real"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 5,
+   "start_utc": "2026-09-15T15:19:23+00:00",
+   "cutoff_utc": "2026-09-15T16:04:38+00:00",
+   "activity_end_utc": "2026-09-15T15:34:38.123000+00:00",
+   "signal_ids": [
+    "canal2_2986"
+   ],
+   "kinds": [
+    "real"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 6,
+   "start_utc": "2026-09-15T17:16:52+00:00",
+   "cutoff_utc": "2026-09-15T18:14:56+00:00",
+   "activity_end_utc": "2026-09-15T17:56:58.273000+00:00",
+   "signal_ids": [
+    "canal1_22601",
+    "canal1_22602"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 7,
+   "start_utc": "2026-09-15T18:14:57+00:00",
+   "cutoff_utc": "2026-09-15T19:11:12+00:00",
+   "activity_end_utc": "2026-09-15T18:41:12.315000+00:00",
+   "signal_ids": [
+    "canal2_2995"
+   ],
+   "kinds": [
+    "real"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 8,
+   "start_utc": "2026-09-16T12:15:19+00:00",
+   "cutoff_utc": "2026-09-16T18:30:39+00:00",
+   "activity_end_utc": "2026-09-16T18:00:39.516000+00:00",
+   "signal_ids": [
+    "canal1_22635",
+    "canal1_22636",
+    "canal1_22642",
+    "canal1_22643",
+    "canal1_22646",
+    "canal1_22647",
+    "canal1_22648",
+    "canal1_22652",
+    "canal1_22653",
+    "canal2_3000",
+    "canal2_3003",
+    "canal2_3005",
+    "canal2_3007",
+    "canal2_3009",
+    "canal2_3012"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 9,
+   "start_utc": "2026-09-17T12:16:08+00:00",
+   "cutoff_utc": "2026-09-17T12:28:47+00:00",
+   "activity_end_utc": "2026-09-17T12:17:13.580000+00:00",
+   "signal_ids": [
+    "canal2_3075"
+   ],
+   "kinds": [
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 10,
+   "start_utc": "2026-09-17T12:28:48+00:00",
+   "cutoff_utc": "2026-09-17T12:45:43+00:00",
+   "activity_end_utc": "2026-09-17T12:35:31.758000+00:00",
+   "signal_ids": [
+    "canal2_3086"
+   ],
+   "kinds": [
+    "real"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 11,
+   "start_utc": "2026-09-17T12:45:44+00:00",
+   "cutoff_utc": "2026-09-17T13:23:11+00:00",
+   "activity_end_utc": "2026-09-17T13:12:40.288000+00:00",
+   "signal_ids": [
+    "canal2_3096"
+   ],
+   "kinds": [
+    "real"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 12,
+   "start_utc": "2026-09-17T13:23:12+00:00",
+   "cutoff_utc": "2026-09-17T13:45:11+00:00",
+   "activity_end_utc": "2026-09-17T13:42:44.559000+00:00",
+   "signal_ids": [
+    "canal1_22725",
+    "canal1_22726"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 13,
+   "start_utc": "2026-09-17T13:45:12+00:00",
+   "cutoff_utc": "2026-09-17T15:02:59+00:00",
+   "activity_end_utc": "2026-09-17T14:54:07.124000+00:00",
+   "signal_ids": [
+    "canal1_22732",
+    "canal1_22733",
+    "canal1_22738",
+    "canal2_3102",
+    "canal2_3106",
+    "canal2_3108"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 14,
+   "start_utc": "2026-09-17T15:03:00+00:00",
+   "cutoff_utc": "2026-09-17T16:28:16+00:00",
+   "activity_end_utc": "2026-09-17T15:58:16.399000+00:00",
+   "signal_ids": [
+    "canal1_22741",
+    "canal1_22742",
+    "canal1_22747"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 15,
+   "start_utc": "2026-09-17T16:48:50+00:00",
+   "cutoff_utc": "2026-09-17T17:32:51+00:00",
+   "activity_end_utc": "2026-09-17T17:02:51.518000+00:00",
+   "signal_ids": [
+    "canal1_22751",
+    "canal1_22752"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 16,
+   "start_utc": "2026-09-18T11:00:44+00:00",
+   "cutoff_utc": "2026-09-18T12:16:48+00:00",
+   "activity_end_utc": "2026-09-18T11:46:48.045000+00:00",
+   "signal_ids": [
+    "canal1_22761",
+    "canal1_22762",
+    "canal2_3148",
+    "canal2_3156"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 17,
+   "start_utc": "2026-09-18T12:22:32+00:00",
+   "cutoff_utc": "2026-09-18T13:00:05+00:00",
+   "activity_end_utc": "2026-09-18T12:37:38.778000+00:00",
+   "signal_ids": [
+    "canal1_22768",
+    "canal1_22769",
+    "canal2_3168",
+    "canal2_3171"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 18,
+   "start_utc": "2026-09-18T13:00:06+00:00",
+   "cutoff_utc": "2026-09-18T13:56:21+00:00",
+   "activity_end_utc": "2026-09-18T13:26:21.008000+00:00",
+   "signal_ids": [
+    "canal2_3180"
+   ],
+   "kinds": [
+    "real"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 19,
+   "start_utc": "2026-09-18T14:08:15+00:00",
+   "cutoff_utc": "2026-09-18T14:23:53+00:00",
+   "activity_end_utc": "2026-09-18T14:22:41.974000+00:00",
+   "signal_ids": [
+    "canal1_22778",
+    "canal1_22779"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 20,
+   "start_utc": "2026-09-18T14:23:54+00:00",
+   "cutoff_utc": "2026-09-18T15:01:00+00:00",
+   "activity_end_utc": "2026-09-18T14:31:00.563000+00:00",
+   "signal_ids": [
+    "canal1_22781",
+    "canal1_22782",
+    "canal2_3188"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false
+  }
+ ],
+ "window_notes": [],
+ "window_results": [
+  {
+   "window": 0,
+   "profile": "UNCAL",
+   "status": "error",
+   "error": "ValueError: diagnostic risk/memory budget exceeded",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 125, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 346, in run\n    raise ValueError(\"diagnostic risk/memory budget exceeded\")\nValueError: diagnostic risk/memory budget exceeded\n",
+   "elapsed_s": 0.2
+  },
+  {
+   "window": 0,
+   "profile": "A_p50",
+   "status": "error",
+   "error": "ValueError: diagnostic risk/memory budget exceeded",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 125, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 346, in run\n    raise ValueError(\"diagnostic risk/memory budget exceeded\")\nValueError: diagnostic risk/memory budget exceeded\n",
+   "elapsed_s": 0.2
+  },
+  {
+   "window": 0,
+   "profile": "A_p90",
+   "status": "error",
+   "error": "ValueError: diagnostic risk/memory budget exceeded",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 125, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 346, in run\n    raise ValueError(\"diagnostic risk/memory budget exceeded\")\nValueError: diagnostic risk/memory budget exceeded\n",
+   "elapsed_s": 0.12
+  },
+  {
+   "window": 1,
+   "profile": "UNCAL",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal2_2970:incomplete_equity_conversion",
+    "canal2_2970:stale_conversion_during_profit_lock"
+   ],
+   "baskets": {
+    "canal2_2970": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.07",
+     "exposed": true,
+     "blockers": [
+      "canal2_2970:incomplete_equity_conversion",
+      "canal2_2970:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_2970",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.4
+  },
+  {
+   "window": 1,
+   "profile": "A_p50",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal2_2970:incomplete_equity_conversion",
+    "canal2_2970:stale_conversion_during_profit_lock"
+   ],
+   "baskets": {
+    "canal2_2970": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.07",
+     "exposed": true,
+     "blockers": [
+      "canal2_2970:incomplete_equity_conversion",
+      "canal2_2970:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_2970",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.32
+  },
+  {
+   "window": 1,
+   "profile": "A_p90",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal2_2970:incomplete_equity_conversion",
+    "canal2_2970:stale_conversion_during_profit_lock"
+   ],
+   "baskets": {
+    "canal2_2970": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.07",
+     "exposed": true,
+     "blockers": [
+      "canal2_2970:incomplete_equity_conversion",
+      "canal2_2970:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_2970",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.25
+  },
+  {
+   "window": 2,
+   "profile": "UNCAL",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal1_22587:incomplete_equity_conversion",
+    "canal1_22587:stale_conversion_at_basket_stop",
+    "canal1_22587:stale_conversion_during_profit_lock"
+   ],
+   "baskets": {
+    "canal2_2977": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "canal1_22587": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": [
+      "canal1_22587:incomplete_equity_conversion",
+      "canal1_22587:stale_conversion_at_basket_stop",
+      "canal1_22587:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22587",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "canal1_22588": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 5.02
+  },
+  {
+   "window": 2,
+   "profile": "A_p50",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal1_22587:incomplete_equity_conversion",
+    "canal1_22587:stale_conversion_at_basket_stop",
+    "canal1_22587:stale_conversion_during_profit_lock"
+   ],
+   "baskets": {
+    "canal2_2977": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "canal1_22587": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": [
+      "canal1_22587:incomplete_equity_conversion",
+      "canal1_22587:stale_conversion_at_basket_stop",
+      "canal1_22587:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22587",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "canal1_22588": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 5.09
+  },
+  {
+   "window": 2,
+   "profile": "A_p90",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal1_22587:incomplete_equity_conversion",
+    "canal1_22587:stale_conversion_at_basket_stop",
+    "canal1_22587:stale_conversion_during_profit_lock"
+   ],
+   "baskets": {
+    "canal2_2977": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "canal1_22587": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": [
+      "canal1_22587:incomplete_equity_conversion",
+      "canal1_22587:stale_conversion_at_basket_stop",
+      "canal1_22587:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22587",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "canal1_22588": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 4.88
+  },
+  {
+   "window": 3,
+   "profile": "UNCAL",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal1_22592": {
+     "channel": "canal1",
+     "net_eur": 9.4,
+     "dd_eur": 12.69,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22593": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.63
+  },
+  {
+   "window": 3,
+   "profile": "A_p50",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal1_22592": {
+     "channel": "canal1",
+     "net_eur": 8.46,
+     "dd_eur": 12.68,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22593": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.68
+  },
+  {
+   "window": 3,
+   "profile": "A_p90",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal1_22592": {
+     "channel": "canal1",
+     "net_eur": 9.06,
+     "dd_eur": 12.69,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22593": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.7
+  },
+  {
+   "window": 4,
+   "profile": "UNCAL",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal2_2982:incomplete_equity_conversion",
+    "canal2_2982:stale_conversion_during_profit_lock",
+    "canal2_2982:path_ended_before_strategy_exit"
+   ],
+   "baskets": {
+    "canal2_2982": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": [
+      "canal2_2982:incomplete_equity_conversion",
+      "canal2_2982:stale_conversion_during_profit_lock",
+      "canal2_2982:path_ended_before_strategy_exit",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "path_ended_before_strategy_exit",
+      "incomplete_post_event_grid",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 3.79
+  },
+  {
+   "window": 4,
+   "profile": "A_p50",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal2_2982:incomplete_equity_conversion",
+    "canal2_2982:stale_conversion_during_profit_lock",
+    "canal2_2982:path_ended_before_strategy_exit"
+   ],
+   "baskets": {
+    "canal2_2982": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": [
+      "canal2_2982:incomplete_equity_conversion",
+      "canal2_2982:stale_conversion_during_profit_lock",
+      "canal2_2982:path_ended_before_strategy_exit",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "path_ended_before_strategy_exit",
+      "incomplete_post_event_grid",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 3.94
+  },
+  {
+   "window": 4,
+   "profile": "A_p90",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal2_2982:incomplete_equity_conversion",
+    "canal2_2982:stale_conversion_during_profit_lock",
+    "canal2_2982:path_ended_before_strategy_exit"
+   ],
+   "baskets": {
+    "canal2_2982": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": [
+      "canal2_2982:incomplete_equity_conversion",
+      "canal2_2982:stale_conversion_during_profit_lock",
+      "canal2_2982:path_ended_before_strategy_exit",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "path_ended_before_strategy_exit",
+      "incomplete_post_event_grid",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 4.13
+  },
+  {
+   "window": 5,
+   "profile": "UNCAL",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_2986": {
+     "channel": "canal2",
+     "net_eur": 4.33,
+     "dd_eur": 4.94,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.11
+  },
+  {
+   "window": 5,
+   "profile": "A_p50",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_2986": {
+     "channel": "canal2",
+     "net_eur": 4.33,
+     "dd_eur": 4.94,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.32
+  },
+  {
+   "window": 5,
+   "profile": "A_p90",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_2986": {
+     "channel": "canal2",
+     "net_eur": 4.33,
+     "dd_eur": 4.94,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.17
+  },
+  {
+   "window": 6,
+   "profile": "UNCAL",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal1_22601:incomplete_equity_conversion",
+    "canal1_22601:stale_conversion_at_basket_stop",
+    "canal1_22601:stale_conversion_during_profit_lock"
+   ],
+   "baskets": {
+    "canal1_22601": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22601:incomplete_equity_conversion",
+      "canal1_22601:stale_conversion_at_basket_stop",
+      "canal1_22601:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22601",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "canal1_22602": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 3.12
+  },
+  {
+   "window": 6,
+   "profile": "A_p50",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal1_22601:incomplete_equity_conversion",
+    "canal1_22601:stale_conversion_at_basket_stop",
+    "canal1_22601:stale_conversion_during_profit_lock"
+   ],
+   "baskets": {
+    "canal1_22601": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22601:incomplete_equity_conversion",
+      "canal1_22601:stale_conversion_at_basket_stop",
+      "canal1_22601:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22601",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "canal1_22602": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 2.84
+  },
+  {
+   "window": 6,
+   "profile": "A_p90",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal1_22601:incomplete_equity_conversion",
+    "canal1_22601:stale_conversion_at_basket_stop",
+    "canal1_22601:stale_conversion_during_profit_lock"
+   ],
+   "baskets": {
+    "canal1_22601": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22601:incomplete_equity_conversion",
+      "canal1_22601:stale_conversion_at_basket_stop",
+      "canal1_22601:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22601",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "canal1_22602": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 2.83
+  },
+  {
+   "window": 7,
+   "profile": "UNCAL",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal2_2995:incomplete_equity_conversion",
+    "canal2_2995:stale_conversion_during_profit_lock",
+    "canal2_2995:stale_conversion_at_exit:12690"
+   ],
+   "baskets": {
+    "canal2_2995": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": [
+      "canal2_2995:incomplete_equity_conversion",
+      "canal2_2995:stale_conversion_during_profit_lock",
+      "canal2_2995:stale_conversion_at_exit:12690",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "stale_conversion_at_exit:12690",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_2995",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.36
+  },
+  {
+   "window": 7,
+   "profile": "A_p50",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal2_2995:incomplete_equity_conversion",
+    "canal2_2995:stale_conversion_during_profit_lock",
+    "canal2_2995:stale_conversion_at_exit:12689"
+   ],
+   "baskets": {
+    "canal2_2995": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": [
+      "canal2_2995:incomplete_equity_conversion",
+      "canal2_2995:stale_conversion_during_profit_lock",
+      "canal2_2995:stale_conversion_at_exit:12689",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "stale_conversion_at_exit:12689",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_2995",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.28
+  },
+  {
+   "window": 7,
+   "profile": "A_p90",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal2_2995:incomplete_equity_conversion",
+    "canal2_2995:stale_conversion_during_profit_lock",
+    "canal2_2995:stale_conversion_at_exit:12690"
+   ],
+   "baskets": {
+    "canal2_2995": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": [
+      "canal2_2995:incomplete_equity_conversion",
+      "canal2_2995:stale_conversion_during_profit_lock",
+      "canal2_2995:stale_conversion_at_exit:12690",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "stale_conversion_at_exit:12690",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_2995",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.24
+  },
+  {
+   "window": 8,
+   "profile": "UNCAL",
+   "status": "error",
+   "error": "ValueError: diagnostic risk/memory budget exceeded",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 125, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 346, in run\n    raise ValueError(\"diagnostic risk/memory budget exceeded\")\nValueError: diagnostic risk/memory budget exceeded\n",
+   "elapsed_s": 0.18
+  },
+  {
+   "window": 8,
+   "profile": "A_p50",
+   "status": "error",
+   "error": "ValueError: diagnostic risk/memory budget exceeded",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 125, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 346, in run\n    raise ValueError(\"diagnostic risk/memory budget exceeded\")\nValueError: diagnostic risk/memory budget exceeded\n",
+   "elapsed_s": 0.15
+  },
+  {
+   "window": 8,
+   "profile": "A_p90",
+   "status": "error",
+   "error": "ValueError: diagnostic risk/memory budget exceeded",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 125, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 346, in run\n    raise ValueError(\"diagnostic risk/memory budget exceeded\")\nValueError: diagnostic risk/memory budget exceeded\n",
+   "elapsed_s": 0.21
+  },
+  {
+   "window": 9,
+   "profile": "UNCAL",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3075": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 0.54
+  },
+  {
+   "window": 9,
+   "profile": "A_p50",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3075": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 0.61
+  },
+  {
+   "window": 9,
+   "profile": "A_p90",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3075": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 0.5
+  },
+  {
+   "window": 10,
+   "profile": "UNCAL",
+   "status": "error",
+   "error": "ValueError: other-channel event outside causal shared quote window",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 125, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 375, in run\n    scenario = run_incremental_shared_canal1_stream(\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/research/causal_shared_stream.py\", line 192, in run_incremental_shared_canal1_stream\n    raise ValueError(\"other-channel event outside causal shared quote window\")\nValueError: other-channel event outside causal shared quote window\n",
+   "elapsed_s": 0.15
+  },
+  {
+   "window": 10,
+   "profile": "A_p50",
+   "status": "error",
+   "error": "ValueError: other-channel event outside causal shared quote window",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 125, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 375, in run\n    scenario = run_incremental_shared_canal1_stream(\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/research/causal_shared_stream.py\", line 192, in run_incremental_shared_canal1_stream\n    raise ValueError(\"other-channel event outside causal shared quote window\")\nValueError: other-channel event outside causal shared quote window\n",
+   "elapsed_s": 0.15
+  },
+  {
+   "window": 10,
+   "profile": "A_p90",
+   "status": "error",
+   "error": "ValueError: other-channel event outside causal shared quote window",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 125, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 375, in run\n    scenario = run_incremental_shared_canal1_stream(\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/research/causal_shared_stream.py\", line 192, in run_incremental_shared_canal1_stream\n    raise ValueError(\"other-channel event outside causal shared quote window\")\nValueError: other-channel event outside causal shared quote window\n",
+   "elapsed_s": 0.15
+  },
+  {
+   "window": 11,
+   "profile": "UNCAL",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal2_3096:incomplete_equity_conversion",
+    "canal2_3096:stale_conversion_during_profit_lock"
+   ],
+   "baskets": {
+    "canal2_3096": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.12",
+     "exposed": true,
+     "blockers": [
+      "canal2_3096:incomplete_equity_conversion",
+      "canal2_3096:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_3096",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 3.65
+  },
+  {
+   "window": 11,
+   "profile": "A_p50",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal2_3096:incomplete_equity_conversion",
+    "canal2_3096:stale_conversion_during_profit_lock"
+   ],
+   "baskets": {
+    "canal2_3096": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.12",
+     "exposed": true,
+     "blockers": [
+      "canal2_3096:incomplete_equity_conversion",
+      "canal2_3096:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_3096",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 3.7
+  },
+  {
+   "window": 11,
+   "profile": "A_p90",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal2_3096:incomplete_equity_conversion",
+    "canal2_3096:stale_conversion_during_profit_lock",
+    "canal2_3096:path_ended_before_strategy_exit"
+   ],
+   "baskets": {
+    "canal2_3096": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.13",
+     "exposed": true,
+     "blockers": [
+      "canal2_3096:incomplete_equity_conversion",
+      "canal2_3096:stale_conversion_during_profit_lock",
+      "canal2_3096:path_ended_before_strategy_exit",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "path_ended_before_strategy_exit",
+      "incomplete_post_event_grid",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 4.71
+  },
+  {
+   "window": 12,
+   "profile": "UNCAL",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal1_22725:incomplete_equity_conversion",
+    "canal1_22725:stale_conversion_at_basket_stop",
+    "canal1_22725:stale_conversion_during_profit_lock",
+    "canal1_22725:path_ended_before_strategy_exit"
+   ],
+   "baskets": {
+    "canal1_22725": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22725:incomplete_equity_conversion",
+      "canal1_22725:stale_conversion_at_basket_stop",
+      "canal1_22725:stale_conversion_during_profit_lock",
+      "canal1_22725:path_ended_before_strategy_exit",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "path_ended_before_strategy_exit",
+      "incomplete_post_event_grid",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "canal1_22726": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 2.44
+  },
+  {
+   "window": 12,
+   "profile": "A_p50",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal1_22725:incomplete_equity_conversion",
+    "canal1_22725:stale_conversion_at_basket_stop",
+    "canal1_22725:stale_conversion_during_profit_lock",
+    "canal1_22725:path_ended_before_strategy_exit"
+   ],
+   "baskets": {
+    "canal1_22725": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22725:incomplete_equity_conversion",
+      "canal1_22725:stale_conversion_at_basket_stop",
+      "canal1_22725:stale_conversion_during_profit_lock",
+      "canal1_22725:path_ended_before_strategy_exit",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "path_ended_before_strategy_exit",
+      "incomplete_post_event_grid",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "canal1_22726": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 2.34
+  },
+  {
+   "window": 12,
+   "profile": "A_p90",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal1_22725:incomplete_equity_conversion",
+    "canal1_22725:stale_conversion_at_basket_stop",
+    "canal1_22725:stale_conversion_during_profit_lock",
+    "canal1_22725:path_ended_before_strategy_exit"
+   ],
+   "baskets": {
+    "canal1_22725": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22725:incomplete_equity_conversion",
+      "canal1_22725:stale_conversion_at_basket_stop",
+      "canal1_22725:stale_conversion_during_profit_lock",
+      "canal1_22725:path_ended_before_strategy_exit",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "path_ended_before_strategy_exit",
+      "incomplete_post_event_grid",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "canal1_22726": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 2.31
+  },
+  {
+   "window": 13,
+   "profile": "UNCAL",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3106": {
+     "channel": "canal2",
+     "net_eur": 20.02,
+     "dd_eur": 9.27,
+     "max_volume": "0.06",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_3108": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "canal1_22732": {
+     "channel": "canal1",
+     "net_eur": -30.75,
+     "dd_eur": 32.72,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22733": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "canal1_22738": {
+     "channel": "canal1",
+     "net_eur": -25.16,
+     "dd_eur": 33.61,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 8.52
+  },
+  {
+   "window": 13,
+   "profile": "A_p50",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3106": {
+     "channel": "canal2",
+     "net_eur": 20.02,
+     "dd_eur": 8.38,
+     "max_volume": "0.06",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_3108": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "canal1_22732": {
+     "channel": "canal1",
+     "net_eur": -25.91,
+     "dd_eur": 28.25,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22733": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "canal1_22738": {
+     "channel": "canal1",
+     "net_eur": -25.5,
+     "dd_eur": 33.6,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 8.25
+  },
+  {
+   "window": 13,
+   "profile": "A_p90",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3106": {
+     "channel": "canal2",
+     "net_eur": 20.02,
+     "dd_eur": 6.5,
+     "max_volume": "0.06",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_3108": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "canal1_22732": {
+     "channel": "canal1",
+     "net_eur": -28.62,
+     "dd_eur": 30.21,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22733": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "canal1_22738": {
+     "channel": "canal1",
+     "net_eur": -25.05,
+     "dd_eur": 33.6,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 8.48
+  },
+  {
+   "window": 14,
+   "profile": "UNCAL",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal1_22747:incomplete_equity_conversion",
+    "canal1_22747:stale_conversion_at_basket_stop",
+    "canal1_22747:stale_conversion_during_profit_lock"
+   ],
+   "baskets": {
+    "canal1_22741": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "canal1_22747": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22747:incomplete_equity_conversion",
+      "canal1_22747:stale_conversion_at_basket_stop",
+      "canal1_22747:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22747",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "canal1_22742": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 5.02
+  },
+  {
+   "window": 14,
+   "profile": "A_p50",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal1_22747:incomplete_equity_conversion",
+    "canal1_22747:stale_conversion_at_basket_stop",
+    "canal1_22747:stale_conversion_during_profit_lock"
+   ],
+   "baskets": {
+    "canal1_22741": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "canal1_22747": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22747:incomplete_equity_conversion",
+      "canal1_22747:stale_conversion_at_basket_stop",
+      "canal1_22747:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22747",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "canal1_22742": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 5.32
+  },
+  {
+   "window": 14,
+   "profile": "A_p90",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal1_22747:incomplete_equity_conversion",
+    "canal1_22747:stale_conversion_at_basket_stop",
+    "canal1_22747:stale_conversion_during_profit_lock"
+   ],
+   "baskets": {
+    "canal1_22741": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "canal1_22747": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22747:incomplete_equity_conversion",
+      "canal1_22747:stale_conversion_at_basket_stop",
+      "canal1_22747:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22747",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "canal1_22742": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 6.13
+  },
+  {
+   "window": 15,
+   "profile": "UNCAL",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal1_22751:incomplete_equity_conversion",
+    "canal1_22751:stale_conversion_at_basket_stop",
+    "canal1_22751:stale_conversion_during_profit_lock",
+    "canal1_22751:stale_conversion_at_time_exit"
+   ],
+   "baskets": {
+    "canal1_22751": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22751:incomplete_equity_conversion",
+      "canal1_22751:stale_conversion_at_basket_stop",
+      "canal1_22751:stale_conversion_during_profit_lock",
+      "canal1_22751:stale_conversion_at_time_exit",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "stale_conversion_at_time_exit",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22751",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "canal1_22752": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 3.69
+  },
+  {
+   "window": 15,
+   "profile": "A_p50",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal1_22751:incomplete_equity_conversion",
+    "canal1_22751:stale_conversion_at_basket_stop",
+    "canal1_22751:stale_conversion_during_profit_lock",
+    "canal1_22751:stale_conversion_at_time_exit"
+   ],
+   "baskets": {
+    "canal1_22751": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22751:incomplete_equity_conversion",
+      "canal1_22751:stale_conversion_at_basket_stop",
+      "canal1_22751:stale_conversion_during_profit_lock",
+      "canal1_22751:stale_conversion_at_time_exit",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "stale_conversion_at_time_exit",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22751",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "canal1_22752": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 3.54
+  },
+  {
+   "window": 15,
+   "profile": "A_p90",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal1_22751:incomplete_equity_conversion",
+    "canal1_22751:stale_conversion_at_basket_stop",
+    "canal1_22751:stale_conversion_during_profit_lock",
+    "canal1_22751:stale_conversion_at_time_exit"
+   ],
+   "baskets": {
+    "canal1_22751": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22751:incomplete_equity_conversion",
+      "canal1_22751:stale_conversion_at_basket_stop",
+      "canal1_22751:stale_conversion_during_profit_lock",
+      "canal1_22751:stale_conversion_at_time_exit",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "stale_conversion_at_time_exit",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22751",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "canal1_22752": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 3.58
+  },
+  {
+   "window": 16,
+   "profile": "UNCAL",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal2_3156:incomplete_equity_conversion",
+    "canal2_3156:stale_conversion_during_profit_lock",
+    "canal1_22761:incomplete_equity_conversion",
+    "canal1_22761:stale_conversion_at_basket_stop",
+    "canal1_22761:stale_conversion_during_profit_lock"
+   ],
+   "baskets": {
+    "canal2_3148": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.10",
+     "exposed": true,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "canal2_3156": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "canal2_3156:incomplete_equity_conversion",
+      "canal2_3156:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_3156",
+      "incomplete_basket_risk_path"
+     ]
+    },
+    "canal1_22761": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22761:incomplete_equity_conversion",
+      "canal1_22761:stale_conversion_at_basket_stop",
+      "canal1_22761:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22761",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "canal1_22762": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 5.89
+  },
+  {
+   "window": 16,
+   "profile": "A_p50",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal2_3156:incomplete_equity_conversion",
+    "canal2_3156:stale_conversion_during_profit_lock",
+    "canal1_22761:incomplete_equity_conversion",
+    "canal1_22761:stale_conversion_at_basket_stop",
+    "canal1_22761:stale_conversion_during_profit_lock"
+   ],
+   "baskets": {
+    "canal2_3148": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.10",
+     "exposed": true,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "canal2_3156": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "canal2_3156:incomplete_equity_conversion",
+      "canal2_3156:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_3156",
+      "incomplete_basket_risk_path"
+     ]
+    },
+    "canal1_22761": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22761:incomplete_equity_conversion",
+      "canal1_22761:stale_conversion_at_basket_stop",
+      "canal1_22761:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22761",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "canal1_22762": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 5.92
+  },
+  {
+   "window": 16,
+   "profile": "A_p90",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal2_3156:incomplete_equity_conversion",
+    "canal2_3156:stale_conversion_during_profit_lock",
+    "canal1_22761:incomplete_equity_conversion",
+    "canal1_22761:stale_conversion_at_basket_stop",
+    "canal1_22761:stale_conversion_during_profit_lock"
+   ],
+   "baskets": {
+    "canal2_3148": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.10",
+     "exposed": true,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "canal2_3156": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "canal2_3156:incomplete_equity_conversion",
+      "canal2_3156:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_3156",
+      "incomplete_basket_risk_path"
+     ]
+    },
+    "canal1_22761": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22761:incomplete_equity_conversion",
+      "canal1_22761:stale_conversion_at_basket_stop",
+      "canal1_22761:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22761",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "canal1_22762": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 5.9
+  },
+  {
+   "window": 17,
+   "profile": "UNCAL",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3171": {
+     "channel": "canal2",
+     "net_eur": 1.75,
+     "dd_eur": 4.23,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22768": {
+     "channel": "canal1",
+     "net_eur": 8.15,
+     "dd_eur": 2.31,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22769": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 2.19
+  },
+  {
+   "window": 17,
+   "profile": "A_p50",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3171": {
+     "channel": "canal2",
+     "net_eur": 1.75,
+     "dd_eur": 0.84,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22768": {
+     "channel": "canal1",
+     "net_eur": 8.22,
+     "dd_eur": 2.2,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22769": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 2.39
+  },
+  {
+   "window": 17,
+   "profile": "A_p90",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3171": {
+     "channel": "canal2",
+     "net_eur": 1.75,
+     "dd_eur": 0.77,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22768": {
+     "channel": "canal1",
+     "net_eur": 8.13,
+     "dd_eur": 2.31,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22769": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 2.45
+  },
+  {
+   "window": 18,
+   "profile": "UNCAL",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal2_3180:incomplete_equity_conversion",
+    "canal2_3180:stale_conversion_during_profit_lock"
+   ],
+   "baskets": {
+    "canal2_3180": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": [
+      "canal2_3180:incomplete_equity_conversion",
+      "canal2_3180:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_3180",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.32
+  },
+  {
+   "window": 18,
+   "profile": "A_p50",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal2_3180:incomplete_equity_conversion",
+    "canal2_3180:stale_conversion_during_profit_lock"
+   ],
+   "baskets": {
+    "canal2_3180": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": [
+      "canal2_3180:incomplete_equity_conversion",
+      "canal2_3180:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_3180",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.43
+  },
+  {
+   "window": 18,
+   "profile": "A_p90",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal2_3180:incomplete_equity_conversion",
+    "canal2_3180:stale_conversion_during_profit_lock"
+   ],
+   "baskets": {
+    "canal2_3180": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": [
+      "canal2_3180:incomplete_equity_conversion",
+      "canal2_3180:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_3180",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.44
+  },
+  {
+   "window": 19,
+   "profile": "UNCAL",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal1_22778:incomplete_equity_conversion",
+    "canal1_22778:stale_conversion_at_basket_stop",
+    "canal1_22778:stale_conversion_during_profit_lock",
+    "canal1_22778:path_ended_before_strategy_exit"
+   ],
+   "baskets": {
+    "canal1_22778": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22778:incomplete_equity_conversion",
+      "canal1_22778:stale_conversion_at_basket_stop",
+      "canal1_22778:stale_conversion_during_profit_lock",
+      "canal1_22778:path_ended_before_strategy_exit",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "path_ended_before_strategy_exit",
+      "incomplete_post_event_grid",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "canal1_22779": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.84
+  },
+  {
+   "window": 19,
+   "profile": "A_p50",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal1_22778:incomplete_equity_conversion",
+    "canal1_22778:stale_conversion_at_basket_stop",
+    "canal1_22778:stale_conversion_during_profit_lock",
+    "canal1_22778:path_ended_before_strategy_exit"
+   ],
+   "baskets": {
+    "canal1_22778": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22778:incomplete_equity_conversion",
+      "canal1_22778:stale_conversion_at_basket_stop",
+      "canal1_22778:stale_conversion_during_profit_lock",
+      "canal1_22778:path_ended_before_strategy_exit",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "path_ended_before_strategy_exit",
+      "incomplete_post_event_grid",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "canal1_22779": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.88
+  },
+  {
+   "window": 19,
+   "profile": "A_p90",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal1_22778:incomplete_equity_conversion",
+    "canal1_22778:stale_conversion_at_basket_stop",
+    "canal1_22778:stale_conversion_during_profit_lock",
+    "canal1_22778:path_ended_before_strategy_exit"
+   ],
+   "baskets": {
+    "canal1_22778": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22778:incomplete_equity_conversion",
+      "canal1_22778:stale_conversion_at_basket_stop",
+      "canal1_22778:stale_conversion_during_profit_lock",
+      "canal1_22778:path_ended_before_strategy_exit",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "path_ended_before_strategy_exit",
+      "incomplete_post_event_grid",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "canal1_22779": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.8
+  },
+  {
+   "window": 20,
+   "profile": "UNCAL",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal1_22781:incomplete_equity_conversion",
+    "canal1_22781:stale_conversion_at_basket_stop",
+    "canal1_22781:stale_conversion_during_profit_lock"
+   ],
+   "baskets": {
+    "canal2_3188": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "canal1_22781": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22781:incomplete_equity_conversion",
+      "canal1_22781:stale_conversion_at_basket_stop",
+      "canal1_22781:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22781",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "canal1_22782": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 2.32
+  },
+  {
+   "window": 20,
+   "profile": "A_p50",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal1_22781:incomplete_equity_conversion",
+    "canal1_22781:stale_conversion_at_basket_stop",
+    "canal1_22781:stale_conversion_during_profit_lock"
+   ],
+   "baskets": {
+    "canal2_3188": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "canal1_22781": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22781:incomplete_equity_conversion",
+      "canal1_22781:stale_conversion_at_basket_stop",
+      "canal1_22781:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22781",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "canal1_22782": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 2.27
+  },
+  {
+   "window": 20,
+   "profile": "A_p90",
+   "status": "blocked",
+   "shared_blockers": [
+    "canal1_22781:incomplete_equity_conversion",
+    "canal1_22781:stale_conversion_at_basket_stop",
+    "canal1_22781:stale_conversion_during_profit_lock"
+   ],
+   "baskets": {
+    "canal2_3188": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "canal1_22781": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22781:incomplete_equity_conversion",
+      "canal1_22781:stale_conversion_at_basket_stop",
+      "canal1_22781:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22781",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "canal1_22782": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 2.1
+  }
+ ],
+ "per_profile": {
+  "UNCAL": {
+   "matched": 7,
+   "real_only": [
+    "canal1_22635",
+    "canal1_22642",
+    "canal1_22646",
+    "canal1_22652",
+    "canal2_2908",
+    "canal2_2911",
+    "canal2_2917",
+    "canal2_2919",
+    "canal2_3000",
+    "canal2_3003",
+    "canal2_3005",
+    "canal2_3007",
+    "canal2_3009",
+    "canal2_3086",
+    "canal2_3102",
+    "canal2_3156",
+    "canal2_3168"
+   ],
+   "sim_only": [],
+   "blocked": [
+    "canal1_22587",
+    "canal1_22601",
+    "canal1_22725",
+    "canal1_22741",
+    "canal1_22747",
+    "canal1_22751",
+    "canal1_22761",
+    "canal1_22778",
+    "canal1_22781",
+    "canal2_2970",
+    "canal2_2977",
+    "canal2_2982",
+    "canal2_2995",
+    "canal2_3096",
+    "canal2_3148",
+    "canal2_3180"
+   ],
+   "real_net_eur": -382.98,
+   "sim_net_eur": -12.26,
+   "net_error_pct_of_abs_real": 34.07,
+   "matched_real_dd_sum": 97.31,
+   "matched_sim_dd_sum": 99.77,
+   "dd_error_pct": 2.53,
+   "dd_underestimates_gt_0_5": 1,
+   "dd_overestimates_gt_0_5": 2
+  },
+  "A_p50": {
+   "matched": 7,
+   "real_only": [
+    "canal1_22635",
+    "canal1_22642",
+    "canal1_22646",
+    "canal1_22652",
+    "canal2_2908",
+    "canal2_2911",
+    "canal2_2917",
+    "canal2_2919",
+    "canal2_3000",
+    "canal2_3003",
+    "canal2_3005",
+    "canal2_3007",
+    "canal2_3009",
+    "canal2_3086",
+    "canal2_3102",
+    "canal2_3156",
+    "canal2_3168"
+   ],
+   "sim_only": [],
+   "blocked": [
+    "canal1_22587",
+    "canal1_22601",
+    "canal1_22725",
+    "canal1_22741",
+    "canal1_22747",
+    "canal1_22751",
+    "canal1_22761",
+    "canal1_22778",
+    "canal1_22781",
+    "canal2_2970",
+    "canal2_2977",
+    "canal2_2982",
+    "canal2_2995",
+    "canal2_3096",
+    "canal2_3148",
+    "canal2_3180"
+   ],
+   "real_net_eur": -382.98,
+   "sim_net_eur": -8.63,
+   "net_error_pct_of_abs_real": 34.41,
+   "matched_real_dd_sum": 97.31,
+   "matched_sim_dd_sum": 90.89,
+   "dd_error_pct": -6.6,
+   "dd_underestimates_gt_0_5": 2,
+   "dd_overestimates_gt_0_5": 2
+  },
+  "A_p90": {
+   "matched": 7,
+   "real_only": [
+    "canal1_22635",
+    "canal1_22642",
+    "canal1_22646",
+    "canal1_22652",
+    "canal2_2908",
+    "canal2_2911",
+    "canal2_2917",
+    "canal2_2919",
+    "canal2_3000",
+    "canal2_3003",
+    "canal2_3005",
+    "canal2_3007",
+    "canal2_3009",
+    "canal2_3086",
+    "canal2_3102",
+    "canal2_3156",
+    "canal2_3168"
+   ],
+   "sim_only": [],
+   "blocked": [
+    "canal1_22587",
+    "canal1_22601",
+    "canal1_22725",
+    "canal1_22741",
+    "canal1_22747",
+    "canal1_22751",
+    "canal1_22761",
+    "canal1_22778",
+    "canal1_22781",
+    "canal2_2970",
+    "canal2_2977",
+    "canal2_2982",
+    "canal2_2995",
+    "canal2_3096",
+    "canal2_3148",
+    "canal2_3180"
+   ],
+   "real_net_eur": -382.98,
+   "sim_net_eur": -10.38,
+   "net_error_pct_of_abs_real": 34.24,
+   "matched_real_dd_sum": 97.31,
+   "matched_sim_dd_sum": 91.02,
+   "dd_error_pct": -6.46,
+   "dd_underestimates_gt_0_5": 2,
+   "dd_overestimates_gt_0_5": 1
+  }
+ },
+ "ranges": {
+  "baskets_with_range": 7,
+  "real_dd_inside_range_pct": 28.6,
+  "real_net_inside_range_pct": 71.4
+ },
+ "baskets": [
+  {
+   "signal_id": "canal1_22587",
+   "real": {
+    "net_eur": 7.42,
+    "dd_eur": 18.3,
+    "max_volume": "0.05"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": [
+      "canal1_22587:incomplete_equity_conversion",
+      "canal1_22587:stale_conversion_at_basket_stop",
+      "canal1_22587:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22587",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": [
+      "canal1_22587:incomplete_equity_conversion",
+      "canal1_22587:stale_conversion_at_basket_stop",
+      "canal1_22587:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22587",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": [
+      "canal1_22587:incomplete_equity_conversion",
+      "canal1_22587:stale_conversion_at_basket_stop",
+      "canal1_22587:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22587",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22588",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22592",
+   "real": {
+    "net_eur": 8.65,
+    "dd_eur": 12.69,
+    "max_volume": "0.05"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": 9.4,
+     "dd_eur": 12.69,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": 8.46,
+     "dd_eur": 12.68,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": 9.06,
+     "dd_eur": 12.69,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": true,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal1_22593",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22601",
+   "real": {
+    "net_eur": -0.11,
+    "dd_eur": 6.55,
+    "max_volume": "0.01"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22601:incomplete_equity_conversion",
+      "canal1_22601:stale_conversion_at_basket_stop",
+      "canal1_22601:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22601",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22601:incomplete_equity_conversion",
+      "canal1_22601:stale_conversion_at_basket_stop",
+      "canal1_22601:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22601",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22601:incomplete_equity_conversion",
+      "canal1_22601:stale_conversion_at_basket_stop",
+      "canal1_22601:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22601",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22602",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22635",
+   "real": {
+    "net_eur": -0.66,
+    "dd_eur": 10.63,
+    "max_volume": "0.01"
+   },
+   "sim": {
+    "UNCAL": null,
+    "A_p50": null,
+    "A_p90": null
+   }
+  },
+  {
+   "signal_id": "canal1_22642",
+   "real": {
+    "net_eur": -24.85,
+    "dd_eur": 33.5,
+    "max_volume": "0.05"
+   },
+   "sim": {
+    "UNCAL": null,
+    "A_p50": null,
+    "A_p90": null
+   }
+  },
+  {
+   "signal_id": "canal1_22646",
+   "real": {
+    "net_eur": -24.97,
+    "dd_eur": 29.94,
+    "max_volume": "0.05"
+   },
+   "sim": {
+    "UNCAL": null,
+    "A_p50": null,
+    "A_p90": null
+   }
+  },
+  {
+   "signal_id": "canal1_22652",
+   "real": {
+    "net_eur": -25.0,
+    "dd_eur": 37.55,
+    "max_volume": "0.01"
+   },
+   "sim": {
+    "UNCAL": null,
+    "A_p50": null,
+    "A_p90": null
+   }
+  },
+  {
+   "signal_id": "canal1_22725",
+   "real": {
+    "net_eur": 9.65,
+    "dd_eur": 9.56,
+    "max_volume": "0.01"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22725:incomplete_equity_conversion",
+      "canal1_22725:stale_conversion_at_basket_stop",
+      "canal1_22725:stale_conversion_during_profit_lock",
+      "canal1_22725:path_ended_before_strategy_exit",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "path_ended_before_strategy_exit",
+      "incomplete_post_event_grid",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22725:incomplete_equity_conversion",
+      "canal1_22725:stale_conversion_at_basket_stop",
+      "canal1_22725:stale_conversion_during_profit_lock",
+      "canal1_22725:path_ended_before_strategy_exit",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "path_ended_before_strategy_exit",
+      "incomplete_post_event_grid",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22725:incomplete_equity_conversion",
+      "canal1_22725:stale_conversion_at_basket_stop",
+      "canal1_22725:stale_conversion_during_profit_lock",
+      "canal1_22725:path_ended_before_strategy_exit",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "path_ended_before_strategy_exit",
+      "incomplete_post_event_grid",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22726",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22732",
+   "real": {
+    "net_eur": -24.62,
+    "dd_eur": 27.27,
+    "max_volume": "0.05"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": -30.75,
+     "dd_eur": 32.72,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": -25.91,
+     "dd_eur": 28.25,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": -28.62,
+     "dd_eur": 30.21,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": false,
+   "real_net_in_sim_range": false
+  },
+  {
+   "signal_id": "canal1_22733",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22738",
+   "real": {
+    "net_eur": -24.96,
+    "dd_eur": 38.95,
+    "max_volume": "0.05"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": -25.16,
+     "dd_eur": 33.61,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": -25.5,
+     "dd_eur": 33.6,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": -25.05,
+     "dd_eur": 33.6,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": false,
+   "real_net_in_sim_range": false
+  },
+  {
+   "signal_id": "canal1_22741",
+   "real": {
+    "net_eur": -24.99,
+    "dd_eur": 26.88,
+    "max_volume": "0.09"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22742",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22747",
+   "real": {
+    "net_eur": -3.47,
+    "dd_eur": 10.6,
+    "max_volume": "0.01"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22747:incomplete_equity_conversion",
+      "canal1_22747:stale_conversion_at_basket_stop",
+      "canal1_22747:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22747",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22747:incomplete_equity_conversion",
+      "canal1_22747:stale_conversion_at_basket_stop",
+      "canal1_22747:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22747",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22747:incomplete_equity_conversion",
+      "canal1_22747:stale_conversion_at_basket_stop",
+      "canal1_22747:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22747",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22751",
+   "real": {
+    "net_eur": 13.15,
+    "dd_eur": 14.13,
+    "max_volume": "0.05"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22751:incomplete_equity_conversion",
+      "canal1_22751:stale_conversion_at_basket_stop",
+      "canal1_22751:stale_conversion_during_profit_lock",
+      "canal1_22751:stale_conversion_at_time_exit",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "stale_conversion_at_time_exit",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22751",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22751:incomplete_equity_conversion",
+      "canal1_22751:stale_conversion_at_basket_stop",
+      "canal1_22751:stale_conversion_during_profit_lock",
+      "canal1_22751:stale_conversion_at_time_exit",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "stale_conversion_at_time_exit",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22751",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22751:incomplete_equity_conversion",
+      "canal1_22751:stale_conversion_at_basket_stop",
+      "canal1_22751:stale_conversion_during_profit_lock",
+      "canal1_22751:stale_conversion_at_time_exit",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "stale_conversion_at_time_exit",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22751",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22752",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22761",
+   "real": {
+    "net_eur": -2.79,
+    "dd_eur": 12.06,
+    "max_volume": "0.01"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22761:incomplete_equity_conversion",
+      "canal1_22761:stale_conversion_at_basket_stop",
+      "canal1_22761:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22761",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22761:incomplete_equity_conversion",
+      "canal1_22761:stale_conversion_at_basket_stop",
+      "canal1_22761:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22761",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22761:incomplete_equity_conversion",
+      "canal1_22761:stale_conversion_at_basket_stop",
+      "canal1_22761:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22761",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22762",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22768",
+   "real": {
+    "net_eur": 8.13,
+    "dd_eur": 2.7,
+    "max_volume": "0.01"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": 8.15,
+     "dd_eur": 2.31,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": 8.22,
+     "dd_eur": 2.2,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": 8.13,
+     "dd_eur": 2.31,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": false,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal1_22769",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22778",
+   "real": {
+    "net_eur": 29.53,
+    "dd_eur": 26.63,
+    "max_volume": "0.09"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22778:incomplete_equity_conversion",
+      "canal1_22778:stale_conversion_at_basket_stop",
+      "canal1_22778:stale_conversion_during_profit_lock",
+      "canal1_22778:path_ended_before_strategy_exit",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "path_ended_before_strategy_exit",
+      "incomplete_post_event_grid",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22778:incomplete_equity_conversion",
+      "canal1_22778:stale_conversion_at_basket_stop",
+      "canal1_22778:stale_conversion_during_profit_lock",
+      "canal1_22778:path_ended_before_strategy_exit",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "path_ended_before_strategy_exit",
+      "incomplete_post_event_grid",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22778:incomplete_equity_conversion",
+      "canal1_22778:stale_conversion_at_basket_stop",
+      "canal1_22778:stale_conversion_during_profit_lock",
+      "canal1_22778:path_ended_before_strategy_exit",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "path_ended_before_strategy_exit",
+      "incomplete_post_event_grid",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22779",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22781",
+   "real": {
+    "net_eur": -24.97,
+    "dd_eur": 28.78,
+    "max_volume": "0.05"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22781:incomplete_equity_conversion",
+      "canal1_22781:stale_conversion_at_basket_stop",
+      "canal1_22781:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22781",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22781:incomplete_equity_conversion",
+      "canal1_22781:stale_conversion_at_basket_stop",
+      "canal1_22781:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22781",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": [
+      "canal1_22781:incomplete_equity_conversion",
+      "canal1_22781:stale_conversion_at_basket_stop",
+      "canal1_22781:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_at_basket_stop",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal1_22781",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22782",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   }
+  },
+  {
+   "signal_id": "canal2_2908",
+   "real": {
+    "net_eur": -302.38,
+    "dd_eur": 390.65,
+    "max_volume": "0.12"
+   },
+   "sim": {
+    "UNCAL": null,
+    "A_p50": null,
+    "A_p90": null
+   }
+  },
+  {
+   "signal_id": "canal2_2911",
+   "real": {
+    "net_eur": 1.73,
+    "dd_eur": 2.74,
+    "max_volume": "0.04"
+   },
+   "sim": {
+    "UNCAL": null,
+    "A_p50": null,
+    "A_p90": null
+   }
+  },
+  {
+   "signal_id": "canal2_2917",
+   "real": {
+    "net_eur": -85.87,
+    "dd_eur": 213.2,
+    "max_volume": "0.16"
+   },
+   "sim": {
+    "UNCAL": null,
+    "A_p50": null,
+    "A_p90": null
+   }
+  },
+  {
+   "signal_id": "canal2_2919",
+   "real": {
+    "net_eur": 19.93,
+    "dd_eur": 71.74,
+    "max_volume": "0.10"
+   },
+   "sim": {
+    "UNCAL": null,
+    "A_p50": null,
+    "A_p90": null
+   }
+  },
+  {
+   "signal_id": "canal2_2970",
+   "real": {
+    "net_eur": 13.43,
+    "dd_eur": 23.82,
+    "max_volume": "0.10"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.07",
+     "exposed": true,
+     "blockers": [
+      "canal2_2970:incomplete_equity_conversion",
+      "canal2_2970:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_2970",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.07",
+     "exposed": true,
+     "blockers": [
+      "canal2_2970:incomplete_equity_conversion",
+      "canal2_2970:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_2970",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.07",
+     "exposed": true,
+     "blockers": [
+      "canal2_2970:incomplete_equity_conversion",
+      "canal2_2970:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_2970",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   }
+  },
+  {
+   "signal_id": "canal2_2977",
+   "real": {
+    "net_eur": 4.33,
+    "dd_eur": 3.88,
+    "max_volume": "0.04"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   }
+  },
+  {
+   "signal_id": "canal2_2982",
+   "real": {
+    "net_eur": 19.92,
+    "dd_eur": 11.7,
+    "max_volume": "0.09"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": [
+      "canal2_2982:incomplete_equity_conversion",
+      "canal2_2982:stale_conversion_during_profit_lock",
+      "canal2_2982:path_ended_before_strategy_exit",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "path_ended_before_strategy_exit",
+      "incomplete_post_event_grid",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": [
+      "canal2_2982:incomplete_equity_conversion",
+      "canal2_2982:stale_conversion_during_profit_lock",
+      "canal2_2982:path_ended_before_strategy_exit",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "path_ended_before_strategy_exit",
+      "incomplete_post_event_grid",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": [
+      "canal2_2982:incomplete_equity_conversion",
+      "canal2_2982:stale_conversion_during_profit_lock",
+      "canal2_2982:path_ended_before_strategy_exit",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "path_ended_before_strategy_exit",
+      "incomplete_post_event_grid",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   }
+  },
+  {
+   "signal_id": "canal2_2986",
+   "real": {
+    "net_eur": 4.33,
+    "dd_eur": 5.16,
+    "max_volume": "0.04"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": 4.33,
+     "dd_eur": 4.94,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": 4.33,
+     "dd_eur": 4.94,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": 4.33,
+     "dd_eur": 4.94,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": false,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal2_2995",
+   "real": {
+    "net_eur": 4.33,
+    "dd_eur": 7.6,
+    "max_volume": "0.07"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": [
+      "canal2_2995:incomplete_equity_conversion",
+      "canal2_2995:stale_conversion_during_profit_lock",
+      "canal2_2995:stale_conversion_at_exit:12690",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "stale_conversion_at_exit:12690",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_2995",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": [
+      "canal2_2995:incomplete_equity_conversion",
+      "canal2_2995:stale_conversion_during_profit_lock",
+      "canal2_2995:stale_conversion_at_exit:12689",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "stale_conversion_at_exit:12689",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_2995",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": [
+      "canal2_2995:incomplete_equity_conversion",
+      "canal2_2995:stale_conversion_during_profit_lock",
+      "canal2_2995:stale_conversion_at_exit:12690",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "stale_conversion_at_exit:12690",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_2995",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   }
+  },
+  {
+   "signal_id": "canal2_3000",
+   "real": {
+    "net_eur": 19.93,
+    "dd_eur": 111.93,
+    "max_volume": "0.10"
+   },
+   "sim": {
+    "UNCAL": null,
+    "A_p50": null,
+    "A_p90": null
+   }
+  },
+  {
+   "signal_id": "canal2_3003",
+   "real": {
+    "net_eur": -165.88,
+    "dd_eur": 174.82,
+    "max_volume": "0.16"
+   },
+   "sim": {
+    "UNCAL": null,
+    "A_p50": null,
+    "A_p90": null
+   }
+  },
+  {
+   "signal_id": "canal2_3005",
+   "real": {
+    "net_eur": 19.93,
+    "dd_eur": 78.33,
+    "max_volume": "0.07"
+   },
+   "sim": {
+    "UNCAL": null,
+    "A_p50": null,
+    "A_p90": null
+   }
+  },
+  {
+   "signal_id": "canal2_3007",
+   "real": {
+    "net_eur": 8.23,
+    "dd_eur": 50.45,
+    "max_volume": "0.06"
+   },
+   "sim": {
+    "UNCAL": null,
+    "A_p50": null,
+    "A_p90": null
+   }
+  },
+  {
+   "signal_id": "canal2_3009",
+   "real": {
+    "net_eur": 19.93,
+    "dd_eur": 54.01,
+    "max_volume": "0.09"
+   },
+   "sim": {
+    "UNCAL": null,
+    "A_p50": null,
+    "A_p90": null
+   }
+  },
+  {
+   "signal_id": "canal2_3075",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   }
+  },
+  {
+   "signal_id": "canal2_3086",
+   "real": {
+    "net_eur": 31.92,
+    "dd_eur": 13.19,
+    "max_volume": "0.04"
+   },
+   "sim": {
+    "UNCAL": null,
+    "A_p50": null,
+    "A_p90": null
+   }
+  },
+  {
+   "signal_id": "canal2_3096",
+   "real": {
+    "net_eur": 20.02,
+    "dd_eur": 78.65,
+    "max_volume": "0.12"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.12",
+     "exposed": true,
+     "blockers": [
+      "canal2_3096:incomplete_equity_conversion",
+      "canal2_3096:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_3096",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.12",
+     "exposed": true,
+     "blockers": [
+      "canal2_3096:incomplete_equity_conversion",
+      "canal2_3096:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_3096",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.13",
+     "exposed": true,
+     "blockers": [
+      "canal2_3096:incomplete_equity_conversion",
+      "canal2_3096:stale_conversion_during_profit_lock",
+      "canal2_3096:path_ended_before_strategy_exit",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "path_ended_before_strategy_exit",
+      "incomplete_post_event_grid",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   }
+  },
+  {
+   "signal_id": "canal2_3102",
+   "real": {
+    "net_eur": 20.02,
+    "dd_eur": 178.72,
+    "max_volume": "0.12"
+   },
+   "sim": {
+    "UNCAL": null,
+    "A_p50": null,
+    "A_p90": null
+   }
+  },
+  {
+   "signal_id": "canal2_3106",
+   "real": {
+    "net_eur": 20.02,
+    "dd_eur": 6.32,
+    "max_volume": "0.04"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": 20.02,
+     "dd_eur": 9.27,
+     "max_volume": "0.06",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": 20.02,
+     "dd_eur": 8.38,
+     "max_volume": "0.06",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": 20.02,
+     "dd_eur": 6.5,
+     "max_volume": "0.06",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": false,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal2_3108",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   }
+  },
+  {
+   "signal_id": "canal2_3148",
+   "real": {
+    "net_eur": 8.28,
+    "dd_eur": 24.43,
+    "max_volume": "0.10"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.10",
+     "exposed": true,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.10",
+     "exposed": true,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.10",
+     "exposed": true,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   }
+  },
+  {
+   "signal_id": "canal2_3156",
+   "real": {
+    "net_eur": 13.53,
+    "dd_eur": 35.84,
+    "max_volume": "0.13"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "canal2_3156:incomplete_equity_conversion",
+      "canal2_3156:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_3156",
+      "incomplete_basket_risk_path"
+     ]
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "canal2_3156:incomplete_equity_conversion",
+      "canal2_3156:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_3156",
+      "incomplete_basket_risk_path"
+     ]
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "canal2_3156:incomplete_equity_conversion",
+      "canal2_3156:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_3156",
+      "incomplete_basket_risk_path"
+     ]
+    }
+   }
+  },
+  {
+   "signal_id": "canal2_3168",
+   "real": {
+    "net_eur": 20.09,
+    "dd_eur": 65.65,
+    "max_volume": "0.13"
+   },
+   "sim": {
+    "UNCAL": null,
+    "A_p50": null,
+    "A_p90": null
+   }
+  },
+  {
+   "signal_id": "canal2_3171",
+   "real": {
+    "net_eur": 1.75,
+    "dd_eur": 4.22,
+    "max_volume": "0.04"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": 1.75,
+     "dd_eur": 4.23,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": 1.75,
+     "dd_eur": 0.84,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": 1.75,
+     "dd_eur": 0.77,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": true,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal2_3180",
+   "real": {
+    "net_eur": 4.36,
+    "dd_eur": 4.64,
+    "max_volume": "0.04"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": [
+      "canal2_3180:incomplete_equity_conversion",
+      "canal2_3180:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_3180",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": [
+      "canal2_3180:incomplete_equity_conversion",
+      "canal2_3180:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_3180",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": [
+      "canal2_3180:incomplete_equity_conversion",
+      "canal2_3180:stale_conversion_during_profit_lock",
+      "incomplete_equity_conversion",
+      "stale_conversion_during_profit_lock",
+      "incomplete_post_event_grid",
+      "unresolved_scope:canal2_3180",
+      "incomplete_basket_risk_path",
+      "basket_still_open_at_cutoff"
+     ]
+    }
+   }
+  },
+  {
+   "signal_id": "canal2_3188",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": null,
+     "dd_eur": null,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": [
+      "incomplete_post_event_grid"
+     ]
+    }
+   }
+  }
+ ],
+ "real_baskets_with_path": 40,
+ "real_baskets_total": 40,
+ "errors": [
+  {
+   "window": 0,
+   "profile": "UNCAL",
+   "status": "error",
+   "error": "ValueError: diagnostic risk/memory budget exceeded",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 125, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 346, in run\n    raise ValueError(\"diagnostic risk/memory budget exceeded\")\nValueError: diagnostic risk/memory budget exceeded\n",
+   "elapsed_s": 0.2
+  },
+  {
+   "window": 0,
+   "profile": "A_p50",
+   "status": "error",
+   "error": "ValueError: diagnostic risk/memory budget exceeded",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 125, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 346, in run\n    raise ValueError(\"diagnostic risk/memory budget exceeded\")\nValueError: diagnostic risk/memory budget exceeded\n",
+   "elapsed_s": 0.2
+  },
+  {
+   "window": 0,
+   "profile": "A_p90",
+   "status": "error",
+   "error": "ValueError: diagnostic risk/memory budget exceeded",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 125, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 346, in run\n    raise ValueError(\"diagnostic risk/memory budget exceeded\")\nValueError: diagnostic risk/memory budget exceeded\n",
+   "elapsed_s": 0.12
+  },
+  {
+   "window": 8,
+   "profile": "UNCAL",
+   "status": "error",
+   "error": "ValueError: diagnostic risk/memory budget exceeded",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 125, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 346, in run\n    raise ValueError(\"diagnostic risk/memory budget exceeded\")\nValueError: diagnostic risk/memory budget exceeded\n",
+   "elapsed_s": 0.18
+  },
+  {
+   "window": 8,
+   "profile": "A_p50",
+   "status": "error",
+   "error": "ValueError: diagnostic risk/memory budget exceeded",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 125, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 346, in run\n    raise ValueError(\"diagnostic risk/memory budget exceeded\")\nValueError: diagnostic risk/memory budget exceeded\n",
+   "elapsed_s": 0.15
+  },
+  {
+   "window": 8,
+   "profile": "A_p90",
+   "status": "error",
+   "error": "ValueError: diagnostic risk/memory budget exceeded",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 125, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 346, in run\n    raise ValueError(\"diagnostic risk/memory budget exceeded\")\nValueError: diagnostic risk/memory budget exceeded\n",
+   "elapsed_s": 0.21
+  },
+  {
+   "window": 10,
+   "profile": "UNCAL",
+   "status": "error",
+   "error": "ValueError: other-channel event outside causal shared quote window",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 125, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 375, in run\n    scenario = run_incremental_shared_canal1_stream(\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/research/causal_shared_stream.py\", line 192, in run_incremental_shared_canal1_stream\n    raise ValueError(\"other-channel event outside causal shared quote window\")\nValueError: other-channel event outside causal shared quote window\n",
+   "elapsed_s": 0.15
+  },
+  {
+   "window": 10,
+   "profile": "A_p50",
+   "status": "error",
+   "error": "ValueError: other-channel event outside causal shared quote window",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 125, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 375, in run\n    scenario = run_incremental_shared_canal1_stream(\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/research/causal_shared_stream.py\", line 192, in run_incremental_shared_canal1_stream\n    raise ValueError(\"other-channel event outside causal shared quote window\")\nValueError: other-channel event outside causal shared quote window\n",
+   "elapsed_s": 0.15
+  },
+  {
+   "window": 10,
+   "profile": "A_p90",
+   "status": "error",
+   "error": "ValueError: other-channel event outside causal shared quote window",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 125, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 375, in run\n    scenario = run_incremental_shared_canal1_stream(\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/research/causal_shared_stream.py\", line 192, in run_incremental_shared_canal1_stream\n    raise ValueError(\"other-channel event outside causal shared quote window\")\nValueError: other-channel event outside causal shared quote window\n",
+   "elapsed_s": 0.15
+  }
+ ],
+ "inputs_sha256": {
+  "runtime_data/week_native_ticks_20260923_v1/raw_week_20260914_19_bg_v1.json": "9548ca5ce3fdd27ebe5f488ac97639c7e5cc7001ae0f75c73a40d3828cfd63b0",
+  "exam/reconciled_1418_v2.json": "f96caa0ee55e8c8e66912c4bccb87690ba905113df6559ed8f3a48a51383aaa2",
+  "runtime_data/weekly_review_20260919/native_week_deals_20260919.json": "91723c6cc65070407bbb5a79721a6109896450354fe20b74f3a344ba7206f021",
+  "runtime_data/claude_regression/native_basket_risk_1418_v1.json": "521601ed933bc764041bbed2fff2746c1ea92acfd4b449aeb1493f605f6c2fed",
+  "/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py": "f0dc64eecbe5d5bf7bd6e8a27b477991161121c2685f45a4fe95a1210c0a20cb",
+  "/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py": "11b612ca9d0d22b3538a60ff4004b9a9dc2e72fe81d4827ad34bd5a47560d5cd",
+  "runtime_data/execution_calibration_v1/A_p50.json": "6eb57363ecf3ac660bad865ded6c7969d59439b0dfb8fb96ca0e1b11d28827c0",
+  "runtime_data/execution_calibration_v1/A_p90.json": "ae61f77d3fd678563be1f2d3d00a08f31385e3f6f3c6052cb52e698e0e1fefff"
+ },
+ "elapsed_s": 85.2,
+ "limitations": [
+  "Windows crossing a UTC midnight are not replayed (probe loads one UTC date).",
+  "Real-only means the replay never exposed that basket inside its window.",
+  "Fixed-quantile execution profiles, not per-request sampled delays."
+ ]
+}

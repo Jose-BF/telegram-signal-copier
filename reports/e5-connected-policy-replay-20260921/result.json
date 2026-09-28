@@ -1,0 +1,4612 @@
+{
+  "cases": [
+    {
+      "case_id": "BUY",
+      "isolated": [
+        {
+          "behavior_digest": null,
+          "blockers": [],
+          "client_events": [
+            {
+              "decision_index": 0,
+              "decision_ns": 1788861600000000000,
+              "kind": "queued",
+              "operation": "entry",
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "time_ns": 1788861600000000000
+            },
+            {
+              "decision_index": 0,
+              "decision_ns": 1788861600000000000,
+              "kind": "started",
+              "operation": "entry",
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "time_ns": 1788861600000000000
+            },
+            {
+              "decision_index": 0,
+              "decision_ns": 1788861600000000000,
+              "kind": "released",
+              "operation": "entry",
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "time_ns": 1788861600000000000
+            },
+            {
+              "decision_index": 2,
+              "decision_ns": 1788861602000000000,
+              "kind": "queued",
+              "operation": "close",
+              "tick_index": 2,
+              "ticket": "sim_1",
+              "time_ns": 1788861602000000000
+            },
+            {
+              "decision_index": 2,
+              "decision_ns": 1788861602000000000,
+              "kind": "started",
+              "operation": "close",
+              "tick_index": 2,
+              "ticket": "sim_1",
+              "time_ns": 1788861602000000000
+            },
+            {
+              "decision_index": 2,
+              "decision_ns": 1788861602000000000,
+              "kind": "released",
+              "operation": "close",
+              "tick_index": 4,
+              "ticket": "sim_1",
+              "time_ns": 1788861604000000000
+            }
+          ],
+          "confidence_layer": "counterfactual_entry",
+          "entries": [
+            {
+              "acknowledged_ns": 1788861600000000000,
+              "entry_price": 100.0,
+              "opened_at": "2026-09-08 10:00:00+00:00",
+              "price_tick_index": 0,
+              "requested_ns": 1788861600000000000,
+              "source": "causal_signal_market",
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "volume": 0.04
+            }
+          ],
+          "exit_reason": "profit_lock",
+          "exits": [
+            {
+              "closed_at": "2026-09-08 10:00:03+00:00",
+              "entry_price": 100.0,
+              "exit_price": 98.8,
+              "pnl_eur": "-4.80",
+              "reason": "profit_lock",
+              "tick_index": 3,
+              "ticket": "sim_1",
+              "volume": 0.04
+            }
+          ],
+          "filled_volume": 0.04,
+          "last_tick_index": 4,
+          "market_events": [
+            {
+              "kind": "entry_requested",
+              "price": 100.0,
+              "reason": "causal_signal_market",
+              "request_id": 1,
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861600000000000,
+              "volume": 0.04
+            },
+            {
+              "kind": "entry_filled",
+              "price": 100.0,
+              "reason": "causal_signal_market",
+              "request_id": 1,
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861600000000000,
+              "volume": 0.04
+            },
+            {
+              "kind": "entry_acknowledged",
+              "price": 100.0,
+              "reason": "accepted",
+              "request_id": 1,
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861600000000000,
+              "volume": 0.04
+            },
+            {
+              "kind": "close_requested",
+              "price": 99.8,
+              "reason": "profit_lock",
+              "request_id": 2,
+              "tick_index": 2,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861602000000000,
+              "volume": 0.04
+            },
+            {
+              "kind": "close_filled",
+              "price": 98.8,
+              "reason": "profit_lock",
+              "request_id": 2,
+              "tick_index": 3,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861603000000000,
+              "volume": 0.04
+            },
+            {
+              "kind": "close_acknowledged",
+              "price": 98.8,
+              "reason": "accepted",
+              "request_id": 2,
+              "tick_index": 3,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861603000000000,
+              "volume": 0.04
+            }
+          ],
+          "max_adverse_eur": "-4.80",
+          "max_adverse_move": -1.2,
+          "max_favourable_eur": "3.20",
+          "max_favourable_move": 0.8,
+          "max_floating_drawdown_eur": "8.00",
+          "pnl_eur": "-4.80",
+          "protection_events": [
+            {
+              "kind": "open",
+              "reason": "hypothetical_open_request",
+              "request_id": 0,
+              "sl": 90.0,
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861600000000000,
+              "tp": null
+            },
+            {
+              "kind": "closed",
+              "reason": "profit_lock",
+              "request_id": 0,
+              "sl": 90.0,
+              "tick_index": 3,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861603000000000,
+              "tp": null
+            }
+          ],
+          "signal_id": "canal1_guard",
+          "strategy_fingerprint": "2fe2b386b05d8e7e45730048ee8d6badd5c43be4f6425e5198d57f1a1f9d332d",
+          "unfilled": false
+        },
+        {
+          "behavior_digest": null,
+          "blockers": [],
+          "client_events": [
+            {
+              "decision_index": 0,
+              "decision_ns": 1788861600000000000,
+              "kind": "queued",
+              "operation": "entry",
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "time_ns": 1788861600000000000
+            },
+            {
+              "decision_index": 0,
+              "decision_ns": 1788861600000000000,
+              "kind": "started",
+              "operation": "entry",
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "time_ns": 1788861600000000000
+            },
+            {
+              "decision_index": 0,
+              "decision_ns": 1788861600000000000,
+              "kind": "released",
+              "operation": "entry",
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "time_ns": 1788861600000000000
+            },
+            {
+              "decision_index": 0,
+              "decision_ns": 1788861600000000000,
+              "kind": "queued",
+              "operation": "modify",
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "time_ns": 1788861600000000000
+            },
+            {
+              "decision_index": 0,
+              "decision_ns": 1788861600000000000,
+              "kind": "started",
+              "operation": "modify",
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "time_ns": 1788861600000000000
+            },
+            {
+              "decision_index": 0,
+              "decision_ns": 1788861600000000000,
+              "kind": "released",
+              "operation": "modify",
+              "tick_index": 8,
+              "ticket": "sim_1",
+              "time_ns": 1788861608000000000
+            },
+            {
+              "decision_index": 10,
+              "decision_ns": 1788861610000000000,
+              "kind": "queued",
+              "operation": "close",
+              "tick_index": 10,
+              "ticket": "sim_1",
+              "time_ns": 1788861610000000000
+            },
+            {
+              "decision_index": 10,
+              "decision_ns": 1788861610000000000,
+              "kind": "started",
+              "operation": "close",
+              "tick_index": 10,
+              "ticket": "sim_1",
+              "time_ns": 1788861610000000000
+            },
+            {
+              "decision_index": 10,
+              "decision_ns": 1788861610000000000,
+              "kind": "released",
+              "operation": "close",
+              "tick_index": 12,
+              "ticket": "sim_1",
+              "time_ns": 1788861612000000000
+            }
+          ],
+          "confidence_layer": "counterfactual_entry",
+          "entries": [
+            {
+              "acknowledged_ns": 1788861600000000000,
+              "entry_price": 100.0,
+              "opened_at": "2026-09-08 10:00:00+00:00",
+              "price_tick_index": 0,
+              "requested_ns": 1788861600000000000,
+              "source": "causal_signal_market",
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "volume": 0.04
+            }
+          ],
+          "exit_reason": "provider_close",
+          "exits": [
+            {
+              "closed_at": "2026-09-08 10:00:11+00:00",
+              "entry_price": 100.0,
+              "exit_price": 88.8,
+              "pnl_eur": "-44.80",
+              "reason": "provider_close",
+              "tick_index": 11,
+              "ticket": "sim_1",
+              "volume": 0.04
+            }
+          ],
+          "filled_volume": 0.04,
+          "last_tick_index": 12,
+          "market_events": [
+            {
+              "kind": "entry_requested",
+              "price": 100.0,
+              "reason": "causal_signal_market",
+              "request_id": 1,
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861600000000000,
+              "volume": 0.04
+            },
+            {
+              "kind": "entry_filled",
+              "price": 100.0,
+              "reason": "causal_signal_market",
+              "request_id": 1,
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861600000000000,
+              "volume": 0.04
+            },
+            {
+              "kind": "entry_acknowledged",
+              "price": 100.0,
+              "reason": "accepted",
+              "request_id": 1,
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861600000000000,
+              "volume": 0.04
+            },
+            {
+              "kind": "close_requested",
+              "price": 88.8,
+              "reason": "provider_close",
+              "request_id": 2,
+              "tick_index": 10,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861610000000000,
+              "volume": 0.04
+            },
+            {
+              "kind": "close_filled",
+              "price": 88.8,
+              "reason": "provider_close",
+              "request_id": 2,
+              "tick_index": 11,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861611000000000,
+              "volume": 0.04
+            },
+            {
+              "kind": "close_acknowledged",
+              "price": 88.8,
+              "reason": "accepted",
+              "request_id": 2,
+              "tick_index": 11,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861611000000000,
+              "volume": 0.04
+            }
+          ],
+          "max_adverse_eur": "-44.80",
+          "max_adverse_move": -11.2,
+          "max_favourable_eur": "3.20",
+          "max_favourable_move": 0.8,
+          "max_floating_drawdown_eur": "48.00",
+          "pnl_eur": "-44.80",
+          "protection_events": [
+            {
+              "kind": "open",
+              "reason": "hypothetical_open_request",
+              "request_id": 0,
+              "sl": 70.0,
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861600000000000,
+              "tp": null
+            },
+            {
+              "kind": "requested",
+              "reason": "policy_intent",
+              "request_id": 1,
+              "sl": 70.0,
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861600000000000,
+              "tp": 120.0
+            },
+            {
+              "kind": "installed",
+              "reason": "accepted",
+              "request_id": 1,
+              "sl": 70.0,
+              "tick_index": 5,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861605000000000,
+              "tp": 120.0
+            },
+            {
+              "kind": "acknowledged",
+              "reason": "response_available",
+              "request_id": 1,
+              "sl": 70.0,
+              "tick_index": 8,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861608000000000,
+              "tp": 120.0
+            },
+            {
+              "kind": "closed",
+              "reason": "provider_close",
+              "request_id": 0,
+              "sl": 70.0,
+              "tick_index": 11,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861611000000000,
+              "tp": 120.0
+            }
+          ],
+          "signal_id": "canal2_modify",
+          "strategy_fingerprint": "529b33c02603b56956cb28a8f3502795f8eef1f8112e9670fa8edf8e33d000b2",
+          "unfilled": false
+        }
+      ],
+      "shared": {
+        "baskets": [
+          [
+            "canal1",
+            "canal1_guard",
+            {
+              "behavior_digest": null,
+              "blockers": [],
+              "client_events": [
+                {
+                  "decision_index": 0,
+                  "decision_ns": 1788861600000000000,
+                  "kind": "queued",
+                  "operation": "entry",
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861600000000000
+                },
+                {
+                  "decision_index": 0,
+                  "decision_ns": 1788861600000000000,
+                  "kind": "started",
+                  "operation": "entry",
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861600000000000
+                },
+                {
+                  "decision_index": 0,
+                  "decision_ns": 1788861600000000000,
+                  "kind": "released",
+                  "operation": "entry",
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861600000000000
+                },
+                {
+                  "decision_index": 2,
+                  "decision_ns": 1788861602000000000,
+                  "kind": "queued",
+                  "operation": "close",
+                  "tick_index": 2,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861602000000000
+                },
+                {
+                  "decision_index": 2,
+                  "decision_ns": 1788861602000000000,
+                  "kind": "started",
+                  "operation": "close",
+                  "tick_index": 8,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861608000000000
+                },
+                {
+                  "decision_index": 2,
+                  "decision_ns": 1788861602000000000,
+                  "kind": "released",
+                  "operation": "close",
+                  "tick_index": 9,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861609000000000
+                }
+              ],
+              "confidence_layer": "counterfactual_entry",
+              "entries": [
+                {
+                  "acknowledged_ns": 1788861600000000000,
+                  "entry_price": 100.0,
+                  "opened_at": "2026-09-08 10:00:00+00:00",
+                  "price_tick_index": 0,
+                  "requested_ns": 1788861600000000000,
+                  "source": "causal_signal_market",
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "volume": 0.04
+                }
+              ],
+              "exit_reason": "initial_sl",
+              "exits": [
+                {
+                  "closed_at": "2026-09-08 10:00:04+00:00",
+                  "entry_price": 100.0,
+                  "exit_price": 88.8,
+                  "pnl_eur": "-44.80",
+                  "reason": "initial_sl",
+                  "tick_index": 4,
+                  "ticket": "sim_1",
+                  "volume": 0.04
+                }
+              ],
+              "filled_volume": 0.04,
+              "last_tick_index": 9,
+              "market_events": [
+                {
+                  "kind": "entry_requested",
+                  "price": 100.0,
+                  "reason": "causal_signal_market",
+                  "request_id": 1,
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861600000000000,
+                  "volume": 0.04
+                },
+                {
+                  "kind": "entry_filled",
+                  "price": 100.0,
+                  "reason": "causal_signal_market",
+                  "request_id": 1,
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861600000000000,
+                  "volume": 0.04
+                },
+                {
+                  "kind": "entry_acknowledged",
+                  "price": 100.0,
+                  "reason": "accepted",
+                  "request_id": 1,
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861600000000000,
+                  "volume": 0.04
+                },
+                {
+                  "kind": "close_requested",
+                  "price": 88.8,
+                  "reason": "profit_lock",
+                  "request_id": 2,
+                  "tick_index": 8,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861608000000000,
+                  "volume": 0.04
+                },
+                {
+                  "kind": "close_rejected",
+                  "price": null,
+                  "reason": "position_already_closed",
+                  "request_id": 2,
+                  "tick_index": 9,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861609000000000,
+                  "volume": 0.04
+                },
+                {
+                  "kind": "close_acknowledged",
+                  "price": null,
+                  "reason": "position_already_closed",
+                  "request_id": 2,
+                  "tick_index": 9,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861609000000000,
+                  "volume": 0.04
+                }
+              ],
+              "max_adverse_eur": "-44.80",
+              "max_adverse_move": -11.2,
+              "max_favourable_eur": "3.20",
+              "max_favourable_move": 0.8,
+              "max_floating_drawdown_eur": "48.00",
+              "pnl_eur": "-44.80",
+              "protection_events": [
+                {
+                  "kind": "open",
+                  "reason": "hypothetical_open_request",
+                  "request_id": 0,
+                  "sl": 90.0,
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861600000000000,
+                  "tp": null
+                },
+                {
+                  "kind": "closed",
+                  "reason": "initial_sl",
+                  "request_id": 0,
+                  "sl": 90.0,
+                  "tick_index": 4,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861604000000000,
+                  "tp": null
+                }
+              ],
+              "signal_id": "canal1_guard",
+              "strategy_fingerprint": "2fe2b386b05d8e7e45730048ee8d6badd5c43be4f6425e5198d57f1a1f9d332d",
+              "unfilled": false
+            }
+          ],
+          [
+            "canal2",
+            "canal2_modify",
+            {
+              "behavior_digest": null,
+              "blockers": [],
+              "client_events": [
+                {
+                  "decision_index": 0,
+                  "decision_ns": 1788861600000000000,
+                  "kind": "queued",
+                  "operation": "entry",
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861600000000000
+                },
+                {
+                  "decision_index": 0,
+                  "decision_ns": 1788861600000000000,
+                  "kind": "started",
+                  "operation": "entry",
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861600000000000
+                },
+                {
+                  "decision_index": 0,
+                  "decision_ns": 1788861600000000000,
+                  "kind": "released",
+                  "operation": "entry",
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861600000000000
+                },
+                {
+                  "decision_index": 0,
+                  "decision_ns": 1788861600000000000,
+                  "kind": "queued",
+                  "operation": "modify",
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861600000000000
+                },
+                {
+                  "decision_index": 0,
+                  "decision_ns": 1788861600000000000,
+                  "kind": "started",
+                  "operation": "modify",
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861600000000000
+                },
+                {
+                  "decision_index": 0,
+                  "decision_ns": 1788861600000000000,
+                  "kind": "released",
+                  "operation": "modify",
+                  "tick_index": 8,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861608000000000
+                },
+                {
+                  "decision_index": 10,
+                  "decision_ns": 1788861610000000000,
+                  "kind": "queued",
+                  "operation": "close",
+                  "tick_index": 10,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861610000000000
+                },
+                {
+                  "decision_index": 10,
+                  "decision_ns": 1788861610000000000,
+                  "kind": "started",
+                  "operation": "close",
+                  "tick_index": 10,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861610000000000
+                },
+                {
+                  "decision_index": 10,
+                  "decision_ns": 1788861610000000000,
+                  "kind": "released",
+                  "operation": "close",
+                  "tick_index": 12,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861612000000000
+                }
+              ],
+              "confidence_layer": "counterfactual_entry",
+              "entries": [
+                {
+                  "acknowledged_ns": 1788861600000000000,
+                  "entry_price": 100.0,
+                  "opened_at": "2026-09-08 10:00:00+00:00",
+                  "price_tick_index": 0,
+                  "requested_ns": 1788861600000000000,
+                  "source": "causal_signal_market",
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "volume": 0.04
+                }
+              ],
+              "exit_reason": "provider_close",
+              "exits": [
+                {
+                  "closed_at": "2026-09-08 10:00:11+00:00",
+                  "entry_price": 100.0,
+                  "exit_price": 88.8,
+                  "pnl_eur": "-44.80",
+                  "reason": "provider_close",
+                  "tick_index": 11,
+                  "ticket": "sim_1",
+                  "volume": 0.04
+                }
+              ],
+              "filled_volume": 0.04,
+              "last_tick_index": 12,
+              "market_events": [
+                {
+                  "kind": "entry_requested",
+                  "price": 100.0,
+                  "reason": "causal_signal_market",
+                  "request_id": 1,
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861600000000000,
+                  "volume": 0.04
+                },
+                {
+                  "kind": "entry_filled",
+                  "price": 100.0,
+                  "reason": "causal_signal_market",
+                  "request_id": 1,
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861600000000000,
+                  "volume": 0.04
+                },
+                {
+                  "kind": "entry_acknowledged",
+                  "price": 100.0,
+                  "reason": "accepted",
+                  "request_id": 1,
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861600000000000,
+                  "volume": 0.04
+                },
+                {
+                  "kind": "close_requested",
+                  "price": 88.8,
+                  "reason": "provider_close",
+                  "request_id": 2,
+                  "tick_index": 10,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861610000000000,
+                  "volume": 0.04
+                },
+                {
+                  "kind": "close_filled",
+                  "price": 88.8,
+                  "reason": "provider_close",
+                  "request_id": 2,
+                  "tick_index": 11,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861611000000000,
+                  "volume": 0.04
+                },
+                {
+                  "kind": "close_acknowledged",
+                  "price": 88.8,
+                  "reason": "accepted",
+                  "request_id": 2,
+                  "tick_index": 11,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861611000000000,
+                  "volume": 0.04
+                }
+              ],
+              "max_adverse_eur": "-44.80",
+              "max_adverse_move": -11.2,
+              "max_favourable_eur": "3.20",
+              "max_favourable_move": 0.8,
+              "max_floating_drawdown_eur": "48.00",
+              "pnl_eur": "-44.80",
+              "protection_events": [
+                {
+                  "kind": "open",
+                  "reason": "hypothetical_open_request",
+                  "request_id": 0,
+                  "sl": 70.0,
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861600000000000,
+                  "tp": null
+                },
+                {
+                  "kind": "requested",
+                  "reason": "policy_intent",
+                  "request_id": 1,
+                  "sl": 70.0,
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861600000000000,
+                  "tp": 120.0
+                },
+                {
+                  "kind": "installed",
+                  "reason": "accepted",
+                  "request_id": 1,
+                  "sl": 70.0,
+                  "tick_index": 5,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861605000000000,
+                  "tp": 120.0
+                },
+                {
+                  "kind": "acknowledged",
+                  "reason": "response_available",
+                  "request_id": 1,
+                  "sl": 70.0,
+                  "tick_index": 8,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861608000000000,
+                  "tp": 120.0
+                },
+                {
+                  "kind": "closed",
+                  "reason": "provider_close",
+                  "request_id": 0,
+                  "sl": 70.0,
+                  "tick_index": 11,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861611000000000,
+                  "tp": 120.0
+                }
+              ],
+              "signal_id": "canal2_modify",
+              "strategy_fingerprint": "529b33c02603b56956cb28a8f3502795f8eef1f8112e9670fa8edf8e33d000b2",
+              "unfilled": false
+            }
+          ]
+        ],
+        "blockers": [],
+        "full_live_parity_verified": false,
+        "limitations": [
+          "Common supplied quotes; shared read requests are not modeled.",
+          "Preparation is immediate; native authorization is not modeled.",
+          "Same-quote causal rounds and input scope order are explicit hypotheses.",
+          "Caller continuation after a transport timeout is not live-validated.",
+          "Risk phases are model states, not observed broker micro-timestamps.",
+          "No portfolio, margin, strategy promotion or full live-parity certification."
+        ],
+        "policies": [
+          [
+            "canal1_guard",
+            {
+              "be_mode": "none",
+              "be_trigger": null,
+              "context_filter_mode": "none",
+              "context_filter_value": null,
+              "entry_confirmation_value": null,
+              "entry_expiry_min": 1,
+              "entry_ladder_mode": "simultaneous",
+              "entry_ladder_step": null,
+              "entry_mode": "signal_market",
+              "entry_value": null,
+              "hard_stop_eur_per_leg": null,
+              "leg_count": 1,
+              "lineage_depth": 0,
+              "mutation_reason": null,
+              "parent_fingerprints": [],
+              "partial_fraction": 0.0,
+              "pending_entry_policy": "until_expiry",
+              "profit_lock_arm": 1.0,
+              "profit_lock_giveback": 1.0,
+              "provider_management_mode": "ignore",
+              "runner_target": null,
+              "schema_version": 2,
+              "source_strategy_fingerprint": null,
+              "stop_mode": "fixed_move",
+              "stop_value": 10.0,
+              "target_mode": "none",
+              "target_steps": [],
+              "target_value": null,
+              "time_exit_min": 180,
+              "time_exit_mode": "none",
+              "trailing_distance": null,
+              "volume_weights": [
+                0.04
+              ]
+            },
+            {
+              "client": {
+                "entry_price_delay_ms": null,
+                "ladder_decision_mode": "snapshot_batch",
+                "max_events": 100000,
+                "name": "single_basket_serial_v1"
+              },
+              "entry_fill_latency_ms": 0,
+              "entry_slippage": 0.0,
+              "exit_slippage": 0.0,
+              "latency_ms": 0,
+              "market": {
+                "close_acknowledgement_delay_ms": 0,
+                "close_processing_delay_ms": 1000,
+                "entry_acknowledgement_delay_ms": 0,
+                "max_events": 100000,
+                "name": "quote_clock_market_v1",
+                "volume_max": 1.0,
+                "volume_min": 0.01,
+                "volume_step": 0.01
+              },
+              "protection": {
+                "acknowledgement_delay_ms": 1000,
+                "digits": 2,
+                "freeze_level_points": 0,
+                "initial_protections": [],
+                "max_events": 100000,
+                "name": "quote_clock_protection_v1",
+                "point": 0.01,
+                "policy_extension": "none",
+                "processing_delay_ms": 1000,
+                "request_quote_binding": "timestamp_only",
+                "retry_delay_ms": 1000,
+                "stops_level_points": 20
+              },
+              "spread_addition": 0.0
+            }
+          ],
+          [
+            "canal2_modify",
+            {
+              "be_mode": "none",
+              "be_trigger": null,
+              "context_filter_mode": "none",
+              "context_filter_value": null,
+              "entry_confirmation_value": null,
+              "entry_expiry_min": 1,
+              "entry_ladder_mode": "simultaneous",
+              "entry_ladder_step": null,
+              "entry_mode": "signal_market",
+              "entry_value": null,
+              "hard_stop_eur_per_leg": null,
+              "leg_count": 1,
+              "lineage_depth": 0,
+              "mutation_reason": null,
+              "parent_fingerprints": [],
+              "partial_fraction": 0.0,
+              "pending_entry_policy": "until_expiry",
+              "profit_lock_arm": null,
+              "profit_lock_giveback": null,
+              "provider_management_mode": "explicit_close_only",
+              "runner_target": null,
+              "schema_version": 2,
+              "source_strategy_fingerprint": null,
+              "stop_mode": "none",
+              "stop_value": null,
+              "target_mode": "per_leg_steps",
+              "target_steps": [
+                20.0
+              ],
+              "target_value": null,
+              "time_exit_min": 180,
+              "time_exit_mode": "none",
+              "trailing_distance": 30.0,
+              "volume_weights": [
+                0.04
+              ]
+            },
+            {
+              "client": {
+                "entry_price_delay_ms": null,
+                "ladder_decision_mode": "snapshot_batch",
+                "max_events": 100000,
+                "name": "single_basket_serial_v1"
+              },
+              "entry_fill_latency_ms": 0,
+              "entry_slippage": 0.0,
+              "exit_slippage": 0.0,
+              "latency_ms": 0,
+              "market": {
+                "close_acknowledgement_delay_ms": 0,
+                "close_processing_delay_ms": 1000,
+                "entry_acknowledgement_delay_ms": 0,
+                "max_events": 100000,
+                "name": "quote_clock_market_v1",
+                "volume_max": 1.0,
+                "volume_min": 0.01,
+                "volume_step": 0.01
+              },
+              "protection": {
+                "acknowledgement_delay_ms": 3000,
+                "digits": 2,
+                "freeze_level_points": 0,
+                "initial_protections": [],
+                "max_events": 100000,
+                "name": "quote_clock_protection_v1",
+                "point": 0.01,
+                "policy_extension": "none",
+                "processing_delay_ms": 5000,
+                "request_quote_binding": "timestamp_only",
+                "retry_delay_ms": 1000,
+                "stops_level_points": 20
+              },
+              "spread_addition": 0.0
+            }
+          ]
+        ],
+        "portfolio_admitted": false,
+        "profile": {
+          "account_currency": "EUR",
+          "capacity": 8,
+          "max_events": 100000,
+          "max_quotes": 1000000,
+          "max_rounds_per_quote": 256,
+          "name": "shared_quote_rounds_v1",
+          "request_timeout_ms": 60000
+        },
+        "risk": [
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "quote_open",
+            "positions": [],
+            "realized_minor": 0,
+            "signal_id": "canal1_guard",
+            "tick_index": 0,
+            "time_ns": 1788861600000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "settled",
+            "positions": [],
+            "realized_minor": 0,
+            "signal_id": "canal1_guard",
+            "tick_index": 0,
+            "time_ns": 1788861600000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": 0,
+            "phase": "quote_open",
+            "positions": [],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 0,
+            "time_ns": 1788861600000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": 0,
+            "phase": "settled",
+            "positions": [],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 0,
+            "time_ns": 1788861600000000000
+          },
+          {
+            "causal_round": 1,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "grant_resume",
+            "positions": [],
+            "realized_minor": 0,
+            "signal_id": "canal1_guard",
+            "tick_index": 0,
+            "time_ns": 1788861600000000000
+          },
+          {
+            "causal_round": 1,
+            "channel": "canal1",
+            "floating_minor": -80,
+            "phase": "entry_fill",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal1_guard",
+            "tick_index": 0,
+            "time_ns": 1788861600000000000
+          },
+          {
+            "causal_round": 1,
+            "channel": "canal1",
+            "floating_minor": -80,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal1_guard",
+            "tick_index": 0,
+            "time_ns": 1788861600000000000
+          },
+          {
+            "causal_round": 2,
+            "channel": "canal2",
+            "floating_minor": 0,
+            "phase": "grant_resume",
+            "positions": [],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 0,
+            "time_ns": 1788861600000000000
+          },
+          {
+            "causal_round": 2,
+            "channel": "canal2",
+            "floating_minor": -80,
+            "phase": "entry_fill",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 0,
+            "time_ns": 1788861600000000000
+          },
+          {
+            "causal_round": 2,
+            "channel": "canal2",
+            "floating_minor": -80,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 0,
+            "time_ns": 1788861600000000000
+          },
+          {
+            "causal_round": 3,
+            "channel": "canal2",
+            "floating_minor": -80,
+            "phase": "grant_resume",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 0,
+            "time_ns": 1788861600000000000
+          },
+          {
+            "causal_round": 3,
+            "channel": "canal2",
+            "floating_minor": -80,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 0,
+            "time_ns": 1788861600000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 320,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal1_guard",
+            "tick_index": 1,
+            "time_ns": 1788861601000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 320,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal1_guard",
+            "tick_index": 1,
+            "time_ns": 1788861601000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": 320,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 1,
+            "time_ns": 1788861601000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": 320,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 1,
+            "time_ns": 1788861601000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": -80,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal1_guard",
+            "tick_index": 2,
+            "time_ns": 1788861602000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": -80,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal1_guard",
+            "tick_index": 2,
+            "time_ns": 1788861602000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -80,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 2,
+            "time_ns": 1788861602000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -80,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 2,
+            "time_ns": 1788861602000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": -480,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal1_guard",
+            "tick_index": 3,
+            "time_ns": 1788861603000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": -480,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal1_guard",
+            "tick_index": 3,
+            "time_ns": 1788861603000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -480,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 3,
+            "time_ns": 1788861603000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -480,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 3,
+            "time_ns": 1788861603000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": -4480,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal1_guard",
+            "tick_index": 4,
+            "time_ns": 1788861604000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "native_exit",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 4,
+            "time_ns": 1788861604000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "settled",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 4,
+            "time_ns": 1788861604000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 4,
+            "time_ns": 1788861604000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 4,
+            "time_ns": 1788861604000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "quote_open",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 5,
+            "time_ns": 1788861605000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "settled",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 5,
+            "time_ns": 1788861605000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 5,
+            "time_ns": 1788861605000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 5,
+            "time_ns": 1788861605000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "quote_open",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 6,
+            "time_ns": 1788861606000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "settled",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 6,
+            "time_ns": 1788861606000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 6,
+            "time_ns": 1788861606000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 6,
+            "time_ns": 1788861606000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "quote_open",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 7,
+            "time_ns": 1788861607000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "settled",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 7,
+            "time_ns": 1788861607000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 7,
+            "time_ns": 1788861607000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 7,
+            "time_ns": 1788861607000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "quote_open",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 8,
+            "time_ns": 1788861608000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "settled",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 8,
+            "time_ns": 1788861608000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 8,
+            "time_ns": 1788861608000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 8,
+            "time_ns": 1788861608000000000
+          },
+          {
+            "causal_round": 1,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "grant_resume",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 8,
+            "time_ns": 1788861608000000000
+          },
+          {
+            "causal_round": 1,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "settled",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 8,
+            "time_ns": 1788861608000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "quote_open",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 9,
+            "time_ns": 1788861609000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "settled",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 9,
+            "time_ns": 1788861609000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 9,
+            "time_ns": 1788861609000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 9,
+            "time_ns": 1788861609000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 10,
+            "time_ns": 1788861610000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 10,
+            "time_ns": 1788861610000000000
+          },
+          {
+            "causal_round": 1,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "grant_resume",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 10,
+            "time_ns": 1788861610000000000
+          },
+          {
+            "causal_round": 1,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 10,
+            "time_ns": 1788861610000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 11,
+            "time_ns": 1788861611000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": 0,
+            "phase": "market_exit",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal2_modify",
+            "tick_index": 11,
+            "time_ns": 1788861611000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": 0,
+            "phase": "settled",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal2_modify",
+            "tick_index": 11,
+            "time_ns": 1788861611000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": 0,
+            "phase": "quote_open",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal2_modify",
+            "tick_index": 12,
+            "time_ns": 1788861612000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": 0,
+            "phase": "settled",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal2_modify",
+            "tick_index": 12,
+            "time_ns": 1788861612000000000
+          }
+        ],
+        "transport": {
+          "active_request_id": null,
+          "blockers": [],
+          "broker_fills_simulated": false,
+          "capacity": 8,
+          "contract": "shared_transport_diagnostic_v1",
+          "cutoff_ns": 12000000000,
+          "events": [
+            {
+              "at_ns": 0,
+              "channel": "canal1",
+              "kind": "admitted",
+              "request_id": "canal1:0:1:entry:sim_1",
+              "signal_id": "canal1_guard"
+            },
+            {
+              "at_ns": 0,
+              "channel": "canal2",
+              "kind": "admitted",
+              "request_id": "canal2:1:1:entry:sim_1",
+              "signal_id": "canal2_modify"
+            },
+            {
+              "at_ns": 0,
+              "channel": "canal1",
+              "kind": "queued",
+              "request_id": "canal1:0:1:entry:sim_1",
+              "signal_id": "canal1_guard"
+            },
+            {
+              "at_ns": 0,
+              "channel": "canal2",
+              "kind": "queued",
+              "request_id": "canal2:1:1:entry:sim_1",
+              "signal_id": "canal2_modify"
+            },
+            {
+              "at_ns": 0,
+              "channel": "canal1",
+              "eligible_request_ids": [
+                "canal1:0:1:entry:sim_1",
+                "canal2:1:1:entry:sim_1"
+              ],
+              "kind": "started",
+              "request_id": "canal1:0:1:entry:sim_1",
+              "signal_id": "canal1_guard",
+              "tie_hypothesis_used": true,
+              "transport_kind": "trade"
+            },
+            {
+              "at_ns": 0,
+              "channel": "canal1",
+              "kind": "response",
+              "request_id": "canal1:0:1:entry:sim_1",
+              "signal_id": "canal1_guard"
+            },
+            {
+              "at_ns": 0,
+              "channel": "canal2",
+              "eligible_request_ids": [
+                "canal2:1:1:entry:sim_1"
+              ],
+              "kind": "started",
+              "request_id": "canal2:1:1:entry:sim_1",
+              "signal_id": "canal2_modify",
+              "tie_hypothesis_used": false,
+              "transport_kind": "trade"
+            },
+            {
+              "at_ns": 0,
+              "channel": "canal2",
+              "kind": "response",
+              "request_id": "canal2:1:1:entry:sim_1",
+              "signal_id": "canal2_modify"
+            },
+            {
+              "at_ns": 0,
+              "channel": "canal2",
+              "kind": "admitted",
+              "request_id": "canal2:1:2:modify:sim_1",
+              "signal_id": "canal2_modify"
+            },
+            {
+              "at_ns": 0,
+              "channel": "canal2",
+              "kind": "queued",
+              "request_id": "canal2:1:2:modify:sim_1",
+              "signal_id": "canal2_modify"
+            },
+            {
+              "at_ns": 0,
+              "channel": "canal2",
+              "eligible_request_ids": [
+                "canal2:1:2:modify:sim_1"
+              ],
+              "kind": "started",
+              "request_id": "canal2:1:2:modify:sim_1",
+              "signal_id": "canal2_modify",
+              "tie_hypothesis_used": false,
+              "transport_kind": "management"
+            },
+            {
+              "at_ns": 2000000000,
+              "channel": "canal1",
+              "kind": "admitted",
+              "request_id": "canal1:0:2:close:sim_1",
+              "signal_id": "canal1_guard"
+            },
+            {
+              "at_ns": 2000000000,
+              "channel": "canal1",
+              "kind": "queued",
+              "request_id": "canal1:0:2:close:sim_1",
+              "signal_id": "canal1_guard"
+            },
+            {
+              "active_request_id": "canal2:1:2:modify:sim_1",
+              "at_ns": 4000000000,
+              "channel": "canal1",
+              "event_id": "0:1:sim_1",
+              "kind": "passive",
+              "mechanism": "native_sl",
+              "request_id": null,
+              "signal_id": "canal1_guard"
+            },
+            {
+              "at_ns": 8000000000,
+              "channel": "canal2",
+              "kind": "response",
+              "request_id": "canal2:1:2:modify:sim_1",
+              "signal_id": "canal2_modify"
+            },
+            {
+              "at_ns": 8000000000,
+              "channel": "canal1",
+              "eligible_request_ids": [
+                "canal1:0:2:close:sim_1"
+              ],
+              "kind": "started",
+              "request_id": "canal1:0:2:close:sim_1",
+              "signal_id": "canal1_guard",
+              "tie_hypothesis_used": false,
+              "transport_kind": "management"
+            },
+            {
+              "at_ns": 9000000000,
+              "channel": "canal1",
+              "kind": "response",
+              "request_id": "canal1:0:2:close:sim_1",
+              "signal_id": "canal1_guard"
+            },
+            {
+              "at_ns": 10000000000,
+              "channel": "canal2",
+              "kind": "admitted",
+              "request_id": "canal2:1:3:close:sim_1",
+              "signal_id": "canal2_modify"
+            },
+            {
+              "at_ns": 10000000000,
+              "channel": "canal2",
+              "kind": "queued",
+              "request_id": "canal2:1:3:close:sim_1",
+              "signal_id": "canal2_modify"
+            },
+            {
+              "at_ns": 10000000000,
+              "channel": "canal2",
+              "eligible_request_ids": [
+                "canal2:1:3:close:sim_1"
+              ],
+              "kind": "started",
+              "request_id": "canal2:1:3:close:sim_1",
+              "signal_id": "canal2_modify",
+              "tie_hypothesis_used": false,
+              "transport_kind": "management"
+            },
+            {
+              "at_ns": 12000000000,
+              "channel": "canal2",
+              "kind": "response",
+              "request_id": "canal2:1:3:close:sim_1",
+              "signal_id": "canal2_modify"
+            }
+          ],
+          "full_live_parity_verified": false,
+          "jobs": [
+            {
+              "admitted_ns": 0,
+              "channel": "canal1",
+              "deadline_ns": 60000000000,
+              "operation": "OPEN_MARKET",
+              "ready_ns": 0,
+              "request_id": "canal1:0:1:entry:sim_1",
+              "service_ns": null,
+              "signal_id": "canal1_guard"
+            },
+            {
+              "admitted_ns": 0,
+              "channel": "canal2",
+              "deadline_ns": 60000000000,
+              "operation": "OPEN_MARKET",
+              "ready_ns": 0,
+              "request_id": "canal2:1:1:entry:sim_1",
+              "service_ns": null,
+              "signal_id": "canal2_modify"
+            },
+            {
+              "admitted_ns": 0,
+              "channel": "canal2",
+              "deadline_ns": 60000000000,
+              "operation": "MODIFY_SLTP",
+              "ready_ns": 0,
+              "request_id": "canal2:1:2:modify:sim_1",
+              "service_ns": null,
+              "signal_id": "canal2_modify"
+            },
+            {
+              "admitted_ns": 2000000000,
+              "channel": "canal1",
+              "deadline_ns": 62000000000,
+              "operation": "CLOSE_POSITION",
+              "ready_ns": 2000000000,
+              "request_id": "canal1:0:2:close:sim_1",
+              "service_ns": null,
+              "signal_id": "canal1_guard"
+            },
+            {
+              "admitted_ns": 10000000000,
+              "channel": "canal2",
+              "deadline_ns": 70000000000,
+              "operation": "CLOSE_POSITION",
+              "ready_ns": 10000000000,
+              "request_id": "canal2:1:3:close:sim_1",
+              "service_ns": null,
+              "signal_id": "canal2_modify"
+            }
+          ],
+          "passive_inputs": [
+            {
+              "at_ns": 4000000000,
+              "channel": "canal1",
+              "event_id": "0:1:sim_1",
+              "kind": "native_sl",
+              "signal_id": "canal1_guard"
+            }
+          ],
+          "peak_admitted": 2,
+          "pending_request_ids": [],
+          "policy_decisions_verified": false,
+          "portfolio_admitted": false,
+          "reserved_management_slots": 1,
+          "rows": [
+            {
+              "channel": "canal1",
+              "kind": "trade",
+              "operation": "OPEN_MARKET",
+              "preparation_ns": 0,
+              "queue_ns": 0,
+              "released_ns": 0,
+              "request_id": "canal1:0:1:entry:sim_1",
+              "signal_id": "canal1_guard",
+              "started_ns": 0,
+              "status": "released",
+              "timed_out": false
+            },
+            {
+              "channel": "canal2",
+              "kind": "trade",
+              "operation": "OPEN_MARKET",
+              "preparation_ns": 0,
+              "queue_ns": 0,
+              "released_ns": 0,
+              "request_id": "canal2:1:1:entry:sim_1",
+              "signal_id": "canal2_modify",
+              "started_ns": 0,
+              "status": "released",
+              "timed_out": false
+            },
+            {
+              "channel": "canal2",
+              "kind": "management",
+              "operation": "MODIFY_SLTP",
+              "preparation_ns": 0,
+              "queue_ns": 0,
+              "released_ns": 8000000000,
+              "request_id": "canal2:1:2:modify:sim_1",
+              "signal_id": "canal2_modify",
+              "started_ns": 0,
+              "status": "released",
+              "timed_out": false
+            },
+            {
+              "channel": "canal1",
+              "kind": "management",
+              "operation": "CLOSE_POSITION",
+              "preparation_ns": 0,
+              "queue_ns": 6000000000,
+              "released_ns": 9000000000,
+              "request_id": "canal1:0:2:close:sim_1",
+              "signal_id": "canal1_guard",
+              "started_ns": 8000000000,
+              "status": "released",
+              "timed_out": false
+            },
+            {
+              "channel": "canal2",
+              "kind": "management",
+              "operation": "CLOSE_POSITION",
+              "preparation_ns": 0,
+              "queue_ns": 0,
+              "released_ns": 12000000000,
+              "request_id": "canal2:1:3:close:sim_1",
+              "signal_id": "canal2_modify",
+              "started_ns": 10000000000,
+              "status": "released",
+              "timed_out": false
+            }
+          ],
+          "same_clock_order": [
+            "deadline",
+            "response",
+            "passive",
+            "admit",
+            "ready",
+            "dispatch"
+          ],
+          "scheduling_policy": "management-first-read-burst4-reserve1-v1",
+          "status": "diagnostic_complete",
+          "statuses": {
+            "released": 5
+          },
+          "tie_break": "fifo_ready_hypothesis_not_asyncio_order_proof"
+        }
+      }
+    },
+    {
+      "case_id": "SELL",
+      "isolated": [
+        {
+          "behavior_digest": null,
+          "blockers": [],
+          "client_events": [
+            {
+              "decision_index": 0,
+              "decision_ns": 1788861600000000000,
+              "kind": "queued",
+              "operation": "entry",
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "time_ns": 1788861600000000000
+            },
+            {
+              "decision_index": 0,
+              "decision_ns": 1788861600000000000,
+              "kind": "started",
+              "operation": "entry",
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "time_ns": 1788861600000000000
+            },
+            {
+              "decision_index": 0,
+              "decision_ns": 1788861600000000000,
+              "kind": "released",
+              "operation": "entry",
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "time_ns": 1788861600000000000
+            },
+            {
+              "decision_index": 2,
+              "decision_ns": 1788861602000000000,
+              "kind": "queued",
+              "operation": "close",
+              "tick_index": 2,
+              "ticket": "sim_1",
+              "time_ns": 1788861602000000000
+            },
+            {
+              "decision_index": 2,
+              "decision_ns": 1788861602000000000,
+              "kind": "started",
+              "operation": "close",
+              "tick_index": 2,
+              "ticket": "sim_1",
+              "time_ns": 1788861602000000000
+            },
+            {
+              "decision_index": 2,
+              "decision_ns": 1788861602000000000,
+              "kind": "released",
+              "operation": "close",
+              "tick_index": 4,
+              "ticket": "sim_1",
+              "time_ns": 1788861604000000000
+            }
+          ],
+          "confidence_layer": "counterfactual_entry",
+          "entries": [
+            {
+              "acknowledged_ns": 1788861600000000000,
+              "entry_price": 100.0,
+              "opened_at": "2026-09-08 10:00:00+00:00",
+              "price_tick_index": 0,
+              "requested_ns": 1788861600000000000,
+              "source": "causal_signal_market",
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "volume": 0.04
+            }
+          ],
+          "exit_reason": "profit_lock",
+          "exits": [
+            {
+              "closed_at": "2026-09-08 10:00:03+00:00",
+              "entry_price": 100.0,
+              "exit_price": 101.2,
+              "pnl_eur": "-4.80",
+              "reason": "profit_lock",
+              "tick_index": 3,
+              "ticket": "sim_1",
+              "volume": 0.04
+            }
+          ],
+          "filled_volume": 0.04,
+          "last_tick_index": 4,
+          "market_events": [
+            {
+              "kind": "entry_requested",
+              "price": 100.0,
+              "reason": "causal_signal_market",
+              "request_id": 1,
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861600000000000,
+              "volume": 0.04
+            },
+            {
+              "kind": "entry_filled",
+              "price": 100.0,
+              "reason": "causal_signal_market",
+              "request_id": 1,
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861600000000000,
+              "volume": 0.04
+            },
+            {
+              "kind": "entry_acknowledged",
+              "price": 100.0,
+              "reason": "accepted",
+              "request_id": 1,
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861600000000000,
+              "volume": 0.04
+            },
+            {
+              "kind": "close_requested",
+              "price": 100.2,
+              "reason": "profit_lock",
+              "request_id": 2,
+              "tick_index": 2,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861602000000000,
+              "volume": 0.04
+            },
+            {
+              "kind": "close_filled",
+              "price": 101.2,
+              "reason": "profit_lock",
+              "request_id": 2,
+              "tick_index": 3,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861603000000000,
+              "volume": 0.04
+            },
+            {
+              "kind": "close_acknowledged",
+              "price": 101.2,
+              "reason": "accepted",
+              "request_id": 2,
+              "tick_index": 3,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861603000000000,
+              "volume": 0.04
+            }
+          ],
+          "max_adverse_eur": "-4.80",
+          "max_adverse_move": -1.2,
+          "max_favourable_eur": "3.20",
+          "max_favourable_move": 0.8,
+          "max_floating_drawdown_eur": "8.00",
+          "pnl_eur": "-4.80",
+          "protection_events": [
+            {
+              "kind": "open",
+              "reason": "hypothetical_open_request",
+              "request_id": 0,
+              "sl": 110.0,
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861600000000000,
+              "tp": null
+            },
+            {
+              "kind": "closed",
+              "reason": "profit_lock",
+              "request_id": 0,
+              "sl": 110.0,
+              "tick_index": 3,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861603000000000,
+              "tp": null
+            }
+          ],
+          "signal_id": "canal1_guard",
+          "strategy_fingerprint": "2fe2b386b05d8e7e45730048ee8d6badd5c43be4f6425e5198d57f1a1f9d332d",
+          "unfilled": false
+        },
+        {
+          "behavior_digest": null,
+          "blockers": [],
+          "client_events": [
+            {
+              "decision_index": 0,
+              "decision_ns": 1788861600000000000,
+              "kind": "queued",
+              "operation": "entry",
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "time_ns": 1788861600000000000
+            },
+            {
+              "decision_index": 0,
+              "decision_ns": 1788861600000000000,
+              "kind": "started",
+              "operation": "entry",
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "time_ns": 1788861600000000000
+            },
+            {
+              "decision_index": 0,
+              "decision_ns": 1788861600000000000,
+              "kind": "released",
+              "operation": "entry",
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "time_ns": 1788861600000000000
+            },
+            {
+              "decision_index": 0,
+              "decision_ns": 1788861600000000000,
+              "kind": "queued",
+              "operation": "modify",
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "time_ns": 1788861600000000000
+            },
+            {
+              "decision_index": 0,
+              "decision_ns": 1788861600000000000,
+              "kind": "started",
+              "operation": "modify",
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "time_ns": 1788861600000000000
+            },
+            {
+              "decision_index": 0,
+              "decision_ns": 1788861600000000000,
+              "kind": "released",
+              "operation": "modify",
+              "tick_index": 8,
+              "ticket": "sim_1",
+              "time_ns": 1788861608000000000
+            },
+            {
+              "decision_index": 10,
+              "decision_ns": 1788861610000000000,
+              "kind": "queued",
+              "operation": "close",
+              "tick_index": 10,
+              "ticket": "sim_1",
+              "time_ns": 1788861610000000000
+            },
+            {
+              "decision_index": 10,
+              "decision_ns": 1788861610000000000,
+              "kind": "started",
+              "operation": "close",
+              "tick_index": 10,
+              "ticket": "sim_1",
+              "time_ns": 1788861610000000000
+            },
+            {
+              "decision_index": 10,
+              "decision_ns": 1788861610000000000,
+              "kind": "released",
+              "operation": "close",
+              "tick_index": 12,
+              "ticket": "sim_1",
+              "time_ns": 1788861612000000000
+            }
+          ],
+          "confidence_layer": "counterfactual_entry",
+          "entries": [
+            {
+              "acknowledged_ns": 1788861600000000000,
+              "entry_price": 100.0,
+              "opened_at": "2026-09-08 10:00:00+00:00",
+              "price_tick_index": 0,
+              "requested_ns": 1788861600000000000,
+              "source": "causal_signal_market",
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "volume": 0.04
+            }
+          ],
+          "exit_reason": "provider_close",
+          "exits": [
+            {
+              "closed_at": "2026-09-08 10:00:11+00:00",
+              "entry_price": 100.0,
+              "exit_price": 111.2,
+              "pnl_eur": "-44.80",
+              "reason": "provider_close",
+              "tick_index": 11,
+              "ticket": "sim_1",
+              "volume": 0.04
+            }
+          ],
+          "filled_volume": 0.04,
+          "last_tick_index": 12,
+          "market_events": [
+            {
+              "kind": "entry_requested",
+              "price": 100.0,
+              "reason": "causal_signal_market",
+              "request_id": 1,
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861600000000000,
+              "volume": 0.04
+            },
+            {
+              "kind": "entry_filled",
+              "price": 100.0,
+              "reason": "causal_signal_market",
+              "request_id": 1,
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861600000000000,
+              "volume": 0.04
+            },
+            {
+              "kind": "entry_acknowledged",
+              "price": 100.0,
+              "reason": "accepted",
+              "request_id": 1,
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861600000000000,
+              "volume": 0.04
+            },
+            {
+              "kind": "close_requested",
+              "price": 111.2,
+              "reason": "provider_close",
+              "request_id": 2,
+              "tick_index": 10,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861610000000000,
+              "volume": 0.04
+            },
+            {
+              "kind": "close_filled",
+              "price": 111.2,
+              "reason": "provider_close",
+              "request_id": 2,
+              "tick_index": 11,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861611000000000,
+              "volume": 0.04
+            },
+            {
+              "kind": "close_acknowledged",
+              "price": 111.2,
+              "reason": "accepted",
+              "request_id": 2,
+              "tick_index": 11,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861611000000000,
+              "volume": 0.04
+            }
+          ],
+          "max_adverse_eur": "-44.80",
+          "max_adverse_move": -11.2,
+          "max_favourable_eur": "3.20",
+          "max_favourable_move": 0.8,
+          "max_floating_drawdown_eur": "48.00",
+          "pnl_eur": "-44.80",
+          "protection_events": [
+            {
+              "kind": "open",
+              "reason": "hypothetical_open_request",
+              "request_id": 0,
+              "sl": 130.0,
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861600000000000,
+              "tp": null
+            },
+            {
+              "kind": "requested",
+              "reason": "policy_intent",
+              "request_id": 1,
+              "sl": 130.0,
+              "tick_index": 0,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861600000000000,
+              "tp": 80.0
+            },
+            {
+              "kind": "installed",
+              "reason": "accepted",
+              "request_id": 1,
+              "sl": 130.0,
+              "tick_index": 5,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861605000000000,
+              "tp": 80.0
+            },
+            {
+              "kind": "acknowledged",
+              "reason": "response_available",
+              "request_id": 1,
+              "sl": 130.0,
+              "tick_index": 8,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861608000000000,
+              "tp": 80.0
+            },
+            {
+              "kind": "closed",
+              "reason": "provider_close",
+              "request_id": 0,
+              "sl": 130.0,
+              "tick_index": 11,
+              "ticket": "sim_1",
+              "timestamp_ns": 1788861611000000000,
+              "tp": 80.0
+            }
+          ],
+          "signal_id": "canal2_modify",
+          "strategy_fingerprint": "529b33c02603b56956cb28a8f3502795f8eef1f8112e9670fa8edf8e33d000b2",
+          "unfilled": false
+        }
+      ],
+      "shared": {
+        "baskets": [
+          [
+            "canal1",
+            "canal1_guard",
+            {
+              "behavior_digest": null,
+              "blockers": [],
+              "client_events": [
+                {
+                  "decision_index": 0,
+                  "decision_ns": 1788861600000000000,
+                  "kind": "queued",
+                  "operation": "entry",
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861600000000000
+                },
+                {
+                  "decision_index": 0,
+                  "decision_ns": 1788861600000000000,
+                  "kind": "started",
+                  "operation": "entry",
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861600000000000
+                },
+                {
+                  "decision_index": 0,
+                  "decision_ns": 1788861600000000000,
+                  "kind": "released",
+                  "operation": "entry",
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861600000000000
+                },
+                {
+                  "decision_index": 2,
+                  "decision_ns": 1788861602000000000,
+                  "kind": "queued",
+                  "operation": "close",
+                  "tick_index": 2,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861602000000000
+                },
+                {
+                  "decision_index": 2,
+                  "decision_ns": 1788861602000000000,
+                  "kind": "started",
+                  "operation": "close",
+                  "tick_index": 8,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861608000000000
+                },
+                {
+                  "decision_index": 2,
+                  "decision_ns": 1788861602000000000,
+                  "kind": "released",
+                  "operation": "close",
+                  "tick_index": 9,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861609000000000
+                }
+              ],
+              "confidence_layer": "counterfactual_entry",
+              "entries": [
+                {
+                  "acknowledged_ns": 1788861600000000000,
+                  "entry_price": 100.0,
+                  "opened_at": "2026-09-08 10:00:00+00:00",
+                  "price_tick_index": 0,
+                  "requested_ns": 1788861600000000000,
+                  "source": "causal_signal_market",
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "volume": 0.04
+                }
+              ],
+              "exit_reason": "initial_sl",
+              "exits": [
+                {
+                  "closed_at": "2026-09-08 10:00:04+00:00",
+                  "entry_price": 100.0,
+                  "exit_price": 111.2,
+                  "pnl_eur": "-44.80",
+                  "reason": "initial_sl",
+                  "tick_index": 4,
+                  "ticket": "sim_1",
+                  "volume": 0.04
+                }
+              ],
+              "filled_volume": 0.04,
+              "last_tick_index": 9,
+              "market_events": [
+                {
+                  "kind": "entry_requested",
+                  "price": 100.0,
+                  "reason": "causal_signal_market",
+                  "request_id": 1,
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861600000000000,
+                  "volume": 0.04
+                },
+                {
+                  "kind": "entry_filled",
+                  "price": 100.0,
+                  "reason": "causal_signal_market",
+                  "request_id": 1,
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861600000000000,
+                  "volume": 0.04
+                },
+                {
+                  "kind": "entry_acknowledged",
+                  "price": 100.0,
+                  "reason": "accepted",
+                  "request_id": 1,
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861600000000000,
+                  "volume": 0.04
+                },
+                {
+                  "kind": "close_requested",
+                  "price": 111.2,
+                  "reason": "profit_lock",
+                  "request_id": 2,
+                  "tick_index": 8,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861608000000000,
+                  "volume": 0.04
+                },
+                {
+                  "kind": "close_rejected",
+                  "price": null,
+                  "reason": "position_already_closed",
+                  "request_id": 2,
+                  "tick_index": 9,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861609000000000,
+                  "volume": 0.04
+                },
+                {
+                  "kind": "close_acknowledged",
+                  "price": null,
+                  "reason": "position_already_closed",
+                  "request_id": 2,
+                  "tick_index": 9,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861609000000000,
+                  "volume": 0.04
+                }
+              ],
+              "max_adverse_eur": "-44.80",
+              "max_adverse_move": -11.2,
+              "max_favourable_eur": "3.20",
+              "max_favourable_move": 0.8,
+              "max_floating_drawdown_eur": "48.00",
+              "pnl_eur": "-44.80",
+              "protection_events": [
+                {
+                  "kind": "open",
+                  "reason": "hypothetical_open_request",
+                  "request_id": 0,
+                  "sl": 110.0,
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861600000000000,
+                  "tp": null
+                },
+                {
+                  "kind": "closed",
+                  "reason": "initial_sl",
+                  "request_id": 0,
+                  "sl": 110.0,
+                  "tick_index": 4,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861604000000000,
+                  "tp": null
+                }
+              ],
+              "signal_id": "canal1_guard",
+              "strategy_fingerprint": "2fe2b386b05d8e7e45730048ee8d6badd5c43be4f6425e5198d57f1a1f9d332d",
+              "unfilled": false
+            }
+          ],
+          [
+            "canal2",
+            "canal2_modify",
+            {
+              "behavior_digest": null,
+              "blockers": [],
+              "client_events": [
+                {
+                  "decision_index": 0,
+                  "decision_ns": 1788861600000000000,
+                  "kind": "queued",
+                  "operation": "entry",
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861600000000000
+                },
+                {
+                  "decision_index": 0,
+                  "decision_ns": 1788861600000000000,
+                  "kind": "started",
+                  "operation": "entry",
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861600000000000
+                },
+                {
+                  "decision_index": 0,
+                  "decision_ns": 1788861600000000000,
+                  "kind": "released",
+                  "operation": "entry",
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861600000000000
+                },
+                {
+                  "decision_index": 0,
+                  "decision_ns": 1788861600000000000,
+                  "kind": "queued",
+                  "operation": "modify",
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861600000000000
+                },
+                {
+                  "decision_index": 0,
+                  "decision_ns": 1788861600000000000,
+                  "kind": "started",
+                  "operation": "modify",
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861600000000000
+                },
+                {
+                  "decision_index": 0,
+                  "decision_ns": 1788861600000000000,
+                  "kind": "released",
+                  "operation": "modify",
+                  "tick_index": 8,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861608000000000
+                },
+                {
+                  "decision_index": 10,
+                  "decision_ns": 1788861610000000000,
+                  "kind": "queued",
+                  "operation": "close",
+                  "tick_index": 10,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861610000000000
+                },
+                {
+                  "decision_index": 10,
+                  "decision_ns": 1788861610000000000,
+                  "kind": "started",
+                  "operation": "close",
+                  "tick_index": 10,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861610000000000
+                },
+                {
+                  "decision_index": 10,
+                  "decision_ns": 1788861610000000000,
+                  "kind": "released",
+                  "operation": "close",
+                  "tick_index": 12,
+                  "ticket": "sim_1",
+                  "time_ns": 1788861612000000000
+                }
+              ],
+              "confidence_layer": "counterfactual_entry",
+              "entries": [
+                {
+                  "acknowledged_ns": 1788861600000000000,
+                  "entry_price": 100.0,
+                  "opened_at": "2026-09-08 10:00:00+00:00",
+                  "price_tick_index": 0,
+                  "requested_ns": 1788861600000000000,
+                  "source": "causal_signal_market",
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "volume": 0.04
+                }
+              ],
+              "exit_reason": "provider_close",
+              "exits": [
+                {
+                  "closed_at": "2026-09-08 10:00:11+00:00",
+                  "entry_price": 100.0,
+                  "exit_price": 111.2,
+                  "pnl_eur": "-44.80",
+                  "reason": "provider_close",
+                  "tick_index": 11,
+                  "ticket": "sim_1",
+                  "volume": 0.04
+                }
+              ],
+              "filled_volume": 0.04,
+              "last_tick_index": 12,
+              "market_events": [
+                {
+                  "kind": "entry_requested",
+                  "price": 100.0,
+                  "reason": "causal_signal_market",
+                  "request_id": 1,
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861600000000000,
+                  "volume": 0.04
+                },
+                {
+                  "kind": "entry_filled",
+                  "price": 100.0,
+                  "reason": "causal_signal_market",
+                  "request_id": 1,
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861600000000000,
+                  "volume": 0.04
+                },
+                {
+                  "kind": "entry_acknowledged",
+                  "price": 100.0,
+                  "reason": "accepted",
+                  "request_id": 1,
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861600000000000,
+                  "volume": 0.04
+                },
+                {
+                  "kind": "close_requested",
+                  "price": 111.2,
+                  "reason": "provider_close",
+                  "request_id": 2,
+                  "tick_index": 10,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861610000000000,
+                  "volume": 0.04
+                },
+                {
+                  "kind": "close_filled",
+                  "price": 111.2,
+                  "reason": "provider_close",
+                  "request_id": 2,
+                  "tick_index": 11,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861611000000000,
+                  "volume": 0.04
+                },
+                {
+                  "kind": "close_acknowledged",
+                  "price": 111.2,
+                  "reason": "accepted",
+                  "request_id": 2,
+                  "tick_index": 11,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861611000000000,
+                  "volume": 0.04
+                }
+              ],
+              "max_adverse_eur": "-44.80",
+              "max_adverse_move": -11.2,
+              "max_favourable_eur": "3.20",
+              "max_favourable_move": 0.8,
+              "max_floating_drawdown_eur": "48.00",
+              "pnl_eur": "-44.80",
+              "protection_events": [
+                {
+                  "kind": "open",
+                  "reason": "hypothetical_open_request",
+                  "request_id": 0,
+                  "sl": 130.0,
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861600000000000,
+                  "tp": null
+                },
+                {
+                  "kind": "requested",
+                  "reason": "policy_intent",
+                  "request_id": 1,
+                  "sl": 130.0,
+                  "tick_index": 0,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861600000000000,
+                  "tp": 80.0
+                },
+                {
+                  "kind": "installed",
+                  "reason": "accepted",
+                  "request_id": 1,
+                  "sl": 130.0,
+                  "tick_index": 5,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861605000000000,
+                  "tp": 80.0
+                },
+                {
+                  "kind": "acknowledged",
+                  "reason": "response_available",
+                  "request_id": 1,
+                  "sl": 130.0,
+                  "tick_index": 8,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861608000000000,
+                  "tp": 80.0
+                },
+                {
+                  "kind": "closed",
+                  "reason": "provider_close",
+                  "request_id": 0,
+                  "sl": 130.0,
+                  "tick_index": 11,
+                  "ticket": "sim_1",
+                  "timestamp_ns": 1788861611000000000,
+                  "tp": 80.0
+                }
+              ],
+              "signal_id": "canal2_modify",
+              "strategy_fingerprint": "529b33c02603b56956cb28a8f3502795f8eef1f8112e9670fa8edf8e33d000b2",
+              "unfilled": false
+            }
+          ]
+        ],
+        "blockers": [],
+        "full_live_parity_verified": false,
+        "limitations": [
+          "Common supplied quotes; shared read requests are not modeled.",
+          "Preparation is immediate; native authorization is not modeled.",
+          "Same-quote causal rounds and input scope order are explicit hypotheses.",
+          "Caller continuation after a transport timeout is not live-validated.",
+          "Risk phases are model states, not observed broker micro-timestamps.",
+          "No portfolio, margin, strategy promotion or full live-parity certification."
+        ],
+        "policies": [
+          [
+            "canal1_guard",
+            {
+              "be_mode": "none",
+              "be_trigger": null,
+              "context_filter_mode": "none",
+              "context_filter_value": null,
+              "entry_confirmation_value": null,
+              "entry_expiry_min": 1,
+              "entry_ladder_mode": "simultaneous",
+              "entry_ladder_step": null,
+              "entry_mode": "signal_market",
+              "entry_value": null,
+              "hard_stop_eur_per_leg": null,
+              "leg_count": 1,
+              "lineage_depth": 0,
+              "mutation_reason": null,
+              "parent_fingerprints": [],
+              "partial_fraction": 0.0,
+              "pending_entry_policy": "until_expiry",
+              "profit_lock_arm": 1.0,
+              "profit_lock_giveback": 1.0,
+              "provider_management_mode": "ignore",
+              "runner_target": null,
+              "schema_version": 2,
+              "source_strategy_fingerprint": null,
+              "stop_mode": "fixed_move",
+              "stop_value": 10.0,
+              "target_mode": "none",
+              "target_steps": [],
+              "target_value": null,
+              "time_exit_min": 180,
+              "time_exit_mode": "none",
+              "trailing_distance": null,
+              "volume_weights": [
+                0.04
+              ]
+            },
+            {
+              "client": {
+                "entry_price_delay_ms": null,
+                "ladder_decision_mode": "snapshot_batch",
+                "max_events": 100000,
+                "name": "single_basket_serial_v1"
+              },
+              "entry_fill_latency_ms": 0,
+              "entry_slippage": 0.0,
+              "exit_slippage": 0.0,
+              "latency_ms": 0,
+              "market": {
+                "close_acknowledgement_delay_ms": 0,
+                "close_processing_delay_ms": 1000,
+                "entry_acknowledgement_delay_ms": 0,
+                "max_events": 100000,
+                "name": "quote_clock_market_v1",
+                "volume_max": 1.0,
+                "volume_min": 0.01,
+                "volume_step": 0.01
+              },
+              "protection": {
+                "acknowledgement_delay_ms": 1000,
+                "digits": 2,
+                "freeze_level_points": 0,
+                "initial_protections": [],
+                "max_events": 100000,
+                "name": "quote_clock_protection_v1",
+                "point": 0.01,
+                "policy_extension": "none",
+                "processing_delay_ms": 1000,
+                "request_quote_binding": "timestamp_only",
+                "retry_delay_ms": 1000,
+                "stops_level_points": 20
+              },
+              "spread_addition": 0.0
+            }
+          ],
+          [
+            "canal2_modify",
+            {
+              "be_mode": "none",
+              "be_trigger": null,
+              "context_filter_mode": "none",
+              "context_filter_value": null,
+              "entry_confirmation_value": null,
+              "entry_expiry_min": 1,
+              "entry_ladder_mode": "simultaneous",
+              "entry_ladder_step": null,
+              "entry_mode": "signal_market",
+              "entry_value": null,
+              "hard_stop_eur_per_leg": null,
+              "leg_count": 1,
+              "lineage_depth": 0,
+              "mutation_reason": null,
+              "parent_fingerprints": [],
+              "partial_fraction": 0.0,
+              "pending_entry_policy": "until_expiry",
+              "profit_lock_arm": null,
+              "profit_lock_giveback": null,
+              "provider_management_mode": "explicit_close_only",
+              "runner_target": null,
+              "schema_version": 2,
+              "source_strategy_fingerprint": null,
+              "stop_mode": "none",
+              "stop_value": null,
+              "target_mode": "per_leg_steps",
+              "target_steps": [
+                20.0
+              ],
+              "target_value": null,
+              "time_exit_min": 180,
+              "time_exit_mode": "none",
+              "trailing_distance": 30.0,
+              "volume_weights": [
+                0.04
+              ]
+            },
+            {
+              "client": {
+                "entry_price_delay_ms": null,
+                "ladder_decision_mode": "snapshot_batch",
+                "max_events": 100000,
+                "name": "single_basket_serial_v1"
+              },
+              "entry_fill_latency_ms": 0,
+              "entry_slippage": 0.0,
+              "exit_slippage": 0.0,
+              "latency_ms": 0,
+              "market": {
+                "close_acknowledgement_delay_ms": 0,
+                "close_processing_delay_ms": 1000,
+                "entry_acknowledgement_delay_ms": 0,
+                "max_events": 100000,
+                "name": "quote_clock_market_v1",
+                "volume_max": 1.0,
+                "volume_min": 0.01,
+                "volume_step": 0.01
+              },
+              "protection": {
+                "acknowledgement_delay_ms": 3000,
+                "digits": 2,
+                "freeze_level_points": 0,
+                "initial_protections": [],
+                "max_events": 100000,
+                "name": "quote_clock_protection_v1",
+                "point": 0.01,
+                "policy_extension": "none",
+                "processing_delay_ms": 5000,
+                "request_quote_binding": "timestamp_only",
+                "retry_delay_ms": 1000,
+                "stops_level_points": 20
+              },
+              "spread_addition": 0.0
+            }
+          ]
+        ],
+        "portfolio_admitted": false,
+        "profile": {
+          "account_currency": "EUR",
+          "capacity": 8,
+          "max_events": 100000,
+          "max_quotes": 1000000,
+          "max_rounds_per_quote": 256,
+          "name": "shared_quote_rounds_v1",
+          "request_timeout_ms": 60000
+        },
+        "risk": [
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "quote_open",
+            "positions": [],
+            "realized_minor": 0,
+            "signal_id": "canal1_guard",
+            "tick_index": 0,
+            "time_ns": 1788861600000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "settled",
+            "positions": [],
+            "realized_minor": 0,
+            "signal_id": "canal1_guard",
+            "tick_index": 0,
+            "time_ns": 1788861600000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": 0,
+            "phase": "quote_open",
+            "positions": [],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 0,
+            "time_ns": 1788861600000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": 0,
+            "phase": "settled",
+            "positions": [],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 0,
+            "time_ns": 1788861600000000000
+          },
+          {
+            "causal_round": 1,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "grant_resume",
+            "positions": [],
+            "realized_minor": 0,
+            "signal_id": "canal1_guard",
+            "tick_index": 0,
+            "time_ns": 1788861600000000000
+          },
+          {
+            "causal_round": 1,
+            "channel": "canal1",
+            "floating_minor": -80,
+            "phase": "entry_fill",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal1_guard",
+            "tick_index": 0,
+            "time_ns": 1788861600000000000
+          },
+          {
+            "causal_round": 1,
+            "channel": "canal1",
+            "floating_minor": -80,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal1_guard",
+            "tick_index": 0,
+            "time_ns": 1788861600000000000
+          },
+          {
+            "causal_round": 2,
+            "channel": "canal2",
+            "floating_minor": 0,
+            "phase": "grant_resume",
+            "positions": [],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 0,
+            "time_ns": 1788861600000000000
+          },
+          {
+            "causal_round": 2,
+            "channel": "canal2",
+            "floating_minor": -80,
+            "phase": "entry_fill",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 0,
+            "time_ns": 1788861600000000000
+          },
+          {
+            "causal_round": 2,
+            "channel": "canal2",
+            "floating_minor": -80,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 0,
+            "time_ns": 1788861600000000000
+          },
+          {
+            "causal_round": 3,
+            "channel": "canal2",
+            "floating_minor": -80,
+            "phase": "grant_resume",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 0,
+            "time_ns": 1788861600000000000
+          },
+          {
+            "causal_round": 3,
+            "channel": "canal2",
+            "floating_minor": -80,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 0,
+            "time_ns": 1788861600000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 320,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal1_guard",
+            "tick_index": 1,
+            "time_ns": 1788861601000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 320,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal1_guard",
+            "tick_index": 1,
+            "time_ns": 1788861601000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": 320,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 1,
+            "time_ns": 1788861601000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": 320,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 1,
+            "time_ns": 1788861601000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": -80,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal1_guard",
+            "tick_index": 2,
+            "time_ns": 1788861602000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": -80,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal1_guard",
+            "tick_index": 2,
+            "time_ns": 1788861602000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -80,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 2,
+            "time_ns": 1788861602000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -80,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 2,
+            "time_ns": 1788861602000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": -480,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal1_guard",
+            "tick_index": 3,
+            "time_ns": 1788861603000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": -480,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal1_guard",
+            "tick_index": 3,
+            "time_ns": 1788861603000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -480,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 3,
+            "time_ns": 1788861603000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -480,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 3,
+            "time_ns": 1788861603000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": -4480,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal1_guard",
+            "tick_index": 4,
+            "time_ns": 1788861604000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "native_exit",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 4,
+            "time_ns": 1788861604000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "settled",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 4,
+            "time_ns": 1788861604000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 4,
+            "time_ns": 1788861604000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 4,
+            "time_ns": 1788861604000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "quote_open",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 5,
+            "time_ns": 1788861605000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "settled",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 5,
+            "time_ns": 1788861605000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 5,
+            "time_ns": 1788861605000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 5,
+            "time_ns": 1788861605000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "quote_open",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 6,
+            "time_ns": 1788861606000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "settled",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 6,
+            "time_ns": 1788861606000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 6,
+            "time_ns": 1788861606000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 6,
+            "time_ns": 1788861606000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "quote_open",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 7,
+            "time_ns": 1788861607000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "settled",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 7,
+            "time_ns": 1788861607000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 7,
+            "time_ns": 1788861607000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 7,
+            "time_ns": 1788861607000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "quote_open",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 8,
+            "time_ns": 1788861608000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "settled",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 8,
+            "time_ns": 1788861608000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 8,
+            "time_ns": 1788861608000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 8,
+            "time_ns": 1788861608000000000
+          },
+          {
+            "causal_round": 1,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "grant_resume",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 8,
+            "time_ns": 1788861608000000000
+          },
+          {
+            "causal_round": 1,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "settled",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 8,
+            "time_ns": 1788861608000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "quote_open",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 9,
+            "time_ns": 1788861609000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal1",
+            "floating_minor": 0,
+            "phase": "settled",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal1_guard",
+            "tick_index": 9,
+            "time_ns": 1788861609000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 9,
+            "time_ns": 1788861609000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 9,
+            "time_ns": 1788861609000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 10,
+            "time_ns": 1788861610000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 10,
+            "time_ns": 1788861610000000000
+          },
+          {
+            "causal_round": 1,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "grant_resume",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 10,
+            "time_ns": 1788861610000000000
+          },
+          {
+            "causal_round": 1,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "settled",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 10,
+            "time_ns": 1788861610000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": -4480,
+            "phase": "quote_open",
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized_minor": 0,
+            "signal_id": "canal2_modify",
+            "tick_index": 11,
+            "time_ns": 1788861611000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": 0,
+            "phase": "market_exit",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal2_modify",
+            "tick_index": 11,
+            "time_ns": 1788861611000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": 0,
+            "phase": "settled",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal2_modify",
+            "tick_index": 11,
+            "time_ns": 1788861611000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": 0,
+            "phase": "quote_open",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal2_modify",
+            "tick_index": 12,
+            "time_ns": 1788861612000000000
+          },
+          {
+            "causal_round": 0,
+            "channel": "canal2",
+            "floating_minor": 0,
+            "phase": "settled",
+            "positions": [],
+            "realized_minor": -4480,
+            "signal_id": "canal2_modify",
+            "tick_index": 12,
+            "time_ns": 1788861612000000000
+          }
+        ],
+        "transport": {
+          "active_request_id": null,
+          "blockers": [],
+          "broker_fills_simulated": false,
+          "capacity": 8,
+          "contract": "shared_transport_diagnostic_v1",
+          "cutoff_ns": 12000000000,
+          "events": [
+            {
+              "at_ns": 0,
+              "channel": "canal1",
+              "kind": "admitted",
+              "request_id": "canal1:0:1:entry:sim_1",
+              "signal_id": "canal1_guard"
+            },
+            {
+              "at_ns": 0,
+              "channel": "canal2",
+              "kind": "admitted",
+              "request_id": "canal2:1:1:entry:sim_1",
+              "signal_id": "canal2_modify"
+            },
+            {
+              "at_ns": 0,
+              "channel": "canal1",
+              "kind": "queued",
+              "request_id": "canal1:0:1:entry:sim_1",
+              "signal_id": "canal1_guard"
+            },
+            {
+              "at_ns": 0,
+              "channel": "canal2",
+              "kind": "queued",
+              "request_id": "canal2:1:1:entry:sim_1",
+              "signal_id": "canal2_modify"
+            },
+            {
+              "at_ns": 0,
+              "channel": "canal1",
+              "eligible_request_ids": [
+                "canal1:0:1:entry:sim_1",
+                "canal2:1:1:entry:sim_1"
+              ],
+              "kind": "started",
+              "request_id": "canal1:0:1:entry:sim_1",
+              "signal_id": "canal1_guard",
+              "tie_hypothesis_used": true,
+              "transport_kind": "trade"
+            },
+            {
+              "at_ns": 0,
+              "channel": "canal1",
+              "kind": "response",
+              "request_id": "canal1:0:1:entry:sim_1",
+              "signal_id": "canal1_guard"
+            },
+            {
+              "at_ns": 0,
+              "channel": "canal2",
+              "eligible_request_ids": [
+                "canal2:1:1:entry:sim_1"
+              ],
+              "kind": "started",
+              "request_id": "canal2:1:1:entry:sim_1",
+              "signal_id": "canal2_modify",
+              "tie_hypothesis_used": false,
+              "transport_kind": "trade"
+            },
+            {
+              "at_ns": 0,
+              "channel": "canal2",
+              "kind": "response",
+              "request_id": "canal2:1:1:entry:sim_1",
+              "signal_id": "canal2_modify"
+            },
+            {
+              "at_ns": 0,
+              "channel": "canal2",
+              "kind": "admitted",
+              "request_id": "canal2:1:2:modify:sim_1",
+              "signal_id": "canal2_modify"
+            },
+            {
+              "at_ns": 0,
+              "channel": "canal2",
+              "kind": "queued",
+              "request_id": "canal2:1:2:modify:sim_1",
+              "signal_id": "canal2_modify"
+            },
+            {
+              "at_ns": 0,
+              "channel": "canal2",
+              "eligible_request_ids": [
+                "canal2:1:2:modify:sim_1"
+              ],
+              "kind": "started",
+              "request_id": "canal2:1:2:modify:sim_1",
+              "signal_id": "canal2_modify",
+              "tie_hypothesis_used": false,
+              "transport_kind": "management"
+            },
+            {
+              "at_ns": 2000000000,
+              "channel": "canal1",
+              "kind": "admitted",
+              "request_id": "canal1:0:2:close:sim_1",
+              "signal_id": "canal1_guard"
+            },
+            {
+              "at_ns": 2000000000,
+              "channel": "canal1",
+              "kind": "queued",
+              "request_id": "canal1:0:2:close:sim_1",
+              "signal_id": "canal1_guard"
+            },
+            {
+              "active_request_id": "canal2:1:2:modify:sim_1",
+              "at_ns": 4000000000,
+              "channel": "canal1",
+              "event_id": "0:1:sim_1",
+              "kind": "passive",
+              "mechanism": "native_sl",
+              "request_id": null,
+              "signal_id": "canal1_guard"
+            },
+            {
+              "at_ns": 8000000000,
+              "channel": "canal2",
+              "kind": "response",
+              "request_id": "canal2:1:2:modify:sim_1",
+              "signal_id": "canal2_modify"
+            },
+            {
+              "at_ns": 8000000000,
+              "channel": "canal1",
+              "eligible_request_ids": [
+                "canal1:0:2:close:sim_1"
+              ],
+              "kind": "started",
+              "request_id": "canal1:0:2:close:sim_1",
+              "signal_id": "canal1_guard",
+              "tie_hypothesis_used": false,
+              "transport_kind": "management"
+            },
+            {
+              "at_ns": 9000000000,
+              "channel": "canal1",
+              "kind": "response",
+              "request_id": "canal1:0:2:close:sim_1",
+              "signal_id": "canal1_guard"
+            },
+            {
+              "at_ns": 10000000000,
+              "channel": "canal2",
+              "kind": "admitted",
+              "request_id": "canal2:1:3:close:sim_1",
+              "signal_id": "canal2_modify"
+            },
+            {
+              "at_ns": 10000000000,
+              "channel": "canal2",
+              "kind": "queued",
+              "request_id": "canal2:1:3:close:sim_1",
+              "signal_id": "canal2_modify"
+            },
+            {
+              "at_ns": 10000000000,
+              "channel": "canal2",
+              "eligible_request_ids": [
+                "canal2:1:3:close:sim_1"
+              ],
+              "kind": "started",
+              "request_id": "canal2:1:3:close:sim_1",
+              "signal_id": "canal2_modify",
+              "tie_hypothesis_used": false,
+              "transport_kind": "management"
+            },
+            {
+              "at_ns": 12000000000,
+              "channel": "canal2",
+              "kind": "response",
+              "request_id": "canal2:1:3:close:sim_1",
+              "signal_id": "canal2_modify"
+            }
+          ],
+          "full_live_parity_verified": false,
+          "jobs": [
+            {
+              "admitted_ns": 0,
+              "channel": "canal1",
+              "deadline_ns": 60000000000,
+              "operation": "OPEN_MARKET",
+              "ready_ns": 0,
+              "request_id": "canal1:0:1:entry:sim_1",
+              "service_ns": null,
+              "signal_id": "canal1_guard"
+            },
+            {
+              "admitted_ns": 0,
+              "channel": "canal2",
+              "deadline_ns": 60000000000,
+              "operation": "OPEN_MARKET",
+              "ready_ns": 0,
+              "request_id": "canal2:1:1:entry:sim_1",
+              "service_ns": null,
+              "signal_id": "canal2_modify"
+            },
+            {
+              "admitted_ns": 0,
+              "channel": "canal2",
+              "deadline_ns": 60000000000,
+              "operation": "MODIFY_SLTP",
+              "ready_ns": 0,
+              "request_id": "canal2:1:2:modify:sim_1",
+              "service_ns": null,
+              "signal_id": "canal2_modify"
+            },
+            {
+              "admitted_ns": 2000000000,
+              "channel": "canal1",
+              "deadline_ns": 62000000000,
+              "operation": "CLOSE_POSITION",
+              "ready_ns": 2000000000,
+              "request_id": "canal1:0:2:close:sim_1",
+              "service_ns": null,
+              "signal_id": "canal1_guard"
+            },
+            {
+              "admitted_ns": 10000000000,
+              "channel": "canal2",
+              "deadline_ns": 70000000000,
+              "operation": "CLOSE_POSITION",
+              "ready_ns": 10000000000,
+              "request_id": "canal2:1:3:close:sim_1",
+              "service_ns": null,
+              "signal_id": "canal2_modify"
+            }
+          ],
+          "passive_inputs": [
+            {
+              "at_ns": 4000000000,
+              "channel": "canal1",
+              "event_id": "0:1:sim_1",
+              "kind": "native_sl",
+              "signal_id": "canal1_guard"
+            }
+          ],
+          "peak_admitted": 2,
+          "pending_request_ids": [],
+          "policy_decisions_verified": false,
+          "portfolio_admitted": false,
+          "reserved_management_slots": 1,
+          "rows": [
+            {
+              "channel": "canal1",
+              "kind": "trade",
+              "operation": "OPEN_MARKET",
+              "preparation_ns": 0,
+              "queue_ns": 0,
+              "released_ns": 0,
+              "request_id": "canal1:0:1:entry:sim_1",
+              "signal_id": "canal1_guard",
+              "started_ns": 0,
+              "status": "released",
+              "timed_out": false
+            },
+            {
+              "channel": "canal2",
+              "kind": "trade",
+              "operation": "OPEN_MARKET",
+              "preparation_ns": 0,
+              "queue_ns": 0,
+              "released_ns": 0,
+              "request_id": "canal2:1:1:entry:sim_1",
+              "signal_id": "canal2_modify",
+              "started_ns": 0,
+              "status": "released",
+              "timed_out": false
+            },
+            {
+              "channel": "canal2",
+              "kind": "management",
+              "operation": "MODIFY_SLTP",
+              "preparation_ns": 0,
+              "queue_ns": 0,
+              "released_ns": 8000000000,
+              "request_id": "canal2:1:2:modify:sim_1",
+              "signal_id": "canal2_modify",
+              "started_ns": 0,
+              "status": "released",
+              "timed_out": false
+            },
+            {
+              "channel": "canal1",
+              "kind": "management",
+              "operation": "CLOSE_POSITION",
+              "preparation_ns": 0,
+              "queue_ns": 6000000000,
+              "released_ns": 9000000000,
+              "request_id": "canal1:0:2:close:sim_1",
+              "signal_id": "canal1_guard",
+              "started_ns": 8000000000,
+              "status": "released",
+              "timed_out": false
+            },
+            {
+              "channel": "canal2",
+              "kind": "management",
+              "operation": "CLOSE_POSITION",
+              "preparation_ns": 0,
+              "queue_ns": 0,
+              "released_ns": 12000000000,
+              "request_id": "canal2:1:3:close:sim_1",
+              "signal_id": "canal2_modify",
+              "started_ns": 10000000000,
+              "status": "released",
+              "timed_out": false
+            }
+          ],
+          "same_clock_order": [
+            "deadline",
+            "response",
+            "passive",
+            "admit",
+            "ready",
+            "dispatch"
+          ],
+          "scheduling_policy": "management-first-read-burst4-reserve1-v1",
+          "status": "diagnostic_complete",
+          "statuses": {
+            "released": 5
+          },
+          "tie_break": "fifo_ready_hypothesis_not_asyncio_order_proof"
+        }
+      }
+    }
+  ],
+  "control_sources": {
+    "tests/test_incremental_transport.py": "864cbbbe7b4fb61c5aed15035b2dbaa61d1476a5a4dc4929ec07d0c583e9ff6b",
+    "tests/test_iterative_entry_fill_latency.py": "8e2ca6a5b2b8c11271527d1b72b851ae7944842934ecd0fa1241191c9a5bf375",
+    "tests/test_iterative_market.py": "b06411f2066f7861feb2d2fed9a424ba302305694d6f4c36d1892d6929e586c8",
+    "tests/test_iterative_protection.py": "470ead957c8e8ce4a4a5df757ecca9167f12fd1391fc771b4f04edf660bb1009",
+    "tests/test_iterative_resume.py": "76f7f1f8cc1afc0798f5aed360a8bd2b6abea22e98bdff21715c3b86af44c8f3",
+    "tests/test_shared_policy_replay.py": "537f91378667f326f1b6f34afb3367ae90eff22db05dd6da6dbfd32762294e41"
+  },
+  "full_live_parity_verified": false,
+  "implementation": {
+    "runtime": {
+      "byteorder": "little",
+      "decimal": {
+        "Emax": 999999,
+        "Emin": -999999,
+        "capitals": 1,
+        "clamp": 0,
+        "prec": 28,
+        "rounding": "ROUND_HALF_EVEN",
+        "traps": [
+          "DivisionByZero",
+          "InvalidOperation",
+          "Overflow"
+        ]
+      },
+      "machine": "AMD64",
+      "numba_environment": {
+        "NUMBA_BOUNDSCHECK": null,
+        "NUMBA_CPU_FEATURES": null,
+        "NUMBA_CPU_NAME": null,
+        "NUMBA_DISABLE_JIT": null,
+        "NUMBA_ENABLE_AVX": null,
+        "NUMBA_NUM_THREADS": null,
+        "NUMBA_OPT": null,
+        "NUMBA_THREADING_LAYER": null
+      },
+      "packages": {
+        "llvmlite": "0.49.0",
+        "matplotlib": "3.11.2",
+        "numba": "0.67.0",
+        "numpy": "2.4.6",
+        "pandas": "3.0.6",
+        "pyarrow": "25.0.1"
+      },
+      "python": "3.11.9",
+      "python_cache_tag": "cpython-311",
+      "python_implementation": "CPython",
+      "system": "Windows"
+    },
+    "schema_version": 1,
+    "sha256": "b259fd7eaaf7a1d1926118e705d3745becb1cf1744e30c825b2666b3718071f0",
+    "source_sha256": {
+      "broker_market_sessions.py": "942745c5722343a136ed0b64a2b2980f92faf42b950cf41292c3817cef69b368",
+      "broker_money.py": "0a868a7c26ff32064b1beabe5ba046d7ad2a4ac3ecea3b87813a7ff183074a1f",
+      "broker_tick_clock.py": "6aef7d9c38c7e3d9e6e822e293ddb1d80cf9bf394a649a5bbb02dbb96f73fc36",
+      "interpretation_firewall.py": "230a874fa4417009b65e0b715d892d1f052ba1d664263e294704ab9e56677f0c",
+      "mt5_protocol.py": "715ab1eb6bb1092aede95cd0a4ac35cde080754b31b4c6c150b61706d57b0bf8",
+      "mt5_read_protocol.py": "e1b5bbc12c80c80dfceaea451818ffc76c043a61022719c5e68dec03199062d8",
+      "mt5_scheduling.py": "3987f844c6dd7bc20dd09697377521651aa59d4f9a75570ff57beda115de8013",
+      "mt5_tick_cache.py": "83550bc77289f4d45d2d88d64bf842f1e806ca097262ac39fe004072dcf98842",
+      "mt5_trade_protocol.py": "20f2dc429b7a288b537c9f3877f3f5df824eb0c3219104b4102508e3048eb1d2",
+      "parser.py": "b6b303cc35ceec39849633f54b8722ae4aedbfb74b79fc909ce604f354dff84c",
+      "provider_action_semantics.py": "02a6e90829b0f144d8792cdc9f9b2d3382f5400c66eff192736c55d7167941df",
+      "provider_result_scorecard.py": "b6f316f6a760abc99c980e622f0af74a5dd30b07d71c488d7eb6c9df6a2ab959",
+      "provider_signal_catalog.py": "21c8c352398c20501340d2255d01a9be9bf00ec4c01bf25dd1eb77ac61863c71",
+      "provider_trade_spec.py": "6e21c9702f651847c283d39e22ba7e5f9601ef71e708a2140a7ebd235df26d3b",
+      "research/__init__.py": "90e66c991ac20e4e1fb0f4f9ff523a69da11580334dbb93c684a393270bbf0fd",
+      "research/causal_replay.py": "521474868cd960ca15d93d02b8801c03e55d84e627a6a113bbd5548126fa5554",
+      "research/dubai_iterative/__init__.py": "87bdd3a184293975147b5a14c28017d4c8779885cdab26f57304a0c412ac34b6",
+      "research/dubai_iterative/__main__.py": "184cdb8da123896f4f65951e52ea3fd05e9bbd3dc5d90eeddb934dee95832028",
+      "research/dubai_iterative/certification.py": "6d9c0ee22e16248eada9c6a1cebb7df3224b19882f809483d78d600957a9eda4",
+      "research/dubai_iterative/client.py": "582afc83babe2edb4e0ffdd9108afb873143fdba74aaac3c2a4150d8b69a1ca0",
+      "research/dubai_iterative/client_contract.py": "220caf5703a2493d5080aeb9eb97925c90243eea9a39821dc9024a8d23b708f9",
+      "research/dubai_iterative/contracts.py": "445be9a486ed5681d7b98cf70feaf68f5748e2bb8b6595d79bafe82025c34333",
+      "research/dubai_iterative/dataset.py": "9b5f04b4ff78ca8ec2056700f70144149142f9835fe00c757e838ac8587bc309",
+      "research/dubai_iterative/engine.py": "cff26d0f3cc5a80d087cadd59032e21d19a5f5675cb3c8aea66d1ffa232dbe1b",
+      "research/dubai_iterative/evolution.py": "7a4c8173a1a6fcbd9b366d6127973a995a51b62bce0fc215c415139e488bdbda",
+      "research/dubai_iterative/fast_engine.py": "30bfb10acc046fb600a3007d724f1217bc0ddd10a74f620debd059c0adeb6901",
+      "research/dubai_iterative/market.py": "6427cb33765cb8b546d0e998117c8b6bf4882fd329276157136ea94b7e99f534",
+      "research/dubai_iterative/market_contract.py": "1798d270a434e5115fb4d468e8d0570154b47226d77abe954a86075fd8ba6938",
+      "research/dubai_iterative/oracle.py": "97d10fb50c25668c01fbc460cc2c1c603f870a79a85a7e0dc6014eece3e60419",
+      "research/dubai_iterative/portfolio.py": "e83f93f718c4730f76502348138e4a6fbcddbd028b8423de7d4a27adcd2cc7da",
+      "research/dubai_iterative/protection.py": "bf0b4db175dbf627c3ddd6cbbd64e457822261f47898e3f31064bb1c35b483b3",
+      "research/dubai_iterative/protection_contract.py": "bc2501f5c484c0560ffc3a7214c1b74fa25275adab4925239f488b814e77fd17",
+      "research/dubai_iterative/recursive.py": "a56672fb52bb5f2ce1bc4462cb2f7a722660bd826802f2a50fbb8113a5955772",
+      "research/dubai_iterative/refinement.py": "4d8f5aa7fc99bf6e271443f7ff3ca1d9b5f7988e0ac98e67579bc5646f1efe42",
+      "research/dubai_iterative/reporting.py": "df601ebc754c260e0ae0a67abb4b3ae4fa6d43aca475bd23522a40c4b3528200",
+      "research/dubai_iterative/risk.py": "bcae0b51173fb2b0be4f5f874df01225b2e3a9759245a9ee4458ff52ec41f55e",
+      "research/dubai_iterative/robustness.py": "2bc3df1c03b08630878ff83a5d4fa56ca4ea991908188f0735dceea5a6efaad6",
+      "research/dubai_iterative/search.py": "b026118b34e030aad49508a53cbba8e38524cc51af18333a5da8872b6a36b6ee",
+      "research/dubai_iterative/shared_replay.py": "36bfbc2ea5e6349eba2ea9e1c09f953083044d9d0bdf3bac7a2a737a47610e69",
+      "research/dubai_iterative/statistics.py": "000cc5dcf08da6812982e7dd111a83d0b07634ea97324174c691cbf046224757",
+      "research/execution_profile.py": "93205f592d99a0eea8bdf6437e866587b785b9b5248c151d2ff442fe91ace3cb",
+      "research/gold_iterative/__init__.py": "b9f91a7e70f92ad155e9e53701c6ae40cc69812d0325579e71319da259797e13",
+      "research/gold_iterative/__main__.py": "8d8da54b0d9990cdcc8809c2e1cc94db7d25db8d74b347c76b5b014cf0ef85d6",
+      "research/gold_iterative/contracts.py": "c8b81081abcbaca4baddedccd644ec279f3fc07f1cb7184294ca306b957fddf1",
+      "research/gold_iterative/dataset.py": "200b12538b78e7b755d297361eeec4b7395495c10d1f93723893bafd0a41e7de",
+      "research/gold_iterative/folds.py": "86f282fec898403d290833880c782b4e1bbe0a5148b7b2b03f626ae284ed57b3",
+      "research/gold_iterative/provider_accounting.py": "3bec62f30b5fc26f05fecc56368961d55323e0f7ca41c1e4b469ae2067a9ae41",
+      "research/gold_iterative/reporting.py": "c23319cc9ace657e93685be5fad7b547c49871aa505a11ddccda88de38764b31",
+      "research/gold_iterative/search.py": "cc3f892e5e722fa9a9af577956e00c636975314624828144040cd1b259fb1d94",
+      "research/gold_iterative/seeds.py": "b82a40350c7046e779a05e2a0d175bf280d9acf96fbabf13cc8633e78c47557e",
+      "research/gold_iterative/validation.py": "2d1e5488c1c15b7e1a3240e3edbcfe1f3cc5c93470f8dcfce6b1e1be4328315d",
+      "research/iterative_provenance.py": "ca38f6b16b6843b59ea3c2d7f26eebceff61efb30ca35cf8f87d675256913b39",
+      "research/shared_transport.py": "553ce8273254553fcd56b179db7bc3ccc055013c1da23bce4c11120233259db1",
+      "research/strategy_study.py": "9a371ffb88cd71c938b3723a5a33ca9d0cb0cdba23745f1a8bbc017b72bb5e77",
+      "research/strategy_study_dataset.py": "95e0d8cd9b7bb872907777d55b571d096da4610e162fa342fb4e19eda6084bc2",
+      "research/telegram_export.py": "ac3200f7a88a68903cb56d6c03953ae093beb8ac9231c220b29b57d278b288d4",
+      "runtime_paths.py": "34ed7a7f9d788fc68a2decf78c69bfba587d6894856b014a4dc5713ef3af593b",
+      "tools/ensure_replay_tick_cache.py": "dca9a2b40e3a41bcb0747e1b05d1354daa669057d3f0010d51126bc6b9014034"
+    }
+  },
+  "production_changed": false,
+  "protocol_sha256": "5e2312ba83ed63e298eaebfba37045d4923c5addc4b214dc01b508e0cdc23f90"
+}

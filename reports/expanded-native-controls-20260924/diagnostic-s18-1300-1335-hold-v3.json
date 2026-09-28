@@ -1,0 +1,3862 @@
+{
+  "admissions": [],
+  "basket_risk": {
+    "canal2_3180": {
+      "blockers": [
+        "canal2_3180:incomplete_equity_conversion",
+        "canal2_3180:stale_conversion_during_profit_lock",
+        "incomplete_equity_conversion",
+        "stale_conversion_during_profit_lock",
+        "incomplete_post_event_grid",
+        "unresolved_scope:canal2_3180",
+        "incomplete_basket_risk_path",
+        "basket_still_open_at_cutoff"
+      ],
+      "channel": "canal2",
+      "drawdown_peak_time_ns": null,
+      "drawdown_trough_time_ns": null,
+      "exposed_frames": 832,
+      "final_total_minor_model": null,
+      "first_exposed_time_ns": 1789736586750000000,
+      "known_frames": 16017,
+      "last_exposed_time_ns": 1789737935379000000,
+      "max_drawdown_minor_model": null,
+      "max_gross_volume_model": "0.04",
+      "maximum_floating_minor_while_exposed": 150,
+      "maximum_from_origin_minor_model": null,
+      "minimum_floating_minor_while_exposed": -499,
+      "minimum_from_origin_minor_model": null,
+      "not_observed_account_equity": true,
+      "path_sha256": "ea3559731ea41719a706978bf18494b19a5744bbb4db368c1f56771b50904d30",
+      "unknown_frames": 3352
+    }
+  },
+  "basket_rows": [
+    {
+      "blockers": [
+        "incomplete_equity_conversion",
+        "stale_conversion_during_profit_lock"
+      ],
+      "channel": "canal2",
+      "client_events": [
+        {
+          "decision_index": 2345,
+          "decision_ns": 1789736586750000000,
+          "kind": "queued",
+          "operation": "entry",
+          "tick_index": 2345,
+          "ticket": "sim_1",
+          "time_ns": 1789736586750000000
+        },
+        {
+          "decision_index": 2345,
+          "decision_ns": 1789736586750000000,
+          "kind": "started",
+          "operation": "entry",
+          "tick_index": 2345,
+          "ticket": "sim_1",
+          "time_ns": 1789736586750000000
+        },
+        {
+          "decision_index": 2345,
+          "decision_ns": 1789736586750000000,
+          "kind": "released",
+          "operation": "entry",
+          "tick_index": 2374,
+          "ticket": "sim_1",
+          "time_ns": 1789736588769000000
+        },
+        {
+          "decision_index": 2374,
+          "decision_ns": 1789736588769000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 2374,
+          "ticket": "sim_1",
+          "time_ns": 1789736588769000000
+        },
+        {
+          "decision_index": 2374,
+          "decision_ns": 1789736588769000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 2374,
+          "ticket": "sim_1",
+          "time_ns": 1789736588769000000
+        },
+        {
+          "decision_index": 2374,
+          "decision_ns": 1789736588769000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 2401,
+          "ticket": "sim_1",
+          "time_ns": 1789736590799000000
+        },
+        {
+          "decision_index": 2475,
+          "decision_ns": 1789736596635000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 2475,
+          "ticket": "sim_1",
+          "time_ns": 1789736596635000000
+        },
+        {
+          "decision_index": 2475,
+          "decision_ns": 1789736596635000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 2475,
+          "ticket": "sim_1",
+          "time_ns": 1789736596635000000
+        },
+        {
+          "decision_index": 2475,
+          "decision_ns": 1789736596635000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 2502,
+          "ticket": "sim_1",
+          "time_ns": 1789736598713000000
+        },
+        {
+          "decision_index": 2740,
+          "decision_ns": 1789736621558000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 2740,
+          "ticket": "sim_1",
+          "time_ns": 1789736621558000000
+        },
+        {
+          "decision_index": 2740,
+          "decision_ns": 1789736621558000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 2740,
+          "ticket": "sim_1",
+          "time_ns": 1789736621558000000
+        },
+        {
+          "decision_index": 2740,
+          "decision_ns": 1789736621558000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 2764,
+          "ticket": "sim_1",
+          "time_ns": 1789736623744000000
+        },
+        {
+          "decision_index": 2764,
+          "decision_ns": 1789736623744000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 2764,
+          "ticket": "sim_1",
+          "time_ns": 1789736623744000000
+        },
+        {
+          "decision_index": 2764,
+          "decision_ns": 1789736623744000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 2764,
+          "ticket": "sim_1",
+          "time_ns": 1789736623744000000
+        },
+        {
+          "decision_index": 2764,
+          "decision_ns": 1789736623744000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 2764,
+          "ticket": "sim_1",
+          "time_ns": 1789736623744000000
+        },
+        {
+          "decision_index": 2765,
+          "decision_ns": 1789736623868000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 2765,
+          "ticket": "sim_1",
+          "time_ns": 1789736623868000000
+        },
+        {
+          "decision_index": 2765,
+          "decision_ns": 1789736623868000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 2765,
+          "ticket": "sim_1",
+          "time_ns": 1789736623868000000
+        },
+        {
+          "decision_index": 2765,
+          "decision_ns": 1789736623868000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 2765,
+          "ticket": "sim_1",
+          "time_ns": 1789736623868000000
+        },
+        {
+          "decision_index": 2766,
+          "decision_ns": 1789736623951000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 2766,
+          "ticket": "sim_1",
+          "time_ns": 1789736623951000000
+        },
+        {
+          "decision_index": 2766,
+          "decision_ns": 1789736623951000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 2766,
+          "ticket": "sim_1",
+          "time_ns": 1789736623951000000
+        },
+        {
+          "decision_index": 2766,
+          "decision_ns": 1789736623951000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 2766,
+          "ticket": "sim_1",
+          "time_ns": 1789736623951000000
+        },
+        {
+          "decision_index": 2767,
+          "decision_ns": 1789736624023000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 2767,
+          "ticket": "sim_1",
+          "time_ns": 1789736624023000000
+        },
+        {
+          "decision_index": 2767,
+          "decision_ns": 1789736624023000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 2767,
+          "ticket": "sim_1",
+          "time_ns": 1789736624023000000
+        },
+        {
+          "decision_index": 2767,
+          "decision_ns": 1789736624023000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 2767,
+          "ticket": "sim_1",
+          "time_ns": 1789736624023000000
+        },
+        {
+          "decision_index": 2768,
+          "decision_ns": 1789736624090000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 2768,
+          "ticket": "sim_1",
+          "time_ns": 1789736624090000000
+        },
+        {
+          "decision_index": 2768,
+          "decision_ns": 1789736624090000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 2768,
+          "ticket": "sim_1",
+          "time_ns": 1789736624090000000
+        },
+        {
+          "decision_index": 2768,
+          "decision_ns": 1789736624090000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 2768,
+          "ticket": "sim_1",
+          "time_ns": 1789736624090000000
+        },
+        {
+          "decision_index": 2769,
+          "decision_ns": 1789736624147000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 2769,
+          "ticket": "sim_1",
+          "time_ns": 1789736624147000000
+        },
+        {
+          "decision_index": 2769,
+          "decision_ns": 1789736624147000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 2769,
+          "ticket": "sim_1",
+          "time_ns": 1789736624147000000
+        },
+        {
+          "decision_index": 2769,
+          "decision_ns": 1789736624147000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 2769,
+          "ticket": "sim_1",
+          "time_ns": 1789736624147000000
+        },
+        {
+          "decision_index": 2770,
+          "decision_ns": 1789736624212000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 2770,
+          "ticket": "sim_1",
+          "time_ns": 1789736624212000000
+        },
+        {
+          "decision_index": 2770,
+          "decision_ns": 1789736624212000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 2770,
+          "ticket": "sim_1",
+          "time_ns": 1789736624212000000
+        },
+        {
+          "decision_index": 2770,
+          "decision_ns": 1789736624212000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 2770,
+          "ticket": "sim_1",
+          "time_ns": 1789736624212000000
+        },
+        {
+          "decision_index": 2771,
+          "decision_ns": 1789736624274000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 2771,
+          "ticket": "sim_1",
+          "time_ns": 1789736624274000000
+        },
+        {
+          "decision_index": 2771,
+          "decision_ns": 1789736624274000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 2771,
+          "ticket": "sim_1",
+          "time_ns": 1789736624274000000
+        },
+        {
+          "decision_index": 2771,
+          "decision_ns": 1789736624274000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 2771,
+          "ticket": "sim_1",
+          "time_ns": 1789736624274000000
+        },
+        {
+          "decision_index": 2772,
+          "decision_ns": 1789736624341000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 2772,
+          "ticket": "sim_1",
+          "time_ns": 1789736624341000000
+        },
+        {
+          "decision_index": 2772,
+          "decision_ns": 1789736624341000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 2772,
+          "ticket": "sim_1",
+          "time_ns": 1789736624341000000
+        },
+        {
+          "decision_index": 2772,
+          "decision_ns": 1789736624341000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 2772,
+          "ticket": "sim_1",
+          "time_ns": 1789736624341000000
+        },
+        {
+          "decision_index": 2773,
+          "decision_ns": 1789736624433000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 2773,
+          "ticket": "sim_1",
+          "time_ns": 1789736624433000000
+        },
+        {
+          "decision_index": 2773,
+          "decision_ns": 1789736624433000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 2773,
+          "ticket": "sim_1",
+          "time_ns": 1789736624433000000
+        },
+        {
+          "decision_index": 2773,
+          "decision_ns": 1789736624433000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 2773,
+          "ticket": "sim_1",
+          "time_ns": 1789736624433000000
+        },
+        {
+          "decision_index": 2774,
+          "decision_ns": 1789736624494000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 2774,
+          "ticket": "sim_1",
+          "time_ns": 1789736624494000000
+        },
+        {
+          "decision_index": 2774,
+          "decision_ns": 1789736624494000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 2774,
+          "ticket": "sim_1",
+          "time_ns": 1789736624494000000
+        },
+        {
+          "decision_index": 2774,
+          "decision_ns": 1789736624494000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 2774,
+          "ticket": "sim_1",
+          "time_ns": 1789736624494000000
+        },
+        {
+          "decision_index": 2775,
+          "decision_ns": 1789736624557000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 2775,
+          "ticket": "sim_1",
+          "time_ns": 1789736624557000000
+        },
+        {
+          "decision_index": 2775,
+          "decision_ns": 1789736624557000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 2775,
+          "ticket": "sim_1",
+          "time_ns": 1789736624557000000
+        },
+        {
+          "decision_index": 2775,
+          "decision_ns": 1789736624557000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 2775,
+          "ticket": "sim_1",
+          "time_ns": 1789736624557000000
+        },
+        {
+          "decision_index": 2776,
+          "decision_ns": 1789736624617000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 2776,
+          "ticket": "sim_1",
+          "time_ns": 1789736624617000000
+        },
+        {
+          "decision_index": 2776,
+          "decision_ns": 1789736624617000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 2776,
+          "ticket": "sim_1",
+          "time_ns": 1789736624617000000
+        },
+        {
+          "decision_index": 2776,
+          "decision_ns": 1789736624617000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 2776,
+          "ticket": "sim_1",
+          "time_ns": 1789736624617000000
+        },
+        {
+          "decision_index": 2777,
+          "decision_ns": 1789736624683000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 2777,
+          "ticket": "sim_1",
+          "time_ns": 1789736624683000000
+        },
+        {
+          "decision_index": 2777,
+          "decision_ns": 1789736624683000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 2777,
+          "ticket": "sim_1",
+          "time_ns": 1789736624683000000
+        },
+        {
+          "decision_index": 2777,
+          "decision_ns": 1789736624683000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 2777,
+          "ticket": "sim_1",
+          "time_ns": 1789736624683000000
+        },
+        {
+          "decision_index": 2778,
+          "decision_ns": 1789736624745000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 2778,
+          "ticket": "sim_1",
+          "time_ns": 1789736624745000000
+        },
+        {
+          "decision_index": 2778,
+          "decision_ns": 1789736624745000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 2778,
+          "ticket": "sim_1",
+          "time_ns": 1789736624745000000
+        },
+        {
+          "decision_index": 2778,
+          "decision_ns": 1789736624745000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 2805,
+          "ticket": "sim_1",
+          "time_ns": 1789736626925000000
+        },
+        {
+          "decision_index": 15715,
+          "decision_ns": 1789737908267000000,
+          "kind": "queued",
+          "operation": "entry",
+          "tick_index": 15715,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737908267000000
+        },
+        {
+          "decision_index": 15715,
+          "decision_ns": 1789737908267000000,
+          "kind": "started",
+          "operation": "entry",
+          "tick_index": 15715,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737908267000000
+        },
+        {
+          "decision_index": 15715,
+          "decision_ns": 1789737908267000000,
+          "kind": "released",
+          "operation": "entry",
+          "tick_index": 15743,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737910297000000
+        },
+        {
+          "decision_index": 15743,
+          "decision_ns": 1789737910297000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 15743,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737910297000000
+        },
+        {
+          "decision_index": 15743,
+          "decision_ns": 1789737910297000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 15743,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737910297000000
+        },
+        {
+          "decision_index": 15743,
+          "decision_ns": 1789737910297000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 15769,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737912333000000
+        },
+        {
+          "decision_index": 16249,
+          "decision_ns": 1789737955935000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 16249,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737955935000000
+        },
+        {
+          "decision_index": 16249,
+          "decision_ns": 1789737955935000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 16249,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737955935000000
+        },
+        {
+          "decision_index": 16249,
+          "decision_ns": 1789737955935000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 16272,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737958182000000
+        },
+        {
+          "decision_index": 16416,
+          "decision_ns": 1789737972021000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 16416,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737972021000000
+        },
+        {
+          "decision_index": 16416,
+          "decision_ns": 1789737972021000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 16416,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737972021000000
+        },
+        {
+          "decision_index": 16416,
+          "decision_ns": 1789737972021000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 16442,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974119000000
+        },
+        {
+          "decision_index": 16442,
+          "decision_ns": 1789737974119000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 16442,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974119000000
+        },
+        {
+          "decision_index": 16442,
+          "decision_ns": 1789737974119000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 16442,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974119000000
+        },
+        {
+          "decision_index": 16442,
+          "decision_ns": 1789737974119000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 16442,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974119000000
+        },
+        {
+          "decision_index": 16443,
+          "decision_ns": 1789737974196000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 16443,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974196000000
+        },
+        {
+          "decision_index": 16443,
+          "decision_ns": 1789737974196000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 16443,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974196000000
+        },
+        {
+          "decision_index": 16443,
+          "decision_ns": 1789737974196000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 16443,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974196000000
+        },
+        {
+          "decision_index": 16444,
+          "decision_ns": 1789737974372000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 16444,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974372000000
+        },
+        {
+          "decision_index": 16444,
+          "decision_ns": 1789737974372000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 16444,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974372000000
+        },
+        {
+          "decision_index": 16444,
+          "decision_ns": 1789737974372000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 16444,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974372000000
+        },
+        {
+          "decision_index": 16445,
+          "decision_ns": 1789737974550000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 16445,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974550000000
+        },
+        {
+          "decision_index": 16445,
+          "decision_ns": 1789737974550000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 16445,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974550000000
+        },
+        {
+          "decision_index": 16445,
+          "decision_ns": 1789737974550000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 16445,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974550000000
+        },
+        {
+          "decision_index": 16446,
+          "decision_ns": 1789737974616000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 16446,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974616000000
+        },
+        {
+          "decision_index": 16446,
+          "decision_ns": 1789737974616000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 16446,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974616000000
+        },
+        {
+          "decision_index": 16446,
+          "decision_ns": 1789737974616000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 16446,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974616000000
+        },
+        {
+          "decision_index": 16447,
+          "decision_ns": 1789737974702000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 16447,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974702000000
+        },
+        {
+          "decision_index": 16447,
+          "decision_ns": 1789737974702000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 16447,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974702000000
+        },
+        {
+          "decision_index": 16447,
+          "decision_ns": 1789737974702000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 16447,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974702000000
+        },
+        {
+          "decision_index": 16448,
+          "decision_ns": 1789737974768000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 16448,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974768000000
+        },
+        {
+          "decision_index": 16448,
+          "decision_ns": 1789737974768000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 16448,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974768000000
+        },
+        {
+          "decision_index": 16448,
+          "decision_ns": 1789737974768000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 16448,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974768000000
+        },
+        {
+          "decision_index": 16449,
+          "decision_ns": 1789737974892000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 16449,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974892000000
+        },
+        {
+          "decision_index": 16449,
+          "decision_ns": 1789737974892000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 16449,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974892000000
+        },
+        {
+          "decision_index": 16449,
+          "decision_ns": 1789737974892000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 16449,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974892000000
+        },
+        {
+          "decision_index": 16450,
+          "decision_ns": 1789737974968000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 16450,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974968000000
+        },
+        {
+          "decision_index": 16450,
+          "decision_ns": 1789737974968000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 16450,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974968000000
+        },
+        {
+          "decision_index": 16450,
+          "decision_ns": 1789737974968000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 16450,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737974968000000
+        },
+        {
+          "decision_index": 16451,
+          "decision_ns": 1789737975053000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 16451,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737975053000000
+        },
+        {
+          "decision_index": 16451,
+          "decision_ns": 1789737975053000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 16451,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737975053000000
+        },
+        {
+          "decision_index": 16451,
+          "decision_ns": 1789737975053000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 16451,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737975053000000
+        },
+        {
+          "decision_index": 16452,
+          "decision_ns": 1789737975155000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 16452,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737975155000000
+        },
+        {
+          "decision_index": 16452,
+          "decision_ns": 1789737975155000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 16452,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737975155000000
+        },
+        {
+          "decision_index": 16452,
+          "decision_ns": 1789737975155000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 16474,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737977196000000
+        },
+        {
+          "decision_index": 16505,
+          "decision_ns": 1789737980501000000,
+          "kind": "queued",
+          "operation": "modify",
+          "tick_index": 16505,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737980501000000
+        },
+        {
+          "decision_index": 16505,
+          "decision_ns": 1789737980501000000,
+          "kind": "started",
+          "operation": "modify",
+          "tick_index": 16505,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737980501000000
+        },
+        {
+          "decision_index": 16505,
+          "decision_ns": 1789737980501000000,
+          "kind": "released",
+          "operation": "modify",
+          "tick_index": 16531,
+          "ticket": "sim_ladder_2",
+          "time_ns": 1789737982558000000
+        }
+      ],
+      "entries": [
+        {
+          "acknowledged_ns": 1789736588769000000,
+          "entry_price": 4365.62,
+          "opened_at": "2026-09-18 13:03:06.750000+00:00",
+          "price_tick_index": 2345,
+          "requested_ns": 1789736586750000000,
+          "source": "causal_adverse_reversal",
+          "tick_index": 2345,
+          "ticket": "sim_1",
+          "volume": 0.04
+        },
+        {
+          "acknowledged_ns": 1789737910297000000,
+          "entry_price": 4364.06,
+          "opened_at": "2026-09-18 13:25:08.267000+00:00",
+          "price_tick_index": 15715,
+          "requested_ns": 1789737908267000000,
+          "source": "counterfactual_adverse_ladder",
+          "tick_index": 15715,
+          "ticket": "sim_ladder_2",
+          "volume": 0.03
+        }
+      ],
+      "exits": [
+        {
+          "closed_at": "2026-09-18 13:03:52.661000+00:00",
+          "entry_price": 4365.62,
+          "exit_price": 4366.12,
+          "pnl_eur": "1.74",
+          "reason": "per_leg_target",
+          "tick_index": 2875,
+          "ticket": "sim_1",
+          "volume": 0.04
+        },
+        {
+          "closed_at": "2026-09-18 13:26:22.394000+00:00",
+          "entry_price": 4364.06,
+          "exit_price": 4365.06,
+          "pnl_eur": "2.62",
+          "reason": "per_leg_target",
+          "tick_index": 16529,
+          "ticket": "sim_ladder_2",
+          "volume": 0.03
+        }
+      ],
+      "market_events": [
+        {
+          "kind": "entry_requested",
+          "price": 4365.62,
+          "reason": "causal_adverse_reversal",
+          "request_id": 1,
+          "tick_index": 2345,
+          "ticket": "sim_1",
+          "timestamp_ns": 1789736586750000000,
+          "volume": 0.04
+        },
+        {
+          "kind": "entry_filled",
+          "price": 4365.62,
+          "reason": "causal_adverse_reversal",
+          "request_id": 1,
+          "tick_index": 2345,
+          "ticket": "sim_1",
+          "timestamp_ns": 1789736586750000000,
+          "volume": 0.04
+        },
+        {
+          "kind": "entry_acknowledged",
+          "price": 4365.62,
+          "reason": "accepted",
+          "request_id": 1,
+          "tick_index": 2374,
+          "ticket": "sim_1",
+          "timestamp_ns": 1789736588769000000,
+          "volume": 0.04
+        },
+        {
+          "kind": "entry_requested",
+          "price": 4364.06,
+          "reason": "counterfactual_adverse_ladder",
+          "request_id": 2,
+          "tick_index": 15715,
+          "ticket": "sim_ladder_2",
+          "timestamp_ns": 1789737908267000000,
+          "volume": 0.03
+        },
+        {
+          "kind": "entry_filled",
+          "price": 4364.06,
+          "reason": "counterfactual_adverse_ladder",
+          "request_id": 2,
+          "tick_index": 15715,
+          "ticket": "sim_ladder_2",
+          "timestamp_ns": 1789737908267000000,
+          "volume": 0.03
+        },
+        {
+          "kind": "entry_acknowledged",
+          "price": 4364.06,
+          "reason": "accepted",
+          "request_id": 2,
+          "tick_index": 15743,
+          "ticket": "sim_ladder_2",
+          "timestamp_ns": 1789737910297000000,
+          "volume": 0.03
+        }
+      ],
+      "protection_events": [
+        {
+          "kind": "open",
+          "reason": "hypothetical_open_request",
+          "request_id": 0,
+          "sl": 4335.62,
+          "tick_index": 2345,
+          "ticket": "sim_1",
+          "timestamp_ns": 1789736586750000000,
+          "tp": null
+        },
+        {
+          "kind": "requested",
+          "reason": "policy_intent",
+          "request_id": 1,
+          "sl": 4335.62,
+          "tick_index": 2374,
+          "ticket": "sim_1",
+          "timestamp_ns": 1789736588769000000,
+          "tp": 4366.12
+        },
+        {
+          "kind": "installed",
+          "reason": "accepted",
+          "request_id": 1,
+          "sl": 4335.62,
+          "tick_index": 2388,
+          "ticket": "sim_1",
+          "timestamp_ns": 1789736589771000000,
+          "tp": 4366.12
+        },
+        {
+          "kind": "acknowledged",
+          "reason": "response_available",
+          "request_id": 1,
+          "sl": 4335.62,
+          "tick_index": 2401,
+          "ticket": "sim_1",
+          "timestamp_ns": 1789736590799000000,
+          "tp": 4366.12
+        },
+        {
+          "kind": "requested",
+          "reason": "policy_intent",
+          "request_id": 2,
+          "sl": 4335.67,
+          "tick_index": 2475,
+          "ticket": "sim_1",
+          "timestamp_ns": 1789736596635000000,
+          "tp": 4366.12
+        },
+        {
+          "kind": "installed",
+          "reason": "accepted",
+          "request_id": 2,
+          "sl": 4335.67,
+          "tick_index": 2489,
+          "ticket": "sim_1",
+          "timestamp_ns": 1789736597639000000,
+          "tp": 4366.12
+        },
+        {
+          "kind": "acknowledged",
+          "reason": "response_available",
+          "request_id": 2,
+          "sl": 4335.67,
+          "tick_index": 2502,
+          "ticket": "sim_1",
+          "timestamp_ns": 1789736598713000000,
+          "tp": 4366.12
+        },
+        {
+          "kind": "requested",
+          "reason": "policy_intent",
+          "request_id": 3,
+          "sl": 4335.7,
+          "tick_index": 2740,
+          "ticket": "sim_1",
+          "timestamp_ns": 1789736621558000000,
+          "tp": 4366.12
+        },
+        {
+          "kind": "installed",
+          "reason": "accepted",
+          "request_id": 3,
+          "sl": 4335.7,
+          "tick_index": 2755,
+          "ticket": "sim_1",
+          "timestamp_ns": 1789736622609000000,
+          "tp": 4366.12
+        },
+        {
+          "kind": "acknowledged",
+          "reason": "response_available",
+          "request_id": 3,
+          "sl": 4335.7,
+          "tick_index": 2764,
+          "ticket": "sim_1",
+          "timestamp_ns": 1789736623744000000,
+          "tp": 4366.12
+        },
+        {
+          "kind": "requested",
+          "reason": "policy_intent",
+          "request_id": 4,
+          "sl": 4336.01,
+          "tick_index": 2778,
+          "ticket": "sim_1",
+          "timestamp_ns": 1789736624745000000,
+          "tp": 4366.12
+        },
+        {
+          "kind": "installed",
+          "reason": "accepted",
+          "request_id": 4,
+          "sl": 4336.01,
+          "tick_index": 2792,
+          "ticket": "sim_1",
+          "timestamp_ns": 1789736625839000000,
+          "tp": 4366.12
+        },
+        {
+          "kind": "acknowledged",
+          "reason": "response_available",
+          "request_id": 4,
+          "sl": 4336.01,
+          "tick_index": 2805,
+          "ticket": "sim_1",
+          "timestamp_ns": 1789736626925000000,
+          "tp": 4366.12
+        },
+        {
+          "kind": "closed",
+          "reason": "per_leg_target",
+          "request_id": 0,
+          "sl": 4336.01,
+          "tick_index": 2875,
+          "ticket": "sim_1",
+          "timestamp_ns": 1789736632661000000,
+          "tp": 4366.12
+        },
+        {
+          "kind": "open",
+          "reason": "hypothetical_open_request",
+          "request_id": 0,
+          "sl": 4334.06,
+          "tick_index": 15715,
+          "ticket": "sim_ladder_2",
+          "timestamp_ns": 1789737908267000000,
+          "tp": null
+        },
+        {
+          "kind": "requested",
+          "reason": "policy_intent",
+          "request_id": 5,
+          "sl": 4334.06,
+          "tick_index": 15743,
+          "ticket": "sim_ladder_2",
+          "timestamp_ns": 1789737910297000000,
+          "tp": 4365.06
+        },
+        {
+          "kind": "installed",
+          "reason": "accepted",
+          "request_id": 5,
+          "sl": 4334.06,
+          "tick_index": 15758,
+          "ticket": "sim_ladder_2",
+          "timestamp_ns": 1789737911316000000,
+          "tp": 4365.06
+        },
+        {
+          "kind": "acknowledged",
+          "reason": "response_available",
+          "request_id": 5,
+          "sl": 4334.06,
+          "tick_index": 15769,
+          "ticket": "sim_ladder_2",
+          "timestamp_ns": 1789737912333000000,
+          "tp": 4365.06
+        },
+        {
+          "kind": "requested",
+          "reason": "policy_intent",
+          "request_id": 6,
+          "sl": 4334.08,
+          "tick_index": 16249,
+          "ticket": "sim_ladder_2",
+          "timestamp_ns": 1789737955935000000,
+          "tp": 4365.06
+        },
+        {
+          "kind": "installed",
+          "reason": "accepted",
+          "request_id": 6,
+          "sl": 4334.08,
+          "tick_index": 16261,
+          "ticket": "sim_ladder_2",
+          "timestamp_ns": 1789737956983000000,
+          "tp": 4365.06
+        },
+        {
+          "kind": "acknowledged",
+          "reason": "response_available",
+          "request_id": 6,
+          "sl": 4334.08,
+          "tick_index": 16272,
+          "ticket": "sim_ladder_2",
+          "timestamp_ns": 1789737958182000000,
+          "tp": 4365.06
+        },
+        {
+          "kind": "requested",
+          "reason": "policy_intent",
+          "request_id": 7,
+          "sl": 4334.11,
+          "tick_index": 16416,
+          "ticket": "sim_ladder_2",
+          "timestamp_ns": 1789737972021000000,
+          "tp": 4365.06
+        },
+        {
+          "kind": "installed",
+          "reason": "accepted",
+          "request_id": 7,
+          "sl": 4334.11,
+          "tick_index": 16430,
+          "ticket": "sim_ladder_2",
+          "timestamp_ns": 1789737973064000000,
+          "tp": 4365.06
+        },
+        {
+          "kind": "acknowledged",
+          "reason": "response_available",
+          "request_id": 7,
+          "sl": 4334.11,
+          "tick_index": 16442,
+          "ticket": "sim_ladder_2",
+          "timestamp_ns": 1789737974119000000,
+          "tp": 4365.06
+        },
+        {
+          "kind": "requested",
+          "reason": "policy_intent",
+          "request_id": 8,
+          "sl": 4334.53,
+          "tick_index": 16452,
+          "ticket": "sim_ladder_2",
+          "timestamp_ns": 1789737975155000000,
+          "tp": 4365.06
+        },
+        {
+          "kind": "installed",
+          "reason": "accepted",
+          "request_id": 8,
+          "sl": 4334.53,
+          "tick_index": 16466,
+          "ticket": "sim_ladder_2",
+          "timestamp_ns": 1789737976187000000,
+          "tp": 4365.06
+        },
+        {
+          "kind": "acknowledged",
+          "reason": "response_available",
+          "request_id": 8,
+          "sl": 4334.53,
+          "tick_index": 16474,
+          "ticket": "sim_ladder_2",
+          "timestamp_ns": 1789737977196000000,
+          "tp": 4365.06
+        },
+        {
+          "kind": "requested",
+          "reason": "policy_intent",
+          "request_id": 9,
+          "sl": 4334.56,
+          "tick_index": 16505,
+          "ticket": "sim_ladder_2",
+          "timestamp_ns": 1789737980501000000,
+          "tp": 4365.06
+        },
+        {
+          "kind": "installed",
+          "reason": "accepted",
+          "request_id": 9,
+          "sl": 4334.56,
+          "tick_index": 16517,
+          "ticket": "sim_ladder_2",
+          "timestamp_ns": 1789737981538000000,
+          "tp": 4365.06
+        },
+        {
+          "kind": "closed",
+          "reason": "per_leg_target",
+          "request_id": 0,
+          "sl": 4334.56,
+          "tick_index": 16529,
+          "ticket": "sim_ladder_2",
+          "timestamp_ns": 1789737982394000000,
+          "tp": 4365.06
+        },
+        {
+          "kind": "acknowledged",
+          "reason": "response_available",
+          "request_id": 9,
+          "sl": 4334.56,
+          "tick_index": 16531,
+          "ticket": "sim_ladder_2",
+          "timestamp_ns": 1789737982558000000,
+          "tp": 4365.06
+        }
+      ],
+      "signal_id": "canal2_3180"
+    }
+  ],
+  "canal1_diagnostics": [
+    {
+      "channel": "canal1",
+      "message_id": 22548,
+      "message_revision_id": "msgrev_b67b2268e322cb87fc98206e6f42d9463fae3981c948cc87fe22c9369889deb2",
+      "observed_at": "2026-09-15T12:42:02.949+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22553,
+      "message_revision_id": "msgrev_f5ab3abfd750ab787974a268ca23f8de2845bee0259939e0881161646903d387",
+      "observed_at": "2026-09-15T12:42:03.014+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22559,
+      "message_revision_id": "msgrev_e5f8cc0cab7603e7540e2d0c196ce8fd0c99de3e2bf5504503f13deb67578d4e",
+      "observed_at": "2026-09-15T12:42:03.030+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22564,
+      "message_revision_id": "msgrev_102ddbd1ac43ad7306905bde1fecaea6f8899ccca1d75193fe7e960275d019f0",
+      "observed_at": "2026-09-15T12:42:03.047+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22573,
+      "message_revision_id": "msgrev_656b2cff08a76420938a348f9278845aa384f0f56910de3c4f086f165cd94087",
+      "observed_at": "2026-09-15T12:42:03.072+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22580,
+      "message_revision_id": "msgrev_f904161e193700ef94f6f6614831dc4c227ee315d2c4733d34a223d1e6cf1065",
+      "observed_at": "2026-09-15T12:42:03.091+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22587,
+      "message_revision_id": "msgrev_0575e1cf5bf43072b4f1e173639e93f80bcf0a652e1873a37772469746c153ed",
+      "observed_at": "2026-09-15T13:14:23.180+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22587,
+      "message_revision_id": "msgrev_4305670634961157bbf8d0019f38603f7224e97885ee7aa9c19ef3bf008c35a6",
+      "observed_at": "2026-09-15T13:14:34.384+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22590,
+      "message_revision_id": "msgrev_9ce59c2255e0020e4d10e8bb073eaf53be9988d210b10e507b34bb3af63a3469",
+      "observed_at": "2026-09-15T13:48:10.842+00:00",
+      "reason": "unknown_sticker_direction"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22590,
+      "message_revision_id": "msgrev_08e00f29117627daf783d04d6a6e19dc926d0ed4daf7d1467fcf77012d9abcb4",
+      "observed_at": "2026-09-15T13:48:36.534+00:00",
+      "reason": "unknown_sticker_direction"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22592,
+      "message_revision_id": "msgrev_de6aad541acc3093083c322ada2e1963c530ec0cf795a777812308cff0f73d3d",
+      "observed_at": "2026-09-15T13:57:26.466+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22592,
+      "message_revision_id": "msgrev_1a20070551989bdc7237d694a54e25aab04d7d951763463e3bb94f345018f1d8",
+      "observed_at": "2026-09-15T13:58:32.708+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22601,
+      "message_revision_id": "msgrev_38c60da766ed19be2d54608637a0612b2a4f416972c3dfd3e9bd902e4e979021",
+      "observed_at": "2026-09-15T17:16:57.948+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22601,
+      "message_revision_id": "msgrev_f0547f03fc9a9b53ad50e95d99718c3badd99a2c6c17d701a79dbdbacab42d34",
+      "observed_at": "2026-09-15T17:17:23.187+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22635,
+      "message_revision_id": "msgrev_0f124199213fb98c476ea4f39c30d54d62e06b3f55ba39d4849d8f7ed0cad1bc",
+      "observed_at": "2026-09-16T12:15:24.361+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22635,
+      "message_revision_id": "msgrev_9bc1e79c34382aec191f2355a6266fd4c3c0919819378305f9808e6f6e6fb8de",
+      "observed_at": "2026-09-16T12:15:54.022+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22642,
+      "message_revision_id": "msgrev_a948fe7c5fe2a97893c705b82ea4914312060fc2cc62ed66a4cb02690d78f8de",
+      "observed_at": "2026-09-16T13:02:53.587+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22642,
+      "message_revision_id": "msgrev_d847c795ba1d21fe5bc6f9918d0e29237a85a7d2825a0b6e745bbe2dbab78323",
+      "observed_at": "2026-09-16T13:04:14.595+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22646,
+      "message_revision_id": "msgrev_09ce97192a09ba0180d7f0197a961cebeed08dbee027e47f5bdfbd2e080e34e3",
+      "observed_at": "2026-09-16T13:22:05.548+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22652,
+      "message_revision_id": "msgrev_f11d4a1502a57a1f2840d96f9b3922f1329455cf4588272003c35d0351f52ab6",
+      "observed_at": "2026-09-16T13:54:13.890+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22718,
+      "message_revision_id": "msgrev_b36ae0fb1ad707a1c4540b5747f8ef69cf189ba91911929de7256e7b324b8166",
+      "observed_at": "2026-09-17T12:55:02.936+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22725,
+      "message_revision_id": "msgrev_80c81d9c6cae66eb0827e037e7cef747fb64cbf9a9a9ee343202291dfa767049",
+      "observed_at": "2026-09-17T13:23:17.409+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22732,
+      "message_revision_id": "msgrev_2e143782e9b1cd2db570124da3ebad70ec4f67c71fb21970174d17e4a543fa47",
+      "observed_at": "2026-09-17T14:09:09.393+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22739,
+      "message_revision_id": "msgrev_12306e1bd4b2defca86ded19e4e7657c67c025e9b1f2a3fa52c25e3211598900",
+      "observed_at": "2026-09-17T14:47:19.128+00:00",
+      "reason": "conditional_management_unsupported"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22739,
+      "message_revision_id": "msgrev_d163a9454a51068059bfed088f777e95014b15d6b17a32727dbea3a5180d5523",
+      "observed_at": "2026-09-17T14:47:36.636+00:00",
+      "reason": "conditional_management_unsupported"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22741,
+      "message_revision_id": "msgrev_93bf545f2652e4b5d4f07092900861da692ea8abffaba5d6f9f3f5bb71706fad",
+      "observed_at": "2026-09-17T15:03:05.167+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22741,
+      "message_revision_id": "msgrev_fbafda8a5cc8490a51d00537962ea936091c94135975bff00cbd887b8d85dae9",
+      "observed_at": "2026-09-17T15:04:30.511+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22747,
+      "message_revision_id": "msgrev_45e71d849ab728460121e61eaf3f3f8491138863840a6beca0bf428484fff570",
+      "observed_at": "2026-09-17T15:18:16.013+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22747,
+      "message_revision_id": "msgrev_092ff4bfb424fe5ec1ad4bcb024182409f4d8566dfdaafcbaad6f0c44e6b1ba7",
+      "observed_at": "2026-09-17T15:19:02.771+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22751,
+      "message_revision_id": "msgrev_77776c6ddc4ed2e6db51813de3e9f816ca15b86398ca55b9c142505ebcf4dfdc",
+      "observed_at": "2026-09-17T16:48:55.708+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22751,
+      "message_revision_id": "msgrev_1c72fef35844d95859376e67008e559f59f909909defa10249563ad20f9394a1",
+      "observed_at": "2026-09-17T16:50:25.978+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22761,
+      "message_revision_id": "msgrev_015ab63fb698a39901e3cfba7deea0f7cd0585e0546cba4b4b71e0e7655f6e21",
+      "observed_at": "2026-09-18T11:06:47.394+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22761,
+      "message_revision_id": "msgrev_6ba6aafc2a1e5bb5035cbce475033faf69f7c261d05e3ea07fde3ef58b84d383",
+      "observed_at": "2026-09-18T11:07:23.042+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22768,
+      "message_revision_id": "msgrev_559b53f432cb2d44b61f291578bafee7e8ec7ba3850872076b0c0a001c6f7843",
+      "observed_at": "2026-09-18T12:30:24.517+00:00",
+      "reason": "trigger_outside_control_window"
+    },
+    {
+      "channel": "canal1",
+      "message_id": 22768,
+      "message_revision_id": "msgrev_8b13f03c73a2262fae196e3da282c58471fe962a114abb5304eb5a60791f7506",
+      "observed_at": "2026-09-18T12:31:14.656+00:00",
+      "reason": "trigger_outside_control_window"
+    }
+  ],
+  "clock_offset_seconds_hypothesis": 10800,
+  "contract": "canal1_incremental_window_diagnostic_v1",
+  "cutoff_utc": "2026-09-18T13:35:00+00:00",
+  "decisions": [],
+  "delivered_provider_events": [
+    {
+      "actions": [
+        "LEVEL_UPDATE",
+        "LEVEL_UPDATE",
+        "LEVEL_UPDATE",
+        "LEVEL_UPDATE"
+      ],
+      "signal_id": "canal2_3180"
+    }
+  ],
+  "execution_assumptions": {
+    "canal1": {
+      "client": {
+        "entry_price_delay_ms": null,
+        "ladder_decision_mode": "snapshot_batch",
+        "max_events": 100000,
+        "name": "single_basket_terminal_guard_v1"
+      },
+      "entry_fill_latency_ms": 0,
+      "entry_slippage": 0.0,
+      "exit_slippage": 0.0,
+      "latency_ms": 0,
+      "market": {
+        "close_acknowledgement_delay_ms": 1000,
+        "close_processing_delay_ms": 1000,
+        "entry_acknowledgement_delay_ms": 2000,
+        "max_events": 100000,
+        "name": "quote_clock_market_v1",
+        "volume_max": 1.0,
+        "volume_min": 0.01,
+        "volume_step": 0.01
+      },
+      "protection": {
+        "acknowledgement_delay_ms": 1000,
+        "digits": 2,
+        "freeze_level_points": 0,
+        "initial_protections": [],
+        "max_events": 100000,
+        "name": "quote_clock_protection_v1",
+        "point": 0.01,
+        "policy_extension": "basket_guard_v1",
+        "processing_delay_ms": 1000,
+        "request_quote_binding": "timestamp_and_ordinal",
+        "retry_delay_ms": 1000,
+        "stops_level_points": 20
+      },
+      "spread_addition": 0.0
+    },
+    "canal2": {
+      "client": {
+        "entry_price_delay_ms": null,
+        "ladder_decision_mode": "snapshot_batch",
+        "max_events": 100000,
+        "name": "single_basket_serial_v1"
+      },
+      "entry_fill_latency_ms": 0,
+      "entry_slippage": 0.0,
+      "exit_slippage": 0.0,
+      "latency_ms": 0,
+      "market": {
+        "close_acknowledgement_delay_ms": 1000,
+        "close_processing_delay_ms": 1000,
+        "entry_acknowledgement_delay_ms": 2000,
+        "max_events": 100000,
+        "name": "quote_clock_market_v1",
+        "volume_max": 1.0,
+        "volume_min": 0.01,
+        "volume_step": 0.01
+      },
+      "protection": {
+        "acknowledgement_delay_ms": 1000,
+        "digits": 2,
+        "freeze_level_points": 0,
+        "initial_protections": [],
+        "max_events": 100000,
+        "name": "quote_clock_protection_v1",
+        "point": 0.01,
+        "policy_extension": "none",
+        "processing_delay_ms": 1000,
+        "request_quote_binding": "timestamp_only",
+        "retry_delay_ms": 1000,
+        "stops_level_points": 20
+      },
+      "spread_addition": 0.0
+    }
+  },
+  "execution_profile": "explicit_uncalibrated_guard_client_v1",
+  "full_live_parity_verified": false,
+  "initial_universe_complete_assumed": true,
+  "limitations": [
+    "Common supplied quotes; shared read requests are not modeled.",
+    "Preparation is immediate; native authorization is not modeled.",
+    "Same-quote causal rounds and input scope order are explicit hypotheses.",
+    "Caller continuation after a transport timeout is not live-validated.",
+    "Risk phases are model states, not observed broker micro-timestamps.",
+    "Legacy scalar summaries do not certify the new pre/post broker risk grid.",
+    "Post-event grid measures selected initially-flat model scopes, not account equity.",
+    "No portfolio, margin, strategy promotion or full live-parity certification.",
+    "Provider updates arrive at the next strictly later quote; interquote reads are not modeled.",
+    "Predeclared dormant baskets are activated only after causal admission; rejected scopes remain zero-risk model placeholders.",
+    "Clock offset and initial flatness are hypotheses, not admitted historical facts.",
+    "Reconciled closed deals do not prove absence of pending or unclosed positions.",
+    "Execution profile is uncalibrated; no observed broker path comparison is made."
+  ],
+  "native_start_control": {
+    "at_utc": "2026-09-18T13:00:00+00:00",
+    "deals_sha256": "91723c6cc65070407bbb5a79721a6109896450354fe20b74f3a344ba7206f021",
+    "does_not_prove_absence_of_pending_or_unclosed_positions": true,
+    "open_position_count": 0,
+    "open_positions": [],
+    "open_signal_ids": [],
+    "reconciled_position_count": 115,
+    "reconciled_sha256": "1c4c1eedef5b21b5f0e6d48ad2bc934712c939308b6b7dcec952867c18232aa4",
+    "source_clock_msc": 1789747200000
+  },
+  "optional_close_choice": "hold",
+  "other_signal_ids": [
+    "canal2_3180"
+  ],
+  "policy_fingerprints": {
+    "canal1": "29b5572ce770725ef09dba0e702e266c6fc002c06f09f4e0be4d13adb50da045",
+    "canal2": "9b8a08950d6bd319b06f495a9844628c6e9d65bf49770b733f9c123f397ccc91"
+  },
+  "risk": {
+    "known_frames": 16017,
+    "max_drawdown_minor_model": null,
+    "not_observed_account_equity": true,
+    "unknown_frames": 3352
+  },
+  "risk_grid_count": 19369,
+  "risk_point_count": 38080,
+  "shared_blockers": [
+    "canal2_3180:incomplete_equity_conversion",
+    "canal2_3180:stale_conversion_during_profit_lock"
+  ],
+  "sources": {
+    "EURUSD": {
+      "clock_admitted_by_source": false,
+      "day_rows": 122490,
+      "metadata_sha256": "5671ed7d48c1e4c8035479f106d3894a0ce2853fdf54e0cc3cb6a3d8c71117a4",
+      "parquet_sha256": "08bbc079f6ce17ecaadd44b632193e6dc295351541927f51b9e6747dc0102147",
+      "selected_rows": 4271
+    },
+    "XAUUSD": {
+      "clock_admitted_by_source": false,
+      "day_rows": 655101,
+      "metadata_sha256": "f502e12e7ac65ccbc86a1bc1db688403a620dcc84c25c9f68c7436ee97a48cb3",
+      "parquet_sha256": "b0ddaa81f9c7391c1161f4239af2a9b932b7c3eb7997a683449fba6c1278670e",
+      "selected_rows": 22355
+    },
+    "implementation_sha256": {
+      "research/causal_canal1_stream.py": "d5acb5c726b942649ded681e8efdc9c161ad20b6b0eb964a4bccaa0605b61f79",
+      "research/causal_lifecycle.py": "a853e3632429de4b1cc95df9e957b175678ccada40203aa338b22e7c2f362481",
+      "research/causal_management_semantics.py": "1add79f88b56a3572cbf026b25d897331ae8bc0fb7a1d6076e405260542dce09",
+      "research/causal_replay.py": "f470c980d6ccefb9451712a13adb704ee9eb278d331b5cb90c5c19b1df291f5f",
+      "research/causal_shared_stream.py": "1a00f0d8e23a8c60bfd161d5d6877fd1b55210f5a0169723bd3cad38e1156e07",
+      "research/causal_text_admission.py": "8cfe6a49521a5374858a64d07170d4bda95e731a8f97f0a7ecf83a176a5545e3",
+      "research/dubai_iterative/client_contract.py": "f13297d87c603841b5908258fbb1bbff6d7b819a6322ad79e947a46dff5d3156",
+      "research/dubai_iterative/engine.py": "f1212c29dafdb5eca27436ab60635ae29fdcb146b6b5f168999c669fb031a134",
+      "research/dubai_iterative/market.py": "2a217f7a30e8ec2d74e421d8748f3c1e76c3a89f1bcafdc159f7d94ee7d69f0b",
+      "research/dubai_iterative/shared_replay.py": "230d7084a8aea724e614fb664cc1a6f3bc33bb6626c28e045d26b160ea617efc",
+      "tools/run_week_causal_controls.py": "46228b0daf4653dceb6cf640b3179f8c47dfe23b33d83fde42e8eb59c939238d"
+    },
+    "raw_sha256": "9548ca5ce3fdd27ebe5f488ac97639c7e5cc7001ae0f75c73a40d3828cfd63b0",
+    "runner_sha256": "07ae487b71d0df4a39c15aac7e7e00200b563e4e6ccd3e76f31f0a62acb9b3e8"
+  },
+  "start_utc": "2026-09-18T13:00:00+00:00",
+  "status": "blocked",
+  "timeline": [],
+  "transport": {
+    "active_request_id": null,
+    "blockers": [],
+    "broker_fills_simulated": false,
+    "capacity": 8,
+    "contract": "shared_transport_diagnostic_v1",
+    "cutoff_ns": 2099942000000,
+    "events": [
+      {
+        "at_ns": 186711000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:1:entry:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 186711000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:1:entry:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 186711000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:1:entry:sim_1"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:1:entry:sim_1",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "trade"
+      },
+      {
+        "at_ns": 188730000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:1:entry:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 188730000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:2:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 188730000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:2:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 188730000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:2:modify:sim_1"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:2:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 190760000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:2:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 196596000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:3:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 196596000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:3:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 196596000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:3:modify:sim_1"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:3:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 198674000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:3:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 221519000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:4:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 221519000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:4:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 221519000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:4:modify:sim_1"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:4:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 223705000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:4:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 223705000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:5:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 223705000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:5:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 223705000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:5:modify:sim_1"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:5:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 223705000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:5:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 223829000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:6:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 223829000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:6:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 223829000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:6:modify:sim_1"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:6:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 223829000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:6:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 223912000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:7:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 223912000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:7:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 223912000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:7:modify:sim_1"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:7:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 223912000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:7:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 223984000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:8:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 223984000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:8:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 223984000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:8:modify:sim_1"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:8:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 223984000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:8:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224051000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:9:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224051000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:9:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224051000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:9:modify:sim_1"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:9:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 224051000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:9:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224108000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:10:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224108000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:10:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224108000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:10:modify:sim_1"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:10:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 224108000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:10:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224173000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:11:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224173000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:11:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224173000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:11:modify:sim_1"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:11:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 224173000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:11:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224235000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:12:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224235000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:12:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224235000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:12:modify:sim_1"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:12:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 224235000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:12:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224302000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:13:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224302000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:13:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224302000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:13:modify:sim_1"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:13:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 224302000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:13:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224394000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:14:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224394000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:14:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224394000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:14:modify:sim_1"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:14:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 224394000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:14:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224455000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:15:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224455000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:15:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224455000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:15:modify:sim_1"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:15:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 224455000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:15:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224518000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:16:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224518000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:16:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224518000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:16:modify:sim_1"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:16:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 224518000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:16:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224578000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:17:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224578000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:17:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224578000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:17:modify:sim_1"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:17:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 224578000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:17:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224644000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:18:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224644000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:18:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224644000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:18:modify:sim_1"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:18:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 224644000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:18:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224706000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:19:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224706000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:19:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 224706000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:19:modify:sim_1"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:19:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 226886000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:19:modify:sim_1",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "active_request_id": null,
+        "at_ns": 232622000000,
+        "channel": "canal2",
+        "event_id": "0:1:sim_1",
+        "kind": "passive",
+        "mechanism": "native_tp",
+        "request_id": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1508228000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:20:entry:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1508228000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:20:entry:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1508228000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:20:entry:sim_ladder_2"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:20:entry:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "trade"
+      },
+      {
+        "at_ns": 1510258000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:20:entry:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1510258000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:21:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1510258000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:21:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1510258000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:21:modify:sim_ladder_2"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:21:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 1512294000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:21:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1555896000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:22:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1555896000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:22:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1555896000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:22:modify:sim_ladder_2"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:22:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 1558143000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:22:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1571982000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:23:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1571982000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:23:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1571982000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:23:modify:sim_ladder_2"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:23:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 1574080000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:23:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574080000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:24:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574080000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:24:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574080000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:24:modify:sim_ladder_2"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:24:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 1574080000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:24:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574157000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:25:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574157000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:25:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574157000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:25:modify:sim_ladder_2"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:25:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 1574157000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:25:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574333000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:26:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574333000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:26:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574333000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:26:modify:sim_ladder_2"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:26:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 1574333000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:26:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574511000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:27:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574511000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:27:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574511000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:27:modify:sim_ladder_2"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:27:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 1574511000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:27:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574577000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:28:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574577000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:28:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574577000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:28:modify:sim_ladder_2"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:28:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 1574577000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:28:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574663000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:29:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574663000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:29:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574663000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:29:modify:sim_ladder_2"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:29:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 1574663000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:29:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574729000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:30:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574729000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:30:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574729000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:30:modify:sim_ladder_2"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:30:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 1574729000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:30:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574853000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:31:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574853000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:31:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574853000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:31:modify:sim_ladder_2"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:31:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 1574853000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:31:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574929000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:32:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574929000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:32:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1574929000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:32:modify:sim_ladder_2"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:32:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 1574929000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:32:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1575014000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:33:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1575014000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:33:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1575014000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:33:modify:sim_ladder_2"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:33:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 1575014000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:33:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1575116000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:34:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1575116000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:34:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1575116000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:34:modify:sim_ladder_2"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:34:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "at_ns": 1577157000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:34:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1580462000000,
+        "channel": "canal2",
+        "kind": "admitted",
+        "request_id": "canal2:0:35:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1580462000000,
+        "channel": "canal2",
+        "kind": "queued",
+        "request_id": "canal2:0:35:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1580462000000,
+        "channel": "canal2",
+        "eligible_request_ids": [
+          "canal2:0:35:modify:sim_ladder_2"
+        ],
+        "kind": "started",
+        "request_id": "canal2:0:35:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "tie_hypothesis_used": false,
+        "transport_kind": "management"
+      },
+      {
+        "active_request_id": "canal2:0:35:modify:sim_ladder_2",
+        "at_ns": 1582355000000,
+        "channel": "canal2",
+        "event_id": "0:2:sim_ladder_2",
+        "kind": "passive",
+        "mechanism": "native_tp",
+        "request_id": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1582519000000,
+        "channel": "canal2",
+        "kind": "response",
+        "request_id": "canal2:0:35:modify:sim_ladder_2",
+        "signal_id": "canal2_3180"
+      }
+    ],
+    "full_live_parity_verified": false,
+    "jobs": [
+      {
+        "admitted_ns": 186711000000,
+        "channel": "canal2",
+        "deadline_ns": 246711000000,
+        "operation": "OPEN_MARKET",
+        "ready_ns": 186711000000,
+        "request_id": "canal2:0:1:entry:sim_1",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 188730000000,
+        "channel": "canal2",
+        "deadline_ns": 248730000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 188730000000,
+        "request_id": "canal2:0:2:modify:sim_1",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 196596000000,
+        "channel": "canal2",
+        "deadline_ns": 256596000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 196596000000,
+        "request_id": "canal2:0:3:modify:sim_1",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 221519000000,
+        "channel": "canal2",
+        "deadline_ns": 281519000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 221519000000,
+        "request_id": "canal2:0:4:modify:sim_1",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 223705000000,
+        "channel": "canal2",
+        "deadline_ns": 283705000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 223705000000,
+        "request_id": "canal2:0:5:modify:sim_1",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 223829000000,
+        "channel": "canal2",
+        "deadline_ns": 283829000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 223829000000,
+        "request_id": "canal2:0:6:modify:sim_1",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 223912000000,
+        "channel": "canal2",
+        "deadline_ns": 283912000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 223912000000,
+        "request_id": "canal2:0:7:modify:sim_1",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 223984000000,
+        "channel": "canal2",
+        "deadline_ns": 283984000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 223984000000,
+        "request_id": "canal2:0:8:modify:sim_1",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 224051000000,
+        "channel": "canal2",
+        "deadline_ns": 284051000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 224051000000,
+        "request_id": "canal2:0:9:modify:sim_1",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 224108000000,
+        "channel": "canal2",
+        "deadline_ns": 284108000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 224108000000,
+        "request_id": "canal2:0:10:modify:sim_1",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 224173000000,
+        "channel": "canal2",
+        "deadline_ns": 284173000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 224173000000,
+        "request_id": "canal2:0:11:modify:sim_1",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 224235000000,
+        "channel": "canal2",
+        "deadline_ns": 284235000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 224235000000,
+        "request_id": "canal2:0:12:modify:sim_1",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 224302000000,
+        "channel": "canal2",
+        "deadline_ns": 284302000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 224302000000,
+        "request_id": "canal2:0:13:modify:sim_1",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 224394000000,
+        "channel": "canal2",
+        "deadline_ns": 284394000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 224394000000,
+        "request_id": "canal2:0:14:modify:sim_1",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 224455000000,
+        "channel": "canal2",
+        "deadline_ns": 284455000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 224455000000,
+        "request_id": "canal2:0:15:modify:sim_1",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 224518000000,
+        "channel": "canal2",
+        "deadline_ns": 284518000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 224518000000,
+        "request_id": "canal2:0:16:modify:sim_1",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 224578000000,
+        "channel": "canal2",
+        "deadline_ns": 284578000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 224578000000,
+        "request_id": "canal2:0:17:modify:sim_1",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 224644000000,
+        "channel": "canal2",
+        "deadline_ns": 284644000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 224644000000,
+        "request_id": "canal2:0:18:modify:sim_1",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 224706000000,
+        "channel": "canal2",
+        "deadline_ns": 284706000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 224706000000,
+        "request_id": "canal2:0:19:modify:sim_1",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 1508228000000,
+        "channel": "canal2",
+        "deadline_ns": 1568228000000,
+        "operation": "OPEN_MARKET",
+        "ready_ns": 1508228000000,
+        "request_id": "canal2:0:20:entry:sim_ladder_2",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 1510258000000,
+        "channel": "canal2",
+        "deadline_ns": 1570258000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 1510258000000,
+        "request_id": "canal2:0:21:modify:sim_ladder_2",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 1555896000000,
+        "channel": "canal2",
+        "deadline_ns": 1615896000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 1555896000000,
+        "request_id": "canal2:0:22:modify:sim_ladder_2",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 1571982000000,
+        "channel": "canal2",
+        "deadline_ns": 1631982000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 1571982000000,
+        "request_id": "canal2:0:23:modify:sim_ladder_2",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 1574080000000,
+        "channel": "canal2",
+        "deadline_ns": 1634080000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 1574080000000,
+        "request_id": "canal2:0:24:modify:sim_ladder_2",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 1574157000000,
+        "channel": "canal2",
+        "deadline_ns": 1634157000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 1574157000000,
+        "request_id": "canal2:0:25:modify:sim_ladder_2",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 1574333000000,
+        "channel": "canal2",
+        "deadline_ns": 1634333000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 1574333000000,
+        "request_id": "canal2:0:26:modify:sim_ladder_2",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 1574511000000,
+        "channel": "canal2",
+        "deadline_ns": 1634511000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 1574511000000,
+        "request_id": "canal2:0:27:modify:sim_ladder_2",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 1574577000000,
+        "channel": "canal2",
+        "deadline_ns": 1634577000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 1574577000000,
+        "request_id": "canal2:0:28:modify:sim_ladder_2",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 1574663000000,
+        "channel": "canal2",
+        "deadline_ns": 1634663000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 1574663000000,
+        "request_id": "canal2:0:29:modify:sim_ladder_2",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 1574729000000,
+        "channel": "canal2",
+        "deadline_ns": 1634729000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 1574729000000,
+        "request_id": "canal2:0:30:modify:sim_ladder_2",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 1574853000000,
+        "channel": "canal2",
+        "deadline_ns": 1634853000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 1574853000000,
+        "request_id": "canal2:0:31:modify:sim_ladder_2",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 1574929000000,
+        "channel": "canal2",
+        "deadline_ns": 1634929000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 1574929000000,
+        "request_id": "canal2:0:32:modify:sim_ladder_2",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 1575014000000,
+        "channel": "canal2",
+        "deadline_ns": 1635014000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 1575014000000,
+        "request_id": "canal2:0:33:modify:sim_ladder_2",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 1575116000000,
+        "channel": "canal2",
+        "deadline_ns": 1635116000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 1575116000000,
+        "request_id": "canal2:0:34:modify:sim_ladder_2",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      },
+      {
+        "admitted_ns": 1580462000000,
+        "channel": "canal2",
+        "deadline_ns": 1640462000000,
+        "operation": "MODIFY_SLTP",
+        "ready_ns": 1580462000000,
+        "request_id": "canal2:0:35:modify:sim_ladder_2",
+        "service_ns": null,
+        "signal_id": "canal2_3180"
+      }
+    ],
+    "passive_inputs": [
+      {
+        "at_ns": 232622000000,
+        "channel": "canal2",
+        "event_id": "0:1:sim_1",
+        "kind": "native_tp",
+        "signal_id": "canal2_3180"
+      },
+      {
+        "at_ns": 1582355000000,
+        "channel": "canal2",
+        "event_id": "0:2:sim_ladder_2",
+        "kind": "native_tp",
+        "signal_id": "canal2_3180"
+      }
+    ],
+    "peak_admitted": 1,
+    "pending_request_ids": [],
+    "policy_decisions_verified": false,
+    "portfolio_admitted": false,
+    "reserved_management_slots": 1,
+    "rows": [
+      {
+        "channel": "canal2",
+        "kind": "trade",
+        "operation": "OPEN_MARKET",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 188730000000,
+        "request_id": "canal2:0:1:entry:sim_1",
+        "signal_id": "canal2_3180",
+        "started_ns": 186711000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 190760000000,
+        "request_id": "canal2:0:2:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "started_ns": 188730000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 198674000000,
+        "request_id": "canal2:0:3:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "started_ns": 196596000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 223705000000,
+        "request_id": "canal2:0:4:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "started_ns": 221519000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 223705000000,
+        "request_id": "canal2:0:5:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "started_ns": 223705000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 223829000000,
+        "request_id": "canal2:0:6:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "started_ns": 223829000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 223912000000,
+        "request_id": "canal2:0:7:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "started_ns": 223912000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 223984000000,
+        "request_id": "canal2:0:8:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "started_ns": 223984000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 224051000000,
+        "request_id": "canal2:0:9:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "started_ns": 224051000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 224108000000,
+        "request_id": "canal2:0:10:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "started_ns": 224108000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 224173000000,
+        "request_id": "canal2:0:11:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "started_ns": 224173000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 224235000000,
+        "request_id": "canal2:0:12:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "started_ns": 224235000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 224302000000,
+        "request_id": "canal2:0:13:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "started_ns": 224302000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 224394000000,
+        "request_id": "canal2:0:14:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "started_ns": 224394000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 224455000000,
+        "request_id": "canal2:0:15:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "started_ns": 224455000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 224518000000,
+        "request_id": "canal2:0:16:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "started_ns": 224518000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 224578000000,
+        "request_id": "canal2:0:17:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "started_ns": 224578000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 224644000000,
+        "request_id": "canal2:0:18:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "started_ns": 224644000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 226886000000,
+        "request_id": "canal2:0:19:modify:sim_1",
+        "signal_id": "canal2_3180",
+        "started_ns": 224706000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "trade",
+        "operation": "OPEN_MARKET",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 1510258000000,
+        "request_id": "canal2:0:20:entry:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "started_ns": 1508228000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 1512294000000,
+        "request_id": "canal2:0:21:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "started_ns": 1510258000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 1558143000000,
+        "request_id": "canal2:0:22:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "started_ns": 1555896000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 1574080000000,
+        "request_id": "canal2:0:23:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "started_ns": 1571982000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 1574080000000,
+        "request_id": "canal2:0:24:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "started_ns": 1574080000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 1574157000000,
+        "request_id": "canal2:0:25:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "started_ns": 1574157000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 1574333000000,
+        "request_id": "canal2:0:26:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "started_ns": 1574333000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 1574511000000,
+        "request_id": "canal2:0:27:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "started_ns": 1574511000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 1574577000000,
+        "request_id": "canal2:0:28:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "started_ns": 1574577000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 1574663000000,
+        "request_id": "canal2:0:29:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "started_ns": 1574663000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 1574729000000,
+        "request_id": "canal2:0:30:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "started_ns": 1574729000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 1574853000000,
+        "request_id": "canal2:0:31:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "started_ns": 1574853000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 1574929000000,
+        "request_id": "canal2:0:32:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "started_ns": 1574929000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 1575014000000,
+        "request_id": "canal2:0:33:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "started_ns": 1575014000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 1577157000000,
+        "request_id": "canal2:0:34:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "started_ns": 1575116000000,
+        "status": "released",
+        "timed_out": false
+      },
+      {
+        "channel": "canal2",
+        "kind": "management",
+        "operation": "MODIFY_SLTP",
+        "preparation_ns": 0,
+        "queue_ns": 0,
+        "released_ns": 1582519000000,
+        "request_id": "canal2:0:35:modify:sim_ladder_2",
+        "signal_id": "canal2_3180",
+        "started_ns": 1580462000000,
+        "status": "released",
+        "timed_out": false
+      }
+    ],
+    "same_clock_order": [
+      "deadline",
+      "response",
+      "passive",
+      "admit",
+      "ready",
+      "dispatch"
+    ],
+    "scheduling_policy": "management-first-read-burst4-reserve1-v1",
+    "status": "diagnostic_complete",
+    "statuses": {
+      "released": 35
+    },
+    "tie_break": "fifo_ready_hypothesis_not_asyncio_order_proof"
+  }
+}

@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Callable, Iterable
 
-import MetaTrader5 as mt5
+from mt5_runtime import mt5
 
 import config
 import dubai_live_candidate

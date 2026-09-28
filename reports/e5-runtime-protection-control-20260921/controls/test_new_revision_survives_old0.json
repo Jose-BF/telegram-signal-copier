@@ -1,0 +1,1114 @@
+{
+  "backend_calls": [
+    {
+      "args": [
+        "XAUUSD"
+      ],
+      "kwargs": {},
+      "name": "symbol_info",
+      "quote_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "args": [
+        "XAUUSD"
+      ],
+      "kwargs": {},
+      "name": "symbol_info_tick",
+      "quote_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "args": [],
+      "kwargs": {
+        "ticket": 1001
+      },
+      "name": "positions_get",
+      "quote_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "args": [
+        "XAUUSD"
+      ],
+      "kwargs": {},
+      "name": "symbol_info_tick",
+      "quote_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "args": [
+        "XAUUSD"
+      ],
+      "kwargs": {},
+      "name": "symbol_info",
+      "quote_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "args": [
+        {
+          "action_id": "action_58100aef98324259a2a34b733952fdf4",
+          "attempt_id": "24d5e68154fe417ea778e4079a72077c",
+          "error": null,
+          "evidence": {
+            "effective_sl": 70.0,
+            "effective_tp": 100.5,
+            "observed_kind": "position",
+            "observed_ticket": 1001
+          },
+          "intent_id": "mt5i-v1-5e6397dc0fee2f10f8fe5dca684b702cdb7b072fe45f967a6a83f18d619b50b8",
+          "native_request": {
+            "action": 6,
+            "position": 1001,
+            "sl": 70.0,
+            "tp": 100.5
+          },
+          "prepared_monotonic": 119849.265,
+          "protocol_version": 1,
+          "request_id": "8b0c47557856447fa7073b9c49c5f4c4",
+          "worker_pid": 40580,
+          "worker_session_id": "5c0a097ea96440f9bcbb4d8b1bdc38b3"
+        }
+      ],
+      "kwargs": {},
+      "name": "prepared",
+      "quote_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "args": [
+        {
+          "action": 6,
+          "position": 1001,
+          "sl": 70.0,
+          "tp": 100.5
+        }
+      ],
+      "kwargs": {},
+      "name": "order_send",
+      "positions_after": [
+        {
+          "magic": 20260422,
+          "model_ticket": "sim_1",
+          "price_open": 100.0,
+          "sl": 70.0,
+          "symbol": "XAUUSD",
+          "ticket": 1001,
+          "tp": 100.5,
+          "type": 0,
+          "volume": 0.04
+        }
+      ],
+      "quote_index": 0,
+      "result": {
+        "comment": "accepted",
+        "retcode": 10009
+      },
+      "time_ns": 1788861600000000000
+    },
+    {
+      "args": [
+        "XAUUSD"
+      ],
+      "kwargs": {},
+      "name": "symbol_info_tick",
+      "quote_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "args": [],
+      "kwargs": {
+        "ticket": 1001
+      },
+      "name": "positions_get",
+      "quote_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "args": [
+        "XAUUSD"
+      ],
+      "kwargs": {},
+      "name": "symbol_info_tick",
+      "quote_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "args": [
+        "XAUUSD"
+      ],
+      "kwargs": {},
+      "name": "symbol_info",
+      "quote_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "args": [
+        {
+          "action_id": "action_b3919b839491472a8c91c4aff6fec036",
+          "attempt_id": "4724a91faf134378a690cb923309d0c9",
+          "error": null,
+          "evidence": {
+            "effective_sl": 90.0,
+            "effective_tp": 100.5,
+            "observed_kind": "position",
+            "observed_ticket": 1001
+          },
+          "intent_id": "mt5i-v1-784489707113869b14e1a05f3e2bc4ceca65b001d3b9b02449557c87c4698fba",
+          "native_request": {
+            "action": 6,
+            "position": 1001,
+            "sl": 90.0,
+            "tp": 100.5
+          },
+          "prepared_monotonic": 119849.359,
+          "protocol_version": 1,
+          "request_id": "6eadf05a881c45debe7282b80472cbd9",
+          "worker_pid": 40580,
+          "worker_session_id": "5c0a097ea96440f9bcbb4d8b1bdc38b3"
+        }
+      ],
+      "kwargs": {},
+      "name": "prepared",
+      "quote_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "args": [
+        {
+          "action": 6,
+          "position": 1001,
+          "sl": 90.0,
+          "tp": 100.5
+        }
+      ],
+      "kwargs": {},
+      "name": "order_send",
+      "positions_after": [
+        {
+          "magic": 20260422,
+          "model_ticket": "sim_1",
+          "price_open": 100.0,
+          "sl": 90.0,
+          "symbol": "XAUUSD",
+          "ticket": 1001,
+          "tp": 100.5,
+          "type": 0,
+          "volume": 0.04
+        }
+      ],
+      "quote_index": 1,
+      "result": {
+        "comment": "accepted",
+        "retcode": 10009
+      },
+      "time_ns": 1788861601000000000
+    }
+  ],
+  "broker": {
+    "entries": [
+      {
+        "acknowledged_ns": 1788861600000000000,
+        "entry_price": 100.0,
+        "opened_at": "2026-09-08 10:00:00+00:00",
+        "price_tick_index": 0,
+        "requested_ns": 1788861600000000000,
+        "runtime_ticket": 1001,
+        "source": "causal_signal_market",
+        "tick_index": 0,
+        "ticket": "sim_1",
+        "volume": 0.04
+      }
+    ],
+    "positions": [
+      {
+        "magic": 20260422,
+        "model_ticket": "sim_1",
+        "price_open": 100.0,
+        "sl": 90.0,
+        "symbol": "XAUUSD",
+        "ticket": 1001,
+        "tp": 100.5,
+        "type": 0,
+        "volume": 0.04
+      }
+    ],
+    "quote_index": 1,
+    "symbol": {
+      "digits": 2,
+      "name": "XAUUSD",
+      "point": 0.01,
+      "trade_freeze_level": 0,
+      "trade_stops_level": 20
+    },
+    "tick": {
+      "ask": 100.0,
+      "bid": 99.8,
+      "time_msc": 1788861601000
+    },
+    "time_ns": 1788861601000000000
+  },
+  "complete_strategy_admitted": false,
+  "confirmed_sl": {
+    "1001": 90.0
+  },
+  "confirmed_tp": {
+    "1001": 100.5
+  },
+  "contract": "isolated_runtime_protection_control_v1",
+  "envelopes": [
+    {
+      "deadline": 119859.218,
+      "request": {
+        "operation": "initialize",
+        "params": {},
+        "protocol_version": 1,
+        "request_id": "48c3a6aafee54aabbf1350af0eb422bf"
+      },
+      "session_id": "5c0a097ea96440f9bcbb4d8b1bdc38b3"
+    },
+    {
+      "deadline": 119850.234,
+      "request": {
+        "operation": "symbol_info_tick",
+        "params": {
+          "symbol": "XAUUSD"
+        },
+        "protocol_version": 1,
+        "request_id": "b08d0f6f787b427b9cc9b4f2bf3d3d05"
+      },
+      "session_id": "5c0a097ea96440f9bcbb4d8b1bdc38b3"
+    },
+    {
+      "deadline": 119851.234,
+      "phase": "prepare",
+      "request": {
+        "action_id": "action_58100aef98324259a2a34b733952fdf4",
+        "attempt_id": "24d5e68154fe417ea778e4079a72077c",
+        "intent_id": "mt5i-v1-5e6397dc0fee2f10f8fe5dca684b702cdb7b072fe45f967a6a83f18d619b50b8",
+        "intent_key": {
+          "account_fingerprint": "demo/7",
+          "channel": "canal2",
+          "generation": 0,
+          "leg": "ticket-1001",
+          "operation": "MODIFY_SLTP",
+          "revision": 1,
+          "signal_root": "canal2_98765"
+        },
+        "payload": {
+          "expected_magic": 20260422,
+          "new_sl": 70.0,
+          "new_tp": 100.5,
+          "symbol": "XAUUSD",
+          "ticket": 1001
+        },
+        "protocol_version": 1,
+        "request_id": "8b0c47557856447fa7073b9c49c5f4c4"
+      },
+      "session_id": "5c0a097ea96440f9bcbb4d8b1bdc38b3"
+    },
+    {
+      "deadline": 119851.234,
+      "phase": "commit",
+      "request_id": "8b0c47557856447fa7073b9c49c5f4c4",
+      "session_id": "5c0a097ea96440f9bcbb4d8b1bdc38b3"
+    },
+    {
+      "deadline": 119850.312,
+      "request": {
+        "operation": "symbol_info_tick",
+        "params": {
+          "symbol": "XAUUSD"
+        },
+        "protocol_version": 1,
+        "request_id": "2da51e2aec7145959bac3dd002cccc3d"
+      },
+      "session_id": "5c0a097ea96440f9bcbb4d8b1bdc38b3"
+    },
+    {
+      "deadline": 119851.328,
+      "phase": "prepare",
+      "request": {
+        "action_id": "action_b3919b839491472a8c91c4aff6fec036",
+        "attempt_id": "4724a91faf134378a690cb923309d0c9",
+        "intent_id": "mt5i-v1-784489707113869b14e1a05f3e2bc4ceca65b001d3b9b02449557c87c4698fba",
+        "intent_key": {
+          "account_fingerprint": "demo/7",
+          "channel": "canal2",
+          "generation": 0,
+          "leg": "ticket-1001",
+          "operation": "MODIFY_SLTP",
+          "revision": 2,
+          "signal_root": "canal2_98765"
+        },
+        "payload": {
+          "expected_magic": 20260422,
+          "new_sl": 90.0,
+          "new_tp": 100.5,
+          "symbol": "XAUUSD",
+          "ticket": 1001
+        },
+        "protocol_version": 1,
+        "request_id": "6eadf05a881c45debe7282b80472cbd9"
+      },
+      "session_id": "5c0a097ea96440f9bcbb4d8b1bdc38b3"
+    },
+    {
+      "deadline": 119851.328,
+      "phase": "commit",
+      "request_id": "6eadf05a881c45debe7282b80472cbd9",
+      "session_id": "5c0a097ea96440f9bcbb4d8b1bdc38b3"
+    },
+    {
+      "deadline": 119849.906,
+      "request": {
+        "operation": "shutdown",
+        "params": {},
+        "protocol_version": 1,
+        "request_id": "8ed3605892e849bbb58937b2c251a69a"
+      },
+      "session_id": "5c0a097ea96440f9bcbb4d8b1bdc38b3"
+    }
+  ],
+  "events": [
+    {
+      "decision_id": "decision_0e64ee3607f34eb3acb5f023c493bcee",
+      "decision_reason": "GOLD 555 SL[0] #1001 -> 70.00",
+      "ev": "bot_internal_decision_started",
+      "message_revision_id": null,
+      "parent_decision_id": null,
+      "sig": "canal2_98765"
+    },
+    {
+      "action_id": "action_7cec1ebb84ec493f957fec1950047e09",
+      "action_revision": 0,
+      "decision_id": "decision_0e64ee3607f34eb3acb5f023c493bcee",
+      "ev": "mt5_modify_requested",
+      "expected_magic": 20260422,
+      "label": "GOLD 555 SL[0] #1001 -> 70.00",
+      "message_revision_id": null,
+      "new_sl": 70.0,
+      "new_tp": null,
+      "sig": "canal2_98765",
+      "ticket": 1001
+    },
+    {
+      "decision_id": "decision_0e64ee3607f34eb3acb5f023c493bcee",
+      "decision_reason": "GOLD 555 SL[0] #1001 -> 70.00",
+      "declared_action_count": 1,
+      "declared_action_ids": [
+        "action_7cec1ebb84ec493f957fec1950047e09"
+      ],
+      "ev": "bot_internal_decision",
+      "message_revision_id": null,
+      "parent_decision_id": null,
+      "sig": "canal2_98765"
+    },
+    {
+      "decision_id": "decision_907d75f48ff6437f8bcc2e42bd0cfcc7",
+      "decision_reason": "GOLD 555 TP[0] #1001 -> 100.50",
+      "ev": "bot_internal_decision_started",
+      "message_revision_id": null,
+      "parent_decision_id": null,
+      "sig": "canal2_98765"
+    },
+    {
+      "action_id": "action_58100aef98324259a2a34b733952fdf4",
+      "action_revision": 1,
+      "decision_id": "decision_907d75f48ff6437f8bcc2e42bd0cfcc7",
+      "ev": "mt5_modify_requested",
+      "expected_magic": 20260422,
+      "label": "GOLD 555 TP[0] #1001 -> 100.50",
+      "message_revision_id": null,
+      "new_sl": null,
+      "new_tp": 100.5,
+      "sig": "canal2_98765",
+      "ticket": 1001
+    },
+    {
+      "action_id": "action_58100aef98324259a2a34b733952fdf4",
+      "action_revision": 1,
+      "coalesced_into_action_id": null,
+      "decision_id": "decision_907d75f48ff6437f8bcc2e42bd0cfcc7",
+      "ev": "mt5_action_coalesced",
+      "expected_magic": 20260422,
+      "kind": "MODIFY_SLTP",
+      "label_changed": true,
+      "message_revision_id": null,
+      "new_sl": 70.0,
+      "new_tp": 100.5,
+      "payload_changed": true,
+      "persistence_changed": false,
+      "queue_slots": 1,
+      "sig": "canal2_98765",
+      "supersedes_action_id": "action_7cec1ebb84ec493f957fec1950047e09",
+      "ticket": 1001
+    },
+    {
+      "decision_id": "decision_907d75f48ff6437f8bcc2e42bd0cfcc7",
+      "decision_reason": "GOLD 555 TP[0] #1001 -> 100.50",
+      "declared_action_count": 1,
+      "declared_action_ids": [
+        "action_58100aef98324259a2a34b733952fdf4"
+      ],
+      "ev": "bot_internal_decision",
+      "message_revision_id": null,
+      "parent_decision_id": null,
+      "sig": "canal2_98765"
+    },
+    {
+      "decision_id": "decision_ea0bbdc43a4143bea9410774119d4ae5",
+      "decision_reason": "modify SL\u219290.0",
+      "ev": "bot_internal_decision_started",
+      "message_revision_id": null,
+      "parent_decision_id": null,
+      "sig": "canal2_98765"
+    },
+    {
+      "action_id": "action_b3919b839491472a8c91c4aff6fec036",
+      "action_revision": 2,
+      "decision_id": "decision_ea0bbdc43a4143bea9410774119d4ae5",
+      "ev": "mt5_modify_requested",
+      "expected_magic": 20260422,
+      "label": "modify SL\u219290.0",
+      "message_revision_id": null,
+      "new_sl": 90.0,
+      "new_tp": null,
+      "sig": "canal2_98765",
+      "ticket": 1001
+    },
+    {
+      "action_id": "action_b3919b839491472a8c91c4aff6fec036",
+      "action_revision": 2,
+      "coalesced_into_action_id": null,
+      "decision_id": "decision_ea0bbdc43a4143bea9410774119d4ae5",
+      "ev": "mt5_action_coalesced",
+      "expected_magic": 20260422,
+      "kind": "MODIFY_SLTP",
+      "label_changed": true,
+      "message_revision_id": null,
+      "new_sl": 90.0,
+      "new_tp": 100.5,
+      "payload_changed": true,
+      "persistence_changed": false,
+      "queue_slots": 1,
+      "sig": "canal2_98765",
+      "supersedes_action_id": "action_58100aef98324259a2a34b733952fdf4",
+      "ticket": 1001
+    },
+    {
+      "decision_id": "decision_ea0bbdc43a4143bea9410774119d4ae5",
+      "decision_reason": "modify SL\u219290.0",
+      "declared_action_count": 1,
+      "declared_action_ids": [
+        "action_b3919b839491472a8c91c4aff6fec036"
+      ],
+      "ev": "bot_internal_decision",
+      "message_revision_id": null,
+      "parent_decision_id": null,
+      "sig": "canal2_98765"
+    },
+    {
+      "action_id": "action_58100aef98324259a2a34b733952fdf4",
+      "action_revision": 1,
+      "attempt_id": "24d5e68154fe417ea778e4079a72077c",
+      "attempts": 1,
+      "decision_id": "decision_907d75f48ff6437f8bcc2e42bd0cfcc7",
+      "ev": "mt5_modify_confirmed",
+      "expected_magic": 20260422,
+      "label": "GOLD 555 TP[0] #1001 -> 100.50",
+      "message_revision_id": null,
+      "new_sl": 70.0,
+      "new_tp": 100.5,
+      "preflight_deferred_sl": null,
+      "preflight_effective_sl": null,
+      "preflight_effective_tp": null,
+      "preflight_observed_kind": null,
+      "preflight_observed_magic": null,
+      "preflight_observed_ticket": null,
+      "preflight_reason": null,
+      "preflight_status": null,
+      "retcode": 10009,
+      "sig": "canal2_98765",
+      "ticket": 1001
+    },
+    {
+      "action_id": "action_58100aef98324259a2a34b733952fdf4",
+      "action_revision": 1,
+      "after_action": "MODIFY_SLTP",
+      "attempt_id": "24d5e68154fe417ea778e4079a72077c",
+      "decision_id": "decision_907d75f48ff6437f8bcc2e42bd0cfcc7",
+      "ev": "mt5_position_snapshot",
+      "label": "GOLD 555 TP[0] #1001 -> 100.50",
+      "message_revision_id": null,
+      "position_exists": null,
+      "requested_sl": 70.0,
+      "requested_tp": 100.5,
+      "retcode": 10009,
+      "sig": "canal2_98765",
+      "snapshot_error": "RuntimeError: MT5 is owned by the isolated worker",
+      "ticket": 1001
+    },
+    {
+      "action_id": "action_b3919b839491472a8c91c4aff6fec036",
+      "action_revision": 2,
+      "attempt_id": "4724a91faf134378a690cb923309d0c9",
+      "attempts": 1,
+      "decision_id": "decision_ea0bbdc43a4143bea9410774119d4ae5",
+      "ev": "mt5_modify_confirmed",
+      "expected_magic": 20260422,
+      "label": "modify SL\u219290.0",
+      "message_revision_id": null,
+      "new_sl": 90.0,
+      "new_tp": 100.5,
+      "preflight_deferred_sl": null,
+      "preflight_effective_sl": null,
+      "preflight_effective_tp": null,
+      "preflight_observed_kind": null,
+      "preflight_observed_magic": null,
+      "preflight_observed_ticket": null,
+      "preflight_reason": null,
+      "preflight_status": null,
+      "retcode": 10009,
+      "sig": "canal2_98765",
+      "ticket": 1001
+    },
+    {
+      "action_id": "action_b3919b839491472a8c91c4aff6fec036",
+      "action_revision": 2,
+      "after_action": "MODIFY_SLTP",
+      "attempt_id": "4724a91faf134378a690cb923309d0c9",
+      "decision_id": "decision_ea0bbdc43a4143bea9410774119d4ae5",
+      "ev": "mt5_position_snapshot",
+      "label": "modify SL\u219290.0",
+      "message_revision_id": null,
+      "position_exists": null,
+      "requested_sl": 90.0,
+      "requested_tp": 100.5,
+      "retcode": 10009,
+      "sig": "canal2_98765",
+      "snapshot_error": "RuntimeError: MT5 is owned by the isolated worker",
+      "ticket": 1001
+    }
+  ],
+  "full_live_parity_verified": false,
+  "input": {
+    "channel": "canal2",
+    "execution": {
+      "client": {
+        "entry_price_delay_ms": null,
+        "ladder_decision_mode": "snapshot_batch",
+        "max_events": 100000,
+        "name": "single_basket_terminal_v2"
+      },
+      "entry_fill_latency_ms": 0,
+      "entry_slippage": 0.0,
+      "exit_slippage": 0.0,
+      "latency_ms": 0,
+      "market": {
+        "close_acknowledgement_delay_ms": 0,
+        "close_processing_delay_ms": 1000,
+        "entry_acknowledgement_delay_ms": 0,
+        "max_events": 100000,
+        "name": "quote_clock_market_v1",
+        "volume_max": 1.0,
+        "volume_min": 0.01,
+        "volume_step": 0.01
+      },
+      "protection": {
+        "acknowledgement_delay_ms": 1000,
+        "digits": 2,
+        "freeze_level_points": 0,
+        "initial_protections": [],
+        "max_events": 100000,
+        "name": "quote_clock_protection_v1",
+        "point": 0.01,
+        "policy_extension": "none",
+        "processing_delay_ms": 1000,
+        "request_quote_binding": "timestamp_only",
+        "retry_delay_ms": 1000,
+        "stops_level_points": 20
+      },
+      "spread_addition": 0.0
+    },
+    "genome": {
+      "be_mode": "none",
+      "be_trigger": null,
+      "context_filter_mode": "none",
+      "context_filter_value": null,
+      "entry_confirmation_value": null,
+      "entry_expiry_min": 1,
+      "entry_ladder_mode": "simultaneous",
+      "entry_ladder_step": null,
+      "entry_mode": "signal_market",
+      "entry_value": null,
+      "hard_stop_eur_per_leg": null,
+      "leg_count": 1,
+      "lineage_depth": 0,
+      "mutation_reason": null,
+      "parent_fingerprints": [],
+      "partial_fraction": 0.0,
+      "pending_entry_policy": "until_expiry",
+      "profit_lock_arm": null,
+      "profit_lock_giveback": null,
+      "provider_management_mode": "explicit_close_only",
+      "runner_target": null,
+      "schema_version": 2,
+      "source_strategy_fingerprint": null,
+      "stop_mode": "none",
+      "stop_value": null,
+      "target_mode": "none",
+      "target_steps": [],
+      "target_value": null,
+      "time_exit_min": 180,
+      "time_exit_mode": "none",
+      "trailing_distance": null,
+      "volume_weights": [
+        0.04
+      ]
+    },
+    "guard_component": null,
+    "management_reads": {
+      "max_payload_bytes": 4194304,
+      "max_reads": 128,
+      "response_delay_ns": 0,
+      "sample_delay_ns": 0,
+      "timeout_ns": 60000000000
+    },
+    "path": {
+      "actual_pnl_eur": null,
+      "ask": [
+        100.0,
+        100.0,
+        100.0,
+        100.0,
+        100.0,
+        100.0,
+        100.0,
+        100.0,
+        100.0
+      ],
+      "bid": [
+        99.8,
+        99.8,
+        99.8,
+        99.8,
+        99.8,
+        99.8,
+        99.8,
+        99.8,
+        99.8
+      ],
+      "contract_size": 100,
+      "conversion_evidence": [
+        {}
+      ],
+      "conversion_orientation": "identity",
+      "currency_digits": 2,
+      "day": "2026-09-08",
+      "direction": "BUY",
+      "entry_evidence_kind": "provider_signal",
+      "entry_expiry_anchor_at": null,
+      "exit_quotes": [
+        99.8,
+        99.8,
+        99.8,
+        99.8,
+        99.8,
+        99.8,
+        99.8,
+        99.8,
+        99.8
+      ],
+      "fx_age_ms": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "fx_ask": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "fx_bid": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "fx_valid": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "legs": [
+        {
+          "actual_pnl_eur": "0",
+          "close_price": null,
+          "close_reason": null,
+          "closed_at": null,
+          "open_price": 1,
+          "opened_at": "2026-09-08 10:00:00+00:00",
+          "role": "market",
+          "sl_events": [],
+          "ticket": "template",
+          "tp_events": [],
+          "volume": 0.04
+        }
+      ],
+      "market_evidence": [
+        {}
+      ],
+      "opened_at": "2026-09-08 10:00:00+00:00",
+      "provider_events": [
+        {
+          "action": "CLOSE_ALL",
+          "observed_at": "2026-09-08 10:01:40+00:00",
+          "payload": {}
+        }
+      ],
+      "rollover_events": [],
+      "signal_id": "canal2_runtime",
+      "signal_observed_at": "2026-09-08 10:00:00+00:00",
+      "times_ns": [
+        1788861600000000000,
+        1788861601000000000,
+        1788861602000000000,
+        1788861603000000000,
+        1788861604000000000,
+        1788861605000000000,
+        1788861606000000000,
+        1788861607000000000,
+        1788861608000000000
+      ]
+    },
+    "read_interval_ns": 1000000000,
+    "stop_component": null
+  },
+  "native_broker_verified": false,
+  "pending_actions": {
+    "actions": [],
+    "saved_at": 1790009591.3212776,
+    "version": 2
+  },
+  "result": null,
+  "risk": [
+    {
+      "floating_minor": 0,
+      "phase": "quote_open",
+      "positions": [],
+      "realized_minor": 0,
+      "tick_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "entry_fill",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "settled",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "grant_resume",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "settled",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "grant_resume",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "settled",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "grant_resume",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "settled",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "grant_resume",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "settled",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 0,
+      "time_ns": 1788861600000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "quote_open",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "settled",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "grant_resume",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "settled",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "grant_resume",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "settled",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "grant_resume",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "settled",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "grant_resume",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 1,
+      "time_ns": 1788861601000000000
+    },
+    {
+      "floating_minor": -80,
+      "phase": "settled",
+      "positions": [
+        [
+          "sim_1",
+          0.04,
+          100.0
+        ]
+      ],
+      "realized_minor": 0,
+      "tick_index": 1,
+      "time_ns": 1788861601000000000
+    }
+  ],
+  "runtime_identity": {
+    "magic": 20260422,
+    "symbol": "XAUUSD",
+    "ticket_base": 1000
+  }
+}

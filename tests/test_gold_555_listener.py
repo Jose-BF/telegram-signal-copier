@@ -9,6 +9,7 @@ import pytest
 import config
 import causal_trace
 import listener
+from durable_entry_execution import EntryDispatchResult, EntryDispatchState
 from state import StateManager
 
 
@@ -46,8 +47,8 @@ def _reset_runtime():
 def _patch_registration(monkeypatch):
     events = []
 
-    async def fake_run(fn, *args):
-        return fn(*args)
+    async def fake_run(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
 
     monkeypatch.setattr(listener, "state", StateManager())
     monkeypatch.setattr(config, "STRATEGY_C2_GOLD_NOW_555_ENABLED", True)
@@ -158,6 +159,193 @@ async def test_watch_confirms_once_after_adverse_reversal(monkeypatch) -> None:
     assert len(confirmed) == 1
     assert confirmed[0].watch.confirmed_quote == 4300.4
     assert 380 not in listener._gold_555_entry_watches
+
+
+@pytest.mark.asyncio
+async def test_ambiguous_confirmed_watch_is_retained_until_fill_is_applied_once(
+    monkeypatch,
+) -> None:
+    _patch_registration(monkeypatch)
+    attempts = []
+
+    async def fake_open(record):
+        attempts.append(record.intent.message_id)
+        if len(attempts) == 1:
+            record.durable_reconcile_pending = True
+            listener._canal2_open_committed(record.intent.message_id)
+            return None
+        record.durable_reconcile_pending = False
+        return SimpleNamespace(message_id=record.intent.message_id)
+
+    monkeypatch.setattr(listener, "_open_gold_555_confirmed_intent", fake_open)
+    await listener._open_canal2_intent(_intent())
+    record = listener._gold_555_entry_watches[380]
+    record.watch.status = "confirmed"
+    record.watch.confirmed_quote = 4300.4
+    record.watch.confirmed_at = NOW + timedelta(seconds=2)
+
+    first = await listener.process_gold_555_entry_tick(
+        SimpleNamespace(bid=4300.2, ask=4300.4, time_msc=3),
+        now=NOW + timedelta(seconds=2),
+    )
+    second = await listener.process_gold_555_entry_tick(
+        SimpleNamespace(bid=4300.3, ask=4300.5, time_msc=4),
+        now=NOW + timedelta(seconds=3),
+    )
+    third = await listener.process_gold_555_entry_tick(
+        SimpleNamespace(bid=4300.4, ask=4300.6, time_msc=5),
+        now=NOW + timedelta(seconds=4),
+    )
+
+    assert (first, second, third) == (0, 1, 0)
+    assert attempts == [380, 380]
+    assert 380 not in listener._gold_555_entry_watches
+
+
+@pytest.mark.asyncio
+async def test_late_durable_fill_materializes_signal_and_exact_protection_once(
+    monkeypatch,
+) -> None:
+    _patch_registration(monkeypatch)
+    await listener._open_canal2_intent(_intent(386))
+    record = listener._gold_555_entry_watches[386]
+    record.watch.status = "confirmed"
+    record.watch.confirmed_quote = 4300.4
+    record.watch.confirmed_at = NOW + timedelta(seconds=2)
+    dispatches = []
+
+    class LateEntry:
+        async def open_market(self, **kwargs):
+            dispatches.append(kwargs)
+            if len(dispatches) == 1:
+                return EntryDispatchResult(
+                    EntryDispatchState.RECONCILE,
+                    "late-intent",
+                    reason="durable_dispatching",
+                )
+            return EntryDispatchResult(
+                EntryDispatchState.CONFIRMED,
+                "late-intent",
+                ticket=701,
+                fill_price=4300.6,
+            )
+
+    sl_requests = []
+    tp_requests = []
+    monitor_starts = []
+    monkeypatch.setattr(listener, "_durable_entry_executor", LateEntry())
+    monkeypatch.setattr(
+        listener.executor.mt5,
+        "positions_get",
+        lambda **_kwargs: [SimpleNamespace(ticket=701)],
+    )
+    monkeypatch.setattr(
+        listener.pending_actions,
+        "enqueue_modify_sl",
+        lambda _signal, ticket, price, **_kwargs: sl_requests.append(
+            (ticket, price)
+        ),
+    )
+    monkeypatch.setattr(
+        listener.pending_actions,
+        "enqueue_modify_tp",
+        lambda _signal, ticket, price, **_kwargs: tp_requests.append(
+            (ticket, price)
+        ),
+    )
+
+    async def fake_monitor(signal):
+        monitor_starts.append(signal)
+
+    monkeypatch.setattr(listener, "_place_dca", fake_monitor)
+    monkeypatch.setattr(listener.journal, "begin_trade", lambda *a, **k: None)
+    monkeypatch.setattr(listener.logger, "log_signal", lambda *a, **k: None)
+    monkeypatch.setattr(
+        listener, "_emit_same_direction_overlap_anomaly", lambda *a, **k: None
+    )
+
+    first = await listener.process_gold_555_entry_tick(
+        SimpleNamespace(bid=4300.2, ask=4300.4, time_msc=3),
+        now=NOW + timedelta(seconds=2),
+    )
+    second = await listener.process_gold_555_entry_tick(
+        SimpleNamespace(bid=4300.3, ask=4300.5, time_msc=4),
+        now=NOW + timedelta(seconds=3),
+    )
+    third = await listener.process_gold_555_entry_tick(
+        SimpleNamespace(bid=4300.4, ask=4300.6, time_msc=5),
+        now=NOW + timedelta(seconds=4),
+    )
+
+    signal = listener.state.get("canal2", 386)
+    assert (first, second, third) == (0, 1, 0)
+    assert signal is not None and signal.market_ticket == 701
+    assert sl_requests == [(701, 4270.6)]
+    assert tp_requests == [(701, 4301.1)]
+    assert monitor_starts == [signal]
+    assert len(dispatches) == 2
+
+
+@pytest.mark.asyncio
+async def test_late_closed_fill_without_history_remains_pending_without_orders(
+    monkeypatch,
+) -> None:
+    events = _patch_registration(monkeypatch)
+    await listener._open_canal2_intent(_intent(387))
+    record = listener._gold_555_entry_watches[387]
+    record.watch.status = "confirmed"
+    record.watch.confirmed_quote = 4300.4
+    record.watch.confirmed_at = NOW + timedelta(seconds=2)
+
+    class ClosedLateEntry:
+        def __init__(self):
+            self.calls = 0
+
+        async def open_market(self, **_kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                return EntryDispatchResult(
+                    EntryDispatchState.RECONCILE,
+                    "closed-late-intent",
+                )
+            return EntryDispatchResult(
+                EntryDispatchState.CONFIRMED,
+                "closed-late-intent",
+                ticket=702,
+                fill_price=4300.6,
+            )
+
+    monkeypatch.setattr(listener, "_durable_entry_executor", ClosedLateEntry())
+    monkeypatch.setattr(
+        listener.executor.mt5, "positions_get", lambda **_kwargs: []
+    )
+    monkeypatch.setattr(
+        listener.executor.mt5, "history_deals_get", lambda **_kwargs: None
+    )
+    monkeypatch.setattr(
+        listener.pending_actions,
+        "enqueue_modify_sl",
+        lambda *_a, **_k: pytest.fail("closed ticket must not be modified"),
+    )
+    monkeypatch.setattr(
+        listener.pending_actions,
+        "enqueue_modify_tp",
+        lambda *_a, **_k: pytest.fail("closed ticket must not be modified"),
+    )
+
+    await listener.process_gold_555_entry_tick(
+        SimpleNamespace(bid=4300.2, ask=4300.4, time_msc=3),
+        now=NOW + timedelta(seconds=2),
+    )
+    await listener.process_gold_555_entry_tick(
+        SimpleNamespace(bid=4300.3, ask=4300.5, time_msc=4),
+        now=NOW + timedelta(seconds=3),
+    )
+
+    assert listener.state.get("canal2", 387) is None
+    assert listener._gold_555_entry_watches[387] is record
+    assert record.durable_reconcile_pending
+    assert any(row[1] == "gold_555_closed_fill_recovery_pending" for row in events)
 
 
 @pytest.mark.asyncio
@@ -898,6 +1086,7 @@ async def test_restart_completes_confirmed_watch_exactly_once(
         path,
         now=NOW + timedelta(minutes=5),
     ) == 1
+    assert listener._gold_555_entry_watches[384].durable_reconcile_pending
 
     first = await listener.process_gold_555_entry_tick(
         SimpleNamespace(bid=4300.2, ask=4300.4, time_msc=4),

@@ -1,0 +1,2891 @@
+{
+  "accepted_response_cases": 9,
+  "contract": "conditioned_tp_fill_scenario_risk_v1",
+  "delays_ms": [
+    0,
+    100,
+    1000,
+    5000,
+    30000
+  ],
+  "elapsed_seconds": 12.656054199964274,
+  "full_live_parity_verified": false,
+  "limitations": [
+    "World delays and prices are stress hypotheses, not broker estimates.",
+    "Native entries fixed; later strategy decisions are not rerun.",
+    "Account EUR paths are per-position, not shared-account equity.",
+    "A terminal first touch is not a verified broker-server trigger.",
+    "Discovery cohort is retrospective, not untouched validation."
+  ],
+  "population_positions": 46,
+  "price_modes": [
+    "installed_level",
+    "executable_quote"
+  ],
+  "risk_spec": {
+    "contract_size": "100.0",
+    "currency": "EUR",
+    "digits": 2,
+    "max_fx_age_ms": 5000,
+    "max_market_gap_ms": 5000,
+    "orientation": "account_base_profit_quote"
+  },
+  "rows": [
+    {
+      "native_exit_reason": 5,
+      "position_id": 2018037491,
+      "signal_id": "canal2_2970",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2018040176,
+      "signal_id": "canal2_2970",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2018048139,
+      "signal_id": "canal2_2970",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2018067494,
+      "signal_id": "canal2_2970",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2018446418,
+      "signal_id": "canal2_2977",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2018572832,
+      "signal_id": "canal2_2977",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2019239778,
+      "signal_id": "canal2_2982",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2019248635,
+      "signal_id": "canal2_2982",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2019276778,
+      "signal_id": "canal2_2982",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2019296809,
+      "signal_id": "canal2_2982",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2019297348,
+      "signal_id": "canal2_2982",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2019898565,
+      "signal_id": "canal2_2986",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2019969132,
+      "signal_id": "canal2_2986",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2021221846,
+      "signal_id": "canal2_2995",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2021244212,
+      "signal_id": "canal2_2995",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 3,
+      "position_id": 2038395764,
+      "signal_id": "canal2_3086",
+      "status": "non_tp_exit"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2038525157,
+      "signal_id": "canal2_3096",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2038535247,
+      "signal_id": "canal2_3096",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2038537019,
+      "signal_id": "canal2_3096",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2038543421,
+      "signal_id": "canal2_3096",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2038546496,
+      "signal_id": "canal2_3096",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2039085783,
+      "signal_id": "canal2_3102",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2039090979,
+      "signal_id": "canal2_3102",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2039092706,
+      "signal_id": "canal2_3102",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2039097426,
+      "signal_id": "canal2_3102",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2039103150,
+      "signal_id": "canal2_3102",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2039380161,
+      "signal_id": "canal2_3106",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2039419968,
+      "signal_id": "canal2_3106",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2039434068,
+      "signal_id": "canal2_3106",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2039517191,
+      "signal_id": "canal2_3106",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2039534630,
+      "signal_id": "canal2_3106",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2046955499,
+      "signal_id": "canal2_3148",
+      "status": "scenario_grid_evaluated",
+      "worlds": [
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 0,
+          "price_mode": "installed_level",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 0,
+          "price_mode": "executable_quote",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 100,
+          "price_mode": "installed_level",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 100,
+          "price_mode": "executable_quote",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 1000,
+          "price_mode": "installed_level",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 1000,
+          "price_mode": "executable_quote",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 5000,
+          "price_mode": "installed_level",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 5000,
+          "price_mode": "executable_quote",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 30000,
+          "price_mode": "installed_level",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 30000,
+          "price_mode": "executable_quote",
+          "status": "blocked_world"
+        }
+      ]
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2046957039,
+      "signal_id": "canal2_3148",
+      "status": "scenario_grid_evaluated",
+      "worlds": [
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 0,
+          "price_mode": "installed_level",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 0,
+          "price_mode": "executable_quote",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 100,
+          "price_mode": "installed_level",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 100,
+          "price_mode": "executable_quote",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 1000,
+          "price_mode": "installed_level",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 1000,
+          "price_mode": "executable_quote",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 5000,
+          "price_mode": "installed_level",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 5000,
+          "price_mode": "executable_quote",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 30000,
+          "price_mode": "installed_level",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 30000,
+          "price_mode": "executable_quote",
+          "status": "blocked_world"
+        }
+      ]
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2046961055,
+      "signal_id": "canal2_3148",
+      "status": "scenario_grid_evaluated",
+      "worlds": [
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 0,
+          "price_mode": "installed_level",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 0,
+          "price_mode": "executable_quote",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 100,
+          "price_mode": "installed_level",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 100,
+          "price_mode": "executable_quote",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 1000,
+          "price_mode": "installed_level",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 1000,
+          "price_mode": "executable_quote",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 5000,
+          "price_mode": "installed_level",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 5000,
+          "price_mode": "executable_quote",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 30000,
+          "price_mode": "installed_level",
+          "status": "blocked_world"
+        },
+        {
+          "blockers": [
+            "scenario_side_update_budget_exceeded"
+          ],
+          "delay_ms": 30000,
+          "price_mode": "executable_quote",
+          "status": "blocked_world"
+        }
+      ]
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2047143797,
+      "signal_id": "canal2_3156",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2047145896,
+      "signal_id": "canal2_3156",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2047150184,
+      "signal_id": "canal2_3156",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2047175220,
+      "signal_id": "canal2_3156",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2047559220,
+      "signal_id": "canal2_3168",
+      "status": "scenario_grid_evaluated",
+      "worlds": [
+        {
+          "delay_ms": 0,
+          "fill_at": "2026-09-18 12:31:10.747000+00:00",
+          "fill_price": 4363.0,
+          "first_touch_at": "2026-09-18 12:31:10.747000+00:00",
+          "max_abs_total_difference_eur": "0.76",
+          "mismatched_pairs": 24,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "1.75",
+            "known_samples": 4877,
+            "max_drawdown": "30.55",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "2.51",
+            "minimum_from_origin": "-30.55"
+          },
+          "native_path_sha256": "838a4101236ed1ac4d6188a68a6cadb4e822c901ac97182594575e738bbf4400",
+          "paired_samples": 4877,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 4329,
+          "risk_blockers": [],
+          "scenario_booked_eur": "1.75",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "1.75",
+            "known_samples": 4877,
+            "max_drawdown": "30.55",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.75",
+            "minimum_from_origin": "-30.55"
+          },
+          "scenario_minus_native_exit_ms": -1614,
+          "scenario_path_sha256": "59581bdae2c8bb027bde23f7d17565dc3acdcb8969630c163411bb6826cc7ac0",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 0,
+          "fill_at": "2026-09-18 12:31:10.747000+00:00",
+          "fill_price": 4363.0,
+          "first_touch_at": "2026-09-18 12:31:10.747000+00:00",
+          "max_abs_total_difference_eur": "0.76",
+          "mismatched_pairs": 24,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "1.75",
+            "known_samples": 4877,
+            "max_drawdown": "30.55",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "2.51",
+            "minimum_from_origin": "-30.55"
+          },
+          "native_path_sha256": "838a4101236ed1ac4d6188a68a6cadb4e822c901ac97182594575e738bbf4400",
+          "paired_samples": 4877,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 4329,
+          "risk_blockers": [],
+          "scenario_booked_eur": "1.75",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "1.75",
+            "known_samples": 4877,
+            "max_drawdown": "30.55",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.75",
+            "minimum_from_origin": "-30.55"
+          },
+          "scenario_minus_native_exit_ms": -1614,
+          "scenario_path_sha256": "59581bdae2c8bb027bde23f7d17565dc3acdcb8969630c163411bb6826cc7ac0",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 100,
+          "fill_at": "2026-09-18 12:31:10.868000+00:00",
+          "fill_price": 4363.0,
+          "first_touch_at": "2026-09-18 12:31:10.747000+00:00",
+          "max_abs_total_difference_eur": "0.76",
+          "mismatched_pairs": 22,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "1.75",
+            "known_samples": 4877,
+            "max_drawdown": "30.55",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "2.51",
+            "minimum_from_origin": "-30.55"
+          },
+          "native_path_sha256": "838a4101236ed1ac4d6188a68a6cadb4e822c901ac97182594575e738bbf4400",
+          "paired_samples": 4877,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 4331,
+          "risk_blockers": [],
+          "scenario_booked_eur": "1.75",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "1.75",
+            "known_samples": 4877,
+            "max_drawdown": "30.55",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.95",
+            "minimum_from_origin": "-30.55"
+          },
+          "scenario_minus_native_exit_ms": -1493,
+          "scenario_path_sha256": "ddaea3e1d59ba0513c42a3345781a3717b8b06ff20a0bd8952242706000f666e",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 100,
+          "fill_at": "2026-09-18 12:31:10.868000+00:00",
+          "fill_price": 4363.08,
+          "first_touch_at": "2026-09-18 12:31:10.747000+00:00",
+          "max_abs_total_difference_eur": "0.52",
+          "mismatched_pairs": 23,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "1.75",
+            "known_samples": 4877,
+            "max_drawdown": "30.55",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "2.51",
+            "minimum_from_origin": "-30.55"
+          },
+          "native_path_sha256": "838a4101236ed1ac4d6188a68a6cadb4e822c901ac97182594575e738bbf4400",
+          "paired_samples": 4877,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 4331,
+          "risk_blockers": [],
+          "scenario_booked_eur": "2.02",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "2.02",
+            "known_samples": 4877,
+            "max_drawdown": "30.55",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "2.02",
+            "minimum_from_origin": "-30.55"
+          },
+          "scenario_minus_native_exit_ms": -1493,
+          "scenario_path_sha256": "97cf7d6d9d12209b71d0cbb293a189932be725b248a9069620682bf3d6717fb5",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 1000,
+          "fill_at": "2026-09-18 12:31:11.772000+00:00",
+          "fill_price": 4363.0,
+          "first_touch_at": "2026-09-18 12:31:10.747000+00:00",
+          "max_abs_total_difference_eur": "0.62",
+          "mismatched_pairs": 9,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "1.75",
+            "known_samples": 4877,
+            "max_drawdown": "30.55",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "2.51",
+            "minimum_from_origin": "-30.55"
+          },
+          "native_path_sha256": "838a4101236ed1ac4d6188a68a6cadb4e822c901ac97182594575e738bbf4400",
+          "paired_samples": 4877,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 4344,
+          "risk_blockers": [],
+          "scenario_booked_eur": "1.75",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "1.75",
+            "known_samples": 4877,
+            "max_drawdown": "30.55",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "2.51",
+            "minimum_from_origin": "-30.55"
+          },
+          "scenario_minus_native_exit_ms": -589,
+          "scenario_path_sha256": "5e7bf7a03253facb278a9ecb7ac44083542a6b157b1828d5e9cd2f2320b65033",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 1000,
+          "fill_at": "2026-09-18 12:31:11.772000+00:00",
+          "fill_price": 4363.13,
+          "first_touch_at": "2026-09-18 12:31:10.747000+00:00",
+          "max_abs_total_difference_eur": "0.45",
+          "mismatched_pairs": 10,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "1.75",
+            "known_samples": 4877,
+            "max_drawdown": "30.55",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "2.51",
+            "minimum_from_origin": "-30.55"
+          },
+          "native_path_sha256": "838a4101236ed1ac4d6188a68a6cadb4e822c901ac97182594575e738bbf4400",
+          "paired_samples": 4877,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 4344,
+          "risk_blockers": [],
+          "scenario_booked_eur": "2.20",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "2.20",
+            "known_samples": 4877,
+            "max_drawdown": "30.55",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "2.51",
+            "minimum_from_origin": "-30.55"
+          },
+          "scenario_minus_native_exit_ms": -589,
+          "scenario_path_sha256": "9af7e34bab2a88d9ab56552e1aeb7d86ff4d888bca4405a18c61b1ae885189f3",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 5000,
+          "fill_at": "2026-09-18 12:31:15.843000+00:00",
+          "fill_price": 4363.0,
+          "first_touch_at": "2026-09-18 12:31:10.747000+00:00",
+          "max_abs_total_difference_eur": "1.50",
+          "mismatched_pairs": 40,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:31:15.843000+00:00",
+            "final_net": "1.75",
+            "known_samples": 4917,
+            "max_drawdown": "30.55",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "2.51",
+            "minimum_from_origin": "-30.55"
+          },
+          "native_path_sha256": "af8e82a330d562c1d20e5bafac93ba59d3a43a1b7ffc55ec6e12aeb8be558aea",
+          "paired_samples": 4917,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 4386,
+          "risk_blockers": [],
+          "scenario_booked_eur": "1.75",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:31:15.843000+00:00",
+            "final_net": "1.75",
+            "known_samples": 4917,
+            "max_drawdown": "30.55",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "3.25",
+            "minimum_from_origin": "-30.55"
+          },
+          "scenario_minus_native_exit_ms": 3482,
+          "scenario_path_sha256": "f248d380df2085b2ff5009c5274edee98c138c6f67bb135c25ca46f346abcce3",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 5000,
+          "fill_at": "2026-09-18 12:31:15.843000+00:00",
+          "fill_price": 4363.44,
+          "first_touch_at": "2026-09-18 12:31:10.747000+00:00",
+          "max_abs_total_difference_eur": "1.53",
+          "mismatched_pairs": 41,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:31:15.843000+00:00",
+            "final_net": "1.75",
+            "known_samples": 4917,
+            "max_drawdown": "30.55",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "2.51",
+            "minimum_from_origin": "-30.55"
+          },
+          "native_path_sha256": "af8e82a330d562c1d20e5bafac93ba59d3a43a1b7ffc55ec6e12aeb8be558aea",
+          "paired_samples": 4917,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 4386,
+          "risk_blockers": [],
+          "scenario_booked_eur": "3.28",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:31:15.843000+00:00",
+            "final_net": "3.28",
+            "known_samples": 4917,
+            "max_drawdown": "30.55",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "3.28",
+            "minimum_from_origin": "-30.55"
+          },
+          "scenario_minus_native_exit_ms": 3482,
+          "scenario_path_sha256": "da0ff54c6bb4fcc16709fe6eaf8f492e8ca30ccffa0672a3fb299f9c5311288a",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 30000,
+          "fill_at": "2026-09-18 12:31:40.804000+00:00",
+          "fill_price": 4363.0,
+          "first_touch_at": "2026-09-18 12:31:10.747000+00:00",
+          "max_abs_total_difference_eur": "5.51",
+          "mismatched_pairs": 309,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:31:40.804000+00:00",
+            "final_net": "1.75",
+            "known_samples": 5186,
+            "max_drawdown": "30.55",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "2.51",
+            "minimum_from_origin": "-30.55"
+          },
+          "native_path_sha256": "f4fa7c097d3986b59763087aa9743b099e04978b95913a85394272c2d5583868",
+          "paired_samples": 5186,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 4629,
+          "risk_blockers": [],
+          "scenario_booked_eur": "1.75",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:31:40.804000+00:00",
+            "final_net": "1.75",
+            "known_samples": 5186,
+            "max_drawdown": "30.55",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "7.26",
+            "minimum_from_origin": "-30.55"
+          },
+          "scenario_minus_native_exit_ms": 28443,
+          "scenario_path_sha256": "ba4b0ff639698afa7d3d6c7eea55431efbad07be0c0ea2b4bf8eed964fece560",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 30000,
+          "fill_at": "2026-09-18 12:31:40.804000+00:00",
+          "fill_price": 4363.16,
+          "first_touch_at": "2026-09-18 12:31:10.747000+00:00",
+          "max_abs_total_difference_eur": "5.51",
+          "mismatched_pairs": 310,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:31:40.804000+00:00",
+            "final_net": "1.75",
+            "known_samples": 5186,
+            "max_drawdown": "30.55",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "2.51",
+            "minimum_from_origin": "-30.55"
+          },
+          "native_path_sha256": "f4fa7c097d3986b59763087aa9743b099e04978b95913a85394272c2d5583868",
+          "paired_samples": 5186,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 4629,
+          "risk_blockers": [],
+          "scenario_booked_eur": "2.30",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:31:40.804000+00:00",
+            "final_net": "2.30",
+            "known_samples": 5186,
+            "max_drawdown": "30.55",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "7.26",
+            "minimum_from_origin": "-30.55"
+          },
+          "scenario_minus_native_exit_ms": 28443,
+          "scenario_path_sha256": "2336bb8393b085c831703585ceade4df4c65feb8c8ad12d0385f0494870dff6e",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        }
+      ]
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2047566527,
+      "signal_id": "canal2_3168",
+      "status": "scenario_grid_evaluated",
+      "worlds": [
+        {
+          "delay_ms": 0,
+          "fill_at": "2026-09-18 12:30:21.736000+00:00",
+          "fill_price": 4361.6,
+          "first_touch_at": "2026-09-18 12:30:21.736000+00:00",
+          "max_abs_total_difference_eur": "0.10",
+          "mismatched_pairs": 1,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:30:21.740000+00:00",
+            "final_net": "2.62",
+            "known_samples": 4021,
+            "max_drawdown": "18.83",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "2.72",
+            "minimum_from_origin": "-17.94"
+          },
+          "native_path_sha256": "2c8c5a8dafedf7809d957c16a196f6f8e44d1bfef82e43c90788e92d2ed3499c",
+          "paired_samples": 4021,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 3594,
+          "risk_blockers": [],
+          "scenario_booked_eur": "2.62",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:30:21.740000+00:00",
+            "final_net": "2.62",
+            "known_samples": 4021,
+            "max_drawdown": "18.83",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "2.62",
+            "minimum_from_origin": "-17.94"
+          },
+          "scenario_minus_native_exit_ms": -4,
+          "scenario_path_sha256": "f0bcbd7024db5183e6d3ef403720a9aefc3cf5273c118f233a851c94f3632aa3",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 0,
+          "fill_at": "2026-09-18 12:30:21.736000+00:00",
+          "fill_price": 4361.64,
+          "first_touch_at": "2026-09-18 12:30:21.736000+00:00",
+          "max_abs_total_difference_eur": "0.10",
+          "mismatched_pairs": 2,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:30:21.740000+00:00",
+            "final_net": "2.62",
+            "known_samples": 4021,
+            "max_drawdown": "18.83",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "2.72",
+            "minimum_from_origin": "-17.94"
+          },
+          "native_path_sha256": "2c8c5a8dafedf7809d957c16a196f6f8e44d1bfef82e43c90788e92d2ed3499c",
+          "paired_samples": 4021,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 3594,
+          "risk_blockers": [],
+          "scenario_booked_eur": "2.72",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:30:21.740000+00:00",
+            "final_net": "2.72",
+            "known_samples": 4021,
+            "max_drawdown": "18.83",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "2.72",
+            "minimum_from_origin": "-17.94"
+          },
+          "scenario_minus_native_exit_ms": -4,
+          "scenario_path_sha256": "839da3317b3cb2d640ff6697288175d0b604be24a289d9508ca8cedd7e8d0784",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 100,
+          "fill_at": "2026-09-18 12:30:21.911000+00:00",
+          "fill_price": 4361.6,
+          "first_touch_at": "2026-09-18 12:30:21.736000+00:00",
+          "max_abs_total_difference_eur": "0.13",
+          "mismatched_pairs": 2,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:30:21.911000+00:00",
+            "final_net": "2.62",
+            "known_samples": 4023,
+            "max_drawdown": "18.83",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "2.72",
+            "minimum_from_origin": "-17.94"
+          },
+          "native_path_sha256": "77bb2d7619b7edbcaf0f8edbc6f674b6574dde3a0324a5473439fed289a1e98f",
+          "paired_samples": 4023,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 3596,
+          "risk_blockers": [],
+          "scenario_booked_eur": "2.62",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:30:21.911000+00:00",
+            "final_net": "2.62",
+            "known_samples": 4023,
+            "max_drawdown": "18.83",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "2.75",
+            "minimum_from_origin": "-17.94"
+          },
+          "scenario_minus_native_exit_ms": 171,
+          "scenario_path_sha256": "1ca68e06b44ed6a4f311bc907b189143c79fe5ef8475eda81c7609cdbbd71e90",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 100,
+          "fill_at": "2026-09-18 12:30:21.911000+00:00",
+          "fill_price": 4361.68,
+          "first_touch_at": "2026-09-18 12:30:21.736000+00:00",
+          "max_abs_total_difference_eur": "0.21",
+          "mismatched_pairs": 3,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:30:21.911000+00:00",
+            "final_net": "2.62",
+            "known_samples": 4023,
+            "max_drawdown": "18.83",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "2.72",
+            "minimum_from_origin": "-17.94"
+          },
+          "native_path_sha256": "77bb2d7619b7edbcaf0f8edbc6f674b6574dde3a0324a5473439fed289a1e98f",
+          "paired_samples": 4023,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 3596,
+          "risk_blockers": [],
+          "scenario_booked_eur": "2.83",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:30:21.911000+00:00",
+            "final_net": "2.83",
+            "known_samples": 4023,
+            "max_drawdown": "18.83",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "2.83",
+            "minimum_from_origin": "-17.94"
+          },
+          "scenario_minus_native_exit_ms": 171,
+          "scenario_path_sha256": "fac111da3412a1d8e6950d1d20ab805fc26ba499a1321e2b78bd8a456e891027",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 1000,
+          "fill_at": "2026-09-18 12:30:22.739000+00:00",
+          "fill_price": 4361.6,
+          "first_touch_at": "2026-09-18 12:30:21.736000+00:00",
+          "max_abs_total_difference_eur": "1.08",
+          "mismatched_pairs": 13,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:30:22.739000+00:00",
+            "final_net": "2.62",
+            "known_samples": 4034,
+            "max_drawdown": "18.83",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "2.72",
+            "minimum_from_origin": "-17.94"
+          },
+          "native_path_sha256": "3fa68518dd4bafb3cb46b5eee8565f50f7673f58945b5df224ad3a36483c6b48",
+          "paired_samples": 4034,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 3606,
+          "risk_blockers": [],
+          "scenario_booked_eur": "2.62",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:30:22.739000+00:00",
+            "final_net": "2.62",
+            "known_samples": 4034,
+            "max_drawdown": "18.83",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "2.83",
+            "minimum_from_origin": "-17.94"
+          },
+          "scenario_minus_native_exit_ms": 999,
+          "scenario_path_sha256": "bb3abca8b4f1668a9e04f46ea94667b37514dda286fe036cc1080406c05ce059",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 1000,
+          "fill_at": "2026-09-18 12:30:22.739000+00:00",
+          "fill_price": 4361.17,
+          "first_touch_at": "2026-09-18 12:30:21.736000+00:00",
+          "max_abs_total_difference_eur": "1.13",
+          "mismatched_pairs": 14,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:30:22.739000+00:00",
+            "final_net": "2.62",
+            "known_samples": 4034,
+            "max_drawdown": "18.83",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "2.72",
+            "minimum_from_origin": "-17.94"
+          },
+          "native_path_sha256": "3fa68518dd4bafb3cb46b5eee8565f50f7673f58945b5df224ad3a36483c6b48",
+          "paired_samples": 4034,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 3606,
+          "risk_blockers": [],
+          "scenario_booked_eur": "1.49",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:30:22.739000+00:00",
+            "final_net": "1.49",
+            "known_samples": 4034,
+            "max_drawdown": "18.83",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "2.83",
+            "minimum_from_origin": "-17.94"
+          },
+          "scenario_minus_native_exit_ms": 999,
+          "scenario_path_sha256": "885d6f9489329d8cc1a739d58389676816a6dcf2752c5966b4e37ebf626798bc",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 5000,
+          "fill_at": "2026-09-18 12:30:26.957000+00:00",
+          "fill_price": 4361.6,
+          "first_touch_at": "2026-09-18 12:30:21.736000+00:00",
+          "max_abs_total_difference_eur": "2.15",
+          "mismatched_pairs": 55,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:30:26.957000+00:00",
+            "final_net": "2.62",
+            "known_samples": 4076,
+            "max_drawdown": "18.83",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "2.72",
+            "minimum_from_origin": "-17.94"
+          },
+          "native_path_sha256": "597c0f60fddcc9b90187ccf49185b597826c9f7d7858216bb0fb11cc437ea200",
+          "paired_samples": 4076,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 3644,
+          "risk_blockers": [],
+          "scenario_booked_eur": "2.62",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:30:26.957000+00:00",
+            "final_net": "2.62",
+            "known_samples": 4076,
+            "max_drawdown": "18.83",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "2.83",
+            "minimum_from_origin": "-17.94"
+          },
+          "scenario_minus_native_exit_ms": 5217,
+          "scenario_path_sha256": "5d6a77eb74ca994b0585ca4d123e5086004fbf7becda4ee3c2e8f0e8d65b6122",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 5000,
+          "fill_at": "2026-09-18 12:30:26.957000+00:00",
+          "fill_price": 4361.04,
+          "first_touch_at": "2026-09-18 12:30:21.736000+00:00",
+          "max_abs_total_difference_eur": "2.15",
+          "mismatched_pairs": 56,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:30:26.957000+00:00",
+            "final_net": "2.62",
+            "known_samples": 4076,
+            "max_drawdown": "18.83",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "2.72",
+            "minimum_from_origin": "-17.94"
+          },
+          "native_path_sha256": "597c0f60fddcc9b90187ccf49185b597826c9f7d7858216bb0fb11cc437ea200",
+          "paired_samples": 4076,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 3644,
+          "risk_blockers": [],
+          "scenario_booked_eur": "1.15",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:30:26.957000+00:00",
+            "final_net": "1.15",
+            "known_samples": 4076,
+            "max_drawdown": "18.83",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "2.83",
+            "minimum_from_origin": "-17.94"
+          },
+          "scenario_minus_native_exit_ms": 5217,
+          "scenario_path_sha256": "3d0a77edb1b205cd73a6c4522431ce61472b8a166ece621eabe5146b7cfb2447",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 30000,
+          "fill_at": "2026-09-18 12:30:51.779000+00:00",
+          "fill_price": 4361.6,
+          "first_touch_at": "2026-09-18 12:30:21.736000+00:00",
+          "max_abs_total_difference_eur": "4.48",
+          "mismatched_pairs": 302,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:30:51.779000+00:00",
+            "final_net": "2.62",
+            "known_samples": 4323,
+            "max_drawdown": "18.83",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "2.72",
+            "minimum_from_origin": "-17.94"
+          },
+          "native_path_sha256": "c2649f98ae2ff16e932a7a15f3c32e40ee85516c7e7dcb762ed98b0a84d97f2b",
+          "paired_samples": 4323,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 3848,
+          "risk_blockers": [],
+          "scenario_booked_eur": "2.62",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:30:51.779000+00:00",
+            "final_net": "2.62",
+            "known_samples": 4323,
+            "max_drawdown": "18.83",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "2.83",
+            "minimum_from_origin": "-17.94"
+          },
+          "scenario_minus_native_exit_ms": 30039,
+          "scenario_path_sha256": "bd68502df19f1696dc3f416c3f4ea5a9dd570ead712c3b04d276454e6cba281d",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 30000,
+          "fill_at": "2026-09-18 12:30:51.779000+00:00",
+          "fill_price": 4360.21,
+          "first_touch_at": "2026-09-18 12:30:21.736000+00:00",
+          "max_abs_total_difference_eur": "4.48",
+          "mismatched_pairs": 303,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:30:51.779000+00:00",
+            "final_net": "2.62",
+            "known_samples": 4323,
+            "max_drawdown": "18.83",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "2.72",
+            "minimum_from_origin": "-17.94"
+          },
+          "native_path_sha256": "c2649f98ae2ff16e932a7a15f3c32e40ee85516c7e7dcb762ed98b0a84d97f2b",
+          "paired_samples": 4323,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 3848,
+          "risk_blockers": [],
+          "scenario_booked_eur": "-1.02",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:30:51.779000+00:00",
+            "final_net": "-1.02",
+            "known_samples": 4323,
+            "max_drawdown": "18.83",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "2.83",
+            "minimum_from_origin": "-17.94"
+          },
+          "scenario_minus_native_exit_ms": 30039,
+          "scenario_path_sha256": "3e8c397716cf1c5b73cf0c0606f7db3c0a86de6ce61caa9129aa0a9f679e2c4f",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        }
+      ]
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2047571811,
+      "signal_id": "canal2_3168",
+      "status": "scenario_grid_evaluated",
+      "worlds": [
+        {
+          "delay_ms": 0,
+          "fill_at": "2026-09-18 12:30:07.957000+00:00",
+          "fill_price": 4360.82,
+          "first_touch_at": "2026-09-18 12:30:07.957000+00:00",
+          "max_abs_total_difference_eur": "0.36",
+          "mismatched_pairs": 8,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:30:08.433000+00:00",
+            "final_net": "3.93",
+            "known_samples": 3718,
+            "max_drawdown": "17.63",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "4.29",
+            "minimum_from_origin": "-14.59"
+          },
+          "native_path_sha256": "7077610066c374d9dfdc5cba4eb066d4db4b7286b90239ffdf3f3678c056b181",
+          "paired_samples": 3718,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 3307,
+          "risk_blockers": [],
+          "scenario_booked_eur": "3.93",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:30:08.433000+00:00",
+            "final_net": "3.93",
+            "known_samples": 3718,
+            "max_drawdown": "17.63",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "3.93",
+            "minimum_from_origin": "-14.59"
+          },
+          "scenario_minus_native_exit_ms": -476,
+          "scenario_path_sha256": "12d488e52f3c51fb62bcc66615757499735df69efcf132d57d723981e0f3c376",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 0,
+          "fill_at": "2026-09-18 12:30:07.957000+00:00",
+          "fill_price": 4360.91,
+          "first_touch_at": "2026-09-18 12:30:07.957000+00:00",
+          "max_abs_total_difference_eur": "0.23",
+          "mismatched_pairs": 9,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:30:08.433000+00:00",
+            "final_net": "3.93",
+            "known_samples": 3718,
+            "max_drawdown": "17.63",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "4.29",
+            "minimum_from_origin": "-14.59"
+          },
+          "native_path_sha256": "7077610066c374d9dfdc5cba4eb066d4db4b7286b90239ffdf3f3678c056b181",
+          "paired_samples": 3718,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 3307,
+          "risk_blockers": [],
+          "scenario_booked_eur": "4.16",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:30:08.433000+00:00",
+            "final_net": "4.16",
+            "known_samples": 3718,
+            "max_drawdown": "17.63",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "4.16",
+            "minimum_from_origin": "-14.59"
+          },
+          "scenario_minus_native_exit_ms": -476,
+          "scenario_path_sha256": "54f3bebdd222c31026590c398539fb6f1ee550dcb38707896619335f7c1ce447",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 100,
+          "fill_at": "2026-09-18 12:30:08.069000+00:00",
+          "fill_price": 4360.82,
+          "first_touch_at": "2026-09-18 12:30:07.957000+00:00",
+          "max_abs_total_difference_eur": "0.36",
+          "mismatched_pairs": 6,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:30:08.433000+00:00",
+            "final_net": "3.93",
+            "known_samples": 3718,
+            "max_drawdown": "17.63",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "4.29",
+            "minimum_from_origin": "-14.59"
+          },
+          "native_path_sha256": "7077610066c374d9dfdc5cba4eb066d4db4b7286b90239ffdf3f3678c056b181",
+          "paired_samples": 3718,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 3309,
+          "risk_blockers": [],
+          "scenario_booked_eur": "3.93",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:30:08.433000+00:00",
+            "final_net": "3.93",
+            "known_samples": 3718,
+            "max_drawdown": "17.63",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "4.29",
+            "minimum_from_origin": "-14.59"
+          },
+          "scenario_minus_native_exit_ms": -364,
+          "scenario_path_sha256": "4fd2030598a7285ed580874975bd8fc750413a276bfcecce8e8fde463227f695",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 100,
+          "fill_at": "2026-09-18 12:30:08.069000+00:00",
+          "fill_price": 4360.91,
+          "first_touch_at": "2026-09-18 12:30:07.957000+00:00",
+          "max_abs_total_difference_eur": "0.23",
+          "mismatched_pairs": 7,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:30:08.433000+00:00",
+            "final_net": "3.93",
+            "known_samples": 3718,
+            "max_drawdown": "17.63",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "4.29",
+            "minimum_from_origin": "-14.59"
+          },
+          "native_path_sha256": "7077610066c374d9dfdc5cba4eb066d4db4b7286b90239ffdf3f3678c056b181",
+          "paired_samples": 3718,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 3309,
+          "risk_blockers": [],
+          "scenario_booked_eur": "4.16",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:30:08.433000+00:00",
+            "final_net": "4.16",
+            "known_samples": 3718,
+            "max_drawdown": "17.63",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "4.29",
+            "minimum_from_origin": "-14.59"
+          },
+          "scenario_minus_native_exit_ms": -364,
+          "scenario_path_sha256": "ba6bf8262ff784e970b4ee68f2e67f358cfc2792b6a2ac306f41728ee0eb82b7",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 1000,
+          "fill_at": "2026-09-18 12:30:08.979000+00:00",
+          "fill_price": 4360.82,
+          "first_touch_at": "2026-09-18 12:30:07.957000+00:00",
+          "max_abs_total_difference_eur": "0.52",
+          "mismatched_pairs": 8,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:30:08.979000+00:00",
+            "final_net": "3.93",
+            "known_samples": 3726,
+            "max_drawdown": "17.63",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "4.29",
+            "minimum_from_origin": "-14.59"
+          },
+          "native_path_sha256": "45a31995db593f6ea9edb4a2cdcbff678cf269ed9c6cfeb1ae86e76d62ac9537",
+          "paired_samples": 3726,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 3322,
+          "risk_blockers": [],
+          "scenario_booked_eur": "3.93",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:30:08.979000+00:00",
+            "final_net": "3.93",
+            "known_samples": 3726,
+            "max_drawdown": "17.63",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "4.45",
+            "minimum_from_origin": "-14.59"
+          },
+          "scenario_minus_native_exit_ms": 546,
+          "scenario_path_sha256": "600701dfcd0166538d49917bef38f6911787cef498290a2d5bce9b1486f6021d",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 1000,
+          "fill_at": "2026-09-18 12:30:08.979000+00:00",
+          "fill_price": 4360.8,
+          "first_touch_at": "2026-09-18 12:30:07.957000+00:00",
+          "max_abs_total_difference_eur": "0.52",
+          "mismatched_pairs": 9,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:30:08.979000+00:00",
+            "final_net": "3.93",
+            "known_samples": 3726,
+            "max_drawdown": "17.63",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "4.29",
+            "minimum_from_origin": "-14.59"
+          },
+          "native_path_sha256": "45a31995db593f6ea9edb4a2cdcbff678cf269ed9c6cfeb1ae86e76d62ac9537",
+          "paired_samples": 3726,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 3322,
+          "risk_blockers": [],
+          "scenario_booked_eur": "3.87",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:30:08.979000+00:00",
+            "final_net": "3.87",
+            "known_samples": 3726,
+            "max_drawdown": "17.63",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "4.45",
+            "minimum_from_origin": "-14.59"
+          },
+          "scenario_minus_native_exit_ms": 546,
+          "scenario_path_sha256": "b80ccb10bcfc0376985ed01b9b8b45442b9c389fb46d189ca81e5fe31ed0e900",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 5000,
+          "fill_at": "2026-09-18 12:30:12.985000+00:00",
+          "fill_price": 4360.82,
+          "first_touch_at": "2026-09-18 12:30:07.957000+00:00",
+          "max_abs_total_difference_eur": "2.41",
+          "mismatched_pairs": 61,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:30:12.985000+00:00",
+            "final_net": "3.93",
+            "known_samples": 3779,
+            "max_drawdown": "17.63",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "4.29",
+            "minimum_from_origin": "-14.59"
+          },
+          "native_path_sha256": "0c53881317f89fb50c4d3761687e9b0708284ab3efb432eb7e0788242bec33f1",
+          "paired_samples": 3779,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 3373,
+          "risk_blockers": [],
+          "scenario_booked_eur": "3.93",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:30:12.985000+00:00",
+            "final_net": "3.93",
+            "known_samples": 3779,
+            "max_drawdown": "17.63",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "4.45",
+            "minimum_from_origin": "-14.59"
+          },
+          "scenario_minus_native_exit_ms": 4552,
+          "scenario_path_sha256": "6c811dcad3393c04a281606635733e267502027bb98261372e7160c05c108e3d",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 5000,
+          "fill_at": "2026-09-18 12:30:12.985000+00:00",
+          "fill_price": 4360.51,
+          "first_touch_at": "2026-09-18 12:30:07.957000+00:00",
+          "max_abs_total_difference_eur": "2.41",
+          "mismatched_pairs": 62,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:30:12.985000+00:00",
+            "final_net": "3.93",
+            "known_samples": 3779,
+            "max_drawdown": "17.63",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "4.29",
+            "minimum_from_origin": "-14.59"
+          },
+          "native_path_sha256": "0c53881317f89fb50c4d3761687e9b0708284ab3efb432eb7e0788242bec33f1",
+          "paired_samples": 3779,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 3373,
+          "risk_blockers": [],
+          "scenario_booked_eur": "3.12",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:30:12.985000+00:00",
+            "final_net": "3.12",
+            "known_samples": 3779,
+            "max_drawdown": "17.63",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "4.45",
+            "minimum_from_origin": "-14.59"
+          },
+          "scenario_minus_native_exit_ms": 4552,
+          "scenario_path_sha256": "045f3ea358266546399559c30a4e19a6abced2f9b2bc1dc44adc9628c2e5188a",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 30000,
+          "fill_at": "2026-09-18 12:30:37.964000+00:00",
+          "fill_price": 4360.82,
+          "first_touch_at": "2026-09-18 12:30:07.957000+00:00",
+          "max_abs_total_difference_eur": "2.41",
+          "mismatched_pairs": 322,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:30:37.964000+00:00",
+            "final_net": "3.93",
+            "known_samples": 4040,
+            "max_drawdown": "17.63",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "4.29",
+            "minimum_from_origin": "-14.59"
+          },
+          "native_path_sha256": "9513588861f9da0d3679ab7af63d6ba216f6a7ac35cd926cc6cbaa7b66bd994a",
+          "paired_samples": 4040,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 3593,
+          "risk_blockers": [],
+          "scenario_booked_eur": "3.93",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:30:37.964000+00:00",
+            "final_net": "3.93",
+            "known_samples": 4040,
+            "max_drawdown": "17.63",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "6.18",
+            "minimum_from_origin": "-14.59"
+          },
+          "scenario_minus_native_exit_ms": 29531,
+          "scenario_path_sha256": "87e7a29f97b8b825e30a9383fc81da3fdfe4c40b62f2d9e5dfd9b4980d7406f5",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 30000,
+          "fill_at": "2026-09-18 12:30:37.964000+00:00",
+          "fill_price": 4360.9,
+          "first_touch_at": "2026-09-18 12:30:07.957000+00:00",
+          "max_abs_total_difference_eur": "2.41",
+          "mismatched_pairs": 323,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:30:37.964000+00:00",
+            "final_net": "3.93",
+            "known_samples": 4040,
+            "max_drawdown": "17.63",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "4.29",
+            "minimum_from_origin": "-14.59"
+          },
+          "native_path_sha256": "9513588861f9da0d3679ab7af63d6ba216f6a7ac35cd926cc6cbaa7b66bd994a",
+          "paired_samples": 4040,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 3593,
+          "risk_blockers": [],
+          "scenario_booked_eur": "4.14",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:30:37.964000+00:00",
+            "final_net": "4.14",
+            "known_samples": 4040,
+            "max_drawdown": "17.63",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "6.18",
+            "minimum_from_origin": "-14.59"
+          },
+          "scenario_minus_native_exit_ms": 29531,
+          "scenario_path_sha256": "e6f6539dd89bc8d9c4befed253e3a162b77e4b18eb86b83139285ff84a4e1943",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        }
+      ]
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2047574688,
+      "signal_id": "canal2_3168",
+      "status": "scenario_grid_evaluated",
+      "worlds": [
+        {
+          "delay_ms": 0,
+          "fill_at": "2026-09-18 12:26:28.562000+00:00",
+          "fill_price": 4359.85,
+          "first_touch_at": "2026-09-18 12:26:28.562000+00:00",
+          "max_abs_total_difference_eur": "0.10",
+          "mismatched_pairs": 1,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:26:28.565000+00:00",
+            "final_net": "5.24",
+            "known_samples": 1291,
+            "max_drawdown": "7.20",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "5.34",
+            "minimum_from_origin": "-3.85"
+          },
+          "native_path_sha256": "1e41ba634953b5104941ba3c0918406ab92a2e6a46869b4f9258c5c0171e2aa7",
+          "paired_samples": 1291,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 1149,
+          "risk_blockers": [],
+          "scenario_booked_eur": "5.24",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:26:28.565000+00:00",
+            "final_net": "5.24",
+            "known_samples": 1291,
+            "max_drawdown": "7.20",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "5.24",
+            "minimum_from_origin": "-3.85"
+          },
+          "scenario_minus_native_exit_ms": -3,
+          "scenario_path_sha256": "401ebad067fd7e275c875941fb17b5f41394efe086c43f5db04cccc5f37054ee",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 0,
+          "fill_at": "2026-09-18 12:26:28.562000+00:00",
+          "fill_price": 4359.89,
+          "first_touch_at": "2026-09-18 12:26:28.562000+00:00",
+          "max_abs_total_difference_eur": "0.10",
+          "mismatched_pairs": 2,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:26:28.565000+00:00",
+            "final_net": "5.24",
+            "known_samples": 1291,
+            "max_drawdown": "7.20",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "5.34",
+            "minimum_from_origin": "-3.85"
+          },
+          "native_path_sha256": "1e41ba634953b5104941ba3c0918406ab92a2e6a46869b4f9258c5c0171e2aa7",
+          "paired_samples": 1291,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 1149,
+          "risk_blockers": [],
+          "scenario_booked_eur": "5.34",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:26:28.565000+00:00",
+            "final_net": "5.34",
+            "known_samples": 1291,
+            "max_drawdown": "7.20",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "5.34",
+            "minimum_from_origin": "-3.85"
+          },
+          "scenario_minus_native_exit_ms": -3,
+          "scenario_path_sha256": "55ce00be58f4809177b839d6f351f6c7899ae3f88b56d030e4cc9cf261865945",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 100,
+          "fill_at": "2026-09-18 12:26:28.703000+00:00",
+          "fill_price": 4359.85,
+          "first_touch_at": "2026-09-18 12:26:28.562000+00:00",
+          "max_abs_total_difference_eur": "0.23",
+          "mismatched_pairs": 2,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:26:28.703000+00:00",
+            "final_net": "5.24",
+            "known_samples": 1293,
+            "max_drawdown": "7.20",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "5.34",
+            "minimum_from_origin": "-3.85"
+          },
+          "native_path_sha256": "131e70939139f33c8edf4b9de511a1cfd266ca9c3d5beb2fce8100ee73a6c3d4",
+          "paired_samples": 1293,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 1151,
+          "risk_blockers": [],
+          "scenario_booked_eur": "5.24",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:26:28.703000+00:00",
+            "final_net": "5.24",
+            "known_samples": 1293,
+            "max_drawdown": "7.20",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "5.47",
+            "minimum_from_origin": "-3.85"
+          },
+          "scenario_minus_native_exit_ms": 138,
+          "scenario_path_sha256": "1744f779b1c008b8363ab0997b8859c6d09b2aaf2f9e49ffb18f07cf57b72b24",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 100,
+          "fill_at": "2026-09-18 12:26:28.703000+00:00",
+          "fill_price": 4359.92,
+          "first_touch_at": "2026-09-18 12:26:28.562000+00:00",
+          "max_abs_total_difference_eur": "0.23",
+          "mismatched_pairs": 3,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:26:28.703000+00:00",
+            "final_net": "5.24",
+            "known_samples": 1293,
+            "max_drawdown": "7.20",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "5.34",
+            "minimum_from_origin": "-3.85"
+          },
+          "native_path_sha256": "131e70939139f33c8edf4b9de511a1cfd266ca9c3d5beb2fce8100ee73a6c3d4",
+          "paired_samples": 1293,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 1151,
+          "risk_blockers": [],
+          "scenario_booked_eur": "5.42",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:26:28.703000+00:00",
+            "final_net": "5.42",
+            "known_samples": 1293,
+            "max_drawdown": "7.20",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "5.47",
+            "minimum_from_origin": "-3.85"
+          },
+          "scenario_minus_native_exit_ms": 138,
+          "scenario_path_sha256": "4c4608f8d25d4d478bdb1742bd2e62bb85ea9e5fe45f28ed0d2d9352c69601b1",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 1000,
+          "fill_at": "2026-09-18 12:26:29.598000+00:00",
+          "fill_price": 4359.85,
+          "first_touch_at": "2026-09-18 12:26:28.562000+00:00",
+          "max_abs_total_difference_eur": "0.58",
+          "mismatched_pairs": 12,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:26:29.598000+00:00",
+            "final_net": "5.24",
+            "known_samples": 1303,
+            "max_drawdown": "7.20",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "5.34",
+            "minimum_from_origin": "-3.85"
+          },
+          "native_path_sha256": "2caf69f54e2b0b42ea6542bc611b2c79674da7279386c83a57292bb0501a0e32",
+          "paired_samples": 1303,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 1160,
+          "risk_blockers": [],
+          "scenario_booked_eur": "5.24",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:26:29.598000+00:00",
+            "final_net": "5.24",
+            "known_samples": 1303,
+            "max_drawdown": "7.20",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "5.47",
+            "minimum_from_origin": "-3.85"
+          },
+          "scenario_minus_native_exit_ms": 1033,
+          "scenario_path_sha256": "d67254c1fb9137a5fa79d3026b4e8689737a3e156a7566815b6dab6169d97d02",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 1000,
+          "fill_at": "2026-09-18 12:26:29.598000+00:00",
+          "fill_price": 4359.7,
+          "first_touch_at": "2026-09-18 12:26:28.562000+00:00",
+          "max_abs_total_difference_eur": "0.58",
+          "mismatched_pairs": 13,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:26:29.598000+00:00",
+            "final_net": "5.24",
+            "known_samples": 1303,
+            "max_drawdown": "7.20",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "5.34",
+            "minimum_from_origin": "-3.85"
+          },
+          "native_path_sha256": "2caf69f54e2b0b42ea6542bc611b2c79674da7279386c83a57292bb0501a0e32",
+          "paired_samples": 1303,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 1160,
+          "risk_blockers": [],
+          "scenario_booked_eur": "4.84",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:26:29.598000+00:00",
+            "final_net": "4.84",
+            "known_samples": 1303,
+            "max_drawdown": "7.20",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "5.47",
+            "minimum_from_origin": "-3.85"
+          },
+          "scenario_minus_native_exit_ms": 1033,
+          "scenario_path_sha256": "65d2918a7d4bc85f2462ba37a16c6da069c99bd2c322ac3c9cc91428b67fcac5",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 5000,
+          "fill_at": "2026-09-18 12:26:33.604000+00:00",
+          "fill_price": 4359.85,
+          "first_touch_at": "2026-09-18 12:26:28.562000+00:00",
+          "max_abs_total_difference_eur": "1.76",
+          "mismatched_pairs": 60,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:26:33.604000+00:00",
+            "final_net": "5.24",
+            "known_samples": 1351,
+            "max_drawdown": "7.20",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "5.34",
+            "minimum_from_origin": "-3.85"
+          },
+          "native_path_sha256": "7e2ee37f2afe4b2ddc51050a15e9c8a6a0d552fb9e41000e510734cd5b620f23",
+          "paired_samples": 1351,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 1206,
+          "risk_blockers": [],
+          "scenario_booked_eur": "5.24",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:26:33.604000+00:00",
+            "final_net": "5.24",
+            "known_samples": 1351,
+            "max_drawdown": "7.20",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "5.81",
+            "minimum_from_origin": "-3.85"
+          },
+          "scenario_minus_native_exit_ms": 5039,
+          "scenario_path_sha256": "6026176a20f380f27e37b1f1fbbd7c18dee8a5b162ee831c0e99e26f27e7bc52",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 5000,
+          "fill_at": "2026-09-18 12:26:33.604000+00:00",
+          "fill_price": 4359.21,
+          "first_touch_at": "2026-09-18 12:26:28.562000+00:00",
+          "max_abs_total_difference_eur": "1.76",
+          "mismatched_pairs": 61,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:26:33.604000+00:00",
+            "final_net": "5.24",
+            "known_samples": 1351,
+            "max_drawdown": "7.20",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "5.34",
+            "minimum_from_origin": "-3.85"
+          },
+          "native_path_sha256": "7e2ee37f2afe4b2ddc51050a15e9c8a6a0d552fb9e41000e510734cd5b620f23",
+          "paired_samples": 1351,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 1206,
+          "risk_blockers": [],
+          "scenario_booked_eur": "3.56",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:26:33.604000+00:00",
+            "final_net": "3.56",
+            "known_samples": 1351,
+            "max_drawdown": "7.20",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "5.81",
+            "minimum_from_origin": "-3.85"
+          },
+          "scenario_minus_native_exit_ms": 5039,
+          "scenario_path_sha256": "15a18428fcd3cd13acc28e0733f44c7dd295a23ff69e1e95b13f8bfa9e7411b4",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 30000,
+          "fill_at": "2026-09-18 12:26:58.612000+00:00",
+          "fill_price": 4359.85,
+          "first_touch_at": "2026-09-18 12:26:28.562000+00:00",
+          "max_abs_total_difference_eur": "8.30",
+          "mismatched_pairs": 341,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:26:58.612000+00:00",
+            "final_net": "5.24",
+            "known_samples": 1632,
+            "max_drawdown": "7.20",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "5.34",
+            "minimum_from_origin": "-3.85"
+          },
+          "native_path_sha256": "1bff703120fc156b6d700c186cc450cb4a0e8606cbcd80e9c8394d8217cc6867",
+          "paired_samples": 1632,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 1448,
+          "risk_blockers": [],
+          "scenario_booked_eur": "5.24",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:26:58.612000+00:00",
+            "final_net": "5.24",
+            "known_samples": 1632,
+            "max_drawdown": "9.95",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "6.89",
+            "minimum_from_origin": "-3.85"
+          },
+          "scenario_minus_native_exit_ms": 30047,
+          "scenario_path_sha256": "0b4de5ece812dd19f481bacaf11c9a6273596431e963668e43b0a528ebb5792b",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 30000,
+          "fill_at": "2026-09-18 12:26:58.612000+00:00",
+          "fill_price": 4357.3,
+          "first_touch_at": "2026-09-18 12:26:28.562000+00:00",
+          "max_abs_total_difference_eur": "8.30",
+          "mismatched_pairs": 342,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:26:58.612000+00:00",
+            "final_net": "5.24",
+            "known_samples": 1632,
+            "max_drawdown": "7.20",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "5.34",
+            "minimum_from_origin": "-3.85"
+          },
+          "native_path_sha256": "1bff703120fc156b6d700c186cc450cb4a0e8606cbcd80e9c8394d8217cc6867",
+          "paired_samples": 1632,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 1448,
+          "risk_blockers": [],
+          "scenario_booked_eur": "-1.44",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:26:58.612000+00:00",
+            "final_net": "-1.44",
+            "known_samples": 1632,
+            "max_drawdown": "9.95",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "6.89",
+            "minimum_from_origin": "-3.85"
+          },
+          "scenario_minus_native_exit_ms": 30047,
+          "scenario_path_sha256": "1cf19930ba1c8a8fa5ae561dc3e177d724e97493aa1d9bc9308ea26f750da1dd",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        }
+      ]
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2047614126,
+      "signal_id": "canal2_3168",
+      "status": "scenario_grid_evaluated",
+      "worlds": [
+        {
+          "delay_ms": 0,
+          "fill_at": "2026-09-18 12:29:40.109000+00:00",
+          "fill_price": 4358.88,
+          "first_touch_at": "2026-09-18 12:29:40.109000+00:00",
+          "max_abs_total_difference_eur": "0.26",
+          "mismatched_pairs": 1,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:29:40.114000+00:00",
+            "final_net": "6.55",
+            "known_samples": 1627,
+            "max_drawdown": "8.54",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "6.81",
+            "minimum_from_origin": "-6.89"
+          },
+          "native_path_sha256": "300a7ddc380704f38ee1c508954b8fe568d0bda8d341a4ef0f2c2221a7f38450",
+          "paired_samples": 1627,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 1443,
+          "risk_blockers": [],
+          "scenario_booked_eur": "6.55",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:29:40.114000+00:00",
+            "final_net": "6.55",
+            "known_samples": 1627,
+            "max_drawdown": "8.54",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "6.55",
+            "minimum_from_origin": "-6.89"
+          },
+          "scenario_minus_native_exit_ms": -5,
+          "scenario_path_sha256": "2b15b69ca4ee4503abb6f9d5651ac5513e01d8c949e8f8f0ca98d451208b8697",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 0,
+          "fill_at": "2026-09-18 12:29:40.109000+00:00",
+          "fill_price": 4358.98,
+          "first_touch_at": "2026-09-18 12:29:40.109000+00:00",
+          "max_abs_total_difference_eur": "0.26",
+          "mismatched_pairs": 2,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:29:40.114000+00:00",
+            "final_net": "6.55",
+            "known_samples": 1627,
+            "max_drawdown": "8.54",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "6.81",
+            "minimum_from_origin": "-6.89"
+          },
+          "native_path_sha256": "300a7ddc380704f38ee1c508954b8fe568d0bda8d341a4ef0f2c2221a7f38450",
+          "paired_samples": 1627,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 1443,
+          "risk_blockers": [],
+          "scenario_booked_eur": "6.81",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:29:40.114000+00:00",
+            "final_net": "6.81",
+            "known_samples": 1627,
+            "max_drawdown": "8.54",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "6.81",
+            "minimum_from_origin": "-6.89"
+          },
+          "scenario_minus_native_exit_ms": -5,
+          "scenario_path_sha256": "75672c08c14fa2bd15e56f92a22a865868af2d6519bc955ff3342b76defc3cb4",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 100,
+          "fill_at": "2026-09-18 12:29:40.239000+00:00",
+          "fill_price": 4358.88,
+          "first_touch_at": "2026-09-18 12:29:40.109000+00:00",
+          "max_abs_total_difference_eur": "0.55",
+          "mismatched_pairs": 2,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:29:40.239000+00:00",
+            "final_net": "6.55",
+            "known_samples": 1629,
+            "max_drawdown": "8.54",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "6.81",
+            "minimum_from_origin": "-6.89"
+          },
+          "native_path_sha256": "d31ee1de3c9cbc9929f7b1b23902108a1f4fede4418324107278643e0178ec98",
+          "paired_samples": 1629,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 1445,
+          "risk_blockers": [],
+          "scenario_booked_eur": "6.55",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:29:40.239000+00:00",
+            "final_net": "6.55",
+            "known_samples": 1629,
+            "max_drawdown": "8.54",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "7.10",
+            "minimum_from_origin": "-6.89"
+          },
+          "scenario_minus_native_exit_ms": 125,
+          "scenario_path_sha256": "fe144cbddd57ff1827fc62d91c23a0c4856dce3f4563934e7517d6fdca9d9193",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 100,
+          "fill_at": "2026-09-18 12:29:40.239000+00:00",
+          "fill_price": 4359.06,
+          "first_touch_at": "2026-09-18 12:29:40.109000+00:00",
+          "max_abs_total_difference_eur": "0.55",
+          "mismatched_pairs": 3,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:29:40.239000+00:00",
+            "final_net": "6.55",
+            "known_samples": 1629,
+            "max_drawdown": "8.54",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "6.81",
+            "minimum_from_origin": "-6.89"
+          },
+          "native_path_sha256": "d31ee1de3c9cbc9929f7b1b23902108a1f4fede4418324107278643e0178ec98",
+          "paired_samples": 1629,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 1445,
+          "risk_blockers": [],
+          "scenario_booked_eur": "7.02",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:29:40.239000+00:00",
+            "final_net": "7.02",
+            "known_samples": 1629,
+            "max_drawdown": "8.54",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "7.10",
+            "minimum_from_origin": "-6.89"
+          },
+          "scenario_minus_native_exit_ms": 125,
+          "scenario_path_sha256": "438c3a771b6fe8be7abc356cca4805f5f57cd9675f9a65d5bb37dc0edade5f8b",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 1000,
+          "fill_at": "2026-09-18 12:29:41.167000+00:00",
+          "fill_price": 4358.88,
+          "first_touch_at": "2026-09-18 12:29:40.109000+00:00",
+          "max_abs_total_difference_eur": "0.55",
+          "mismatched_pairs": 11,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:29:41.167000+00:00",
+            "final_net": "6.55",
+            "known_samples": 1638,
+            "max_drawdown": "8.54",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "6.81",
+            "minimum_from_origin": "-6.89"
+          },
+          "native_path_sha256": "96442903d9f2b483e37774a6f2ef4a97f572b9c4ecd6d32fb58b7f701246c274",
+          "paired_samples": 1638,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 1454,
+          "risk_blockers": [],
+          "scenario_booked_eur": "6.55",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:29:41.167000+00:00",
+            "final_net": "6.55",
+            "known_samples": 1638,
+            "max_drawdown": "8.54",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "7.10",
+            "minimum_from_origin": "-6.89"
+          },
+          "scenario_minus_native_exit_ms": 1053,
+          "scenario_path_sha256": "6eec2335ccfb5b335f3c0d5583d2848d59b20ca3ee501370f7170a6fcb4ecbe4",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 1000,
+          "fill_at": "2026-09-18 12:29:41.167000+00:00",
+          "fill_price": 4359.12,
+          "first_touch_at": "2026-09-18 12:29:40.109000+00:00",
+          "max_abs_total_difference_eur": "0.62",
+          "mismatched_pairs": 12,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:29:41.167000+00:00",
+            "final_net": "6.55",
+            "known_samples": 1638,
+            "max_drawdown": "8.54",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "6.81",
+            "minimum_from_origin": "-6.89"
+          },
+          "native_path_sha256": "96442903d9f2b483e37774a6f2ef4a97f572b9c4ecd6d32fb58b7f701246c274",
+          "paired_samples": 1638,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 1454,
+          "risk_blockers": [],
+          "scenario_booked_eur": "7.17",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:29:41.167000+00:00",
+            "final_net": "7.17",
+            "known_samples": 1638,
+            "max_drawdown": "8.54",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "7.17",
+            "minimum_from_origin": "-6.89"
+          },
+          "scenario_minus_native_exit_ms": 1053,
+          "scenario_path_sha256": "122a29ada4e7a241afc79d60b0c9c03ebff867437321ea0dc2b72422cba41afd",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 5000,
+          "fill_at": "2026-09-18 12:29:45.344000+00:00",
+          "fill_price": 4358.88,
+          "first_touch_at": "2026-09-18 12:29:40.109000+00:00",
+          "max_abs_total_difference_eur": "2.93",
+          "mismatched_pairs": 59,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:29:45.344000+00:00",
+            "final_net": "6.55",
+            "known_samples": 1686,
+            "max_drawdown": "8.54",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "6.81",
+            "minimum_from_origin": "-6.89"
+          },
+          "native_path_sha256": "4b2b39b811f3ee758a851ec9d7e490e5e463fe307e426cf8eca50b54311e2429",
+          "paired_samples": 1686,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 1494,
+          "risk_blockers": [],
+          "scenario_booked_eur": "6.55",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:29:45.344000+00:00",
+            "final_net": "6.55",
+            "known_samples": 1686,
+            "max_drawdown": "8.54",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "9.48",
+            "minimum_from_origin": "-6.89"
+          },
+          "scenario_minus_native_exit_ms": 5230,
+          "scenario_path_sha256": "97ed20bc84c18b1805509cc77d0db1cea774cf967848f83c137ab5d6ce5b0363",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 5000,
+          "fill_at": "2026-09-18 12:29:45.344000+00:00",
+          "fill_price": 4359.41,
+          "first_touch_at": "2026-09-18 12:29:40.109000+00:00",
+          "max_abs_total_difference_eur": "2.93",
+          "mismatched_pairs": 60,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:29:45.344000+00:00",
+            "final_net": "6.55",
+            "known_samples": 1686,
+            "max_drawdown": "8.54",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "6.81",
+            "minimum_from_origin": "-6.89"
+          },
+          "native_path_sha256": "4b2b39b811f3ee758a851ec9d7e490e5e463fe307e426cf8eca50b54311e2429",
+          "paired_samples": 1686,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 1494,
+          "risk_blockers": [],
+          "scenario_booked_eur": "7.93",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:29:45.344000+00:00",
+            "final_net": "7.93",
+            "known_samples": 1686,
+            "max_drawdown": "8.54",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "9.48",
+            "minimum_from_origin": "-6.89"
+          },
+          "scenario_minus_native_exit_ms": 5230,
+          "scenario_path_sha256": "e2f85f585eba0f24684ecc61fd52c7c0d1d554eb9390deb84aa70441749c6fd7",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 30000,
+          "fill_at": "2026-09-18 12:30:10.212000+00:00",
+          "fill_price": 4358.88,
+          "first_touch_at": "2026-09-18 12:29:40.109000+00:00",
+          "max_abs_total_difference_eur": "5.60",
+          "mismatched_pairs": 339,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:30:10.212000+00:00",
+            "final_net": "6.55",
+            "known_samples": 1966,
+            "max_drawdown": "8.54",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "6.81",
+            "minimum_from_origin": "-6.89"
+          },
+          "native_path_sha256": "2b713cdebfe6fbba3101ace9a9242b7f68a883e1584ea09d54b2d6798e730dc6",
+          "paired_samples": 1966,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 1754,
+          "risk_blockers": [],
+          "scenario_booked_eur": "6.55",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:30:10.212000+00:00",
+            "final_net": "6.55",
+            "known_samples": 1966,
+            "max_drawdown": "8.54",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "12.15",
+            "minimum_from_origin": "-6.89"
+          },
+          "scenario_minus_native_exit_ms": 30098,
+          "scenario_path_sha256": "61446588fb9ed65e4a6187702e8cb50ba46c44970f471565a647ee69ff077441",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 30000,
+          "fill_at": "2026-09-18 12:30:10.212000+00:00",
+          "fill_price": 4360.79,
+          "first_touch_at": "2026-09-18 12:29:40.109000+00:00",
+          "max_abs_total_difference_eur": "5.60",
+          "mismatched_pairs": 340,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:30:10.212000+00:00",
+            "final_net": "6.55",
+            "known_samples": 1966,
+            "max_drawdown": "8.54",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "6.81",
+            "minimum_from_origin": "-6.89"
+          },
+          "native_path_sha256": "2b713cdebfe6fbba3101ace9a9242b7f68a883e1584ea09d54b2d6798e730dc6",
+          "paired_samples": 1966,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 1754,
+          "risk_blockers": [],
+          "scenario_booked_eur": "11.55",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:30:10.212000+00:00",
+            "final_net": "11.55",
+            "known_samples": 1966,
+            "max_drawdown": "8.54",
+            "max_gross_volume": "0.03",
+            "maximum_from_origin": "12.15",
+            "minimum_from_origin": "-6.89"
+          },
+          "scenario_minus_native_exit_ms": 30098,
+          "scenario_path_sha256": "0efa0dedc861ff586c248b40b6dcf6b2320c837203d24c0f973873808b82291c",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        }
+      ]
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2047630429,
+      "signal_id": "canal2_3171",
+      "status": "scenario_grid_evaluated",
+      "worlds": [
+        {
+          "delay_ms": 0,
+          "fill_at": "2026-09-18 12:28:14.145000+00:00",
+          "fill_price": 4356.37,
+          "first_touch_at": "2026-09-18 12:28:14.145000+00:00",
+          "max_abs_total_difference_eur": "0",
+          "mismatched_pairs": 1,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:28:14.149000+00:00",
+            "final_net": "1.75",
+            "known_samples": 161,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "native_path_sha256": "8daaeea4f6c339e9049686d9f8f3d055977ed6d7e63017168825e425e7c0e13b",
+          "paired_samples": 161,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 82,
+          "risk_blockers": [],
+          "scenario_booked_eur": "1.75",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:28:14.149000+00:00",
+            "final_net": "1.75",
+            "known_samples": 161,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "scenario_minus_native_exit_ms": -4,
+          "scenario_path_sha256": "349635530e555c911dc094049d797eb9a227821ec185aebdef9076a72de615c7",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 0,
+          "fill_at": "2026-09-18 12:28:14.145000+00:00",
+          "fill_price": 4356.37,
+          "first_touch_at": "2026-09-18 12:28:14.145000+00:00",
+          "max_abs_total_difference_eur": "0",
+          "mismatched_pairs": 1,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:28:14.149000+00:00",
+            "final_net": "1.75",
+            "known_samples": 161,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "native_path_sha256": "8daaeea4f6c339e9049686d9f8f3d055977ed6d7e63017168825e425e7c0e13b",
+          "paired_samples": 161,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 82,
+          "risk_blockers": [],
+          "scenario_booked_eur": "1.75",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:28:14.149000+00:00",
+            "final_net": "1.75",
+            "known_samples": 161,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "scenario_minus_native_exit_ms": -4,
+          "scenario_path_sha256": "349635530e555c911dc094049d797eb9a227821ec185aebdef9076a72de615c7",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 100,
+          "fill_at": "2026-09-18 12:28:14.443000+00:00",
+          "fill_price": 4356.37,
+          "first_touch_at": "2026-09-18 12:28:14.145000+00:00",
+          "max_abs_total_difference_eur": "0",
+          "mismatched_pairs": 2,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:28:14.443000+00:00",
+            "final_net": "1.75",
+            "known_samples": 163,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "native_path_sha256": "db7088f37f0ee080b15d809716b57b749347a153ce744df2b93dec5b650e1459",
+          "paired_samples": 163,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 83,
+          "risk_blockers": [],
+          "scenario_booked_eur": "1.75",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:28:14.443000+00:00",
+            "final_net": "1.75",
+            "known_samples": 163,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "scenario_minus_native_exit_ms": 294,
+          "scenario_path_sha256": "d936d706e76f2b256e1bb0f77d8f976463db962185942de98cf35170153f1b3e",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 100,
+          "fill_at": "2026-09-18 12:28:14.443000+00:00",
+          "fill_price": 4356.48,
+          "first_touch_at": "2026-09-18 12:28:14.145000+00:00",
+          "max_abs_total_difference_eur": "0.38",
+          "mismatched_pairs": 3,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:28:14.443000+00:00",
+            "final_net": "1.75",
+            "known_samples": 163,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "native_path_sha256": "db7088f37f0ee080b15d809716b57b749347a153ce744df2b93dec5b650e1459",
+          "paired_samples": 163,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 83,
+          "risk_blockers": [],
+          "scenario_booked_eur": "2.13",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:28:14.443000+00:00",
+            "final_net": "2.13",
+            "known_samples": 163,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "2.13",
+            "minimum_from_origin": "-2.37"
+          },
+          "scenario_minus_native_exit_ms": 294,
+          "scenario_path_sha256": "f773b56f9b6cb4b8e7c3d8badc3f9ac963cd6277e483b91ab3396d605d442c9f",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 1000,
+          "fill_at": "2026-09-18 12:28:15.178000+00:00",
+          "fill_price": 4356.37,
+          "first_touch_at": "2026-09-18 12:28:14.145000+00:00",
+          "max_abs_total_difference_eur": "1.60",
+          "mismatched_pairs": 10,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:28:15.178000+00:00",
+            "final_net": "1.75",
+            "known_samples": 171,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "native_path_sha256": "2a865b14ec490c7652a166f142a3cb3739fe3aa8edb869023f64635686cc7d4b",
+          "paired_samples": 171,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 91,
+          "risk_blockers": [],
+          "scenario_booked_eur": "1.75",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:28:15.178000+00:00",
+            "final_net": "1.75",
+            "known_samples": 171,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "3.35",
+            "minimum_from_origin": "-2.37"
+          },
+          "scenario_minus_native_exit_ms": 1029,
+          "scenario_path_sha256": "83afab33fdddd494b57ad5cc60076e23e2096eda8ce5900aa84d029e95f53525",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 1000,
+          "fill_at": "2026-09-18 12:28:15.178000+00:00",
+          "fill_price": 4356.82,
+          "first_touch_at": "2026-09-18 12:28:14.145000+00:00",
+          "max_abs_total_difference_eur": "1.60",
+          "mismatched_pairs": 11,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:28:15.178000+00:00",
+            "final_net": "1.75",
+            "known_samples": 171,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "native_path_sha256": "2a865b14ec490c7652a166f142a3cb3739fe3aa8edb869023f64635686cc7d4b",
+          "paired_samples": 171,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 91,
+          "risk_blockers": [],
+          "scenario_booked_eur": "3.32",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:28:15.178000+00:00",
+            "final_net": "3.32",
+            "known_samples": 171,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "3.35",
+            "minimum_from_origin": "-2.37"
+          },
+          "scenario_minus_native_exit_ms": 1029,
+          "scenario_path_sha256": "70bf03293894bfc3ba88a0d03e3d44fe5316c54bbe38866ec73c614c2b4ed700",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 5000,
+          "fill_at": "2026-09-18 12:28:19.166000+00:00",
+          "fill_price": 4356.37,
+          "first_touch_at": "2026-09-18 12:28:14.145000+00:00",
+          "max_abs_total_difference_eur": "2.51",
+          "mismatched_pairs": 56,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:28:19.166000+00:00",
+            "final_net": "1.75",
+            "known_samples": 217,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "native_path_sha256": "b93a81374c3b2b1b1466d8cfb4b8c4fc0d43c0bc98a842d83d7de17e83393e15",
+          "paired_samples": 217,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 132,
+          "risk_blockers": [],
+          "scenario_booked_eur": "1.75",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:28:19.166000+00:00",
+            "final_net": "1.75",
+            "known_samples": 217,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "4.26",
+            "minimum_from_origin": "-2.37"
+          },
+          "scenario_minus_native_exit_ms": 5017,
+          "scenario_path_sha256": "948ac8a042788f9b5b837b0f5c49a4b4f05b447e3953a780dd0d4c403be236de",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 5000,
+          "fill_at": "2026-09-18 12:28:19.166000+00:00",
+          "fill_price": 4356.68,
+          "first_touch_at": "2026-09-18 12:28:14.145000+00:00",
+          "max_abs_total_difference_eur": "2.51",
+          "mismatched_pairs": 57,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:28:19.166000+00:00",
+            "final_net": "1.75",
+            "known_samples": 217,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "native_path_sha256": "b93a81374c3b2b1b1466d8cfb4b8c4fc0d43c0bc98a842d83d7de17e83393e15",
+          "paired_samples": 217,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 132,
+          "risk_blockers": [],
+          "scenario_booked_eur": "2.83",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:28:19.166000+00:00",
+            "final_net": "2.83",
+            "known_samples": 217,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "4.26",
+            "minimum_from_origin": "-2.37"
+          },
+          "scenario_minus_native_exit_ms": 5017,
+          "scenario_path_sha256": "ad4222185d16e4dc67157fd897238daf965a677979edc1f11af0d77fd558a83b",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 30000,
+          "fill_at": "2026-09-18 12:28:44.241000+00:00",
+          "fill_price": 4356.37,
+          "first_touch_at": "2026-09-18 12:28:14.145000+00:00",
+          "max_abs_total_difference_eur": "5.20",
+          "mismatched_pairs": 342,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:28:44.241000+00:00",
+            "final_net": "1.75",
+            "known_samples": 503,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "native_path_sha256": "fd0751fb50402d561e9933c562a8fc22eef744ae5914039ac861466762b1a84f",
+          "paired_samples": 503,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "installed_level",
+          "processed_side_updates": 390,
+          "risk_blockers": [],
+          "scenario_booked_eur": "1.75",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:28:44.241000+00:00",
+            "final_net": "1.75",
+            "known_samples": 503,
+            "max_drawdown": "7.51",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "6.95",
+            "minimum_from_origin": "-2.37"
+          },
+          "scenario_minus_native_exit_ms": 30092,
+          "scenario_path_sha256": "43acf32c82baf52933b0614390b0d59d37729807718aefe707f9646aca8e8cc8",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 30000,
+          "fill_at": "2026-09-18 12:28:44.241000+00:00",
+          "fill_price": 4356.13,
+          "first_touch_at": "2026-09-18 12:28:14.145000+00:00",
+          "max_abs_total_difference_eur": "5.20",
+          "mismatched_pairs": 343,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:28:44.241000+00:00",
+            "final_net": "1.75",
+            "known_samples": 503,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "native_path_sha256": "fd0751fb50402d561e9933c562a8fc22eef744ae5914039ac861466762b1a84f",
+          "paired_samples": 503,
+          "pending_passive_count": 0,
+          "position_status": "closed",
+          "price_mode": "executable_quote",
+          "processed_side_updates": 390,
+          "risk_blockers": [],
+          "scenario_booked_eur": "0.91",
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:28:44.241000+00:00",
+            "final_net": "0.91",
+            "known_samples": 503,
+            "max_drawdown": "7.51",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "6.95",
+            "minimum_from_origin": "-2.37"
+          },
+          "scenario_minus_native_exit_ms": 30092,
+          "scenario_path_sha256": "2452e29039efaf30f864724a5b10411d4b941ea91bf1dbd4d27d1d5536740284",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        }
+      ]
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2047922188,
+      "signal_id": "canal2_3180",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2048051692,
+      "signal_id": "canal2_3180",
+      "status": "blocked_missing_accepted_tp_response"
+    }
+  ],
+  "sources": {
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\broker_money.py": "0a868a7c26ff32064b1beabe5ba046d7ad2a4ac3ecea3b87813a7ff183074a1f",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\reports\\expanded-native-controls-20260924\\native-gold-tp-touch-population-v1.json": "1aac3ccf4645a581f2e0beeaff7e7eeb50de51a5858ed58909e46109166f888a",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\research\\dubai_iterative\\broker_execution.py": "7483c4c7dfdda5df6fdb30c2b66322b5331861b3ca01f3778cad62c54628b987",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\research\\dubai_iterative\\passive_fill_contract.py": "e0afaa4702e2d4f29480c3a97dd03a8c3ee37c263e549778cbf5e477194fbcff",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\research\\risk_trajectory.py": "52d4dd9854bacf8e760e6276e97244ff3ea6b7cf7d58c12cd288989c0a7256f1",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\runtime_data\\week_native_ticks_20260923_v1\\native_money_anchor_v2.json": "550cbd6176316cb4cb62eb41ed9dc4e0673a0a925319f0b7e041230aa2ecf41d",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\runtime_data\\week_native_ticks_20260923_v1\\native_week_risk_path_v1.json": "a4c94d417829320cab2f5d17264a7330b43e80730d92b70b94ec79c5e0b4a468",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\runtime_data\\weekly_review_20260919\\broker_money_contract_vm.json": "cd5b1a326b833412affa75b3b7f7f4c42a4a808f62d423b350814618a809d7c3",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\tools\\audit_tp_fill_scenario_risk.py": "9504d7510f7a4c46993595aebf4de438a5d74fc9fd197c13013d4cfea59f84c6",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\tools\\compare_risk_trajectories.py": "361ed7df0abb8ed40f3f6c644c53eed0b5a76f71cbadfa4913829bc0d162a6ea"
+  },
+  "status": "diagnostic_only",
+  "statuses": {
+    "blocked_missing_accepted_tp_response": 36,
+    "non_tp_exit": 1,
+    "scenario_grid_evaluated": 9
+  },
+  "strategy_decisions_replayed": false,
+  "tapes": {
+    "2026-09-18": {
+      "conversion": {
+        "clock_admitted_by_source": false,
+        "day_rows": 122490,
+        "metadata_sha256": "5671ed7d48c1e4c8035479f106d3894a0ce2853fdf54e0cc3cb6a3d8c71117a4",
+        "parquet_sha256": "08bbc079f6ce17ecaadd44b632193e6dc295351541927f51b9e6747dc0102147",
+        "selected_rows": 10796
+      },
+      "market": {
+        "clock_admitted_by_source": false,
+        "day_rows": 655101,
+        "metadata_sha256": "f502e12e7ac65ccbc86a1bc1db688403a620dcc84c25c9f68c7436ee97a48cb3",
+        "parquet_sha256": "b0ddaa81f9c7391c1161f4239af2a9b932b7c3eb7997a683449fba6c1278670e",
+        "selected_rows": 47522
+      }
+    }
+  },
+  "world_statuses": {
+    "blocked_world": 30,
+    "risk_path_compared": 60
+  },
+  "worlds_per_accepted_case": 10
+}

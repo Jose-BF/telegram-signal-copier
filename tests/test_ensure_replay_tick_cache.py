@@ -610,18 +610,25 @@ def test_v2_contract_is_rejected_even_when_hash_matches(tmp_path):
     assert ensure_replay_tick_cache.load_valid_day_contract(cache_dir, day) is None
 
 
-def test_cache_status_uses_repo_relative_cache_dir_for_default_cache():
+def test_cache_status_uses_repo_relative_cache_dir_inside_repo():
+    cache_dir = ensure_replay_tick_cache.REPO_DIR / "runtime_data" / "ticks_cache"
     status = ensure_replay_tick_cache.build_status(
         [],
-        cache_dir=ensure_replay_tick_cache.DEFAULT_CACHE_DIR,
+        cache_dir=cache_dir,
         pad_minutes=0,
     )
 
-    expected = ensure_replay_tick_cache.DEFAULT_CACHE_DIR.relative_to(
+    expected = cache_dir.relative_to(
         ensure_replay_tick_cache.REPO_DIR
     ).as_posix()
     assert status["cache_dir"] == expected
     assert "\\" not in status["cache_dir"]
+
+
+def test_cache_status_preserves_explicit_external_cache_dir(tmp_path):
+    cache_dir = tmp_path / "external_cache"
+    status = ensure_replay_tick_cache.build_status([], cache_dir=cache_dir, pad_minutes=0)
+    assert status["cache_dir"] == str(cache_dir)
 
 
 def test_refresh_cache_days_removes_only_explicit_day_files(tmp_path):

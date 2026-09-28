@@ -1,0 +1,104 @@
+{
+ "summary": {
+  "real": {
+   "familias_evaluadas": 10,
+   "hallazgos_fuertes": [
+    "c2_escalera",
+    "c2_invertir_1pata"
+   ],
+   "hallazgos_debiles": [
+    "c1_invertir_1pata",
+    "c1_seguir_1pata",
+    "c2_pullback"
+   ]
+  },
+  "placebo": {
+   "familias_evaluadas": 3,
+   "hallazgos_fuertes": [],
+   "hallazgos_debiles": [
+    "c2_escalera"
+   ]
+  }
+ },
+ "detail": {
+  "real": {
+   "c1_invertir_1pata": {
+    "fuertes": [],
+    "debiles": [
+     "A:simples_n60"
+    ]
+   },
+   "c1_seguir_1pata": {
+    "fuertes": [],
+    "debiles": [
+     "B:simples_n60"
+    ]
+   },
+   "c1_escalera": {
+    "fuertes": [],
+    "debiles": []
+   },
+   "c1_invertir_escalera": {
+    "fuertes": [],
+    "debiles": []
+   },
+   "c2_555": {
+    "fuertes": [],
+    "debiles": []
+   },
+   "c2_555_tope": {
+    "fuertes": [],
+    "debiles": []
+   },
+   "c2_seguir_1pata": {
+    "fuertes": [],
+    "debiles": []
+   },
+   "c2_invertir_1pata": {
+    "fuertes": [
+     "A:simples_n30",
+     "B:simples_n30"
+    ],
+    "debiles": [
+     "A:simples_n60",
+     "B:simples_n60"
+    ]
+   },
+   "c2_escalera": {
+    "fuertes": [
+     "A:simples_n30",
+     "A:simples_n60",
+     "B:simples_n30",
+     "B:simples_n60"
+    ],
+    "debiles": []
+   },
+   "c2_pullback": {
+    "fuertes": [],
+    "debiles": [
+     "A:simples_n30",
+     "B:simples_n30"
+    ]
+   }
+  },
+  "placebo": {
+   "c1_seguir_1pata": {
+    "fuertes": [],
+    "debiles": []
+   },
+   "c2_invertir_1pata": {
+    "fuertes": [],
+    "debiles": []
+   },
+   "c2_escalera": {
+    "fuertes": [],
+    "debiles": [
+     "A:simples_n30",
+     "A:simples_n60",
+     "B:simples_n30",
+     "B:simples_n60"
+    ]
+   }
+  }
+ }
+}

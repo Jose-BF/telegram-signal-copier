@@ -1,0 +1,290 @@
+{
+  "correct": {
+    "account_equity_verified": false,
+    "blockers": [],
+    "currency": "EUR",
+    "currency_digits": 2,
+    "expected_scopes": [
+      [
+        "canal1",
+        "canal1_gap"
+      ]
+    ],
+    "final_total_minor": 200,
+    "grid_contract": "post_event_quote_grid_v1",
+    "known_sample_metrics": {
+      "final_net": 200,
+      "final_tick_index": 4,
+      "final_time_ns": 1788861604000000000,
+      "known_samples": 5,
+      "max_drawdown": 80,
+      "maximum_from_origin": 200,
+      "minimum_from_origin": -80
+    },
+    "metrics": {
+      "final_net": 200,
+      "final_tick_index": 4,
+      "final_time_ns": 1788861604000000000,
+      "known_samples": 5,
+      "max_drawdown": 80,
+      "maximum_from_origin": 200,
+      "minimum_from_origin": -80
+    },
+    "native_parity_verified": false,
+    "origin": 0,
+    "provenance": "modelled",
+    "samples": [
+      {
+        "contributions": [
+          {
+            "channel": "canal1",
+            "floating": -80,
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized": 0,
+            "signal_id": "canal1_gap",
+            "source_tick_index": 0,
+            "total": -80
+          }
+        ],
+        "tick_index": 0,
+        "time_ns": 1788861600000000000,
+        "total": -80
+      },
+      {
+        "contributions": [
+          {
+            "channel": "canal1",
+            "floating": -80,
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized": 0,
+            "signal_id": "canal1_gap",
+            "source_tick_index": 1,
+            "total": -80
+          }
+        ],
+        "tick_index": 1,
+        "time_ns": 1788861601000000000,
+        "total": -80
+      },
+      {
+        "contributions": [
+          {
+            "channel": "canal1",
+            "floating": -80,
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized": 0,
+            "signal_id": "canal1_gap",
+            "source_tick_index": 2,
+            "total": -80
+          }
+        ],
+        "tick_index": 2,
+        "time_ns": 1788861602000000000,
+        "total": -80
+      },
+      {
+        "contributions": [
+          {
+            "channel": "canal1",
+            "floating": 0,
+            "positions": [],
+            "realized": 200,
+            "signal_id": "canal1_gap",
+            "source_tick_index": 3,
+            "total": 200
+          }
+        ],
+        "tick_index": 3,
+        "time_ns": 1788861603000000000,
+        "total": 200
+      },
+      {
+        "contributions": [
+          {
+            "channel": "canal1",
+            "floating": 0,
+            "positions": [],
+            "realized": 200,
+            "signal_id": "canal1_gap",
+            "source_tick_index": 3,
+            "total": 200
+          }
+        ],
+        "tick_index": 4,
+        "time_ns": 1788861604000000000,
+        "total": 200
+      }
+    ],
+    "scope": "selected_initially_flat_baskets",
+    "units": "account_currency_minor"
+  },
+  "driver_fault_demonstrated": false,
+  "expected": "reject stale nonterminal or nonfinal-round settled state",
+  "incorrect_but_accepted": {
+    "account_equity_verified": false,
+    "blockers": [],
+    "currency": "EUR",
+    "currency_digits": 2,
+    "expected_scopes": [
+      [
+        "canal1",
+        "canal1_gap"
+      ]
+    ],
+    "final_total_minor": 0,
+    "grid_contract": "post_event_quote_grid_v1",
+    "known_sample_metrics": {
+      "final_net": 0,
+      "final_tick_index": 4,
+      "final_time_ns": 1788861604000000000,
+      "known_samples": 5,
+      "max_drawdown": 200,
+      "maximum_from_origin": 200,
+      "minimum_from_origin": -80
+    },
+    "metrics": {
+      "final_net": 0,
+      "final_tick_index": 4,
+      "final_time_ns": 1788861604000000000,
+      "known_samples": 5,
+      "max_drawdown": 200,
+      "maximum_from_origin": 200,
+      "minimum_from_origin": -80
+    },
+    "native_parity_verified": false,
+    "origin": 0,
+    "provenance": "modelled",
+    "samples": [
+      {
+        "contributions": [
+          {
+            "channel": "canal1",
+            "floating": -80,
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized": 0,
+            "signal_id": "canal1_gap",
+            "source_tick_index": 0,
+            "total": -80
+          }
+        ],
+        "tick_index": 0,
+        "time_ns": 1788861600000000000,
+        "total": -80
+      },
+      {
+        "contributions": [
+          {
+            "channel": "canal1",
+            "floating": -80,
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized": 0,
+            "signal_id": "canal1_gap",
+            "source_tick_index": 1,
+            "total": -80
+          }
+        ],
+        "tick_index": 1,
+        "time_ns": 1788861601000000000,
+        "total": -80
+      },
+      {
+        "contributions": [
+          {
+            "channel": "canal1",
+            "floating": -80,
+            "positions": [
+              [
+                "sim_1",
+                0.04,
+                100.0
+              ]
+            ],
+            "realized": 0,
+            "signal_id": "canal1_gap",
+            "source_tick_index": 2,
+            "total": -80
+          }
+        ],
+        "tick_index": 2,
+        "time_ns": 1788861602000000000,
+        "total": -80
+      },
+      {
+        "contributions": [
+          {
+            "channel": "canal1",
+            "floating": 0,
+            "positions": [],
+            "realized": 200,
+            "signal_id": "canal1_gap",
+            "source_tick_index": 3,
+            "total": 200
+          }
+        ],
+        "tick_index": 3,
+        "time_ns": 1788861603000000000,
+        "total": 200
+      },
+      {
+        "contributions": [
+          {
+            "channel": "canal1",
+            "floating": 0,
+            "positions": [],
+            "realized": 0,
+            "signal_id": "canal1_gap",
+            "source_tick_index": 0,
+            "total": 0
+          }
+        ],
+        "tick_index": 4,
+        "time_ns": 1788861604000000000,
+        "total": 0
+      }
+    ],
+    "scope": "selected_initially_flat_baskets",
+    "units": "account_currency_minor"
+  },
+  "issue": "old_flat_state_accepted_as_terminal_carry",
+  "substituted_existing_point": {
+    "causal_round": 0,
+    "channel": "canal1",
+    "floating_minor": 0,
+    "phase": "settled",
+    "positions": [],
+    "realized_minor": 0,
+    "signal_id": "canal1_gap",
+    "tick_index": 0,
+    "time_ns": 1788861600000000000
+  }
+}

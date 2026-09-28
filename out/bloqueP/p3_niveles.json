@@ -1,0 +1,390 @@
+{
+ "precios_publicados": {
+  "zona_mejor_entrada | todos": {
+   "n": 487,
+   "real_<=0.5$": 0.513,
+   "azar_<=0.5$": 0.44,
+   "real_<=1$": 0.682,
+   "azar_<=1$": 0.66,
+   "mediana_real": 0.5,
+   "mediana_azar": 0.61
+  },
+  "zona_mejor_entrada | swing_15m": {
+   "n": 487,
+   "real_<=0.5$": 0.376,
+   "azar_<=0.5$": 0.376,
+   "real_<=1$": 0.54,
+   "azar_<=1$": 0.559,
+   "mediana_real": 0.83,
+   "mediana_azar": 0.81
+  },
+  "zona_mejor_entrada | swing_1h": {
+   "n": 487,
+   "real_<=0.5$": 0.113,
+   "azar_<=0.5$": 0.113,
+   "real_<=1$": 0.211,
+   "azar_<=1$": 0.203,
+   "mediana_real": 3.36,
+   "mediana_azar": 3.12
+  },
+  "zona_mejor_entrada | swing_4h": {
+   "n": 487,
+   "real_<=0.5$": 0.029,
+   "azar_<=0.5$": 0.023,
+   "real_<=1$": 0.043,
+   "azar_<=1$": 0.044,
+   "mediana_real": 13.67,
+   "mediana_azar": 13.27
+  },
+  "zona_mejor_entrada | prev_day+prev_week": {
+   "n": 487,
+   "real_<=0.5$": 0.018,
+   "azar_<=0.5$": 0.018,
+   "real_<=1$": 0.031,
+   "azar_<=1$": 0.034,
+   "mediana_real": 19.5,
+   "mediana_azar": 19.88
+  },
+  "zona_mejor_entrada | asia": {
+   "n": 487,
+   "real_<=0.5$": 0.018,
+   "azar_<=0.5$": 0.02,
+   "real_<=1$": 0.032,
+   "azar_<=1$": 0.039,
+   "mediana_real": 13.2,
+   "mediana_azar": 13.21
+  },
+  "zona_mejor_entrada | round50": {
+   "n": 487,
+   "real_<=0.5$": 0.039,
+   "azar_<=0.5$": 0.019,
+   "real_<=1$": 0.062,
+   "azar_<=1$": 0.041,
+   "mediana_real": 12.0,
+   "mediana_azar": 12.46
+  },
+  "zona_mejor_entrada | round10": {
+   "n": 487,
+   "real_<=0.5$": 0.187,
+   "azar_<=0.5$": 0.099,
+   "real_<=1$": 0.275,
+   "azar_<=1$": 0.209,
+   "mediana_real": 2.0,
+   "mediana_azar": 2.45
+  },
+  "zona_borde_cercano | todos": {
+   "n": 487,
+   "real_<=0.5$": 0.45,
+   "azar_<=0.5$": 0.43,
+   "real_<=1$": 0.686,
+   "azar_<=1$": 0.657,
+   "mediana_real": 0.62,
+   "mediana_azar": 0.63
+  },
+  "zona_borde_cercano | swing_15m": {
+   "n": 487,
+   "real_<=0.5$": 0.363,
+   "azar_<=0.5$": 0.366,
+   "real_<=1$": 0.579,
+   "azar_<=1$": 0.568,
+   "mediana_real": 0.77,
+   "mediana_azar": 0.81
+  },
+  "zona_borde_cercano | swing_1h": {
+   "n": 487,
+   "real_<=0.5$": 0.133,
+   "azar_<=0.5$": 0.121,
+   "real_<=1$": 0.253,
+   "azar_<=1$": 0.227,
+   "mediana_real": 2.65,
+   "mediana_azar": 2.73
+  },
+  "zona_borde_cercano | swing_4h": {
+   "n": 487,
+   "real_<=0.5$": 0.029,
+   "azar_<=0.5$": 0.025,
+   "real_<=1$": 0.058,
+   "azar_<=1$": 0.052,
+   "mediana_real": 12.97,
+   "mediana_azar": 12.97
+  },
+  "zona_borde_cercano | prev_day+prev_week": {
+   "n": 487,
+   "real_<=0.5$": 0.014,
+   "azar_<=0.5$": 0.014,
+   "real_<=1$": 0.033,
+   "azar_<=1$": 0.026,
+   "mediana_real": 18.91,
+   "mediana_azar": 19.3
+  },
+  "zona_borde_cercano | asia": {
+   "n": 487,
+   "real_<=0.5$": 0.025,
+   "azar_<=0.5$": 0.019,
+   "real_<=1$": 0.05,
+   "azar_<=1$": 0.044,
+   "mediana_real": 13.44,
+   "mediana_azar": 13.36
+  },
+  "zona_borde_cercano | round50": {
+   "n": 487,
+   "real_<=0.5$": 0.021,
+   "azar_<=0.5$": 0.014,
+   "real_<=1$": 0.047,
+   "azar_<=1$": 0.032,
+   "mediana_real": 12.5,
+   "mediana_azar": 12.58
+  },
+  "zona_borde_cercano | round10": {
+   "n": 487,
+   "real_<=0.5$": 0.115,
+   "azar_<=0.5$": 0.088,
+   "real_<=1$": 0.228,
+   "azar_<=1$": 0.188,
+   "mediana_real": 3.0,
+   "mediana_azar": 2.64
+  },
+  "stop | todos": {
+   "n": 485,
+   "real_<=0.5$": 0.421,
+   "azar_<=0.5$": 0.441,
+   "real_<=1$": 0.66,
+   "azar_<=1$": 0.652,
+   "mediana_real": 0.73,
+   "mediana_azar": 0.62
+  },
+  "stop | swing_15m": {
+   "n": 485,
+   "real_<=0.5$": 0.357,
+   "azar_<=0.5$": 0.367,
+   "real_<=1$": 0.53,
+   "azar_<=1$": 0.555,
+   "mediana_real": 0.92,
+   "mediana_azar": 0.81
+  },
+  "stop | swing_1h": {
+   "n": 485,
+   "real_<=0.5$": 0.101,
+   "azar_<=0.5$": 0.112,
+   "real_<=1$": 0.179,
+   "azar_<=1$": 0.195,
+   "mediana_real": 3.4,
+   "mediana_azar": 3.34
+  },
+  "stop | swing_4h": {
+   "n": 485,
+   "real_<=0.5$": 0.019,
+   "azar_<=0.5$": 0.022,
+   "real_<=1$": 0.035,
+   "azar_<=1$": 0.051,
+   "mediana_real": 12.85,
+   "mediana_azar": 13.24
+  },
+  "stop | prev_day+prev_week": {
+   "n": 485,
+   "real_<=0.5$": 0.014,
+   "azar_<=0.5$": 0.015,
+   "real_<=1$": 0.025,
+   "azar_<=1$": 0.03,
+   "mediana_real": 20.58,
+   "mediana_azar": 20.54
+  },
+  "stop | asia": {
+   "n": 485,
+   "real_<=0.5$": 0.03,
+   "azar_<=0.5$": 0.021,
+   "real_<=1$": 0.059,
+   "azar_<=1$": 0.042,
+   "mediana_real": 13.15,
+   "mediana_azar": 13.32
+  },
+  "stop | round50": {
+   "n": 485,
+   "real_<=0.5$": 0.016,
+   "azar_<=0.5$": 0.02,
+   "real_<=1$": 0.056,
+   "azar_<=1$": 0.041,
+   "mediana_real": 13.0,
+   "mediana_azar": 12.62
+  },
+  "stop | round10": {
+   "n": 485,
+   "real_<=0.5$": 0.103,
+   "azar_<=0.5$": 0.098,
+   "real_<=1$": 0.282,
+   "azar_<=1$": 0.192,
+   "mediana_real": 2.5,
+   "mediana_azar": 2.6
+  },
+  "tp1 | todos": {
+   "n": 485,
+   "real_<=0.5$": 0.46,
+   "azar_<=0.5$": 0.439,
+   "real_<=1$": 0.695,
+   "azar_<=1$": 0.659,
+   "mediana_real": 0.59,
+   "mediana_azar": 0.62
+  },
+  "tp1 | swing_15m": {
+   "n": 485,
+   "real_<=0.5$": 0.363,
+   "azar_<=0.5$": 0.359,
+   "real_<=1$": 0.557,
+   "azar_<=1$": 0.55,
+   "mediana_real": 0.78,
+   "mediana_azar": 0.83
+  },
+  "tp1 | swing_1h": {
+   "n": 485,
+   "real_<=0.5$": 0.134,
+   "azar_<=0.5$": 0.121,
+   "real_<=1$": 0.229,
+   "azar_<=1$": 0.222,
+   "mediana_real": 3.19,
+   "mediana_azar": 2.88
+  },
+  "tp1 | swing_4h": {
+   "n": 485,
+   "real_<=0.5$": 0.033,
+   "azar_<=0.5$": 0.027,
+   "real_<=1$": 0.054,
+   "azar_<=1$": 0.057,
+   "mediana_real": 13.05,
+   "mediana_azar": 12.95
+  },
+  "tp1 | prev_day+prev_week": {
+   "n": 485,
+   "real_<=0.5$": 0.014,
+   "azar_<=0.5$": 0.015,
+   "real_<=1$": 0.029,
+   "azar_<=1$": 0.027,
+   "mediana_real": 19.46,
+   "mediana_azar": 19.11
+  },
+  "tp1 | asia": {
+   "n": 485,
+   "real_<=0.5$": 0.016,
+   "azar_<=0.5$": 0.016,
+   "real_<=1$": 0.034,
+   "azar_<=1$": 0.037,
+   "mediana_real": 13.64,
+   "mediana_azar": 13.75
+  },
+  "tp1 | round50": {
+   "n": 485,
+   "real_<=0.5$": 0.025,
+   "azar_<=0.5$": 0.019,
+   "real_<=1$": 0.052,
+   "azar_<=1$": 0.038,
+   "mediana_real": 12.0,
+   "mediana_azar": 12.32
+  },
+  "tp1 | round10": {
+   "n": 485,
+   "real_<=0.5$": 0.136,
+   "azar_<=0.5$": 0.1,
+   "real_<=1$": 0.254,
+   "azar_<=1$": 0.195,
+   "mediana_real": 2.5,
+   "mediana_azar": 2.55
+  },
+  "tp_ultimo | todos": {
+   "n": 485,
+   "real_<=0.5$": 0.524,
+   "azar_<=0.5$": 0.399,
+   "real_<=1$": 0.701,
+   "azar_<=1$": 0.614,
+   "mediana_real": 0.4,
+   "mediana_azar": 0.7
+  },
+  "tp_ultimo | swing_15m": {
+   "n": 485,
+   "real_<=0.5$": 0.371,
+   "azar_<=0.5$": 0.324,
+   "real_<=1$": 0.53,
+   "azar_<=1$": 0.506,
+   "mediana_real": 0.85,
+   "mediana_azar": 0.98
+  },
+  "tp_ultimo | swing_1h": {
+   "n": 485,
+   "real_<=0.5$": 0.138,
+   "azar_<=0.5$": 0.119,
+   "real_<=1$": 0.256,
+   "azar_<=1$": 0.216,
+   "mediana_real": 3.23,
+   "mediana_azar": 3.32
+  },
+  "tp_ultimo | swing_4h": {
+   "n": 485,
+   "real_<=0.5$": 0.039,
+   "azar_<=0.5$": 0.027,
+   "real_<=1$": 0.064,
+   "azar_<=1$": 0.049,
+   "mediana_real": 13.43,
+   "mediana_azar": 13.74
+  },
+  "tp_ultimo | prev_day+prev_week": {
+   "n": 485,
+   "real_<=0.5$": 0.023,
+   "azar_<=0.5$": 0.014,
+   "real_<=1$": 0.049,
+   "azar_<=1$": 0.031,
+   "mediana_real": 18.92,
+   "mediana_azar": 19.01
+  },
+  "tp_ultimo | asia": {
+   "n": 485,
+   "real_<=0.5$": 0.014,
+   "azar_<=0.5$": 0.017,
+   "real_<=1$": 0.021,
+   "azar_<=1$": 0.03,
+   "mediana_real": 16.87,
+   "mediana_azar": 17.0
+  },
+  "tp_ultimo | round50": {
+   "n": 485,
+   "real_<=0.5$": 0.08,
+   "azar_<=0.5$": 0.019,
+   "real_<=1$": 0.113,
+   "azar_<=1$": 0.039,
+   "mediana_real": 11.0,
+   "mediana_azar": 12.41
+  },
+  "tp_ultimo | round10": {
+   "n": 485,
+   "real_<=0.5$": 0.237,
+   "azar_<=0.5$": 0.088,
+   "real_<=1$": 0.355,
+   "azar_<=1$": 0.178,
+   "mediana_real": 2.0,
+   "mediana_azar": 2.69
+  }
+ },
+ "momento": {
+  "canal1 | real": {
+   "n": 776,
+   "<=1$": 0.51,
+   "<=2$": 0.695,
+   "mediana": 0.97
+  },
+  "canal1 | azar": {
+   "n": 776,
+   "<=1$": 0.5,
+   "<=2$": 0.687,
+   "mediana": 1.0
+  },
+  "canal2 | real": {
+   "n": 947,
+   "<=1$": 0.56,
+   "<=2$": 0.765,
+   "mediana": 0.8
+  },
+  "canal2 | azar": {
+   "n": 947,
+   "<=1$": 0.573,
+   "<=2$": 0.734,
+   "mediana": 0.74
+  }
+ }
+}

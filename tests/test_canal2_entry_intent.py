@@ -192,6 +192,48 @@ async def test_same_intent_identity_cannot_open_twice_concurrently(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_ambiguous_durable_entry_is_held_and_never_reopened(monkeypatch):
+    state, orders, events, _, _ = _patch_opening_runtime(monkeypatch)
+
+    class AmbiguousEntryExecutor:
+        def __init__(self):
+            self.calls = 0
+
+        async def open_market(self, **_kwargs):
+            self.calls += 1
+            return listener.EntryDispatchResult(
+                listener.EntryDispatchState.RECONCILE,
+                intent_id="intent-ambiguous",
+                retcode=10008,
+                reason="durable_placed",
+            )
+
+    durable = AmbiguousEntryExecutor()
+    monkeypatch.setattr(listener, "_durable_entry_executor", durable)
+
+    first = await listener._open_canal2_intent(
+        _intent(808, "telegram_now"),
+        label="first",
+    )
+    second = await listener._open_canal2_intent(
+        _intent(808, "telegram_now"),
+        label="redelivery",
+    )
+
+    assert first is None and second is None
+    assert orders == []
+    assert state.get("canal2", 808) is None
+    assert durable.calls == 1
+    assert listener._canal2_open_already_committed(808)
+    assert any(
+        ev == "market_entry_not_confirmed"
+        and payload["dispatch_state"] == "RECONCILE"
+        and payload["intent_id"] == "intent-ambiguous"
+        for _, ev, payload in events
+    )
+
+
+@pytest.mark.asyncio
 async def test_gold_now_candidate_opens_with_broker_sl_and_no_tp(monkeypatch):
     state, orders, events, _, _ = _patch_opening_runtime(monkeypatch)
     monkeypatch.setattr(

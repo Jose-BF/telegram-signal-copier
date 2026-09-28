@@ -1,0 +1,200 @@
+{
+  "contract": "incremental_native_scalar_path_comparison_v1",
+  "counts": {
+    "blocked_comparison": 3,
+    "concurrent_exposure_mismatch": 0,
+    "different_leg_volume_profile": 0,
+    "matched": 0,
+    "model_entry_without_native": 0,
+    "model_no_entry": 1,
+    "native_time_unknown": 0,
+    "native_without_model": 0,
+    "path_discrepant": 0
+  },
+  "cutoff_utc": "2026-09-18T11:55:00+00:00",
+  "limitations": [
+    "Scalar extrema and event times do not establish sample-by-sample risk parity.",
+    "Model uses an uncalibrated execution profile and assumed complete signal universe.",
+    "Native risks reconstruct actual fills; model risks use hypothetical fills.",
+    "The shared account portfolio, margin and unobserved positions are not certified.",
+    "Per-leg entry/exit timing uses ordinal pairing, not common broker ticket identity."
+  ],
+  "optional_close_choice": "block",
+  "rows": [
+    {
+      "channel": "canal2",
+      "entry_delta_ms_by_ordinal": [
+        -1375,
+        1060,
+        13140
+      ],
+      "exit_delta_ms_by_ordinal": [
+        -11829,
+        -231,
+        -14470
+      ],
+      "leg_volume_profile_match": true,
+      "model_blockers": [
+        "incomplete_post_event_grid"
+      ],
+      "model_drawdown_minor": null,
+      "model_entry_count": 3,
+      "model_exit_count": 3,
+      "model_first_entry_utc": "2026-09-18 11:05:40.191000+00:00",
+      "model_last_exit_utc": "2026-09-18 11:07:16.267000+00:00",
+      "model_leg_volumes": [
+        "0.04",
+        "0.03",
+        "0.03"
+      ],
+      "model_max_gross_volume": "0.10",
+      "model_maximum_minor": null,
+      "model_minimum_minor": null,
+      "model_net_minor": null,
+      "model_risk_path_sha256": "fc0738299b17d2763c40e3db949b650c0b91051f4c12da84623fe7258817fb13",
+      "native_leg_volumes": [
+        "0.04",
+        "0.03",
+        "0.03"
+      ],
+      "native_position_count": 3,
+      "native_status": "retrospective_complete",
+      "native_strict_causal_fx": true,
+      "ordinal_leg_pairing_not_ticket_identity": true,
+      "signal_id": "canal2_3148",
+      "status": "blocked_comparison",
+      "trajectory_parity_verified": false
+    },
+    {
+      "channel": "canal2",
+      "entry_delta_ms_by_ordinal": [
+        -157,
+        3197,
+        -5160,
+        -497
+      ],
+      "exit_delta_ms_by_ordinal": [
+        -2908,
+        -2035,
+        -71,
+        3033
+      ],
+      "leg_volume_profile_match": true,
+      "model_blockers": [
+        "incomplete_equity_conversion",
+        "stale_conversion_during_profit_lock",
+        "canal2_3156:incomplete_equity_conversion",
+        "canal2_3156:stale_conversion_during_profit_lock",
+        "incomplete_equity_conversion",
+        "stale_conversion_during_profit_lock",
+        "incomplete_post_event_grid"
+      ],
+      "model_drawdown_minor": null,
+      "model_entry_count": 4,
+      "model_exit_count": 4,
+      "model_first_entry_utc": "2026-09-18 11:31:28.917000+00:00",
+      "model_last_exit_utc": "2026-09-18 11:43:04.027000+00:00",
+      "model_leg_volumes": [
+        "0.04",
+        "0.03",
+        "0.03",
+        "0.03"
+      ],
+      "model_max_gross_volume": "0",
+      "model_maximum_minor": null,
+      "model_minimum_minor": null,
+      "model_net_minor": null,
+      "model_risk_path_sha256": "89c7fd70a07054403cb4535a49cd2cb4d8bbc7da2fc5ea092fb1a65789cdcd90",
+      "native_leg_volumes": [
+        "0.04",
+        "0.03",
+        "0.03",
+        "0.03"
+      ],
+      "native_position_count": 4,
+      "native_status": "retrospective_complete",
+      "native_strict_causal_fx": false,
+      "ordinal_leg_pairing_not_ticket_identity": true,
+      "signal_id": "canal2_3156",
+      "status": "blocked_comparison",
+      "trajectory_parity_verified": false
+    },
+    {
+      "channel": "canal1",
+      "entry_delta_ms_by_ordinal": [
+        58
+      ],
+      "exit_delta_ms_by_ordinal": [
+        465
+      ],
+      "leg_volume_profile_match": true,
+      "model_blockers": [
+        "incomplete_equity_conversion",
+        "stale_conversion_at_basket_stop",
+        "stale_conversion_during_profit_lock",
+        "canal1_22761:incomplete_equity_conversion",
+        "canal1_22761:stale_conversion_at_basket_stop",
+        "canal1_22761:stale_conversion_during_profit_lock",
+        "incomplete_equity_conversion",
+        "stale_conversion_at_basket_stop",
+        "stale_conversion_during_profit_lock",
+        "incomplete_post_event_grid",
+        "basket_still_open_at_cutoff"
+      ],
+      "model_drawdown_minor": null,
+      "model_entry_count": 1,
+      "model_exit_count": 1,
+      "model_first_entry_utc": "2026-09-18 11:06:47.443000+00:00",
+      "model_last_exit_utc": "2026-09-18 11:46:48.510000+00:00",
+      "model_leg_volumes": [
+        "0.01"
+      ],
+      "model_max_gross_volume": "0.01",
+      "model_maximum_minor": null,
+      "model_minimum_minor": null,
+      "model_net_minor": null,
+      "model_risk_path_sha256": "f6192e3356b1869c6ec893b6959e541e90ac14b625b86ce01ccc6df72615ce17",
+      "native_leg_volumes": [
+        "0.01"
+      ],
+      "native_position_count": 1,
+      "native_status": "retrospective_complete",
+      "native_strict_causal_fx": false,
+      "ordinal_leg_pairing_not_ticket_identity": true,
+      "signal_id": "canal1_22761",
+      "status": "blocked_comparison",
+      "trajectory_parity_verified": false
+    },
+    {
+      "channel": "canal1",
+      "model_blockers": [
+        "incomplete_post_event_grid"
+      ],
+      "model_drawdown_minor": null,
+      "model_entry_count": 0,
+      "model_exit_count": 0,
+      "model_first_entry_utc": null,
+      "model_last_exit_utc": null,
+      "model_max_gross_volume": "0",
+      "model_maximum_minor": null,
+      "model_minimum_minor": null,
+      "model_net_minor": null,
+      "model_risk_path_sha256": "89c7fd70a07054403cb4535a49cd2cb4d8bbc7da2fc5ea092fb1a65789cdcd90",
+      "signal_id": "canal1_22762",
+      "status": "model_no_entry",
+      "trajectory_parity_verified": false
+    }
+  ],
+  "sources": {
+    "comparator_sha256": "8ba19a2ea264c3e4080e25f456935ea2ba13db4508fdf4ff789878a2500c1655",
+    "model_implementation_hash_count": 11,
+    "model_sha256": "4e39bfba20b9efe61fb57cca9895afd8c2840d09646e4e5e5a77feeaf8a4c7c4",
+    "native_input_count": 28,
+    "native_sha256": "a4c94d417829320cab2f5d17264a7330b43e80730d92b70b94ec79c5e0b4a468",
+    "raw_sha256": "9548ca5ce3fdd27ebe5f488ac97639c7e5cc7001ae0f75c73a40d3828cfd63b0",
+    "shared_tape_day": "2026-09-18"
+  },
+  "start_utc": "2026-09-18T10:55:00+00:00",
+  "status": "diagnostic_only",
+  "trajectory_parity_verified": false
+}

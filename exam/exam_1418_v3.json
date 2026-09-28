@@ -1,0 +1,4087 @@
+{
+ "contract": "week_exam_v1",
+ "status": "diagnostic_only",
+ "first_day": "2026-09-14",
+ "end_day_exclusive": "2026-09-19",
+ "clock_offset_seconds_hypothesis": 10800,
+ "profiles": {
+  "UNCAL": null,
+  "A_p50": "runtime_data/execution_calibration_v1/A_p50.json",
+  "A_p90": "runtime_data/execution_calibration_v1/A_p90.json"
+ },
+ "windows": [
+  {
+   "window": 0,
+   "start_utc": "2026-09-14T06:44:47+00:00",
+   "cutoff_utc": "2026-09-14T13:24:12+00:00",
+   "activity_end_utc": "2026-09-14T12:54:12.928000+00:00",
+   "signal_ids": [
+    "canal2_2908",
+    "canal2_2911",
+    "canal2_2917",
+    "canal2_2919"
+   ],
+   "kinds": [
+    "real"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 1,
+   "start_utc": "2026-09-15T12:34:57+00:00",
+   "cutoff_utc": "2026-09-15T13:06:45+00:00",
+   "activity_end_utc": "2026-09-15T12:45:21.597000+00:00",
+   "signal_ids": [
+    "canal2_2970"
+   ],
+   "kinds": [
+    "real"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 2,
+   "start_utc": "2026-09-15T13:06:46+00:00",
+   "cutoff_utc": "2026-09-15T13:57:00+00:00",
+   "activity_end_utc": "2026-09-15T13:28:36.755000+00:00",
+   "signal_ids": [
+    "canal1_22587",
+    "canal1_22588",
+    "canal2_2977"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 3,
+   "start_utc": "2026-09-15T13:57:01+00:00",
+   "cutoff_utc": "2026-09-15T14:15:32+00:00",
+   "activity_end_utc": "2026-09-15T14:11:25.112000+00:00",
+   "signal_ids": [
+    "canal1_22592",
+    "canal1_22593"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 4,
+   "start_utc": "2026-09-15T14:15:33+00:00",
+   "cutoff_utc": "2026-09-15T14:54:49+00:00",
+   "activity_end_utc": "2026-09-15T14:24:49.013000+00:00",
+   "signal_ids": [
+    "canal2_2982"
+   ],
+   "kinds": [
+    "real"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 5,
+   "start_utc": "2026-09-15T15:19:03+00:00",
+   "cutoff_utc": "2026-09-15T16:04:38+00:00",
+   "activity_end_utc": "2026-09-15T15:34:38.123000+00:00",
+   "signal_ids": [
+    "canal2_2986"
+   ],
+   "kinds": [
+    "real"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 6,
+   "start_utc": "2026-09-15T17:16:32+00:00",
+   "cutoff_utc": "2026-09-15T18:14:36+00:00",
+   "activity_end_utc": "2026-09-15T17:56:58.273000+00:00",
+   "signal_ids": [
+    "canal1_22601",
+    "canal1_22602"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 7,
+   "start_utc": "2026-09-15T18:14:37+00:00",
+   "cutoff_utc": "2026-09-15T19:11:12+00:00",
+   "activity_end_utc": "2026-09-15T18:41:12.315000+00:00",
+   "signal_ids": [
+    "canal2_2995"
+   ],
+   "kinds": [
+    "real"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 8,
+   "start_utc": "2026-09-16T12:14:58+00:00",
+   "cutoff_utc": "2026-09-16T18:30:39+00:00",
+   "activity_end_utc": "2026-09-16T18:00:39.516000+00:00",
+   "signal_ids": [
+    "canal1_22635",
+    "canal1_22636",
+    "canal1_22642",
+    "canal1_22643",
+    "canal1_22646",
+    "canal1_22647",
+    "canal1_22648",
+    "canal1_22652",
+    "canal1_22653",
+    "canal2_3000",
+    "canal2_3003",
+    "canal2_3005",
+    "canal2_3007",
+    "canal2_3009",
+    "canal2_3012"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 9,
+   "start_utc": "2026-09-17T12:15:48+00:00",
+   "cutoff_utc": "2026-09-17T12:28:24+00:00",
+   "activity_end_utc": "2026-09-17T12:17:13+00:00",
+   "signal_ids": [
+    "canal2_3075"
+   ],
+   "kinds": [
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 10,
+   "start_utc": "2026-09-17T12:28:25+00:00",
+   "cutoff_utc": "2026-09-17T12:45:23+00:00",
+   "activity_end_utc": "2026-09-17T12:35:31.758000+00:00",
+   "signal_ids": [
+    "canal2_3086"
+   ],
+   "kinds": [
+    "real"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 11,
+   "start_utc": "2026-09-17T12:45:24+00:00",
+   "cutoff_utc": "2026-09-17T13:22:50+00:00",
+   "activity_end_utc": "2026-09-17T13:12:40.288000+00:00",
+   "signal_ids": [
+    "canal2_3096"
+   ],
+   "kinds": [
+    "real"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 12,
+   "start_utc": "2026-09-17T13:22:51+00:00",
+   "cutoff_utc": "2026-09-17T13:44:42+00:00",
+   "activity_end_utc": "2026-09-17T13:42:44.559000+00:00",
+   "signal_ids": [
+    "canal1_22725",
+    "canal1_22726"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 13,
+   "start_utc": "2026-09-17T13:44:43+00:00",
+   "cutoff_utc": "2026-09-17T15:02:38+00:00",
+   "activity_end_utc": "2026-09-17T14:54:07.124000+00:00",
+   "signal_ids": [
+    "canal1_22732",
+    "canal1_22733",
+    "canal1_22738",
+    "canal2_3102",
+    "canal2_3106",
+    "canal2_3108"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 14,
+   "start_utc": "2026-09-17T15:02:39+00:00",
+   "cutoff_utc": "2026-09-17T16:28:16+00:00",
+   "activity_end_utc": "2026-09-17T15:58:16.399000+00:00",
+   "signal_ids": [
+    "canal1_22741",
+    "canal1_22742",
+    "canal1_22747"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 15,
+   "start_utc": "2026-09-17T16:48:30+00:00",
+   "cutoff_utc": "2026-09-17T17:32:51+00:00",
+   "activity_end_utc": "2026-09-17T17:02:51.518000+00:00",
+   "signal_ids": [
+    "canal1_22751",
+    "canal1_22752"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 16,
+   "start_utc": "2026-09-18T11:00:23+00:00",
+   "cutoff_utc": "2026-09-18T12:16:48+00:00",
+   "activity_end_utc": "2026-09-18T11:46:48.045000+00:00",
+   "signal_ids": [
+    "canal1_22761",
+    "canal1_22762",
+    "canal2_3148",
+    "canal2_3156"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 17,
+   "start_utc": "2026-09-18T12:22:01+00:00",
+   "cutoff_utc": "2026-09-18T12:59:45+00:00",
+   "activity_end_utc": "2026-09-18T12:37:38.778000+00:00",
+   "signal_ids": [
+    "canal1_22768",
+    "canal1_22769",
+    "canal2_3168",
+    "canal2_3171"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 18,
+   "start_utc": "2026-09-18T12:59:46+00:00",
+   "cutoff_utc": "2026-09-18T13:56:21+00:00",
+   "activity_end_utc": "2026-09-18T13:26:21.008000+00:00",
+   "signal_ids": [
+    "canal2_3180"
+   ],
+   "kinds": [
+    "real"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 19,
+   "start_utc": "2026-09-18T14:07:54+00:00",
+   "cutoff_utc": "2026-09-18T14:23:32+00:00",
+   "activity_end_utc": "2026-09-18T14:22:41.974000+00:00",
+   "signal_ids": [
+    "canal1_22778",
+    "canal1_22779"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false
+  },
+  {
+   "window": 20,
+   "start_utc": "2026-09-18T14:23:33+00:00",
+   "cutoff_utc": "2026-09-18T15:01:00+00:00",
+   "activity_end_utc": "2026-09-18T14:31:00+00:00",
+   "signal_ids": [
+    "canal1_22781",
+    "canal1_22782",
+    "canal2_3188"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false
+  }
+ ],
+ "final_windows": [
+  {
+   "window": 0,
+   "start_utc": "2026-09-14T06:44:47+00:00",
+   "cutoff_utc": "2026-09-14T13:24:12+00:00",
+   "activity_end_utc": "2026-09-14T12:54:12.928000+00:00",
+   "signal_ids": [
+    "canal2_2908",
+    "canal2_2911",
+    "canal2_2917",
+    "canal2_2919"
+   ],
+   "kinds": [
+    "real"
+   ],
+   "crosses_utc_midnight": false,
+   "attempts": 1
+  },
+  {
+   "window": 1,
+   "start_utc": "2026-09-15T12:34:57+00:00",
+   "cutoff_utc": "2026-09-15T13:06:45+00:00",
+   "activity_end_utc": "2026-09-15T12:45:21.597000+00:00",
+   "signal_ids": [
+    "canal2_2970"
+   ],
+   "kinds": [
+    "real"
+   ],
+   "crosses_utc_midnight": false,
+   "attempts": 1
+  },
+  {
+   "window": 2,
+   "start_utc": "2026-09-15T13:06:46+00:00",
+   "cutoff_utc": "2026-09-15T13:57:00+00:00",
+   "activity_end_utc": "2026-09-15T13:28:36.755000+00:00",
+   "signal_ids": [
+    "canal1_22587",
+    "canal1_22588",
+    "canal2_2977"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false,
+   "attempts": 1
+  },
+  {
+   "window": 3,
+   "start_utc": "2026-09-15T13:57:01+00:00",
+   "cutoff_utc": "2026-09-15T14:15:32+00:00",
+   "activity_end_utc": "2026-09-15T14:11:25.112000+00:00",
+   "signal_ids": [
+    "canal1_22592",
+    "canal1_22593"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false,
+   "attempts": 1
+  },
+  {
+   "window": 4,
+   "start_utc": "2026-09-15T14:15:33+00:00",
+   "cutoff_utc": "2026-09-15T16:04:38+00:00",
+   "activity_end_utc": "2026-09-15T14:24:49.013000+00:00",
+   "signal_ids": [
+    "canal2_2982",
+    "canal2_2986"
+   ],
+   "kinds": [
+    "real"
+   ],
+   "crosses_utc_midnight": false,
+   "merged_windows": [
+    4,
+    5
+   ],
+   "attempts": 2
+  },
+  {
+   "window": 6,
+   "start_utc": "2026-09-15T17:16:32+00:00",
+   "cutoff_utc": "2026-09-15T18:14:36+00:00",
+   "activity_end_utc": "2026-09-15T17:56:58.273000+00:00",
+   "signal_ids": [
+    "canal1_22601",
+    "canal1_22602"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false,
+   "attempts": 1
+  },
+  {
+   "window": 7,
+   "start_utc": "2026-09-15T18:14:37+00:00",
+   "cutoff_utc": "2026-09-15T19:11:12+00:00",
+   "activity_end_utc": "2026-09-15T18:41:12.315000+00:00",
+   "signal_ids": [
+    "canal2_2995"
+   ],
+   "kinds": [
+    "real"
+   ],
+   "crosses_utc_midnight": false,
+   "attempts": 1
+  },
+  {
+   "window": 8,
+   "start_utc": "2026-09-16T12:14:58+00:00",
+   "cutoff_utc": "2026-09-16T18:30:39+00:00",
+   "activity_end_utc": "2026-09-16T18:00:39.516000+00:00",
+   "signal_ids": [
+    "canal1_22635",
+    "canal1_22636",
+    "canal1_22642",
+    "canal1_22643",
+    "canal1_22646",
+    "canal1_22647",
+    "canal1_22648",
+    "canal1_22652",
+    "canal1_22653",
+    "canal2_3000",
+    "canal2_3003",
+    "canal2_3005",
+    "canal2_3007",
+    "canal2_3009",
+    "canal2_3012"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false,
+   "attempts": 1
+  },
+  {
+   "window": 9,
+   "start_utc": "2026-09-17T12:15:48+00:00",
+   "cutoff_utc": "2026-09-17T12:28:24+00:00",
+   "activity_end_utc": "2026-09-17T12:17:13+00:00",
+   "signal_ids": [
+    "canal2_3075"
+   ],
+   "kinds": [
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false,
+   "attempts": 1
+  },
+  {
+   "window": 10,
+   "start_utc": "2026-09-17T12:28:25+00:00",
+   "cutoff_utc": "2026-09-17T12:45:23+00:00",
+   "activity_end_utc": "2026-09-17T12:35:31.758000+00:00",
+   "signal_ids": [
+    "canal2_3086"
+   ],
+   "kinds": [
+    "real"
+   ],
+   "crosses_utc_midnight": false,
+   "attempts": 1
+  },
+  {
+   "window": 11,
+   "start_utc": "2026-09-17T12:45:24+00:00",
+   "cutoff_utc": "2026-09-17T13:44:42+00:00",
+   "activity_end_utc": "2026-09-17T13:12:40.288000+00:00",
+   "signal_ids": [
+    "canal1_22725",
+    "canal1_22726",
+    "canal2_3096"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false,
+   "merged_windows": [
+    11,
+    12
+   ],
+   "attempts": 2
+  },
+  {
+   "window": 13,
+   "start_utc": "2026-09-17T13:44:43+00:00",
+   "cutoff_utc": "2026-09-17T15:02:38+00:00",
+   "activity_end_utc": "2026-09-17T14:54:07.124000+00:00",
+   "signal_ids": [
+    "canal1_22732",
+    "canal1_22733",
+    "canal1_22738",
+    "canal2_3102",
+    "canal2_3106",
+    "canal2_3108"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false,
+   "attempts": 1
+  },
+  {
+   "window": 14,
+   "start_utc": "2026-09-17T15:02:39+00:00",
+   "cutoff_utc": "2026-09-17T16:28:16+00:00",
+   "activity_end_utc": "2026-09-17T15:58:16.399000+00:00",
+   "signal_ids": [
+    "canal1_22741",
+    "canal1_22742",
+    "canal1_22747"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false,
+   "attempts": 1
+  },
+  {
+   "window": 15,
+   "start_utc": "2026-09-17T16:48:30+00:00",
+   "cutoff_utc": "2026-09-17T17:32:51+00:00",
+   "activity_end_utc": "2026-09-17T17:02:51.518000+00:00",
+   "signal_ids": [
+    "canal1_22751",
+    "canal1_22752"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false,
+   "attempts": 1
+  },
+  {
+   "window": 16,
+   "start_utc": "2026-09-18T11:00:23+00:00",
+   "cutoff_utc": "2026-09-18T12:16:48+00:00",
+   "activity_end_utc": "2026-09-18T11:46:48.045000+00:00",
+   "signal_ids": [
+    "canal1_22761",
+    "canal1_22762",
+    "canal2_3148",
+    "canal2_3156"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false,
+   "attempts": 1
+  },
+  {
+   "window": 17,
+   "start_utc": "2026-09-18T12:22:01+00:00",
+   "cutoff_utc": "2026-09-18T12:59:45+00:00",
+   "activity_end_utc": "2026-09-18T12:37:38.778000+00:00",
+   "signal_ids": [
+    "canal1_22768",
+    "canal1_22769",
+    "canal2_3168",
+    "canal2_3171"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false,
+   "attempts": 1
+  },
+  {
+   "window": 18,
+   "start_utc": "2026-09-18T12:59:46+00:00",
+   "cutoff_utc": "2026-09-18T13:56:21+00:00",
+   "activity_end_utc": "2026-09-18T13:26:21.008000+00:00",
+   "signal_ids": [
+    "canal2_3180"
+   ],
+   "kinds": [
+    "real"
+   ],
+   "crosses_utc_midnight": false,
+   "attempts": 1
+  },
+  {
+   "window": 19,
+   "start_utc": "2026-09-18T14:07:54+00:00",
+   "cutoff_utc": "2026-09-18T14:23:32+00:00",
+   "activity_end_utc": "2026-09-18T14:22:41.974000+00:00",
+   "signal_ids": [
+    "canal1_22778",
+    "canal1_22779"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false,
+   "attempts": 1
+  },
+  {
+   "window": 20,
+   "start_utc": "2026-09-18T14:23:33+00:00",
+   "cutoff_utc": "2026-09-18T15:01:00+00:00",
+   "activity_end_utc": "2026-09-18T14:31:00+00:00",
+   "signal_ids": [
+    "canal1_22781",
+    "canal1_22782",
+    "canal2_3188"
+   ],
+   "kinds": [
+    "real",
+    "sim_seed"
+   ],
+   "crosses_utc_midnight": false,
+   "attempts": 1
+  }
+ ],
+ "extensions": [
+  {
+   "window": 4,
+   "attempt": 1,
+   "cutoff_utc": "2026-09-15T16:04:38+00:00"
+  },
+  {
+   "window": 11,
+   "attempt": 1,
+   "cutoff_utc": "2026-09-17T13:44:42+00:00"
+  }
+ ],
+ "max_fx_age_ms": 30000,
+ "scope_tick_budget": 950000,
+ "window_notes": [],
+ "window_results": [
+  {
+   "window": 0,
+   "profile": "UNCAL",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_2908": {
+     "channel": "canal2",
+     "net_eur": -228.04,
+     "dd_eur": 231.15,
+     "max_volume": "0.12",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_2911": {
+     "channel": "canal2",
+     "net_eur": 1.73,
+     "dd_eur": 2.12,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_2917": {
+     "channel": "canal2",
+     "net_eur": -328.62,
+     "dd_eur": 328.72,
+     "max_volume": "0.16",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_2919": {
+     "channel": "canal2",
+     "net_eur": 19.93,
+     "dd_eur": 59.9,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 60.23
+  },
+  {
+   "window": 0,
+   "profile": "A_p50",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_2908": {
+     "channel": "canal2",
+     "net_eur": -228.64,
+     "dd_eur": 231.15,
+     "max_volume": "0.12",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_2911": {
+     "channel": "canal2",
+     "net_eur": 1.73,
+     "dd_eur": 2.77,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_2917": {
+     "channel": "canal2",
+     "net_eur": -250.17,
+     "dd_eur": 263.62,
+     "max_volume": "0.16",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_2919": {
+     "channel": "canal2",
+     "net_eur": 19.93,
+     "dd_eur": 99.07,
+     "max_volume": "0.13",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 62.03
+  },
+  {
+   "window": 0,
+   "profile": "A_p90",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_2908": {
+     "channel": "canal2",
+     "net_eur": -309.01,
+     "dd_eur": 310.74,
+     "max_volume": "0.12",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_2911": {
+     "channel": "canal2",
+     "net_eur": 1.73,
+     "dd_eur": 1.07,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_2917": {
+     "channel": "canal2",
+     "net_eur": -248.76,
+     "dd_eur": 248.76,
+     "max_volume": "0.16",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_2919": {
+     "channel": "canal2",
+     "net_eur": 19.93,
+     "dd_eur": 99.07,
+     "max_volume": "0.13",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 60.57
+  },
+  {
+   "window": 1,
+   "profile": "UNCAL",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_2970": {
+     "channel": "canal2",
+     "net_eur": 8.23,
+     "dd_eur": 28.62,
+     "max_volume": "0.10",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.81
+  },
+  {
+   "window": 1,
+   "profile": "A_p50",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_2970": {
+     "channel": "canal2",
+     "net_eur": 8.23,
+     "dd_eur": 28.68,
+     "max_volume": "0.10",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.59
+  },
+  {
+   "window": 1,
+   "profile": "A_p90",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_2970": {
+     "channel": "canal2",
+     "net_eur": 13.43,
+     "dd_eur": 13.49,
+     "max_volume": "0.07",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.44
+  },
+  {
+   "window": 2,
+   "profile": "UNCAL",
+   "status": "blocked",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_2977": {
+     "channel": "canal2",
+     "net_eur": 4.33,
+     "dd_eur": 3.29,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22587": {
+     "channel": "canal1",
+     "net_eur": 8.87,
+     "dd_eur": 18.34,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22588": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 3.38
+  },
+  {
+   "window": 2,
+   "profile": "A_p50",
+   "status": "blocked",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_2977": {
+     "channel": "canal2",
+     "net_eur": 4.33,
+     "dd_eur": 3.91,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22587": {
+     "channel": "canal1",
+     "net_eur": 6.98,
+     "dd_eur": 18.27,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22588": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 3.44
+  },
+  {
+   "window": 2,
+   "profile": "A_p90",
+   "status": "blocked",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_2977": {
+     "channel": "canal2",
+     "net_eur": 4.33,
+     "dd_eur": 3.46,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22587": {
+     "channel": "canal1",
+     "net_eur": 8.69,
+     "dd_eur": 17.26,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22588": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 3.54
+  },
+  {
+   "window": 3,
+   "profile": "UNCAL",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal1_22592": {
+     "channel": "canal1",
+     "net_eur": 9.4,
+     "dd_eur": 12.69,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22593": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 2.02
+  },
+  {
+   "window": 3,
+   "profile": "A_p50",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal1_22592": {
+     "channel": "canal1",
+     "net_eur": 8.46,
+     "dd_eur": 12.68,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22593": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.96
+  },
+  {
+   "window": 3,
+   "profile": "A_p90",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal1_22592": {
+     "channel": "canal1",
+     "net_eur": 9.06,
+     "dd_eur": 12.69,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22593": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.68
+  },
+  {
+   "window": 4,
+   "profile": "UNCAL",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_2982": {
+     "channel": "canal2",
+     "net_eur": 19.92,
+     "dd_eur": 81.05,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_2986": {
+     "channel": "canal2",
+     "net_eur": 4.33,
+     "dd_eur": 4.94,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 12.5
+  },
+  {
+   "window": 4,
+   "profile": "A_p50",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_2982": {
+     "channel": "canal2",
+     "net_eur": 19.92,
+     "dd_eur": 81.04,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_2986": {
+     "channel": "canal2",
+     "net_eur": 4.33,
+     "dd_eur": 4.94,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 12.42
+  },
+  {
+   "window": 4,
+   "profile": "A_p90",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_2982": {
+     "channel": "canal2",
+     "net_eur": 19.92,
+     "dd_eur": 81.04,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_2986": {
+     "channel": "canal2",
+     "net_eur": 4.33,
+     "dd_eur": 4.94,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 12.05
+  },
+  {
+   "window": 6,
+   "profile": "UNCAL",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal1_22601": {
+     "channel": "canal1",
+     "net_eur": -0.12,
+     "dd_eur": 6.55,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22602": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 3.22
+  },
+  {
+   "window": 6,
+   "profile": "A_p50",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal1_22601": {
+     "channel": "canal1",
+     "net_eur": -0.09,
+     "dd_eur": 6.56,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22602": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 3.23
+  },
+  {
+   "window": 6,
+   "profile": "A_p90",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal1_22601": {
+     "channel": "canal1",
+     "net_eur": -0.15,
+     "dd_eur": 6.55,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22602": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 3.31
+  },
+  {
+   "window": 7,
+   "profile": "UNCAL",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_2995": {
+     "channel": "canal2",
+     "net_eur": 4.33,
+     "dd_eur": 7.73,
+     "max_volume": "0.07",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.38
+  },
+  {
+   "window": 7,
+   "profile": "A_p50",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_2995": {
+     "channel": "canal2",
+     "net_eur": 4.33,
+     "dd_eur": 7.6,
+     "max_volume": "0.07",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.36
+  },
+  {
+   "window": 7,
+   "profile": "A_p90",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_2995": {
+     "channel": "canal2",
+     "net_eur": 4.33,
+     "dd_eur": 7.41,
+     "max_volume": "0.07",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.46
+  },
+  {
+   "window": 8,
+   "profile": "UNCAL",
+   "status": "error",
+   "error": "ValueError: diagnostic risk/memory budget exceeded",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 130, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 350, in run\n    raise ValueError(\"diagnostic risk/memory budget exceeded\")\nValueError: diagnostic risk/memory budget exceeded\n",
+   "elapsed_s": 0.18
+  },
+  {
+   "window": 8,
+   "profile": "A_p50",
+   "status": "error",
+   "error": "ValueError: diagnostic risk/memory budget exceeded",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 130, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 350, in run\n    raise ValueError(\"diagnostic risk/memory budget exceeded\")\nValueError: diagnostic risk/memory budget exceeded\n",
+   "elapsed_s": 0.14
+  },
+  {
+   "window": 8,
+   "profile": "A_p90",
+   "status": "error",
+   "error": "ValueError: diagnostic risk/memory budget exceeded",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 130, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 350, in run\n    raise ValueError(\"diagnostic risk/memory budget exceeded\")\nValueError: diagnostic risk/memory budget exceeded\n",
+   "elapsed_s": 0.21
+  },
+  {
+   "window": 9,
+   "profile": "UNCAL",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3075": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 0.51
+  },
+  {
+   "window": 9,
+   "profile": "A_p50",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3075": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 0.63
+  },
+  {
+   "window": 9,
+   "profile": "A_p90",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3075": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 0.52
+  },
+  {
+   "window": 10,
+   "profile": "UNCAL",
+   "status": "error",
+   "error": "ValueError: other-channel event outside causal shared quote window",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 130, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 379, in run\n    scenario = run_incremental_shared_canal1_stream(\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/research/causal_shared_stream.py\", line 192, in run_incremental_shared_canal1_stream\n    raise ValueError(\"other-channel event outside causal shared quote window\")\nValueError: other-channel event outside causal shared quote window\n",
+   "elapsed_s": 0.2
+  },
+  {
+   "window": 10,
+   "profile": "A_p50",
+   "status": "error",
+   "error": "ValueError: other-channel event outside causal shared quote window",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 130, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 379, in run\n    scenario = run_incremental_shared_canal1_stream(\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/research/causal_shared_stream.py\", line 192, in run_incremental_shared_canal1_stream\n    raise ValueError(\"other-channel event outside causal shared quote window\")\nValueError: other-channel event outside causal shared quote window\n",
+   "elapsed_s": 0.15
+  },
+  {
+   "window": 10,
+   "profile": "A_p90",
+   "status": "error",
+   "error": "ValueError: other-channel event outside causal shared quote window",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 130, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 379, in run\n    scenario = run_incremental_shared_canal1_stream(\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/research/causal_shared_stream.py\", line 192, in run_incremental_shared_canal1_stream\n    raise ValueError(\"other-channel event outside causal shared quote window\")\nValueError: other-channel event outside causal shared quote window\n",
+   "elapsed_s": 0.16
+  },
+  {
+   "window": 11,
+   "profile": "UNCAL",
+   "status": "blocked",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3096": {
+     "channel": "canal2",
+     "net_eur": 20.02,
+     "dd_eur": 105.92,
+     "max_volume": "0.12",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22725": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "canal1_22726": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 6.43
+  },
+  {
+   "window": 11,
+   "profile": "A_p50",
+   "status": "blocked",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3096": {
+     "channel": "canal2",
+     "net_eur": 20.02,
+     "dd_eur": 105.48,
+     "max_volume": "0.12",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22725": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "canal1_22726": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 6.74
+  },
+  {
+   "window": 11,
+   "profile": "A_p90",
+   "status": "blocked",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3096": {
+     "channel": "canal2",
+     "net_eur": 20.02,
+     "dd_eur": 126.29,
+     "max_volume": "0.13",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22725": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "canal1_22726": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 8.8
+  },
+  {
+   "window": 13,
+   "profile": "UNCAL",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3102": {
+     "channel": "canal2",
+     "net_eur": 20.02,
+     "dd_eur": 256.55,
+     "max_volume": "0.16",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_3106": {
+     "channel": "canal2",
+     "net_eur": 20.02,
+     "dd_eur": 9.27,
+     "max_volume": "0.06",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_3108": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "canal1_22732": {
+     "channel": "canal1",
+     "net_eur": -30.75,
+     "dd_eur": 32.72,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22733": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "canal1_22738": {
+     "channel": "canal1",
+     "net_eur": -25.75,
+     "dd_eur": 33.6,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 20.26
+  },
+  {
+   "window": 13,
+   "profile": "A_p50",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3102": {
+     "channel": "canal2",
+     "net_eur": 20.02,
+     "dd_eur": 180.05,
+     "max_volume": "0.12",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_3106": {
+     "channel": "canal2",
+     "net_eur": 20.02,
+     "dd_eur": 8.38,
+     "max_volume": "0.06",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_3108": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "canal1_22732": {
+     "channel": "canal1",
+     "net_eur": -25.91,
+     "dd_eur": 28.25,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22733": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "canal1_22738": {
+     "channel": "canal1",
+     "net_eur": -25.5,
+     "dd_eur": 33.6,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 18.14
+  },
+  {
+   "window": 13,
+   "profile": "A_p90",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3102": {
+     "channel": "canal2",
+     "net_eur": 20.02,
+     "dd_eur": 176.89,
+     "max_volume": "0.12",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_3106": {
+     "channel": "canal2",
+     "net_eur": 20.02,
+     "dd_eur": 6.5,
+     "max_volume": "0.06",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_3108": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "canal1_22732": {
+     "channel": "canal1",
+     "net_eur": -28.62,
+     "dd_eur": 30.21,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22733": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "canal1_22738": {
+     "channel": "canal1",
+     "net_eur": -25.15,
+     "dd_eur": 33.59,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 18.64
+  },
+  {
+   "window": 14,
+   "profile": "UNCAL",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal1_22741": {
+     "channel": "canal1",
+     "net_eur": 7.32,
+     "dd_eur": 9.49,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22747": {
+     "channel": "canal1",
+     "net_eur": -3.54,
+     "dd_eur": 10.59,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22742": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 5.53
+  },
+  {
+   "window": 14,
+   "profile": "A_p50",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal1_22741": {
+     "channel": "canal1",
+     "net_eur": 8.17,
+     "dd_eur": 9.48,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22747": {
+     "channel": "canal1",
+     "net_eur": -3.48,
+     "dd_eur": 10.59,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22742": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 5.93
+  },
+  {
+   "window": 14,
+   "profile": "A_p90",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal1_22741": {
+     "channel": "canal1",
+     "net_eur": -24.87,
+     "dd_eur": 27.29,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22747": {
+     "channel": "canal1",
+     "net_eur": -3.5,
+     "dd_eur": 10.59,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22742": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 6.68
+  },
+  {
+   "window": 15,
+   "profile": "UNCAL",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal1_22751": {
+     "channel": "canal1",
+     "net_eur": 13.25,
+     "dd_eur": 14.2,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22752": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 2.16
+  },
+  {
+   "window": 15,
+   "profile": "A_p50",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal1_22751": {
+     "channel": "canal1",
+     "net_eur": 12.93,
+     "dd_eur": 14.24,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22752": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 2.02
+  },
+  {
+   "window": 15,
+   "profile": "A_p90",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal1_22751": {
+     "channel": "canal1",
+     "net_eur": 13.55,
+     "dd_eur": 13.78,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22752": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 2.19
+  },
+  {
+   "window": 16,
+   "profile": "UNCAL",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3148": {
+     "channel": "canal2",
+     "net_eur": 8.28,
+     "dd_eur": 21.3,
+     "max_volume": "0.10",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_3156": {
+     "channel": "canal2",
+     "net_eur": 13.53,
+     "dd_eur": 35.26,
+     "max_volume": "0.13",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22761": {
+     "channel": "canal1",
+     "net_eur": -2.84,
+     "dd_eur": 12.06,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22762": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 7.19
+  },
+  {
+   "window": 16,
+   "profile": "A_p50",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3148": {
+     "channel": "canal2",
+     "net_eur": 8.28,
+     "dd_eur": 21.91,
+     "max_volume": "0.10",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_3156": {
+     "channel": "canal2",
+     "net_eur": 13.53,
+     "dd_eur": 36.28,
+     "max_volume": "0.13",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22761": {
+     "channel": "canal1",
+     "net_eur": -2.86,
+     "dd_eur": 12.06,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22762": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 7.31
+  },
+  {
+   "window": 16,
+   "profile": "A_p90",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3148": {
+     "channel": "canal2",
+     "net_eur": 8.28,
+     "dd_eur": 22.69,
+     "max_volume": "0.10",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_3156": {
+     "channel": "canal2",
+     "net_eur": 13.53,
+     "dd_eur": 34.72,
+     "max_volume": "0.13",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22761": {
+     "channel": "canal1",
+     "net_eur": -3.25,
+     "dd_eur": 12.05,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22762": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 7.51
+  },
+  {
+   "window": 17,
+   "profile": "UNCAL",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3168": {
+     "channel": "canal2",
+     "net_eur": 20.09,
+     "dd_eur": 65.95,
+     "max_volume": "0.13",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_3171": {
+     "channel": "canal2",
+     "net_eur": 1.75,
+     "dd_eur": 4.23,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22768": {
+     "channel": "canal1",
+     "net_eur": 8.15,
+     "dd_eur": 2.31,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22769": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 3.55
+  },
+  {
+   "window": 17,
+   "profile": "A_p50",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3168": {
+     "channel": "canal2",
+     "net_eur": 20.09,
+     "dd_eur": 65.64,
+     "max_volume": "0.13",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_3171": {
+     "channel": "canal2",
+     "net_eur": 1.75,
+     "dd_eur": 0.84,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22768": {
+     "channel": "canal1",
+     "net_eur": 8.22,
+     "dd_eur": 2.2,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22769": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 3.56
+  },
+  {
+   "window": 17,
+   "profile": "A_p90",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3168": {
+     "channel": "canal2",
+     "net_eur": 20.09,
+     "dd_eur": 47.96,
+     "max_volume": "0.13",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal2_3171": {
+     "channel": "canal2",
+     "net_eur": 1.75,
+     "dd_eur": 0.77,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22768": {
+     "channel": "canal1",
+     "net_eur": 8.13,
+     "dd_eur": 2.31,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22769": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 3.59
+  },
+  {
+   "window": 18,
+   "profile": "UNCAL",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3180": {
+     "channel": "canal2",
+     "net_eur": 4.36,
+     "dd_eur": 4.99,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.44
+  },
+  {
+   "window": 18,
+   "profile": "A_p50",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3180": {
+     "channel": "canal2",
+     "net_eur": 4.36,
+     "dd_eur": 4.92,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.37
+  },
+  {
+   "window": 18,
+   "profile": "A_p90",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3180": {
+     "channel": "canal2",
+     "net_eur": 4.36,
+     "dd_eur": 3.42,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.48
+  },
+  {
+   "window": 19,
+   "profile": "UNCAL",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal1_22778": {
+     "channel": "canal1",
+     "net_eur": 30.41,
+     "dd_eur": 27.41,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22779": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.76
+  },
+  {
+   "window": 19,
+   "profile": "A_p50",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal1_22778": {
+     "channel": "canal1",
+     "net_eur": 32.83,
+     "dd_eur": 27.33,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22779": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.75
+  },
+  {
+   "window": 19,
+   "profile": "A_p90",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal1_22778": {
+     "channel": "canal1",
+     "net_eur": 29.99,
+     "dd_eur": 27.13,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22779": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 1.84
+  },
+  {
+   "window": 20,
+   "profile": "UNCAL",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3188": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "canal1_22781": {
+     "channel": "canal1",
+     "net_eur": -27.13,
+     "dd_eur": 29.92,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22782": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 2.34
+  },
+  {
+   "window": 20,
+   "profile": "A_p50",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3188": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "canal1_22781": {
+     "channel": "canal1",
+     "net_eur": -24.44,
+     "dd_eur": 26.74,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22782": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 2.5
+  },
+  {
+   "window": 20,
+   "profile": "A_p90",
+   "status": "diagnostic_only",
+   "shared_blockers": [],
+   "baskets": {
+    "canal2_3188": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "canal1_22781": {
+     "channel": "canal1",
+     "net_eur": -27.22,
+     "dd_eur": 29.16,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "canal1_22782": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   },
+   "native_start_open": 0,
+   "elapsed_s": 2.35
+  }
+ ],
+ "per_profile": {
+  "UNCAL": {
+   "matched": 29,
+   "real_only": [
+    "canal1_22725"
+   ],
+   "sim_only": [],
+   "not_covered": [
+    "canal1_22635",
+    "canal1_22642",
+    "canal1_22646",
+    "canal1_22652",
+    "canal2_3000",
+    "canal2_3003",
+    "canal2_3005",
+    "canal2_3007",
+    "canal2_3009",
+    "canal2_3086"
+   ],
+   "blocked": [],
+   "real_net_eur": -241.56,
+   "sim_net_eur": -398.52,
+   "net_error_pct_of_abs_real": 21.02,
+   "matched_real_dd_sum": 1354.5,
+   "matched_sim_dd_sum": 1460.87,
+   "dd_error_pct": 7.85,
+   "dd_underestimates_gt_0_5": 8,
+   "dd_overestimates_gt_0_5": 9
+  },
+  "A_p50": {
+   "matched": 29,
+   "real_only": [
+    "canal1_22725"
+   ],
+   "sim_only": [],
+   "not_covered": [
+    "canal1_22635",
+    "canal1_22642",
+    "canal1_22646",
+    "canal1_22652",
+    "canal2_3000",
+    "canal2_3003",
+    "canal2_3005",
+    "canal2_3007",
+    "canal2_3009",
+    "canal2_3086"
+   ],
+   "blocked": [],
+   "real_net_eur": -241.56,
+   "sim_net_eur": -312.63,
+   "net_error_pct_of_abs_real": 9.52,
+   "matched_real_dd_sum": 1354.5,
+   "matched_sim_dd_sum": 1348.28,
+   "dd_error_pct": -0.46,
+   "dd_underestimates_gt_0_5": 6,
+   "dd_overestimates_gt_0_5": 9
+  },
+  "A_p90": {
+   "matched": 29,
+   "real_only": [
+    "canal1_22725"
+   ],
+   "sim_only": [],
+   "not_covered": [
+    "canal1_22635",
+    "canal1_22642",
+    "canal1_22646",
+    "canal1_22652",
+    "canal2_3000",
+    "canal2_3003",
+    "canal2_3005",
+    "canal2_3007",
+    "canal2_3009",
+    "canal2_3086"
+   ],
+   "blocked": [],
+   "real_net_eur": -241.56,
+   "sim_net_eur": -425.04,
+   "net_error_pct_of_abs_real": 24.57,
+   "matched_real_dd_sum": 1354.5,
+   "matched_sim_dd_sum": 1411.83,
+   "dd_error_pct": 4.23,
+   "dd_underestimates_gt_0_5": 11,
+   "dd_overestimates_gt_0_5": 5
+  }
+ },
+ "ranges": {
+  "baskets_with_range": 29,
+  "real_dd_inside_range_pct": 62.1,
+  "real_net_inside_range_pct": 79.3
+ },
+ "baskets": [
+  {
+   "signal_id": "canal1_22587",
+   "real": {
+    "net_eur": 7.42,
+    "dd_eur": 18.3,
+    "max_volume": "0.05"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": 8.87,
+     "dd_eur": 18.34,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": 6.98,
+     "dd_eur": 18.27,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": 8.69,
+     "dd_eur": 17.26,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": true,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal1_22588",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22592",
+   "real": {
+    "net_eur": 8.65,
+    "dd_eur": 12.69,
+    "max_volume": "0.05"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": 9.4,
+     "dd_eur": 12.69,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": 8.46,
+     "dd_eur": 12.68,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": 9.06,
+     "dd_eur": 12.69,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": true,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal1_22593",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22601",
+   "real": {
+    "net_eur": -0.11,
+    "dd_eur": 6.55,
+    "max_volume": "0.01"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": -0.12,
+     "dd_eur": 6.55,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": -0.09,
+     "dd_eur": 6.56,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": -0.15,
+     "dd_eur": 6.55,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": true,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal1_22602",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22635",
+   "real": {
+    "net_eur": -0.66,
+    "dd_eur": 10.63,
+    "max_volume": "0.01"
+   },
+   "sim": {
+    "UNCAL": null,
+    "A_p50": null,
+    "A_p90": null
+   }
+  },
+  {
+   "signal_id": "canal1_22642",
+   "real": {
+    "net_eur": -24.85,
+    "dd_eur": 33.5,
+    "max_volume": "0.05"
+   },
+   "sim": {
+    "UNCAL": null,
+    "A_p50": null,
+    "A_p90": null
+   }
+  },
+  {
+   "signal_id": "canal1_22646",
+   "real": {
+    "net_eur": -24.97,
+    "dd_eur": 29.94,
+    "max_volume": "0.05"
+   },
+   "sim": {
+    "UNCAL": null,
+    "A_p50": null,
+    "A_p90": null
+   }
+  },
+  {
+   "signal_id": "canal1_22652",
+   "real": {
+    "net_eur": -25.0,
+    "dd_eur": 37.55,
+    "max_volume": "0.01"
+   },
+   "sim": {
+    "UNCAL": null,
+    "A_p50": null,
+    "A_p90": null
+   }
+  },
+  {
+   "signal_id": "canal1_22725",
+   "real": {
+    "net_eur": 9.65,
+    "dd_eur": 9.56,
+    "max_volume": "0.01"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22726",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22732",
+   "real": {
+    "net_eur": -24.62,
+    "dd_eur": 27.27,
+    "max_volume": "0.05"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": -30.75,
+     "dd_eur": 32.72,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": -25.91,
+     "dd_eur": 28.25,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": -28.62,
+     "dd_eur": 30.21,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": false,
+   "real_net_in_sim_range": false
+  },
+  {
+   "signal_id": "canal1_22733",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22738",
+   "real": {
+    "net_eur": -24.96,
+    "dd_eur": 38.95,
+    "max_volume": "0.05"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": -25.75,
+     "dd_eur": 33.6,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": -25.5,
+     "dd_eur": 33.6,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": -25.15,
+     "dd_eur": 33.59,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": false,
+   "real_net_in_sim_range": false
+  },
+  {
+   "signal_id": "canal1_22741",
+   "real": {
+    "net_eur": -24.99,
+    "dd_eur": 26.88,
+    "max_volume": "0.09"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": 7.32,
+     "dd_eur": 9.49,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": 8.17,
+     "dd_eur": 9.48,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": -24.87,
+     "dd_eur": 27.29,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": true,
+   "real_net_in_sim_range": false
+  },
+  {
+   "signal_id": "canal1_22742",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22747",
+   "real": {
+    "net_eur": -3.47,
+    "dd_eur": 10.6,
+    "max_volume": "0.01"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": -3.54,
+     "dd_eur": 10.59,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": -3.48,
+     "dd_eur": 10.59,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": -3.5,
+     "dd_eur": 10.59,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": true,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal1_22751",
+   "real": {
+    "net_eur": 13.15,
+    "dd_eur": 14.13,
+    "max_volume": "0.05"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": 13.25,
+     "dd_eur": 14.2,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": 12.93,
+     "dd_eur": 14.24,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": 13.55,
+     "dd_eur": 13.78,
+     "max_volume": "0.05",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": true,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal1_22752",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22761",
+   "real": {
+    "net_eur": -2.79,
+    "dd_eur": 12.06,
+    "max_volume": "0.01"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": -2.84,
+     "dd_eur": 12.06,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": -2.86,
+     "dd_eur": 12.06,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": -3.25,
+     "dd_eur": 12.05,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": true,
+   "real_net_in_sim_range": false
+  },
+  {
+   "signal_id": "canal1_22762",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22768",
+   "real": {
+    "net_eur": 8.13,
+    "dd_eur": 2.7,
+    "max_volume": "0.01"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": 8.15,
+     "dd_eur": 2.31,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": 8.22,
+     "dd_eur": 2.2,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": 8.13,
+     "dd_eur": 2.31,
+     "max_volume": "0.01",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": false,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal1_22769",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22778",
+   "real": {
+    "net_eur": 29.53,
+    "dd_eur": 26.63,
+    "max_volume": "0.09"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": 30.41,
+     "dd_eur": 27.41,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": 32.83,
+     "dd_eur": 27.33,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": 29.99,
+     "dd_eur": 27.13,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": false,
+   "real_net_in_sim_range": false
+  },
+  {
+   "signal_id": "canal1_22779",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   }
+  },
+  {
+   "signal_id": "canal1_22781",
+   "real": {
+    "net_eur": -24.97,
+    "dd_eur": 28.78,
+    "max_volume": "0.05"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": -27.13,
+     "dd_eur": 29.92,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": -24.44,
+     "dd_eur": 26.74,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": -27.22,
+     "dd_eur": 29.16,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": true,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal1_22782",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal1",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   }
+  },
+  {
+   "signal_id": "canal2_2908",
+   "real": {
+    "net_eur": -302.38,
+    "dd_eur": 390.65,
+    "max_volume": "0.12"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": -228.04,
+     "dd_eur": 231.15,
+     "max_volume": "0.12",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": -228.64,
+     "dd_eur": 231.15,
+     "max_volume": "0.12",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": -309.01,
+     "dd_eur": 310.74,
+     "max_volume": "0.12",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": false,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal2_2911",
+   "real": {
+    "net_eur": 1.73,
+    "dd_eur": 2.74,
+    "max_volume": "0.04"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": 1.73,
+     "dd_eur": 2.12,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": 1.73,
+     "dd_eur": 2.77,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": 1.73,
+     "dd_eur": 1.07,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": true,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal2_2917",
+   "real": {
+    "net_eur": -85.87,
+    "dd_eur": 213.2,
+    "max_volume": "0.16"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": -328.62,
+     "dd_eur": 328.72,
+     "max_volume": "0.16",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": -250.17,
+     "dd_eur": 263.62,
+     "max_volume": "0.16",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": -248.76,
+     "dd_eur": 248.76,
+     "max_volume": "0.16",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": false,
+   "real_net_in_sim_range": false
+  },
+  {
+   "signal_id": "canal2_2919",
+   "real": {
+    "net_eur": 19.93,
+    "dd_eur": 71.74,
+    "max_volume": "0.10"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": 19.93,
+     "dd_eur": 59.9,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": 19.93,
+     "dd_eur": 99.07,
+     "max_volume": "0.13",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": 19.93,
+     "dd_eur": 99.07,
+     "max_volume": "0.13",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": true,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal2_2970",
+   "real": {
+    "net_eur": 13.43,
+    "dd_eur": 23.82,
+    "max_volume": "0.10"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": 8.23,
+     "dd_eur": 28.62,
+     "max_volume": "0.10",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": 8.23,
+     "dd_eur": 28.68,
+     "max_volume": "0.10",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": 13.43,
+     "dd_eur": 13.49,
+     "max_volume": "0.07",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": true,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal2_2977",
+   "real": {
+    "net_eur": 4.33,
+    "dd_eur": 3.88,
+    "max_volume": "0.04"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": 4.33,
+     "dd_eur": 3.29,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": 4.33,
+     "dd_eur": 3.91,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": 4.33,
+     "dd_eur": 3.46,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": true,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal2_2982",
+   "real": {
+    "net_eur": 19.92,
+    "dd_eur": 11.7,
+    "max_volume": "0.09"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": 19.92,
+     "dd_eur": 81.05,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": 19.92,
+     "dd_eur": 81.04,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": 19.92,
+     "dd_eur": 81.04,
+     "max_volume": "0.09",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": false,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal2_2986",
+   "real": {
+    "net_eur": 4.33,
+    "dd_eur": 5.16,
+    "max_volume": "0.04"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": 4.33,
+     "dd_eur": 4.94,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": 4.33,
+     "dd_eur": 4.94,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": 4.33,
+     "dd_eur": 4.94,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": false,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal2_2995",
+   "real": {
+    "net_eur": 4.33,
+    "dd_eur": 7.6,
+    "max_volume": "0.07"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": 4.33,
+     "dd_eur": 7.73,
+     "max_volume": "0.07",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": 4.33,
+     "dd_eur": 7.6,
+     "max_volume": "0.07",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": 4.33,
+     "dd_eur": 7.41,
+     "max_volume": "0.07",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": true,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal2_3000",
+   "real": {
+    "net_eur": 19.93,
+    "dd_eur": 111.93,
+    "max_volume": "0.10"
+   },
+   "sim": {
+    "UNCAL": null,
+    "A_p50": null,
+    "A_p90": null
+   }
+  },
+  {
+   "signal_id": "canal2_3003",
+   "real": {
+    "net_eur": -165.88,
+    "dd_eur": 174.82,
+    "max_volume": "0.16"
+   },
+   "sim": {
+    "UNCAL": null,
+    "A_p50": null,
+    "A_p90": null
+   }
+  },
+  {
+   "signal_id": "canal2_3005",
+   "real": {
+    "net_eur": 19.93,
+    "dd_eur": 78.33,
+    "max_volume": "0.07"
+   },
+   "sim": {
+    "UNCAL": null,
+    "A_p50": null,
+    "A_p90": null
+   }
+  },
+  {
+   "signal_id": "canal2_3007",
+   "real": {
+    "net_eur": 8.23,
+    "dd_eur": 50.45,
+    "max_volume": "0.06"
+   },
+   "sim": {
+    "UNCAL": null,
+    "A_p50": null,
+    "A_p90": null
+   }
+  },
+  {
+   "signal_id": "canal2_3009",
+   "real": {
+    "net_eur": 19.93,
+    "dd_eur": 54.01,
+    "max_volume": "0.09"
+   },
+   "sim": {
+    "UNCAL": null,
+    "A_p50": null,
+    "A_p90": null
+   }
+  },
+  {
+   "signal_id": "canal2_3075",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   }
+  },
+  {
+   "signal_id": "canal2_3086",
+   "real": {
+    "net_eur": 31.92,
+    "dd_eur": 13.19,
+    "max_volume": "0.04"
+   },
+   "sim": {
+    "UNCAL": null,
+    "A_p50": null,
+    "A_p90": null
+   }
+  },
+  {
+   "signal_id": "canal2_3096",
+   "real": {
+    "net_eur": 20.02,
+    "dd_eur": 78.65,
+    "max_volume": "0.12"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": 20.02,
+     "dd_eur": 105.92,
+     "max_volume": "0.12",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": 20.02,
+     "dd_eur": 105.48,
+     "max_volume": "0.12",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": 20.02,
+     "dd_eur": 126.29,
+     "max_volume": "0.13",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": false,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal2_3102",
+   "real": {
+    "net_eur": 20.02,
+    "dd_eur": 178.72,
+    "max_volume": "0.12"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": 20.02,
+     "dd_eur": 256.55,
+     "max_volume": "0.16",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": 20.02,
+     "dd_eur": 180.05,
+     "max_volume": "0.12",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": 20.02,
+     "dd_eur": 176.89,
+     "max_volume": "0.12",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": true,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal2_3106",
+   "real": {
+    "net_eur": 20.02,
+    "dd_eur": 6.32,
+    "max_volume": "0.04"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": 20.02,
+     "dd_eur": 9.27,
+     "max_volume": "0.06",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": 20.02,
+     "dd_eur": 8.38,
+     "max_volume": "0.06",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": 20.02,
+     "dd_eur": 6.5,
+     "max_volume": "0.06",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": false,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal2_3108",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   }
+  },
+  {
+   "signal_id": "canal2_3148",
+   "real": {
+    "net_eur": 8.28,
+    "dd_eur": 24.43,
+    "max_volume": "0.10"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": 8.28,
+     "dd_eur": 21.3,
+     "max_volume": "0.10",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": 8.28,
+     "dd_eur": 21.91,
+     "max_volume": "0.10",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": 8.28,
+     "dd_eur": 22.69,
+     "max_volume": "0.10",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": false,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal2_3156",
+   "real": {
+    "net_eur": 13.53,
+    "dd_eur": 35.84,
+    "max_volume": "0.13"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": 13.53,
+     "dd_eur": 35.26,
+     "max_volume": "0.13",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": 13.53,
+     "dd_eur": 36.28,
+     "max_volume": "0.13",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": 13.53,
+     "dd_eur": 34.72,
+     "max_volume": "0.13",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": true,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal2_3168",
+   "real": {
+    "net_eur": 20.09,
+    "dd_eur": 65.65,
+    "max_volume": "0.13"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": 20.09,
+     "dd_eur": 65.95,
+     "max_volume": "0.13",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": 20.09,
+     "dd_eur": 65.64,
+     "max_volume": "0.13",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": 20.09,
+     "dd_eur": 47.96,
+     "max_volume": "0.13",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": true,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal2_3171",
+   "real": {
+    "net_eur": 1.75,
+    "dd_eur": 4.22,
+    "max_volume": "0.04"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": 1.75,
+     "dd_eur": 4.23,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": 1.75,
+     "dd_eur": 0.84,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": 1.75,
+     "dd_eur": 0.77,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": true,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal2_3180",
+   "real": {
+    "net_eur": 4.36,
+    "dd_eur": 4.64,
+    "max_volume": "0.04"
+   },
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": 4.36,
+     "dd_eur": 4.99,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": 4.36,
+     "dd_eur": 4.92,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": 4.36,
+     "dd_eur": 3.42,
+     "max_volume": "0.04",
+     "exposed": true,
+     "blockers": []
+    }
+   },
+   "real_dd_in_sim_range": true,
+   "real_net_in_sim_range": true
+  },
+  {
+   "signal_id": "canal2_3188",
+   "real": null,
+   "sim": {
+    "UNCAL": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p50": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    },
+    "A_p90": {
+     "channel": "canal2",
+     "net_eur": 0.0,
+     "dd_eur": 0.0,
+     "max_volume": "0",
+     "exposed": false,
+     "blockers": []
+    }
+   }
+  }
+ ],
+ "real_baskets_with_path": 40,
+ "real_baskets_total": 40,
+ "errors": [
+  {
+   "window": 8,
+   "profile": "UNCAL",
+   "status": "error",
+   "error": "ValueError: diagnostic risk/memory budget exceeded",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 130, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 350, in run\n    raise ValueError(\"diagnostic risk/memory budget exceeded\")\nValueError: diagnostic risk/memory budget exceeded\n",
+   "elapsed_s": 0.18
+  },
+  {
+   "window": 8,
+   "profile": "A_p50",
+   "status": "error",
+   "error": "ValueError: diagnostic risk/memory budget exceeded",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 130, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 350, in run\n    raise ValueError(\"diagnostic risk/memory budget exceeded\")\nValueError: diagnostic risk/memory budget exceeded\n",
+   "elapsed_s": 0.14
+  },
+  {
+   "window": 8,
+   "profile": "A_p90",
+   "status": "error",
+   "error": "ValueError: diagnostic risk/memory budget exceeded",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 130, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 350, in run\n    raise ValueError(\"diagnostic risk/memory budget exceeded\")\nValueError: diagnostic risk/memory budget exceeded\n",
+   "elapsed_s": 0.21
+  },
+  {
+   "window": 10,
+   "profile": "UNCAL",
+   "status": "error",
+   "error": "ValueError: other-channel event outside causal shared quote window",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 130, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 379, in run\n    scenario = run_incremental_shared_canal1_stream(\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/research/causal_shared_stream.py\", line 192, in run_incremental_shared_canal1_stream\n    raise ValueError(\"other-channel event outside causal shared quote window\")\nValueError: other-channel event outside causal shared quote window\n",
+   "elapsed_s": 0.2
+  },
+  {
+   "window": 10,
+   "profile": "A_p50",
+   "status": "error",
+   "error": "ValueError: other-channel event outside causal shared quote window",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 130, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 379, in run\n    scenario = run_incremental_shared_canal1_stream(\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/research/causal_shared_stream.py\", line 192, in run_incremental_shared_canal1_stream\n    raise ValueError(\"other-channel event outside causal shared quote window\")\nValueError: other-channel event outside causal shared quote window\n",
+   "elapsed_s": 0.15
+  },
+  {
+   "window": 10,
+   "profile": "A_p90",
+   "status": "error",
+   "error": "ValueError: other-channel event outside causal shared quote window",
+   "trace": "Traceback (most recent call last):\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py\", line 130, in run_window\n    report = probe.run(Path(cfg[\"tick_root\"]), start=window[\"start_utc\"], cutoff=window[\"cutoff_utc\"],\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py\", line 379, in run\n    scenario = run_incremental_shared_canal1_stream(\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/research/causal_shared_stream.py\", line 192, in run_incremental_shared_canal1_stream\n    raise ValueError(\"other-channel event outside causal shared quote window\")\nValueError: other-channel event outside causal shared quote window\n",
+   "elapsed_s": 0.16
+  }
+ ],
+ "inputs_sha256": {
+  "runtime_data/week_native_ticks_20260923_v1/raw_week_20260914_19_bg_v1.json": "9548ca5ce3fdd27ebe5f488ac97639c7e5cc7001ae0f75c73a40d3828cfd63b0",
+  "exam/reconciled_1418_v2.json": "f96caa0ee55e8c8e66912c4bccb87690ba905113df6559ed8f3a48a51383aaa2",
+  "runtime_data/weekly_review_20260919/native_week_deals_20260919.json": "91723c6cc65070407bbb5a79721a6109896450354fe20b74f3a344ba7206f021",
+  "runtime_data/claude_regression/native_basket_risk_1418_v1.json": "521601ed933bc764041bbed2fff2746c1ea92acfd4b449aeb1493f605f6c2fed",
+  "/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/run_week_exam.py": "cecf88918e4cff14202acc9b017fe87e13c09cb71bf742e26d3a3f0adc7a7694",
+  "/tmp/claude-0/-home-claude/5326e29a-bc58-56a0-ac01-d04442cd7f53/scratchpad/work/tools/probe_canal1_incremental_window.py": "90fd6dfef1d3b38193468215f5e2b25cac2f7234b97aeb8f21098b4d048b85bb",
+  "runtime_data/execution_calibration_v1/A_p50.json": "6eb57363ecf3ac660bad865ded6c7969d59439b0dfb8fb96ca0e1b11d28827c0",
+  "runtime_data/execution_calibration_v1/A_p90.json": "ae61f77d3fd678563be1f2d3d00a08f31385e3f6f3c6052cb52e698e0e1fefff"
+ },
+ "elapsed_s": 232.9,
+ "limitations": [
+  "Windows crossing a UTC midnight are not replayed (probe loads one UTC date).",
+  "Real-only means the replay never exposed that basket inside its window.",
+  "Fixed-quantile execution profiles, not per-request sampled delays."
+ ]
+}

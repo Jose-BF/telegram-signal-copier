@@ -2,7 +2,7 @@
 Clasificación de códigos de error de MT5 y manejo de stops_level del broker.
 """
 
-import MetaTrader5 as mt5
+from mt5_runtime import mt5
 import config
 
 # Códigos transitorios que justifican reintentar

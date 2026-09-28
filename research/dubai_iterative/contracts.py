@@ -239,8 +239,10 @@ class StrategyGenome:
                 "signal_market",
                 "adverse_reversal",
                 "no_entry",
+                "published_range",
+                "published_limit",
             },
-            "entry_ladder_mode": {"simultaneous", "adverse", "favourable"},
+            "entry_ladder_mode": {"simultaneous", "adverse", "favourable", "range_levels"},
             "target_mode": {
                 "provider_per_leg",
                 "provider_target_all",
@@ -248,10 +250,11 @@ class StrategyGenome:
                 "fixed_move",
                 "partial_runner",
                 "per_leg_steps",
+                "per_leg_levels",
                 "none",
             },
             "be_mode": {"provider", "none", "price", "delayed", "partial"},
-            "stop_mode": {"provider", "fixed_move", "basket_money", "none"},
+            "stop_mode": {"provider", "fixed_move", "fixed_level", "basket_money", "none"},
             "provider_management_mode": {
                 "exact",
                 "close_only",
@@ -289,6 +292,8 @@ class StrategyGenome:
             "pullback",
             "momentum",
             "adverse_reversal",
+            "published_range",
+            "published_limit",
         } and not _positive_finite(self.entry_value):
             errors.append("missing_entry_value")
         if self.entry_mode == "adverse_reversal" and not _positive_finite(
@@ -297,7 +302,18 @@ class StrategyGenome:
             errors.append("missing_entry_confirmation_value")
         if self.entry_expiry_min <= 0:
             errors.append("invalid_entry_expiry")
-        if self.entry_ladder_mode == "simultaneous":
+        absolute = self.stop_mode == "fixed_level" or self.target_mode == "per_leg_levels" or self.entry_mode in {"published_range", "published_limit"} or self.entry_ladder_mode == "range_levels"
+        if absolute and (self.schema_version != 2 or self.stop_mode != "fixed_level"
+                or self.target_mode != "per_leg_levels" or self.provider_management_mode != "ignore"
+                or self.be_mode not in ("none", "price", "provider") or self.trailing_distance is not None
+                or self.entry_mode not in ("signal_market", "published_range", "published_limit")):
+            errors.append("absolute_level_policy_contract")
+        if self.entry_mode == "published_range" and (not _positive_finite(self.entry_confirmation_value)
+                or not _positive_finite(self.entry_value) or self.entry_confirmation_value < self.entry_value):
+            errors.append("invalid_published_range")
+        if self.entry_ladder_mode == "range_levels" and (self.entry_mode != "published_range" or self.leg_count != 3):
+            errors.append("range_ladder_requires_three_published_range_legs")
+        if self.entry_ladder_mode in {"simultaneous", "range_levels"}:
             if self.entry_ladder_step is not None:
                 errors.append("unexpected_entry_ladder_step")
         else:
@@ -319,7 +335,7 @@ class StrategyGenome:
                 errors.append("missing_target_value")
             if not _positive_finite(self.runner_target):
                 errors.append("missing_runner_target")
-        if self.target_mode == "per_leg_steps":
+        if self.target_mode in {"per_leg_steps", "per_leg_levels"}:
             if len(self.target_steps) != self.leg_count:
                 errors.append("target_step_count_mismatch")
             if any(not _positive_finite(value) for value in self.target_steps):
@@ -329,7 +345,7 @@ class StrategyGenome:
         if self.be_mode in {"price", "delayed", "partial"}:
             if not _positive_finite(self.be_trigger):
                 errors.append("missing_be_trigger")
-        if self.stop_mode in {"fixed_move", "basket_money"}:
+        if self.stop_mode in {"fixed_move", "fixed_level", "basket_money"}:
             if not _positive_finite(self.stop_value):
                 errors.append("missing_stop_value")
         if self.trailing_distance is not None and not _positive_finite(
@@ -357,6 +373,7 @@ class StrategyGenome:
             errors.append("invalid_time_exit")
         if self.time_exit_mode not in {
             "none",
+            "always",
             "loss_only",
             "profit_only",
             "non_negative",

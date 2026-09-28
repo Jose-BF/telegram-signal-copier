@@ -23,6 +23,7 @@ import asyncio
 import pytest
 from datetime import datetime, timedelta
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import config
 import listener
@@ -45,7 +46,13 @@ from state import Signal, StateManager
 
 
 @pytest.fixture(autouse=True)
-def _reset_entry_execution_gate():
+def _reset_entry_execution_gate(monkeypatch, tmp_path):
+    # Message-routing tests retain persistence, but never launch broker workers.
+    queue = listener.pending_actions.PendingQueue(spool_path=tmp_path / "pending.json")
+    monkeypatch.setattr(queue, "_ensure_runner", lambda: None)
+    monkeypatch.setattr(listener.pending_actions, "queue", queue)
+    monkeypatch.setattr(listener, "_place_dca", AsyncMock())
+    monkeypatch.setattr(listener.journal, "anomaly", lambda *args, **kwargs: None)
     listener._entry_execution_gate.reset()
     listener._canal2_opening_msg_ids.clear()
     listener._canal2_zone_plans.clear()
@@ -53,6 +60,18 @@ def _reset_entry_execution_gate():
     listener._entry_execution_gate.reset()
     listener._canal2_opening_msg_ids.clear()
     listener._canal2_zone_plans.clear()
+
+
+@pytest.mark.asyncio
+async def test_message_fixture_keeps_pending_storage_local_without_a_runner(tmp_path):
+    queue = listener.pending_actions.queue
+    signal = Signal(channel="canal2", message_id=999, direction="BUY")
+    await listener.pending_actions.persist_async(listener.pending_actions.enqueue_modify_sl,
+                                                signal, 123, 100., label="fixture-isolation")
+    assert queue._spool_path == tmp_path / "pending.json"
+    assert queue._spool_path.is_file()
+    assert queue._task is None
+    assert isinstance(listener._place_dca, AsyncMock)
 
 
 # ────────────────────────── B1 — MessageDeleted ──────────────────────────
@@ -1698,6 +1717,29 @@ class TestCanal2OrphanEditRecovery:
                 "currency": "EUR",
             },
         )
+        monkeypatch.setattr(
+            listener.executor,
+            "loss_stop_price",
+            lambda direction, _volume, entry, _budget, _symbol: (
+                float(entry) - 1.0
+                if direction == "BUY"
+                else float(entry) + 1.0
+            ),
+        )
+        monkeypatch.setattr(
+            listener.executor,
+            "open_position_specs",
+            lambda tickets: {
+                int(ticket): {
+                    "entry": 4500.0,
+                    "volume": 0.01,
+                    "symbol": config.MT5_SYMBOL,
+                    "sl": 0.0,
+                    "point": 0.01,
+                }
+                for ticket in tickets
+            },
+        )
 
     @pytest.mark.asyncio
     async def test_recovered_edit_then_new_delivery_opens_only_once(
@@ -2824,6 +2866,14 @@ class TestCanal1DuplicateSticker:
         monkeypatch.setattr(listener.executor, "current_tick_safe",
                             lambda: {"bid": 4448.0, "ask": 4448.2,
                                      "spread": 0.2})
+        monkeypatch.setattr(
+            listener.executor,
+            "open_position_levels",
+            lambda tickets: {
+                int(ticket): {"sl": 0.0, "tp": 0.0}
+                for ticket in tickets
+            },
+        )
         monkeypatch.setattr(listener, "_open_extra_legs", fake_open_extra_legs)
         monkeypatch.setattr(listener, "_log_strategy_snapshot",
                             lambda *args, **kwargs: None)

@@ -3,9 +3,7 @@ import json
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
-import executor
-import journal
-import listener
+import pytest
 from tools import audit_causal_lineage
 
 
@@ -2188,8 +2186,14 @@ def test_position_gone_preflight_can_finish_without_executor_attempt():
     assert report["summary"]["blocked"] == 0
 
 
-def test_position_gone_after_linked_modify_attempt_is_terminal_evidence():
+@pytest.mark.parametrize("attempts", [0, 1])
+def test_position_gone_after_linked_modify_attempt_is_terminal_evidence(
+    attempts,
+):
     rows = _operation_chain("MODIFY_SLTP")
+    rows[3]["result"]["retcode"] = 10036
+    rows[3]["result"]["comment"] = "Position doesn't exist"
+    _rehash(rows[3])
     rows[4] = _row(
         "mt5_modify_skipped_position_gone",
         "event_terminal",
@@ -2198,7 +2202,7 @@ def test_position_gone_after_linked_modify_attempt_is_terminal_evidence():
         action_id="action_1",
         attempt_id="attempt_1",
         ticket=101,
-        attempts=1,
+        attempts=attempts,
         retcode=10036,
         label="BE #101",
         new_sl=4056.53,
@@ -2219,6 +2223,279 @@ def test_position_gone_after_linked_modify_attempt_is_terminal_evidence():
     )
 
     assert report["summary"]["blocked"] == 0
+
+
+def _retry_then_position_gone_rows(retcode=10029):
+    rows = _operation_chain("MODIFY_SLTP")
+    rows[3]["result"]["retcode"] = retcode
+    rows[3]["result"]["comment"] = "Order or position frozen"
+    rows[4] = _row(
+        "mt5_modify_skipped_position_gone",
+        "event_terminal",
+        message_revision_id=_MSGREV_1,
+        decision_id="decision_1",
+        action_id="action_1",
+        attempt_id="attempt_1",
+        ticket=101,
+        attempts=1,
+        retcode=10036,
+        label="Trailing #101",
+        new_sl=4056.53,
+        new_tp=4059.53,
+        expected_magic=20260422,
+        preflight_status="position_gone",
+        preflight_reason="ticket_not_found",
+        preflight_effective_sl=None,
+        preflight_effective_tp=None,
+        preflight_deferred_sl=None,
+        action_revision=0,
+        monotonic_ns=140,
+    )
+    for row in rows:
+        _rehash(row)
+    return rows
+
+
+@pytest.mark.parametrize(
+    "retcode",
+    [10004, 10008, 10015, 10016, 10017, 10018, 10021, 10027, 10029],
+)
+def test_position_gone_after_retryable_modify_race_is_terminal_evidence(
+    retcode,
+):
+    report = audit_causal_lineage.audit_rows(
+        _retry_then_position_gone_rows(retcode),
+        source_sha256="1" * 64,
+    )
+
+    assert report["summary"]["blocked"] == 0
+    assert report["summary"]["complete"] == 6
+
+
+@pytest.mark.parametrize("retcode", [None, True, 10009, 10013, 10036, 19999])
+def test_position_gone_after_non_retryable_modify_is_blocked(retcode):
+    report = audit_causal_lineage.audit_rows(
+        _retry_then_position_gone_rows(retcode),
+        source_sha256="1" * 64,
+    )
+
+    assert report["summary"]["blocked"] > 0
+    assert _event_row(report["rows"], "mt5_modify_skipped_position_gone")[
+        "status"
+    ] != "complete"
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("preflight_effective_sl", 0.0),
+        ("preflight_effective_sl", 4056.53),
+        ("preflight_effective_tp", 0.0),
+        ("preflight_effective_tp", 4059.53),
+        ("preflight_deferred_sl", 0.0),
+        ("preflight_deferred_sl", 4056.53),
+        ("preflight_reason", ""),
+        ("preflight_reason", "   "),
+    ],
+)
+def test_position_gone_after_retry_requires_empty_terminal_preflight(
+    field, value,
+):
+    rows = _retry_then_position_gone_rows()
+    rows[4][field] = value
+    _rehash(rows[4])
+
+    report = audit_causal_lineage.audit_rows(rows, source_sha256="1" * 64)
+
+    assert report["summary"]["blocked"] > 0
+
+
+def test_position_gone_after_retry_requires_a_sent_observed_attempt():
+    rows = _retry_then_position_gone_rows()
+    rows[3]["broker_request_sent"] = False
+    rows[3]["request"] = None
+    rows[3]["position_lookup_state"] = "empty"
+    rows[3]["position_before"] = None
+    _rehash(rows[3])
+
+    report = audit_causal_lineage.audit_rows(rows, source_sha256="1" * 64)
+
+    assert report["summary"]["blocked"] > 0
+
+
+@pytest.mark.parametrize(
+    "index,field,value",
+    [
+        (3, "action_revision", 1),
+        (3, "preflight_status", "position_gone"),
+        (4, "attempt_id", "attempt_missing"),
+        (4, "monotonic_ns", 125),
+    ],
+)
+def test_position_gone_after_retry_rejects_mismatched_attempt(
+    index, field, value,
+):
+    rows = _retry_then_position_gone_rows()
+    rows[index][field] = value
+    _rehash(rows[index])
+
+    report = audit_causal_lineage.audit_rows(rows, source_sha256="1" * 64)
+
+    assert report["summary"]["blocked"] > 0
+
+
+def _position_gone_preserved_tp_rows():
+    rows = _operation_chain("MODIFY_SLTP")
+    rows[2]["new_tp"] = None
+    rows[3]["result"]["retcode"] = 10036
+    rows[3]["result"]["comment"] = "Position closed"
+    rows[4] = _row(
+        "mt5_modify_skipped_position_gone",
+        "event_terminal",
+        message_revision_id=_MSGREV_1,
+        decision_id="decision_1",
+        action_id="action_1",
+        attempt_id="attempt_1",
+        ticket=101,
+        attempts=1,
+        retcode=10036,
+        new_sl=4056.53,
+        new_tp=None,
+        expected_magic=20260422,
+        preflight_status="ready",
+        preflight_reason=None,
+        preflight_effective_sl=4056.53,
+        preflight_effective_tp=4059.53,
+        preflight_deferred_sl=None,
+        action_revision=0,
+        monotonic_ns=140,
+    )
+    for row in rows:
+        _rehash(row)
+    return rows
+
+
+def test_position_gone_preserved_tp_has_linked_broker_evidence():
+    report = audit_causal_lineage.audit_rows(
+        _position_gone_preserved_tp_rows(),
+        source_sha256="1" * 64,
+    )
+
+    assert report["summary"]["blocked"] == 0
+    assert report["summary"]["complete"] == 6
+
+
+@pytest.mark.parametrize("requested_tp", [0.0, 4060.0])
+def test_position_gone_preserved_tp_cannot_override_explicit_instruction(
+    requested_tp,
+):
+    rows = _position_gone_preserved_tp_rows()
+    for index in (2, 4):
+        rows[index]["new_tp"] = requested_tp
+        _rehash(rows[index])
+
+    report = audit_causal_lineage.audit_rows(rows, source_sha256="1" * 64)
+
+    assert report["summary"]["blocked"] > 0
+    assert _event_row(report["rows"], "mt5_modify_skipped_position_gone")[
+        "status"
+    ] != "complete"
+
+
+@pytest.mark.parametrize("index,path,value", [
+    (4, ("preflight_effective_tp",), 4060.0),
+    (3, ("preflight_effective_tp",), 4060.0),
+    (3, ("request", "tp"), 4060.0),
+    (3, ("position_before", "tp"), 4060.0),
+    (3, ("result", "retcode"), 10009),
+    (4, ("retcode",), 10009),
+    (4, ("new_tp",), 0.0),
+    (4, ("new_sl",), 4057.0),
+    (4, ("ticket",), 102),
+    (4, ("expected_magic",), 20260421),
+    (4, ("action_revision",), 1),
+    (4, ("attempt_id",), "attempt_missing"),
+    (4, ("monotonic_ns",), 125),
+    (4, ("preflight_status",), "position_gone"),
+])
+def test_position_gone_preserved_tp_rejects_inconsistent_evidence(
+    index, path, value,
+):
+    rows = _position_gone_preserved_tp_rows()
+    target = rows[index]
+    for field in path[:-1]:
+        target = target[field]
+    target[path[-1]] = value
+    _rehash(rows[index])
+
+    report = audit_causal_lineage.audit_rows(rows, source_sha256="1" * 64)
+
+    assert report["summary"]["blocked"] > 0
+    assert _event_row(report["rows"], "mt5_modify_skipped_position_gone")[
+        "status"
+    ] != "complete"
+
+
+@pytest.mark.parametrize("field", [
+    "new_tp", "preflight_effective_sl", "preflight_effective_tp",
+    "preflight_deferred_sl",
+])
+@pytest.mark.parametrize("value", [
+    True, False, float("nan"), float("inf"), -float("inf"), -1.0, "4059.53",
+])
+def test_position_gone_preserved_tp_rejects_invalid_levels(field, value):
+    rows = _position_gone_preserved_tp_rows()
+    rows[4][field] = value
+    _rehash(rows[4])
+
+    report = audit_causal_lineage.audit_rows(rows, source_sha256="1" * 64)
+
+    assert report["summary"]["blocked"] > 0
+
+
+@pytest.mark.parametrize("missing", ["request", "observation", "attempt"])
+def test_position_gone_preserved_tp_requires_independent_attempt_evidence(missing):
+    rows = _position_gone_preserved_tp_rows()
+    if missing == "request":
+        rows[3]["broker_request_sent"] = False
+        rows[3]["request"] = None
+    elif missing == "observation":
+        rows[3]["position_lookup_state"] = "not_queried"
+        rows[3]["position_before"] = None
+    else:
+        rows.pop(3)
+    for row in rows:
+        _rehash(row)
+
+    report = audit_causal_lineage.audit_rows(rows, source_sha256="1" * 64)
+
+    assert report["summary"]["blocked"] > 0
+    assert _event_row(report["rows"], "mt5_modify_skipped_position_gone")[
+        "status"
+    ] != "complete"
+
+
+@pytest.mark.parametrize("effective_tp", [None, 4059.53])
+def test_position_gone_preserved_tp_without_attempt_needs_empty_preflight(
+    effective_tp,
+):
+    rows = _position_gone_preserved_tp_rows()
+    rows.pop(3)
+    rows[2].pop("attempt_id")
+    rows[3].update({
+        "attempt_id": None,
+        "attempts": 0,
+        "preflight_status": "position_gone",
+        "preflight_reason": "ticket_not_found",
+        "preflight_effective_sl": None,
+        "preflight_effective_tp": effective_tp,
+    })
+    for row in rows:
+        _rehash(row)
+
+    report = audit_causal_lineage.audit_rows(rows, source_sha256="1" * 64)
+
+    assert (report["summary"]["blocked"] == 0) is (effective_tp is None)
 
 
 def _invalid_magic_preflight_rows():
@@ -3008,6 +3285,10 @@ def test_cli_rejects_non_finite_json_constants(tmp_path):
 
 async def test_real_dispatch_executor_journal_chain_passes_audit(
         tmp_path, monkeypatch):
+    import executor
+    import journal
+    import listener
+
     events_path = tmp_path / "events.jsonl"
     monkeypatch.setattr(journal, "EVENTS_FILE", events_path)
     monkeypatch.setenv("BOT_WATCHER_VERIFIED_HEAD", "a" * 40)

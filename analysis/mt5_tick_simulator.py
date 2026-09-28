@@ -986,7 +986,8 @@ def main():
         t_to   = sig["dt"] + timedelta(minutes=strat.horizon_min)
         print(f"\n  Pidiendo ticks {t_from} → {t_to} ...")
         ticks = mt5s.get_or_cache_ticks(sig["id"], t_from, t_to)
-        print(f"  Ticks: {len(ticks)} (cache: {TICKS_CACHE / f'sig_{sig['id']}.parquet'})")
+        cache_path = TICKS_CACHE / f"sig_{sig['id']}.parquet"
+        print(f"  Ticks: {len(ticks)} (cache: {cache_path})")
         if len(ticks) == 0:
             print("  ERROR: 0 ticks. Verifica history disponible en MT5.")
             return

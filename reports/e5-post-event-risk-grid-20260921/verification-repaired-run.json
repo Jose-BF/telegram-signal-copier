@@ -1,0 +1,54 @@
+{
+  "clean_full_suite": false,
+  "console_seconds": 460.11,
+  "failures": [
+    {
+      "failure": "tests\\test_ensure_replay_tick_cache.py:620: in test_cache_status_uses_repo_relative_cache_dir_for_default_cache\n    expected = ensure_replay_tick_cache.DEFAULT_CACHE_DIR.relative_to(\n..\\..\\..\\..\\AppData\\Local\\Codex\\offline-runtimes\\copier-python311\\Lib\\pathlib.py:730: in relative_to\n    raise ValueError(\"{!r} is not in the subpath of {!r}\"\nE   ValueError: 'C:\\\\Users\\\\josea\\\\AppData\\\\Local\\\\Temp\\\\copier-risk-grid-pytest-yb7fyftn\\\\ticks_cache' is not in the subpath of 'C:\\\\Users\\\\josea\\\\OneDrive\\\\Escritorio\\\\proyectos claude\\\\telegram-signal-copier-gold-live' OR one path is relative and the other is absolute.",
+      "test": "tests.test_ensure_replay_tick_cache::test_cache_status_uses_repo_relative_cache_dir_for_default_cache"
+    },
+    {
+      "failure": "tests\\test_mt5_gateway.py:91: in test_five_second_gil_holding_broker_call_does_not_freeze_parent_loop\n    assert record.state is IntentState.DONE\nE   AssertionError: assert <IntentState.PREPARED: 'PREPARED'> is <IntentState.DONE: 'DONE'>\nE    +  where <IntentState.PREPARED: 'PREPARED'> = IntentRecord(intent_id='mt5i-v1-0d6f1933bf62fd6f9942cd625bbd78255c79f3067020749c544a6d79600b0146', state=<IntentState....'>, attempt_id=None, payload={'block_seconds': 5.0, 'fail': False}, outcome=None, outcome_revision=0, applied_utc=None).state\nE    +  and   <IntentState.DONE: 'DONE'> = IntentState.DONE",
+      "test": "tests.test_mt5_gateway::test_five_second_gil_holding_broker_call_does_not_freeze_parent_loop"
+    },
+    {
+      "failure": "tests\\test_mt5_gateway.py:116: in test_timeout_keeps_single_request_unresolved_until_late_result_arrives\n    await gateway.call_async(\nmt5_gateway.py:233: in call_async\n    return await asyncio.shield(worker)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n..\\..\\..\\..\\AppData\\Local\\Codex\\offline-runtimes\\copier-python311\\Lib\\asyncio\\threads.py:25: in to_thread\n    return await loop.run_in_executor(None, func_call)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n..\\..\\..\\..\\AppData\\Local\\Codex\\offline-runtimes\\copier-python311\\Lib\\concurrent\\futures\\thread.py:58: in run\n    result = self.fn(*self.args, **self.kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nmt5_gateway.py:207: in run_call\n    return self._call_until(request, deadline)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nmt5_gateway.py:144: in _call_until\n    raise WorkerUnavailableError(\"worker unavailable before dispatch\")\nE   mt5_gateway.WorkerUnavailableError: worker unavailable before dispatch",
+      "test": "tests.test_mt5_gateway::test_timeout_keeps_single_request_unresolved_until_late_result_arrives"
+    },
+    {
+      "failure": "tests\\test_mt5_gateway.py:142: in test_broker_exception_after_dispatch_becomes_unknown\n    assert record.state is IntentState.UNKNOWN\nE   AssertionError: assert <IntentState.PREPARED: 'PREPARED'> is <IntentState.UNKNOWN: 'UNKNOWN'>\nE    +  where <IntentState.PREPARED: 'PREPARED'> = IntentRecord(intent_id='mt5i-v1-0d6f1933bf62fd6f9942cd625bbd78255c79f3067020749c544a6d79600b0146', state=<IntentState....D'>, attempt_id=None, payload={'block_seconds': 0.0, 'fail': True}, outcome=None, outcome_revision=0, applied_utc=None).state\nE    +  and   <IntentState.UNKNOWN: 'UNKNOWN'> = IntentState.UNKNOWN",
+      "test": "tests.test_mt5_gateway::test_broker_exception_after_dispatch_becomes_unknown"
+    },
+    {
+      "failure": "tests\\test_mt5_gateway.py:152: in test_worker_death_during_native_call_is_unknown_and_redelivery_is_not_sent\n    assert timed_out.state is IntentState.DISPATCHING\nE   AssertionError: assert <IntentState.PREPARED: 'PREPARED'> is <IntentState.DISPATCHING: 'DISPATCHING'>\nE    +  where <IntentState.PREPARED: 'PREPARED'> = IntentRecord(intent_id='mt5i-v1-0d6f1933bf62fd6f9942cd625bbd78255c79f3067020749c544a6d79600b0146', state=<IntentState....'>, attempt_id=None, payload={'block_seconds': 5.0, 'fail': False}, outcome=None, outcome_revision=0, applied_utc=None).state\nE    +  and   <IntentState.DISPATCHING: 'DISPATCHING'> = IntentState.DISPATCHING",
+      "test": "tests.test_mt5_gateway::test_worker_death_during_native_call_is_unknown_and_redelivery_is_not_sent"
+    },
+    {
+      "failure": "tests\\test_provider_signal_catalog.py:2517: in test_default_corpus_uses_hybrid_canal1_identity_links\n    record = record_for(companion_id)\n             ^^^^^^^^^^^^^^^^^^^^^^^^\ntests\\test_provider_signal_catalog.py:2506: in record_for\n    return next(\nE   StopIteration",
+      "test": "tests.test_provider_signal_catalog::test_default_corpus_uses_hybrid_canal1_identity_links"
+    },
+    {
+      "failure": "tests\\test_runtime_paths.py:352: in test_tail_repair_failure_preserves_original_and_archived_tail\n    with pytest.raises(OSError, match=\"replace failed\"):\nE   Failed: DID NOT RAISE OSError",
+      "test": "tests.test_runtime_paths::test_tail_repair_failure_preserves_original_and_archived_tail"
+    },
+    {
+      "failure": "tests\\test_runtime_paths.py:372: in test_changed_source_is_not_published_after_validation\n    with pytest.raises(ValueError, match=\"changed during validation\"):\nE   Failed: DID NOT RAISE ValueError",
+      "test": "tests.test_runtime_paths::test_changed_source_is_not_published_after_validation"
+    }
+  ],
+  "harness_issue": "pytest.main from stdin prevents Windows multiprocessing spawn main resolution",
+  "implementation_unchanged": true,
+  "junit": {
+    "errors": "0",
+    "failures": "8",
+    "hostname": "RazerBlade",
+    "name": "pytest",
+    "skipped": "0",
+    "tests": "6691",
+    "time": "459.934",
+    "timestamp": "2026-09-21T14:56:20.654658+02:00"
+  },
+  "junit_sha256": "0011cfb3293f880986e71359f461267855ad5d577e7ff4ae7badb033366be009",
+  "path_fixture_issues": 4,
+  "sources_unchanged": true,
+  "vm_accessed": false
+}

@@ -16,7 +16,13 @@ async def _async_none():
 
 
 @pytest.fixture(autouse=True)
-def clear_shadow_conversion_cache():
+def clear_shadow_conversion_cache(monkeypatch):
+    # Each loop test represents a fresh runtime, not a continuation of a
+    # preceding test's injected disk failure and latched admission circuit.
+    main.journal.flush_events()
+    monkeypatch.setattr(main.journal, "_event_write_failures", 0)
+    monkeypatch.setattr(main.journal, "_event_acknowledged_failures", 0)
+    monkeypatch.setattr(main.journal, "_storage_observation", None)
     main._shadow_conversion_tick_cache.clear()
     yield
     main._shadow_conversion_tick_cache.clear()
@@ -57,7 +63,7 @@ def money_contract(
 
 
 def test_main_connects_telegram_before_background_shadow_recovery():
-    source = inspect.getsource(main.main)
+    source = inspect.getsource(main._run_main)
     telegram_start = source.index("await client.start")
 
     assert "await _initialize_strategy_shadows" not in source[:telegram_start]
@@ -367,6 +373,56 @@ def test_shadow_history_queries_server_clock_and_returns_utc_ticks(monkeypatch):
     )
     assert queries[0][2] == (
         end_utc + timedelta(seconds=offset, milliseconds=1)
+    )
+
+
+def test_shadow_history_chunks_large_archive_reads(monkeypatch):
+    start_msc = 1_788_940_800_000
+    end_msc = start_msc + 180_000
+    queries = []
+
+    def copy_ticks(symbol, start, end, _flags):
+        queries.append((symbol, start, end))
+        stamp = int(start.timestamp() * 1000)
+        return [{
+            "time_msc": stamp,
+            "bid": 4300.0,
+            "ask": 4300.2,
+            "last": 4300.1,
+            "flags": 6,
+            "volume_real": 1.0,
+        }]
+
+    monkeypatch.setattr(
+        main.executor,
+        "mt5",
+        SimpleNamespace(COPY_TICKS_ALL=0, copy_ticks_range=copy_ticks),
+    )
+    monkeypatch.setattr(
+        main,
+        "_load_shadow_money_contract",
+        lambda: money_contract("identity"),
+    )
+    monkeypatch.setattr(
+        main.config,
+        "STRATEGY_SHADOW_LIVE_MAX_BATCH_MS",
+        60_000,
+    )
+
+    history = main._shadow_tick_history(
+        start_msc,
+        until_msc=end_msc,
+    )
+
+    assert history.complete is True
+    assert len(queries) == 3
+    assert all(
+        (end - start).total_seconds() <= 60.0
+        for _, start, end in queries
+    )
+    assert all(
+        later[1] == earlier[2] + timedelta(milliseconds=1)
+        for earlier, later in zip(queries, queries[1:])
     )
 
 
@@ -1314,6 +1370,11 @@ async def test_sustained_archive_tail_delay_is_recorded_without_pausing_prefix(
 
     assert calls == 3
     assert len(processed_batches) == 3
+    assert all(history.read_started_at_utc is not None
+               and history.read_completed_at_utc is not None
+               and datetime.fromisoformat(history.read_started_at_utc)
+               <= datetime.fromisoformat(history.read_completed_at_utc)
+               for _, history in processed_batches)
     assert max(sleep_calls) >= 1.0
     assert events == [(
         "bot",

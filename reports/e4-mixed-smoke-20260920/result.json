@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "passed": true,
+  "scope": "offline_synthetic_transport_not_live_VM_or_strategy_certification",
+  "seconds_requested": 15,
+  "elapsed_seconds": 16.0,
+  "read_rate": 40,
+  "trade_rate": 1,
+  "read_producers": 4,
+  "measured_production_peak": null,
+  "reads": {
+    "FOUND": 601
+  },
+  "trades": {
+    "OPEN_MARKET:DONE": 5,
+    "MODIFY_SLTP:DONE": 5,
+    "CLOSE_POSITION:DONE": 5
+  },
+  "heartbeat": {
+    "samples": 2300,
+    "max_ms": 31.9999999992433,
+    "p99_ms": 16.00000000325963
+  },
+  "read_latency": {
+    "samples": 601,
+    "max_ms": 16.00000000325963,
+    "p99_ms": 16.00000000325963
+  },
+  "trade_latency": {
+    "samples": 15,
+    "max_ms": 46.999999998661224,
+    "p99_ms": 46.999999998661224
+  },
+  "max_pending": 2,
+  "memory_first": {
+    "elapsed_s": 0.0,
+    "parent_rss": 31469568,
+    "worker_rss": 20029440,
+    "active": false,
+    "active_kind": null,
+    "trade_waiters": 0,
+    "management_waiters": 0,
+    "entry_waiters": 0,
+    "read_waiters": 0,
+    "consecutive_trades": 0,
+    "pending_count": 0,
+    "capacity": 9,
+    "regular_capacity": 8,
+    "scheduling_policy": "management-first-read-burst4-reserve1-v1"
+  },
+  "memory_last": {
+    "elapsed_s": 14.985000000000582,
+    "parent_rss": 31662080,
+    "worker_rss": 20193280,
+    "active": false,
+    "active_kind": null,
+    "trade_waiters": 0,
+    "management_waiters": 0,
+    "entry_waiters": 0,
+    "read_waiters": 0,
+    "consecutive_trades": 0,
+    "pending_count": 0,
+    "capacity": 9,
+    "regular_capacity": 8,
+    "scheduling_policy": "management-first-read-burst4-reserve1-v1"
+  },
+  "parent_rss_peak": 31682560,
+  "worker_rss_peak": 20193280,
+  "worker_stopped": true,
+  "drained": true,
+  "limitations": [
+    "No measured production peak: not the 2x-peak acceptance test.",
+    "No live quotes, strategy, VM resource equivalence or broker fills.",
+    "Latency samples use bounded memory proportional to configured duration and rate."
+  ],
+  "sha256": {
+    "mt5_client.py": "2d32300d237825b8fc56918d5ab6b9d7dab2b3ff6124f070e47ad635dfd4d4f7",
+    "mt5_worker.py": "4502193f144b33b033d9c2a7d94867fd6d51649a176d6bf7a6160166b377d4b6",
+    "mt5_worker_entry.py": "38c8444d0fc63435197fe4383eabc00452f0bedb4a3a03f0faac53ec0819b3ac",
+    "mt5_owner_lock.py": "6a2c129edf0f1b53c0cdf32bd48a504d8e423ee8a5c2ba57932580fd8e06c403",
+    "mt5_protocol.py": "715ab1eb6bb1092aede95cd0a4ac35cde080754b31b4c6c150b61706d57b0bf8",
+    "mt5_read_protocol.py": "e1b5bbc12c80c80dfceaea451818ffc76c043a61022719c5e68dec03199062d8",
+    "mt5_trade_protocol.py": "b7d012b75f6926b55304dd65d568b92c6d10ccee2ac508aaa47089564cb9b227",
+    "mt5_trade_worker.py": "410912c1276639b26a5a9ba1665bdbae6603646eea18f35c8e846eae1fa5c6c1",
+    "execution_intents.py": "7c0e813d49d759ba2a7c5e86c41b7b0830b5b153d81abdb281fbbc4c4ac3f282",
+    "tests/mt5_load_fakes.py": "5099d9be471f7cd61a48358cb492219cf1fd2c74d0d402b45a9025169be86183",
+    "tests/mt5_read_fakes.py": "450274ad975bab26c23ab1c01ea9b3bf14e256cec4e5ab709ffc89a909235cc6",
+    "tools/probe_mt5_read_isolation.py": "f50f41b5ca8a471cf1d161bf9a8f1aec5c21d2cda866905e80cf7bda267cf0f5",
+    "tools/probe_mt5_mixed_load.py": "67e50f8c64ff05deec73ea88e71483e23d5f5679e7225b9d12cf8ececb403983"
+  },
+  "sources_unchanged": true,
+  "python": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
+  "platform": "Windows-10-10.0.26200-SP0",
+  "utc_ns": 1789939414392302600,
+  "monotonic_resolution": 0.015625
+}

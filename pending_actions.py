@@ -9,14 +9,15 @@ sin enviar solicitudes repetidas a MT5 hasta que el mercado cumpla la condición
 """
 
 import asyncio
+from datetime import datetime, timezone
 import json
 import os
 import time
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field, fields, replace
 from pathlib import Path
 from typing import Optional
 
-import MetaTrader5 as mt5
+from mt5_runtime import mt5
 
 import causal_trace
 import config
@@ -45,6 +46,9 @@ EXACT_BE_WAIT_ALERT_THRESHOLD_S = 30
 NULL_TICK_STREAK_THRESHOLD = 500   # ~5s a 10ms por ciclo
 BROKER_RETRY_COOLDOWN_S = 1.0
 CONFIRMED_ACTION_EVIDENCE_TTL_S = 120.0
+_DURABLE_RETRY_RETCODES = frozenset(
+    (mt5_errors.TRANSIENT | mt5_errors.STOPS_RELATED) - {10008}
+)
 PENDING_SPOOL_FILE = Path(os.getenv(
     "BOT_PENDING_ACTIONS_FILE",
     str(runtime_paths.data_path("runtime_pending_actions.json")),
@@ -310,19 +314,64 @@ def _record_confirmed_levels(action: PendingAction) -> bool:
     return recorded
 
 
+def _remember_durable_attempt(action: PendingAction, record) -> bool:
+    """Count only a newly admitted broker attempt, not durable state polling."""
+    attempt_id = getattr(record, "attempt_id", None)
+    if not attempt_id or attempt_id == action.last_attempt_id:
+        return False
+    action.last_attempt_id = attempt_id
+    action.attempts += 1
+    return True
+
+
+def _arm_durable_retry_cooldown(action: PendingAction) -> None:
+    retcode = action.last_retcode
+    if retcode == 10029 or mt5_errors.classify(retcode) == "STOPS":
+        action.retry_not_before = time.time() + BROKER_RETRY_COOLDOWN_S
+
+
 def _effective_action_tp(action: PendingAction) -> Optional[float]:
     """Return the requested TP, including a TP completed in an earlier stage."""
     return action.new_tp if action.new_tp is not None else action.applied_tp
 
 
 class PendingQueue:
-    def __init__(self, spool_path: Path | None = None):
+    def __init__(self, spool_path: Path | None = None, *, execution_service=None):
         self._actions: list[PendingAction] = []
         self._recent_confirmed_actions: list[dict] = []
         self._task: Optional[asyncio.Task] = None
         self._structural_incidents: dict[tuple, list[PendingAction]] = {}
         self._structural_flush_tasks: dict[tuple, asyncio.Task] = {}
         self._spool_path = Path(spool_path) if spool_path is not None else None
+        self._execution_service = execution_service
+        self._recovery_blocked = False
+        self._spool_lock = None
+        self._spool_loop = None
+        self._defer_spool = False
+        self._spool_dirty = False
+        self._spool_write_active = False
+        self._persisted_actions: set[tuple[str, int]] = set()
+        self._spool_error: str | None = None
+        self._spool_retry_at = 0.0
+        self._spool_error_reported = False
+
+    def begin_recovery(self) -> None:
+        if self._spool_write_active or (self._task is not None and not self._task.done()):
+            raise RuntimeError("cannot restore while pending actions are running")
+        self._recovery_blocked = True
+
+    def finish_recovery(self) -> None:
+        self._recovery_blocked = False
+        try:
+            if self._actions:
+                self._ensure_runner()
+        except BaseException:
+            self._recovery_blocked = True
+            raise
+
+    def set_execution_service(self, service) -> None:
+        """Install the reviewed durable boundary during runtime integration."""
+        self._execution_service = service
 
     @staticmethod
     def _spool_payload(action: PendingAction) -> dict:
@@ -361,34 +410,182 @@ class PendingQueue:
             for action in self._actions
         )
 
-    def _persist_spool(self) -> None:
-        if self._spool_path is None:
-            return
-        payload = {
+    def _spool_snapshot(self) -> dict:
+        return {
             "version": 2,
             "saved_at": time.time(),
             "actions": [
                 self._spool_payload(action) for action in self._actions
             ],
         }
+    def _write_spool_payload(self, payload: dict) -> None:
         self._spool_path.parent.mkdir(parents=True, exist_ok=True)
         temporary = self._spool_path.with_name(
             f"{self._spool_path.name}.tmp"
         )
-        temporary.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
+        with temporary.open("w", encoding="utf-8") as stream:
+            json.dump(payload, stream, ensure_ascii=False, indent=2)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
         os.replace(temporary, self._spool_path)
+
+    def _ack_spool(self, payload: dict) -> None:
+        self._persisted_actions = {
+            (row["action_id"], row["revision"]) for row in payload["actions"]
+        }
+        self._spool_dirty = False
+        self._spool_error = None
+        self._spool_retry_at = 0.0
+        self._spool_error_reported = False
+
+    def _spool_failed(self, exc: OSError) -> None:
+        self._spool_error = type(exc).__name__
+        self._spool_retry_at = time.monotonic() + 5.0
+
+    def persistence_snapshot(self) -> dict:
+        return {
+            "enabled": self._spool_path is not None,
+            "dirty": self._spool_dirty,
+            "write_active": self._spool_write_active,
+            "error": self._spool_error,
+            "unpersisted_count": sum(not self._action_persisted(action) for action in list(self._actions)),
+            "runner_running": self._task is not None and not self._task.done(),
+        }
+
+    def _action_persisted(self, action: PendingAction) -> bool:
+        return self._spool_path is None or (
+            action.action_id, action.revision
+        ) in self._persisted_actions
+
+    def _persist_spool(self) -> None:
+        if self._spool_path is None:
+            return
+        self._spool_dirty = True
+        if self._defer_spool:
+            return
+        if self._spool_write_active:
+            raise RuntimeError("synchronous spool write during async persistence")
+        payload = self._spool_snapshot()
+        try:
+            self._write_spool_payload(payload)
+        except OSError as exc:
+            self._spool_failed(exc)
+            raise
+        self._ack_spool(payload)
+
+    def _async_spool_lock(self):
+        loop = asyncio.get_running_loop()
+        if self._spool_loop is not loop:
+            if self._spool_lock is not None and self._spool_lock.locked():
+                raise RuntimeError("pending spool belongs to another event loop")
+            self._spool_loop = loop
+            self._spool_lock = asyncio.Lock()
+        return self._spool_lock
+
+    async def _flush_spool_async(self) -> None:
+        if self._spool_path is None:
+            self._spool_dirty = False
+            return
+        if not self._spool_dirty:
+            return
+        payload = self._spool_snapshot()
+        client = getattr(self._execution_service, "client", None)
+        executor_pool = getattr(client, "_storage_executor", None)
+        future = asyncio.get_running_loop().run_in_executor(
+            executor_pool, self._write_spool_payload, payload,
+        )
+        cancelled = None
+        try:
+            while True:
+                try:
+                    await asyncio.shield(future)
+                    break
+                except asyncio.CancelledError as exc:
+                    # Repeated cancellation still cannot release the writer lock
+                    # while its OS write is running.
+                    cancelled = exc
+                    if future.cancelled():
+                        raise
+        except OSError as exc:
+            self._spool_failed(exc)
+            raise
+        self._ack_spool(payload)
+        if cancelled is not None:
+            raise cancelled
+
+    async def persist_call(self, operation, *args, **kwargs):
+        """Mutate on the owner loop; acknowledge off-loop persistence before return."""
+        async with self._async_spool_lock():
+            self._spool_write_active = True
+            self._defer_spool = True
+            try:
+                try:
+                    return_value = operation(*args, **kwargs)
+                finally:
+                    self._defer_spool = False
+                    await self._flush_spool_async()
+                return return_value
+            finally:
+                self._spool_write_active = False
+                if self._actions:
+                    self._ensure_runner()
+
+    async def _persist_spool_async(self) -> None:
+        if self._spool_path is None:
+            return
+        async with self._async_spool_lock():
+            self._spool_write_active = True
+            self._spool_dirty = True
+            try:
+                await self._flush_spool_async()
+            finally:
+                self._spool_write_active = False
+
+    async def _persist_spool_if_due(self) -> None:
+        if self._spool_path is None:
+            self._spool_dirty = False
+            return
+        if (
+            not self._spool_dirty or self._spool_write_active
+            or time.monotonic() < self._spool_retry_at
+        ):
+            return
+        try:
+            await self._persist_spool_async()
+        except OSError:
+            if not self._spool_error_reported:
+                self._spool_error_reported = True
+                import journal
+                try:
+                    journal.anomaly(
+                        "bot", "mt5", "critical",
+                        "No se pudo guardar la cola; acciones nuevas esperan persistencia",
+                        **self.persistence_snapshot(),
+                    )
+                except Exception:
+                    # The independent heartbeat still exposes the error/dirty
+                    # state; a failed notification must not kill management.
+                    pass
 
     def restore_from_spool(self, state_manager) -> int:
         """Restore unresolved MT5 actions after state was rebuilt from MT5."""
-        if self._spool_path is None or not self._spool_path.is_file():
+        if self._spool_path is None:
             return 0
         try:
             payload = json.loads(self._spool_path.read_text(encoding="utf-8"))
+            if self._recovery_blocked and (
+                not isinstance(payload, dict)
+                or payload.get("version") not in (1, 2)
+                or not isinstance(payload.get("actions"), list)
+            ):
+                raise ValueError("invalid pending spool schema")
             rows = payload.get("actions") or []
+        except FileNotFoundError:
+            return 0
         except (OSError, TypeError, ValueError) as exc:
+            if self._recovery_blocked:
+                raise RuntimeError("cannot restore pending spool") from exc
             print(f"[Pending] spool ilegible, se conserva para revision: {exc}")
             return 0
 
@@ -444,7 +641,9 @@ class PendingQueue:
                         )
                     ),
                 )
-            except (KeyError, TypeError, ValueError):
+            except (KeyError, TypeError, ValueError) as exc:
+                if self._recovery_blocked:
+                    raise RuntimeError("invalid action in pending spool") from exc
                 skipped += 1
                 continue
             self._actions.append(action)
@@ -478,6 +677,8 @@ class PendingQueue:
         return restored
 
     def add(self, action: PendingAction):
+        if self._spool_write_active and not self._defer_spool:
+            raise RuntimeError("pending enqueue must await persistence")
         if causal_trace.current_decision_id() == action.decision_id:
             causal_trace.register_action_id(action.action_id)
         owns_internal_decision = (
@@ -652,6 +853,8 @@ class PendingQueue:
             pass
 
     def _ensure_runner(self):
+        if self._recovery_blocked or self._defer_spool or self._spool_write_active:
+            return
         if self._task is None or self._task.done():
             import journal
             with (
@@ -681,8 +884,28 @@ class PendingQueue:
         null_tick_alerted = False
 
         while self._actions:
+            await self._persist_spool_if_due()
             spool_before = self._spool_fingerprint()
-            tick = await asyncio.to_thread(mt5.symbol_info_tick, symbol)
+            tick_error = None
+            if self._execution_service is None:
+                tick = await asyncio.to_thread(mt5.symbol_info_tick, symbol)
+                if not tick:
+                    tick_error = str(mt5.last_error())
+            else:
+                from types import SimpleNamespace
+                from mt5_protocol import LookupState
+                from mt5_read_protocol import ReadOperation, ReadRequest
+
+                response = await self._execution_service.client.read(
+                    ReadRequest(ReadOperation.TICK, {"symbol": symbol}),
+                    timeout=1.0,
+                )
+                tick = (
+                    SimpleNamespace(**response.value)
+                    if response.state is LookupState.FOUND
+                    else None
+                )
+                tick_error = response.error
             if not tick:
                 null_tick_streak += 1
                 if _should_alert_null_tick_streak(
@@ -697,7 +920,7 @@ class PendingQueue:
                                       f"de {len(self._actions)} acciones bloqueada",
                                       streak=null_tick_streak,
                                       n_queued=len(self._actions),
-                                      last_error=str(mt5.last_error()))
+                                      last_error=str(tick_error))
                     except Exception:
                         pass
                     null_tick_alerted = True
@@ -835,7 +1058,7 @@ class PendingQueue:
                     cls_done = mt5_errors.classify(act.last_retcode)
                     if (act.kind != "MODIFY_SLTP"
                             or cls_done in ("OK", "POSITION_GONE")):
-                        self._log_done(act)
+                        await asyncio.to_thread(self._log_done, act)
                     self._actions = [
                         queued for queued in self._actions
                         if queued is not act
@@ -860,7 +1083,8 @@ class PendingQueue:
                     ]
 
             if self._spool_fingerprint() != spool_before:
-                self._persist_spool()
+                self._spool_dirty = True
+            await self._persist_spool_if_due()
             await asyncio.sleep(0)
 
     @staticmethod
@@ -1078,7 +1302,18 @@ class PendingQueue:
             **_lineage_fields(act),
         }
         try:
-            positions = mt5.positions_get(ticket=act.ticket)
+            started = datetime.now(timezone.utc)
+            started_monotonic = time.monotonic()
+            try:
+                positions = mt5.positions_get(ticket=act.ticket)
+            finally:
+                base.update(
+                    positions_read_started_utc=started.isoformat(timespec="microseconds"),
+                    positions_read_completed_utc=datetime.now(timezone.utc).isoformat(
+                        timespec="microseconds"),
+                    positions_read_elapsed_ms=round(
+                        (time.monotonic() - started_monotonic) * 1_000, 3),
+                )
             if positions is None:
                 base.update({
                     "position_exists": None,
@@ -1252,12 +1487,15 @@ class PendingQueue:
         self,
         current: PendingAction,
         completed: PendingAction,
+        *,
+        log_done: bool = True,
     ) -> str:
         """Record the immutable MT5 attempt and retain the newer payload."""
         cls = mt5_errors.classify(completed.last_retcode)
         if cls in ("OK", "POSITION_GONE"):
             _record_confirmed_levels(completed)
-            self._log_done(completed)
+            if log_done:
+                self._log_done(completed)
         else:
             try:
                 import journal
@@ -1290,6 +1528,30 @@ class PendingQueue:
         Todas las acciones verifican el magic del canal (act.signal.magic):
         si el ticket pertenece a otro canal o a una operación manual, el
         executor devuelve INVALID y la acción se descarta sin tocar nada."""
+        if not self._action_persisted(act):
+            act.waiting_reason = "pending_spool_not_persisted"
+            return "WAIT_PERSISTENCE"
+        if act.retry_not_before > time.time():
+            return "WAIT_RETRY_COOLDOWN"
+        if self._execution_service is not None:
+            attempt = replace(act)
+            source_identity = (act.action_id, act.revision)
+            result = await self._try_once_durable(attempt, current=act)
+            if (act.action_id, act.revision) != source_identity:
+                completed = attempt
+                if result != "DONE":
+                    completed = (
+                        replace(attempt, new_sl=None, new_tp=attempt.applied_tp)
+                        if result == "WAIT_PRECONDITION" and attempt.applied_tp is not None
+                        else replace(attempt, last_retcode=None)
+                    )
+                result = self._finish_superseded_attempt(act, completed, log_done=False)
+                if mt5_errors.classify(completed.last_retcode) in ("OK", "POSITION_GONE"):
+                    await asyncio.to_thread(self._log_done, completed)
+                return result
+            for item in fields(attempt):
+                setattr(act, item.name, getattr(attempt, item.name))
+            return result
         loop = asyncio.get_event_loop()
         expected_magic = act.signal.magic
         # Never read the mutable queue payload again during this attempt.
@@ -1298,8 +1560,6 @@ class PendingQueue:
         attempt_revision = act.revision
 
         if act.kind == "MODIFY_SLTP":
-            if act.retry_not_before > time.time():
-                return "WAIT_RETRY_COOLDOWN"
             decision = await loop.run_in_executor(
                 None,
                 lambda: executor.preflight_modify_sltp(
@@ -1353,12 +1613,20 @@ class PendingQueue:
                     last_retcode=retcode,
                 )
                 if act.revision != attempt_revision:
-                    return self._finish_superseded_attempt(act, completed)
+                    return await asyncio.to_thread(
+                        self._finish_superseded_attempt,
+                        act,
+                        completed,
+                    )
                 if mt5_errors.classify(retcode) == "OK":
                     act.applied_tp = tp_to_apply
                     act.new_tp = None
                     _record_confirmed_levels(completed)
-                    self._log_partial_modify(act, tp_to_apply)
+                    await asyncio.to_thread(
+                        self._log_partial_modify,
+                        act,
+                        tp_to_apply,
+                    )
                     return "WAIT_PRECONDITION"
             else:
                 self._log_precondition_satisfied(act)
@@ -1378,7 +1646,11 @@ class PendingQueue:
                     last_retcode=retcode,
                 )
                 if act.revision != attempt_revision:
-                    return self._finish_superseded_attempt(act, completed)
+                    return await asyncio.to_thread(
+                        self._finish_superseded_attempt,
+                        act,
+                        completed,
+                    )
         elif act.kind == "CLOSE_POSITION":
             act.attempts += 1
             attempt_trace = _new_attempt_trace(attempt)
@@ -1424,6 +1696,290 @@ class PendingQueue:
             return "RETRY"
         return "DROP"
 
+    async def _try_once_durable(self, act: PendingAction, *, current=None) -> str:
+        """Execute through typed durable states; ambiguous outcomes never retry."""
+        from durable_execution import ExecutionDisposition, run_storage_call
+        from execution_intents import IntentStore, PendingRevisionBlockedError
+
+        service = self._execution_service
+        current = act if current is None else current
+        signal_root = f"{act.signal.channel}_{act.signal.message_id}"
+        generation = int(getattr(act.signal, "zone_entry_generation", 0) or 0)
+        leg = f"ticket-{int(act.ticket)}"
+        payload = {
+            "symbol": config.MT5_SYMBOL,
+            "ticket": int(act.ticket),
+            "expected_magic": int(act.signal.magic),
+        }
+        if act.kind == "MODIFY_SLTP":
+            payload.update(new_sl=act.new_sl, new_tp=act.new_tp)
+        elif act.kind == "CLOSE_POSITION":
+            payload["deviation"] = 30
+        elif act.kind != "CANCEL_PENDING":
+            return "DROP"
+        request = service.request(
+            channel=act.signal.channel,
+            signal_root=signal_root,
+            generation=generation,
+            leg=leg,
+            operation=act.kind,
+            revision=int(act.revision),
+            payload=payload,
+            action_id=act.action_id,
+        )
+        if isinstance(service.store, IntentStore):
+            try:
+                request = await run_storage_call(service, service.store.bind_pending_request, request)
+            except PendingRevisionBlockedError as exc:
+                act.waiting_reason = str(exc)
+                return "WAIT_RECONCILIATION"
+            # Storage yields to add()/coalescing. Do not authorize the old copy.
+            if current.revision != act.revision or current.action_id != act.action_id:
+                return "RETRY"
+        account = request.intent_key.account_fingerprint
+        reservation_key = (
+            f"{account}/{act.signal.channel}/{signal_root}/g{generation}/{leg}"
+        )
+        projection_key = f"signal:{signal_root}"
+
+        def guard(_request):
+            if not self._action_persisted(current):
+                raise RuntimeError("pending action is not persisted")
+            if current.revision != act.revision or current.action_id != act.action_id:
+                raise RuntimeError("action revision changed")
+            if int(act.signal.magic) != payload["expected_magic"]:
+                raise RuntimeError("signal magic changed")
+            if act.kind == "MODIFY_SLTP" and act.signal.status != "open":
+                raise RuntimeError("signal closed before modify dispatch")
+
+        result = await service.execute(
+            request,
+            reservation_key=reservation_key,
+            projection_key=projection_key,
+            dispatch_guard=guard,
+            release_on_terminal=True,
+        )
+        new_attempt = _remember_durable_attempt(act, result.record)
+        outcome = result.record.outcome or {}
+        act.last_retcode = outcome.get("retcode")
+        if result.disposition is ExecutionDisposition.APPLIED:
+            return "DONE"
+        if result.disposition is ExecutionDisposition.RECONCILE:
+            act.waiting_reason = f"durable_{result.record.state.value.lower()}"
+            return "WAIT_RECONCILIATION"
+        if result.disposition is ExecutionDisposition.NOT_SENT:
+            act.waiting_reason = "durable_predispatch_wait"
+            if result.predispatch_error == "ticket_not_found":
+                from mt5_protocol import BrokerOutcome, IntentState
+
+                resolved = await run_storage_call(
+                    service, service.resolve_predispatch,
+                    request,
+                    BrokerOutcome(
+                        IntentState.DONE,
+                        retcode=10036,
+                        error="ticket_not_found",
+                    ),
+                    projection_key=projection_key,
+                    release_on_terminal=True,
+                )
+                act.last_retcode = (resolved.record.outcome or {}).get("retcode")
+                act.last_attempt_id = resolved.record.attempt_id
+                return "DONE"
+            if result.predispatch_error in {"magic_mismatch", "symbol_mismatch"}:
+                from mt5_protocol import BrokerOutcome, IntentState
+
+                resolved = await run_storage_call(
+                    service, service.resolve_predispatch,
+                    request,
+                    BrokerOutcome(
+                        IntentState.REJECTED,
+                        retcode=10013,
+                        error=result.predispatch_error,
+                    ),
+                    projection_key=projection_key,
+                )
+                act.last_retcode = (resolved.record.outcome or {}).get("retcode")
+                await run_storage_call(
+                    service, service.store.release_reservation,
+                    request.intent_id,
+                    outcome_revision=resolved.record.outcome_revision,
+                    reason="ownership_mismatch_projected",
+                )
+                return "DROP"
+            if (
+                act.kind == "MODIFY_SLTP"
+                and result.predispatch_error == "requested_sl_waits_for_market"
+                and act.new_sl is not None
+                and act.new_tp is not None
+            ):
+                return await self._apply_durable_tp_while_sl_waits(
+                    act,
+                    service=service,
+                    signal_root=signal_root,
+                    generation=generation,
+                    reservation_key=reservation_key,
+                    projection_key=projection_key,
+                    dispatch_guard=guard,
+                    durable_revision=request.intent_key.revision,
+                )
+            return "WAIT_PRECONDITION" if act.kind == "MODIFY_SLTP" else "RETRY"
+
+        if act.last_retcode in _DURABLE_RETRY_RETCODES:
+            if new_attempt:
+                _arm_durable_retry_cooldown(act)
+                return "RETRY"
+            previous = await run_storage_call(service, service.store.get_current_request, request.intent_id)
+            retried = await service.retry_rejected(
+                previous,
+                retryable_retcodes=_DURABLE_RETRY_RETCODES,
+                reason=f"pending_action_policy_retcode_{act.last_retcode}",
+                reservation_key=reservation_key,
+                projection_key=projection_key,
+                dispatch_guard=guard,
+                release_on_terminal=True,
+            )
+            retried_new_attempt = _remember_durable_attempt(act, retried.record)
+            retry_outcome = retried.record.outcome or {}
+            act.last_retcode = retry_outcome.get("retcode")
+            if retried.disposition is ExecutionDisposition.APPLIED:
+                return "DONE"
+            if retried.disposition is ExecutionDisposition.RECONCILE:
+                act.waiting_reason = f"durable_{retried.record.state.value.lower()}"
+                return "WAIT_RECONCILIATION"
+            if retried_new_attempt:
+                _arm_durable_retry_cooldown(act)
+            return "RETRY"
+
+        await run_storage_call(
+            service, service.store.release_reservation,
+            request.intent_id,
+            outcome_revision=result.record.outcome_revision,
+            reason="non_retryable_rejection_projected",
+        )
+        return "DROP"
+
+    async def _apply_durable_tp_while_sl_waits(
+        self,
+        act: PendingAction,
+        *,
+        service,
+        signal_root: str,
+        generation: int,
+        reservation_key: str,
+        projection_key: str,
+        dispatch_guard,
+        durable_revision: int,
+    ) -> str:
+        """Apply a legal TP as its own effect while retaining the deferred SL."""
+        from durable_execution import ExecutionDisposition, run_storage_call
+
+        requested_tp = act.new_tp
+        if requested_tp is None:
+            return "WAIT_PRECONDITION"
+        source_revision = durable_revision
+        tp_request = service.request(
+            channel=act.signal.channel,
+            signal_root=signal_root,
+            generation=generation,
+            leg=f"ticket-{int(act.ticket)}-tp-prerequisite-r{source_revision}",
+            operation="MODIFY_SLTP",
+            revision=source_revision,
+            payload={
+                "symbol": config.MT5_SYMBOL,
+                "ticket": int(act.ticket),
+                "expected_magic": int(act.signal.magic),
+                "new_sl": None,
+                "new_tp": requested_tp,
+            },
+            action_id=f"{act.action_id}:tp-prerequisite:r{source_revision}",
+        )
+        tp_reservation_key = (
+            f"{reservation_key}/tp-prerequisite/r{source_revision}"
+        )
+        result = await service.execute(
+            tp_request,
+            reservation_key=tp_reservation_key,
+            projection_key=projection_key,
+            dispatch_guard=dispatch_guard,
+            release_on_terminal=True,
+        )
+        new_attempt = _remember_durable_attempt(act, result.record)
+        outcome = result.record.outcome or {}
+        act.last_retcode = outcome.get("retcode")
+        if result.disposition is ExecutionDisposition.APPLIED:
+            completed = replace(
+                act,
+                new_sl=None,
+                new_tp=requested_tp,
+                last_retcode=act.last_retcode,
+            )
+            act.applied_tp = requested_tp
+            act.new_tp = None
+            act.revision += 1
+            _record_confirmed_levels(completed)
+            await asyncio.to_thread(
+                self._log_partial_modify,
+                act,
+                requested_tp,
+            )
+            return "WAIT_PRECONDITION"
+        if result.disposition is ExecutionDisposition.RECONCILE:
+            act.waiting_reason = f"durable_tp_{result.record.state.value.lower()}"
+            return "WAIT_RECONCILIATION"
+        if result.disposition is ExecutionDisposition.NOT_SENT:
+            act.waiting_reason = "durable_tp_predispatch_wait"
+            return "WAIT_PRECONDITION"
+
+        if act.last_retcode in _DURABLE_RETRY_RETCODES:
+            if new_attempt:
+                _arm_durable_retry_cooldown(act)
+                return "RETRY"
+            previous = await run_storage_call(service, service.store.get_current_request, tp_request.intent_id)
+            retried = await service.retry_rejected(
+                previous,
+                retryable_retcodes=_DURABLE_RETRY_RETCODES,
+                reason=f"pending_tp_policy_retcode_{act.last_retcode}",
+                reservation_key=tp_reservation_key,
+                projection_key=projection_key,
+                dispatch_guard=dispatch_guard,
+                release_on_terminal=True,
+            )
+            retried_new_attempt = _remember_durable_attempt(act, retried.record)
+            retry_outcome = retried.record.outcome or {}
+            act.last_retcode = retry_outcome.get("retcode")
+            if retried.disposition is ExecutionDisposition.APPLIED:
+                completed = replace(
+                    act,
+                    new_sl=None,
+                    new_tp=requested_tp,
+                    last_retcode=act.last_retcode,
+                )
+                act.applied_tp = requested_tp
+                act.new_tp = None
+                act.revision += 1
+                _record_confirmed_levels(completed)
+                await asyncio.to_thread(
+                    self._log_partial_modify,
+                    act,
+                    requested_tp,
+                )
+                return "WAIT_PRECONDITION"
+            if retried.disposition is ExecutionDisposition.RECONCILE:
+                act.waiting_reason = f"durable_tp_{retried.record.state.value.lower()}"
+                return "WAIT_RECONCILIATION"
+            if retried_new_attempt:
+                _arm_durable_retry_cooldown(act)
+            return "RETRY"
+
+        await run_storage_call(
+            service, service.store.release_reservation,
+            tp_request.intent_id,
+            outcome_revision=result.record.outcome_revision,
+            reason="non_retryable_tp_rejection_projected",
+        )
+        return "DROP"
+
 
 def _runner_done_callback(task):
     """Batch E: si el runner de PendingQueue muere por excepcion no
@@ -1451,6 +2007,10 @@ def _runner_done_callback(task):
 
 
 queue = PendingQueue(spool_path=PENDING_SPOOL_FILE)
+
+
+async def persist_async(operation, *args, **kwargs):
+    return await queue.persist_call(operation, *args, **kwargs)
 
 
 def snapshot(queue_obj: PendingQueue | None = None,
@@ -1514,7 +2074,26 @@ def enqueue_modify_sl(
     label: str = "",
     *,
     persist_until_signal_close: bool = False,
+    preserve_stronger: bool = False,
 ):
+    if preserve_stronger:
+        pending_levels = [
+            float(action.new_sl)
+            for action in queue._actions
+            if (
+                action.kind == "MODIFY_SLTP"
+                and action.ticket == ticket
+                and action.signal.channel == signal.channel
+                and action.signal.message_id == signal.message_id
+                and action.new_sl not in (None, 0, 0.0)
+            )
+        ]
+        if pending_levels:
+            new_sl = (
+                max([float(new_sl), *pending_levels])
+                if signal.direction == "BUY"
+                else min([float(new_sl), *pending_levels])
+            )
     queue.add(PendingAction(
         kind="MODIFY_SLTP",
         ticket=ticket,
@@ -1523,6 +2102,7 @@ def enqueue_modify_sl(
         persist_until_signal_close=persist_until_signal_close,
         label=label or f"modify SL→{new_sl}",
     ))
+    return float(new_sl)
 
 
 def enqueue_modify_tp(

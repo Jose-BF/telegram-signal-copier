@@ -1,0 +1,133 @@
+{
+  "contract": "first_entry_roundtrip_crossclock_diagnostic_v1",
+  "excluded_statuses": {
+    "model_no_entry": 3
+  },
+  "full_live_path_parity_verified": false,
+  "input_basket_row_count": 10,
+  "input_report_count": 2,
+  "inputs_sha256": {
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\tools\\audit_first_entry_roundtrip.py": "c5a14045b50106c4c63bf8e80ce0a8d7c2c5a88a744ce7ca52635150f99860ef",
+    "reports\\expanded-native-controls-20260924\\tick-path-s17-1345-1455-v6.json": "642052961885695482f8272e7e8378222a7543a8cca441d4a878f9db51a57f23",
+    "reports\\expanded-native-controls-20260924\\tick-path-s18-1220-1245-v6.json": "a8877ce3f241c3919290c08e328f147d228a8b554d5834737781958d30725bb0",
+    "runtime_data\\week_native_ticks_20260923_v1\\native_money_anchor_v2.json": "550cbd6176316cb4cb62eb41ed9dc4e0673a0a925319f0b7e041230aa2ecf41d",
+    "runtime_data\\week_native_ticks_20260923_v1\\terminal_open_log_audit_v5.json": "919fe575d0ff9db945b0360634cf5da150afc6919ed717e47f56e2f7d960d49a"
+  },
+  "limitations": [
+    "Terminal and Python clocks are cross-source diagnostics, not exact server timestamps.",
+    "A synchronous MT5 call includes terminal, network and trade-server time; these stages cannot be isolated here.",
+    "First-entry timing does not explain later ladder, protection or close divergence.",
+    "Only baskets admitted by the tick-path comparison are in this numerator."
+  ],
+  "matched_basket_count": 7,
+  "model_request_from_python_start_max_ms": 165,
+  "model_request_from_python_start_min_ms": -32,
+  "rows": [
+    {
+      "channel": "canal1",
+      "model_minus_native_entry_price": "0.00",
+      "model_minus_native_fill_ms": -31,
+      "model_request_from_python_start_ms": 96,
+      "native_entry_deal": 1638585972,
+      "python_mt5_call_ms": 125,
+      "same_entry_volume": true,
+      "signal_id": "canal1_22732",
+      "terminal_accepted_to_deal_ms": 0,
+      "terminal_cross_clock_order_consistent": false,
+      "terminal_deal_from_python_start_ms": 127,
+      "terminal_market_from_python_start_ms": 0,
+      "terminal_market_to_accepted_ms": 127
+    },
+    {
+      "channel": "canal1",
+      "model_minus_native_entry_price": "0.08",
+      "model_minus_native_fill_ms": -5454,
+      "model_request_from_python_start_ms": 117,
+      "native_entry_deal": 1638762680,
+      "python_mt5_call_ms": 5579,
+      "same_entry_volume": true,
+      "signal_id": "canal1_22738",
+      "terminal_accepted_to_deal_ms": 637,
+      "terminal_cross_clock_order_consistent": false,
+      "terminal_deal_from_python_start_ms": 5571,
+      "terminal_market_from_python_start_ms": 0,
+      "terminal_market_to_accepted_ms": 4934
+    },
+    {
+      "channel": "canal1",
+      "model_minus_native_entry_price": "-0.02",
+      "model_minus_native_fill_ms": 41,
+      "model_request_from_python_start_ms": 165,
+      "native_entry_deal": 1643670053,
+      "python_mt5_call_ms": 125,
+      "same_entry_volume": true,
+      "signal_id": "canal1_22768",
+      "terminal_accepted_to_deal_ms": 0,
+      "terminal_cross_clock_order_consistent": false,
+      "terminal_deal_from_python_start_ms": 124,
+      "terminal_market_from_python_start_ms": 2,
+      "terminal_market_to_accepted_ms": 122
+    },
+    {
+      "channel": "canal2",
+      "model_minus_native_entry_price": "0.09",
+      "model_minus_native_fill_ms": -246,
+      "model_request_from_python_start_ms": 68,
+      "native_entry_deal": 1638407263,
+      "python_mt5_call_ms": 312,
+      "same_entry_volume": true,
+      "signal_id": "canal2_3102",
+      "terminal_accepted_to_deal_ms": 0,
+      "terminal_cross_clock_order_consistent": false,
+      "terminal_deal_from_python_start_ms": 314,
+      "terminal_market_from_python_start_ms": 2,
+      "terminal_market_to_accepted_ms": 312
+    },
+    {
+      "channel": "canal2",
+      "model_minus_native_entry_price": "0.06",
+      "model_minus_native_fill_ms": -200,
+      "model_request_from_python_start_ms": -32,
+      "native_entry_deal": 1638625753,
+      "python_mt5_call_ms": 172,
+      "same_entry_volume": true,
+      "signal_id": "canal2_3106",
+      "terminal_accepted_to_deal_ms": 0,
+      "terminal_cross_clock_order_consistent": true,
+      "terminal_deal_from_python_start_ms": 168,
+      "terminal_market_from_python_start_ms": 1,
+      "terminal_market_to_accepted_ms": 167
+    },
+    {
+      "channel": "canal2",
+      "model_minus_native_entry_price": "0.0",
+      "model_minus_native_fill_ms": -142,
+      "model_request_from_python_start_ms": -15,
+      "native_entry_deal": 1643591667,
+      "python_mt5_call_ms": 125,
+      "same_entry_volume": true,
+      "signal_id": "canal2_3168",
+      "terminal_accepted_to_deal_ms": 0,
+      "terminal_cross_clock_order_consistent": true,
+      "terminal_deal_from_python_start_ms": 127,
+      "terminal_market_from_python_start_ms": 2,
+      "terminal_market_to_accepted_ms": 125
+    },
+    {
+      "channel": "canal2",
+      "model_minus_native_entry_price": "-0.16",
+      "model_minus_native_fill_ms": -2354,
+      "model_request_from_python_start_ms": -9,
+      "native_entry_deal": 1643642525,
+      "python_mt5_call_ms": 2344,
+      "same_entry_volume": true,
+      "signal_id": "canal2_3171",
+      "terminal_accepted_to_deal_ms": 1485,
+      "terminal_cross_clock_order_consistent": false,
+      "terminal_deal_from_python_start_ms": 2345,
+      "terminal_market_from_python_start_ms": 1,
+      "terminal_market_to_accepted_ms": 859
+    }
+  ],
+  "status": "diagnostic_only"
+}

@@ -9,6 +9,7 @@ $logon = New-ScheduledTaskTrigger -AtLogOn -User 'bot'
 $periodic = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 1)
 # S4U runs in the bot account even before an interactive logon. No password is stored here.
 $principal = New-ScheduledTaskPrincipal -UserId 'bot' -LogonType S4U -RunLevel Highest
-$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+# Task Scheduler defaults to 7 (BelowNormal); recovery must retain Normal.
+$settings = New-ScheduledTaskSettingsSet -Priority 4 -StartWhenAvailable -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 Set-ScheduledTask -TaskName $taskName -Action $action -Trigger @($startup, $logon, $periodic) -Principal $principal -Settings $settings | Select-Object TaskName, State
 Write-Output ('Previous task definition: ' + $backup)

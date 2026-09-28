@@ -1,0 +1,89 @@
+{
+  "contract": "incremental_native_scalar_path_comparison_v1",
+  "counts": {
+    "blocked_comparison": 1,
+    "concurrent_exposure_mismatch": 0,
+    "different_leg_volume_profile": 0,
+    "matched": 0,
+    "model_entry_without_native": 0,
+    "model_no_entry": 0,
+    "native_time_unknown": 0,
+    "native_without_model": 0,
+    "path_discrepant": 0
+  },
+  "cutoff_utc": "2026-09-15T18:50:00+00:00",
+  "limitations": [
+    "Scalar extrema and event times do not establish sample-by-sample risk parity.",
+    "Model uses an uncalibrated execution profile and assumed complete signal universe.",
+    "Native risks reconstruct actual fills; model risks use hypothetical fills.",
+    "The shared account portfolio, margin and unobserved positions are not certified.",
+    "Per-leg entry/exit timing uses ordinal pairing, not common broker ticket identity."
+  ],
+  "optional_close_choice": "block",
+  "rows": [
+    {
+      "channel": "canal2",
+      "entry_delta_ms_by_ordinal": [
+        -302,
+        -327
+      ],
+      "exit_delta_ms_by_ordinal": [
+        -8392,
+        -836
+      ],
+      "leg_volume_profile_match": true,
+      "model_blockers": [
+        "incomplete_equity_conversion",
+        "stale_conversion_during_profit_lock",
+        "stale_conversion_at_exit:15291",
+        "canal2_2995:incomplete_equity_conversion",
+        "canal2_2995:stale_conversion_during_profit_lock",
+        "canal2_2995:stale_conversion_at_exit:15291",
+        "incomplete_equity_conversion",
+        "stale_conversion_during_profit_lock",
+        "stale_conversion_at_exit:15291",
+        "incomplete_post_event_grid",
+        "unresolved_scope:canal2_2995",
+        "incomplete_basket_risk_path",
+        "basket_still_open_at_cutoff"
+      ],
+      "model_drawdown_minor": null,
+      "model_entry_count": 2,
+      "model_exit_count": 2,
+      "model_first_entry_utc": "2026-09-15 18:34:16.276000+00:00",
+      "model_last_exit_utc": "2026-09-15 18:41:03.923000+00:00",
+      "model_leg_volumes": [
+        "0.04",
+        "0.03"
+      ],
+      "model_max_gross_volume": "0.04",
+      "model_maximum_minor": null,
+      "model_minimum_minor": null,
+      "model_net_minor": null,
+      "model_risk_path_sha256": "8537533831abc4965a9d4678a7da0d0c0ca7cfd0ec08bf72c0c1d3649a4bc7e6",
+      "native_leg_volumes": [
+        "0.04",
+        "0.03"
+      ],
+      "native_position_count": 2,
+      "native_status": "retrospective_complete",
+      "native_strict_causal_fx": false,
+      "ordinal_leg_pairing_not_ticket_identity": true,
+      "signal_id": "canal2_2995",
+      "status": "blocked_comparison",
+      "trajectory_parity_verified": false
+    }
+  ],
+  "sources": {
+    "comparator_sha256": "8ba19a2ea264c3e4080e25f456935ea2ba13db4508fdf4ff789878a2500c1655",
+    "model_implementation_hash_count": 11,
+    "model_sha256": "ecd19b04541556f2f1e501ddbb50351e8911f0862f82f2fda09f0662c71282dd",
+    "native_input_count": 28,
+    "native_sha256": "a4c94d417829320cab2f5d17264a7330b43e80730d92b70b94ec79c5e0b4a468",
+    "raw_sha256": "9548ca5ce3fdd27ebe5f488ac97639c7e5cc7001ae0f75c73a40d3828cfd63b0",
+    "shared_tape_day": "2026-09-15"
+  },
+  "start_utc": "2026-09-15T18:10:00+00:00",
+  "status": "diagnostic_only",
+  "trajectory_parity_verified": false
+}

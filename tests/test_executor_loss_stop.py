@@ -147,3 +147,41 @@ def test_basket_loss_stop_price_rejects_mixed_symbols(monkeypatch):
             ],
             loss_budget=25.0,
         )
+
+
+@pytest.mark.parametrize("direction, second, expected", [("BUY", 4196., 4191.25), ("SELL", 4204., 4208.75)])
+def test_basket_stop_read_order_before_extraction(monkeypatch, direction, second, expected):
+    calls = []
+    def info(symbol):
+        calls.append(("symbol", symbol))
+        return SimpleNamespace(point=.01, digits=2)
+    def profit(*args):
+        calls.append(("profit", *args))
+        return _profit(*args)
+    monkeypatch.setattr(executor.mt5, "symbol_info", info)
+    monkeypatch.setattr(executor.mt5, "order_calc_profit", profit)
+    positions = [{"entry": 4200., "volume": .01}, {"entry": second, "volume": .04}]
+    stop = executor.basket_loss_stop_price(direction, positions, 25., "XAUUSD")
+    assert stop == expected
+    assert calls[0] == ("symbol", "XAUUSD")
+    assert len(calls) == 173
+    projected = calls[1:]
+    for first, following in zip(projected[::2], projected[1::2]):
+        assert first[3:5] == (.01, 4200.)
+        assert following[3:5] == (.04, second)
+        assert first[-1] == following[-1]
+    assert projected[-1][-1] == stop
+
+
+@pytest.mark.parametrize("direction, second, expected", [("BUY", 4196., 4192.26), ("SELL", 4204., 4207.74)])
+def test_basket_stop_uses_each_returned_valuation_not_one_frozen_fx(monkeypatch, direction, second, expected):
+    calls = []
+    monkeypatch.setattr(executor.mt5, "symbol_info", lambda _: SimpleNamespace(point=.01, digits=2))
+    def profit(action, symbol, volume, entry, close):
+        calls.append((action, symbol, volume, entry, close))
+        rate = .9 if len(calls) <= 10 else 1.1
+        return (1 if action == executor.mt5.ORDER_TYPE_BUY else -1) * (close - entry) * volume * 100 * rate
+    monkeypatch.setattr(executor.mt5, "order_calc_profit", profit)
+    stop = executor.basket_loss_stop_price(direction,
+        [{"entry": 4200., "volume": .01}, {"entry": second, "volume": .04}], 25., "XAUUSD")
+    assert stop == expected and len(calls) > 10

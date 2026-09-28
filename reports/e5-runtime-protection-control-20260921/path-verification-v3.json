@@ -1,0 +1,791 @@
+{
+  "cases": {
+    "test_canonical_gold_trailing_c0.json": {
+      "completed_without_blockers_and_flat": true,
+      "final_pnl": "-119.60",
+      "grid_matches_explicit_expectation": true,
+      "max_drawdown_minor": 12040,
+      "post_event_grid": [
+        [
+          0,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          1,
+          0,
+          80,
+          "0.04"
+        ],
+        [
+          2,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          3,
+          -11960,
+          0,
+          "0"
+        ]
+      ]
+    },
+    "test_canonical_gold_trailing_c1.json": {
+      "completed_without_blockers_and_flat": true,
+      "final_pnl": "-119.60",
+      "grid_matches_explicit_expectation": true,
+      "max_drawdown_minor": 12040,
+      "post_event_grid": [
+        [
+          0,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          1,
+          0,
+          80,
+          "0.04"
+        ],
+        [
+          2,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          3,
+          -11960,
+          0,
+          "0"
+        ]
+      ]
+    },
+    "test_changed_revision_before_c0.json": {
+      "completed_without_blockers_and_flat": false,
+      "final_pnl": null,
+      "grid_matches_explicit_expectation": true,
+      "max_drawdown_minor": 80,
+      "post_event_grid": [
+        [
+          0,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          1,
+          0,
+          -80,
+          "0.04"
+        ]
+      ]
+    },
+    "test_identical_final_loss_does0.json": {
+      "completed_without_blockers_and_flat": true,
+      "final_pnl": "-80.80",
+      "grid_matches_explicit_expectation": true,
+      "max_drawdown_minor": 8080,
+      "post_event_grid": [
+        [
+          0,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          1,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          2,
+          -8080,
+          0,
+          "0"
+        ]
+      ]
+    },
+    "test_identical_final_loss_does1.json": {
+      "completed_without_blockers_and_flat": true,
+      "final_pnl": "-80.80",
+      "grid_matches_explicit_expectation": true,
+      "max_drawdown_minor": 10000,
+      "post_event_grid": [
+        [
+          0,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          1,
+          0,
+          1920,
+          "0.04"
+        ],
+        [
+          2,
+          -8080,
+          0,
+          "0"
+        ]
+      ]
+    },
+    "test_native_close_between_real0.json": {
+      "completed_without_blockers_and_flat": true,
+      "final_pnl": "2.00",
+      "grid_matches_explicit_expectation": true,
+      "max_drawdown_minor": 80,
+      "post_event_grid": [
+        [
+          0,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          1,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          2,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          3,
+          200,
+          0,
+          "0"
+        ],
+        [
+          4,
+          200,
+          0,
+          "0"
+        ]
+      ]
+    },
+    "test_native_exit_precedes_held0.json": {
+      "completed_without_blockers_and_flat": true,
+      "final_pnl": "2.00",
+      "grid_matches_explicit_expectation": true,
+      "max_drawdown_minor": 80,
+      "post_event_grid": [
+        [
+          0,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          1,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          2,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          3,
+          200,
+          0,
+          "0"
+        ],
+        [
+          4,
+          200,
+          0,
+          "0"
+        ]
+      ]
+    },
+    "test_native_exit_precedes_held1.json": {
+      "completed_without_blockers_and_flat": true,
+      "final_pnl": "2.00",
+      "grid_matches_explicit_expectation": true,
+      "max_drawdown_minor": 80,
+      "post_event_grid": [
+        [
+          0,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          1,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          2,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          3,
+          200,
+          0,
+          "0"
+        ],
+        [
+          4,
+          200,
+          0,
+          "0"
+        ]
+      ]
+    },
+    "test_new_revision_survives_old0.json": {
+      "completed_without_blockers_and_flat": false,
+      "final_pnl": null,
+      "grid_matches_explicit_expectation": true,
+      "max_drawdown_minor": 80,
+      "post_event_grid": [
+        [
+          0,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          1,
+          0,
+          -80,
+          "0.04"
+        ]
+      ]
+    },
+    "test_real_gold_additional_leg_0.json": {
+      "completed_without_blockers_and_flat": true,
+      "final_pnl": "-240.40",
+      "grid_matches_explicit_expectation": true,
+      "max_drawdown_minor": 24040,
+      "post_event_grid": [
+        [
+          0,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          1,
+          0,
+          -940,
+          "0.07"
+        ],
+        [
+          2,
+          0,
+          -940,
+          "0.07"
+        ],
+        [
+          3,
+          -24040,
+          0,
+          "0"
+        ]
+      ]
+    },
+    "test_real_gold_additional_leg_1.json": {
+      "completed_without_blockers_and_flat": true,
+      "final_pnl": "-240.40",
+      "grid_matches_explicit_expectation": true,
+      "max_drawdown_minor": 24040,
+      "post_event_grid": [
+        [
+          0,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          1,
+          0,
+          -940,
+          "0.07"
+        ],
+        [
+          2,
+          0,
+          -940,
+          "0.07"
+        ],
+        [
+          3,
+          -24040,
+          0,
+          "0"
+        ]
+      ]
+    },
+    "test_real_queue_worker_and_gol0.json": {
+      "completed_without_blockers_and_flat": true,
+      "final_pnl": "2.00",
+      "grid_matches_explicit_expectation": true,
+      "max_drawdown_minor": 80,
+      "post_event_grid": [
+        [
+          0,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          1,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          2,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          3,
+          200,
+          0,
+          "0"
+        ]
+      ]
+    },
+    "test_real_queue_worker_and_gol1.json": {
+      "completed_without_blockers_and_flat": true,
+      "final_pnl": "2.00",
+      "grid_matches_explicit_expectation": true,
+      "max_drawdown_minor": 80,
+      "post_event_grid": [
+        [
+          0,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          1,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          2,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          3,
+          200,
+          0,
+          "0"
+        ]
+      ]
+    },
+    "test_real_worker_defers_invali0.json": {
+      "completed_without_blockers_and_flat": true,
+      "final_pnl": "40.00",
+      "grid_matches_explicit_expectation": true,
+      "max_drawdown_minor": 80,
+      "post_event_grid": [
+        [
+          0,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          1,
+          0,
+          320,
+          "0.04"
+        ],
+        [
+          2,
+          0,
+          720,
+          "0.04"
+        ],
+        [
+          3,
+          4000,
+          0,
+          "0"
+        ]
+      ]
+    },
+    "test_real_worker_defers_invali1.json": {
+      "completed_without_blockers_and_flat": true,
+      "final_pnl": "40.00",
+      "grid_matches_explicit_expectation": true,
+      "max_drawdown_minor": 80,
+      "post_event_grid": [
+        [
+          0,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          1,
+          0,
+          320,
+          "0.04"
+        ],
+        [
+          2,
+          0,
+          720,
+          "0.04"
+        ],
+        [
+          3,
+          4000,
+          0,
+          "0"
+        ]
+      ]
+    },
+    "test_real_worker_rejects_posit0.json": {
+      "completed_without_blockers_and_flat": false,
+      "final_pnl": null,
+      "grid_matches_explicit_expectation": true,
+      "max_drawdown_minor": 80,
+      "post_event_grid": [
+        [
+          0,
+          0,
+          -80,
+          "0.04"
+        ]
+      ]
+    },
+    "test_spool_failure_prevents_na0.json": {
+      "completed_without_blockers_and_flat": false,
+      "final_pnl": null,
+      "grid_matches_explicit_expectation": true,
+      "max_drawdown_minor": 80,
+      "post_event_grid": [
+        [
+          0,
+          0,
+          -80,
+          "0.04"
+        ]
+      ]
+    },
+    "test_unknown_response_keeps_in0.json": {
+      "completed_without_blockers_and_flat": false,
+      "final_pnl": null,
+      "grid_matches_explicit_expectation": true,
+      "max_drawdown_minor": 80,
+      "post_event_grid": [
+        [
+          0,
+          0,
+          -80,
+          "0.04"
+        ],
+        [
+          1,
+          0,
+          -80,
+          "0.04"
+        ]
+      ]
+    }
+  },
+  "contract": "explicit_synthetic_post_event_grid_control_v1",
+  "historical_path_parity_verified": false,
+  "manifest_sha256": "99e749375c22dead79dd3949a9ae0d903f4ec2eec979c17aabee31e4c885b83f",
+  "native_broker_verified": false,
+  "negative_controls": [
+    {
+      "case": "test_canonical_gold_trailing_c0.json",
+      "mutation": "missing_quote",
+      "rejected": true
+    },
+    {
+      "case": "test_canonical_gold_trailing_c0.json",
+      "mutation": "wrong_floating",
+      "rejected": true
+    },
+    {
+      "case": "test_canonical_gold_trailing_c0.json",
+      "mutation": "wrong_clock",
+      "rejected": true
+    },
+    {
+      "case": "test_canonical_gold_trailing_c1.json",
+      "mutation": "missing_quote",
+      "rejected": true
+    },
+    {
+      "case": "test_canonical_gold_trailing_c1.json",
+      "mutation": "wrong_floating",
+      "rejected": true
+    },
+    {
+      "case": "test_canonical_gold_trailing_c1.json",
+      "mutation": "wrong_clock",
+      "rejected": true
+    },
+    {
+      "case": "test_changed_revision_before_c0.json",
+      "mutation": "missing_quote",
+      "rejected": true
+    },
+    {
+      "case": "test_changed_revision_before_c0.json",
+      "mutation": "wrong_floating",
+      "rejected": true
+    },
+    {
+      "case": "test_changed_revision_before_c0.json",
+      "mutation": "wrong_clock",
+      "rejected": true
+    },
+    {
+      "case": "test_identical_final_loss_does0.json",
+      "mutation": "missing_quote",
+      "rejected": true
+    },
+    {
+      "case": "test_identical_final_loss_does0.json",
+      "mutation": "wrong_floating",
+      "rejected": true
+    },
+    {
+      "case": "test_identical_final_loss_does0.json",
+      "mutation": "wrong_clock",
+      "rejected": true
+    },
+    {
+      "case": "test_identical_final_loss_does1.json",
+      "mutation": "missing_quote",
+      "rejected": true
+    },
+    {
+      "case": "test_identical_final_loss_does1.json",
+      "mutation": "wrong_floating",
+      "rejected": true
+    },
+    {
+      "case": "test_identical_final_loss_does1.json",
+      "mutation": "wrong_clock",
+      "rejected": true
+    },
+    {
+      "case": "test_native_close_between_real0.json",
+      "mutation": "missing_quote",
+      "rejected": true
+    },
+    {
+      "case": "test_native_close_between_real0.json",
+      "mutation": "wrong_floating",
+      "rejected": true
+    },
+    {
+      "case": "test_native_close_between_real0.json",
+      "mutation": "wrong_clock",
+      "rejected": true
+    },
+    {
+      "case": "test_native_exit_precedes_held0.json",
+      "mutation": "missing_quote",
+      "rejected": true
+    },
+    {
+      "case": "test_native_exit_precedes_held0.json",
+      "mutation": "wrong_floating",
+      "rejected": true
+    },
+    {
+      "case": "test_native_exit_precedes_held0.json",
+      "mutation": "wrong_clock",
+      "rejected": true
+    },
+    {
+      "case": "test_native_exit_precedes_held1.json",
+      "mutation": "missing_quote",
+      "rejected": true
+    },
+    {
+      "case": "test_native_exit_precedes_held1.json",
+      "mutation": "wrong_floating",
+      "rejected": true
+    },
+    {
+      "case": "test_native_exit_precedes_held1.json",
+      "mutation": "wrong_clock",
+      "rejected": true
+    },
+    {
+      "case": "test_new_revision_survives_old0.json",
+      "mutation": "missing_quote",
+      "rejected": true
+    },
+    {
+      "case": "test_new_revision_survives_old0.json",
+      "mutation": "wrong_floating",
+      "rejected": true
+    },
+    {
+      "case": "test_new_revision_survives_old0.json",
+      "mutation": "wrong_clock",
+      "rejected": true
+    },
+    {
+      "case": "test_real_gold_additional_leg_0.json",
+      "mutation": "missing_quote",
+      "rejected": true
+    },
+    {
+      "case": "test_real_gold_additional_leg_0.json",
+      "mutation": "wrong_floating",
+      "rejected": true
+    },
+    {
+      "case": "test_real_gold_additional_leg_0.json",
+      "mutation": "wrong_clock",
+      "rejected": true
+    },
+    {
+      "case": "test_real_gold_additional_leg_1.json",
+      "mutation": "missing_quote",
+      "rejected": true
+    },
+    {
+      "case": "test_real_gold_additional_leg_1.json",
+      "mutation": "wrong_floating",
+      "rejected": true
+    },
+    {
+      "case": "test_real_gold_additional_leg_1.json",
+      "mutation": "wrong_clock",
+      "rejected": true
+    },
+    {
+      "case": "test_real_queue_worker_and_gol0.json",
+      "mutation": "missing_quote",
+      "rejected": true
+    },
+    {
+      "case": "test_real_queue_worker_and_gol0.json",
+      "mutation": "wrong_floating",
+      "rejected": true
+    },
+    {
+      "case": "test_real_queue_worker_and_gol0.json",
+      "mutation": "wrong_clock",
+      "rejected": true
+    },
+    {
+      "case": "test_real_queue_worker_and_gol1.json",
+      "mutation": "missing_quote",
+      "rejected": true
+    },
+    {
+      "case": "test_real_queue_worker_and_gol1.json",
+      "mutation": "wrong_floating",
+      "rejected": true
+    },
+    {
+      "case": "test_real_queue_worker_and_gol1.json",
+      "mutation": "wrong_clock",
+      "rejected": true
+    },
+    {
+      "case": "test_real_worker_defers_invali0.json",
+      "mutation": "missing_quote",
+      "rejected": true
+    },
+    {
+      "case": "test_real_worker_defers_invali0.json",
+      "mutation": "wrong_floating",
+      "rejected": true
+    },
+    {
+      "case": "test_real_worker_defers_invali0.json",
+      "mutation": "wrong_clock",
+      "rejected": true
+    },
+    {
+      "case": "test_real_worker_defers_invali1.json",
+      "mutation": "missing_quote",
+      "rejected": true
+    },
+    {
+      "case": "test_real_worker_defers_invali1.json",
+      "mutation": "wrong_floating",
+      "rejected": true
+    },
+    {
+      "case": "test_real_worker_defers_invali1.json",
+      "mutation": "wrong_clock",
+      "rejected": true
+    },
+    {
+      "case": "test_real_worker_rejects_posit0.json",
+      "mutation": "missing_quote",
+      "rejected": true
+    },
+    {
+      "case": "test_real_worker_rejects_posit0.json",
+      "mutation": "wrong_floating",
+      "rejected": true
+    },
+    {
+      "case": "test_real_worker_rejects_posit0.json",
+      "mutation": "wrong_clock",
+      "rejected": true
+    },
+    {
+      "case": "test_spool_failure_prevents_na0.json",
+      "mutation": "missing_quote",
+      "rejected": true
+    },
+    {
+      "case": "test_spool_failure_prevents_na0.json",
+      "mutation": "wrong_floating",
+      "rejected": true
+    },
+    {
+      "case": "test_spool_failure_prevents_na0.json",
+      "mutation": "wrong_clock",
+      "rejected": true
+    },
+    {
+      "case": "test_unknown_response_keeps_in0.json",
+      "mutation": "missing_quote",
+      "rejected": true
+    },
+    {
+      "case": "test_unknown_response_keeps_in0.json",
+      "mutation": "wrong_floating",
+      "rejected": true
+    },
+    {
+      "case": "test_unknown_response_keeps_in0.json",
+      "mutation": "wrong_clock",
+      "rejected": true
+    }
+  ],
+  "verifier_sha256": "47bd17781cd46ed4a251e1a268d88fbbd3ca24b662b165e84c68fbfb6d0766e2"
+}

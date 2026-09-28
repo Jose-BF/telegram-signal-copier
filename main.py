@@ -20,6 +20,7 @@ import math
 import os
 import socket
 import sys
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -80,9 +81,15 @@ import journal
 import runtime_storage
 import live_basket_guard
 import live_auditor
+import listener
 import pending_actions
 import strategy_shadow_runtime
 import execution_latency
+from mt5_client import MT5ReadClient
+from mt5_protocol import LookupState
+from mt5_read_protocol import ReadOperation
+from mt5_runtime import MT5Runtime
+from mt5_worker import WorkerConfig, native_backend
 from signal_lifecycle import (
     apply_lifecycle_decision,
     evaluate_terminal_request,
@@ -122,6 +129,127 @@ _TELEMETRY_PUBLICATION_MONITOR_S = float(os.getenv(
 _TELEMETRY_PUBLICATION_ALERT_AFTER_S = float(os.getenv(
     "BOT_TELEMETRY_PUBLICATION_ALERT_AFTER_S", "600"
 ))
+_active_mt5_owner: MT5Runtime | None = None
+
+
+def _build_mt5_owner() -> MT5Runtime:
+    trade_symbol = str(config.MT5_SYMBOL)
+    read_symbols = [trade_symbol]
+    contract = _load_shadow_money_contract()
+    conversion_symbol = (
+        ((contract or {}).get("conversion") or {}).get("symbol")
+    )
+    if conversion_symbol and str(conversion_symbol) not in read_symbols:
+        read_symbols.append(str(conversion_symbol))
+    worker_config = WorkerConfig(
+        expected_login=int(config.MT5_LOGIN),
+        expected_server=str(config.MT5_SERVER),
+        symbols=tuple(read_symbols),
+        trade_symbols=(trade_symbol,),
+        initialize_options={
+            "login": int(config.MT5_LOGIN),
+            "password": str(config.MT5_PASSWORD),
+            "server": str(config.MT5_SERVER),
+            "timeout": 15_000,
+        },
+    )
+    client = MT5ReadClient(
+        worker_config,
+        backend_factory=native_backend,
+        queue_size=32,
+        store_path=Path(config.BOT_EXECUTION_LEDGER_FILE),
+    )
+    runtime = MT5Runtime(client)
+    runtime.service.entry_guard = journal.assert_entry_evidence_ready
+    runtime.service.entry_evidence_probe = journal.confirm_entry_intent
+    return runtime
+
+
+async def _start_mt5_owner(runtime: MT5Runtime | None = None) -> MT5Runtime:
+    runtime = runtime or _build_mt5_owner()
+    installation_attempted = False
+    try:
+        response = await runtime.start(timeout=20.0)
+        if response.state is not LookupState.FOUND:
+            raise RuntimeError(response.error or "mt5_owner_startup_failed")
+        retained = await runtime.client.recover_trade_outcomes()
+        storage = await asyncio.to_thread(runtime_storage.storage_health, journal.DATA_DIR)
+        journal.observe_storage_health(
+            storage, max_age_seconds=max(30.0, float(config.BOT_RUNTIME_HEARTBEAT_SEC) * 3),
+        )
+        installation_attempted = True
+        listener.install_durable_execution_service(runtime.service)
+        journal.event(
+            "bot",
+            "mt5_owner_ready",
+            worker_pid=runtime.client.worker_pid,
+            worker_session_id=runtime.client.session_id,
+            retained_outcomes_recovered=retained,
+            ledger_path=str(config.BOT_EXECUTION_LEDGER_FILE),
+            transport=runtime.client.transport_snapshot(),
+            owner_stall_timeout_s=float(config.BOT_MT5_OWNER_STALL_SEC),
+        )
+        return runtime
+    except BaseException:
+        # The caller has not acquired this runtime yet, so its finally cannot
+        # clean up a child created before recovery/installation failed.
+        try:
+            if installation_attempted:
+                listener.install_durable_execution_service(None)
+        finally:
+            await runtime.close()
+        raise
+
+
+async def _stop_mt5_owner(runtime: MT5Runtime | None) -> None:
+    listener.install_durable_execution_service(None)
+    if runtime is not None:
+        await runtime.close()
+
+
+async def _run_connected_with_owner_supervision(
+    runtime: MT5Runtime, *, check_interval: float = 0.25,
+    stall_timeout: float | None = None,
+) -> None:
+    timeout = float(config.BOT_MT5_OWNER_STALL_SEC if stall_timeout is None else stall_timeout)
+    if not math.isfinite(timeout) or timeout <= 0 or not math.isfinite(check_interval) or check_interval <= 0:
+        raise ValueError("positive finite owner supervision intervals required")
+
+    async def watch_owner():
+        while True:
+            transport = runtime.client.transport_snapshot()
+            reason = None
+            if not runtime.client.is_alive:
+                reason = "worker_dead"
+            elif transport["active"] and transport["active_age_seconds"] > timeout:
+                reason = "transport_stalled"
+            if reason is not None:
+                try:
+                    journal.anomaly(
+                        "bot", "mt5", "critical",
+                        "El trabajador MT5 no responde; se cierra la sesion para recuperar el estado",
+                        reason=reason, worker_pid=runtime.client.worker_pid,
+                        worker_session_id=runtime.client.session_id,
+                        transport=transport, stall_timeout_s=timeout,
+                    )
+                except Exception as exc:
+                    print(f"[MT5Owner] No se pudo registrar la incidencia: {type(exc).__name__}")
+                finally:
+                    await _stop_mt5_owner(runtime)
+                raise ConnectionError(f"mt5_owner_unhealthy:{reason}")
+            await asyncio.sleep(check_interval)
+
+    session = asyncio.create_task(_run_until_disconnected_with_backoff())
+    watchdog = asyncio.create_task(watch_owner())
+    try:
+        done, _ = await asyncio.wait((session, watchdog), return_when=asyncio.FIRST_COMPLETED)
+        if watchdog in done:
+            await watchdog
+        await session
+    finally:
+        session.cancel()
+        watchdog.cancel()
+        await asyncio.gather(session, watchdog, return_exceptions=True)
 
 
 def _should_alert_sustained_disconnect(connected: bool,
@@ -310,15 +438,69 @@ async def _heartbeat(interval_sec: float | None = None):
         await asyncio.sleep(interval)
 
 
+def _runtime_mt5_owner_snapshot(runtime=None) -> dict:
+    runtime = _active_mt5_owner if runtime is None else runtime
+    if runtime is None:
+        return {
+            "installed": False,
+            "worker_alive": False,
+            "worker_pid": None,
+            "worker_session_id": None,
+            "retained_trade_outcomes": None,
+            "transport": None,
+            "reads": {},
+        }
+
+    client = runtime.client
+    transport = None
+    try:
+        transport = client.transport_snapshot()
+    except Exception as exc:
+        transport = {
+            "error": f"{type(exc).__name__}: {str(exc)[:160]}"
+        }
+    reads = {}
+    for operation in ("positions_get", "symbol_info_tick"):
+        try:
+            snapshot = runtime.snapshot(
+                operation,
+                {"symbol": config.MT5_SYMBOL}
+                if operation == "symbol_info_tick" else {},
+            )
+        except Exception as exc:
+            snapshot = {
+                "state": "UNKNOWN",
+                "error": f"{type(exc).__name__}: {str(exc)[:160]}",
+            }
+        if snapshot is not None:
+            reads[operation] = snapshot
+    return {
+        "installed": True,
+        "worker_alive": bool(client.is_alive),
+        "worker_pid": client.worker_pid,
+        "worker_session_id": client.session_id,
+        "retained_trade_outcomes": client.retained_trade_outcome_count,
+        "transport": transport,
+        "reads": reads,
+    }
+
+
 def _write_runtime_heartbeat(path: Path | None = None) -> None:
     path = path or Path(config.BOT_RUNTIME_HEARTBEAT_FILE)
     path.parent.mkdir(parents=True, exist_ok=True)
+    storage = runtime_storage.storage_health(path.parent)
+    journal.observe_storage_health(
+        storage, max_age_seconds=max(30.0, float(config.BOT_RUNTIME_HEARTBEAT_SEC) * 3),
+    )
     payload = {
         "schema_version": 3,
         "pid": os.getpid(),
-        "storage": runtime_storage.storage_health(path.parent),
+        "storage": storage,
         "journal_queue_depth": journal._event_queue.qsize(),
+        "journal_persistence": journal.persistence_health(),
         "utc": datetime.utcnow().isoformat(timespec="milliseconds"),
+        "mt5_owner": _runtime_mt5_owner_snapshot(),
+        "pending_actions": pending_actions.queue.persistence_snapshot(),
         **_runtime_exposure_snapshot(),
     }
     tmp = path.with_name(path.name + ".tmp")
@@ -327,7 +509,13 @@ def _write_runtime_heartbeat(path: Path | None = None) -> None:
     tmp.replace(path)
 
 
-def _runtime_exposure_snapshot(state_manager=None, positions_get=None) -> dict:
+def _runtime_exposure_snapshot(
+    state_manager=None,
+    positions_get=None,
+    *,
+    runtime=None,
+    snapshot_max_age_s: float | None = None,
+) -> dict:
     """Return the fail-closed exposure contract consumed by the watcher."""
     state_manager = state if state_manager is None else state_manager
     try:
@@ -342,13 +530,6 @@ def _runtime_exposure_snapshot(state_manager=None, positions_get=None) -> dict:
     except Exception:
         pending_count = None
 
-    if positions_get is None:
-        try:
-            import MetaTrader5 as mt5
-            positions_get = mt5.positions_get
-        except Exception:
-            positions_get = None
-
     bot_position_count = None
     if positions_get is not None:
         try:
@@ -360,7 +541,44 @@ def _runtime_exposure_snapshot(state_manager=None, positions_get=None) -> dict:
                 }
                 bot_position_count = sum(
                     1 for position in positions
-                    if int(getattr(position, "magic", -1)) in bot_magics
+                    if int(
+                        position.get("magic", -1)
+                        if isinstance(position, dict)
+                        else getattr(position, "magic", -1)
+                    ) in bot_magics
+                )
+        except Exception:
+            bot_position_count = None
+    else:
+        runtime = _active_mt5_owner if runtime is None else runtime
+        max_age = float(
+            config.BOT_MT5_SNAPSHOT_MAX_AGE_SEC
+            if snapshot_max_age_s is None
+            else snapshot_max_age_s
+        )
+        try:
+            snapshot = (
+                None if runtime is None else runtime.snapshot("positions_get")
+            )
+            if (
+                snapshot is not None
+                and snapshot.get("state") in {"FOUND", "EMPTY"}
+                and float(snapshot.get("age_seconds")) <= max_age
+            ):
+                positions = snapshot.get("value")
+                if not isinstance(positions, (list, tuple)):
+                    raise ValueError("cached positions missing")
+                bot_magics = {
+                    int(config.magic_for("canal1")),
+                    int(config.magic_for("canal2")),
+                }
+                bot_position_count = sum(
+                    1 for position in positions
+                    if int(
+                        position.get("magic", -1)
+                        if isinstance(position, dict)
+                        else getattr(position, "magic", -1)
+                    ) in bot_magics
                 )
         except Exception:
             bot_position_count = None
@@ -750,7 +968,7 @@ async def _apply_naked_protective_sl(sig, elapsed_s: float):
 
     tickets = list(sig.all_filled_tickets)
     for ticket in tickets:
-        pending_actions.enqueue_modify_sl(
+        await pending_actions.persist_async(pending_actions.enqueue_modify_sl,
             sig,
             ticket,
             sl,
@@ -985,7 +1203,7 @@ async def _position_reconciler(check_interval_s: int = 60,
       - Si lleva >stale_alert_h horas abierta → notify URGENT (backup
         defensivo por si el arreglo principal tiene algun agujero).
     """
-    import MetaTrader5 as _mt5
+    from mt5_runtime import mt5 as _mt5
     from state import state
     print(f"[Reconciler] activo. Check cada {check_interval_s}s, "
           f"alerta stale a {stale_alert_h}h.")
@@ -1166,7 +1384,7 @@ async def _mt5_connection_monitor(interval_sec: int = 10):
     >60s desconectado. Umbral más bajo que Telegram porque MT5 down
     significa "no se puede ejecutar nada" — mucho más grave.
     """
-    import MetaTrader5 as _mt5
+    from mt5_runtime import mt5 as _mt5
     last_state = None
     last_change = datetime.utcnow()
     last_periodic_beat = datetime.utcnow()
@@ -1933,7 +2151,7 @@ def _recover_requested_candidate_closes() -> int:
     return recovered
 
 
-def _resync_orphan_positions():
+def _resync_orphan_positions(*, groups=None, server_tick=None, monitor_starts=None):
     """Recupera posiciones huérfanas en MT5 al arrancar el bot.
 
     Cuando el bot crashea o se reinicia, el state.py se pierde (in-memory).
@@ -1951,11 +2169,12 @@ def _resync_orphan_positions():
     import position_lifecycle_monitor
     from state import Signal, state
 
-    try:
-        groups = executor.list_open_positions_grouped()
-    except Exception as e:
-        print(f"[Resync] error consultando MT5: {e}")
-        return
+    if groups is None:
+        try:
+            groups = executor.list_open_positions_grouped()
+        except Exception as e:
+            print(f"[Resync] error consultando MT5: {e}")
+            return
 
     if not groups:
         print("[Resync] sin posiciones huérfanas en MT5. OK.")
@@ -2020,7 +2239,11 @@ def _resync_orphan_positions():
     # Calculamos el offset comparando el tick actual del servidor con UTC.
     server_offset_h = 0
     try:
-        _tick = executor.mt5.symbol_info_tick(config.MT5_SYMBOL)
+        _tick = (
+            server_tick
+            if server_tick is not None
+            else executor.mt5.symbol_info_tick(config.MT5_SYMBOL)
+        )
         if _tick and _tick.time:
             _srv_now = datetime.fromtimestamp(_tick.time, tz=timezone.utc).replace(tzinfo=None)
             server_offset_h = round((_srv_now - datetime.utcnow()).total_seconds() / 3600)
@@ -2293,7 +2516,10 @@ def _resync_orphan_positions():
         # Arranca monitor solo para que auto-finalize detecte cuando MT5 cierre
         # las posiciones. Sin niveles DCA pendientes (ya están todos abiertos).
         try:
-            position_lifecycle_monitor.start(sig, monitor_levels)
+            if monitor_starts is None:
+                position_lifecycle_monitor.start(sig, monitor_levels)
+            else:
+                monitor_starts.append((sig, monitor_levels))
         except Exception as e:
             print(f"  ! error arrancando monitor para {sig_id}: {e}")
 
@@ -2391,7 +2617,7 @@ def _fetch_orphan_deals_synced(
     import time
 
     if history_get is None:
-        import MetaTrader5 as _mt5
+        from mt5_runtime import mt5 as _mt5
 
         history_get = _mt5.history_deals_get
     sleep_fn = sleep_fn or time.sleep
@@ -3107,6 +3333,7 @@ def _live_strategy_contract() -> dict:
     return {
         "contract_schema_version": 1,
         "evidence_status": "forward_trial",
+        "storage_admission": journal.admission_contract(),
         "management_capture": {
             "contract": management_decision_evidence.CONTRACT,
             "supported_kinds": list(management_decision_evidence.KINDS),
@@ -3318,6 +3545,35 @@ def _shadow_normalized_tick_row(row, utc_offset_seconds: int) -> dict:
             _shadow_row_value(row, "volume_real", 0.0) or 0.0
         ),
     }
+
+
+async def _mt5_owner_snapshot_probe(interval_sec: float | None = None) -> None:
+    interval = max(
+        1.0,
+        float(
+            config.BOT_MT5_SNAPSHOT_PROBE_SEC
+            if interval_sec is None
+            else interval_sec
+        ),
+    )
+    while True:
+        runtime = _active_mt5_owner
+        if runtime is not None:
+            for operation, params in (
+                ("positions_get", {}),
+                ("symbol_info_tick", {"symbol": config.MT5_SYMBOL}),
+            ):
+                try:
+                    await runtime.read(
+                        ReadOperation(operation),
+                        params,
+                        timeout=1.0,
+                    )
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    pass
+        await asyncio.sleep(interval)
 
 
 def _shadow_money_evidence_id(
@@ -3564,6 +3820,42 @@ def _shadow_cache_conversion_rows(
     return cached
 
 
+def _shadow_copy_ticks_range_bounded(
+    symbol: str,
+    start: datetime,
+    end: datetime,
+    flags: int,
+):
+    """Read archive chunks so shadow recovery cannot monopolize MT5."""
+    if end < start:
+        raise ValueError("invalid shadow tick range")
+    batch_ms = max(
+        1_000,
+        min(
+            int(config.STRATEGY_SHADOW_LIVE_MAX_BATCH_MS),
+            86_400_000,
+        ),
+    )
+    batch = timedelta(milliseconds=batch_ms)
+    rows = []
+    cursor = start
+    while True:
+        chunk_end = min(end, cursor + batch)
+        chunk = executor.mt5.copy_ticks_range(
+            symbol,
+            cursor,
+            chunk_end,
+            flags,
+        )
+        if chunk is None:
+            return None
+        rows.extend(chunk)
+        if chunk_end >= end:
+            break
+        cursor = chunk_end + timedelta(milliseconds=1)
+    return rows
+
+
 def _shadow_live_conversion_quote(
     symbol: str,
     *,
@@ -3614,7 +3906,7 @@ def _shadow_live_conversion_quote(
         int(at_msc) + 1,
         utc_offset_seconds,
     )
-    history = executor.mt5.copy_ticks_range(
+    history = _shadow_copy_ticks_range_bounded(
         symbol,
         from_dt,
         until_dt,
@@ -3672,7 +3964,7 @@ def _shadow_tick_history(
             utc_offset_seconds,
         )
         flags = executor.mt5.COPY_TICKS_ALL
-        xau_rows = executor.mt5.copy_ticks_range(
+        xau_rows = _shadow_copy_ticks_range_bounded(
             config.MT5_SYMBOL,
             xau_from_dt,
             until_dt,
@@ -3711,7 +4003,7 @@ def _shadow_tick_history(
                 until_msc + max_interval_ms,
                 int(broker_tick_clock.utc_now().timestamp() * 1000),
             )
-            raw_conversion = executor.mt5.copy_ticks_range(
+            raw_conversion = _shadow_copy_ticks_range_bounded(
                 symbol,
                 conversion_from_dt,
                 broker_tick_clock.server_query_datetime(
@@ -4243,6 +4535,8 @@ async def _telemetry_publication_health_monitor(
 
 
 async def _strategy_shadow_loop(interval_s: float = 0.25) -> None:
+    storage_paused = False
+    storage_error_reported = False
     historical_cursor_retry_budget = 60
     quarantinable_cursor_blockers = {
         "historical_tick_cursor_unavailable",
@@ -4253,6 +4547,33 @@ async def _strategy_shadow_loop(interval_s: float = 0.25) -> None:
     tail_waits = {"archive": 0, "conversion": 0}
     while config.STRATEGY_SHADOW_ENABLED:
         runtime = strategy_shadow_runtime.installed_runtime()
+        should_pause = not journal.optional_telemetry_allowed()
+        if should_pause != storage_paused:
+            storage_paused = should_pause
+            journal.event(
+                "bot", "strategy_shadow_storage_pause" if storage_paused else "strategy_shadow_storage_resume",
+                evidence=journal.persistence_health(),
+            )
+        if storage_paused:
+            cursor = runtime.active_tick_cursor() if runtime is not None else None
+            if cursor is not None:
+                try:
+                    await runtime.quarantine_tick_cursor(
+                        cursor,
+                        history=strategy_shadow_runtime.ShadowTickHistory(
+                            ticks=(), complete=False,
+                            evidence_id=f"storage-capacity:{journal.PROCESS_SESSION_ID}",
+                            blocker="storage_capacity_unavailable",
+                        ),
+                    )
+                except Exception as exc:
+                    if not storage_error_reported:
+                        journal.event("bot", "strategy_shadow_storage_quarantine_failed",
+                                      exception_type=type(exc).__name__)
+                        storage_error_reported = True
+            await asyncio.sleep(max(1.0, float(interval_s)))
+            continue
+        storage_error_reported = False
         if runtime is not continuity_runtime:
             continuity_retries.clear()
             continuity_runtime = runtime
@@ -4284,10 +4605,16 @@ async def _strategy_shadow_loop(interval_s: float = 0.25) -> None:
             )
         ):
             next_delay_s = max(0.01, float(interval_s))
+            read_started_at = broker_tick_clock.utc_now()
             history = await asyncio.to_thread(
                 _shadow_live_tick_batch,
                 cursor,
                 latest,
+            )
+            history = replace(
+                history,
+                read_started_at_utc=read_started_at.isoformat(),
+                read_completed_at_utc=broker_tick_clock.utc_now().isoformat(),
             )
             if not history.complete:
                 tail_waits = {"archive": 0, "conversion": 0}
@@ -4433,6 +4760,7 @@ def _restore_flat_gold_555_entry_plans(
     path,
     *,
     now: datetime | None = None,
+    monitor_starts=None,
 ) -> int:
     """Restore filled 555 plans that are flat while later legs remain valid."""
     import position_lifecycle_monitor
@@ -4639,7 +4967,10 @@ def _restore_flat_gold_555_entry_plans(
         signal.dca_placed = True
         runtime_state.add(signal)
         missing_levels = expected_levels[1 + len(filled_indexes):]
-        position_lifecycle_monitor.start(signal, missing_levels)
+        if monitor_starts is None:
+            position_lifecycle_monitor.start(signal, missing_levels)
+        else:
+            monitor_starts.append((signal, missing_levels))
         journal.event(
             signal_id,
             "gold_555_flat_entry_plan_restored",
@@ -4656,11 +4987,15 @@ def _restore_flat_gold_555_entry_plans(
     return restored
 
 
-def _restore_live_candidate_runtime(path) -> int:
+def _restore_live_candidate_runtime(path, *, monitor_starts=None) -> int:
     if not config.STRATEGY_C2_GOLD_NOW_555_ENABLED:
         return 0
     restored_watches = restore_gold_555_entry_watches_from_journal(path)
-    restored_flat_plans = _restore_flat_gold_555_entry_plans(path)
+    restored_flat_plans = (
+        _restore_flat_gold_555_entry_plans(path)
+        if monitor_starts is None else
+        _restore_flat_gold_555_entry_plans(path, monitor_starts=monitor_starts)
+    )
     print(
         f"[Resync] Gold 555 recuperado: esperas={restored_watches}, "
         f"planes momentaneamente sin posicion={restored_flat_plans}"
@@ -4677,7 +5012,10 @@ def _candidate_background_loops() -> list:
     return loops
 
 
-async def main():
+async def _run_main():
+    import position_lifecycle_monitor
+
+    global _active_mt5_owner
     print("=" * 60)
     print("  Telegram Signal Copier")
     print("=" * 60)
@@ -4726,17 +5064,20 @@ async def main():
         print("   El bot abrirá mercado solo cuando reconozca el sticker.")
         print("   Cuando llegue un sticker nuevo, el ID aparecerá en consola.\n")
 
-    # Conectar MT5
-    if not executor.init():
-        print("[ERROR] No se puede conectar a MT5. Asegúrate de que el terminal está abierto.")
-        error = executor.mt5.last_error()
-        # MT5 IPC/timeout failures are recoverable; authentication is not.
-        sys.exit(77 if error and error[0] in {-10000, -10001, -10002, -10003, -10004, -10005} else 1)
+    # Conectar el unico propietario MT5 antes de exponer Telegram.
+    try:
+        _active_mt5_owner = await _start_mt5_owner()
+    except RuntimeError as exc:
+        print(f"[ERROR] No se puede iniciar el propietario MT5: {exc}")
+        raise SystemExit(77) from exc
 
     try:
-        account_evidence = executor.account_evidence()
+        account_evidence = await asyncio.to_thread(executor.account_evidence)
+        symbol_info = await asyncio.to_thread(
+            executor.mt5.symbol_info, config.MT5_SYMBOL,
+        )
         _assert_dubai_candidate_demo_account(account_evidence)
-        _assert_dubai_candidate_broker_volume()
+        _assert_dubai_candidate_broker_volume(symbol_info)
         _publish_live_strategy_contract()
     except ValueError as exc:
         print(f"[Startup] ARRANQUE BLOQUEADO: estrategia invalida: {exc}")
@@ -4747,34 +5088,54 @@ async def main():
             account_evidence=account_evidence,
         )
         journal.flush_events(timeout=10.0)
-        executor.shutdown()
         raise SystemExit(78) from exc
 
     # Resync posiciones huérfanas: si el bot reinició dejando posiciones
     # abiertas en MT5, las recoge para que auto-finalize las trackee.
-    _resync_orphan_positions()
+    groups, server_tick = await asyncio.gather(
+        asyncio.to_thread(executor.list_open_positions_grouped),
+        asyncio.to_thread(executor.mt5.symbol_info_tick, config.MT5_SYMBOL),
+    )
+    pending_actions.queue.begin_recovery()
+    monitor_starts = []
+    _resync_orphan_positions(
+        groups=groups, server_tick=server_tick, monitor_starts=monitor_starts,
+    )
     pending_actions.queue.restore_from_spool(state)
-    recovered_closes = _recover_requested_candidate_closes()
+    if not _startup_journal_restore_deferred(journal.EVENTS_FILE):
+        _restore_live_candidate_runtime(journal.EVENTS_FILE, monitor_starts=monitor_starts)
+        restored_zone_plans = restore_canal2_zone_plans_from_journal(journal.EVENTS_FILE)
+        print(f"[Resync] contextos vigentes de zonas Gold Signals: {restored_zone_plans}")
+    recovered_closes = await pending_actions.persist_async(_recover_requested_candidate_closes)
     if recovered_closes:
         print(
             f"[Resync] cierres de proveedor recuperados: "
             f"{recovered_closes}"
         )
-    if not _startup_journal_restore_deferred(journal.EVENTS_FILE):
-        _restore_live_candidate_runtime(journal.EVENTS_FILE)
-        restored_zone_plans = restore_canal2_zone_plans_from_journal(
-            journal.EVENTS_FILE
-        )
+    recovered_delayed_entries = await (
+        position_lifecycle_monitor.recover_durable_candidate_entries(state)
+    )
+    if recovered_delayed_entries:
         print(
-            f"[Resync] contextos vigentes de zonas Gold Signals: "
-            f"{restored_zone_plans}"
+            f"[Resync] entradas tardias durables recuperadas: {recovered_delayed_entries}"
         )
+
+    # No task may observe partially restored state across the recovery await.
+    started_monitors = []
+    try:
+        for signal, levels in monitor_starts:
+            started_monitors.append(position_lifecycle_monitor.start(signal, levels))
+        pending_actions.queue.finish_recovery()
+    except BaseException:
+        for task in started_monitors:
+            task.cancel()
+        raise
 
     # Finaliza huerfanos del journal: senales que cerraron en MT5 mientras
     # el bot no las trackeaba (reinicio + posiciones ya cerradas). Registra
     # el signal_closed retroactivo con el P&L real — sin esto el journal
     # descuadra la contabilidad (auditoria 2026-05-16).
-    _finalize_journal_orphans()
+    await asyncio.to_thread(_finalize_journal_orphans)
 
     # La captura puede depender de IPC/MT5. Se ejecuta en segundo plano para
     # que una latencia del terminal nunca retrase la escucha de Telegram.
@@ -4809,6 +5170,7 @@ async def main():
     schedule_pending_media_recovery(journal.EVENTS_FILE)
 
     asyncio.ensure_future(_runtime_heartbeat())
+    asyncio.ensure_future(_mt5_owner_snapshot_probe())
     asyncio.ensure_future(_heartbeat())
     asyncio.ensure_future(_telemetry_publication_health_monitor())
     asyncio.ensure_future(_broker_money_contract_monitor())
@@ -4833,7 +5195,7 @@ async def main():
     asyncio.ensure_future(_initialize_strategy_shadows(journal.EVENTS_FILE))
 
     try:
-        await _run_until_disconnected_with_backoff()
+        await _run_connected_with_owner_supervision(_active_mt5_owner)
     finally:
         await drain_media_capture_tasks(
             timeout_s=float(
@@ -4846,8 +5208,16 @@ async def main():
             print("[journal] ERROR: eventos pendientes al cerrar")
         journal.set_notify_loop(None)
         strategy_shadow_runtime.install_runtime(None)
-        executor.shutdown()
         print("\nBot detenido.")
+
+
+async def main():
+    global _active_mt5_owner
+    try:
+        await _run_main()
+    finally:
+        owner, _active_mt5_owner = _active_mt5_owner, None
+        await _stop_mt5_owner(owner)
 
 
 if __name__ == "__main__":

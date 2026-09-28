@@ -14,7 +14,7 @@ Plan: docs/superpowers/plans/2026-05-19-registro-anomalias.md (T4)
 """
 from typing import Optional
 
-import MetaTrader5 as mt5
+from mt5_runtime import mt5
 
 
 # MT5 timeframe constants no son enums limpios — el valor 5 corresponde

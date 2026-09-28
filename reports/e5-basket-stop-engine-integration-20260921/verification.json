@@ -1,0 +1,15 @@
+{
+  "complete_live_strategies_admitted": false,
+  "controls_sha256": "84c6fdd7bed5be926a26342e3a91478c11f4467bbb5f7f4108783b06ebb4da7c",
+  "elapsed_seconds": 1024.0160000000033,
+  "exit_code": 1,
+  "full_live_parity_verified": false,
+  "goal_complete": false,
+  "implementation_unchanged": true,
+  "modelled_stop_lifecycle_connected": true,
+  "native_profit_valuation_verified": false,
+  "protocol_sha256": "e1f08b32cdd5695be1fc8c5c33a0dc5ed7c059e1eb4c943162f1251adcfbf6aa",
+  "published": false,
+  "pytest_xml_sha256": "3cad8e08cc29b637f9b75150e0878679cfd1ffc3fbf1e0b338d4d310117bd2ec",
+  "sources_unchanged": true
+}

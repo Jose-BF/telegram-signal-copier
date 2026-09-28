@@ -163,6 +163,11 @@ def terminal_cause_for_signal(
     return _explicit_cause_from_signal(signal) or default
 
 
+def has_unresolved_entry_execution(signal) -> bool:
+    """A submitted candidate entry remains uncertain beyond its plan expiry."""
+    return bool(getattr(signal, "candidate_entry_reconcile_pending_indexes", None))
+
+
 def evaluate_terminal_request(
     signal,
     *,
@@ -193,6 +198,14 @@ def evaluate_terminal_request(
             action="defer",
             reason="position_evidence_incomplete",
             blockers=("position_evidence_incomplete",),
+            **common,
+        )
+
+    if has_unresolved_entry_execution(signal):
+        return LifecycleDecision(
+            action="defer",
+            reason="entry_execution_unresolved",
+            blockers=("entry_execution_unresolved",),
             **common,
         )
 

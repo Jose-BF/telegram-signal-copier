@@ -88,7 +88,12 @@ def test_leg_protection_keeps_two_requests_and_coalescence_in_one_decision(captu
     assert monitor._queue_gold_555_leg_protection(signal, ticket=102, fill_price=4298.5, leg_index=1) == (4268.5, 4299.5)
     starts, ends = _pairs(events, "gold_555_leg_protection")
     assert len(starts) == 1 and ends[0]["declared_action_count"] == 2
-    assert starts[0]["decision_inputs"] == {"ticket": 102, "fill_price": 4298.5, "leg_index": 1}
+    assert starts[0]["decision_inputs"] == {
+        "ticket": 102,
+        "fill_price": 4298.5,
+        "leg_index": 1,
+        "current_sl": None,
+    }
     assert len(queue._actions) == 1
     coalesced = next(row for row in events if row["ev"] == "mt5_action_coalesced")
     assert coalesced["action_id"] == ends[0]["declared_action_ids"][1]

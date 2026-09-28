@@ -1,0 +1,1186 @@
+[
+  {
+    "cache": {
+      "12": 1.7399999999999998
+    },
+    "cycle": {
+      "blockers": [],
+      "completed": true,
+      "contract": "sequential_basket_reads_v1",
+      "native_parity_verified": false,
+      "records": [
+        {
+          "delivery_ns": 3,
+          "disposition": "received",
+          "operation": "symbol_info_tick",
+          "params": {
+            "symbol": "XAUUSD"
+          },
+          "payload": {
+            "data": {
+              "ask": 105.2,
+              "bid": 105.0
+            }
+          },
+          "payload_omitted": false,
+          "request_id": "canal1_test:read:0:1",
+          "requested_ns": 0,
+          "sample_ns": 1,
+          "source_ns": 1,
+          "started_ns": 0
+        },
+        {
+          "delivery_ns": 6,
+          "disposition": "received",
+          "operation": "positions_get",
+          "params": {},
+          "payload": {
+            "data": [
+              {
+                "price_open": 100.0,
+                "profit": 4.0,
+                "swap": -99.0,
+                "ticket": 11,
+                "volume": 0.01
+              }
+            ]
+          },
+          "payload_omitted": false,
+          "request_id": "canal1_test:read:0:2",
+          "requested_ns": 3,
+          "sample_ns": 4,
+          "source_ns": 4,
+          "started_ns": 3
+        },
+        {
+          "delivery_ns": 9,
+          "disposition": "received",
+          "operation": "history_deals_get_position",
+          "params": {
+            "position": 12
+          },
+          "payload": {
+            "data": [
+              {
+                "commission": -0.1,
+                "entry": 0,
+                "profit": 0.0,
+                "volume": 0.01
+              },
+              {
+                "commission": -0.1,
+                "entry": 1,
+                "fee": -0.01,
+                "profit": 2.0,
+                "swap": -0.05,
+                "volume": 0.01
+              }
+            ]
+          },
+          "payload_omitted": false,
+          "request_id": "canal1_test:read:0:3",
+          "requested_ns": 6,
+          "sample_ns": 7,
+          "source_ns": 7,
+          "started_ns": 6
+        }
+      ],
+      "request_id": null,
+      "requests": [
+        {
+          "operation": "symbol_info_tick",
+          "params": {
+            "symbol": "XAUUSD"
+          },
+          "request_id": "canal1_test:read:0:1",
+          "requested_ns": 0
+        },
+        {
+          "operation": "positions_get",
+          "params": {},
+          "request_id": "canal1_test:read:0:2",
+          "requested_ns": 3
+        },
+        {
+          "operation": "history_deals_get_position",
+          "params": {
+            "position": 12
+          },
+          "request_id": "canal1_test:read:0:3",
+          "requested_ns": 6
+        }
+      ],
+      "summary": {
+        "avg_entry": 100.0,
+        "current_price": 105.0,
+        "floating_pl": 4.0,
+        "lots_total": 0.01,
+        "missing_realized_tickets": [],
+        "n_open": 1,
+        "open_tickets": [
+          11
+        ],
+        "pl": 4.0,
+        "positions_complete": true,
+        "realized_complete": true,
+        "realized_pl": 1.7399999999999998,
+        "total_pl": 5.74
+      }
+    },
+    "name": "sequential",
+    "transport": {
+      "active_request_id": null,
+      "blockers": [],
+      "broker_fills_simulated": false,
+      "capacity": 8,
+      "contract": "shared_transport_diagnostic_v1",
+      "cutoff_ns": 100,
+      "events": [
+        {
+          "at_ns": 0,
+          "channel": "canal1",
+          "kind": "admitted",
+          "request_id": "canal1_test:read:0:1",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 0,
+          "channel": "canal1",
+          "kind": "queued",
+          "request_id": "canal1_test:read:0:1",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 0,
+          "channel": "canal1",
+          "eligible_request_ids": [
+            "canal1_test:read:0:1"
+          ],
+          "kind": "started",
+          "request_id": "canal1_test:read:0:1",
+          "signal_id": "canal1_test",
+          "tie_hypothesis_used": false,
+          "transport_kind": "read"
+        },
+        {
+          "at_ns": 3,
+          "channel": "canal1",
+          "kind": "response",
+          "request_id": "canal1_test:read:0:1",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 3,
+          "channel": "canal1",
+          "kind": "admitted",
+          "request_id": "canal1_test:read:0:2",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 3,
+          "channel": "canal1",
+          "kind": "queued",
+          "request_id": "canal1_test:read:0:2",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 3,
+          "channel": "canal1",
+          "eligible_request_ids": [
+            "canal1_test:read:0:2"
+          ],
+          "kind": "started",
+          "request_id": "canal1_test:read:0:2",
+          "signal_id": "canal1_test",
+          "tie_hypothesis_used": false,
+          "transport_kind": "read"
+        },
+        {
+          "at_ns": 6,
+          "channel": "canal1",
+          "kind": "response",
+          "request_id": "canal1_test:read:0:2",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 6,
+          "channel": "canal1",
+          "kind": "admitted",
+          "request_id": "canal1_test:read:0:3",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 6,
+          "channel": "canal1",
+          "kind": "queued",
+          "request_id": "canal1_test:read:0:3",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 6,
+          "channel": "canal1",
+          "eligible_request_ids": [
+            "canal1_test:read:0:3"
+          ],
+          "kind": "started",
+          "request_id": "canal1_test:read:0:3",
+          "signal_id": "canal1_test",
+          "tie_hypothesis_used": false,
+          "transport_kind": "read"
+        },
+        {
+          "at_ns": 9,
+          "channel": "canal1",
+          "kind": "response",
+          "request_id": "canal1_test:read:0:3",
+          "signal_id": "canal1_test"
+        }
+      ],
+      "full_live_parity_verified": false,
+      "jobs": [
+        {
+          "admitted_ns": 0,
+          "channel": "canal1",
+          "deadline_ns": 50,
+          "operation": "symbol_info_tick",
+          "ready_ns": 0,
+          "request_id": "canal1_test:read:0:1",
+          "service_ns": null,
+          "signal_id": "canal1_test"
+        },
+        {
+          "admitted_ns": 3,
+          "channel": "canal1",
+          "deadline_ns": 53,
+          "operation": "positions_get",
+          "ready_ns": 3,
+          "request_id": "canal1_test:read:0:2",
+          "service_ns": null,
+          "signal_id": "canal1_test"
+        },
+        {
+          "admitted_ns": 6,
+          "channel": "canal1",
+          "deadline_ns": 56,
+          "operation": "history_deals_get_position",
+          "ready_ns": 6,
+          "request_id": "canal1_test:read:0:3",
+          "service_ns": null,
+          "signal_id": "canal1_test"
+        }
+      ],
+      "passive_inputs": [],
+      "peak_admitted": 1,
+      "pending_request_ids": [],
+      "policy_decisions_verified": false,
+      "portfolio_admitted": false,
+      "reserved_management_slots": 1,
+      "rows": [
+        {
+          "channel": "canal1",
+          "kind": "read",
+          "operation": "symbol_info_tick",
+          "preparation_ns": 0,
+          "queue_ns": 0,
+          "released_ns": 3,
+          "request_id": "canal1_test:read:0:1",
+          "signal_id": "canal1_test",
+          "started_ns": 0,
+          "status": "released",
+          "timed_out": false
+        },
+        {
+          "channel": "canal1",
+          "kind": "read",
+          "operation": "positions_get",
+          "preparation_ns": 0,
+          "queue_ns": 0,
+          "released_ns": 6,
+          "request_id": "canal1_test:read:0:2",
+          "signal_id": "canal1_test",
+          "started_ns": 3,
+          "status": "released",
+          "timed_out": false
+        },
+        {
+          "channel": "canal1",
+          "kind": "read",
+          "operation": "history_deals_get_position",
+          "preparation_ns": 0,
+          "queue_ns": 0,
+          "released_ns": 9,
+          "request_id": "canal1_test:read:0:3",
+          "signal_id": "canal1_test",
+          "started_ns": 6,
+          "status": "released",
+          "timed_out": false
+        }
+      ],
+      "same_clock_order": [
+        "deadline",
+        "response",
+        "passive",
+        "admit",
+        "ready",
+        "dispatch"
+      ],
+      "scheduling_policy": "management-first-read-burst4-reserve1-v1",
+      "status": "diagnostic_complete",
+      "statuses": {
+        "released": 3
+      },
+      "tie_break": "fifo_ready_hypothesis_not_asyncio_order_proof"
+    }
+  },
+  {
+    "cache": {
+      "12": 1.7399999999999998
+    },
+    "cycle": {
+      "blockers": [],
+      "completed": true,
+      "contract": "sequential_basket_reads_v1",
+      "native_parity_verified": false,
+      "records": [
+        {
+          "delivery_ns": 8,
+          "disposition": "received",
+          "operation": "symbol_info_tick",
+          "params": {
+            "symbol": "XAUUSD"
+          },
+          "payload": {
+            "data": {
+              "ask": 105.2,
+              "bid": 105.0
+            }
+          },
+          "payload_omitted": false,
+          "request_id": "canal1_test:read:0:1",
+          "requested_ns": 0,
+          "sample_ns": 6,
+          "source_ns": 6,
+          "started_ns": 5
+        },
+        {
+          "delivery_ns": 11,
+          "disposition": "received",
+          "operation": "positions_get",
+          "params": {},
+          "payload": {
+            "data": [
+              {
+                "price_open": 100.0,
+                "profit": 4.0,
+                "swap": -99.0,
+                "ticket": 11,
+                "volume": 0.01
+              }
+            ]
+          },
+          "payload_omitted": false,
+          "request_id": "canal1_test:read:0:2",
+          "requested_ns": 8,
+          "sample_ns": 9,
+          "source_ns": 9,
+          "started_ns": 8
+        },
+        {
+          "delivery_ns": 14,
+          "disposition": "received",
+          "operation": "history_deals_get_position",
+          "params": {
+            "position": 12
+          },
+          "payload": {
+            "data": [
+              {
+                "commission": -0.1,
+                "entry": 0,
+                "profit": 0.0,
+                "volume": 0.01
+              },
+              {
+                "commission": -0.1,
+                "entry": 1,
+                "fee": -0.01,
+                "profit": 2.0,
+                "swap": -0.05,
+                "volume": 0.01
+              }
+            ]
+          },
+          "payload_omitted": false,
+          "request_id": "canal1_test:read:0:3",
+          "requested_ns": 11,
+          "sample_ns": 12,
+          "source_ns": 12,
+          "started_ns": 11
+        }
+      ],
+      "request_id": null,
+      "requests": [
+        {
+          "operation": "symbol_info_tick",
+          "params": {
+            "symbol": "XAUUSD"
+          },
+          "request_id": "canal1_test:read:0:1",
+          "requested_ns": 0
+        },
+        {
+          "operation": "positions_get",
+          "params": {},
+          "request_id": "canal1_test:read:0:2",
+          "requested_ns": 8
+        },
+        {
+          "operation": "history_deals_get_position",
+          "params": {
+            "position": 12
+          },
+          "request_id": "canal1_test:read:0:3",
+          "requested_ns": 11
+        }
+      ],
+      "summary": {
+        "avg_entry": 100.0,
+        "current_price": 105.0,
+        "floating_pl": 4.0,
+        "lots_total": 0.01,
+        "missing_realized_tickets": [],
+        "n_open": 1,
+        "open_tickets": [
+          11
+        ],
+        "pl": 4.0,
+        "positions_complete": true,
+        "realized_complete": true,
+        "realized_pl": 1.7399999999999998,
+        "total_pl": 5.74
+      }
+    },
+    "name": "contention",
+    "transport": {
+      "active_request_id": null,
+      "blockers": [],
+      "broker_fills_simulated": false,
+      "capacity": 8,
+      "contract": "shared_transport_diagnostic_v1",
+      "cutoff_ns": 100,
+      "events": [
+        {
+          "at_ns": 0,
+          "channel": "canal2",
+          "kind": "admitted",
+          "request_id": "entry",
+          "signal_id": "canal2_busy"
+        },
+        {
+          "at_ns": 0,
+          "channel": "canal1",
+          "kind": "admitted",
+          "request_id": "canal1_test:read:0:1",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 0,
+          "channel": "canal2",
+          "kind": "queued",
+          "request_id": "entry",
+          "signal_id": "canal2_busy"
+        },
+        {
+          "at_ns": 0,
+          "channel": "canal1",
+          "kind": "queued",
+          "request_id": "canal1_test:read:0:1",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 0,
+          "channel": "canal2",
+          "eligible_request_ids": [
+            "entry"
+          ],
+          "kind": "started",
+          "request_id": "entry",
+          "signal_id": "canal2_busy",
+          "tie_hypothesis_used": false,
+          "transport_kind": "trade"
+        },
+        {
+          "at_ns": 5,
+          "channel": "canal2",
+          "kind": "response",
+          "request_id": "entry",
+          "signal_id": "canal2_busy"
+        },
+        {
+          "at_ns": 5,
+          "channel": "canal1",
+          "eligible_request_ids": [
+            "canal1_test:read:0:1"
+          ],
+          "kind": "started",
+          "request_id": "canal1_test:read:0:1",
+          "signal_id": "canal1_test",
+          "tie_hypothesis_used": false,
+          "transport_kind": "read"
+        },
+        {
+          "at_ns": 8,
+          "channel": "canal1",
+          "kind": "response",
+          "request_id": "canal1_test:read:0:1",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 8,
+          "channel": "canal1",
+          "kind": "admitted",
+          "request_id": "canal1_test:read:0:2",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 8,
+          "channel": "canal1",
+          "kind": "queued",
+          "request_id": "canal1_test:read:0:2",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 8,
+          "channel": "canal1",
+          "eligible_request_ids": [
+            "canal1_test:read:0:2"
+          ],
+          "kind": "started",
+          "request_id": "canal1_test:read:0:2",
+          "signal_id": "canal1_test",
+          "tie_hypothesis_used": false,
+          "transport_kind": "read"
+        },
+        {
+          "at_ns": 11,
+          "channel": "canal1",
+          "kind": "response",
+          "request_id": "canal1_test:read:0:2",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 11,
+          "channel": "canal1",
+          "kind": "admitted",
+          "request_id": "canal1_test:read:0:3",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 11,
+          "channel": "canal1",
+          "kind": "queued",
+          "request_id": "canal1_test:read:0:3",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 11,
+          "channel": "canal1",
+          "eligible_request_ids": [
+            "canal1_test:read:0:3"
+          ],
+          "kind": "started",
+          "request_id": "canal1_test:read:0:3",
+          "signal_id": "canal1_test",
+          "tie_hypothesis_used": false,
+          "transport_kind": "read"
+        },
+        {
+          "at_ns": 14,
+          "channel": "canal1",
+          "kind": "response",
+          "request_id": "canal1_test:read:0:3",
+          "signal_id": "canal1_test"
+        }
+      ],
+      "full_live_parity_verified": false,
+      "jobs": [
+        {
+          "admitted_ns": 0,
+          "channel": "canal2",
+          "deadline_ns": 90,
+          "operation": "OPEN_MARKET",
+          "ready_ns": 0,
+          "request_id": "entry",
+          "service_ns": 5,
+          "signal_id": "canal2_busy"
+        },
+        {
+          "admitted_ns": 0,
+          "channel": "canal1",
+          "deadline_ns": 50,
+          "operation": "symbol_info_tick",
+          "ready_ns": 0,
+          "request_id": "canal1_test:read:0:1",
+          "service_ns": null,
+          "signal_id": "canal1_test"
+        },
+        {
+          "admitted_ns": 8,
+          "channel": "canal1",
+          "deadline_ns": 58,
+          "operation": "positions_get",
+          "ready_ns": 8,
+          "request_id": "canal1_test:read:0:2",
+          "service_ns": null,
+          "signal_id": "canal1_test"
+        },
+        {
+          "admitted_ns": 11,
+          "channel": "canal1",
+          "deadline_ns": 61,
+          "operation": "history_deals_get_position",
+          "ready_ns": 11,
+          "request_id": "canal1_test:read:0:3",
+          "service_ns": null,
+          "signal_id": "canal1_test"
+        }
+      ],
+      "passive_inputs": [],
+      "peak_admitted": 2,
+      "pending_request_ids": [],
+      "policy_decisions_verified": false,
+      "portfolio_admitted": false,
+      "reserved_management_slots": 1,
+      "rows": [
+        {
+          "channel": "canal2",
+          "kind": "trade",
+          "operation": "OPEN_MARKET",
+          "preparation_ns": 0,
+          "queue_ns": 0,
+          "released_ns": 5,
+          "request_id": "entry",
+          "signal_id": "canal2_busy",
+          "started_ns": 0,
+          "status": "released",
+          "timed_out": false
+        },
+        {
+          "channel": "canal1",
+          "kind": "read",
+          "operation": "symbol_info_tick",
+          "preparation_ns": 0,
+          "queue_ns": 5,
+          "released_ns": 8,
+          "request_id": "canal1_test:read:0:1",
+          "signal_id": "canal1_test",
+          "started_ns": 5,
+          "status": "released",
+          "timed_out": false
+        },
+        {
+          "channel": "canal1",
+          "kind": "read",
+          "operation": "positions_get",
+          "preparation_ns": 0,
+          "queue_ns": 0,
+          "released_ns": 11,
+          "request_id": "canal1_test:read:0:2",
+          "signal_id": "canal1_test",
+          "started_ns": 8,
+          "status": "released",
+          "timed_out": false
+        },
+        {
+          "channel": "canal1",
+          "kind": "read",
+          "operation": "history_deals_get_position",
+          "preparation_ns": 0,
+          "queue_ns": 0,
+          "released_ns": 14,
+          "request_id": "canal1_test:read:0:3",
+          "signal_id": "canal1_test",
+          "started_ns": 11,
+          "status": "released",
+          "timed_out": false
+        }
+      ],
+      "same_clock_order": [
+        "deadline",
+        "response",
+        "passive",
+        "admit",
+        "ready",
+        "dispatch"
+      ],
+      "scheduling_policy": "management-first-read-burst4-reserve1-v1",
+      "status": "diagnostic_complete",
+      "statuses": {
+        "released": 4
+      },
+      "tie_break": "fifo_ready_hypothesis_not_asyncio_order_proof"
+    }
+  },
+  {
+    "cache": {},
+    "cycle": {
+      "blockers": [
+        "read_timeout"
+      ],
+      "completed": false,
+      "contract": "sequential_basket_reads_v1",
+      "native_parity_verified": false,
+      "records": [
+        {
+          "delivery_ns": 7,
+          "disposition": "discarded",
+          "operation": "symbol_info_tick",
+          "params": {
+            "symbol": "XAUUSD"
+          },
+          "payload": {
+            "data": {
+              "ask": 105.2,
+              "bid": 105.0
+            }
+          },
+          "payload_omitted": false,
+          "request_id": "canal1_test:read:0:1",
+          "requested_ns": 0,
+          "sample_ns": 2,
+          "source_ns": 2,
+          "started_ns": 0
+        }
+      ],
+      "request_id": null,
+      "requests": [
+        {
+          "operation": "symbol_info_tick",
+          "params": {
+            "symbol": "XAUUSD"
+          },
+          "request_id": "canal1_test:read:0:1",
+          "requested_ns": 0
+        }
+      ],
+      "summary": null
+    },
+    "name": "late_response",
+    "transport": {
+      "active_request_id": null,
+      "blockers": [],
+      "broker_fills_simulated": false,
+      "capacity": 8,
+      "contract": "shared_transport_diagnostic_v1",
+      "cutoff_ns": 100,
+      "events": [
+        {
+          "at_ns": 0,
+          "channel": "canal1",
+          "kind": "admitted",
+          "request_id": "canal1_test:read:0:1",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 0,
+          "channel": "canal1",
+          "kind": "queued",
+          "request_id": "canal1_test:read:0:1",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 0,
+          "channel": "canal1",
+          "eligible_request_ids": [
+            "canal1_test:read:0:1"
+          ],
+          "kind": "started",
+          "request_id": "canal1_test:read:0:1",
+          "signal_id": "canal1_test",
+          "tie_hypothesis_used": false,
+          "transport_kind": "read"
+        },
+        {
+          "at_ns": 3,
+          "channel": "canal1",
+          "kind": "timeout_in_flight",
+          "request_id": "canal1_test:read:0:1",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 7,
+          "channel": "canal1",
+          "kind": "late_response",
+          "request_id": "canal1_test:read:0:1",
+          "signal_id": "canal1_test"
+        }
+      ],
+      "full_live_parity_verified": false,
+      "jobs": [
+        {
+          "admitted_ns": 0,
+          "channel": "canal1",
+          "deadline_ns": 3,
+          "operation": "symbol_info_tick",
+          "ready_ns": 0,
+          "request_id": "canal1_test:read:0:1",
+          "service_ns": null,
+          "signal_id": "canal1_test"
+        }
+      ],
+      "passive_inputs": [],
+      "peak_admitted": 1,
+      "pending_request_ids": [],
+      "policy_decisions_verified": false,
+      "portfolio_admitted": false,
+      "reserved_management_slots": 1,
+      "rows": [
+        {
+          "channel": "canal1",
+          "kind": "read",
+          "operation": "symbol_info_tick",
+          "preparation_ns": 0,
+          "queue_ns": 0,
+          "released_ns": 7,
+          "request_id": "canal1_test:read:0:1",
+          "signal_id": "canal1_test",
+          "started_ns": 0,
+          "status": "released_late",
+          "timed_out": true
+        }
+      ],
+      "same_clock_order": [
+        "deadline",
+        "response",
+        "passive",
+        "admit",
+        "ready",
+        "dispatch"
+      ],
+      "scheduling_policy": "management-first-read-burst4-reserve1-v1",
+      "status": "diagnostic_complete",
+      "statuses": {
+        "released_late": 1
+      },
+      "tie_break": "fifo_ready_hypothesis_not_asyncio_order_proof"
+    }
+  },
+  {
+    "cache": {},
+    "cycle": {
+      "blockers": [
+        "transport_event_budget_exhausted",
+        "read_cycle_incomplete"
+      ],
+      "completed": false,
+      "contract": "sequential_basket_reads_v1",
+      "native_parity_verified": false,
+      "records": [
+        {
+          "delivery_ns": 3,
+          "disposition": "received",
+          "operation": "symbol_info_tick",
+          "params": {
+            "symbol": "XAUUSD"
+          },
+          "payload": {
+            "data": {
+              "ask": 105.2,
+              "bid": 105.0
+            }
+          },
+          "payload_omitted": false,
+          "request_id": "canal1_test:read:0:1",
+          "requested_ns": 0,
+          "sample_ns": 1,
+          "source_ns": 1,
+          "started_ns": 0
+        },
+        {
+          "delivery_ns": 6,
+          "disposition": "received",
+          "operation": "positions_get",
+          "params": {},
+          "payload": {
+            "data": [
+              {
+                "price_open": 100.0,
+                "profit": 4.0,
+                "swap": -99.0,
+                "ticket": 11,
+                "volume": 0.01
+              }
+            ]
+          },
+          "payload_omitted": false,
+          "request_id": "canal1_test:read:0:2",
+          "requested_ns": 3,
+          "sample_ns": 4,
+          "source_ns": 4,
+          "started_ns": 3
+        },
+        {
+          "delivery_ns": 9,
+          "disposition": "awaiting_transport_response",
+          "operation": "history_deals_get_position",
+          "params": {
+            "position": 12
+          },
+          "payload": {
+            "data": [
+              {
+                "commission": -0.1,
+                "entry": 0,
+                "profit": 0.0,
+                "volume": 0.01
+              },
+              {
+                "commission": -0.1,
+                "entry": 1,
+                "fee": -0.01,
+                "profit": 2.0,
+                "swap": -0.05,
+                "volume": 0.01
+              }
+            ]
+          },
+          "payload_omitted": false,
+          "request_id": "canal1_test:read:0:3",
+          "requested_ns": 6,
+          "sample_ns": 7,
+          "source_ns": 7,
+          "started_ns": 6
+        }
+      ],
+      "request_id": "canal1_test:read:0:3",
+      "requests": [
+        {
+          "operation": "symbol_info_tick",
+          "params": {
+            "symbol": "XAUUSD"
+          },
+          "request_id": "canal1_test:read:0:1",
+          "requested_ns": 0
+        },
+        {
+          "operation": "positions_get",
+          "params": {},
+          "request_id": "canal1_test:read:0:2",
+          "requested_ns": 3
+        },
+        {
+          "operation": "history_deals_get_position",
+          "params": {
+            "position": 12
+          },
+          "request_id": "canal1_test:read:0:3",
+          "requested_ns": 6
+        }
+      ],
+      "summary": null
+    },
+    "name": "missing_transport_confirmation",
+    "transport": {
+      "active_request_id": "canal1_test:read:0:3",
+      "blockers": [
+        "transport_event_budget_exhausted",
+        "transport_lifecycle_incomplete_at_cutoff"
+      ],
+      "broker_fills_simulated": false,
+      "capacity": 8,
+      "contract": "shared_transport_diagnostic_v1",
+      "cutoff_ns": 100,
+      "events": [
+        {
+          "at_ns": 0,
+          "channel": "canal1",
+          "kind": "admitted",
+          "request_id": "canal1_test:read:0:1",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 0,
+          "channel": "canal1",
+          "kind": "queued",
+          "request_id": "canal1_test:read:0:1",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 0,
+          "channel": "canal1",
+          "eligible_request_ids": [
+            "canal1_test:read:0:1"
+          ],
+          "kind": "started",
+          "request_id": "canal1_test:read:0:1",
+          "signal_id": "canal1_test",
+          "tie_hypothesis_used": false,
+          "transport_kind": "read"
+        },
+        {
+          "at_ns": 3,
+          "channel": "canal1",
+          "kind": "response",
+          "request_id": "canal1_test:read:0:1",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 3,
+          "channel": "canal1",
+          "kind": "admitted",
+          "request_id": "canal1_test:read:0:2",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 3,
+          "channel": "canal1",
+          "kind": "queued",
+          "request_id": "canal1_test:read:0:2",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 3,
+          "channel": "canal1",
+          "eligible_request_ids": [
+            "canal1_test:read:0:2"
+          ],
+          "kind": "started",
+          "request_id": "canal1_test:read:0:2",
+          "signal_id": "canal1_test",
+          "tie_hypothesis_used": false,
+          "transport_kind": "read"
+        },
+        {
+          "at_ns": 6,
+          "channel": "canal1",
+          "kind": "response",
+          "request_id": "canal1_test:read:0:2",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 6,
+          "channel": "canal1",
+          "kind": "admitted",
+          "request_id": "canal1_test:read:0:3",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 6,
+          "channel": "canal1",
+          "kind": "queued",
+          "request_id": "canal1_test:read:0:3",
+          "signal_id": "canal1_test"
+        },
+        {
+          "at_ns": 6,
+          "channel": "canal1",
+          "eligible_request_ids": [
+            "canal1_test:read:0:3"
+          ],
+          "kind": "started",
+          "request_id": "canal1_test:read:0:3",
+          "signal_id": "canal1_test",
+          "tie_hypothesis_used": false,
+          "transport_kind": "read"
+        }
+      ],
+      "full_live_parity_verified": false,
+      "jobs": [
+        {
+          "admitted_ns": 0,
+          "channel": "canal1",
+          "deadline_ns": 50,
+          "operation": "symbol_info_tick",
+          "ready_ns": 0,
+          "request_id": "canal1_test:read:0:1",
+          "service_ns": null,
+          "signal_id": "canal1_test"
+        },
+        {
+          "admitted_ns": 3,
+          "channel": "canal1",
+          "deadline_ns": 53,
+          "operation": "positions_get",
+          "ready_ns": 3,
+          "request_id": "canal1_test:read:0:2",
+          "service_ns": null,
+          "signal_id": "canal1_test"
+        },
+        {
+          "admitted_ns": 6,
+          "channel": "canal1",
+          "deadline_ns": 56,
+          "operation": "history_deals_get_position",
+          "ready_ns": 6,
+          "request_id": "canal1_test:read:0:3",
+          "service_ns": null,
+          "signal_id": "canal1_test"
+        }
+      ],
+      "passive_inputs": [],
+      "peak_admitted": 1,
+      "pending_request_ids": [
+        "canal1_test:read:0:3"
+      ],
+      "policy_decisions_verified": false,
+      "portfolio_admitted": false,
+      "reserved_management_slots": 1,
+      "rows": [
+        {
+          "channel": "canal1",
+          "kind": "read",
+          "operation": "symbol_info_tick",
+          "preparation_ns": 0,
+          "queue_ns": 0,
+          "released_ns": 3,
+          "request_id": "canal1_test:read:0:1",
+          "signal_id": "canal1_test",
+          "started_ns": 0,
+          "status": "released",
+          "timed_out": false
+        },
+        {
+          "channel": "canal1",
+          "kind": "read",
+          "operation": "positions_get",
+          "preparation_ns": 0,
+          "queue_ns": 0,
+          "released_ns": 6,
+          "request_id": "canal1_test:read:0:2",
+          "signal_id": "canal1_test",
+          "started_ns": 3,
+          "status": "released",
+          "timed_out": false
+        },
+        {
+          "channel": "canal1",
+          "kind": "read",
+          "operation": "history_deals_get_position",
+          "preparation_ns": 0,
+          "queue_ns": 0,
+          "released_ns": null,
+          "request_id": "canal1_test:read:0:3",
+          "signal_id": "canal1_test",
+          "started_ns": 6,
+          "status": "in_flight",
+          "timed_out": false
+        }
+      ],
+      "same_clock_order": [
+        "deadline",
+        "response",
+        "passive",
+        "admit",
+        "ready",
+        "dispatch"
+      ],
+      "scheduling_policy": "management-first-read-burst4-reserve1-v1",
+      "status": "blocked",
+      "statuses": {
+        "in_flight": 1,
+        "released": 2
+      },
+      "tie_break": "fifo_ready_hypothesis_not_asyncio_order_proof"
+    }
+  }
+]

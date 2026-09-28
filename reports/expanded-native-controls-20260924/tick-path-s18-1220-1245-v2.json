@@ -1,0 +1,148 @@
+{
+  "account_path_parity_verified": false,
+  "contract": "incremental_common_tick_path_comparison_v1",
+  "counts": {
+    "compared": 3,
+    "model_no_entry": 1
+  },
+  "cutoff_utc": "2026-09-18T12:45:00+00:00",
+  "full_live_parity_verified": false,
+  "limitations": [
+    "Native path is reconstructed from actual fills, not an independent account-equity trace.",
+    "The model uses an uncalibrated execution profile and assumed initial completeness.",
+    "Exact quote-grid parity does not prove between-tick or broker-server behavior.",
+    "Shared-account equity, margin and other positions remain unverified."
+  ],
+  "rows": [
+    {
+      "channel": "canal2",
+      "comparison": {
+        "different_exposure_ticks": 453,
+        "different_floating_ticks": 4438,
+        "different_open_count_ticks": 453,
+        "different_realized_ticks": 428,
+        "different_total_ticks": 4441,
+        "first_divergence": {
+          "fields": [
+            "total",
+            "floating",
+            "exposure",
+            "open_count"
+          ],
+          "model_gross_volume": "0.04",
+          "model_total_minor": -73,
+          "native_gross_volume": "0",
+          "native_total_minor": 0,
+          "tick_index": 2414,
+          "time_ns": 1789734228663000000,
+          "utc": "2026-09-18T12:23:48.663000+00:00"
+        },
+        "max_abs_exposure_delta": "0.04",
+        "max_abs_total_delta_minor": 550,
+        "model_max_drawdown_minor": 6595,
+        "native_max_drawdown_minor": 6565,
+        "same_grid_fields_equal": false,
+        "sample_count": 15504
+      },
+      "native_sample_hash_verified": true,
+      "native_sample_sha256": "e7beaba9408d531439cabe25a6b3803809223d8e99e408c66734133a5b868473",
+      "scalar_status": "matched_path_discrepant",
+      "signal_id": "canal2_3168",
+      "status": "compared"
+    },
+    {
+      "channel": "canal2",
+      "comparison": {
+        "different_exposure_ticks": 39,
+        "different_floating_ticks": 189,
+        "different_open_count_ticks": 39,
+        "different_realized_ticks": 9,
+        "different_total_ticks": 188,
+        "first_divergence": {
+          "fields": [
+            "total",
+            "floating",
+            "exposure",
+            "open_count"
+          ],
+          "model_gross_volume": "0.04",
+          "model_total_minor": -73,
+          "native_gross_volume": "0",
+          "native_total_minor": 0,
+          "tick_index": 5149,
+          "time_ns": 1789734476242000000,
+          "utc": "2026-09-18T12:27:56.242000+00:00"
+        },
+        "max_abs_exposure_delta": "0.04",
+        "max_abs_total_delta_minor": 122,
+        "model_max_drawdown_minor": 423,
+        "native_max_drawdown_minor": 422,
+        "same_grid_fields_equal": false,
+        "sample_count": 15504
+      },
+      "native_sample_hash_verified": true,
+      "native_sample_sha256": "8bb88ef1c5a2f7882039f1110b105ab584cbb8e8ae541a20a206ac89af07fb15",
+      "scalar_status": "matched_path_discrepant",
+      "signal_id": "canal2_3171",
+      "status": "compared"
+    },
+    {
+      "channel": "canal1",
+      "comparison": {
+        "different_exposure_ticks": 355,
+        "different_floating_ticks": 4444,
+        "different_open_count_ticks": 355,
+        "different_realized_ticks": 4642,
+        "different_total_ticks": 8724,
+        "first_divergence": {
+          "fields": [
+            "total",
+            "floating"
+          ],
+          "model_gross_volume": "0.01",
+          "model_total_minor": -18,
+          "native_gross_volume": "0.01",
+          "native_total_minor": -20,
+          "tick_index": 6773,
+          "time_ns": 1789734624616000000,
+          "utc": "2026-09-18T12:30:24.616000+00:00"
+        },
+        "max_abs_exposure_delta": "0.01",
+        "max_abs_total_delta_minor": 44,
+        "model_max_drawdown_minor": 231,
+        "native_max_drawdown_minor": 270,
+        "same_grid_fields_equal": false,
+        "sample_count": 15504
+      },
+      "native_sample_hash_verified": true,
+      "native_sample_sha256": "a269e8a213b0979b3de3704cfddd653c71aa9a83861055766d340340957ffbe4",
+      "scalar_status": "matched_path_discrepant",
+      "signal_id": "canal1_22768",
+      "status": "compared"
+    },
+    {
+      "blockers": [],
+      "channel": "canal1",
+      "scalar_status": "model_no_entry",
+      "signal_id": "canal1_22769",
+      "status": "model_no_entry"
+    }
+  ],
+  "sources": {
+    "anchor_sha256": "0c5c99f12e5512aabde9680ffaeeba97410a54811afb36f7d6a2d892b94dbf73",
+    "broker_sha256": "cd5b1a326b833412affa75b3b7f7f4c42a4a808f62d423b350814618a809d7c3",
+    "comparator_sha256": "2a933639df2c052c4b287c095e26dcf6effea97aebcf712301c18f1784a7d0fb",
+    "deals_sha256": "91723c6cc65070407bbb5a79721a6109896450354fe20b74f3a344ba7206f021",
+    "model_implementation_hash_count": 11,
+    "model_sha256": "0d9bac9c0e5322e608667c25643a425957d708a544b1369dbc068a8d210397a5",
+    "money_sha256": "550cbd6176316cb4cb62eb41ed9dc4e0673a0a925319f0b7e041230aa2ecf41d",
+    "native_input_count": 28,
+    "native_sha256": "a4c94d417829320cab2f5d17264a7330b43e80730d92b70b94ec79c5e0b4a468",
+    "raw_sha256": "9548ca5ce3fdd27ebe5f488ac97639c7e5cc7001ae0f75c73a40d3828cfd63b0",
+    "reconciled_sha256": "1c4c1eedef5b21b5f0e6d48ad2bc934712c939308b6b7dcec952867c18232aa4",
+    "scalar_sha256": "e67b1971b26040bdae0a5ab594f11f917c4c3a3fa7c454f431ef21c46aac4b50",
+    "shared_tape_day": "2026-09-18"
+  },
+  "start_utc": "2026-09-18T12:20:00+00:00",
+  "status": "diagnostic_only"
+}

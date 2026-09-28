@@ -1,0 +1,583 @@
+{
+ "canal1": {
+  "comparacion": [
+   {
+    "rasgo": "burst_60",
+    "texto": "se\u00f1ales en la hora anterior",
+    "media_real": 0.527,
+    "media_azar": 0.286,
+    "mediana_real": 0.0,
+    "mediana_azar": 0.0,
+    "efecto": 0.367,
+    "ks": 0.155,
+    "n_real": 776
+   },
+   {
+    "rasgo": "pre_move_15",
+    "texto": "movimiento previo 15 min (a favor +)",
+    "media_real": -4.531,
+    "media_azar": 0.09,
+    "mediana_real": -1.89,
+    "mediana_azar": -0.02,
+    "efecto": -0.344,
+    "ks": 0.18,
+    "n_real": 776
+   },
+   {
+    "rasgo": "rsi_m5",
+    "texto": "RSI 5 min (orientado)",
+    "media_real": 44.663,
+    "media_azar": 49.852,
+    "mediana_real": 45.1,
+    "mediana_azar": 49.8,
+    "efecto": -0.333,
+    "ks": 0.133,
+    "n_real": 775
+   },
+   {
+    "rasgo": "pre_move_60",
+    "texto": "movimiento previo 60 min (a favor +)",
+    "media_real": -7.697,
+    "media_azar": -0.176,
+    "mediana_real": -4.67,
+    "mediana_azar": 0.03,
+    "efecto": -0.323,
+    "ks": 0.176,
+    "n_real": 776
+   },
+   {
+    "rasgo": "pre_range_60",
+    "texto": "rango de la \u00faltima hora",
+    "media_real": 34.601,
+    "media_azar": 26.837,
+    "mediana_real": 27.33,
+    "mediana_azar": 20.235,
+    "efecto": 0.305,
+    "ks": 0.226,
+    "n_real": 776
+   },
+   {
+    "rasgo": "loc_4h",
+    "texto": "posici\u00f3n en el rango de 4 h (0 = extremo favorable)",
+    "media_real": 0.412,
+    "media_azar": 0.493,
+    "mediana_real": 0.37,
+    "mediana_azar": 0.489,
+    "efecto": -0.302,
+    "ks": 0.126,
+    "n_real": 776
+   },
+   {
+    "rasgo": "pre_move_5",
+    "texto": "movimiento previo 5 min (a favor +)",
+    "media_real": -2.002,
+    "media_azar": 0.046,
+    "mediana_real": -0.605,
+    "mediana_azar": 0.02,
+    "efecto": -0.268,
+    "ks": 0.126,
+    "n_real": 776
+   },
+   {
+    "rasgo": "trend_m15",
+    "texto": "distancia a la EMA50 de 15 min (a favor +)",
+    "media_real": -0.422,
+    "media_azar": -0.002,
+    "mediana_real": -0.31,
+    "mediana_azar": -0.08,
+    "efecto": -0.217,
+    "ks": 0.075,
+    "n_real": 772
+   },
+   {
+    "rasgo": "sweep_adv",
+    "texto": "barrido de liquidez en contra",
+    "media_real": 0.129,
+    "media_azar": 0.083,
+    "mediana_real": 0.0,
+    "mediana_azar": 0.0,
+    "efecto": 0.149,
+    "ks": 0.046,
+    "n_real": 774
+   },
+   {
+    "rasgo": "min_in_session",
+    "texto": "minutos desde la apertura de sesi\u00f3n",
+    "media_real": 140.675,
+    "media_azar": 152.349,
+    "mediana_real": 134.0,
+    "mediana_azar": 140.0,
+    "efecto": -0.125,
+    "ks": 0.065,
+    "n_real": 776
+   },
+   {
+    "rasgo": "sweep_fav",
+    "texto": "barrido de liquidez a favor",
+    "media_real": 0.13,
+    "media_azar": 0.093,
+    "mediana_real": 0.0,
+    "mediana_azar": 0.0,
+    "efecto": 0.12,
+    "ks": 0.038,
+    "n_real": 774
+   },
+   {
+    "rasgo": "dir_streak",
+    "texto": "se\u00f1ales seguidas en la misma direcci\u00f3n",
+    "media_real": 3.015,
+    "media_azar": 2.625,
+    "mediana_real": 2.0,
+    "mediana_azar": 1.0,
+    "efecto": 0.114,
+    "ks": 0.079,
+    "n_real": 776
+   },
+   {
+    "rasgo": "rsi_m15",
+    "texto": "RSI 15 min (orientado)",
+    "media_real": 48.221,
+    "media_azar": 49.834,
+    "mediana_real": 48.8,
+    "mediana_azar": 49.5,
+    "efecto": -0.102,
+    "ks": 0.051,
+    "n_real": 772
+   },
+   {
+    "rasgo": "asia_loc",
+    "texto": "posici\u00f3n en el rango asi\u00e1tico (0 = extremo favorable)",
+    "media_real": 0.491,
+    "media_azar": 0.543,
+    "mediana_real": 0.525,
+    "mediana_azar": 0.527,
+    "efecto": -0.065,
+    "ks": 0.035,
+    "n_real": 769
+   },
+   {
+    "rasgo": "pd_loc",
+    "texto": "posici\u00f3n en el rango de ayer (0 = extremo favorable)",
+    "media_real": 0.516,
+    "media_azar": 0.552,
+    "mediana_real": 0.529,
+    "mediana_azar": 0.571,
+    "efecto": -0.052,
+    "ks": 0.045,
+    "n_real": 775
+   },
+   {
+    "rasgo": "pd_break",
+    "texto": "ruptura del rango de ayer (+1 a favor)",
+    "media_real": 0.043,
+    "media_azar": 0.068,
+    "mediana_real": 0.0,
+    "mediana_azar": 0.0,
+    "efecto": -0.04,
+    "ks": 0.019,
+    "n_real": 775
+   },
+   {
+    "rasgo": "spread",
+    "texto": "spread",
+    "media_real": 0.228,
+    "media_azar": 0.228,
+    "mediana_real": 0.23,
+    "mediana_azar": 0.23,
+    "efecto": 0.032,
+    "ks": 0.027,
+    "n_real": 776
+   },
+   {
+    "rasgo": "atr_m15",
+    "texto": "ATR 15 min",
+    "media_real": 13.488,
+    "media_azar": 13.204,
+    "mediana_real": 11.175,
+    "mediana_azar": 10.39,
+    "efecto": 0.03,
+    "ks": 0.104,
+    "n_real": 772
+   },
+   {
+    "rasgo": "day_move",
+    "texto": "movimiento del d\u00eda (a favor +)",
+    "media_real": -0.089,
+    "media_azar": 1.775,
+    "mediana_real": 2.795,
+    "mediana_azar": 2.515,
+    "efecto": -0.026,
+    "ks": 0.041,
+    "n_real": 776
+   },
+   {
+    "rasgo": "news_min",
+    "texto": "minutos a la noticia fuerte m\u00e1s cercana",
+    "media_real": -517.319,
+    "media_azar": -600.81,
+    "mediana_real": -296.45,
+    "mediana_azar": -551.6,
+    "efecto": 0.013,
+    "ks": 0.033,
+    "n_real": 776
+   },
+   {
+    "rasgo": "vol_regime",
+    "texto": "volatilidad relativa (1 = normal)",
+    "media_real": 1.042,
+    "media_azar": 1.037,
+    "mediana_real": 0.952,
+    "mediana_azar": 0.926,
+    "efecto": 0.01,
+    "ks": 0.047,
+    "n_real": 768
+   },
+   {
+    "rasgo": "dist_round50",
+    "texto": "distancia a n\u00famero redondo (x00/x50)",
+    "media_real": 12.485,
+    "media_azar": 12.438,
+    "mediana_real": 12.715,
+    "mediana_azar": 12.71,
+    "efecto": 0.007,
+    "ks": 0.024,
+    "n_real": 776
+   },
+   {
+    "rasgo": "gap_prev_min",
+    "texto": "minutos desde la se\u00f1al anterior",
+    "media_real": 494.538,
+    "media_azar": 489.473,
+    "mediana_real": 85.4,
+    "mediana_azar": 172.0,
+    "efecto": 0.006,
+    "ks": 0.216,
+    "n_real": 775
+   }
+  ],
+  "horario": {
+   "n": 776,
+   "por_hora_utc": {
+    "0": 3,
+    "6": 2,
+    "8": 1,
+    "9": 15,
+    "10": 49,
+    "11": 65,
+    "12": 108,
+    "13": 184,
+    "14": 157,
+    "15": 90,
+    "16": 47,
+    "17": 29,
+    "18": 16,
+    "19": 8,
+    "22": 1,
+    "23": 1
+   },
+   "por_dia_semana": {
+    "0": 164,
+    "1": 144,
+    "2": 155,
+    "3": 159,
+    "4": 152,
+    "6": 2
+   },
+   "direcciones": {
+    "BUY": 323,
+    "SELL": 453
+   }
+  }
+ },
+ "canal2": {
+  "comparacion": [
+   {
+    "rasgo": "pre_move_5",
+    "texto": "movimiento previo 5 min (a favor +)",
+    "media_real": -1.707,
+    "media_azar": -0.078,
+    "mediana_real": -1.35,
+    "mediana_azar": -0.07,
+    "efecto": -0.321,
+    "ks": 0.215,
+    "n_real": 947
+   },
+   {
+    "rasgo": "pre_range_60",
+    "texto": "rango de la \u00faltima hora",
+    "media_real": 24.023,
+    "media_azar": 19.896,
+    "mediana_real": 19.98,
+    "mediana_azar": 16.72,
+    "efecto": 0.308,
+    "ks": 0.148,
+    "n_real": 947
+   },
+   {
+    "rasgo": "pre_move_15",
+    "texto": "movimiento previo 15 min (a favor +)",
+    "media_real": -2.33,
+    "media_azar": -0.095,
+    "mediana_real": -1.7,
+    "mediana_azar": 0.02,
+    "efecto": -0.275,
+    "ks": 0.173,
+    "n_real": 947
+   },
+   {
+    "rasgo": "burst_60",
+    "texto": "se\u00f1ales en la hora anterior",
+    "media_real": 0.742,
+    "media_azar": 0.539,
+    "mediana_real": 1.0,
+    "mediana_azar": 0.0,
+    "efecto": 0.253,
+    "ks": 0.115,
+    "n_real": 947
+   },
+   {
+    "rasgo": "pre_move_60",
+    "texto": "movimiento previo 60 min (a favor +)",
+    "media_real": -3.604,
+    "media_azar": -0.476,
+    "mediana_real": -1.24,
+    "mediana_azar": -0.21,
+    "efecto": -0.199,
+    "ks": 0.109,
+    "n_real": 947
+   },
+   {
+    "rasgo": "rsi_m5",
+    "texto": "RSI 5 min (orientado)",
+    "media_real": 47.347,
+    "media_azar": 49.931,
+    "mediana_real": 48.8,
+    "mediana_azar": 50.2,
+    "efecto": -0.155,
+    "ks": 0.092,
+    "n_real": 947
+   },
+   {
+    "rasgo": "sweep_adv",
+    "texto": "barrido de liquidez en contra",
+    "media_real": 0.156,
+    "media_azar": 0.108,
+    "mediana_real": 0.0,
+    "mediana_azar": 0.0,
+    "efecto": 0.143,
+    "ks": 0.048,
+    "n_real": 947
+   },
+   {
+    "rasgo": "min_in_session",
+    "texto": "minutos desde la apertura de sesi\u00f3n",
+    "media_real": 138.405,
+    "media_azar": 151.72,
+    "mediana_real": 120.0,
+    "mediana_azar": 136.0,
+    "efecto": -0.134,
+    "ks": 0.085,
+    "n_real": 947
+   },
+   {
+    "rasgo": "trend_m15",
+    "texto": "distancia a la EMA50 de 15 min (a favor +)",
+    "media_real": -0.269,
+    "media_azar": 0.004,
+    "mediana_real": -0.05,
+    "mediana_azar": 0.04,
+    "efecto": -0.126,
+    "ks": 0.069,
+    "n_real": 947
+   },
+   {
+    "rasgo": "atr_m15",
+    "texto": "ATR 15 min",
+    "media_real": 9.235,
+    "media_azar": 9.531,
+    "mediana_real": 8.74,
+    "mediana_azar": 8.81,
+    "efecto": -0.102,
+    "ks": 0.049,
+    "n_real": 947
+   },
+   {
+    "rasgo": "vol_regime",
+    "texto": "volatilidad relativa (1 = normal)",
+    "media_real": 0.902,
+    "media_azar": 0.922,
+    "mediana_real": 0.869,
+    "mediana_azar": 0.908,
+    "efecto": -0.093,
+    "ks": 0.071,
+    "n_real": 947
+   },
+   {
+    "rasgo": "loc_4h",
+    "texto": "posici\u00f3n en el rango de 4 h (0 = extremo favorable)",
+    "media_real": 0.473,
+    "media_azar": 0.501,
+    "mediana_real": 0.482,
+    "mediana_azar": 0.511,
+    "efecto": -0.089,
+    "ks": 0.108,
+    "n_real": 947
+   },
+   {
+    "rasgo": "dir_streak",
+    "texto": "se\u00f1ales seguidas en la misma direcci\u00f3n",
+    "media_real": 2.113,
+    "media_azar": 1.887,
+    "mediana_real": 1.0,
+    "mediana_azar": 1.0,
+    "efecto": 0.079,
+    "ks": 0.076,
+    "n_real": 947
+   },
+   {
+    "rasgo": "sweep_fav",
+    "texto": "barrido de liquidez a favor",
+    "media_real": 0.08,
+    "media_azar": 0.091,
+    "mediana_real": 0.0,
+    "mediana_azar": 0.0,
+    "efecto": -0.038,
+    "ks": 0.011,
+    "n_real": 947
+   },
+   {
+    "rasgo": "pd_break",
+    "texto": "ruptura del rango de ayer (+1 a favor)",
+    "media_real": -0.045,
+    "media_azar": -0.03,
+    "mediana_real": 0.0,
+    "mediana_azar": 0.0,
+    "efecto": -0.026,
+    "ks": 0.015,
+    "n_real": 947
+   },
+   {
+    "rasgo": "asia_loc",
+    "texto": "posici\u00f3n en el rango asi\u00e1tico (0 = extremo favorable)",
+    "media_real": 0.438,
+    "media_azar": 0.457,
+    "mediana_real": 0.482,
+    "mediana_azar": 0.469,
+    "efecto": -0.023,
+    "ks": 0.043,
+    "n_real": 875
+   },
+   {
+    "rasgo": "spread",
+    "texto": "spread",
+    "media_real": 0.23,
+    "media_azar": 0.23,
+    "mediana_real": 0.23,
+    "mediana_azar": 0.23,
+    "efecto": 0.022,
+    "ks": 0.019,
+    "n_real": 947
+   },
+   {
+    "rasgo": "rsi_m15",
+    "texto": "RSI 15 min (orientado)",
+    "media_real": 50.444,
+    "media_azar": 50.101,
+    "mediana_real": 51.8,
+    "mediana_azar": 50.15,
+    "efecto": 0.02,
+    "ks": 0.042,
+    "n_real": 947
+   },
+   {
+    "rasgo": "day_move",
+    "texto": "movimiento del d\u00eda (a favor +)",
+    "media_real": -2.804,
+    "media_azar": -2.193,
+    "mediana_real": -1.72,
+    "mediana_azar": 0.11,
+    "efecto": -0.013,
+    "ks": 0.027,
+    "n_real": 947
+   },
+   {
+    "rasgo": "dist_round50",
+    "texto": "distancia a n\u00famero redondo (x00/x50)",
+    "media_real": 12.508,
+    "media_azar": 12.58,
+    "mediana_real": 12.6,
+    "mediana_azar": 12.51,
+    "efecto": -0.01,
+    "ks": 0.022,
+    "n_real": 947
+   },
+   {
+    "rasgo": "news_min",
+    "texto": "minutos a la noticia fuerte m\u00e1s cercana",
+    "media_real": -240.444,
+    "media_azar": -198.765,
+    "mediana_real": -301.3,
+    "mediana_azar": -379.5,
+    "efecto": -0.006,
+    "ks": 0.029,
+    "n_real": 947
+   },
+   {
+    "rasgo": "pd_loc",
+    "texto": "posici\u00f3n en el rango de ayer (0 = extremo favorable)",
+    "media_real": 0.453,
+    "media_azar": 0.454,
+    "mediana_real": 0.489,
+    "mediana_azar": 0.486,
+    "efecto": -0.001,
+    "ks": 0.018,
+    "n_real": 947
+   },
+   {
+    "rasgo": "gap_prev_min",
+    "texto": "minutos desde la se\u00f1al anterior",
+    "media_real": 259.122,
+    "media_azar": 259.419,
+    "mediana_real": 55.35,
+    "mediana_azar": 80.3,
+    "efecto": -0.0,
+    "ks": 0.14,
+    "n_real": 946
+   }
+  ],
+  "horario": {
+   "n": 947,
+   "por_hora_utc": {
+    "3": 3,
+    "4": 5,
+    "5": 17,
+    "6": 47,
+    "7": 77,
+    "8": 85,
+    "9": 89,
+    "10": 76,
+    "11": 69,
+    "12": 118,
+    "13": 178,
+    "14": 116,
+    "15": 39,
+    "16": 12,
+    "17": 5,
+    "18": 3,
+    "19": 7,
+    "20": 1
+   },
+   "por_dia_semana": {
+    "0": 180,
+    "1": 177,
+    "2": 198,
+    "3": 199,
+    "4": 193
+   },
+   "direcciones": {
+    "BUY": 529,
+    "SELL": 418
+   }
+  }
+ }
+}

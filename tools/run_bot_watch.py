@@ -168,6 +168,8 @@ WATCHDOG_HEARTBEAT_TIMEOUT_SEC = float(os.getenv(
     "WATCHDOG_HEARTBEAT_TIMEOUT_SEC", "180"))
 WATCHDOG_STARTUP_TIMEOUT_SEC = float(os.getenv(
     "WATCHDOG_STARTUP_TIMEOUT_SEC", "600"))
+WATCHDOG_MT5_SNAPSHOT_MAX_AGE_SEC = float(os.getenv(
+    "WATCHDOG_MT5_SNAPSHOT_MAX_AGE_SEC", "60"))
 UPDATE_EXPOSURE_HEARTBEAT_MAX_AGE_SEC = float(os.getenv(
     "BOT_UPDATE_EXPOSURE_HEARTBEAT_MAX_AGE_SEC", "45"))
 UPDATE_QUIESCE_CONFIRM_TIMEOUT_SEC = float(os.getenv(
@@ -677,6 +679,24 @@ def _read_runtime_exposure(
             "reason": "heartbeat_exposure_unverified",
             "heartbeat_age_s": round(age_s, 3),
         }
+
+    owner = payload.get("mt5_owner")
+    if owner is not None:
+        mt5_reason = _runtime_mt5_owner_unavailable_reason(owner)
+        if mt5_reason is not None:
+            return {
+                **unknown,
+                "reason": f"heartbeat_mt5_{mt5_reason}",
+                "heartbeat_age_s": round(age_s, 3),
+                "mt5_worker_pid": (
+                    owner.get("worker_pid")
+                    if isinstance(owner, dict) else None
+                ),
+                "mt5_worker_session_id": (
+                    owner.get("worker_session_id")
+                    if isinstance(owner, dict) else None
+                ),
+            }
     if (exposure_state == "flat"
             and any(count != 0 for count in counts)):
         return {
@@ -695,6 +715,50 @@ def _read_runtime_exposure(
         "heartbeat_utc": payload.get("utc"),
         "pid": payload.get("pid"),
     }
+
+
+def _runtime_mt5_owner_unavailable_reason(owner: object) -> str | None:
+    """Return a fail-closed reason for the additive MT5 owner contract."""
+    if not isinstance(owner, dict):
+        return "owner_invalid"
+    if owner.get("installed") is not True:
+        return "owner_not_installed"
+    if owner.get("worker_alive") is not True:
+        return "worker_dead"
+    if type(owner.get("worker_pid")) is not int or not owner["worker_pid"]:
+        return "worker_identity_invalid"
+    if not isinstance(owner.get("worker_session_id"), str) or not owner[
+        "worker_session_id"
+    ]:
+        return "worker_identity_invalid"
+    reads = owner.get("reads")
+    if not isinstance(reads, dict):
+        return "reads_missing"
+    expected = {
+        "positions_get": {"FOUND", "EMPTY"},
+        "symbol_info_tick": {"FOUND"},
+    }
+    for operation, accepted_states in expected.items():
+        snapshot = reads.get(operation)
+        if not isinstance(snapshot, dict):
+            return f"{operation}_missing"
+        if snapshot.get("state") not in accepted_states:
+            return f"{operation}_unknown"
+        age = snapshot.get("age_seconds")
+        if (
+            isinstance(age, bool)
+            or not isinstance(age, (int, float))
+            or age < 0
+            or age > WATCHDOG_MT5_SNAPSHOT_MAX_AGE_SEC
+        ):
+            return f"{operation}_stale"
+        if (
+            snapshot.get("worker_pid") != owner["worker_pid"]
+            or snapshot.get("worker_session_id")
+            != owner["worker_session_id"]
+        ):
+            return f"{operation}_identity_mismatch"
+    return None
 
 
 def _write_runtime_update_pending(path: Path, payload: dict) -> None:

@@ -1,0 +1,3279 @@
+{
+  "admitted_baskets": 3,
+  "admitted_positions": 9,
+  "blocked_missing_accepted_tp_response": 36,
+  "contract": "conditioned_tp_fill_basket_risk_v1",
+  "elapsed_seconds": 7.220828799996525,
+  "full_live_parity_verified": false,
+  "limitations": [
+    "Native entries and all non-TP decisions are fixed; this is not a strategy replay.",
+    "World delays and prices are stress hypotheses, not broker estimates.",
+    "Basket equity is modeled from terminal quotes and EURUSD, not observed MT5 equity.",
+    "The 36 TP without accepted target receipts remain blocked outside these baskets.",
+    "The cohort is retrospective discovery, not untouched validation."
+  ],
+  "non_tp_exit": 1,
+  "rows": [
+    {
+      "position_count": 3,
+      "signal_id": "canal2_3148",
+      "worlds": [
+        {
+          "delay_ms": 0,
+          "first_divergence": {
+            "at": "2026-09-18 11:06:27.936000+00:00",
+            "differences": [
+              "total",
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 11:06:27.936000+00:00",
+              "blockers": [],
+              "floating": "-1.15",
+              "long_volume": "0.10",
+              "open_count": 3,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-5.34",
+                  "realized": "0.00",
+                  "total": "-5.34",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "0.24",
+                  "realized": "0.00",
+                  "total": "0.24",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "3.95",
+                  "realized": "0.00",
+                  "total": "3.95",
+                  "volume": "0.03"
+                }
+              },
+              "quote_at": "2026-09-18 11:06:27.936000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "-1.15"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 11:06:27.936000+00:00",
+              "blockers": [],
+              "floating": "-5.10",
+              "long_volume": "0.07",
+              "open_count": 2,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-5.34",
+                  "realized": "0.00",
+                  "total": "-5.34",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "0.24",
+                  "realized": "0.00",
+                  "total": "0.24",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "3.92",
+                  "total": "3.92",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 11:06:27.936000+00:00",
+              "realized": "3.92",
+              "short_volume": "0",
+              "total": "-1.18"
+            }
+          },
+          "max_abs_total_difference_eur": "0.13",
+          "mismatched_pairs": 3,
+          "native_metrics": {
+            "final_at": "2026-09-18 11:07:28.096000+00:00",
+            "final_net": "8.28",
+            "known_samples": 1380,
+            "max_drawdown": "24.43",
+            "max_gross_volume": "0.10",
+            "maximum_from_origin": "8.28",
+            "minimum_from_origin": "-24.43"
+          },
+          "native_path_sha256": "974eaeaa765410a8793e3da7e1a20c29fb178079ba41cd5c0b9dbe284c9b31c0",
+          "paired_samples": 1380,
+          "price_mode": "installed_level",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 11:07:28.096000+00:00",
+            "final_net": "8.28",
+            "known_samples": 1380,
+            "max_drawdown": "24.43",
+            "max_gross_volume": "0.10",
+            "maximum_from_origin": "8.28",
+            "minimum_from_origin": "-24.43"
+          },
+          "scenario_path_sha256": "7788eacd1f8b602bf9d1e94011dacc86d7c0ef826f2f98da1cd688ad2c035a10",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 0,
+          "first_divergence": {
+            "at": "2026-09-18 11:06:27.936000+00:00",
+            "differences": [
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 11:06:27.936000+00:00",
+              "blockers": [],
+              "floating": "-1.15",
+              "long_volume": "0.10",
+              "open_count": 3,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-5.34",
+                  "realized": "0.00",
+                  "total": "-5.34",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "0.24",
+                  "realized": "0.00",
+                  "total": "0.24",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "3.95",
+                  "realized": "0.00",
+                  "total": "3.95",
+                  "volume": "0.03"
+                }
+              },
+              "quote_at": "2026-09-18 11:06:27.936000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "-1.15"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 11:06:27.936000+00:00",
+              "blockers": [],
+              "floating": "-5.10",
+              "long_volume": "0.07",
+              "open_count": 2,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-5.34",
+                  "realized": "0.00",
+                  "total": "-5.34",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "0.24",
+                  "realized": "0.00",
+                  "total": "0.24",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "3.95",
+                  "total": "3.95",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 11:06:27.936000+00:00",
+              "realized": "3.95",
+              "short_volume": "0",
+              "total": "-1.15"
+            }
+          },
+          "max_abs_total_difference_eur": "0.16",
+          "mismatched_pairs": 719,
+          "native_metrics": {
+            "final_at": "2026-09-18 11:07:28.096000+00:00",
+            "final_net": "8.28",
+            "known_samples": 1380,
+            "max_drawdown": "24.43",
+            "max_gross_volume": "0.10",
+            "maximum_from_origin": "8.28",
+            "minimum_from_origin": "-24.43"
+          },
+          "native_path_sha256": "974eaeaa765410a8793e3da7e1a20c29fb178079ba41cd5c0b9dbe284c9b31c0",
+          "paired_samples": 1380,
+          "price_mode": "executable_quote",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 11:07:28.096000+00:00",
+            "final_net": "8.44",
+            "known_samples": 1380,
+            "max_drawdown": "24.43",
+            "max_gross_volume": "0.10",
+            "maximum_from_origin": "8.44",
+            "minimum_from_origin": "-24.43"
+          },
+          "scenario_path_sha256": "c451bc12bf5a1c83e9ab44454840ff6650eb6a6c84fd2eeb087e267c727586c2",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 100,
+          "first_divergence": {
+            "at": "2026-09-18 11:06:27.938000+00:00",
+            "differences": [
+              "total",
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 11:06:27.938000+00:00",
+              "blockers": [],
+              "floating": "-5.10",
+              "long_volume": "0.07",
+              "open_count": 2,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-5.34",
+                  "realized": "0.00",
+                  "total": "-5.34",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "0.24",
+                  "realized": "0.00",
+                  "total": "0.24",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "3.92",
+                  "total": "3.92",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 11:06:27.936000+00:00",
+              "realized": "3.92",
+              "short_volume": "0",
+              "total": "-1.18"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 11:06:27.938000+00:00",
+              "blockers": [],
+              "floating": "-1.15",
+              "long_volume": "0.10",
+              "open_count": 3,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-5.34",
+                  "realized": "0.00",
+                  "total": "-5.34",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "0.24",
+                  "realized": "0.00",
+                  "total": "0.24",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "3.95",
+                  "realized": "0.00",
+                  "total": "3.95",
+                  "volume": "0.03"
+                }
+              },
+              "quote_at": "2026-09-18 11:06:27.936000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "-1.15"
+            }
+          },
+          "max_abs_total_difference_eur": "0.15",
+          "mismatched_pairs": 409,
+          "native_metrics": {
+            "final_at": "2026-09-18 11:07:28.229000+00:00",
+            "final_net": "8.28",
+            "known_samples": 1382,
+            "max_drawdown": "24.43",
+            "max_gross_volume": "0.10",
+            "maximum_from_origin": "8.28",
+            "minimum_from_origin": "-24.43"
+          },
+          "native_path_sha256": "9683a1e43ff6acf17433179064b11bb9048c15bb008bd9dd086ddcf1a3875a1d",
+          "paired_samples": 1382,
+          "price_mode": "installed_level",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 11:07:28.229000+00:00",
+            "final_net": "8.27",
+            "known_samples": 1382,
+            "max_drawdown": "24.43",
+            "max_gross_volume": "0.10",
+            "maximum_from_origin": "8.27",
+            "minimum_from_origin": "-24.43"
+          },
+          "scenario_path_sha256": "3bcae9440996ed368c877807fa60fc494dafe4f5e50ea7279a6fb1eff0741f7e",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 100,
+          "first_divergence": {
+            "at": "2026-09-18 11:06:27.938000+00:00",
+            "differences": [
+              "total",
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 11:06:27.938000+00:00",
+              "blockers": [],
+              "floating": "-5.10",
+              "long_volume": "0.07",
+              "open_count": 2,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-5.34",
+                  "realized": "0.00",
+                  "total": "-5.34",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "0.24",
+                  "realized": "0.00",
+                  "total": "0.24",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "3.92",
+                  "total": "3.92",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 11:06:27.936000+00:00",
+              "realized": "3.92",
+              "short_volume": "0",
+              "total": "-1.18"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 11:06:27.938000+00:00",
+              "blockers": [],
+              "floating": "-1.15",
+              "long_volume": "0.10",
+              "open_count": 3,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-5.34",
+                  "realized": "0.00",
+                  "total": "-5.34",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "0.24",
+                  "realized": "0.00",
+                  "total": "0.24",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "3.95",
+                  "realized": "0.00",
+                  "total": "3.95",
+                  "volume": "0.03"
+                }
+              },
+              "quote_at": "2026-09-18 11:06:27.936000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "-1.15"
+            }
+          },
+          "max_abs_total_difference_eur": "0.18",
+          "mismatched_pairs": 720,
+          "native_metrics": {
+            "final_at": "2026-09-18 11:07:28.229000+00:00",
+            "final_net": "8.28",
+            "known_samples": 1382,
+            "max_drawdown": "24.43",
+            "max_gross_volume": "0.10",
+            "maximum_from_origin": "8.28",
+            "minimum_from_origin": "-24.43"
+          },
+          "native_path_sha256": "9683a1e43ff6acf17433179064b11bb9048c15bb008bd9dd086ddcf1a3875a1d",
+          "paired_samples": 1382,
+          "price_mode": "executable_quote",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 11:07:28.229000+00:00",
+            "final_net": "8.37",
+            "known_samples": 1382,
+            "max_drawdown": "24.43",
+            "max_gross_volume": "0.10",
+            "maximum_from_origin": "8.37",
+            "minimum_from_origin": "-24.43"
+          },
+          "scenario_path_sha256": "7b2c20f2d44f23428cabd4269fd3d5c316a56e7906af97eed5bec989ee8479db",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 1000,
+          "first_divergence": {
+            "at": "2026-09-18 11:06:27.938000+00:00",
+            "differences": [
+              "total",
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 11:06:27.938000+00:00",
+              "blockers": [],
+              "floating": "-5.10",
+              "long_volume": "0.07",
+              "open_count": 2,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-5.34",
+                  "realized": "0.00",
+                  "total": "-5.34",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "0.24",
+                  "realized": "0.00",
+                  "total": "0.24",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "3.92",
+                  "total": "3.92",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 11:06:27.936000+00:00",
+              "realized": "3.92",
+              "short_volume": "0",
+              "total": "-1.18"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 11:06:27.938000+00:00",
+              "blockers": [],
+              "floating": "-1.15",
+              "long_volume": "0.10",
+              "open_count": 3,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-5.34",
+                  "realized": "0.00",
+                  "total": "-5.34",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "0.24",
+                  "realized": "0.00",
+                  "total": "0.24",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "3.95",
+                  "realized": "0.00",
+                  "total": "3.95",
+                  "volume": "0.03"
+                }
+              },
+              "quote_at": "2026-09-18 11:06:27.936000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "-1.15"
+            }
+          },
+          "max_abs_total_difference_eur": "0.52",
+          "mismatched_pairs": 429,
+          "native_metrics": {
+            "final_at": "2026-09-18 11:07:29.093000+00:00",
+            "final_net": "8.28",
+            "known_samples": 1393,
+            "max_drawdown": "24.43",
+            "max_gross_volume": "0.10",
+            "maximum_from_origin": "8.28",
+            "minimum_from_origin": "-24.43"
+          },
+          "native_path_sha256": "fc6fda2a5dae95cf09f4f60b0e140b749542d0bd6ee5a072f7860a06b1498f89",
+          "paired_samples": 1393,
+          "price_mode": "installed_level",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 11:07:29.093000+00:00",
+            "final_net": "8.27",
+            "known_samples": 1393,
+            "max_drawdown": "24.43",
+            "max_gross_volume": "0.10",
+            "maximum_from_origin": "8.55",
+            "minimum_from_origin": "-24.43"
+          },
+          "scenario_path_sha256": "93ed7681048de63f15e4739356384a322d4047cb750468dba1db7386dfc29cc1",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 1000,
+          "first_divergence": {
+            "at": "2026-09-18 11:06:27.938000+00:00",
+            "differences": [
+              "total",
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 11:06:27.938000+00:00",
+              "blockers": [],
+              "floating": "-5.10",
+              "long_volume": "0.07",
+              "open_count": 2,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-5.34",
+                  "realized": "0.00",
+                  "total": "-5.34",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "0.24",
+                  "realized": "0.00",
+                  "total": "0.24",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "3.92",
+                  "total": "3.92",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 11:06:27.936000+00:00",
+              "realized": "3.92",
+              "short_volume": "0",
+              "total": "-1.18"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 11:06:27.938000+00:00",
+              "blockers": [],
+              "floating": "-1.15",
+              "long_volume": "0.10",
+              "open_count": 3,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-5.34",
+                  "realized": "0.00",
+                  "total": "-5.34",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "0.24",
+                  "realized": "0.00",
+                  "total": "0.24",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "3.95",
+                  "realized": "0.00",
+                  "total": "3.95",
+                  "volume": "0.03"
+                }
+              },
+              "quote_at": "2026-09-18 11:06:27.936000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "-1.15"
+            }
+          },
+          "max_abs_total_difference_eur": "0.70",
+          "mismatched_pairs": 731,
+          "native_metrics": {
+            "final_at": "2026-09-18 11:07:29.093000+00:00",
+            "final_net": "8.28",
+            "known_samples": 1393,
+            "max_drawdown": "24.43",
+            "max_gross_volume": "0.10",
+            "maximum_from_origin": "8.28",
+            "minimum_from_origin": "-24.43"
+          },
+          "native_path_sha256": "fc6fda2a5dae95cf09f4f60b0e140b749542d0bd6ee5a072f7860a06b1498f89",
+          "paired_samples": 1393,
+          "price_mode": "executable_quote",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 11:07:29.093000+00:00",
+            "final_net": "8.91",
+            "known_samples": 1393,
+            "max_drawdown": "24.43",
+            "max_gross_volume": "0.10",
+            "maximum_from_origin": "8.98",
+            "minimum_from_origin": "-24.43"
+          },
+          "scenario_path_sha256": "a9fc368607f17b559c1508dc9a6c0c6fd8572a5e97be5ca373638eb52060cd57",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 5000,
+          "first_divergence": {
+            "at": "2026-09-18 11:06:27.938000+00:00",
+            "differences": [
+              "total",
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 11:06:27.938000+00:00",
+              "blockers": [],
+              "floating": "-5.10",
+              "long_volume": "0.07",
+              "open_count": 2,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-5.34",
+                  "realized": "0.00",
+                  "total": "-5.34",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "0.24",
+                  "realized": "0.00",
+                  "total": "0.24",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "3.92",
+                  "total": "3.92",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 11:06:27.936000+00:00",
+              "realized": "3.92",
+              "short_volume": "0",
+              "total": "-1.18"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 11:06:27.938000+00:00",
+              "blockers": [],
+              "floating": "-1.15",
+              "long_volume": "0.10",
+              "open_count": 3,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-5.34",
+                  "realized": "0.00",
+                  "total": "-5.34",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "0.24",
+                  "realized": "0.00",
+                  "total": "0.24",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "3.95",
+                  "realized": "0.00",
+                  "total": "3.95",
+                  "volume": "0.03"
+                }
+              },
+              "quote_at": "2026-09-18 11:06:27.936000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "-1.15"
+            }
+          },
+          "max_abs_total_difference_eur": "2.87",
+          "mismatched_pairs": 177,
+          "native_metrics": {
+            "final_at": "2026-09-18 11:07:33.162000+00:00",
+            "final_net": "8.28",
+            "known_samples": 1422,
+            "max_drawdown": "24.43",
+            "max_gross_volume": "0.10",
+            "maximum_from_origin": "8.28",
+            "minimum_from_origin": "-24.43"
+          },
+          "native_path_sha256": "ac56046d56883344ea692405b3b6c01f2de54bf4239c64d8870d69dac153ae6b",
+          "paired_samples": 1422,
+          "price_mode": "installed_level",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 11:07:33.162000+00:00",
+            "final_net": "8.28",
+            "known_samples": 1422,
+            "max_drawdown": "24.43",
+            "max_gross_volume": "0.10",
+            "maximum_from_origin": "8.95",
+            "minimum_from_origin": "-24.43"
+          },
+          "scenario_path_sha256": "c4fa4167cf384c025784fa8ec22c7fb6f060b45fe7188bdf3c34da81639fd013",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 5000,
+          "first_divergence": {
+            "at": "2026-09-18 11:06:27.938000+00:00",
+            "differences": [
+              "total",
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 11:06:27.938000+00:00",
+              "blockers": [],
+              "floating": "-5.10",
+              "long_volume": "0.07",
+              "open_count": 2,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-5.34",
+                  "realized": "0.00",
+                  "total": "-5.34",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "0.24",
+                  "realized": "0.00",
+                  "total": "0.24",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "3.92",
+                  "total": "3.92",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 11:06:27.936000+00:00",
+              "realized": "3.92",
+              "short_volume": "0",
+              "total": "-1.18"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 11:06:27.938000+00:00",
+              "blockers": [],
+              "floating": "-1.15",
+              "long_volume": "0.10",
+              "open_count": 3,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-5.34",
+                  "realized": "0.00",
+                  "total": "-5.34",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "0.24",
+                  "realized": "0.00",
+                  "total": "0.24",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "3.95",
+                  "realized": "0.00",
+                  "total": "3.95",
+                  "volume": "0.03"
+                }
+              },
+              "quote_at": "2026-09-18 11:06:27.936000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "-1.15"
+            }
+          },
+          "max_abs_total_difference_eur": "2.87",
+          "mismatched_pairs": 760,
+          "native_metrics": {
+            "final_at": "2026-09-18 11:07:33.162000+00:00",
+            "final_net": "8.28",
+            "known_samples": 1422,
+            "max_drawdown": "24.43",
+            "max_gross_volume": "0.10",
+            "maximum_from_origin": "8.28",
+            "minimum_from_origin": "-24.43"
+          },
+          "native_path_sha256": "ac56046d56883344ea692405b3b6c01f2de54bf4239c64d8870d69dac153ae6b",
+          "paired_samples": 1422,
+          "price_mode": "executable_quote",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 11:07:33.162000+00:00",
+            "final_net": "6.79",
+            "known_samples": 1422,
+            "max_drawdown": "24.43",
+            "max_gross_volume": "0.10",
+            "maximum_from_origin": "7.14",
+            "minimum_from_origin": "-24.43"
+          },
+          "scenario_path_sha256": "73a72cdb51ccb14d525b872f0f36b41e1a844d14a012ae7558d208830a06dde5",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 30000,
+          "first_divergence": {
+            "at": "2026-09-18 11:06:27.938000+00:00",
+            "differences": [
+              "total",
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 11:06:27.938000+00:00",
+              "blockers": [],
+              "floating": "-5.10",
+              "long_volume": "0.07",
+              "open_count": 2,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-5.34",
+                  "realized": "0.00",
+                  "total": "-5.34",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "0.24",
+                  "realized": "0.00",
+                  "total": "0.24",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "3.92",
+                  "total": "3.92",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 11:06:27.936000+00:00",
+              "realized": "3.92",
+              "short_volume": "0",
+              "total": "-1.18"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 11:06:27.938000+00:00",
+              "blockers": [],
+              "floating": "-1.15",
+              "long_volume": "0.10",
+              "open_count": 3,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-5.34",
+                  "realized": "0.00",
+                  "total": "-5.34",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "0.24",
+                  "realized": "0.00",
+                  "total": "0.24",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "3.95",
+                  "realized": "0.00",
+                  "total": "3.95",
+                  "volume": "0.03"
+                }
+              },
+              "quote_at": "2026-09-18 11:06:27.936000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "-1.15"
+            }
+          },
+          "max_abs_total_difference_eur": "5.41",
+          "mismatched_pairs": 924,
+          "native_metrics": {
+            "final_at": "2026-09-18 11:07:58.266000+00:00",
+            "final_net": "8.28",
+            "known_samples": 1648,
+            "max_drawdown": "24.43",
+            "max_gross_volume": "0.10",
+            "maximum_from_origin": "8.28",
+            "minimum_from_origin": "-24.43"
+          },
+          "native_path_sha256": "c4c9867a64ad004029e37ebe1c1197bd24b3c5872663bbeb7f8ead7f2941d336",
+          "paired_samples": 1648,
+          "price_mode": "installed_level",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 11:07:58.266000+00:00",
+            "final_net": "8.28",
+            "known_samples": 1648,
+            "max_drawdown": "24.43",
+            "max_gross_volume": "0.10",
+            "maximum_from_origin": "12.78",
+            "minimum_from_origin": "-24.43"
+          },
+          "scenario_path_sha256": "9bd3b77d4d4039c04d7135576005953bad9cb0ebe05034e1ebd51e1d7fa45c83",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 30000,
+          "first_divergence": {
+            "at": "2026-09-18 11:06:27.938000+00:00",
+            "differences": [
+              "total",
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 11:06:27.938000+00:00",
+              "blockers": [],
+              "floating": "-5.10",
+              "long_volume": "0.07",
+              "open_count": 2,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-5.34",
+                  "realized": "0.00",
+                  "total": "-5.34",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "0.24",
+                  "realized": "0.00",
+                  "total": "0.24",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "3.92",
+                  "total": "3.92",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 11:06:27.936000+00:00",
+              "realized": "3.92",
+              "short_volume": "0",
+              "total": "-1.18"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 11:06:27.938000+00:00",
+              "blockers": [],
+              "floating": "-1.15",
+              "long_volume": "0.10",
+              "open_count": 3,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-5.34",
+                  "realized": "0.00",
+                  "total": "-5.34",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "0.24",
+                  "realized": "0.00",
+                  "total": "0.24",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "3.95",
+                  "realized": "0.00",
+                  "total": "3.95",
+                  "volume": "0.03"
+                }
+              },
+              "quote_at": "2026-09-18 11:06:27.936000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "-1.15"
+            }
+          },
+          "max_abs_total_difference_eur": "8.53",
+          "mismatched_pairs": 986,
+          "native_metrics": {
+            "final_at": "2026-09-18 11:07:58.266000+00:00",
+            "final_net": "8.28",
+            "known_samples": 1648,
+            "max_drawdown": "24.43",
+            "max_gross_volume": "0.10",
+            "maximum_from_origin": "8.28",
+            "minimum_from_origin": "-24.43"
+          },
+          "native_path_sha256": "c4c9867a64ad004029e37ebe1c1197bd24b3c5872663bbeb7f8ead7f2941d336",
+          "paired_samples": 1648,
+          "price_mode": "executable_quote",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 11:07:58.266000+00:00",
+            "final_net": "16.46",
+            "known_samples": 1648,
+            "max_drawdown": "24.43",
+            "max_gross_volume": "0.10",
+            "maximum_from_origin": "16.81",
+            "minimum_from_origin": "-24.43"
+          },
+          "scenario_path_sha256": "c1fc783ec2b83d57c4cb4b45fbccf07f831fc8585b4ba2cbd66c6903e843eb0f",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        }
+      ]
+    },
+    {
+      "position_count": 5,
+      "signal_id": "canal2_3168",
+      "worlds": [
+        {
+          "delay_ms": 0,
+          "first_divergence": {
+            "at": "2026-09-18 12:26:28.562000+00:00",
+            "differences": [
+              "total",
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 12:26:28.562000+00:00",
+              "blockers": [],
+              "floating": "-4.14",
+              "long_volume": "0.13",
+              "open_count": 4,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-9.11",
+                  "realized": "0.00",
+                  "total": "-9.11",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "-1.86",
+                  "realized": "0.00",
+                  "total": "-1.86",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "1.49",
+                  "realized": "0.00",
+                  "total": "1.49",
+                  "volume": "0.03"
+                },
+                "4": {
+                  "direction": "BUY",
+                  "floating": "5.34",
+                  "realized": "0.00",
+                  "total": "5.34",
+                  "volume": "0.03"
+                }
+              },
+              "quote_at": "2026-09-18 12:26:28.562000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "-4.14"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 12:26:28.562000+00:00",
+              "blockers": [],
+              "floating": "-9.48",
+              "long_volume": "0.10",
+              "open_count": 3,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-9.11",
+                  "realized": "0.00",
+                  "total": "-9.11",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "-1.86",
+                  "realized": "0.00",
+                  "total": "-1.86",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "1.49",
+                  "realized": "0.00",
+                  "total": "1.49",
+                  "volume": "0.03"
+                },
+                "4": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "5.24",
+                  "total": "5.24",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 12:26:28.562000+00:00",
+              "realized": "5.24",
+              "short_volume": "0",
+              "total": "-4.24"
+            }
+          },
+          "max_abs_total_difference_eur": "0.76",
+          "mismatched_pairs": 35,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "20.09",
+            "known_samples": 4885,
+            "max_drawdown": "65.65",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "20.85",
+            "minimum_from_origin": "-64.73"
+          },
+          "native_path_sha256": "bbe316f078c3fe6111d752b4df42d600a8bb038b0cf57794768e2f9b8f73f0d7",
+          "paired_samples": 4885,
+          "price_mode": "installed_level",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "20.09",
+            "known_samples": 4885,
+            "max_drawdown": "65.65",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "20.09",
+            "minimum_from_origin": "-64.73"
+          },
+          "scenario_path_sha256": "b3fe43948082c2526561418d9ab8a7bb39677ccbe7a5b48473b192c962b8968e",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 0,
+          "first_divergence": {
+            "at": "2026-09-18 12:26:28.562000+00:00",
+            "differences": [
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 12:26:28.562000+00:00",
+              "blockers": [],
+              "floating": "-4.14",
+              "long_volume": "0.13",
+              "open_count": 4,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-9.11",
+                  "realized": "0.00",
+                  "total": "-9.11",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "-1.86",
+                  "realized": "0.00",
+                  "total": "-1.86",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "1.49",
+                  "realized": "0.00",
+                  "total": "1.49",
+                  "volume": "0.03"
+                },
+                "4": {
+                  "direction": "BUY",
+                  "floating": "5.34",
+                  "realized": "0.00",
+                  "total": "5.34",
+                  "volume": "0.03"
+                }
+              },
+              "quote_at": "2026-09-18 12:26:28.562000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "-4.14"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 12:26:28.562000+00:00",
+              "blockers": [],
+              "floating": "-9.48",
+              "long_volume": "0.10",
+              "open_count": 3,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-9.11",
+                  "realized": "0.00",
+                  "total": "-9.11",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "-1.86",
+                  "realized": "0.00",
+                  "total": "-1.86",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "1.49",
+                  "realized": "0.00",
+                  "total": "1.49",
+                  "volume": "0.03"
+                },
+                "4": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "5.34",
+                  "total": "5.34",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 12:26:28.562000+00:00",
+              "realized": "5.34",
+              "short_volume": "0",
+              "total": "-4.14"
+            }
+          },
+          "max_abs_total_difference_eur": "0.94",
+          "mismatched_pairs": 3113,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "20.09",
+            "known_samples": 4885,
+            "max_drawdown": "65.65",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "20.85",
+            "minimum_from_origin": "-64.73"
+          },
+          "native_path_sha256": "bbe316f078c3fe6111d752b4df42d600a8bb038b0cf57794768e2f9b8f73f0d7",
+          "paired_samples": 4885,
+          "price_mode": "executable_quote",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "20.78",
+            "known_samples": 4885,
+            "max_drawdown": "65.65",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "20.78",
+            "minimum_from_origin": "-64.63"
+          },
+          "scenario_path_sha256": "22bca32a73775d943dfcd9b391e2dbb8de648ab62682378c1197f76e31e2ea9c",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 100,
+          "first_divergence": {
+            "at": "2026-09-18 12:26:28.565000+00:00",
+            "differences": [
+              "total",
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 12:26:28.565000+00:00",
+              "blockers": [],
+              "floating": "-9.48",
+              "long_volume": "0.10",
+              "open_count": 3,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-9.11",
+                  "realized": "0.00",
+                  "total": "-9.11",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "-1.86",
+                  "realized": "0.00",
+                  "total": "-1.86",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "1.49",
+                  "realized": "0.00",
+                  "total": "1.49",
+                  "volume": "0.03"
+                },
+                "4": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "5.24",
+                  "total": "5.24",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 12:26:28.562000+00:00",
+              "realized": "5.24",
+              "short_volume": "0",
+              "total": "-4.24"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 12:26:28.565000+00:00",
+              "blockers": [],
+              "floating": "-4.14",
+              "long_volume": "0.13",
+              "open_count": 4,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-9.11",
+                  "realized": "0.00",
+                  "total": "-9.11",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "-1.86",
+                  "realized": "0.00",
+                  "total": "-1.86",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "1.49",
+                  "realized": "0.00",
+                  "total": "1.49",
+                  "volume": "0.03"
+                },
+                "4": {
+                  "direction": "BUY",
+                  "floating": "5.34",
+                  "realized": "0.00",
+                  "total": "5.34",
+                  "volume": "0.03"
+                }
+              },
+              "quote_at": "2026-09-18 12:26:28.562000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "-4.14"
+            }
+          },
+          "max_abs_total_difference_eur": "0.76",
+          "mismatched_pairs": 34,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "20.09",
+            "known_samples": 4885,
+            "max_drawdown": "65.65",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "20.85",
+            "minimum_from_origin": "-64.73"
+          },
+          "native_path_sha256": "bbe316f078c3fe6111d752b4df42d600a8bb038b0cf57794768e2f9b8f73f0d7",
+          "paired_samples": 4885,
+          "price_mode": "installed_level",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "20.09",
+            "known_samples": 4885,
+            "max_drawdown": "65.65",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "20.29",
+            "minimum_from_origin": "-64.73"
+          },
+          "scenario_path_sha256": "14cccafeb4f5e25d7ef01ad8d6dab5568b8d85d7ad41f91d349e7756c527c250",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 100,
+          "first_divergence": {
+            "at": "2026-09-18 12:26:28.565000+00:00",
+            "differences": [
+              "total",
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 12:26:28.565000+00:00",
+              "blockers": [],
+              "floating": "-9.48",
+              "long_volume": "0.10",
+              "open_count": 3,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-9.11",
+                  "realized": "0.00",
+                  "total": "-9.11",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "-1.86",
+                  "realized": "0.00",
+                  "total": "-1.86",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "1.49",
+                  "realized": "0.00",
+                  "total": "1.49",
+                  "volume": "0.03"
+                },
+                "4": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "5.24",
+                  "total": "5.24",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 12:26:28.562000+00:00",
+              "realized": "5.24",
+              "short_volume": "0",
+              "total": "-4.24"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 12:26:28.565000+00:00",
+              "blockers": [],
+              "floating": "-4.14",
+              "long_volume": "0.13",
+              "open_count": 4,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-9.11",
+                  "realized": "0.00",
+                  "total": "-9.11",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "-1.86",
+                  "realized": "0.00",
+                  "total": "-1.86",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "1.49",
+                  "realized": "0.00",
+                  "total": "1.49",
+                  "volume": "0.03"
+                },
+                "4": {
+                  "direction": "BUY",
+                  "floating": "5.34",
+                  "realized": "0.00",
+                  "total": "5.34",
+                  "volume": "0.03"
+                }
+              },
+              "quote_at": "2026-09-18 12:26:28.562000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "-4.14"
+            }
+          },
+          "max_abs_total_difference_eur": "1.61",
+          "mismatched_pairs": 3112,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "20.09",
+            "known_samples": 4885,
+            "max_drawdown": "65.65",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "20.85",
+            "minimum_from_origin": "-64.73"
+          },
+          "native_path_sha256": "bbe316f078c3fe6111d752b4df42d600a8bb038b0cf57794768e2f9b8f73f0d7",
+          "paired_samples": 4885,
+          "price_mode": "executable_quote",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "21.45",
+            "known_samples": 4885,
+            "max_drawdown": "65.65",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "21.45",
+            "minimum_from_origin": "-64.55"
+          },
+          "scenario_path_sha256": "077fb74bcfdaff44435a22872e5cfcf49997aef512e26925f319a8b69338a9f1",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 1000,
+          "first_divergence": {
+            "at": "2026-09-18 12:26:28.565000+00:00",
+            "differences": [
+              "total",
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 12:26:28.565000+00:00",
+              "blockers": [],
+              "floating": "-9.48",
+              "long_volume": "0.10",
+              "open_count": 3,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-9.11",
+                  "realized": "0.00",
+                  "total": "-9.11",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "-1.86",
+                  "realized": "0.00",
+                  "total": "-1.86",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "1.49",
+                  "realized": "0.00",
+                  "total": "1.49",
+                  "volume": "0.03"
+                },
+                "4": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "5.24",
+                  "total": "5.24",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 12:26:28.562000+00:00",
+              "realized": "5.24",
+              "short_volume": "0",
+              "total": "-4.24"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 12:26:28.565000+00:00",
+              "blockers": [],
+              "floating": "-4.14",
+              "long_volume": "0.13",
+              "open_count": 4,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-9.11",
+                  "realized": "0.00",
+                  "total": "-9.11",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "-1.86",
+                  "realized": "0.00",
+                  "total": "-1.86",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "1.49",
+                  "realized": "0.00",
+                  "total": "1.49",
+                  "volume": "0.03"
+                },
+                "4": {
+                  "direction": "BUY",
+                  "floating": "5.34",
+                  "realized": "0.00",
+                  "total": "5.34",
+                  "volume": "0.03"
+                }
+              },
+              "quote_at": "2026-09-18 12:26:28.562000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "-4.14"
+            }
+          },
+          "max_abs_total_difference_eur": "1.08",
+          "mismatched_pairs": 53,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "20.09",
+            "known_samples": 4885,
+            "max_drawdown": "65.65",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "20.85",
+            "minimum_from_origin": "-64.73"
+          },
+          "native_path_sha256": "bbe316f078c3fe6111d752b4df42d600a8bb038b0cf57794768e2f9b8f73f0d7",
+          "paired_samples": 4885,
+          "price_mode": "installed_level",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "20.09",
+            "known_samples": 4885,
+            "max_drawdown": "65.65",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "20.85",
+            "minimum_from_origin": "-64.73"
+          },
+          "scenario_path_sha256": "98251f851d2ba8336c79eb0d605da7449c0e360f9dcb8e032e2dcc300c81970d",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 1000,
+          "first_divergence": {
+            "at": "2026-09-18 12:26:28.565000+00:00",
+            "differences": [
+              "total",
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 12:26:28.565000+00:00",
+              "blockers": [],
+              "floating": "-9.48",
+              "long_volume": "0.10",
+              "open_count": 3,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-9.11",
+                  "realized": "0.00",
+                  "total": "-9.11",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "-1.86",
+                  "realized": "0.00",
+                  "total": "-1.86",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "1.49",
+                  "realized": "0.00",
+                  "total": "1.49",
+                  "volume": "0.03"
+                },
+                "4": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "5.24",
+                  "total": "5.24",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 12:26:28.562000+00:00",
+              "realized": "5.24",
+              "short_volume": "0",
+              "total": "-4.24"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 12:26:28.565000+00:00",
+              "blockers": [],
+              "floating": "-4.14",
+              "long_volume": "0.13",
+              "open_count": 4,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-9.11",
+                  "realized": "0.00",
+                  "total": "-9.11",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "-1.86",
+                  "realized": "0.00",
+                  "total": "-1.86",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "1.49",
+                  "realized": "0.00",
+                  "total": "1.49",
+                  "volume": "0.03"
+                },
+                "4": {
+                  "direction": "BUY",
+                  "floating": "5.34",
+                  "realized": "0.00",
+                  "total": "5.34",
+                  "volume": "0.03"
+                }
+              },
+              "quote_at": "2026-09-18 12:26:28.562000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "-4.14"
+            }
+          },
+          "max_abs_total_difference_eur": "1.14",
+          "mismatched_pairs": 3112,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "20.09",
+            "known_samples": 4885,
+            "max_drawdown": "65.65",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "20.85",
+            "minimum_from_origin": "-64.73"
+          },
+          "native_path_sha256": "bbe316f078c3fe6111d752b4df42d600a8bb038b0cf57794768e2f9b8f73f0d7",
+          "paired_samples": 4885,
+          "price_mode": "executable_quote",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:31:12.361000+00:00",
+            "final_net": "19.57",
+            "known_samples": 4885,
+            "max_drawdown": "65.65",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "19.88",
+            "minimum_from_origin": "-65.13"
+          },
+          "scenario_path_sha256": "71331302b0682535be58ec2ab7213f34b2947caffbfcbb44d7c38b5cb617badc",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 5000,
+          "first_divergence": {
+            "at": "2026-09-18 12:26:28.565000+00:00",
+            "differences": [
+              "total",
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 12:26:28.565000+00:00",
+              "blockers": [],
+              "floating": "-9.48",
+              "long_volume": "0.10",
+              "open_count": 3,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-9.11",
+                  "realized": "0.00",
+                  "total": "-9.11",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "-1.86",
+                  "realized": "0.00",
+                  "total": "-1.86",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "1.49",
+                  "realized": "0.00",
+                  "total": "1.49",
+                  "volume": "0.03"
+                },
+                "4": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "5.24",
+                  "total": "5.24",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 12:26:28.562000+00:00",
+              "realized": "5.24",
+              "short_volume": "0",
+              "total": "-4.24"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 12:26:28.565000+00:00",
+              "blockers": [],
+              "floating": "-4.14",
+              "long_volume": "0.13",
+              "open_count": 4,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-9.11",
+                  "realized": "0.00",
+                  "total": "-9.11",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "-1.86",
+                  "realized": "0.00",
+                  "total": "-1.86",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "1.49",
+                  "realized": "0.00",
+                  "total": "1.49",
+                  "volume": "0.03"
+                },
+                "4": {
+                  "direction": "BUY",
+                  "floating": "5.34",
+                  "realized": "0.00",
+                  "total": "5.34",
+                  "volume": "0.03"
+                }
+              },
+              "quote_at": "2026-09-18 12:26:28.562000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "-4.14"
+            }
+          },
+          "max_abs_total_difference_eur": "2.93",
+          "mismatched_pairs": 274,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:31:15.843000+00:00",
+            "final_net": "20.09",
+            "known_samples": 4925,
+            "max_drawdown": "65.65",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "20.85",
+            "minimum_from_origin": "-64.73"
+          },
+          "native_path_sha256": "e26fec8fdd3fd67cdf23db029c0784758b1d9cc2d2d60f8fccc6d8b5035cccf7",
+          "paired_samples": 4925,
+          "price_mode": "installed_level",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:31:15.843000+00:00",
+            "final_net": "20.09",
+            "known_samples": 4925,
+            "max_drawdown": "65.65",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "21.59",
+            "minimum_from_origin": "-64.73"
+          },
+          "scenario_path_sha256": "004c0af9f37326ab941a1ad3d0209d1700f43402e4be92bbc8dbf8142f58f2aa",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 5000,
+          "first_divergence": {
+            "at": "2026-09-18 12:26:28.565000+00:00",
+            "differences": [
+              "total",
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 12:26:28.565000+00:00",
+              "blockers": [],
+              "floating": "-9.48",
+              "long_volume": "0.10",
+              "open_count": 3,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-9.11",
+                  "realized": "0.00",
+                  "total": "-9.11",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "-1.86",
+                  "realized": "0.00",
+                  "total": "-1.86",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "1.49",
+                  "realized": "0.00",
+                  "total": "1.49",
+                  "volume": "0.03"
+                },
+                "4": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "5.24",
+                  "total": "5.24",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 12:26:28.562000+00:00",
+              "realized": "5.24",
+              "short_volume": "0",
+              "total": "-4.24"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 12:26:28.565000+00:00",
+              "blockers": [],
+              "floating": "-4.14",
+              "long_volume": "0.13",
+              "open_count": 4,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-9.11",
+                  "realized": "0.00",
+                  "total": "-9.11",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "-1.86",
+                  "realized": "0.00",
+                  "total": "-1.86",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "1.49",
+                  "realized": "0.00",
+                  "total": "1.49",
+                  "volume": "0.03"
+                },
+                "4": {
+                  "direction": "BUY",
+                  "floating": "5.34",
+                  "realized": "0.00",
+                  "total": "5.34",
+                  "volume": "0.03"
+                }
+              },
+              "quote_at": "2026-09-18 12:26:28.562000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "-4.14"
+            }
+          },
+          "max_abs_total_difference_eur": "3.15",
+          "mismatched_pairs": 3152,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:31:15.843000+00:00",
+            "final_net": "20.09",
+            "known_samples": 4925,
+            "max_drawdown": "65.65",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "20.85",
+            "minimum_from_origin": "-64.73"
+          },
+          "native_path_sha256": "e26fec8fdd3fd67cdf23db029c0784758b1d9cc2d2d60f8fccc6d8b5035cccf7",
+          "paired_samples": 4925,
+          "price_mode": "executable_quote",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:31:15.843000+00:00",
+            "final_net": "19.15",
+            "known_samples": 4925,
+            "max_drawdown": "66.41",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "19.15",
+            "minimum_from_origin": "-66.41"
+          },
+          "scenario_path_sha256": "8750532aa73b190870b5de5944562bfe8746b84fc70859a5fa631f333394da01",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 30000,
+          "first_divergence": {
+            "at": "2026-09-18 12:26:28.565000+00:00",
+            "differences": [
+              "total",
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 12:26:28.565000+00:00",
+              "blockers": [],
+              "floating": "-9.48",
+              "long_volume": "0.10",
+              "open_count": 3,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-9.11",
+                  "realized": "0.00",
+                  "total": "-9.11",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "-1.86",
+                  "realized": "0.00",
+                  "total": "-1.86",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "1.49",
+                  "realized": "0.00",
+                  "total": "1.49",
+                  "volume": "0.03"
+                },
+                "4": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "5.24",
+                  "total": "5.24",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 12:26:28.562000+00:00",
+              "realized": "5.24",
+              "short_volume": "0",
+              "total": "-4.24"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 12:26:28.565000+00:00",
+              "blockers": [],
+              "floating": "-4.14",
+              "long_volume": "0.13",
+              "open_count": 4,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-9.11",
+                  "realized": "0.00",
+                  "total": "-9.11",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "-1.86",
+                  "realized": "0.00",
+                  "total": "-1.86",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "1.49",
+                  "realized": "0.00",
+                  "total": "1.49",
+                  "volume": "0.03"
+                },
+                "4": {
+                  "direction": "BUY",
+                  "floating": "5.34",
+                  "realized": "0.00",
+                  "total": "5.34",
+                  "volume": "0.03"
+                }
+              },
+              "quote_at": "2026-09-18 12:26:28.562000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "-4.14"
+            }
+          },
+          "max_abs_total_difference_eur": "8.30",
+          "mismatched_pairs": 1431,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:31:40.804000+00:00",
+            "final_net": "20.09",
+            "known_samples": 5194,
+            "max_drawdown": "65.65",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "20.85",
+            "minimum_from_origin": "-64.73"
+          },
+          "native_path_sha256": "2558a63e35f93a2f0ca976432aa3f66146704cc312230a69c7748c3ee7bc1c63",
+          "paired_samples": 5194,
+          "price_mode": "installed_level",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:31:40.804000+00:00",
+            "final_net": "20.09",
+            "known_samples": 5194,
+            "max_drawdown": "67.30",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "25.60",
+            "minimum_from_origin": "-64.73"
+          },
+          "scenario_path_sha256": "4fea944a4382aa50a712aa604fd1a3158e9e616d4c90f2557fd02a22aa336cba",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 30000,
+          "first_divergence": {
+            "at": "2026-09-18 12:26:28.565000+00:00",
+            "differences": [
+              "total",
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 12:26:28.565000+00:00",
+              "blockers": [],
+              "floating": "-9.48",
+              "long_volume": "0.10",
+              "open_count": 3,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-9.11",
+                  "realized": "0.00",
+                  "total": "-9.11",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "-1.86",
+                  "realized": "0.00",
+                  "total": "-1.86",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "1.49",
+                  "realized": "0.00",
+                  "total": "1.49",
+                  "volume": "0.03"
+                },
+                "4": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "5.24",
+                  "total": "5.24",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 12:26:28.562000+00:00",
+              "realized": "5.24",
+              "short_volume": "0",
+              "total": "-4.24"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 12:26:28.565000+00:00",
+              "blockers": [],
+              "floating": "-4.14",
+              "long_volume": "0.13",
+              "open_count": 4,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "-9.11",
+                  "realized": "0.00",
+                  "total": "-9.11",
+                  "volume": "0.04"
+                },
+                "2": {
+                  "direction": "BUY",
+                  "floating": "-1.86",
+                  "realized": "0.00",
+                  "total": "-1.86",
+                  "volume": "0.03"
+                },
+                "3": {
+                  "direction": "BUY",
+                  "floating": "1.49",
+                  "realized": "0.00",
+                  "total": "1.49",
+                  "volume": "0.03"
+                },
+                "4": {
+                  "direction": "BUY",
+                  "floating": "5.34",
+                  "realized": "0.00",
+                  "total": "5.34",
+                  "volume": "0.03"
+                }
+              },
+              "quote_at": "2026-09-18 12:26:28.562000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "-4.14"
+            }
+          },
+          "max_abs_total_difference_eur": "8.44",
+          "mismatched_pairs": 3421,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:31:40.804000+00:00",
+            "final_net": "20.09",
+            "known_samples": 5194,
+            "max_drawdown": "65.65",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "20.85",
+            "minimum_from_origin": "-64.73"
+          },
+          "native_path_sha256": "2558a63e35f93a2f0ca976432aa3f66146704cc312230a69c7748c3ee7bc1c63",
+          "paired_samples": 5194,
+          "price_mode": "executable_quote",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:31:40.804000+00:00",
+            "final_net": "15.53",
+            "known_samples": 5194,
+            "max_drawdown": "73.98",
+            "max_gross_volume": "0.13",
+            "maximum_from_origin": "20.49",
+            "minimum_from_origin": "-71.41"
+          },
+          "scenario_path_sha256": "b66c6ccf8faf92991f6047da2a1dd0844b48266cf2ef81dc39665cd576ba2c7e",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        }
+      ]
+    },
+    {
+      "position_count": 1,
+      "signal_id": "canal2_3171",
+      "worlds": [
+        {
+          "delay_ms": 0,
+          "first_divergence": {
+            "at": "2026-09-18 12:28:14.145000+00:00",
+            "differences": [
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 12:28:14.145000+00:00",
+              "blockers": [],
+              "floating": "1.75",
+              "long_volume": "0.04",
+              "open_count": 1,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "1.75",
+                  "realized": "0.00",
+                  "total": "1.75",
+                  "volume": "0.04"
+                }
+              },
+              "quote_at": "2026-09-18 12:28:14.145000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "1.75"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 12:28:14.145000+00:00",
+              "blockers": [],
+              "floating": "0",
+              "long_volume": "0.00",
+              "open_count": 0,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "1.75",
+                  "total": "1.75",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 12:28:14.145000+00:00",
+              "realized": "1.75",
+              "short_volume": "0",
+              "total": "1.75"
+            }
+          },
+          "max_abs_total_difference_eur": "0",
+          "mismatched_pairs": 1,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:28:14.149000+00:00",
+            "final_net": "1.75",
+            "known_samples": 161,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "native_path_sha256": "407361fd5d4b7d50a3b232b46118578d6026c8e51ec8ba61a64cfeeadaa7f834",
+          "paired_samples": 161,
+          "price_mode": "installed_level",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:28:14.149000+00:00",
+            "final_net": "1.75",
+            "known_samples": 161,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "scenario_path_sha256": "2d6e448ff517eff7e828c9e37747226b7737d924061ef282edc8627e776e1718",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 0,
+          "first_divergence": {
+            "at": "2026-09-18 12:28:14.145000+00:00",
+            "differences": [
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 12:28:14.145000+00:00",
+              "blockers": [],
+              "floating": "1.75",
+              "long_volume": "0.04",
+              "open_count": 1,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "1.75",
+                  "realized": "0.00",
+                  "total": "1.75",
+                  "volume": "0.04"
+                }
+              },
+              "quote_at": "2026-09-18 12:28:14.145000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "1.75"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 12:28:14.145000+00:00",
+              "blockers": [],
+              "floating": "0",
+              "long_volume": "0.00",
+              "open_count": 0,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "1.75",
+                  "total": "1.75",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 12:28:14.145000+00:00",
+              "realized": "1.75",
+              "short_volume": "0",
+              "total": "1.75"
+            }
+          },
+          "max_abs_total_difference_eur": "0",
+          "mismatched_pairs": 1,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:28:14.149000+00:00",
+            "final_net": "1.75",
+            "known_samples": 161,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "native_path_sha256": "407361fd5d4b7d50a3b232b46118578d6026c8e51ec8ba61a64cfeeadaa7f834",
+          "paired_samples": 161,
+          "price_mode": "executable_quote",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:28:14.149000+00:00",
+            "final_net": "1.75",
+            "known_samples": 161,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "scenario_path_sha256": "2d6e448ff517eff7e828c9e37747226b7737d924061ef282edc8627e776e1718",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 100,
+          "first_divergence": {
+            "at": "2026-09-18 12:28:14.149000+00:00",
+            "differences": [
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 12:28:14.149000+00:00",
+              "blockers": [],
+              "floating": "0",
+              "long_volume": "0.00",
+              "open_count": 0,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "1.75",
+                  "total": "1.75",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 12:28:14.145000+00:00",
+              "realized": "1.75",
+              "short_volume": "0",
+              "total": "1.75"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 12:28:14.149000+00:00",
+              "blockers": [],
+              "floating": "1.75",
+              "long_volume": "0.04",
+              "open_count": 1,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "1.75",
+                  "realized": "0.00",
+                  "total": "1.75",
+                  "volume": "0.04"
+                }
+              },
+              "quote_at": "2026-09-18 12:28:14.145000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "1.75"
+            }
+          },
+          "max_abs_total_difference_eur": "0",
+          "mismatched_pairs": 1,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:28:14.362000+00:00",
+            "final_net": "1.75",
+            "known_samples": 162,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "native_path_sha256": "473a246adfe56f05c056d230347fb40cf6ce920ece97ce2b17aca0d9f9bf022e",
+          "paired_samples": 162,
+          "price_mode": "installed_level",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:28:14.362000+00:00",
+            "final_net": "1.75",
+            "known_samples": 162,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "scenario_path_sha256": "08ef754eefd0f8aa512d7fd5b8de3dd1dc56fa45446ff659c3fd429d4a72f523",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 100,
+          "first_divergence": {
+            "at": "2026-09-18 12:28:14.149000+00:00",
+            "differences": [
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 12:28:14.149000+00:00",
+              "blockers": [],
+              "floating": "0",
+              "long_volume": "0.00",
+              "open_count": 0,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "1.75",
+                  "total": "1.75",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 12:28:14.145000+00:00",
+              "realized": "1.75",
+              "short_volume": "0",
+              "total": "1.75"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 12:28:14.149000+00:00",
+              "blockers": [],
+              "floating": "1.75",
+              "long_volume": "0.04",
+              "open_count": 1,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "1.75",
+                  "realized": "0.00",
+                  "total": "1.75",
+                  "volume": "0.04"
+                }
+              },
+              "quote_at": "2026-09-18 12:28:14.145000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "1.75"
+            }
+          },
+          "max_abs_total_difference_eur": "0",
+          "mismatched_pairs": 1,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:28:14.362000+00:00",
+            "final_net": "1.75",
+            "known_samples": 162,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "native_path_sha256": "473a246adfe56f05c056d230347fb40cf6ce920ece97ce2b17aca0d9f9bf022e",
+          "paired_samples": 162,
+          "price_mode": "executable_quote",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:28:14.362000+00:00",
+            "final_net": "1.75",
+            "known_samples": 162,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "scenario_path_sha256": "08ef754eefd0f8aa512d7fd5b8de3dd1dc56fa45446ff659c3fd429d4a72f523",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 1000,
+          "first_divergence": {
+            "at": "2026-09-18 12:28:14.149000+00:00",
+            "differences": [
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 12:28:14.149000+00:00",
+              "blockers": [],
+              "floating": "0",
+              "long_volume": "0.00",
+              "open_count": 0,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "1.75",
+                  "total": "1.75",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 12:28:14.145000+00:00",
+              "realized": "1.75",
+              "short_volume": "0",
+              "total": "1.75"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 12:28:14.149000+00:00",
+              "blockers": [],
+              "floating": "1.75",
+              "long_volume": "0.04",
+              "open_count": 1,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "1.75",
+                  "realized": "0.00",
+                  "total": "1.75",
+                  "volume": "0.04"
+                }
+              },
+              "quote_at": "2026-09-18 12:28:14.145000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "1.75"
+            }
+          },
+          "max_abs_total_difference_eur": "1.60",
+          "mismatched_pairs": 10,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:28:15.178000+00:00",
+            "final_net": "1.75",
+            "known_samples": 171,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "native_path_sha256": "2c99a0d6d71a0b65d7957a0192a393c6c88bd2f6ce30f2b9b6efe7ca584f00e4",
+          "paired_samples": 171,
+          "price_mode": "installed_level",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:28:15.178000+00:00",
+            "final_net": "1.75",
+            "known_samples": 171,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "3.35",
+            "minimum_from_origin": "-2.37"
+          },
+          "scenario_path_sha256": "87522b5ba5b8929f9940f4b696e3f2c88ec2e7a3dd63d0e7a81f319afcac6002",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 1000,
+          "first_divergence": {
+            "at": "2026-09-18 12:28:14.149000+00:00",
+            "differences": [
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 12:28:14.149000+00:00",
+              "blockers": [],
+              "floating": "0",
+              "long_volume": "0.00",
+              "open_count": 0,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "1.75",
+                  "total": "1.75",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 12:28:14.145000+00:00",
+              "realized": "1.75",
+              "short_volume": "0",
+              "total": "1.75"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 12:28:14.149000+00:00",
+              "blockers": [],
+              "floating": "1.75",
+              "long_volume": "0.04",
+              "open_count": 1,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "1.75",
+                  "realized": "0.00",
+                  "total": "1.75",
+                  "volume": "0.04"
+                }
+              },
+              "quote_at": "2026-09-18 12:28:14.145000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "1.75"
+            }
+          },
+          "max_abs_total_difference_eur": "1.60",
+          "mismatched_pairs": 11,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:28:15.178000+00:00",
+            "final_net": "1.75",
+            "known_samples": 171,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "native_path_sha256": "2c99a0d6d71a0b65d7957a0192a393c6c88bd2f6ce30f2b9b6efe7ca584f00e4",
+          "paired_samples": 171,
+          "price_mode": "executable_quote",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:28:15.178000+00:00",
+            "final_net": "3.32",
+            "known_samples": 171,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "3.35",
+            "minimum_from_origin": "-2.37"
+          },
+          "scenario_path_sha256": "3ca33ce5adfb11b158ca1d50d308ec6851d161f415eb70b0e7b1f5373eb6c2a2",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 5000,
+          "first_divergence": {
+            "at": "2026-09-18 12:28:14.149000+00:00",
+            "differences": [
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 12:28:14.149000+00:00",
+              "blockers": [],
+              "floating": "0",
+              "long_volume": "0.00",
+              "open_count": 0,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "1.75",
+                  "total": "1.75",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 12:28:14.145000+00:00",
+              "realized": "1.75",
+              "short_volume": "0",
+              "total": "1.75"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 12:28:14.149000+00:00",
+              "blockers": [],
+              "floating": "1.75",
+              "long_volume": "0.04",
+              "open_count": 1,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "1.75",
+                  "realized": "0.00",
+                  "total": "1.75",
+                  "volume": "0.04"
+                }
+              },
+              "quote_at": "2026-09-18 12:28:14.145000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "1.75"
+            }
+          },
+          "max_abs_total_difference_eur": "2.51",
+          "mismatched_pairs": 56,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:28:19.166000+00:00",
+            "final_net": "1.75",
+            "known_samples": 217,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "native_path_sha256": "bda394ba09912432b3b4c8e800d1f8e430a711142e2de231dbd4d6e7060e49fc",
+          "paired_samples": 217,
+          "price_mode": "installed_level",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:28:19.166000+00:00",
+            "final_net": "1.75",
+            "known_samples": 217,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "4.26",
+            "minimum_from_origin": "-2.37"
+          },
+          "scenario_path_sha256": "5e8806c88bb7d45421aa96eed4328d92aa5ee0372fadec3a73e81d3d83d2bc04",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 5000,
+          "first_divergence": {
+            "at": "2026-09-18 12:28:14.149000+00:00",
+            "differences": [
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 12:28:14.149000+00:00",
+              "blockers": [],
+              "floating": "0",
+              "long_volume": "0.00",
+              "open_count": 0,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "1.75",
+                  "total": "1.75",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 12:28:14.145000+00:00",
+              "realized": "1.75",
+              "short_volume": "0",
+              "total": "1.75"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 12:28:14.149000+00:00",
+              "blockers": [],
+              "floating": "1.75",
+              "long_volume": "0.04",
+              "open_count": 1,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "1.75",
+                  "realized": "0.00",
+                  "total": "1.75",
+                  "volume": "0.04"
+                }
+              },
+              "quote_at": "2026-09-18 12:28:14.145000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "1.75"
+            }
+          },
+          "max_abs_total_difference_eur": "2.51",
+          "mismatched_pairs": 57,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:28:19.166000+00:00",
+            "final_net": "1.75",
+            "known_samples": 217,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "native_path_sha256": "bda394ba09912432b3b4c8e800d1f8e430a711142e2de231dbd4d6e7060e49fc",
+          "paired_samples": 217,
+          "price_mode": "executable_quote",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:28:19.166000+00:00",
+            "final_net": "2.83",
+            "known_samples": 217,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "4.26",
+            "minimum_from_origin": "-2.37"
+          },
+          "scenario_path_sha256": "1a26b28dd13e19f75842049e5ad8a699961ceea3482a5a8f347bf7cb42683d51",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 30000,
+          "first_divergence": {
+            "at": "2026-09-18 12:28:14.149000+00:00",
+            "differences": [
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 12:28:14.149000+00:00",
+              "blockers": [],
+              "floating": "0",
+              "long_volume": "0.00",
+              "open_count": 0,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "1.75",
+                  "total": "1.75",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 12:28:14.145000+00:00",
+              "realized": "1.75",
+              "short_volume": "0",
+              "total": "1.75"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 12:28:14.149000+00:00",
+              "blockers": [],
+              "floating": "1.75",
+              "long_volume": "0.04",
+              "open_count": 1,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "1.75",
+                  "realized": "0.00",
+                  "total": "1.75",
+                  "volume": "0.04"
+                }
+              },
+              "quote_at": "2026-09-18 12:28:14.145000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "1.75"
+            }
+          },
+          "max_abs_total_difference_eur": "5.20",
+          "mismatched_pairs": 341,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:28:44.171000+00:00",
+            "final_net": "1.75",
+            "known_samples": 502,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "native_path_sha256": "a122a578c310be0f3f3a3c669e8bab34fdba1a6d55a6d0cfea50d7f5a842f341",
+          "paired_samples": 502,
+          "price_mode": "installed_level",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:28:44.171000+00:00",
+            "final_net": "1.75",
+            "known_samples": 502,
+            "max_drawdown": "7.51",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "6.95",
+            "minimum_from_origin": "-2.37"
+          },
+          "scenario_path_sha256": "6f742437c59a0c4574c6f035c3cb753f7551fe387ab46934858958551a71431d",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        },
+        {
+          "delay_ms": 30000,
+          "first_divergence": {
+            "at": "2026-09-18 12:28:14.149000+00:00",
+            "differences": [
+              "floating",
+              "realized",
+              "long_volume",
+              "open_count",
+              "positions"
+            ],
+            "observed": {
+              "at": "2026-09-18 12:28:14.149000+00:00",
+              "blockers": [],
+              "floating": "0",
+              "long_volume": "0.00",
+              "open_count": 0,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "0",
+                  "realized": "1.75",
+                  "total": "1.75",
+                  "volume": "0.00"
+                }
+              },
+              "quote_at": "2026-09-18 12:28:14.145000+00:00",
+              "realized": "1.75",
+              "short_volume": "0",
+              "total": "1.75"
+            },
+            "ordinal": 0,
+            "simulated": {
+              "at": "2026-09-18 12:28:14.149000+00:00",
+              "blockers": [],
+              "floating": "1.75",
+              "long_volume": "0.04",
+              "open_count": 1,
+              "ordinal": 0,
+              "positions": {
+                "1": {
+                  "direction": "BUY",
+                  "floating": "1.75",
+                  "realized": "0.00",
+                  "total": "1.75",
+                  "volume": "0.04"
+                }
+              },
+              "quote_at": "2026-09-18 12:28:14.145000+00:00",
+              "realized": "0.00",
+              "short_volume": "0",
+              "total": "1.75"
+            }
+          },
+          "max_abs_total_difference_eur": "5.20",
+          "mismatched_pairs": 342,
+          "native_metrics": {
+            "final_at": "2026-09-18 12:28:44.171000+00:00",
+            "final_net": "1.75",
+            "known_samples": 502,
+            "max_drawdown": "4.22",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "1.85",
+            "minimum_from_origin": "-2.37"
+          },
+          "native_path_sha256": "a122a578c310be0f3f3a3c669e8bab34fdba1a6d55a6d0cfea50d7f5a842f341",
+          "paired_samples": 502,
+          "price_mode": "executable_quote",
+          "risk_blockers": [],
+          "scenario_metrics": {
+            "final_at": "2026-09-18 12:28:44.171000+00:00",
+            "final_net": "0.73",
+            "known_samples": 502,
+            "max_drawdown": "7.51",
+            "max_gross_volume": "0.04",
+            "maximum_from_origin": "6.95",
+            "minimum_from_origin": "-2.37"
+          },
+          "scenario_path_sha256": "3db5c19f9106aafadf621c3c4f04d22bfec9e94451bed6262913ccf5a9fdc1ed",
+          "status": "risk_path_compared",
+          "unknown_pairs": 0
+        }
+      ]
+    }
+  ],
+  "source_population_positions": 46,
+  "sources": {
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\reports\\expanded-native-controls-20260924\\tp-fill-scenario-risk-9accepted-v3.json": "f7bf7b0f77fa7bbb8ca1b5bf5cf61b66a4e7d8d1e45eb6cb977d6e413fc9df4c",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\research\\risk_trajectory.py": "52d4dd9854bacf8e760e6276e97244ff3ea6b7cf7d58c12cd288989c0a7256f1",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\runtime_data\\week_native_ticks_20260923_v1\\native_money_anchor_v2.json": "550cbd6176316cb4cb62eb41ed9dc4e0673a0a925319f0b7e041230aa2ecf41d",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\runtime_data\\week_native_ticks_20260923_v1\\native_week_risk_path_v1.json": "a4c94d417829320cab2f5d17264a7330b43e80730d92b70b94ec79c5e0b4a468",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\runtime_data\\weekly_review_20260919\\broker_money_contract_vm.json": "cd5b1a326b833412affa75b3b7f7f4c42a4a808f62d423b350814618a809d7c3",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\runtime_data\\weekly_review_20260919\\native_week_deals_20260919.json": "91723c6cc65070407bbb5a79721a6109896450354fe20b74f3a344ba7206f021",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\tools\\audit_tp_fill_scenario_baskets.py": "b31a2454d2b98d60364fe464e578853293eb27209467e38437a2cdf003a16620",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\tools\\compare_risk_trajectories.py": "361ed7df0abb8ed40f3f6c644c53eed0b5a76f71cbadfa4913829bc0d162a6ea",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\tools\\compare_week_causal_sequences.py": "08be9d83418ed68764e72defc3606543ffb08327bb392f2d2ea33ddb848117bb",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\tools\\probe_canal1_incremental_window.py": "296ded21b2b2a4ac8ec5bb4a00969c586a19b5b362019956a8911bf7b2375c50"
+  },
+  "status": "diagnostic_only",
+  "strategy_decisions_replayed": false,
+  "tapes": {
+    "conversion": {
+      "clock_admitted_by_source": false,
+      "day_rows": 122490,
+      "metadata_sha256": "5671ed7d48c1e4c8035479f106d3894a0ce2853fdf54e0cc3cb6a3d8c71117a4",
+      "parquet_sha256": "08bbc079f6ce17ecaadd44b632193e6dc295351541927f51b9e6747dc0102147",
+      "selected_rows": 10796
+    },
+    "market": {
+      "clock_admitted_by_source": false,
+      "day_rows": 655101,
+      "metadata_sha256": "f502e12e7ac65ccbc86a1bc1db688403a620dcc84c25c9f68c7436ee97a48cb3",
+      "parquet_sha256": "b0ddaa81f9c7391c1161f4239af2a9b932b7c3eb7997a683449fba6c1278670e",
+      "selected_rows": 47522
+    }
+  },
+  "world_statuses": {
+    "risk_path_compared": 30
+  },
+  "worlds_per_basket": 10
+}

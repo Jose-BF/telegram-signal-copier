@@ -1,0 +1,5096 @@
+{
+  "broker_execution_parity_verified": false,
+  "contract": "shadow_tick_read_availability_diagnostic_v1",
+  "control_manifest_hash": "0773ddad063814bb88952aa40348788328deb96dd77c9381ed6acb67d11f4e61",
+  "controls": {
+    "canal1": "dubai_balanced_v1",
+    "canal2": "gold_now_555_v1"
+  },
+  "decision_availability_parity_verified": false,
+  "inputs_sha256": {
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\tools\\audit_shadow_read_availability.py": "358f9eb782918a03c968572d195851756852f15f5964450cbb6f6a285ceba892",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\tools\\audit_week_shadow_control_path.py": "5bfb116a2e5cd5ffa544cb87786ec29a8db1b6ca533df92269a8752be40c0117",
+    "runtime_data\\weekly_review_20260919\\shadow_week_20260919.jsonl.gz": "401ba7209c07560ec13d6d370b814441e6b8f2f3ac167ae5dad753601424c66e",
+    "runtime_data\\weekly_review_20260919\\shadow_week_20260919.jsonl.gz.manifest.json": "cfbd6e08051efa3ff88ccef73d628b15d23ba7ff876085e19691ea069ba88b55"
+  },
+  "limitations": [
+    "Without paired read clocks, emission only bounds when the shadow decision was recorded.",
+    "A batch read window is not the receipt time of each tick or broker-server trigger time.",
+    "A shadow transition is not an independently verified live order or fill."
+  ],
+  "read_window_observed_count": 0,
+  "registered_control_count": 14,
+  "rows": [
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:07:46.378+00:00",
+      "event_id": "event_9db8f0533449404a9f2c1066db9e4e8e",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477665001,
+      "source_to_emit_ms": 1377.0,
+      "status": "missing_read_window",
+      "transition": "adverse_move_armed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:09:19.441+00:00",
+      "event_id": "event_36db5f1c97f0467aa259d2edb0679fe2",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477758961,
+      "source_to_emit_ms": 480.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:09:19.443+00:00",
+      "event_id": "event_109d3d35b04e4af1915b808033d200f9",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477758961,
+      "source_to_emit_ms": 482.0,
+      "status": "missing_read_window",
+      "transition": "entry_reversal_confirmed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:09:20.943+00:00",
+      "event_id": "event_8f42df7a85b04b72a11096665afe3e98",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477759027,
+      "source_to_emit_ms": 1916.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:09:20.945+00:00",
+      "event_id": "event_50766a15406b43719949a1e951147719",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477759295,
+      "source_to_emit_ms": 1650.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:09:40.562+00:00",
+      "event_id": "event_40de66d4bfc644dfb48d51b0237725c0",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477779013,
+      "source_to_emit_ms": 1549.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:10:05.558+00:00",
+      "event_id": "event_0aabffc9a55b4fe3be3348f09f0db861",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477804768,
+      "source_to_emit_ms": 790.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:10:05.560+00:00",
+      "event_id": "event_560fc12489944746b799a6253b25a75a",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477804836,
+      "source_to_emit_ms": 724.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:10:05.560+00:00",
+      "event_id": "event_99baf8fc415f4c50b62511a3958b764b",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477804889,
+      "source_to_emit_ms": 671.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:10:06.594+00:00",
+      "event_id": "event_ea54219edb95472e8f9686058bfb0f5d",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477805027,
+      "source_to_emit_ms": 1567.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:10:06.596+00:00",
+      "event_id": "event_9c3485a9bd904372b028cdef2e302c29",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477805089,
+      "source_to_emit_ms": 1507.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:10:09.655+00:00",
+      "event_id": "event_e6cfda70b52f49a8a292e72f654c1c9b",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477808361,
+      "source_to_emit_ms": 1294.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:10:09.656+00:00",
+      "event_id": "event_be66b0ebe1c44a2abb4a9bee721bed7b",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477808693,
+      "source_to_emit_ms": 963.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:10:14.227+00:00",
+      "event_id": "event_72d9c4acee30410db6d1cbe5b69fbd1c",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477809107,
+      "source_to_emit_ms": 5120.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:10:14.229+00:00",
+      "event_id": "event_1d78bde390334f39b5908354267138cd",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477809276,
+      "source_to_emit_ms": 4953.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:10:14.231+00:00",
+      "event_id": "event_ec5988621a21448ebbc1c769e35e380b",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477809348,
+      "source_to_emit_ms": 4883.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:10:14.233+00:00",
+      "event_id": "event_b865b83f16534d66bd23e2442fd7d44d",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477809521,
+      "source_to_emit_ms": 4712.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:10:17.603+00:00",
+      "event_id": "event_51a7e6610701445c9882efe1428f8025",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477816368,
+      "source_to_emit_ms": 1235.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:10:18.724+00:00",
+      "event_id": "event_f705933d41c74005bc6c9a17dda48cb2",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477817689,
+      "source_to_emit_ms": 1035.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:10:20.194+00:00",
+      "event_id": "event_57c401875fbf40139448b23e4cba15c4",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477818195,
+      "source_to_emit_ms": 1999.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:10:21.256+00:00",
+      "event_id": "event_935a37d033bc4a2ca4804535af7d93c9",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477820234,
+      "source_to_emit_ms": 1022.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:10:21.256+00:00",
+      "event_id": "event_ab86bf860c944b819f2d91979a94ca91",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477820294,
+      "source_to_emit_ms": 962.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:10:21.260+00:00",
+      "event_id": "event_a1c78cbf16c24124a147d6b85574fee2",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477820761,
+      "source_to_emit_ms": 499.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:10:22.417+00:00",
+      "event_id": "event_c4f19564bab54584815d7a561c1ec749",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477821341,
+      "source_to_emit_ms": 1076.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:10:23.608+00:00",
+      "event_id": "event_8a46f413695a44d59aa41933102ccb10",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477822931,
+      "source_to_emit_ms": 677.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:10:25.732+00:00",
+      "event_id": "event_d1da2dbd1ad74341814df3f0555652a9",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477823018,
+      "source_to_emit_ms": 2714.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-15T13:10:25.732+00:00",
+      "event_id": "event_88695a21165742779044f2e3391c593c",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789477823179,
+      "source_to_emit_ms": 2553.0,
+      "status": "missing_read_window",
+      "transition": "virtual_position_closed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "event_id": "event_2a63ef9178d84dd9a01ed9de475e6213",
+      "signal_id": "canal2_2977",
+      "status": "not_tick_driven",
+      "transition": "provider_action_observed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T11:14:26.859+00:00",
+      "event_id": "event_befbbda368464872b6d7bda8f3b1dd60",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789478545684,
+      "source_to_emit_ms": 165121175.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T11:14:26.861+00:00",
+      "event_id": "event_56865d8d41e1420ca83f173122e3c5b9",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789478546089,
+      "source_to_emit_ms": 165120772.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T11:14:26.861+00:00",
+      "event_id": "event_c29cf81f77f2478080aebbd7d9dfc33d",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789478546154,
+      "source_to_emit_ms": 165120707.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T11:14:26.864+00:00",
+      "event_id": "event_c23dbd3d576146eb85d2dafdec0b9cd7",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789478546484,
+      "source_to_emit_ms": 165120380.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T11:14:26.870+00:00",
+      "event_id": "event_55dc4664b2f5473288cbf716fef5eb95",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789478548628,
+      "source_to_emit_ms": 165118242.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T11:14:26.870+00:00",
+      "event_id": "event_8466ac33a5cb45828950994974d65657",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789478548873,
+      "source_to_emit_ms": 165117997.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T11:14:26.872+00:00",
+      "event_id": "event_62e0c50617284a3c88cf6a95add9f33e",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789478548958,
+      "source_to_emit_ms": 165117914.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T11:14:26.873+00:00",
+      "event_id": "event_161597bfdacb40e5b4ce7400955c1cf9",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789478549448,
+      "source_to_emit_ms": 165117425.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T11:14:26.876+00:00",
+      "event_id": "event_e1e8111a68dd4f8a98c0384be52c3145",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789478549511,
+      "source_to_emit_ms": 165117365.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T11:14:26.876+00:00",
+      "event_id": "event_4db7879b4de4456a94318c55212d1802",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789478549584,
+      "source_to_emit_ms": 165117292.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T11:14:26.878+00:00",
+      "event_id": "event_c8a2540d5d1f401c8f963d3128544cb5",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789478549713,
+      "source_to_emit_ms": 165117165.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T11:14:26.880+00:00",
+      "event_id": "event_8372a1f41d3b425a896a12e66b9828e6",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789478551014,
+      "source_to_emit_ms": 165115866.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T11:14:26.882+00:00",
+      "event_id": "event_21ba82e47527433ca09fb557bc49e919",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789478551070,
+      "source_to_emit_ms": 165115812.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T11:14:26.884+00:00",
+      "event_id": "event_31dde2e54d054e4099b5d4ddb42fd2ab",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789478551458,
+      "source_to_emit_ms": 165115426.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T11:14:26.884+00:00",
+      "event_id": "event_8fc44ea30a3141328da57213e1227831",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789478551524,
+      "source_to_emit_ms": 165115360.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T11:14:26.906+00:00",
+      "event_id": "event_7553857619534253a26a8c597179bfdc",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789478551641,
+      "source_to_emit_ms": 165115265.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T11:14:26.906+00:00",
+      "event_id": "event_3c5ed96987574128a536ee817cb3142c",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789478552116,
+      "source_to_emit_ms": 165114790.0,
+      "status": "missing_read_window",
+      "transition": "virtual_position_closed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T11:14:28.091+00:00",
+      "event_id": "event_c37f375afd52426f984418733c118751",
+      "signal_id": "canal2_2977",
+      "source_tick_msc": 1789479431062,
+      "source_to_emit_ms": 164237029.0,
+      "status": "missing_read_window",
+      "transition": "shadow_signal_closed"
+    },
+    {
+      "candidate_id": "dubai_balanced_v1",
+      "emitted_at_utc": "2026-09-17T11:15:11.351+00:00",
+      "event_id": "event_7c55c4e38d444ee69fffc0d4b33839b1",
+      "signal_id": "canal1_22587",
+      "source_tick_msc": 1789478063435,
+      "source_to_emit_ms": 165647916.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "dubai_balanced_v1",
+      "emitted_at_utc": "2026-09-17T11:15:12.094+00:00",
+      "event_id": "event_7dff3dfb99cb48428e8cd5b18045ce61",
+      "signal_id": "canal1_22587",
+      "source_tick_msc": 1789478679592,
+      "source_to_emit_ms": 165032502.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "dubai_balanced_v1",
+      "emitted_at_utc": "2026-09-17T11:15:12.413+00:00",
+      "event_id": "event_3bea0d8aa1134354b3b296a5964795bc",
+      "signal_id": "canal1_22587",
+      "source_tick_msc": 1789478915253,
+      "source_to_emit_ms": 164797160.0,
+      "status": "missing_read_window",
+      "transition": "profit_lock_armed"
+    },
+    {
+      "candidate_id": "dubai_balanced_v1",
+      "emitted_at_utc": "2026-09-17T11:15:12.417+00:00",
+      "event_id": "event_aaa5a457f634499abc4ea3a76d13add6",
+      "signal_id": "canal1_22587",
+      "source_tick_msc": 1789478916472,
+      "source_to_emit_ms": 164795945.0,
+      "status": "missing_read_window",
+      "transition": "basket_exit"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T12:46:14.741+00:00",
+      "event_id": "event_bf8135b8347b469e9e1713ad17fe5ab4",
+      "signal_id": "canal2_3075",
+      "source_tick_msc": 1789649173051,
+      "source_to_emit_ms": 1690.0,
+      "status": "missing_read_window",
+      "transition": "entry_cancelled"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T12:29:41.762+00:00",
+      "event_id": "event_02bbe4a18bbf46a9b4f3600fc4d5d758",
+      "signal_id": "canal2_3086",
+      "source_tick_msc": 1789648180315,
+      "source_to_emit_ms": 1447.0,
+      "status": "missing_read_window",
+      "transition": "adverse_move_armed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T12:31:08.661+00:00",
+      "event_id": "event_52e1e43723704175afa7827820e331ef",
+      "signal_id": "canal2_3086",
+      "source_tick_msc": 1789648200192,
+      "source_to_emit_ms": 68469.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T12:31:08.661+00:00",
+      "event_id": "event_1e2c162f11eb4de1b119f20b00dcb524",
+      "signal_id": "canal2_3086",
+      "source_tick_msc": 1789648200192,
+      "source_to_emit_ms": 68469.0,
+      "status": "missing_read_window",
+      "transition": "entry_reversal_confirmed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T12:31:08.663+00:00",
+      "event_id": "event_693c4e4ed2e8452788efd6d1a296b783",
+      "signal_id": "canal2_3086",
+      "source_tick_msc": 1789648200257,
+      "source_to_emit_ms": 68406.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T12:31:08.665+00:00",
+      "event_id": "event_95b7453897f444ceb4fa8a7f370cdf1f",
+      "signal_id": "canal2_3086",
+      "source_tick_msc": 1789648200314,
+      "source_to_emit_ms": 68351.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T12:31:08.667+00:00",
+      "event_id": "event_5bc211847bbc4818996416fb2ecb370b",
+      "signal_id": "canal2_3086",
+      "source_tick_msc": 1789648200377,
+      "source_to_emit_ms": 68290.0,
+      "status": "missing_read_window",
+      "transition": "virtual_position_closed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:34:46.987+00:00",
+      "event_id": "event_8f27fc7afed24a6eb8f9e17fa193cd3c",
+      "signal_id": "canal2_3086",
+      "source_tick_msc": 1789649930185,
+      "source_to_emit_ms": 77756802.0,
+      "status": "missing_read_window",
+      "transition": "shadow_signal_closed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T12:45:59.640+00:00",
+      "event_id": "event_e55cd42c6db142eda9785c8cb8da7b03",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649158788,
+      "source_to_emit_ms": 852.0,
+      "status": "missing_read_window",
+      "transition": "adverse_move_armed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T12:47:28.005+00:00",
+      "event_id": "event_d007431975c04b5c90df4648c637efa3",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649224222,
+      "source_to_emit_ms": 23783.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T12:47:28.005+00:00",
+      "event_id": "event_0efd49bb14bc4f94a686c2a04e97dc47",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649224222,
+      "source_to_emit_ms": 23783.0,
+      "status": "missing_read_window",
+      "transition": "entry_reversal_confirmed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T12:47:28.009+00:00",
+      "event_id": "event_0af3f5cf38224abc8c2c16ea283a9104",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649224688,
+      "source_to_emit_ms": 23321.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T12:47:28.011+00:00",
+      "event_id": "event_5789398875f044a080a04a0d808e2fb0",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649225043,
+      "source_to_emit_ms": 22968.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T12:47:28.013+00:00",
+      "event_id": "event_9ad7a4e0ca3e4aff8503cc34c710f8c5",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649225150,
+      "source_to_emit_ms": 22863.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T12:47:39.221+00:00",
+      "event_id": "event_4b654b04a0ae440db23ee8b897064737",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649258511,
+      "source_to_emit_ms": 710.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T12:47:39.221+00:00",
+      "event_id": "event_fde18aa778284b468df2efaf6ba0dfc1",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649258567,
+      "source_to_emit_ms": 654.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T12:47:39.223+00:00",
+      "event_id": "event_dd6bdde8e6cc4d828d08b46d50eca919",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649258631,
+      "source_to_emit_ms": 592.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T12:47:45.717+00:00",
+      "event_id": "event_297a8f13ee8e47fe834a86b9a1bc99b5",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649262292,
+      "source_to_emit_ms": 3425.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T12:47:45.719+00:00",
+      "event_id": "event_b481ad4cbd8240a7b3511bb724b34ddd",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649262369,
+      "source_to_emit_ms": 3350.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T12:47:45.719+00:00",
+      "event_id": "event_ac49c9143c014a589cf36341c5440609",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649262429,
+      "source_to_emit_ms": 3290.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T12:47:45.721+00:00",
+      "event_id": "event_f10594ae71c44f91bc1036c00b25f772",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649262488,
+      "source_to_emit_ms": 3233.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T12:47:45.723+00:00",
+      "event_id": "event_a45e0c9fd27b47c4936a07b6d358a5ca",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649262602,
+      "source_to_emit_ms": 3121.0,
+      "status": "missing_read_window",
+      "transition": "virtual_position_closed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-17T12:48:28.319+00:00",
+      "event_id": "event_089b5b1f4ba24343960f7df986264e17",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649307244,
+      "source_to_emit_ms": 1075.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.609+00:00",
+      "event_id": "event_3aa7849fb7004aa19b33d55897804853",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649313039,
+      "source_to_emit_ms": 78394570.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.616+00:00",
+      "event_id": "event_99839e5bd12847159ba1227d287e9b4f",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649317365,
+      "source_to_emit_ms": 78390251.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.618+00:00",
+      "event_id": "event_db6eb8c46bcb45ebba98ce6a155f7704",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649317644,
+      "source_to_emit_ms": 78389974.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.618+00:00",
+      "event_id": "event_768ed36fc59b40e895693d0dea386b01",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649317714,
+      "source_to_emit_ms": 78389904.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.677+00:00",
+      "event_id": "event_696b407e5f544ba58305ea2c97e5ca5b",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649347873,
+      "source_to_emit_ms": 78359804.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.679+00:00",
+      "event_id": "event_11142ab801de4198a7f82a6d33486fff",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649349223,
+      "source_to_emit_ms": 78358456.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.681+00:00",
+      "event_id": "event_30a2f1019a684627ba243135cfc09dbc",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649349288,
+      "source_to_emit_ms": 78358393.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.683+00:00",
+      "event_id": "event_5fe5ea21e56b4f39942d5f7d7a17e992",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649349369,
+      "source_to_emit_ms": 78358314.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.685+00:00",
+      "event_id": "event_eaafd52f601c4e2c90bc268cc5056e67",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649349443,
+      "source_to_emit_ms": 78358242.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.687+00:00",
+      "event_id": "event_bfe95f26462b4acaa190f0d51ce7d50a",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649349549,
+      "source_to_emit_ms": 78358138.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.689+00:00",
+      "event_id": "event_39d09905fb1848f6aad3413a22c4af0c",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649349638,
+      "source_to_emit_ms": 78358051.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.689+00:00",
+      "event_id": "event_33aace8f77814ec3bf775928b1669e6b",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649349888,
+      "source_to_emit_ms": 78357801.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.695+00:00",
+      "event_id": "event_57372890af9843e69f742853ca4e2298",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649352049,
+      "source_to_emit_ms": 78355646.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.737+00:00",
+      "event_id": "event_1abcf4ee886c450ca1c612375fa280d9",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649375542,
+      "source_to_emit_ms": 78332195.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.742+00:00",
+      "event_id": "event_4bd858a2150f457a95f8ba390e03303a",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649377592,
+      "source_to_emit_ms": 78330150.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.744+00:00",
+      "event_id": "event_f96031c48f1449fc97e83567d5f93f74",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649377665,
+      "source_to_emit_ms": 78330079.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.745+00:00",
+      "event_id": "event_c2391daf1a494d5bb6e5d3dac6c8a8f9",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649377828,
+      "source_to_emit_ms": 78329917.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.747+00:00",
+      "event_id": "event_e11e001b25c143f9bfdda3b1362d6a4b",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649378483,
+      "source_to_emit_ms": 78329264.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.751+00:00",
+      "event_id": "event_97ec40ffda8a44c1bfaf07a3cac2aa5a",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649378745,
+      "source_to_emit_ms": 78329006.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.751+00:00",
+      "event_id": "event_303c18d2dca441ffa9756e36bd9d3f3d",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649378990,
+      "source_to_emit_ms": 78328761.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.753+00:00",
+      "event_id": "event_629a6789d3a44c39a339dfb71be5284e",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649379045,
+      "source_to_emit_ms": 78328708.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.765+00:00",
+      "event_id": "event_48aa1027a21545f7bb0846fcf4357675",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649384995,
+      "source_to_emit_ms": 78322770.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.767+00:00",
+      "event_id": "event_430b775af14247e29c0f591e7189ec7d",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649385060,
+      "source_to_emit_ms": 78322707.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.769+00:00",
+      "event_id": "event_a50035ac3a1f4e8392253aea5545f6c6",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649385210,
+      "source_to_emit_ms": 78322559.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.771+00:00",
+      "event_id": "event_447f67ff4e804bf59e387c1776612e3a",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649385286,
+      "source_to_emit_ms": 78322485.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.773+00:00",
+      "event_id": "event_f00be83f717a4196a127d014e555a366",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649385347,
+      "source_to_emit_ms": 78322426.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.775+00:00",
+      "event_id": "event_0ac6659d5a10459981f684280c4b97c0",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649385439,
+      "source_to_emit_ms": 78322336.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.775+00:00",
+      "event_id": "event_c9e66276426e4f329d9468eb40aeb0be",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649385558,
+      "source_to_emit_ms": 78322217.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.777+00:00",
+      "event_id": "event_d36df4cf73d34bf1bfc10cf12ea0455a",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649385839,
+      "source_to_emit_ms": 78321938.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.781+00:00",
+      "event_id": "event_ce9eefaafbf2426fb52bd9037be24cae",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649386192,
+      "source_to_emit_ms": 78321589.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.783+00:00",
+      "event_id": "event_91d518a8db4b4892aff612eb613eca35",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649386408,
+      "source_to_emit_ms": 78321375.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:07.785+00:00",
+      "event_id": "event_2028875718484a6d96d51e0537d0af20",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789649386543,
+      "source_to_emit_ms": 78321242.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.469+00:00",
+      "event_id": "event_0d3b8d250fd2496798f463693f389873",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650295203,
+      "source_to_emit_ms": 77414266.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.471+00:00",
+      "event_id": "event_9f235ef340094ad5b16be49ddf2850b6",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650295264,
+      "source_to_emit_ms": 77414207.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.473+00:00",
+      "event_id": "event_3d489913191d499b89eadea1da5bf41b",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650295346,
+      "source_to_emit_ms": 77414127.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.475+00:00",
+      "event_id": "event_b0abb01ba51646dfb460aac24ac3808e",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650295400,
+      "source_to_emit_ms": 77414075.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.479+00:00",
+      "event_id": "event_4ccbbf61c5fb4158ab5e1f5568d4c3c9",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650296649,
+      "source_to_emit_ms": 77412830.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.481+00:00",
+      "event_id": "event_b5c5ca28133d411896948c37f9a2d155",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650296768,
+      "source_to_emit_ms": 77412713.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.482+00:00",
+      "event_id": "event_3e15aa6df2ed4abd8e8ba80b140f0af4",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650296888,
+      "source_to_emit_ms": 77412594.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.556+00:00",
+      "event_id": "event_a249e64ecaa44d15a475aa5b462d2a22",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650335219,
+      "source_to_emit_ms": 77374337.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.558+00:00",
+      "event_id": "event_5a2b72f16d014d12a7d219c8be7b927a",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650335363,
+      "source_to_emit_ms": 77374195.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.560+00:00",
+      "event_id": "event_052d7891f8924df79cd3b11324739108",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650335501,
+      "source_to_emit_ms": 77374059.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.564+00:00",
+      "event_id": "event_19b138bcacfa416e9e9223c32944d937",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650336125,
+      "source_to_emit_ms": 77373439.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.566+00:00",
+      "event_id": "event_49d8167771664e81867e8f7cca99aadb",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650336179,
+      "source_to_emit_ms": 77373387.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.567+00:00",
+      "event_id": "event_372c719283e041ed9a28e5fa27bb1cba",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650336247,
+      "source_to_emit_ms": 77373320.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.594+00:00",
+      "event_id": "event_d22dfeb7e0784073ac1473b5e4076354",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650350564,
+      "source_to_emit_ms": 77359030.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.596+00:00",
+      "event_id": "event_a10fc15442f34792826f498a5c0909ce",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650350634,
+      "source_to_emit_ms": 77358962.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.613+00:00",
+      "event_id": "event_42c1d00735e74b2aa6b69e5b940db6b4",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650359532,
+      "source_to_emit_ms": 77350081.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.616+00:00",
+      "event_id": "event_f7d7f122ae01438285c06be82bbc8ff7",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650359667,
+      "source_to_emit_ms": 77349949.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.617+00:00",
+      "event_id": "event_89d84cdf999640e099ce91ddbf3d65be",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650359726,
+      "source_to_emit_ms": 77349891.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.626+00:00",
+      "event_id": "event_bf9e5fba9ffb4e39aa28836c47c6136a",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650362811,
+      "source_to_emit_ms": 77346815.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.628+00:00",
+      "event_id": "event_47ebf7973b1f4eed8ffcc6907c9c7164",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650362892,
+      "source_to_emit_ms": 77346736.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.642+00:00",
+      "event_id": "event_1969e1d5a97849c1bdc3db1b307a8697",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650369224,
+      "source_to_emit_ms": 77340418.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.644+00:00",
+      "event_id": "event_fe293d5bba314b3791ebaaf244f89cb9",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650369298,
+      "source_to_emit_ms": 77340346.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.649+00:00",
+      "event_id": "event_8e93ae1d6ca34e48b4c4612c5ba31ec4",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650371623,
+      "source_to_emit_ms": 77338026.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.651+00:00",
+      "event_id": "event_7d7f9a8a50bf4f1d80b0c942bab22fc2",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650371678,
+      "source_to_emit_ms": 77337973.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.653+00:00",
+      "event_id": "event_f2e4bbf7a2bb4a1e9f17781a705de094",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650371745,
+      "source_to_emit_ms": 77337908.0,
+      "status": "missing_read_window",
+      "transition": "virtual_position_closed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.655+00:00",
+      "event_id": "event_39d85a7bc7bd414385e0e30ef6bb2d16",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650371745,
+      "source_to_emit_ms": 77337910.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.657+00:00",
+      "event_id": "event_a7a3340b9e9c488188d79cdb497f99ba",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650371832,
+      "source_to_emit_ms": 77337825.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.657+00:00",
+      "event_id": "event_01ae9fffbe8245318fe16acd25d7b347",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650371879,
+      "source_to_emit_ms": 77337778.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.659+00:00",
+      "event_id": "event_7a8ecf47e54a4c83ade3b5c56beab74b",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650371974,
+      "source_to_emit_ms": 77337685.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.661+00:00",
+      "event_id": "event_c3836449897d47efa41091a7f6bfe912",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650372040,
+      "source_to_emit_ms": 77337621.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.663+00:00",
+      "event_id": "event_6bc10c1e09524791bdcb79bdbee8a2dc",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650372275,
+      "source_to_emit_ms": 77337388.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.665+00:00",
+      "event_id": "event_d4188973ed0f42d3b9f7c35eb334483a",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650372351,
+      "source_to_emit_ms": 77337314.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.667+00:00",
+      "event_id": "event_f23121c89c294667a1533a36a277fce6",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650372433,
+      "source_to_emit_ms": 77337234.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.669+00:00",
+      "event_id": "event_9eb73130bc2f4b34905edd989bd13af0",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650372505,
+      "source_to_emit_ms": 77337164.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.671+00:00",
+      "event_id": "event_cad3af8970dd4d87aa3aa7a9a65fba54",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650372586,
+      "source_to_emit_ms": 77337085.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.673+00:00",
+      "event_id": "event_a2ec68bca1454963ba2519f3a562dadf",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650372822,
+      "source_to_emit_ms": 77336851.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.673+00:00",
+      "event_id": "event_673be23ac4964f20984012e6a9139fc8",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650372882,
+      "source_to_emit_ms": 77336791.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.675+00:00",
+      "event_id": "event_62027c2adf324d82874a4fe2e56a51e1",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650372945,
+      "source_to_emit_ms": 77336730.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.678+00:00",
+      "event_id": "event_681e3aa515844e23b4293a9cf9bb05e8",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650373092,
+      "source_to_emit_ms": 77336586.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.680+00:00",
+      "event_id": "event_8da79b2111e640f6a51aa599a6858795",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650373525,
+      "source_to_emit_ms": 77336155.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:09.681+00:00",
+      "event_id": "event_524941bb7fc545949dd77fa6ec3d232a",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650373586,
+      "source_to_emit_ms": 77336095.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.152+00:00",
+      "event_id": "event_4a190c04498f4f2984d0fb3052001be0",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650637320,
+      "source_to_emit_ms": 77072832.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.154+00:00",
+      "event_id": "event_e165cffe99f34c57a70e6ac7e94329fb",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650637400,
+      "source_to_emit_ms": 77072754.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.156+00:00",
+      "event_id": "event_069c6e7abe3245c5848d2aba5d742ed6",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650637932,
+      "source_to_emit_ms": 77072224.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.157+00:00",
+      "event_id": "event_a0749d02a96d4b7b9ce92cb14fc97cf8",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650637998,
+      "source_to_emit_ms": 77072159.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.159+00:00",
+      "event_id": "event_6c4c7ffa80ad4a1b99090114c0f3f124",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650638072,
+      "source_to_emit_ms": 77072087.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.161+00:00",
+      "event_id": "event_80a2ca5e699f4f3b98e42510c05976aa",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650638428,
+      "source_to_emit_ms": 77071733.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.163+00:00",
+      "event_id": "event_83970f0a37d84a01849a108a168829bb",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650638548,
+      "source_to_emit_ms": 77071615.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.166+00:00",
+      "event_id": "event_8ee7e6eeb2e145b49b2e7e0b7971286e",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650638618,
+      "source_to_emit_ms": 77071548.0,
+      "status": "missing_read_window",
+      "transition": "virtual_position_closed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.168+00:00",
+      "event_id": "event_d92c98770691448f94ff904bdbc7ca94",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650638618,
+      "source_to_emit_ms": 77071550.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.168+00:00",
+      "event_id": "event_bef32e0d39b44bfbb18acb7478062701",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650638694,
+      "source_to_emit_ms": 77071474.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.170+00:00",
+      "event_id": "event_208b88f6e9d4457fbb82f7799d693471",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650638744,
+      "source_to_emit_ms": 77071426.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.172+00:00",
+      "event_id": "event_9a58800ec8b04ae39a29a848782e1a70",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650638794,
+      "source_to_emit_ms": 77071378.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.173+00:00",
+      "event_id": "event_53857b45a6f94d94bf2608ba10ae4742",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650638898,
+      "source_to_emit_ms": 77071275.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.178+00:00",
+      "event_id": "event_363757af96c84b0da4791adfa55509ed",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650640520,
+      "source_to_emit_ms": 77069658.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.180+00:00",
+      "event_id": "event_3779eeee86da4118babcf2840de85012",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650640588,
+      "source_to_emit_ms": 77069592.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.184+00:00",
+      "event_id": "event_2bfc4b2af21f4c01af9706fb20ffbce1",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650642582,
+      "source_to_emit_ms": 77067602.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.186+00:00",
+      "event_id": "event_100a4a2e314941679ff40be9c11b2d5d",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650642802,
+      "source_to_emit_ms": 77067384.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.188+00:00",
+      "event_id": "event_9ebbde049b614cfabb92dc160370d299",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650642866,
+      "source_to_emit_ms": 77067322.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.190+00:00",
+      "event_id": "event_3e86ec3d48c44d0f866ac0a9037fd963",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650642943,
+      "source_to_emit_ms": 77067247.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.192+00:00",
+      "event_id": "event_54fb868ac8c84da183098af7b1980628",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650643258,
+      "source_to_emit_ms": 77066934.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.194+00:00",
+      "event_id": "event_7cc4a218757f418e87b61006cfeb2820",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650643674,
+      "source_to_emit_ms": 77066520.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.198+00:00",
+      "event_id": "event_05ca87f51d514db8aa701b84783b1187",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650645201,
+      "source_to_emit_ms": 77064997.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.200+00:00",
+      "event_id": "event_9ef6cdf714a24e07bf4ceab2122b7332",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650645551,
+      "source_to_emit_ms": 77064649.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.202+00:00",
+      "event_id": "event_74db5c7767a84540b7d488ac49ebb67c",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650645618,
+      "source_to_emit_ms": 77064584.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.226+00:00",
+      "event_id": "event_47d0fee76469422c849df03e5c8df71e",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650659115,
+      "source_to_emit_ms": 77051111.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.228+00:00",
+      "event_id": "event_d9263d233b764cecbe9cb7df816a8ca5",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650659192,
+      "source_to_emit_ms": 77051036.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.230+00:00",
+      "event_id": "event_8e2818b429524256a8aed5fe21c37da8",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650659287,
+      "source_to_emit_ms": 77050943.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.373+00:00",
+      "event_id": "event_ac28ac00c2ab48019c5f801ccb9b3576",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650751244,
+      "source_to_emit_ms": 76959129.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.375+00:00",
+      "event_id": "event_59f590aa10eb4d25a6575262d78ef77e",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650751322,
+      "source_to_emit_ms": 76959053.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.377+00:00",
+      "event_id": "event_33dbee2ba2ec468293faa9b13f53b80d",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650751385,
+      "source_to_emit_ms": 76958992.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.379+00:00",
+      "event_id": "event_507c6fdf7c9f415e8528071dcc75171c",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650751452,
+      "source_to_emit_ms": 76958927.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.381+00:00",
+      "event_id": "event_43e8727f68da44aebe2401c5592cfa5f",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650751532,
+      "source_to_emit_ms": 76958849.0,
+      "status": "missing_read_window",
+      "transition": "virtual_position_closed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.381+00:00",
+      "event_id": "event_24e0de96723b4d979b5d396dc31507cb",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650751532,
+      "source_to_emit_ms": 76958849.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.385+00:00",
+      "event_id": "event_9d3ba19800494d0c92263be2c448dc06",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650752168,
+      "source_to_emit_ms": 76958217.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.385+00:00",
+      "event_id": "event_c7bcfd0c025e49429cf3c8e6e045d67f",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650752228,
+      "source_to_emit_ms": 76958157.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.387+00:00",
+      "event_id": "event_d30c7da0175346bf968728da33518ba3",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650752298,
+      "source_to_emit_ms": 76958089.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.389+00:00",
+      "event_id": "event_640c1e7d9fff43329900ab056d95cbae",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650752373,
+      "source_to_emit_ms": 76958016.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.393+00:00",
+      "event_id": "event_78fd52b6c3e7496eb4b5e6d0dd18974d",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650754058,
+      "source_to_emit_ms": 76956335.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.395+00:00",
+      "event_id": "event_a0f63712589441ed8e31e789a4736e14",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650754120,
+      "source_to_emit_ms": 76956275.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.396+00:00",
+      "event_id": "event_b767f984d6ca4706b589a7b9686302e0",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650754185,
+      "source_to_emit_ms": 76956211.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.398+00:00",
+      "event_id": "event_dda62b526c4f455997321ad0c7ab8d7a",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650754252,
+      "source_to_emit_ms": 76956146.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.398+00:00",
+      "event_id": "event_4c48c24dbc8a4de3bdd88497892805ff",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650754314,
+      "source_to_emit_ms": 76956084.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.404+00:00",
+      "event_id": "event_9d5c0f0a7bf74fee896c6bbff708b87d",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650757024,
+      "source_to_emit_ms": 76953380.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.408+00:00",
+      "event_id": "event_98ee84bfdf6d48b0ba8d258ff10dd7a6",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650758594,
+      "source_to_emit_ms": 76951814.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.410+00:00",
+      "event_id": "event_f65e500e2add4fb199bd64714c51e53f",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650758655,
+      "source_to_emit_ms": 76951755.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.412+00:00",
+      "event_id": "event_07db9356dc99441ab991cb2d778442c2",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650758730,
+      "source_to_emit_ms": 76951682.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.414+00:00",
+      "event_id": "event_44afd7d635a5426fb465b8b05a13ae2e",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650758924,
+      "source_to_emit_ms": 76951490.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.416+00:00",
+      "event_id": "event_375396f981824d0cbde85a5e58a15290",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650759419,
+      "source_to_emit_ms": 76950997.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.418+00:00",
+      "event_id": "event_8901cbeb9a6f4f71a9c846965814b690",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650759570,
+      "source_to_emit_ms": 76950848.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.420+00:00",
+      "event_id": "event_c79cc723bd6945ec9b71fe1a12444050",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650759637,
+      "source_to_emit_ms": 76950783.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.422+00:00",
+      "event_id": "event_6d6942a2f7734a79a6fc1502a30e4d15",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650759992,
+      "source_to_emit_ms": 76950430.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.424+00:00",
+      "event_id": "event_9004fd0431954fe39be4ef128e89cc1c",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650760110,
+      "source_to_emit_ms": 76950314.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.424+00:00",
+      "event_id": "event_d20199c233d247b29126f8168740c73b",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650760192,
+      "source_to_emit_ms": 76950232.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.426+00:00",
+      "event_id": "event_95c99afa0e7b4b859b3769cfefd9e8e4",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650760274,
+      "source_to_emit_ms": 76950152.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.428+00:00",
+      "event_id": "event_c0a03d23aab541bcb14f79d582062d37",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650760348,
+      "source_to_emit_ms": 76950080.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.468+00:00",
+      "event_id": "event_a10817ee860d446c878ba0e133f75b5d",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650789653,
+      "source_to_emit_ms": 76920815.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.476+00:00",
+      "event_id": "event_a6c1a35b79e84092b33ebef2f401d8f6",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650796027,
+      "source_to_emit_ms": 76914449.0,
+      "status": "missing_read_window",
+      "transition": "virtual_position_closed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T10:35:10.478+00:00",
+      "event_id": "event_43d5909059654154a37c43c8bbd59906",
+      "signal_id": "canal2_3096",
+      "source_tick_msc": 1789650796027,
+      "source_to_emit_ms": 76914451.0,
+      "status": "missing_read_window",
+      "transition": "shadow_signal_closed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:05:34.747+00:00",
+      "event_id": "event_82b02f5affa7463992acf1496e3d0678",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729532196,
+      "source_to_emit_ms": 2551.0,
+      "status": "missing_read_window",
+      "transition": "adverse_move_armed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:05:43.181+00:00",
+      "event_id": "event_5a5e3a2d6a7549749bce6e56144ad0f7",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729540191,
+      "source_to_emit_ms": 2990.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:05:43.181+00:00",
+      "event_id": "event_76ca23a5ca1f4236a2aefdb37c2d6afc",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729540191,
+      "source_to_emit_ms": 2990.0,
+      "status": "missing_read_window",
+      "transition": "entry_reversal_confirmed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:05:46.803+00:00",
+      "event_id": "event_753a83a992fa40afb56418a8f5d6051e",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729541042,
+      "source_to_emit_ms": 5761.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:05:46.805+00:00",
+      "event_id": "event_ba2aff6796a3410dafc2e4caa76f519e",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729541352,
+      "source_to_emit_ms": 5453.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:05:46.805+00:00",
+      "event_id": "event_50b072f8757c4446af6f6960417db84d",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729541408,
+      "source_to_emit_ms": 5397.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:05:46.807+00:00",
+      "event_id": "event_a6530d254402412dbe296a9cb132c2de",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729541481,
+      "source_to_emit_ms": 5326.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:05:46.809+00:00",
+      "event_id": "event_eb8ccbb82e3a45c99c155bbe34f9ac19",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729541543,
+      "source_to_emit_ms": 5266.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:05:51.166+00:00",
+      "event_id": "event_09c0bdaa496a4bf6a1d13fcb25e47013",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729545981,
+      "source_to_emit_ms": 5185.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:05:51.166+00:00",
+      "event_id": "event_1edbe9c630f8459eabdbc9b4df2f1227",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729546115,
+      "source_to_emit_ms": 5051.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:05:51.168+00:00",
+      "event_id": "event_b1550acb95c34d8aa370968fc3f9d371",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729546176,
+      "source_to_emit_ms": 4992.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:05:51.170+00:00",
+      "event_id": "event_59bd9a09302a4d80a11b2aec4d00a693",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729546247,
+      "source_to_emit_ms": 4923.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:05:51.170+00:00",
+      "event_id": "event_9f7330986b5c4d5696e30c59a993f3c8",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729546310,
+      "source_to_emit_ms": 4860.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:05:51.172+00:00",
+      "event_id": "event_0c17b2e3739f4fe59b8ab3ca1ce239a0",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729546510,
+      "source_to_emit_ms": 4662.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:05:51.172+00:00",
+      "event_id": "event_7718711148af45dc87f79d6a62736f5e",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729546572,
+      "source_to_emit_ms": 4600.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:05:51.174+00:00",
+      "event_id": "event_2f8885266efa4061863aafe276458ea8",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729546641,
+      "source_to_emit_ms": 4533.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:05:51.174+00:00",
+      "event_id": "event_3e6537f863ae4857b92a2dc580388ea9",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729546696,
+      "source_to_emit_ms": 4478.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:06:10.242+00:00",
+      "event_id": "event_7804ef2244414735ab89523634d17a89",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729567608,
+      "source_to_emit_ms": 2634.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:06:11.240+00:00",
+      "event_id": "event_dfc0c5f40c0e4289a40dce49434fb977",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729568575,
+      "source_to_emit_ms": 2665.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:06:11.242+00:00",
+      "event_id": "event_e8a4ee60ad554cf1b6ff1099261adefc",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729568623,
+      "source_to_emit_ms": 2619.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:06:11.244+00:00",
+      "event_id": "event_7b7b1701a3ea454db1fc6eb1ebed9237",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729568687,
+      "source_to_emit_ms": 2557.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:06:11.244+00:00",
+      "event_id": "event_45d262179a3349ce823ffbbc48cc8c20",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729568755,
+      "source_to_emit_ms": 2489.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:06:11.246+00:00",
+      "event_id": "event_5bef0e38091d4f7f82e9db7c0781bd6a",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729568824,
+      "source_to_emit_ms": 2422.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:06:11.248+00:00",
+      "event_id": "event_fafd45bfa6be490396d98860908e43c7",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729568885,
+      "source_to_emit_ms": 2363.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:06:11.248+00:00",
+      "event_id": "event_bef84db7aafe4dfba199a9bf3d157284",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729568959,
+      "source_to_emit_ms": 2289.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:06:12.273+00:00",
+      "event_id": "event_1d0d69bd473a4a08a68d041f1e5a2aea",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729569022,
+      "source_to_emit_ms": 3251.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:06:12.279+00:00",
+      "event_id": "event_4b73f2572f49459688189c7b0636862a",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729569355,
+      "source_to_emit_ms": 2924.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:06:12.281+00:00",
+      "event_id": "event_ccab8ad4aab1428b93389c478fe0f341",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729569425,
+      "source_to_emit_ms": 2856.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:06:12.283+00:00",
+      "event_id": "event_c24b48a72d6d4e60b045fef4f525f6cd",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729569491,
+      "source_to_emit_ms": 2792.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:06:12.283+00:00",
+      "event_id": "event_02885f6ebed947b4832ed920946064ab",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729569557,
+      "source_to_emit_ms": 2726.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:06:17.405+00:00",
+      "event_id": "event_6777280b377647ba89202b9aacbda015",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729573282,
+      "source_to_emit_ms": 4123.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:06:17.407+00:00",
+      "event_id": "event_9458bd423bb94d129b154fac6fd489a6",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729573337,
+      "source_to_emit_ms": 4070.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:06:17.407+00:00",
+      "event_id": "event_9d096281b60a42a1bf8b6524679d58bd",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729573408,
+      "source_to_emit_ms": 3999.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:06:17.409+00:00",
+      "event_id": "event_fe1232db51b34e54845b30c3175ebaf0",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729573468,
+      "source_to_emit_ms": 3941.0,
+      "status": "missing_read_window",
+      "transition": "virtual_position_closed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:06:53.157+00:00",
+      "event_id": "event_b8e8f53274f54dc9a63a80595383c398",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729610877,
+      "source_to_emit_ms": 2280.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:06:53.159+00:00",
+      "event_id": "event_ad3280cf0c9e46508d7c9d37b04a8cdb",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729610998,
+      "source_to_emit_ms": 2161.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:06:53.159+00:00",
+      "event_id": "event_4b3435493b674f4fa6fb294172670ef0",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729611081,
+      "source_to_emit_ms": 2078.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:06:53.161+00:00",
+      "event_id": "event_499ef91b646d4cdb86afec9392fd5328",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729611141,
+      "source_to_emit_ms": 2020.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:06:53.163+00:00",
+      "event_id": "event_186588201d414af888252a61ce4237dc",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729611211,
+      "source_to_emit_ms": 1952.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:06:53.165+00:00",
+      "event_id": "event_10daabe8a781494184a44e8714d3fec5",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729611531,
+      "source_to_emit_ms": 1634.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:06:53.165+00:00",
+      "event_id": "event_c82af57b186b4913b663e553b41e94a5",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729611591,
+      "source_to_emit_ms": 1574.0,
+      "status": "missing_read_window",
+      "transition": "virtual_position_closed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:07:03.355+00:00",
+      "event_id": "event_db7b2e1f170d4f439063ef479a71cffc",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729621025,
+      "source_to_emit_ms": 2330.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:07:03.357+00:00",
+      "event_id": "event_17535e6fd28e423c97a3d29b4c72811f",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729621080,
+      "source_to_emit_ms": 2277.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:07:03.358+00:00",
+      "event_id": "event_5621f407258d45829f241798c7e885aa",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729621147,
+      "source_to_emit_ms": 2211.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:07:11.368+00:00",
+      "event_id": "event_6ac27dc483e64ed9978223d68b1303e6",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729630890,
+      "source_to_emit_ms": 478.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:07:18.368+00:00",
+      "event_id": "event_9b2aceeb164649aa9ae99a2f5dd2b982",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789729636267,
+      "source_to_emit_ms": 2101.0,
+      "status": "missing_read_window",
+      "transition": "virtual_position_closed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "event_id": "event_b4c2ce6b5bec41eeb47434ae666e294d",
+      "signal_id": "canal2_3148",
+      "status": "not_tick_driven",
+      "transition": "provider_action_observed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:30:49.996+00:00",
+      "event_id": "event_71babe0e1a1e4a22aabd72904a6b2d04",
+      "signal_id": "canal2_3148",
+      "source_tick_msc": 1789731048045,
+      "source_to_emit_ms": 1951.0,
+      "status": "missing_read_window",
+      "transition": "shadow_signal_closed"
+    },
+    {
+      "candidate_id": "dubai_balanced_v1",
+      "emitted_at_utc": "2026-09-18T11:06:50.034+00:00",
+      "event_id": "event_dec85367be374fbb88035ea12751094c",
+      "signal_id": "canal1_22761",
+      "source_tick_msc": 1789729607443,
+      "source_to_emit_ms": 2591.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "dubai_balanced_v1",
+      "event_id": "event_0e1683a600994db1b71492639f3d2fc6",
+      "signal_id": "canal1_22761",
+      "status": "not_tick_driven",
+      "transition": "provider_action_observed"
+    },
+    {
+      "candidate_id": "dubai_balanced_v1",
+      "emitted_at_utc": "2026-09-18T11:46:48.663+00:00",
+      "event_id": "event_f8a71b19edff4205a9e923bd0eee5218",
+      "signal_id": "canal1_22761",
+      "source_tick_msc": 1789732007470,
+      "source_to_emit_ms": 1193.0,
+      "status": "missing_read_window",
+      "transition": "basket_exit"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:31:04.205+00:00",
+      "event_id": "event_c21b4030209941f69170f1804c38f125",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731063882,
+      "source_to_emit_ms": 323.0,
+      "status": "missing_read_window",
+      "transition": "adverse_move_armed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:31:29.357+00:00",
+      "event_id": "event_bcf3179c9d374d7bae0106053b9a9cea",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731088917,
+      "source_to_emit_ms": 440.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:31:29.357+00:00",
+      "event_id": "event_a49c9b0c0bfd402c8a31f969912caed8",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731088917,
+      "source_to_emit_ms": 440.0,
+      "status": "missing_read_window",
+      "transition": "entry_reversal_confirmed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:31:53.394+00:00",
+      "event_id": "event_c1d02490a2ce423a89da32beb642adb8",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731112922,
+      "source_to_emit_ms": 472.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:31:57.424+00:00",
+      "event_id": "event_c0da83e3963442eca48141c119f210a9",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731116135,
+      "source_to_emit_ms": 1289.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:31:57.426+00:00",
+      "event_id": "event_91eae0014c7e4538bbcf744e8a629869",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731116217,
+      "source_to_emit_ms": 1209.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:31:57.428+00:00",
+      "event_id": "event_88b274296a974779a9742ce9b8b2940e",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731116618,
+      "source_to_emit_ms": 810.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:32:26.711+00:00",
+      "event_id": "event_b565a96cb42847549bbdf8c89b59b3e0",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731135355,
+      "source_to_emit_ms": 11356.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:32:26.730+00:00",
+      "event_id": "event_82e086e882154dab89255e768e185f49",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731137607,
+      "source_to_emit_ms": 9123.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:32:26.733+00:00",
+      "event_id": "event_187ca8620b964f9990485cf5c80e42fd",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731137662,
+      "source_to_emit_ms": 9071.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:32:26.735+00:00",
+      "event_id": "event_9338174beaa04cf5ba2b2b9fa30910f8",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731137738,
+      "source_to_emit_ms": 8997.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:32:26.737+00:00",
+      "event_id": "event_69ebbd5837104649ab62fd530d99b582",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731137960,
+      "source_to_emit_ms": 8777.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:32:26.748+00:00",
+      "event_id": "event_63a147ad06354e9e8f6f68407262bc6b",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731138309,
+      "source_to_emit_ms": 8439.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:32:39.834+00:00",
+      "event_id": "event_97a40a601cbd4247a74c277d6f34be84",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731158648,
+      "source_to_emit_ms": 1186.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:32:39.836+00:00",
+      "event_id": "event_03b48ebb3d99417387c30d42a112d436",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731158777,
+      "source_to_emit_ms": 1059.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:32:40.819+00:00",
+      "event_id": "event_eebfdedfb7454e5f94e82358ffac6d66",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731159089,
+      "source_to_emit_ms": 1730.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:32:40.822+00:00",
+      "event_id": "event_ac835cacfe02444ba57a140a80663f98",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731159153,
+      "source_to_emit_ms": 1669.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:32:41.835+00:00",
+      "event_id": "event_cd07c79e04dd41e4abd1162ee8906bc2",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731160124,
+      "source_to_emit_ms": 1711.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:32:41.839+00:00",
+      "event_id": "event_6cf3673b40ff4a1392e653d9ea9d6de4",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731160263,
+      "source_to_emit_ms": 1576.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:32:49.954+00:00",
+      "event_id": "event_3d77d761391c42a6b0093fb615d4176a",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731168960,
+      "source_to_emit_ms": 994.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:33:03.963+00:00",
+      "event_id": "event_c7b382e86894491096902009dea1e073",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731182446,
+      "source_to_emit_ms": 1517.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:33:03.965+00:00",
+      "event_id": "event_cbabc5fc9f4f4a3f92829240c9adace6",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731182519,
+      "source_to_emit_ms": 1446.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:33:03.967+00:00",
+      "event_id": "event_717b481f1da94f0dbf49ad5850a157bb",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731182590,
+      "source_to_emit_ms": 1377.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:33:03.969+00:00",
+      "event_id": "event_93b4daa5fa8f499ebfded7d9a40bdeea",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731182651,
+      "source_to_emit_ms": 1318.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:33:04.982+00:00",
+      "event_id": "event_2506ec9bb3a34f21a6c396e0fc966a90",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731183415,
+      "source_to_emit_ms": 1567.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:33:04.984+00:00",
+      "event_id": "event_d3b285951660425c9a13c93855e83376",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731183492,
+      "source_to_emit_ms": 1492.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:33:04.990+00:00",
+      "event_id": "event_44c68cfc04154c40b675ac2c8eb6a747",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731183848,
+      "source_to_emit_ms": 1142.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:33:06.994+00:00",
+      "event_id": "event_0fb6d31d56aa41278e2c78f9dac7c014",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731185261,
+      "source_to_emit_ms": 1733.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:33:06.996+00:00",
+      "event_id": "event_1e7e687470d446d38f03967b013a82e8",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731185358,
+      "source_to_emit_ms": 1638.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:33:07.000+00:00",
+      "event_id": "event_44a14161d67b4d4aa71df6b9181c8961",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731185683,
+      "source_to_emit_ms": 1317.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:33:07.996+00:00",
+      "event_id": "event_f99a09f9632140b09f87765af2a30751",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731186091,
+      "source_to_emit_ms": 1905.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:34:42.323+00:00",
+      "event_id": "event_ab5a1fc258884aad8f69f7365d43d4c8",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731281096,
+      "source_to_emit_ms": 1227.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:34:42.325+00:00",
+      "event_id": "event_6dcdfd5454d74534963837ae9b98817b",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731281155,
+      "source_to_emit_ms": 1170.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:34:42.327+00:00",
+      "event_id": "event_00353bd9636d4769a7bb3d3b070306e6",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731281233,
+      "source_to_emit_ms": 1094.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:34:42.331+00:00",
+      "event_id": "event_78d834930c4844a5b4fb6f4762bcc2d0",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731281289,
+      "source_to_emit_ms": 1042.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:34:42.335+00:00",
+      "event_id": "event_35eda609db094def8a24308d74403ffe",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731281581,
+      "source_to_emit_ms": 754.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:34:43.357+00:00",
+      "event_id": "event_9b29b613f3674e0ca96906cbf7753ef5",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731282469,
+      "source_to_emit_ms": 888.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:34:43.361+00:00",
+      "event_id": "event_0f784409cac54203ab23d3a23dc35d6e",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731282614,
+      "source_to_emit_ms": 747.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:34:43.363+00:00",
+      "event_id": "event_d7e05b21f75342439ece72e273f25bdc",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731282697,
+      "source_to_emit_ms": 666.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:34:43.365+00:00",
+      "event_id": "event_426a3432948149869a7a1de8ee0f7c1e",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731282762,
+      "source_to_emit_ms": 603.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:34:43.367+00:00",
+      "event_id": "event_33efd3a2eab24c398b72afd71ec62303",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731282822,
+      "source_to_emit_ms": 545.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:36:10.457+00:00",
+      "event_id": "event_d25bea9b4de0456a8aa8bd7c03eac78b",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731368594,
+      "source_to_emit_ms": 1863.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:36:21.497+00:00",
+      "event_id": "event_3daf7f14237d44af898aa2bd98a44d93",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731380260,
+      "source_to_emit_ms": 1237.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:36:21.499+00:00",
+      "event_id": "event_493cc232d20c47d0b700012d7a5630aa",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731380354,
+      "source_to_emit_ms": 1145.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:36:21.501+00:00",
+      "event_id": "event_43a0724d7bb745539a033507aafe3ce5",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731380412,
+      "source_to_emit_ms": 1089.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:36:21.503+00:00",
+      "event_id": "event_217dbc99c48a4479923136ad66111ebc",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731380560,
+      "source_to_emit_ms": 943.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:36:21.507+00:00",
+      "event_id": "event_40e179457dbe41b9b0f726e226d68dd8",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731380758,
+      "source_to_emit_ms": 749.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:36:21.509+00:00",
+      "event_id": "event_a17631a3f497443d8c9952c21e9d5db4",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731380927,
+      "source_to_emit_ms": 582.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:36:25.650+00:00",
+      "event_id": "event_bcb36aadbe4d4fe2989f4b68f103ccbc",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731384716,
+      "source_to_emit_ms": 934.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:36:25.654+00:00",
+      "event_id": "event_c8eacb3b1cbb4ef7a5431013e28e42ae",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731384802,
+      "source_to_emit_ms": 852.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:36:26.674+00:00",
+      "event_id": "event_d4093bc0178a4e02bca672ed6342923f",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731385058,
+      "source_to_emit_ms": 1616.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:36:26.680+00:00",
+      "event_id": "event_18eea0be5542426ba783699d3b5931d4",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731385581,
+      "source_to_emit_ms": 1099.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:36:26.686+00:00",
+      "event_id": "event_b3997d99318646dc8e4279118d7eaf3a",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731385931,
+      "source_to_emit_ms": 755.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:36:36.696+00:00",
+      "event_id": "event_465c277c31174e27a765695be00e2f62",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731395076,
+      "source_to_emit_ms": 1620.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:36:36.698+00:00",
+      "event_id": "event_9e2d610880884f9194031fec5dfab7c6",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731395143,
+      "source_to_emit_ms": 1555.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:36:36.702+00:00",
+      "event_id": "event_0e56a68b5ed748abb2fd181ac55767d8",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731395215,
+      "source_to_emit_ms": 1487.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:36:36.704+00:00",
+      "event_id": "event_60222dde417f4f958be4814d1a6b64e7",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731395296,
+      "source_to_emit_ms": 1408.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:36:36.706+00:00",
+      "event_id": "event_9f158729325643cb8fd7c3a0bd32e722",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731395357,
+      "source_to_emit_ms": 1349.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:36:36.708+00:00",
+      "event_id": "event_75abee6c39974324995315c38ffcd3d6",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731395433,
+      "source_to_emit_ms": 1275.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:36:36.711+00:00",
+      "event_id": "event_d597767e54a34d76bdca3857a9e0a6e6",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731395495,
+      "source_to_emit_ms": 1216.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:37:56.928+00:00",
+      "event_id": "event_124bd0a042a4486f9b311815794f7d02",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731475964,
+      "source_to_emit_ms": 964.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:37:58.959+00:00",
+      "event_id": "event_cef849be91b64a69b0e307862eb0ea91",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731477589,
+      "source_to_emit_ms": 1370.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:37:58.963+00:00",
+      "event_id": "event_1934641f5e8542d6bf1dcfdea41c1aef",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731477890,
+      "source_to_emit_ms": 1073.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:37:59.987+00:00",
+      "event_id": "event_71df7bd1a6f844529af429c411f980e4",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731478465,
+      "source_to_emit_ms": 1522.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:38:01.990+00:00",
+      "event_id": "event_d8ce9d49d0fa451b83434b0036b1fe9e",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731480306,
+      "source_to_emit_ms": 1684.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:38:01.992+00:00",
+      "event_id": "event_aca7f34466bd4baaa3c3ee9606d545d1",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731480377,
+      "source_to_emit_ms": 1615.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:38:01.994+00:00",
+      "event_id": "event_16e26293c0054cb09eb0f265c80b1eb0",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731480441,
+      "source_to_emit_ms": 1553.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:38:01.996+00:00",
+      "event_id": "event_efcfe2b03528448993a543eceb351cdf",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731480656,
+      "source_to_emit_ms": 1340.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:38:02.000+00:00",
+      "event_id": "event_64113130d2664eb6a5aa26cd54d99341",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731480862,
+      "source_to_emit_ms": 1138.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:38:02.996+00:00",
+      "event_id": "event_a6824c9a325a4dae8fb869b91d488789",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731481220,
+      "source_to_emit_ms": 1776.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:38:03.000+00:00",
+      "event_id": "event_f35362c70977435d882a9f4a594bf037",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731481487,
+      "source_to_emit_ms": 1513.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:38:03.001+00:00",
+      "event_id": "event_a25300d730804d6bb68b104718575b52",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731481581,
+      "source_to_emit_ms": 1420.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:38:05.036+00:00",
+      "event_id": "event_d28c59c96ecd4cb5b1ce2096326656ab",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731483478,
+      "source_to_emit_ms": 1558.0,
+      "status": "missing_read_window",
+      "transition": "virtual_position_closed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:38:10.037+00:00",
+      "event_id": "event_8b7edeac0c334d9095b6df222439e7ab",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731488339,
+      "source_to_emit_ms": 1698.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:38:10.039+00:00",
+      "event_id": "event_bd837796d62340d185091d68c7786b5c",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731488658,
+      "source_to_emit_ms": 1381.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:38:11.034+00:00",
+      "event_id": "event_f7760fd886f548708077e4288335639a",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731489343,
+      "source_to_emit_ms": 1691.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:38:11.036+00:00",
+      "event_id": "event_5dade387414544ca8ff292fae030d953",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731489597,
+      "source_to_emit_ms": 1439.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:38:11.038+00:00",
+      "event_id": "event_8da26e360dff4d2ea6389111e4c25fb7",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731489719,
+      "source_to_emit_ms": 1319.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:38:11.040+00:00",
+      "event_id": "event_f88f5a293a9f4d35a7a6aa64c8a6b4e6",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731489783,
+      "source_to_emit_ms": 1257.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:38:12.034+00:00",
+      "event_id": "event_21b118132a8147adab81a5fe354b23b0",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731490991,
+      "source_to_emit_ms": 1043.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "event_id": "event_a07a178db36241fb96c589e3297e1f87",
+      "signal_id": "canal2_3156",
+      "status": "not_tick_driven",
+      "transition": "provider_action_observed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:38:21.043+00:00",
+      "event_id": "event_f529c58d29e048efa0794e0aae2560ee",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731499251,
+      "source_to_emit_ms": 1792.0,
+      "status": "missing_read_window",
+      "transition": "virtual_position_closed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:38:25.091+00:00",
+      "event_id": "event_728f0ebc1ade4e2da814aa7a4472a365",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731503661,
+      "source_to_emit_ms": 1430.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:38:25.095+00:00",
+      "event_id": "event_83c3397113774a688884a8bfa726d4c7",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731503733,
+      "source_to_emit_ms": 1362.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:38:25.097+00:00",
+      "event_id": "event_1fb123c8781a4dbf8789b0bea36f523e",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731503789,
+      "source_to_emit_ms": 1308.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:38:25.099+00:00",
+      "event_id": "event_d9c9962886a44c48b883c4f1989f7f4f",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731503853,
+      "source_to_emit_ms": 1246.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:38:32.244+00:00",
+      "event_id": "event_f193dff10370436b8372ce805ada72b4",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731511330,
+      "source_to_emit_ms": 914.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:38:35.434+00:00",
+      "event_id": "event_e45f084c8438440193fa32149704a8f6",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731514247,
+      "source_to_emit_ms": 1187.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:38:35.436+00:00",
+      "event_id": "event_551d5337205d45029dc1c92f07662801",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731514333,
+      "source_to_emit_ms": 1103.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:38:56.442+00:00",
+      "event_id": "event_84ca9f6039274093b83dee0cd7db7fe8",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731535785,
+      "source_to_emit_ms": 657.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:38:57.439+00:00",
+      "event_id": "event_fbbf3011c2e64f38ab373a6ac7004f3f",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731536212,
+      "source_to_emit_ms": 1227.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:39:02.442+00:00",
+      "event_id": "event_f545ee376c7d4d42b486567165413aca",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731540364,
+      "source_to_emit_ms": 2078.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "event_id": "event_649bd41d91ab44d982a7e46e060cb84b",
+      "signal_id": "canal2_3156",
+      "status": "not_tick_driven",
+      "transition": "provider_action_observed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:40:08.742+00:00",
+      "event_id": "event_be49fc5c39674a9e8a0be83e0869abe9",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731607647,
+      "source_to_emit_ms": 1095.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:40:08.746+00:00",
+      "event_id": "event_28f8cebf83b44915bc445ebea57a9b58",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731607860,
+      "source_to_emit_ms": 886.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:40:08.748+00:00",
+      "event_id": "event_b5f775300d524307b00ed2b1f0d9ba76",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731607979,
+      "source_to_emit_ms": 769.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:40:09.739+00:00",
+      "event_id": "event_8c24bef9a129497f92c2f3c54194fbfa",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731608298,
+      "source_to_emit_ms": 1441.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:40:12.747+00:00",
+      "event_id": "event_001cadc3142448d3bf34e1f4dbd4a14f",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731611287,
+      "source_to_emit_ms": 1460.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:40:12.749+00:00",
+      "event_id": "event_14c9dbf32de34fceb739803350ae6bf0",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731611484,
+      "source_to_emit_ms": 1265.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:40:12.751+00:00",
+      "event_id": "event_f374a6b3af28427b9d568bae830c6d1b",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731611620,
+      "source_to_emit_ms": 1131.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:40:13.767+00:00",
+      "event_id": "event_eafd8c1b9f3e4375b597af9e888b566f",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731612503,
+      "source_to_emit_ms": 1264.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:40:14.770+00:00",
+      "event_id": "event_637e9fb3b7b148adbc6e8588e1e5aadf",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731613097,
+      "source_to_emit_ms": 1673.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:40:15.799+00:00",
+      "event_id": "event_002bfa7313804ee8a04db15f28ca6cc9",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731614149,
+      "source_to_emit_ms": 1650.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:40:20.820+00:00",
+      "event_id": "event_f393ced178bd429ca428fd8a49779c06",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731619260,
+      "source_to_emit_ms": 1560.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:40:20.822+00:00",
+      "event_id": "event_d5377ccadba24bac893cdde0386c91b6",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731619411,
+      "source_to_emit_ms": 1411.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:40:20.825+00:00",
+      "event_id": "event_a9b76d471b8247caa71cd82250bf31d8",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731619462,
+      "source_to_emit_ms": 1363.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:40:20.827+00:00",
+      "event_id": "event_090ce117b61a40378c98ba5cf33c6304",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731619581,
+      "source_to_emit_ms": 1246.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:40:21.861+00:00",
+      "event_id": "event_63fd897aee4a401db13fef96e0094a76",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731620042,
+      "source_to_emit_ms": 1819.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:40:21.863+00:00",
+      "event_id": "event_9e50005da4d747d2bea846f3e44f2e5e",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731620392,
+      "source_to_emit_ms": 1471.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:40:21.865+00:00",
+      "event_id": "event_8f974827392741509f6728237777bf7c",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731620452,
+      "source_to_emit_ms": 1413.0,
+      "status": "missing_read_window",
+      "transition": "virtual_position_closed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:40:23.873+00:00",
+      "event_id": "event_a0ddf8790b5941b3a3513bf81511fb8f",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731622608,
+      "source_to_emit_ms": 1265.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:43:04.410+00:00",
+      "event_id": "event_77f994f2d4ea4b1d8bb3abbfefdb9fbd",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731783967,
+      "source_to_emit_ms": 443.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T11:43:06.154+00:00",
+      "event_id": "event_9b48f636e2614bce87275fb7897baeea",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789731784027,
+      "source_to_emit_ms": 2127.0,
+      "status": "missing_read_window",
+      "transition": "virtual_position_closed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:00:52.468+00:00",
+      "event_id": "event_06975ea8ef3e4fd7b13ab98e4d7196cd",
+      "signal_id": "canal2_3156",
+      "source_tick_msc": 1789732851041,
+      "source_to_emit_ms": 1427.0,
+      "status": "missing_read_window",
+      "transition": "shadow_signal_closed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:23:01.513+00:00",
+      "event_id": "event_67fa68e96613425382e654c3f82b2a60",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734180611,
+      "source_to_emit_ms": 902.0,
+      "status": "missing_read_window",
+      "transition": "adverse_move_armed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:23:49.584+00:00",
+      "event_id": "event_0c2c534341a0467e81c1437cf3b68892",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734228663,
+      "source_to_emit_ms": 921.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:23:49.584+00:00",
+      "event_id": "event_34caeada602248dabd95e813290815ec",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734228663,
+      "source_to_emit_ms": 921.0,
+      "status": "missing_read_window",
+      "transition": "entry_reversal_confirmed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:24:19.586+00:00",
+      "event_id": "event_cc1886eeebfd4641a1622fbd0fce241a",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734258431,
+      "source_to_emit_ms": 1155.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:24:33.068+00:00",
+      "event_id": "event_7bb225d961ab4b7295d86d431af6ac44",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734271840,
+      "source_to_emit_ms": 1228.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:24:35.276+00:00",
+      "event_id": "event_05dc9efbec2c4f089693c5564df59f20",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734274497,
+      "source_to_emit_ms": 779.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:24:36.751+00:00",
+      "event_id": "event_d22c8d6b930a41b9b87512c55653c919",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734275580,
+      "source_to_emit_ms": 1171.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:24:37.752+00:00",
+      "event_id": "event_9ad2d81366b04b0f9525e9c7aad52969",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734276167,
+      "source_to_emit_ms": 1585.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:24:37.754+00:00",
+      "event_id": "event_1d3dfb53cd4b4946a6439b9cfef94b22",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734276285,
+      "source_to_emit_ms": 1469.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:24:37.758+00:00",
+      "event_id": "event_dbef931c910d4816acd3ce9a13c80733",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734276362,
+      "source_to_emit_ms": 1396.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:24:37.760+00:00",
+      "event_id": "event_b9bd9f24332e405794b3608720e183dc",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734276411,
+      "source_to_emit_ms": 1349.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:24:37.762+00:00",
+      "event_id": "event_c38c1ea457b7494299cdb907765414df",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734276473,
+      "source_to_emit_ms": 1289.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:24:37.764+00:00",
+      "event_id": "event_8050edf1243b41c5824355bd5c0f552e",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734276553,
+      "source_to_emit_ms": 1211.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:24:43.999+00:00",
+      "event_id": "event_1112ffe86d0e42bd8be739e0a75e3b07",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734282598,
+      "source_to_emit_ms": 1401.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:24:44.003+00:00",
+      "event_id": "event_e71366cc010d45d09584c8803138a0bf",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734282791,
+      "source_to_emit_ms": 1212.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:24:44.005+00:00",
+      "event_id": "event_36256a7b5bf942e9997444001869c2c6",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734282973,
+      "source_to_emit_ms": 1032.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:24:45.047+00:00",
+      "event_id": "event_a3c5e2b818ee4d5bb827c901e1f348a7",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734283042,
+      "source_to_emit_ms": 2005.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:24:45.049+00:00",
+      "event_id": "event_1fb7db7b808b468bbe56b596b7fd99a0",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734283111,
+      "source_to_emit_ms": 1938.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:24:45.051+00:00",
+      "event_id": "event_65b06edb315f438ca9b3eeed23d6c8b3",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734283178,
+      "source_to_emit_ms": 1873.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:24:45.053+00:00",
+      "event_id": "event_76867d7462444974a444fed737d341ef",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734283253,
+      "source_to_emit_ms": 1800.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:24:45.057+00:00",
+      "event_id": "event_2056a7f106cc420f8d943edb49b27777",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734283373,
+      "source_to_emit_ms": 1684.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:24:46.077+00:00",
+      "event_id": "event_2065b993b1a14304b2c60f582b63c9d8",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734284141,
+      "source_to_emit_ms": 1936.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:24:46.079+00:00",
+      "event_id": "event_00d151f32e9d4f2f915237869b08361e",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734284213,
+      "source_to_emit_ms": 1866.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:24:46.085+00:00",
+      "event_id": "event_011bdc6ddb1a407aa41e0523c4005fa3",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734284799,
+      "source_to_emit_ms": 1286.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:24:46.087+00:00",
+      "event_id": "event_3de6d17e5d22483b95f4a86e0df284e2",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734284860,
+      "source_to_emit_ms": 1227.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:26:27.502+00:00",
+      "event_id": "event_ef914db3fdbe4e8f88a2cdfd72510411",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734386516,
+      "source_to_emit_ms": 986.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:26:27.504+00:00",
+      "event_id": "event_9b6c7f0b57684eebbe155c353af3d69b",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734386589,
+      "source_to_emit_ms": 915.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:26:27.506+00:00",
+      "event_id": "event_e69dfcb8abb94059a387970f797751a3",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734386655,
+      "source_to_emit_ms": 851.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:26:28.628+00:00",
+      "event_id": "event_0933289f0c7f4385b9818a9c5aefed3a",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734387221,
+      "source_to_emit_ms": 1407.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:26:28.630+00:00",
+      "event_id": "event_662d0050d9b44aaf9521ed123d7cfdac",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734387283,
+      "source_to_emit_ms": 1347.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:26:28.632+00:00",
+      "event_id": "event_8633ff1d24584090b5f23712ad6c9cb8",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734387347,
+      "source_to_emit_ms": 1285.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:26:28.634+00:00",
+      "event_id": "event_acf68adce7f143638b8f6551f7771631",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734387406,
+      "source_to_emit_ms": 1228.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:26:29.667+00:00",
+      "event_id": "event_79e96699e35d4d53958241daa9f78d1a",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734388562,
+      "source_to_emit_ms": 1105.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:26:29.677+00:00",
+      "event_id": "event_408f84f5143548df89a1f289d7341b85",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734388626,
+      "source_to_emit_ms": 1051.0,
+      "status": "missing_read_window",
+      "transition": "virtual_position_closed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:26:29.677+00:00",
+      "event_id": "event_c400d8237880471d82bf12966f005eb9",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734388626,
+      "source_to_emit_ms": 1051.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:26:31.707+00:00",
+      "event_id": "event_73ac3cf9b3414405aeacec83df0d3719",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734390919,
+      "source_to_emit_ms": 788.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:26:34.835+00:00",
+      "event_id": "event_22ff71b1e97e4d26bbd17d2b61eab190",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734393863,
+      "source_to_emit_ms": 972.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:26:35.874+00:00",
+      "event_id": "event_ec91f0b2d878475da668a4d15e7fac92",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734394149,
+      "source_to_emit_ms": 1725.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:26:36.874+00:00",
+      "event_id": "event_21efa0851cb144f0bd4609a9efcd85a5",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734395087,
+      "source_to_emit_ms": 1787.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:26:36.876+00:00",
+      "event_id": "event_14e01331c0084f919e2c9a7b6b86a1d5",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734395225,
+      "source_to_emit_ms": 1651.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:26:36.878+00:00",
+      "event_id": "event_021362a89ad74a39b23de0977cc224ca",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734395375,
+      "source_to_emit_ms": 1503.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:26:36.880+00:00",
+      "event_id": "event_d32749ef60ff45e795bdee480363f3e2",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734395443,
+      "source_to_emit_ms": 1437.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:26:36.882+00:00",
+      "event_id": "event_df1cdbfcb19b452f9af6c94c9765ffcd",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734395511,
+      "source_to_emit_ms": 1371.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:26:36.884+00:00",
+      "event_id": "event_d0527bc1704447e1890f4c39db032501",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734395587,
+      "source_to_emit_ms": 1297.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:26:37.911+00:00",
+      "event_id": "event_e9d6c1fd7d9c46ee819074066e1f6a3b",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734396197,
+      "source_to_emit_ms": 1714.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:27:10.092+00:00",
+      "event_id": "event_61e7ce11e0b34628817bd3c6647ac5a8",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734428716,
+      "source_to_emit_ms": 1376.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:27:23.512+00:00",
+      "event_id": "event_71fabc17c151410e9d563c3c577b79d6",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734441832,
+      "source_to_emit_ms": 1680.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:27:23.514+00:00",
+      "event_id": "event_944205b0e7dc4e41b0e2b3c1dd38092d",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734441899,
+      "source_to_emit_ms": 1615.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:27:23.516+00:00",
+      "event_id": "event_1dce43a22bb24de8b398054a278379a4",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734441961,
+      "source_to_emit_ms": 1555.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:27:23.518+00:00",
+      "event_id": "event_03b43c8def834083b50f7b038d09ca92",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734442024,
+      "source_to_emit_ms": 1494.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:27:23.526+00:00",
+      "event_id": "event_47956e8d5c2b469f93ee0e26a6a193b5",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734442833,
+      "source_to_emit_ms": 693.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:27:25.551+00:00",
+      "event_id": "event_e30935bae5a842b5b95bbe472a347096",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734444617,
+      "source_to_emit_ms": 934.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:28:17.724+00:00",
+      "event_id": "event_a7bf11236fe94450a7c9ac3547c34a9e",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734496861,
+      "source_to_emit_ms": 863.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:28:19.748+00:00",
+      "event_id": "event_5397c100ec0c406183f7b5fdcd0650f3",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734498416,
+      "source_to_emit_ms": 1332.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:28:42.513+00:00",
+      "event_id": "event_96dafe543be14aa68766bf69cf1cd27d",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734516740,
+      "source_to_emit_ms": 5773.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:28:42.517+00:00",
+      "event_id": "event_ca8cdaf0df254d6daa8dbc8104365ebd",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734516801,
+      "source_to_emit_ms": 5716.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:28:42.519+00:00",
+      "event_id": "event_c0b3ba2923d446efade08eb9f9f25b20",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734516877,
+      "source_to_emit_ms": 5642.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:28:42.527+00:00",
+      "event_id": "event_248eeba08dd54340ad464fe22440a2f4",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734517296,
+      "source_to_emit_ms": 5231.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:28:42.531+00:00",
+      "event_id": "event_ad6affa757f74f12a6351aa1e3cb1e52",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734517366,
+      "source_to_emit_ms": 5165.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:28:42.533+00:00",
+      "event_id": "event_5e5413aee81245b88d61f5267f355723",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734517432,
+      "source_to_emit_ms": 5101.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:28:42.537+00:00",
+      "event_id": "event_99050a4459134ecf89dcc12b369ae994",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734517560,
+      "source_to_emit_ms": 4977.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:28:42.555+00:00",
+      "event_id": "event_1e26e498fa4b4de8b29f87903c79b571",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734518059,
+      "source_to_emit_ms": 4496.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:28:42.557+00:00",
+      "event_id": "event_b4c22ee2cd7b4caa9e7f60e0d4dd79e6",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734518134,
+      "source_to_emit_ms": 4423.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:28:42.563+00:00",
+      "event_id": "event_ce5219ff5f604978a53899eac6a46356",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734518236,
+      "source_to_emit_ms": 4327.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:28:42.566+00:00",
+      "event_id": "event_232ea2c64d33485fa057d8a435200390",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734518343,
+      "source_to_emit_ms": 4223.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:28:42.572+00:00",
+      "event_id": "event_45e9aad3d1ea4ecdb2ff5de9b3352f68",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734518434,
+      "source_to_emit_ms": 4138.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:28:42.578+00:00",
+      "event_id": "event_bf8f5e3578ac47bb95acd9ffe28b71c8",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734518515,
+      "source_to_emit_ms": 4063.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:29:04.957+00:00",
+      "event_id": "event_60975b46415d4aae9b535f2663acf536",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734543420,
+      "source_to_emit_ms": 1537.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:29:04.961+00:00",
+      "event_id": "event_bda2454903f949d0b1e41da77883be29",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734543476,
+      "source_to_emit_ms": 1485.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:29:04.963+00:00",
+      "event_id": "event_bdd41136ab344e4e830aef078f8a574e",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734543655,
+      "source_to_emit_ms": 1308.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:29:33.281+00:00",
+      "event_id": "event_9d9fc7dae08f4324b094f62b94569108",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734572517,
+      "source_to_emit_ms": 764.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:29:33.283+00:00",
+      "event_id": "event_89fb2104a1ad4acf9833c4b132f5bce3",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734572580,
+      "source_to_emit_ms": 703.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:29:33.288+00:00",
+      "event_id": "event_e24108c57d9e4d658449a83505832e0f",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734572718,
+      "source_to_emit_ms": 570.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:29:34.413+00:00",
+      "event_id": "event_c02fac50bff643aaad55f344dc6f5c4a",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734573684,
+      "source_to_emit_ms": 729.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:29:34.416+00:00",
+      "event_id": "event_7a9166a33d1d41638989444976b90b35",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734573750,
+      "source_to_emit_ms": 666.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:29:34.420+00:00",
+      "event_id": "event_99d5acea6c8940a5b8cae0195023f5e7",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734573900,
+      "source_to_emit_ms": 520.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:29:35.438+00:00",
+      "event_id": "event_2aa4c70892f04dafa99fe45c7f80a31e",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734574325,
+      "source_to_emit_ms": 1113.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:29:36.560+00:00",
+      "event_id": "event_b96981a3b8214dac88b163a2d3b63f09",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734575738,
+      "source_to_emit_ms": 822.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:29:37.575+00:00",
+      "event_id": "event_1221a0beac334fdeb4d00ff01d7015fe",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734576376,
+      "source_to_emit_ms": 1199.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:29:37.579+00:00",
+      "event_id": "event_788c5d27d54c4be58c1ac26a6f4e7e8c",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734576448,
+      "source_to_emit_ms": 1131.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:29:37.581+00:00",
+      "event_id": "event_8b9dbe9c4a5749f197a76651c77b27a7",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734576502,
+      "source_to_emit_ms": 1079.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:29:37.585+00:00",
+      "event_id": "event_92bd7f44e05c49b4a144ca59905a442c",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734576626,
+      "source_to_emit_ms": 959.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:29:37.590+00:00",
+      "event_id": "event_1921587da9c549dc9399978c77b83acf",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734576898,
+      "source_to_emit_ms": 692.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:29:41.682+00:00",
+      "event_id": "event_865dce991d2d4b9cb14f89c8396bb3f3",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734580048,
+      "source_to_emit_ms": 1634.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:29:41.686+00:00",
+      "event_id": "event_c11cfeffa5ce4b5bb2a00c1d240cd1eb",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734580109,
+      "source_to_emit_ms": 1577.0,
+      "status": "missing_read_window",
+      "transition": "virtual_position_closed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:30:08.043+00:00",
+      "event_id": "event_5e4c865214b8479b86120fcb1752c425",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734606591,
+      "source_to_emit_ms": 1452.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:30:08.045+00:00",
+      "event_id": "event_face956c4e544e1599a7387fe237e1fa",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734606667,
+      "source_to_emit_ms": 1378.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:30:08.047+00:00",
+      "event_id": "event_536461d4204045bdbe440f4be3b24826",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734606740,
+      "source_to_emit_ms": 1307.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:30:09.455+00:00",
+      "event_id": "event_51bf756d6a004934b154a6d23beceedc",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734607742,
+      "source_to_emit_ms": 1713.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:30:09.459+00:00",
+      "event_id": "event_47133873c8954bc7b0497a7b9d9507d3",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734607825,
+      "source_to_emit_ms": 1634.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:30:09.461+00:00",
+      "event_id": "event_c097aff792374a12bb07584a38ac604d",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734607957,
+      "source_to_emit_ms": 1504.0,
+      "status": "missing_read_window",
+      "transition": "virtual_position_closed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:30:09.477+00:00",
+      "event_id": "event_be87a9c468aa4203ba08a3d41615b420",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734608918,
+      "source_to_emit_ms": 559.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:30:17.581+00:00",
+      "event_id": "event_5b15596448634315ac31747fc626b17a",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734616870,
+      "source_to_emit_ms": 711.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:30:17.584+00:00",
+      "event_id": "event_b21b421d44e64e93968cdf877eaf53ec",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734616922,
+      "source_to_emit_ms": 662.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:30:17.586+00:00",
+      "event_id": "event_45bc3bae32354cd59515a32d56104367",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734616991,
+      "source_to_emit_ms": 595.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:30:18.577+00:00",
+      "event_id": "event_8dbcf167cc40434d90d9292a345ddee6",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734617051,
+      "source_to_emit_ms": 1526.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:30:20.626+00:00",
+      "event_id": "event_5b39902b486340eeb44ccd7c2fcd5eff",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734619606,
+      "source_to_emit_ms": 1020.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:30:22.658+00:00",
+      "event_id": "event_575415f21c124a738c8bf92b139a7baa",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734621408,
+      "source_to_emit_ms": 1250.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:30:22.660+00:00",
+      "event_id": "event_fc6ebb2699164dd89168c3e58139b0bc",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734621465,
+      "source_to_emit_ms": 1195.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:30:22.662+00:00",
+      "event_id": "event_1ef107a7265541c7bba0e2f0bd4dfcb4",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734621535,
+      "source_to_emit_ms": 1127.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:30:22.664+00:00",
+      "event_id": "event_81b85ceb11eb49a79cc0dde4b055e476",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734621608,
+      "source_to_emit_ms": 1056.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:30:22.668+00:00",
+      "event_id": "event_39ce4181a2244de7be9f06f92d2b9f8c",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734621675,
+      "source_to_emit_ms": 993.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:30:22.670+00:00",
+      "event_id": "event_95af856cf2d949e595a1f98e6b6a447c",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734621736,
+      "source_to_emit_ms": 934.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:30:22.672+00:00",
+      "event_id": "event_c6e00657f9cb4cd0bf27fb6f8096d3c4",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734621810,
+      "source_to_emit_ms": 862.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:30:22.674+00:00",
+      "event_id": "event_64f9978f6d41436d865e7cb41871cd0c",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734621911,
+      "source_to_emit_ms": 763.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:31:01.322+00:00",
+      "event_id": "event_6640f8256e2d49da9bbf720f41f71b0e",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734660213,
+      "source_to_emit_ms": 1109.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:31:01.324+00:00",
+      "event_id": "event_22722d06d5ee403ab0221456814aa268",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734660271,
+      "source_to_emit_ms": 1053.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:31:01.328+00:00",
+      "event_id": "event_58b201b285af4715856879d2d92a0860",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734660330,
+      "source_to_emit_ms": 998.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:31:01.330+00:00",
+      "event_id": "event_ad76e38884004a3db1520231d6a3013c",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734660395,
+      "source_to_emit_ms": 935.0,
+      "status": "missing_read_window",
+      "transition": "virtual_position_closed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:31:10.449+00:00",
+      "event_id": "event_352751d11d014a3b9bd9ebc3f2adaa17",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734669007,
+      "source_to_emit_ms": 1442.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:31:11.492+00:00",
+      "event_id": "event_82693129996a451690cb130a12a4d54f",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734670684,
+      "source_to_emit_ms": 808.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:31:11.494+00:00",
+      "event_id": "event_0bc8b37d7c3e4d0d832a9597ce0a6525",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734670747,
+      "source_to_emit_ms": 747.0,
+      "status": "missing_read_window",
+      "transition": "virtual_position_closed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:31:11.496+00:00",
+      "event_id": "event_132e5c0c114a4ffd97228594cb6d9e6c",
+      "signal_id": "canal2_3168",
+      "source_tick_msc": 1789734670747,
+      "source_to_emit_ms": 749.0,
+      "status": "missing_read_window",
+      "transition": "shadow_signal_closed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:27:42.779+00:00",
+      "event_id": "event_754910f0ec614edcb829dbbdd3c5b52e",
+      "signal_id": "canal2_3171",
+      "source_tick_msc": 1789734460142,
+      "source_to_emit_ms": 2637.0,
+      "status": "missing_read_window",
+      "transition": "adverse_move_armed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:27:58.726+00:00",
+      "event_id": "event_0654744b9560414fad9bb36338936d82",
+      "signal_id": "canal2_3171",
+      "source_tick_msc": 1789734476242,
+      "source_to_emit_ms": 2484.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:27:58.726+00:00",
+      "event_id": "event_d7a75b00859843dfbc761c27804d0beb",
+      "signal_id": "canal2_3171",
+      "source_tick_msc": 1789734476242,
+      "source_to_emit_ms": 2484.0,
+      "status": "missing_read_window",
+      "transition": "entry_reversal_confirmed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:27:58.732+00:00",
+      "event_id": "event_714772ba16884d6992f64502752c3b79",
+      "signal_id": "canal2_3171",
+      "source_tick_msc": 1789734477276,
+      "source_to_emit_ms": 1456.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:27:58.734+00:00",
+      "event_id": "event_6fd880a5f6f942f6b8d6e83800f37407",
+      "signal_id": "canal2_3171",
+      "source_tick_msc": 1789734477353,
+      "source_to_emit_ms": 1381.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:27:58.734+00:00",
+      "event_id": "event_1bf3c98de67d40ffb055e29a691fb8fc",
+      "signal_id": "canal2_3171",
+      "source_tick_msc": 1789734477445,
+      "source_to_emit_ms": 1289.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:27:58.742+00:00",
+      "event_id": "event_bb77f2608fb14251ad0caafd0d9563bd",
+      "signal_id": "canal2_3171",
+      "source_tick_msc": 1789734477700,
+      "source_to_emit_ms": 1042.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:27:58.744+00:00",
+      "event_id": "event_d6759ab60bfe40cdb7cd714bce013720",
+      "signal_id": "canal2_3171",
+      "source_tick_msc": 1789734477797,
+      "source_to_emit_ms": 947.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:27:58.748+00:00",
+      "event_id": "event_f01011b298bb4267b5505e7956c00cd2",
+      "signal_id": "canal2_3171",
+      "source_tick_msc": 1789734477854,
+      "source_to_emit_ms": 894.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:28:03.380+00:00",
+      "event_id": "event_2a219d9feb47469bb71766122284b0c1",
+      "signal_id": "canal2_3171",
+      "source_tick_msc": 1789734478824,
+      "source_to_emit_ms": 4556.0,
+      "status": "missing_read_window",
+      "transition": "protection_tightened"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T12:28:03.380+00:00",
+      "event_id": "event_6f201b42970345ebb8fdbf70c921840a",
+      "signal_id": "canal2_3171",
+      "source_tick_msc": 1789734478896,
+      "source_to_emit_ms": 4484.0,
+      "status": "missing_read_window",
+      "transition": "virtual_position_closed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "event_id": "event_a176c047a83d4d16886fe3eca1a230e7",
+      "signal_id": "canal2_3171",
+      "status": "not_tick_driven",
+      "transition": "provider_action_observed"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T13:04:53.993+00:00",
+      "event_id": "event_881c07d3baa74e448062c70f6b2dc9ea",
+      "signal_id": "canal2_3171",
+      "source_tick_msc": 1789736234010,
+      "source_to_emit_ms": 459983.0,
+      "status": "missing_read_window",
+      "transition": "shadow_signal_closed"
+    },
+    {
+      "candidate_id": "dubai_balanced_v1",
+      "emitted_at_utc": "2026-09-18T12:30:26.873+00:00",
+      "event_id": "event_d815e54b62d44e2193c8e29bb3903f28",
+      "signal_id": "canal1_22768",
+      "source_tick_msc": 1789734624616,
+      "source_to_emit_ms": 2257.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "dubai_balanced_v1",
+      "emitted_at_utc": "2026-09-18T12:35:12.029+00:00",
+      "event_id": "event_c0ea9adefccc4b3eb5a0b7348526acd7",
+      "signal_id": "canal1_22768",
+      "source_tick_msc": 1789734910429,
+      "source_to_emit_ms": 1600.0,
+      "status": "missing_read_window",
+      "transition": "profit_lock_armed"
+    },
+    {
+      "candidate_id": "dubai_balanced_v1",
+      "emitted_at_utc": "2026-09-18T12:37:39.097+00:00",
+      "event_id": "event_d4b39ecc04ad42c9a091fbd77b370328",
+      "signal_id": "canal1_22768",
+      "source_tick_msc": 1789735024537,
+      "source_to_emit_ms": 34560.0,
+      "status": "missing_read_window",
+      "transition": "basket_exit"
+    },
+    {
+      "candidate_id": "dubai_balanced_v1",
+      "emitted_at_utc": "2026-09-18T14:09:23.036+00:00",
+      "event_id": "event_978ad744c1014868997d0067d0b0680d",
+      "signal_id": "canal1_22778",
+      "source_tick_msc": 1789740500305,
+      "source_to_emit_ms": 62731.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "dubai_balanced_v1",
+      "emitted_at_utc": "2026-09-18T14:19:45.424+00:00",
+      "event_id": "event_4d7715ffaad4471ca73829632fccb8dd",
+      "signal_id": "canal1_22778",
+      "source_tick_msc": 1789741183124,
+      "source_to_emit_ms": 2300.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "dubai_balanced_v1",
+      "emitted_at_utc": "2026-09-18T14:21:09.472+00:00",
+      "event_id": "event_19198071debc472d8f894ae760c9c07c",
+      "signal_id": "canal1_22778",
+      "source_tick_msc": 1789741252834,
+      "source_to_emit_ms": 16638.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "dubai_balanced_v1",
+      "emitted_at_utc": "2026-09-18T14:22:19.114+00:00",
+      "event_id": "event_05b74649f05e40c8bf39b0876781cc03",
+      "signal_id": "canal1_22778",
+      "source_tick_msc": 1789741337428,
+      "source_to_emit_ms": 1686.0,
+      "status": "missing_read_window",
+      "transition": "profit_lock_armed"
+    },
+    {
+      "candidate_id": "dubai_balanced_v1",
+      "emitted_at_utc": "2026-09-18T14:22:41.825+00:00",
+      "event_id": "event_9ec27fd6c11c409b9aa989278cda0d81",
+      "signal_id": "canal1_22778",
+      "source_tick_msc": 1789741359634,
+      "source_to_emit_ms": 2191.0,
+      "status": "missing_read_window",
+      "transition": "basket_exit"
+    },
+    {
+      "candidate_id": "dubai_balanced_v1",
+      "emitted_at_utc": "2026-09-18T14:24:05.098+00:00",
+      "event_id": "event_769ee7d8839341c9a9ec6cdbc75cf3fd",
+      "signal_id": "canal1_22781",
+      "source_tick_msc": 1789741439524,
+      "source_to_emit_ms": 5574.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "dubai_balanced_v1",
+      "emitted_at_utc": "2026-09-18T14:26:55.707+00:00",
+      "event_id": "event_c86ae282b00e464d979a3763dd9c885a",
+      "signal_id": "canal1_22781",
+      "source_tick_msc": 1789741614038,
+      "source_to_emit_ms": 1669.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "dubai_balanced_v1",
+      "emitted_at_utc": "2026-09-18T14:29:20.945+00:00",
+      "event_id": "event_09017952f44d46d5ab6db325267d3371",
+      "signal_id": "canal1_22781",
+      "source_tick_msc": 1789741746190,
+      "source_to_emit_ms": 14755.0,
+      "status": "missing_read_window",
+      "transition": "virtual_fill"
+    },
+    {
+      "candidate_id": "dubai_balanced_v1",
+      "emitted_at_utc": "2026-09-18T14:29:20.951+00:00",
+      "event_id": "event_1691c1f1c1394e048d2db9f5ef297f36",
+      "signal_id": "canal1_22781",
+      "source_tick_msc": 1789741746512,
+      "source_to_emit_ms": 14439.0,
+      "status": "missing_read_window",
+      "transition": "basket_exit"
+    },
+    {
+      "candidate_id": "gold_now_555_v1",
+      "emitted_at_utc": "2026-09-18T15:00:01.602+00:00",
+      "event_id": "event_81bb810f0fa14828b23d3f16d7b3081f",
+      "signal_id": "canal2_3188",
+      "source_tick_msc": 1789743600049,
+      "source_to_emit_ms": 1553.0,
+      "status": "missing_read_window",
+      "transition": "entry_cancelled"
+    }
+  ],
+  "source_to_emit_over_5s_count": 191,
+  "source_to_emit_over_60s_count": 161,
+  "status": "diagnostic_only",
+  "statuses": {
+    "missing_read_window": 502,
+    "not_tick_driven": 6
+  },
+  "ticked_with_emit_clock_count": 502,
+  "transition_count": 508
+}

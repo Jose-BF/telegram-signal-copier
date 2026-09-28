@@ -1,0 +1,22 @@
+{
+  "status": "failed_incomplete_report",
+  "collected_tests": 7065,
+  "passed_count": null,
+  "failed_count": null,
+  "full_junit_bytes": 38,
+  "observed_free_space_C_bytes_after_run": 0,
+  "test_failures_individually_classified": false,
+  "original_output_preserved": "full-output.txt",
+  "original_junit_preserved": "full.xml",
+  "runner_error": "XML ParseError after pytest failed while finalizing report; lost sys.stderr",
+  "owned_temp_partial_move": {
+    "source": "C:/Users/josea/AppData/Local/Temp/pytest-of-josea/pytest-4117",
+    "destination": "A:/Codex-test-artifacts/copier-runtime-protection-20260921/pytest-4117",
+    "completed": false,
+    "reason": "Move-Item rejected a readonly/hidden/access-protected item; later recursive removal denied by tool policy",
+    "remaining_source_preserved": true
+  },
+  "retry_output": "A:/Codex-test-artifacts/copier-runtime-protection-20260921/retry",
+  "full_live_parity_verified": false,
+  "published": false
+}

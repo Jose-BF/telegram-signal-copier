@@ -146,6 +146,8 @@ async def test_non_positive_basket_sets_exact_be_without_closing(monkeypatch):
     monkeypatch.setattr(listener.journal, "anomaly", lambda *a, **kw: None)
 
     async def fake_run(fn, *args, **kwargs):
+        if fn is signal.build_context:
+            return fn(*args, **kwargs)
         if fn is listener.executor.open_entry_prices:
             return {1101: 4057.25, 1102: 4056.80}
         raise AssertionError(f"unexpected MT5 call: {fn}")

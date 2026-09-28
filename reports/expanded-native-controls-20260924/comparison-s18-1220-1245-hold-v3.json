@@ -1,0 +1,211 @@
+{
+  "contract": "incremental_native_scalar_path_comparison_v1",
+  "counts": {
+    "blocked_comparison": 0,
+    "concurrent_exposure_mismatch": 0,
+    "different_leg_volume_profile": 0,
+    "matched": 3,
+    "model_entry_without_native": 0,
+    "model_no_entry": 1,
+    "native_time_unknown": 0,
+    "native_without_model": 0,
+    "path_discrepant": 3
+  },
+  "cutoff_utc": "2026-09-18T12:45:00+00:00",
+  "limitations": [
+    "Scalar extrema and event times do not establish sample-by-sample risk parity.",
+    "Model uses an uncalibrated execution profile and assumed complete signal universe.",
+    "Native risks reconstruct actual fills; model risks use hypothetical fills.",
+    "The shared account portfolio, margin and unobserved positions are not certified.",
+    "Per-leg entry/exit timing uses ordinal pairing, not common broker ticket identity."
+  ],
+  "optional_close_choice": "hold",
+  "rows": [
+    {
+      "channel": "canal2",
+      "drawdown_delta_minor": 30,
+      "entry_delta_ms_by_ordinal": [
+        -142,
+        -227,
+        -315,
+        986,
+        -232
+      ],
+      "exit_delta_ms": -1614,
+      "exit_delta_ms_by_ordinal": [
+        -1614,
+        38655,
+        -476,
+        61,
+        -5
+      ],
+      "leg_volume_profile_match": true,
+      "max_concurrent_volume_match": true,
+      "max_gross_volume_delta": "0.00",
+      "maximum_delta_minor": -76,
+      "minimum_delta_minor": -122,
+      "model_blockers": [],
+      "model_drawdown_minor": 6595,
+      "model_entry_count": 5,
+      "model_exit_count": 5,
+      "model_first_entry_utc": "2026-09-18 12:23:48.663000+00:00",
+      "model_last_exit_utc": "2026-09-18 12:31:10.747000+00:00",
+      "model_leg_volumes": [
+        "0.04",
+        "0.03",
+        "0.03",
+        "0.03",
+        "0.03"
+      ],
+      "model_max_gross_volume": "0.13",
+      "model_maximum_minor": 2009,
+      "model_minimum_minor": -6595,
+      "model_net_minor": 2009,
+      "model_risk_path_sha256": "689f723dfcb838aba9e7e911d623995671b2295c805737ed62a6574b1766103a",
+      "native_drawdown_minor": 6565,
+      "native_final_utc": "2026-09-18T12:31:12.361000+00:00",
+      "native_leg_volumes": [
+        "0.04",
+        "0.03",
+        "0.03",
+        "0.03",
+        "0.03"
+      ],
+      "native_max_gross_volume": "0.13",
+      "native_maximum_minor": 2085,
+      "native_minimum_minor": -6473,
+      "native_net_minor": 2009,
+      "native_position_count": 5,
+      "native_status": "retrospective_complete",
+      "native_strict_causal_fx": true,
+      "net_delta_minor": 0,
+      "ordinal_leg_pairing_not_ticket_identity": true,
+      "signal_id": "canal2_3168",
+      "status": "matched_path_discrepant",
+      "trajectory_parity_verified": false
+    },
+    {
+      "channel": "canal2",
+      "drawdown_delta_minor": 1,
+      "entry_delta_ms_by_ordinal": [
+        -2354
+      ],
+      "exit_delta_ms": -796,
+      "exit_delta_ms_by_ordinal": [
+        -796
+      ],
+      "leg_volume_profile_match": true,
+      "max_concurrent_volume_match": true,
+      "max_gross_volume_delta": "0.00",
+      "maximum_delta_minor": 56,
+      "minimum_delta_minor": 55,
+      "model_blockers": [],
+      "model_drawdown_minor": 423,
+      "model_entry_count": 1,
+      "model_exit_count": 1,
+      "model_first_entry_utc": "2026-09-18 12:27:56.242000+00:00",
+      "model_last_exit_utc": "2026-09-18 12:28:13.353000+00:00",
+      "model_leg_volumes": [
+        "0.04"
+      ],
+      "model_max_gross_volume": "0.04",
+      "model_maximum_minor": 241,
+      "model_minimum_minor": -182,
+      "model_net_minor": 175,
+      "model_risk_path_sha256": "35618d9db9f4e12d58337f0ef5d7a4dc0cdd210f2eda230f2d4c39d98d8dfc68",
+      "native_drawdown_minor": 422,
+      "native_final_utc": "2026-09-18T12:28:14.149000+00:00",
+      "native_leg_volumes": [
+        "0.04"
+      ],
+      "native_max_gross_volume": "0.04",
+      "native_maximum_minor": 185,
+      "native_minimum_minor": -237,
+      "native_net_minor": 175,
+      "native_position_count": 1,
+      "native_status": "retrospective_complete",
+      "native_strict_causal_fx": true,
+      "net_delta_minor": 0,
+      "ordinal_leg_pairing_not_ticket_identity": true,
+      "signal_id": "canal2_3171",
+      "status": "matched_path_discrepant",
+      "trajectory_parity_verified": false
+    },
+    {
+      "channel": "canal1",
+      "drawdown_delta_minor": -39,
+      "entry_delta_ms_by_ordinal": [
+        41
+      ],
+      "exit_delta_ms": -33210,
+      "exit_delta_ms_by_ordinal": [
+        -33210
+      ],
+      "leg_volume_profile_match": true,
+      "max_concurrent_volume_match": true,
+      "max_gross_volume_delta": "0.00",
+      "maximum_delta_minor": 2,
+      "minimum_delta_minor": 2,
+      "model_blockers": [],
+      "model_drawdown_minor": 231,
+      "model_entry_count": 1,
+      "model_exit_count": 1,
+      "model_first_entry_utc": "2026-09-18 12:30:24.616000+00:00",
+      "model_last_exit_utc": "2026-09-18 12:37:05.568000+00:00",
+      "model_leg_volumes": [
+        "0.01"
+      ],
+      "model_max_gross_volume": "0.01",
+      "model_maximum_minor": 1045,
+      "model_minimum_minor": -101,
+      "model_net_minor": 815,
+      "model_risk_path_sha256": "660ff30343204f65991ad82543ad7ae2b8a1c4b67712701da3c8ecbcce34da0a",
+      "native_drawdown_minor": 270,
+      "native_final_utc": "2026-09-18T12:37:38.778000+00:00",
+      "native_leg_volumes": [
+        "0.01"
+      ],
+      "native_max_gross_volume": "0.01",
+      "native_maximum_minor": 1043,
+      "native_minimum_minor": -103,
+      "native_net_minor": 813,
+      "native_position_count": 1,
+      "native_status": "retrospective_complete",
+      "native_strict_causal_fx": true,
+      "net_delta_minor": 2,
+      "ordinal_leg_pairing_not_ticket_identity": true,
+      "signal_id": "canal1_22768",
+      "status": "matched_path_discrepant",
+      "trajectory_parity_verified": false
+    },
+    {
+      "channel": "canal1",
+      "model_blockers": [],
+      "model_drawdown_minor": 0,
+      "model_entry_count": 0,
+      "model_exit_count": 0,
+      "model_first_entry_utc": null,
+      "model_last_exit_utc": null,
+      "model_max_gross_volume": "0",
+      "model_maximum_minor": 0,
+      "model_minimum_minor": 0,
+      "model_net_minor": 0,
+      "model_risk_path_sha256": "fdab08bf1d251ad79005c1451e55644283824104a72d0d895f282345e003988d",
+      "signal_id": "canal1_22769",
+      "status": "model_no_entry",
+      "trajectory_parity_verified": false
+    }
+  ],
+  "sources": {
+    "comparator_sha256": "8ba19a2ea264c3e4080e25f456935ea2ba13db4508fdf4ff789878a2500c1655",
+    "model_implementation_hash_count": 11,
+    "model_sha256": "3bc57fbd625cdd687ef166fe5d9ddebf03a8db859323c6b784b0cb186db96076",
+    "native_input_count": 28,
+    "native_sha256": "a4c94d417829320cab2f5d17264a7330b43e80730d92b70b94ec79c5e0b4a468",
+    "raw_sha256": "9548ca5ce3fdd27ebe5f488ac97639c7e5cc7001ae0f75c73a40d3828cfd63b0",
+    "shared_tape_day": "2026-09-18"
+  },
+  "start_utc": "2026-09-18T12:20:00+00:00",
+  "status": "diagnostic_only",
+  "trajectory_parity_verified": false
+}

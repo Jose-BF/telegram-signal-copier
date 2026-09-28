@@ -14,7 +14,6 @@ También cubre build_context con un doble local de MT5 para verificar unidades,
 propiedad de niveles y política sin conectarse al broker.
 """
 
-import sys
 from types import SimpleNamespace
 
 import pytest
@@ -32,7 +31,11 @@ def test_build_context_separates_account_money_provider_levels_and_bot_protectio
         symbol_info_tick=lambda symbol: SimpleNamespace(bid=4010.0, ask=4010.2),
         account_info=lambda: SimpleNamespace(currency="EUR"),
     )
-    monkeypatch.setitem(sys.modules, "MetaTrader5", fake_mt5)
+    monkeypatch.setattr("mt5_runtime.mt5.positions_get", fake_mt5.positions_get)
+    monkeypatch.setattr(
+        "mt5_runtime.mt5.symbol_info_tick", fake_mt5.symbol_info_tick,
+    )
+    monkeypatch.setattr("mt5_runtime.mt5.account_info", fake_mt5.account_info)
 
     sig = Signal(
         channel="canal1",

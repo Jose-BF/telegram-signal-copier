@@ -1,0 +1,13 @@
+{
+  "controls_sha256": "9e08ca3f716d10ecffb7bb838ed97a17b426164e978bfb865822f471fa1fcca1",
+  "elapsed_seconds": 479.07799999999406,
+  "exit_code": 0,
+  "full_live_parity_verified": false,
+  "goal_complete": false,
+  "implementation_unchanged": true,
+  "integrated_into_suspended_engine": true,
+  "protocol_sha256": "6d3555746a0106e4c3da66e3c3d882473a36e1aad650b8fc40a03e1d8088c2df",
+  "published": false,
+  "pytest_xml_sha256": "2f1d58e09ebcd7114cbdc4ce3810e050ac5ad131d7bd181a06f1880ef719e7b4",
+  "sources_unchanged": true
+}

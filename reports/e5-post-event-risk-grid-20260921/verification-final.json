@@ -1,0 +1,32 @@
+{
+  "all_failed_modules_retested_with_normal_module_entry_point": true,
+  "clean_full_suite_on_final_test_sources": false,
+  "focused": {
+    "errors": "0",
+    "failures": "0",
+    "hostname": "RazerBlade",
+    "name": "pytest",
+    "skipped": "0",
+    "tests": "471",
+    "time": "40.590",
+    "timestamp": "2026-09-21T15:05:38.076084+02:00"
+  },
+  "focused_junit_sha256": "7aa28320ec6bbda18fdde2b514b8cf13e2b944081cb47e5a37455c38e347ad19",
+  "goal_complete": false,
+  "implementation_unchanged": true,
+  "last_general": {
+    "failed": 8,
+    "passed": 6683,
+    "sha256": "0011cfb3293f880986e71359f461267855ad5d577e7ff4ae7badb033366be009"
+  },
+  "only_changes_after_general": [
+    "tests/test_ensure_replay_tick_cache.py",
+    "tests/test_provider_signal_catalog.py",
+    "tests/test_runtime_paths.py"
+  ],
+  "production_implementation_unchanged_since_general": true,
+  "published": false,
+  "result_sha256": "a812240da4e02145bbaf08686c254f0ba20786119a501e4b716fafcf65883e44",
+  "sources_unchanged": true,
+  "vm_accessed": false
+}

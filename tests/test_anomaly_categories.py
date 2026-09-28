@@ -5,7 +5,8 @@ import journal
 
 
 ROOT = Path(__file__).resolve().parents[1]
-EXCLUDED_PARTS = {".git", ".venv", "tests", "analysis", "docs"}
+# Historical evidence can contain scripts for a different Python runtime.
+EXCLUDED_PARTS = {".git", ".venv", "tests", "analysis", "docs", "runtime_data"}
 
 
 def test_literal_journal_anomaly_categories_are_registered():

@@ -7,8 +7,8 @@ from tools import run_bot_watch as watch
 
 
 def _write_heartbeat(path, *, state, positions=0, signals=0, pending=0,
-                     schema_version=3, mtime=1000.0):
-    path.write_text(json.dumps({
+                     schema_version=3, mtime=1000.0, mt5_owner=None):
+    payload = {
         "schema_version": schema_version,
         "pid": 123,
         "utc": "2026-07-23T15:00:00.000",
@@ -16,7 +16,10 @@ def _write_heartbeat(path, *, state, positions=0, signals=0, pending=0,
         "bot_position_count": positions,
         "open_signal_count": signals,
         "pending_entry_count": pending,
-    }), encoding="utf-8")
+    }
+    if mt5_owner is not None:
+        payload["mt5_owner"] = mt5_owner
+    path.write_text(json.dumps(payload), encoding="utf-8")
     os.utime(path, (mtime, mtime))
 
 
@@ -134,6 +137,26 @@ def test_confirmed_flat_state_allows_update_and_clears_pending_marker(
     assert deferred is False
     assert exposure["exposure_state"] == "flat"
     assert not pending.exists()
+
+
+def test_dead_mt5_owner_cannot_report_flat_exposure(tmp_path):
+    heartbeat = tmp_path / "heartbeat.json"
+    _write_heartbeat(
+        heartbeat,
+        state="flat",
+        mt5_owner={
+            "installed": True,
+            "worker_alive": False,
+            "worker_pid": 4567,
+            "worker_session_id": "session-1",
+            "reads": {},
+        },
+    )
+
+    exposure = watch._read_runtime_exposure(heartbeat, now=1010.0)
+
+    assert exposure["exposure_state"] == "unknown"
+    assert exposure["reason"] == "heartbeat_mt5_worker_dead"
 
 
 def test_legacy_heartbeat_cannot_be_mistaken_for_flat(tmp_path):

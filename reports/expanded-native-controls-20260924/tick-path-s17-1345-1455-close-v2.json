@@ -1,0 +1,193 @@
+{
+  "account_path_parity_verified": false,
+  "contract": "incremental_common_tick_path_comparison_v1",
+  "counts": {
+    "compared": 4,
+    "model_no_entry": 2
+  },
+  "cutoff_utc": "2026-09-17T14:55:00+00:00",
+  "full_live_parity_verified": false,
+  "limitations": [
+    "Native path is reconstructed from actual fills, not an independent account-equity trace.",
+    "The model uses an uncalibrated execution profile and assumed initial completeness.",
+    "Exact quote-grid parity does not prove between-tick or broker-server behavior.",
+    "Shared-account equity, margin and other positions remain unverified."
+  ],
+  "rows": [
+    {
+      "channel": "canal2",
+      "comparison": {
+        "different_exposure_ticks": 43706,
+        "different_floating_ticks": 43746,
+        "different_open_count_ticks": 43695,
+        "different_realized_ticks": 43702,
+        "different_total_ticks": 43746,
+        "first_divergence": {
+          "fields": [
+            "total",
+            "floating",
+            "exposure",
+            "open_count"
+          ],
+          "model_gross_volume": "0.04",
+          "model_total_minor": -73,
+          "native_gross_volume": "0",
+          "native_total_minor": 0,
+          "tick_index": 750,
+          "time_ns": 1789652758575000000,
+          "utc": "2026-09-17T13:45:58.575000+00:00"
+        },
+        "max_abs_exposure_delta": "0.07",
+        "max_abs_total_delta_minor": 7752,
+        "model_max_drawdown_minor": 25655,
+        "native_max_drawdown_minor": 17872,
+        "same_grid_fields_equal": false,
+        "sample_count": 48393
+      },
+      "native_sample_hash_verified": true,
+      "native_sample_sha256": "2c5d570959f637a60553cab0de7e93305d737deca74394e64e057951e192fe8f",
+      "scalar_status": "matched_concurrent_exposure_mismatch",
+      "signal_id": "canal2_3102",
+      "status": "compared"
+    },
+    {
+      "channel": "canal2",
+      "comparison": {
+        "different_exposure_ticks": 2383,
+        "different_floating_ticks": 4332,
+        "different_open_count_ticks": 2383,
+        "different_realized_ticks": 2571,
+        "different_total_ticks": 5462,
+        "first_divergence": {
+          "fields": [
+            "total",
+            "floating",
+            "exposure",
+            "open_count"
+          ],
+          "model_gross_volume": "0.04",
+          "model_total_minor": -87,
+          "native_gross_volume": "0",
+          "native_total_minor": 0,
+          "tick_index": 20250,
+          "time_ns": 1789654378184000000,
+          "utc": "2026-09-17T14:12:58.184000+00:00"
+        },
+        "max_abs_exposure_delta": "0.06",
+        "max_abs_total_delta_minor": 930,
+        "model_max_drawdown_minor": 927,
+        "native_max_drawdown_minor": 632,
+        "same_grid_fields_equal": false,
+        "sample_count": 48393
+      },
+      "native_sample_hash_verified": true,
+      "native_sample_sha256": "9a3fdcd42dede9315fdf99a7095861694781a03df2bbf708c9dc73dea8e00ab3",
+      "scalar_status": "matched_concurrent_exposure_mismatch",
+      "signal_id": "canal2_3106",
+      "status": "compared"
+    },
+    {
+      "blockers": [],
+      "channel": "canal2",
+      "scalar_status": "model_no_entry",
+      "signal_id": "canal2_3108",
+      "status": "model_no_entry"
+    },
+    {
+      "channel": "canal1",
+      "comparison": {
+        "different_exposure_ticks": 106,
+        "different_floating_ticks": 574,
+        "different_open_count_ticks": 90,
+        "different_realized_ticks": 28673,
+        "different_total_ticks": 29187,
+        "first_divergence": {
+          "fields": [
+            "total",
+            "floating",
+            "exposure",
+            "open_count"
+          ],
+          "model_gross_volume": "0.01",
+          "model_total_minor": -19,
+          "native_gross_volume": "0",
+          "native_total_minor": 0,
+          "tick_index": 17414,
+          "time_ns": 1789654149410000000,
+          "utc": "2026-09-17T14:09:09.410000+00:00"
+        },
+        "max_abs_exposure_delta": "0.08",
+        "max_abs_total_delta_minor": 714,
+        "model_max_drawdown_minor": 3272,
+        "native_max_drawdown_minor": 2727,
+        "same_grid_fields_equal": false,
+        "sample_count": 48393
+      },
+      "native_sample_hash_verified": true,
+      "native_sample_sha256": "2183fef2db02de701aef72ec424b5919fcf7d311091cfa1b7bd81e56bdfa1dc9",
+      "scalar_status": "matched_concurrent_exposure_mismatch",
+      "signal_id": "canal1_22732",
+      "status": "compared"
+    },
+    {
+      "blockers": [],
+      "channel": "canal1",
+      "scalar_status": "model_no_entry",
+      "signal_id": "canal1_22733",
+      "status": "model_no_entry"
+    },
+    {
+      "channel": "canal1",
+      "comparison": {
+        "different_exposure_ticks": 4637,
+        "different_floating_ticks": 11174,
+        "different_open_count_ticks": 4637,
+        "different_realized_ticks": 5180,
+        "different_total_ticks": 11811,
+        "first_divergence": {
+          "fields": [
+            "total",
+            "floating",
+            "exposure",
+            "open_count"
+          ],
+          "model_gross_volume": "0.01",
+          "model_total_minor": -19,
+          "native_gross_volume": "0",
+          "native_total_minor": 0,
+          "tick_index": 36581,
+          "time_ns": 1789655820782000000,
+          "utc": "2026-09-17T14:37:00.782000+00:00"
+        },
+        "max_abs_exposure_delta": "0.05",
+        "max_abs_total_delta_minor": 3204,
+        "model_max_drawdown_minor": 2088,
+        "native_max_drawdown_minor": 3895,
+        "same_grid_fields_equal": false,
+        "sample_count": 48393
+      },
+      "native_sample_hash_verified": true,
+      "native_sample_sha256": "54f52e27819fde30210721e373e010e75773a167da5f805dd5a2c431ab234577",
+      "scalar_status": "matched_path_discrepant",
+      "signal_id": "canal1_22738",
+      "status": "compared"
+    }
+  ],
+  "sources": {
+    "anchor_sha256": "0c5c99f12e5512aabde9680ffaeeba97410a54811afb36f7d6a2d892b94dbf73",
+    "broker_sha256": "cd5b1a326b833412affa75b3b7f7f4c42a4a808f62d423b350814618a809d7c3",
+    "comparator_sha256": "2a933639df2c052c4b287c095e26dcf6effea97aebcf712301c18f1784a7d0fb",
+    "deals_sha256": "91723c6cc65070407bbb5a79721a6109896450354fe20b74f3a344ba7206f021",
+    "model_implementation_hash_count": 11,
+    "model_sha256": "40317b76124adac3a151bf4df2b128773015646ba31cd0dbc7c10cecd47d7dd3",
+    "money_sha256": "550cbd6176316cb4cb62eb41ed9dc4e0673a0a925319f0b7e041230aa2ecf41d",
+    "native_input_count": 28,
+    "native_sha256": "a4c94d417829320cab2f5d17264a7330b43e80730d92b70b94ec79c5e0b4a468",
+    "raw_sha256": "9548ca5ce3fdd27ebe5f488ac97639c7e5cc7001ae0f75c73a40d3828cfd63b0",
+    "reconciled_sha256": "1c4c1eedef5b21b5f0e6d48ad2bc934712c939308b6b7dcec952867c18232aa4",
+    "scalar_sha256": "353768913694a395b9ba1b64f128009063b8e6c4fb305071b2a252dab006cb50",
+    "shared_tape_day": "2026-09-17"
+  },
+  "start_utc": "2026-09-17T13:45:00+00:00",
+  "status": "diagnostic_only"
+}

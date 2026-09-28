@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+import json
 import math
 from statistics import fmean
 
@@ -75,7 +76,7 @@ def _is_non_negative_int(value) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
-def _valid_versioned_timing(event: dict) -> bool:
+def valid_versioned_timing(event: dict) -> bool:
     if event.get("timing_schema_version") != 1:
         return event.get("timing_schema_version") is None
     attempt_started = event.get("attempt_started_monotonic_ns")
@@ -84,6 +85,12 @@ def _valid_versioned_timing(event: dict) -> bool:
         _is_non_negative_int(attempt_started)
         and _is_non_negative_int(attempt_finished)
         and attempt_started <= attempt_finished
+    ):
+        return False
+    duration = event.get("duration_ns")
+    if not (
+        _is_non_negative_int(duration)
+        and duration == attempt_finished - attempt_started
     ):
         return False
     sent = event.get("broker_request_sent")
@@ -108,6 +115,10 @@ def _valid_versioned_timing(event: dict) -> bool:
         and roundtrip == broker_finished - broker_started
         and post == attempt_finished - broker_finished
     )
+
+
+def _valid_versioned_timing(event: dict) -> bool:
+    return valid_versioned_timing(event)
 
 
 def _percentile(values: list[float], fraction: float) -> float:
@@ -167,6 +178,18 @@ def _metric_report(samples: list[dict], field: str) -> dict:
     }
 
 
+def _event_fingerprint(event: dict, *, ignored: set[str] | None = None) -> str:
+    omitted = ignored or set()
+    return json.dumps(
+        {key: value for key, value in event.items() if key not in omitted},
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=True,
+        default=str,
+    )
+
+
 def summarize_events(events) -> dict:
     """Summarize passive latency evidence without mixing process clocks.
 
@@ -179,7 +202,25 @@ def summarize_events(events) -> dict:
     materialized = (
         events if isinstance(events, (list, tuple)) else list(events)
     )
-    decision_starts: dict[tuple[str, str], int] = {}
+    decision_event_ids = {
+        event["event_id"]
+        for event in materialized
+        if event.get("ev") in {
+            "telegram_decision_started",
+            "bot_internal_decision_started",
+        }
+        and isinstance(event.get("event_id"), str)
+        and event["event_id"]
+    }
+    attempt_event_ids = {
+        event["event_id"]
+        for event in materialized
+        if event.get("ev") == "mt5_action_attempt"
+        and isinstance(event.get("event_id"), str)
+        and event["event_id"]
+    }
+    cross_kind_event_ids = decision_event_ids & attempt_event_ids
+    decision_records: list[tuple[dict, tuple[str, str], str | None]] = []
     for event in materialized:
         if event.get("ev") not in {
             "telegram_decision_started",
@@ -192,16 +233,133 @@ def summarize_events(events) -> dict:
         if not session_id or not decision_id or not isinstance(monotonic_ns, int):
             continue
         key = (str(session_id), str(decision_id))
-        previous = decision_starts.get(key)
-        if previous is None or monotonic_ns < previous:
-            decision_starts[key] = monotonic_ns
+        event_id = event.get("event_id")
+        decision_records.append(
+            (
+                event,
+                key,
+                event_id if isinstance(event_id, str) and event_id else None,
+            )
+        )
 
-    samples = []
-    successful_market_latencies = []
-    invalid_timing_samples = 0
+    decision_parents = list(range(len(decision_records)))
+
+    def find_decision(index: int) -> int:
+        while decision_parents[index] != index:
+            decision_parents[index] = decision_parents[decision_parents[index]]
+            index = decision_parents[index]
+        return index
+
+    def union_decisions(left: int, right: int) -> None:
+        left_root = find_decision(left)
+        right_root = find_decision(right)
+        if left_root != right_root:
+            decision_parents[right_root] = left_root
+
+    first_decision_key: dict[tuple[str, str], int] = {}
+    first_decision_event: dict[str, int] = {}
+    for index, (_event, key, event_id) in enumerate(decision_records):
+        previous = first_decision_key.setdefault(key, index)
+        union_decisions(index, previous)
+        if event_id is not None:
+            previous = first_decision_event.setdefault(event_id, index)
+            union_decisions(index, previous)
+
+    decision_groups: defaultdict[int, list[tuple[dict, tuple[str, str]]]] = defaultdict(list)
+    for index, (event, key, _event_id) in enumerate(decision_records):
+        decision_groups[find_decision(index)].append((event, key))
+
+    decision_starts: dict[tuple[str, str], int] = {}
+    conflicting_decision_identities = 0
+    for grouped in decision_groups.values():
+        keys = {key for _event, key in grouped}
+        fingerprints = {
+            _event_fingerprint(event, ignored={"event_id"})
+            for event, _key in grouped
+        }
+        cross_kind_conflict = any(
+            isinstance(event.get("event_id"), str)
+            and event["event_id"] in cross_kind_event_ids
+            for event, _key in grouped
+        )
+        if cross_kind_conflict or len(keys) != 1 or len(fingerprints) != 1:
+            conflicting_decision_identities += 1
+            continue
+        key = next(iter(keys))
+        decision_starts[key] = grouped[0][0]["monotonic_ns"]
+
+    attempt_records: list[tuple[dict, list[tuple[str, str]]]] = []
     for event in materialized:
         if event.get("ev") != "mt5_action_attempt":
             continue
+        attempt_id = event.get("attempt_id")
+        event_id = event.get("event_id")
+        identities = []
+        if isinstance(attempt_id, str) and attempt_id:
+            identities.append(("attempt", attempt_id))
+        if isinstance(event_id, str) and event_id:
+            identities.append(("event", event_id))
+        attempt_records.append((event, identities))
+
+    parents = list(range(len(attempt_records)))
+
+    def find(index: int) -> int:
+        while parents[index] != index:
+            parents[index] = parents[parents[index]]
+            index = parents[index]
+        return index
+
+    def union(left: int, right: int) -> None:
+        left_root = find(left)
+        right_root = find(right)
+        if left_root != right_root:
+            parents[right_root] = left_root
+
+    first_by_identity: dict[tuple[str, str], int] = {}
+    for index, (_event, identities) in enumerate(attempt_records):
+        for identity in identities:
+            previous = first_by_identity.setdefault(identity, index)
+            union(index, previous)
+
+    attempt_groups: defaultdict[int, list[tuple[dict, bool]]] = defaultdict(list)
+    for index, (event, identities) in enumerate(attempt_records):
+        attempt_groups[find(index)].append((event, bool(identities)))
+
+    attempt_events: list[tuple[dict, bool]] = []
+    duplicate_attempt_samples = 0
+    conflicting_attempt_identities = 0
+    unidentified_attempt_samples = 0
+    for grouped in attempt_groups.values():
+        by_fingerprint: dict[str, dict] = {}
+        attempt_ids = set()
+        cross_kind_conflict = False
+        for event, identified in grouped:
+            by_fingerprint.setdefault(
+                _event_fingerprint(event, ignored={"event_id"}),
+                event,
+            )
+            event_id = event.get("event_id")
+            if isinstance(event_id, str) and event_id in cross_kind_event_ids:
+                cross_kind_conflict = True
+            attempt_id = event.get("attempt_id")
+            if isinstance(attempt_id, str) and attempt_id:
+                attempt_ids.add(attempt_id)
+            if not identified:
+                unidentified_attempt_samples += 1
+        duplicate_attempt_samples += len(grouped) - len(by_fingerprint)
+        if cross_kind_conflict or len(attempt_ids) > 1 or len(by_fingerprint) != 1:
+            conflicting_attempt_identities += 1
+            continue
+        attempt_events.append(
+            (next(iter(by_fingerprint.values())), any(identified for _event, identified in grouped))
+        )
+
+    samples = []
+    successful_market_latencies = []
+    diagnostic_market_latencies = []
+    invalid_timing_samples = 0
+    invalid_numeric_samples = 0
+    for event, scenario_eligible in attempt_events:
         if not _valid_versioned_timing(event):
             invalid_timing_samples += 1
             continue
@@ -227,6 +385,9 @@ def summarize_events(events) -> dict:
                     broker_response_ns - decision_start_ns
                 ) / 1_000_000.0
 
+        adverse_slippage = _finite_number(event.get("adverse_slippage_xau"))
+        if event.get("adverse_slippage_xau") is not None and adverse_slippage is None:
+            invalid_numeric_samples += 1
         row = {
             "channel": _channel(event),
             "operation": str(event.get("operation") or "unknown"),
@@ -240,22 +401,31 @@ def summarize_events(events) -> dict:
                 event.get("post_broker_duration_ns")
             ),
             "decision_to_broker_response_ms": decision_to_response_ms,
-            "adverse_slippage_xau": _finite_number(
-                event.get("adverse_slippage_xau")
-            ),
+            "adverse_slippage_xau": adverse_slippage,
         }
         samples.append(row)
         result = event.get("result") or {}
-        try:
-            retcode = int(result.get("retcode"))
-        except (AttributeError, TypeError, ValueError):
+        if not isinstance(result, dict):
             retcode = None
+            invalid_numeric_samples += 1
+        else:
+            raw_retcode = result.get("retcode")
+            parsed_retcode = _finite_number(raw_retcode)
+            if raw_retcode is None:
+                retcode = None
+            elif parsed_retcode is None or not parsed_retcode.is_integer():
+                retcode = None
+                invalid_numeric_samples += 1
+            else:
+                retcode = int(parsed_retcode)
         if (
             row["operation"] == "OPEN_MARKET"
             and retcode == 10009
             and decision_to_response_ms is not None
         ):
-            successful_market_latencies.append(decision_to_response_ms)
+            diagnostic_market_latencies.append(decision_to_response_ms)
+            if scenario_eligible:
+                successful_market_latencies.append(decision_to_response_ms)
 
     transport_samples = []
     ping_samples = []
@@ -296,10 +466,11 @@ def summarize_events(events) -> dict:
     scenarios = {
         "status": "ready" if enough else "diagnostic_only",
         "reason": (
-            "at_least_30_successful_market_samples"
-            if enough else "fewer_than_30_successful_market_samples"
+            "at_least_30_identified_successful_market_samples"
+            if enough else "fewer_than_30_identified_successful_market_samples"
         ),
         "sample_count": len(successful_market_latencies),
+        "diagnostic_sample_count": len(diagnostic_market_latencies),
         "basis": "decision_to_broker_response_ms",
         "p50_ms": (
             int(round(scenario_stats["p50"])) if scenario_stats else None
@@ -314,9 +485,14 @@ def summarize_events(events) -> dict:
     }
 
     return {
-        "schema_version": 1,
+        "schema_version": 4,
         "attempt_samples": len(samples),
+        "duplicate_attempt_samples": duplicate_attempt_samples,
+        "unidentified_attempt_samples": unidentified_attempt_samples,
+        "conflicting_attempt_identities": conflicting_attempt_identities,
+        "conflicting_decision_identities": conflicting_decision_identities,
         "invalid_timing_samples": invalid_timing_samples,
+        "invalid_numeric_samples": invalid_numeric_samples,
         "broker_roundtrip_ms": _metric_report(
             samples, "broker_roundtrip_ms"
         ),

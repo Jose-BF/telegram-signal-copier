@@ -1,0 +1,423 @@
+{
+  "accepted_response_cases": 9,
+  "contract": "native_tp_observed_fill_lifecycle_v1",
+  "counterfactual_fill_prediction_verified": false,
+  "elapsed_seconds": 0.35108489997219294,
+  "full_live_parity_verified": false,
+  "limitations": [
+    "Starts local TP lifecycle at accepted client response, not native entry.",
+    "Client response may not date server-side installation exactly.",
+    "Observed native deal is an input, never predicted by terminal ticks.",
+    "Missing receipt cases remain blocked for this lifecycle contract."
+  ],
+  "native_population_positions": 46,
+  "rows": [
+    {
+      "native_exit_reason": 5,
+      "position_id": 2018037491,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_2970",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2018040176,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_2970",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2018048139,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_2970",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2018067494,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_2970",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2018446418,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_2977",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2018572832,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_2977",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2019239778,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_2982",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2019248635,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_2982",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2019276778,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_2982",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2019296809,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_2982",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2019297348,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_2982",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2019898565,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_2986",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2019969132,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_2986",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2021221846,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_2995",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2021244212,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_2995",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 3,
+      "position_id": 2038395764,
+      "receipt_status": null,
+      "signal_id": "canal2_3086",
+      "status": "non_tp_exit"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2038525157,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_3096",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2038535247,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_3096",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2038537019,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_3096",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2038543421,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_3096",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2038546496,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_3096",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2039085783,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_3102",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2039090979,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_3102",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2039092706,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_3102",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2039097426,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_3102",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2039103150,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_3102",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2039380161,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_3106",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2039419968,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_3106",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2039434068,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_3106",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2039517191,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_3106",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2039534630,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_3106",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "accepted_response_utc": "2026-09-18 11:05:44.728000+00:00",
+      "broker_exit_price": 4382.29,
+      "first_terminal_touch_utc": "2026-09-18 11:07:28.093000+00:00",
+      "native_exit_reason": 5,
+      "native_exit_utc": "2026-09-18 11:07:28.096000+00:00",
+      "position_id": 2046955499,
+      "position_open_after_touch_until_deal": true,
+      "receipt_status": "client_target_accepted_response_before_native_exit",
+      "relevant_side_updates": 1233,
+      "signal_id": "canal2_3148",
+      "status": "observed_fill_after_terminal_touch",
+      "terminal_to_fill_ms": 3
+    },
+    {
+      "accepted_response_utc": "2026-09-18 11:05:48.380000+00:00",
+      "broker_exit_price": 4381.17,
+      "first_terminal_touch_utc": "2026-09-18 11:06:51.803000+00:00",
+      "native_exit_reason": 5,
+      "native_exit_utc": "2026-09-18 11:06:51.822000+00:00",
+      "position_id": 2046957039,
+      "position_open_after_touch_until_deal": true,
+      "receipt_status": "client_target_accepted_response_before_native_exit",
+      "relevant_side_updates": 833,
+      "signal_id": "canal2_3148",
+      "status": "observed_fill_after_terminal_touch",
+      "terminal_to_fill_ms": 19
+    },
+    {
+      "accepted_response_utc": "2026-09-18 11:06:00.080000+00:00",
+      "broker_exit_price": 4380.25,
+      "first_terminal_touch_utc": "2026-09-18 11:06:27.936000+00:00",
+      "native_exit_reason": 5,
+      "native_exit_utc": "2026-09-18 11:06:27.938000+00:00",
+      "position_id": 2046961055,
+      "position_open_after_touch_until_deal": true,
+      "receipt_status": "client_target_accepted_response_before_native_exit",
+      "relevant_side_updates": 373,
+      "signal_id": "canal2_3148",
+      "status": "observed_fill_after_terminal_touch",
+      "terminal_to_fill_ms": 2
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2047143797,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_3156",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2047145896,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_3156",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2047150184,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_3156",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2047175220,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_3156",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "accepted_response_utc": "2026-09-18 12:23:49.023000+00:00",
+      "broker_exit_price": 4363.0,
+      "first_terminal_touch_utc": "2026-09-18 12:31:10.747000+00:00",
+      "native_exit_reason": 5,
+      "native_exit_utc": "2026-09-18 12:31:12.361000+00:00",
+      "position_id": 2047559220,
+      "position_open_after_touch_until_deal": true,
+      "receipt_status": "client_target_accepted_response_before_native_exit",
+      "relevant_side_updates": 4351,
+      "signal_id": "canal2_3168",
+      "status": "observed_fill_after_terminal_touch",
+      "terminal_to_fill_ms": 1614
+    },
+    {
+      "accepted_response_utc": "2026-09-18 12:24:19.147000+00:00",
+      "broker_exit_price": 4361.6,
+      "first_terminal_touch_utc": "2026-09-18 12:30:21.736000+00:00",
+      "native_exit_reason": 5,
+      "native_exit_utc": "2026-09-18 12:30:21.740000+00:00",
+      "position_id": 2047566527,
+      "position_open_after_touch_until_deal": true,
+      "receipt_status": "client_target_accepted_response_before_native_exit",
+      "relevant_side_updates": 3594,
+      "signal_id": "canal2_3168",
+      "status": "observed_fill_after_terminal_touch",
+      "terminal_to_fill_ms": 4
+    },
+    {
+      "accepted_response_utc": "2026-09-18 12:24:33.046000+00:00",
+      "broker_exit_price": 4360.82,
+      "first_terminal_touch_utc": "2026-09-18 12:30:07.957000+00:00",
+      "native_exit_reason": 5,
+      "native_exit_utc": "2026-09-18 12:30:08.433000+00:00",
+      "position_id": 2047571811,
+      "position_open_after_touch_until_deal": true,
+      "receipt_status": "client_target_accepted_response_before_native_exit",
+      "relevant_side_updates": 3314,
+      "signal_id": "canal2_3168",
+      "status": "observed_fill_after_terminal_touch",
+      "terminal_to_fill_ms": 476
+    },
+    {
+      "accepted_response_utc": "2026-09-18 12:24:35.736000+00:00",
+      "broker_exit_price": 4359.85,
+      "first_terminal_touch_utc": "2026-09-18 12:26:28.562000+00:00",
+      "native_exit_reason": 5,
+      "native_exit_utc": "2026-09-18 12:26:28.565000+00:00",
+      "position_id": 2047574688,
+      "position_open_after_touch_until_deal": true,
+      "receipt_status": "client_target_accepted_response_before_native_exit",
+      "relevant_side_updates": 1149,
+      "signal_id": "canal2_3168",
+      "status": "observed_fill_after_terminal_touch",
+      "terminal_to_fill_ms": 3
+    },
+    {
+      "accepted_response_utc": "2026-09-18 12:27:09.245000+00:00",
+      "broker_exit_price": 4358.88,
+      "first_terminal_touch_utc": "2026-09-18 12:29:40.109000+00:00",
+      "native_exit_reason": 5,
+      "native_exit_utc": "2026-09-18 12:29:40.114000+00:00",
+      "position_id": 2047614126,
+      "position_open_after_touch_until_deal": true,
+      "receipt_status": "client_target_accepted_response_before_native_exit",
+      "relevant_side_updates": 1443,
+      "signal_id": "canal2_3168",
+      "status": "observed_fill_after_terminal_touch",
+      "terminal_to_fill_ms": 5
+    },
+    {
+      "accepted_response_utc": "2026-09-18 12:28:03.341000+00:00",
+      "broker_exit_price": 4356.37,
+      "first_terminal_touch_utc": "2026-09-18 12:28:14.145000+00:00",
+      "native_exit_reason": 5,
+      "native_exit_utc": "2026-09-18 12:28:14.149000+00:00",
+      "position_id": 2047630429,
+      "position_open_after_touch_until_deal": true,
+      "receipt_status": "client_target_accepted_response_before_native_exit",
+      "relevant_side_updates": 82,
+      "signal_id": "canal2_3171",
+      "status": "observed_fill_after_terminal_touch",
+      "terminal_to_fill_ms": 4
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2047922188,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_3180",
+      "status": "blocked_missing_accepted_tp_response"
+    },
+    {
+      "native_exit_reason": 5,
+      "position_id": 2048051692,
+      "receipt_status": "missing_client_tp_receipt_trace",
+      "signal_id": "canal2_3180",
+      "status": "blocked_missing_accepted_tp_response"
+    }
+  ],
+  "sources": {
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\reports\\expanded-native-controls-20260924\\native-gold-tp-touch-population-v1.json": "1aac3ccf4645a581f2e0beeaff7e7eeb50de51a5858ed58909e46109166f888a",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\research\\dubai_iterative\\broker_execution.py": "7483c4c7dfdda5df6fdb30c2b66322b5331861b3ca01f3778cad62c54628b987",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\runtime_data\\week_native_ticks_20260923_v1\\native_money_anchor_v2.json": "550cbd6176316cb4cb62eb41ed9dc4e0673a0a925319f0b7e041230aa2ecf41d",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\tools\\audit_observed_tp_lifecycle.py": "24a0f905ae038f67ad453582e684b73a73ab09c4d7b2943eda46869dd5ed1d29",
+    "C:\\Users\\josea\\OneDrive\\Escritorio\\proyectos claude\\telegram-signal-copier-gold-live\\tools\\probe_canal1_incremental_window.py": "296ded21b2b2a4ac8ec5bb4a00969c586a19b5b362019956a8911bf7b2375c50"
+  },
+  "status": "diagnostic_only",
+  "statuses": {
+    "blocked_missing_accepted_tp_response": 36,
+    "non_tp_exit": 1,
+    "observed_fill_after_terminal_touch": 9
+  },
+  "tapes": {
+    "2026-09-18": {
+      "clock_admitted_by_source": false,
+      "day_rows": 655101,
+      "metadata_sha256": "f502e12e7ac65ccbc86a1bc1db688403a620dcc84c25c9f68c7436ee97a48cb3",
+      "parquet_sha256": "b0ddaa81f9c7391c1161f4239af2a9b932b7c3eb7997a683449fba6c1278670e",
+      "selected_rows": 47060
+    }
+  }
+}

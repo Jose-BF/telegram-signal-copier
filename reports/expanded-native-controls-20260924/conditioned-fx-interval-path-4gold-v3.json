@@ -1,0 +1,412 @@
+{
+  "cases": [
+    {
+      "broker_sha256": "cd5b1a326b833412affa75b3b7f7f4c42a4a808f62d423b350814618a809d7c3",
+      "channel": "canal2",
+      "engine_mismatches": {
+        "fast": [],
+        "scalar": []
+      },
+      "frozen_native_metrics": {
+        "final_at": "2026-09-15T12:45:21.597000+00:00",
+        "final_net": "13.43",
+        "known_samples": 3906,
+        "max_drawdown": "23.82",
+        "max_gross_volume": "0.10",
+        "maximum_from_origin": "19.75",
+        "minimum_from_origin": "-21.28"
+      },
+      "model_bracketed_samples": 30,
+      "model_metrics": {
+        "final_at": "2026-09-15 12:45:21.597000+00:00",
+        "final_net": "13.43",
+        "known_samples": 3905,
+        "max_drawdown": "23.82",
+        "max_gross_volume": "0.10",
+        "maximum_from_origin": "13.43",
+        "minimum_from_origin": "-21.28"
+      },
+      "money_sha256": "550cbd6176316cb4cb62eb41ed9dc4e0673a0a925319f0b7e041230aa2ecf41d",
+      "native_bracketed_samples": 30,
+      "native_entry_count": 4,
+      "native_metrics": {
+        "final_at": "2026-09-15 12:45:21.597000+00:00",
+        "final_net": "13.43",
+        "known_samples": 3905,
+        "max_drawdown": "23.82",
+        "max_gross_volume": "0.10",
+        "maximum_from_origin": "19.75",
+        "minimum_from_origin": "-21.28"
+      },
+      "path": {
+        "counts": {
+          "any": 33,
+          "comparable": 3905,
+          "floating": 33,
+          "long_volume": 33,
+          "open_count": 33,
+          "positions": 33,
+          "realized": 33,
+          "total": 33
+        },
+        "first_divergence": {
+          "at": "2026-09-15 12:39:03.344000+00:00",
+          "fields": [
+            "total",
+            "floating",
+            "realized",
+            "long_volume",
+            "open_count",
+            "positions"
+          ],
+          "model_total_eur": "0.36",
+          "native_total_eur": "0.49",
+          "ordinal": 0
+        },
+        "max_abs_total_difference_eur": "6.32",
+        "model_sample_sha256": "23d5d7509fc0de1209955457a8d821fa7d3f4d7bb32249916a047a0ed144d5e2",
+        "native_sample_sha256": "61f84dc8e3aeb368ed7233c4c7fc47c145a8a4422bcfa534ad2b2b92db3333eb",
+        "sample_count": 3905
+      },
+      "retrospective_blockers": [],
+      "retrospective_status": "evaluated_conditioned_management",
+      "risk_gate_evidence": {
+        "booked_native_net_eur": "13.43",
+        "common_grid_model_net_eur": "13.43",
+        "common_grid_native_net_eur": "13.43",
+        "frozen_native_net_eur": "13.43",
+        "model_blockers": [],
+        "native_blockers": []
+      },
+      "signal_id": "canal2_2970",
+      "sources": {
+        "archived_implementation_matches_current": true,
+        "archived_model_outputs_not_used": true,
+        "archived_model_sha256": "10b273e5b658f34bb8fc4ecefb9df7a880b0a6d2f6eb614d57d7b01012f06ed3",
+        "archived_runner_matches_current": false,
+        "changed_archived_implementation_files": [],
+        "native_risk_sha256": "a4c94d417829320cab2f5d17264a7330b43e80730d92b70b94ec79c5e0b4a468",
+        "raw_sha256": "9548ca5ce3fdd27ebe5f488ac97639c7e5cc7001ae0f75c73a40d3828cfd63b0"
+      },
+      "status": "retrospective_path_compared",
+      "strict_blockers": [
+        "incomplete_equity_conversion",
+        "stale_conversion_during_profit_lock"
+      ],
+      "strict_model_events_available": false,
+      "strict_status": "blocked"
+    },
+    {
+      "broker_sha256": "cd5b1a326b833412affa75b3b7f7f4c42a4a808f62d423b350814618a809d7c3",
+      "channel": "canal2",
+      "engine_mismatches": {
+        "fast": [],
+        "scalar": []
+      },
+      "frozen_native_metrics": {
+        "final_at": "2026-09-15T18:41:12.315000+00:00",
+        "final_net": "4.33",
+        "known_samples": 3258,
+        "max_drawdown": "7.60",
+        "max_gross_volume": "0.07",
+        "maximum_from_origin": "4.78",
+        "minimum_from_origin": "-7.57"
+      },
+      "model_bracketed_samples": 246,
+      "model_metrics": {
+        "final_at": "2026-09-15 18:41:12.315000+00:00",
+        "final_net": "4.33",
+        "known_samples": 3257,
+        "max_drawdown": "7.60",
+        "max_gross_volume": "0.07",
+        "maximum_from_origin": "4.33",
+        "minimum_from_origin": "-7.57"
+      },
+      "money_sha256": "550cbd6176316cb4cb62eb41ed9dc4e0673a0a925319f0b7e041230aa2ecf41d",
+      "native_bracketed_samples": 267,
+      "native_entry_count": 2,
+      "native_metrics": {
+        "final_at": "2026-09-15 18:41:12.315000+00:00",
+        "final_net": "4.33",
+        "known_samples": 3257,
+        "max_drawdown": "7.60",
+        "max_gross_volume": "0.07",
+        "maximum_from_origin": "4.78",
+        "minimum_from_origin": "-7.57"
+      },
+      "path": {
+        "counts": {
+          "any": 88,
+          "comparable": 3257,
+          "floating": 88,
+          "long_volume": 88,
+          "open_count": 88,
+          "positions": 88,
+          "realized": 88,
+          "total": 88
+        },
+        "first_divergence": {
+          "at": "2026-09-15 18:39:12.646000+00:00",
+          "fields": [
+            "total",
+            "floating",
+            "realized",
+            "long_volume",
+            "open_count",
+            "positions"
+          ],
+          "model_total_eur": "-0.14",
+          "native_total_eur": "-0.11",
+          "ordinal": 0
+        },
+        "max_abs_total_difference_eur": "0.83",
+        "model_sample_sha256": "e92a04d0a6aa54002a8dfce2e60cabdcdfbe63c9fc2e79579a1e820061075a3e",
+        "native_sample_sha256": "cb6317ef8d0f5f4247359740c22c8a67319dd149105540e747e4a7207b063a75",
+        "sample_count": 3257
+      },
+      "retrospective_blockers": [],
+      "retrospective_status": "evaluated_conditioned_management",
+      "risk_gate_evidence": {
+        "booked_native_net_eur": "4.33",
+        "common_grid_model_net_eur": "4.33",
+        "common_grid_native_net_eur": "4.33",
+        "frozen_native_net_eur": "4.33",
+        "model_blockers": [],
+        "native_blockers": []
+      },
+      "signal_id": "canal2_2995",
+      "sources": {
+        "archived_implementation_matches_current": true,
+        "archived_model_outputs_not_used": true,
+        "archived_model_sha256": "ecd19b04541556f2f1e501ddbb50351e8911f0862f82f2fda09f0662c71282dd",
+        "archived_runner_matches_current": true,
+        "changed_archived_implementation_files": [],
+        "native_risk_sha256": "a4c94d417829320cab2f5d17264a7330b43e80730d92b70b94ec79c5e0b4a468",
+        "raw_sha256": "9548ca5ce3fdd27ebe5f488ac97639c7e5cc7001ae0f75c73a40d3828cfd63b0"
+      },
+      "status": "retrospective_path_compared",
+      "strict_blockers": [
+        "incomplete_equity_conversion",
+        "stale_conversion_at_exit:15290",
+        "stale_conversion_during_profit_lock"
+      ],
+      "strict_model_events_available": false,
+      "strict_status": "blocked"
+    },
+    {
+      "broker_sha256": "cd5b1a326b833412affa75b3b7f7f4c42a4a808f62d423b350814618a809d7c3",
+      "channel": "canal2",
+      "engine_mismatches": {
+        "fast": [],
+        "scalar": []
+      },
+      "frozen_native_metrics": {
+        "final_at": "2026-09-18T11:43:06.935000+00:00",
+        "final_net": "13.53",
+        "known_samples": 5584,
+        "max_drawdown": "35.84",
+        "max_gross_volume": "0.13",
+        "maximum_from_origin": "13.70",
+        "minimum_from_origin": "-35.84"
+      },
+      "model_bracketed_samples": 7,
+      "model_metrics": {
+        "final_at": "2026-09-18 11:43:06.935000+00:00",
+        "final_net": "13.53",
+        "known_samples": 5583,
+        "max_drawdown": "35.84",
+        "max_gross_volume": "0.13",
+        "maximum_from_origin": "13.53",
+        "minimum_from_origin": "-35.84"
+      },
+      "money_sha256": "550cbd6176316cb4cb62eb41ed9dc4e0673a0a925319f0b7e041230aa2ecf41d",
+      "native_bracketed_samples": 7,
+      "native_entry_count": 4,
+      "native_metrics": {
+        "final_at": "2026-09-18 11:43:06.935000+00:00",
+        "final_net": "13.53",
+        "known_samples": 5583,
+        "max_drawdown": "35.84",
+        "max_gross_volume": "0.13",
+        "maximum_from_origin": "13.70",
+        "minimum_from_origin": "-35.84"
+      },
+      "path": {
+        "counts": {
+          "any": 4,
+          "comparable": 5583,
+          "floating": 4,
+          "open_count": 4,
+          "positions": 4,
+          "realized": 4,
+          "short_volume": 4,
+          "total": 4
+        },
+        "first_divergence": {
+          "at": "2026-09-18 11:38:00.441000+00:00",
+          "fields": [
+            "total",
+            "floating",
+            "realized",
+            "short_volume",
+            "open_count",
+            "positions"
+          ],
+          "model_total_eur": "-7.93",
+          "native_total_eur": "-7.82",
+          "ordinal": 0
+        },
+        "max_abs_total_difference_eur": "0.99",
+        "model_sample_sha256": "30d85855f3e9228e28aeca9c432b837b405dd05d695764cda95f03ec43c7c810",
+        "native_sample_sha256": "afbaabe9486ceee94f53d4e8214387814872d16c4f2a3c19e64c65f1c0563425",
+        "sample_count": 5583
+      },
+      "retrospective_blockers": [],
+      "retrospective_status": "evaluated_conditioned_management",
+      "risk_gate_evidence": {
+        "booked_native_net_eur": "13.53",
+        "common_grid_model_net_eur": "13.53",
+        "common_grid_native_net_eur": "13.53",
+        "frozen_native_net_eur": "13.53",
+        "model_blockers": [],
+        "native_blockers": []
+      },
+      "signal_id": "canal2_3156",
+      "sources": {
+        "archived_implementation_matches_current": true,
+        "archived_model_outputs_not_used": true,
+        "archived_model_sha256": "4e39bfba20b9efe61fb57cca9895afd8c2840d09646e4e5e5a77feeaf8a4c7c4",
+        "archived_runner_matches_current": true,
+        "changed_archived_implementation_files": [],
+        "native_risk_sha256": "a4c94d417829320cab2f5d17264a7330b43e80730d92b70b94ec79c5e0b4a468",
+        "raw_sha256": "9548ca5ce3fdd27ebe5f488ac97639c7e5cc7001ae0f75c73a40d3828cfd63b0"
+      },
+      "status": "retrospective_path_compared",
+      "strict_blockers": [
+        "incomplete_equity_conversion",
+        "stale_conversion_during_profit_lock"
+      ],
+      "strict_model_events_available": false,
+      "strict_status": "blocked"
+    },
+    {
+      "broker_sha256": "cd5b1a326b833412affa75b3b7f7f4c42a4a808f62d423b350814618a809d7c3",
+      "channel": "canal2",
+      "engine_mismatches": {
+        "fast": [],
+        "scalar": []
+      },
+      "frozen_native_metrics": {
+        "final_at": "2026-09-18T13:26:21.008000+00:00",
+        "final_net": "4.36",
+        "known_samples": 14121,
+        "max_drawdown": "4.64",
+        "max_gross_volume": "0.04",
+        "maximum_from_origin": "4.67",
+        "minimum_from_origin": "-4.05"
+      },
+      "model_bracketed_samples": 20,
+      "model_metrics": {
+        "final_at": "2026-09-18 13:26:21.008000+00:00",
+        "final_net": "4.36",
+        "known_samples": 14120,
+        "max_drawdown": "4.64",
+        "max_gross_volume": "0.04",
+        "maximum_from_origin": "4.36",
+        "minimum_from_origin": "-4.05"
+      },
+      "money_sha256": "550cbd6176316cb4cb62eb41ed9dc4e0673a0a925319f0b7e041230aa2ecf41d",
+      "native_bracketed_samples": 20,
+      "native_entry_count": 2,
+      "native_metrics": {
+        "final_at": "2026-09-18 13:26:21.008000+00:00",
+        "final_net": "4.36",
+        "known_samples": 14120,
+        "max_drawdown": "4.64",
+        "max_gross_volume": "0.04",
+        "maximum_from_origin": "4.67",
+        "minimum_from_origin": "-4.05"
+      },
+      "path": {
+        "counts": {
+          "any": 9,
+          "comparable": 14120,
+          "floating": 9,
+          "long_volume": 9,
+          "open_count": 9,
+          "positions": 9,
+          "realized": 9,
+          "total": 8
+        },
+        "first_divergence": {
+          "at": "2026-09-18 13:03:41.690000+00:00",
+          "fields": [
+            "total",
+            "floating",
+            "realized",
+            "long_volume",
+            "open_count",
+            "positions"
+          ],
+          "model_total_eur": "1.74",
+          "native_total_eur": "1.95",
+          "ordinal": 0
+        },
+        "max_abs_total_difference_eur": "0.39",
+        "model_sample_sha256": "36f9ab6cdb952c7f8c257b3bf8f789abbc007f58240ab92042c934b7b74aaa39",
+        "native_sample_sha256": "cbd504ee3f7c15e0a91c88e4600c58f553b4f156924ed8630c6bf18b555b91b4",
+        "sample_count": 14120
+      },
+      "retrospective_blockers": [],
+      "retrospective_status": "evaluated_conditioned_management",
+      "risk_gate_evidence": {
+        "booked_native_net_eur": "4.36",
+        "common_grid_model_net_eur": "4.36",
+        "common_grid_native_net_eur": "4.36",
+        "frozen_native_net_eur": "4.36",
+        "model_blockers": [],
+        "native_blockers": []
+      },
+      "signal_id": "canal2_3180",
+      "sources": {
+        "archived_implementation_matches_current": true,
+        "archived_model_outputs_not_used": true,
+        "archived_model_sha256": "581378e6089e5ef1ec37978f0e7303b51bd77cd81fa67833182e83a2bf152182",
+        "archived_runner_matches_current": false,
+        "changed_archived_implementation_files": [],
+        "native_risk_sha256": "a4c94d417829320cab2f5d17264a7330b43e80730d92b70b94ec79c5e0b4a468",
+        "raw_sha256": "9548ca5ce3fdd27ebe5f488ac97639c7e5cc7001ae0f75c73a40d3828cfd63b0"
+      },
+      "status": "retrospective_path_compared",
+      "strict_blockers": [
+        "incomplete_equity_conversion",
+        "stale_conversion_during_profit_lock"
+      ],
+      "strict_model_events_available": false,
+      "strict_status": "blocked"
+    }
+  ],
+  "contract": "conditioned_fx_interval_path_sensitivity_v1",
+  "elapsed_seconds": 5.787468299968168,
+  "entry_decisions_verified": false,
+  "full_live_parity_verified": false,
+  "limitations": [
+    "Native entries fixed; shared transport and entry decisions not compared.",
+    "Future FX timestamp is used for retrospective coverage, never future price.",
+    "Common retained XAUUSD ticks and event boundaries, not broker account equity.",
+    "Historical diagnostic, not out-of-sample strategy validation or live policy."
+  ],
+  "retrospective_fx_interval_ms": 60000,
+  "sources": {
+    "research/causal_replay.py": "f470c980d6ccefb9451712a13adb704ee9eb278d331b5cb90c5c19b1df291f5f",
+    "research/conditioned_management.py": "e6942551f9d2e599160096d889ceaffc4c4664ad0638ce2abd44adea3b306e94",
+    "research/risk_trajectory.py": "52d4dd9854bacf8e760e6276e97244ff3ea6b7cf7d58c12cd288989c0a7256f1",
+    "tools/audit_conditioned_fx_path_sensitivity.py": "c1fdacd8a0a5b2b039f9247e99b461c2d723f039d6ae40a719e012f35dbc9bbe",
+    "tools/audit_week_conditioned_controls.py": "d5b4cb26592e27884b4115b9e527d0faebfa8b2124e627ddfe5dcc118da8dd1f"
+  },
+  "status": "diagnostic_only",
+  "statuses": {
+    "retrospective_path_compared": 4
+  },
+  "strict_causal_fx_age_ms": 5000
+}

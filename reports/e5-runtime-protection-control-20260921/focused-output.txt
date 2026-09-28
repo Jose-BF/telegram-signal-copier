@@ -1,0 +1,23 @@
+============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-9.1.1, pluggy-1.6.0
+rootdir: C:\Users\josea\OneDrive\Escritorio\proyectos claude\telegram-signal-copier-gold-live
+configfile: pytest.ini
+plugins: anyio-4.15.1, asyncio-1.4.0, mock-3.15.1
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 109 items
+
+tests\test_runtime_replay_protection.py .........................        [ 22%]
+tests\test_runtime_replay_mailbox.py .............                       [ 34%]
+tests\test_shared_basket_stop.py ......................................  [ 69%]
+tests\test_e4_pending_revision.py ...                                    [ 72%]
+tests\test_e4_pending_spool.py ......                                    [ 77%]
+tests\test_iterative_provenance.py ........................              [100%]
+
+============================== warnings summary ===============================
+tests/test_iterative_provenance.py::test_explicit_dependencies_cover_transitive_local_imports
+  tests\test_iterative_provenance.py:103: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    def test_explicit_dependencies_cover_transitive_local_imports(record_property):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+- generated xml file: C:\Users\josea\OneDrive\Escritorio\proyectos claude\telegram-signal-copier-gold-live\reports\e5-runtime-protection-control-20260921\focused.xml -
+======================= 109 passed, 1 warning in 44.69s =======================

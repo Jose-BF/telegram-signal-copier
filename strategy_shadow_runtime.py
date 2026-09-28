@@ -47,6 +47,8 @@ class ShadowTickHistory:
     evidence_id: str
     blocker: str | None = None
     pending_reason: str | None = None
+    read_started_at_utc: str | None = None
+    read_completed_at_utc: str | None = None
 
     def __post_init__(self) -> None:
         timestamps = [item.time_msc for item in self.ticks]
@@ -58,6 +60,13 @@ class ShadowTickHistory:
             raise ValueError("complete history cannot have a blocker")
         if not self.complete and self.pending_reason is not None:
             raise ValueError("incomplete history cannot expose a pending prefix")
+        if (self.read_started_at_utc is None) != (self.read_completed_at_utc is None):
+            raise ValueError("tick history read clocks must be paired")
+        if self.read_started_at_utc is not None:
+            started = _utc_datetime(self.read_started_at_utc)
+            completed = _utc_datetime(self.read_completed_at_utc)
+            if completed < started:
+                raise ValueError("tick history read clocks reversed")
 
 
 @dataclass(frozen=True)
@@ -200,8 +209,9 @@ class ShadowRuntime:
     ) -> tuple[ShadowSignalState, ...]:
         if history.complete or history.blocker not in {
             "historical_tick_cursor_unavailable", "historical_tick_cursor_ambiguous",
+            "storage_capacity_unavailable",
         }:
-            raise ValueError("only a missing or ambiguous historical cursor can be quarantined")
+            raise ValueError("only missing, ambiguous or unavailable capture can be quarantined")
         affected: list[ShadowSignalState] = []
         async with self._lock:
             keys = tuple(self._states)
@@ -377,12 +387,19 @@ class ShadowRuntime:
         advanced: ShadowAdvance,
         tick: ShadowTick | None,
         management_event: ShadowManagementEvent | None = None,
+        read_started_at_utc: str | None = None,
+        read_completed_at_utc: str | None = None,
     ) -> None:
         key = (advanced.state.signal_id, policy.candidate_id)
         chain_hash = self._persisted_state_hashes.get(
             key, previous.state_hash,
         )
         for transition in advanced.transitions:
+            read_clock_fields = (
+                {"tick_batch_read_started_utc": read_started_at_utc,
+                 "tick_batch_read_completed_utc": read_completed_at_utc}
+                if read_started_at_utc is not None else {}
+            )
             await self._emit(
                 advanced.state.signal_id,
                 "strategy_shadow_transition",
@@ -401,6 +418,7 @@ class ShadowRuntime:
                 state_hash=advanced.state.state_hash,
                 previous_state_hash=chain_hash,
                 state=advanced.state.to_dict(),
+                **read_clock_fields,
             )
             chain_hash = advanced.state.state_hash
             self._persisted_state_hashes[key] = chain_hash
@@ -431,7 +449,11 @@ class ShadowRuntime:
             await asyncio.sleep(0)
             async with self._lock:
                 for key in keys:
-                    await self._process_tick_for_key_locked(key, observed)
+                    await self._process_tick_for_key_locked(
+                        key, observed,
+                        read_started_at_utc=history.read_started_at_utc,
+                        read_completed_at_utc=history.read_completed_at_utc,
+                    )
                 await self._checkpoint_if_due(observed.observed_at_utc)
         if keys and history.ticks:
             last = history.ticks[-1]
@@ -449,6 +471,9 @@ class ShadowRuntime:
         self,
         key: tuple[str, str],
         tick: ShadowTick,
+        *,
+        read_started_at_utc: str | None = None,
+        read_completed_at_utc: str | None = None,
     ) -> None:
         previous = self._states[key]
         if (
@@ -471,7 +496,11 @@ class ShadowRuntime:
         elapsed_ms = (time.perf_counter() - started) * 1000.0
         self._states[key] = advanced.state
         if advanced.transitions:
-            await self._record_advance(policy, previous, advanced, tick)
+            await self._record_advance(
+                policy, previous, advanced, tick,
+                read_started_at_utc=read_started_at_utc,
+                read_completed_at_utc=read_completed_at_utc,
+            )
         if (
             elapsed_ms > self._slowdown_threshold_ms
             and previous.candidate_id not in self._degradation_reported
