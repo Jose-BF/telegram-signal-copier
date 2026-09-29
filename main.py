@@ -614,6 +614,70 @@ def _startup_journal_restore_deferred(path) -> bool:
     return True
 
 
+try:
+    RESYNC_JOURNAL_TAIL_BYTES = max(
+        0,
+        int(os.getenv("BOT_RESYNC_JOURNAL_TAIL_BYTES", str(1024 * 1024 * 1024))),
+    )
+except (TypeError, ValueError):
+    RESYNC_JOURNAL_TAIL_BYTES = 1024 * 1024 * 1024
+
+
+def _resync_journal_source(path, signal_ids):
+    """Journal slice for the orphan resync that cannot stall startup.
+
+    The resync loaders read the whole journal several times. With a journal of
+    many GB that takes longer than the watcher's heartbeat limit, so every restart
+    with an open position was killed as frozen (29/09/2026). Above the startup
+    scan limit, read only the last RESYNC_JOURNAL_TAIL_BYTES once, keep the lines
+    that mention the open signals, and let the loaders work on that small file.
+    Returns the path to read, or None to skip journal metadata (never a full scan).
+    """
+    source = Path(path)
+    if not source.exists():
+        return source
+    try:
+        size = source.stat().st_size
+    except OSError as exc:
+        print(f"[Resync] no pude consultar el tamano del journal: {exc}")
+        return None
+    if STARTUP_JOURNAL_RESTORE_MAX_SCAN_BYTES <= 0 or size <= STARTUP_JOURNAL_RESTORE_MAX_SCAN_BYTES:
+        return source
+    targets = [str(s).encode("utf-8") for s in signal_ids if str(s)]
+    if not targets or RESYNC_JOURNAL_TAIL_BYTES <= 0:
+        return None
+    subset = source.with_name("resync_journal_subset.jsonl")
+    start = max(0, size - RESYNC_JOURNAL_TAIL_BYTES)
+    kept = 0
+    try:
+        with source.open("rb") as fh, subset.open("wb") as out:
+            fh.seek(start)
+            if start:
+                fh.readline()  # drop the partial first line
+            rest = b""
+            while True:
+                chunk = fh.read(64 * 1024 * 1024)
+                if not chunk:
+                    break
+                lines = (rest + chunk).split(b"\n")
+                rest = lines.pop()
+                for line in lines:
+                    if any(t in line for t in targets):
+                        out.write(line + b"\n")
+                        kept += 1
+            if rest and any(t in rest for t in targets):
+                out.write(rest + b"\n")
+                kept += 1
+    except OSError as exc:
+        print(f"[Resync] no pude extraer el tramo reciente del journal: {exc}")
+        return None
+    print(
+        f"[Resync] journal de {size} bytes: recuperacion con los ultimos "
+        f"{size - start} bytes ({kept} lineas de las senales abiertas)."
+    )
+    return subset
+
+
 async def _run_startup_broker_money_capture() -> bool:
     """Capture money metadata without delaying Telegram startup."""
 
@@ -1961,29 +2025,34 @@ def _resync_orphan_positions():
         print("[Resync] sin posiciones huérfanas en MT5. OK.")
         return
 
+    resync_source = _resync_journal_source(journal.EVENTS_FILE, groups.keys())
+    if resync_source is None:
+        print("[Resync] sin metadatos del journal: se recupera solo desde MT5.")
+        resync_source = Path(journal.EVENTS_FILE).with_name("resync_journal_empty.jsonl")
+        resync_source.write_bytes(b"")
     entry_metadata = _load_resync_entry_metadata(
-        journal.EVENTS_FILE,
+        resync_source,
         groups.keys(),
     )
     candidate_metadata = _load_dubai_candidate_metadata(
-        journal.EVENTS_FILE,
+        resync_source,
         groups.keys(),
     )
     gold_555_candidate_metadata = _load_gold_555_candidate_metadata(
-        journal.EVENTS_FILE,
+        resync_source,
         groups.keys(),
     )
     try:
         basket_guard_states = live_basket_guard.load_guard_states(
-            journal.EVENTS_FILE,
+            resync_source,
             groups.keys(),
         )
         basket_guard_realized = live_basket_guard.load_realized_ticket_cache(
-            journal.EVENTS_FILE,
+            resync_source,
             groups.keys(),
         )
         basket_guard_tickets = live_basket_guard.load_signal_ticket_ids(
-            journal.EVENTS_FILE,
+            resync_source,
             groups.keys(),
         )
     except OSError as exc:
@@ -1993,7 +2062,7 @@ def _resync_orphan_positions():
         print(f"[Resync] no pude cargar proteccion de cestas: {exc}")
     try:
         causal_origins, causal_conflicts, invalid_causal_lines = (
-            causal_trace.load_signal_origin_index(journal.EVENTS_FILE)
+            causal_trace.load_signal_origin_index(resync_source)
         )
     except OSError as exc:
         causal_origins = {}
