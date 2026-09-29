@@ -34,3 +34,33 @@ def test_large_journal_without_targets_skips_metadata(tmp_path, monkeypatch):
     _write(j, [{"sig": "canal2_99", "pad": "y" * 500}] * 10)
     monkeypatch.setattr(main, "STARTUP_JOURNAL_RESTORE_MAX_SCAN_BYTES", 100)
     assert main._resync_journal_source(j, []) is None
+
+
+def test_heartbeat_probe_never_waits_for_a_hung_mt5_call():
+    import threading, time
+    release = threading.Event()
+    def hung():
+        release.wait(10)
+        return []
+    t0 = time.monotonic()
+    positions, status = main._positions_with_timeout(hung, timeout_sec=0.3)
+    assert positions is None and status == "timeout" and time.monotonic() - t0 < 2
+    # while the first probe is still stuck, the next heartbeat does not start another thread
+    assert main._positions_with_timeout(hung, timeout_sec=0.3) == (None, "busy")
+    release.set()
+    main._positions_probe_thread.join(2)
+    assert main._positions_with_timeout(lambda: [1], timeout_sec=1) == ([1], "ok")
+
+
+def test_exposure_is_unknown_not_flat_when_mt5_hangs(monkeypatch):
+    import threading
+    release = threading.Event()
+    monkeypatch.setattr(main, "_positions_probe_thread", None)
+    monkeypatch.setattr(main, "HEARTBEAT_MT5_PROBE_TIMEOUT_SEC", 0.2)
+    class S:
+        pass
+    monkeypatch.setattr(main, "_count_open_signals_unique", lambda sm: 0)
+    monkeypatch.setattr(main, "pending_entry_count", lambda: 0)
+    snap = main._runtime_exposure_snapshot(state_manager=S(), positions_get=lambda: release.wait(5))
+    release.set()
+    assert snap["exposure_state"] == "unknown" and main._last_mt5_positions_probe == "timeout"

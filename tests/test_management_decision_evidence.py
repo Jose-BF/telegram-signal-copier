@@ -31,6 +31,9 @@ def _signal(direction="BUY"):
 
 @pytest.fixture
 def captured(monkeypatch, tmp_path):
+    import management_decision_evidence as capture
+    monkeypatch.setattr(capture, "_last_written", {})
+    monkeypatch.setattr(capture, "NOOP_SAMPLE_SEC", 0.0)   # record every evaluation, as before the volume guard
     events = []
     def event(sig, ev, **fields):
         events.append({"sig": sig, "ev": ev, **causal_trace.current_fields(), **fields})
@@ -249,3 +252,29 @@ def test_serialized_state_keeps_microseconds_at_the_time_exit_boundary(captured)
     )
     assert first_fill.microsecond == 500
     assert replay == original
+
+
+def test_repeated_noop_with_same_state_is_sampled_not_recorded_every_time(captured, monkeypatch):
+    import management_decision_evidence as capture
+    events, _ = captured
+    monkeypatch.setattr(capture, "NOOP_SAMPLE_SEC", 60.0)
+    signal = _signal()
+    for _ in range(5):
+        with capture.capture_management_decision(signal, kind="gold_555_trailing", inputs={"bid": 4300.0}) as output:
+            output["result"] = 0
+    assert [e["ev"] for e in events] == ["bot_internal_decision_started", "bot_internal_decision"]
+
+
+def test_state_change_or_action_is_always_recorded(captured, monkeypatch):
+    import management_decision_evidence as capture
+    events, _ = captured
+    monkeypatch.setattr(capture, "NOOP_SAMPLE_SEC", 60.0)
+    signal = _signal()
+    with capture.capture_management_decision(signal, kind="dubai_basket_guard", inputs={}) as output:
+        output["result"] = {"action": "none"}
+    with capture.capture_management_decision(signal, kind="dubai_basket_guard", inputs={}) as output:
+        signal.basket_guard_armed = True                      # durable state change
+        output["result"] = {"action": "none"}
+    with capture.capture_management_decision(signal, kind="dubai_basket_guard", inputs={}) as output:
+        output["result"] = {"action": "close"}                # an action
+    assert sum(e["ev"] == "bot_internal_decision" for e in events) == 3

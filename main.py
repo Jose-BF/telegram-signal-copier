@@ -321,10 +321,46 @@ def _write_runtime_heartbeat(path: Path | None = None) -> None:
         "utc": datetime.utcnow().isoformat(timespec="milliseconds"),
         **_runtime_exposure_snapshot(),
     }
+    payload["mt5_positions_probe"] = _last_mt5_positions_probe
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps(payload, ensure_ascii=False) + "\n",
                    encoding="utf-8")
     tmp.replace(path)
+
+
+# Heartbeat independence from MT5 (29/09/2026): a hung order_send blocked the MetaTrader5 library, the
+# heartbeat's positions_get waited behind it, no heartbeat was written for 180 s and the watcher killed the
+# bot in the middle of an order. The probe now runs in its own thread with a deadline; on timeout the
+# heartbeat is still written with exposure "unknown" (fail-closed for the watcher's updates).
+try:
+    HEARTBEAT_MT5_PROBE_TIMEOUT_SEC = max(0.5, float(os.getenv("BOT_HEARTBEAT_MT5_PROBE_TIMEOUT_SEC", "5")))
+except ValueError:
+    HEARTBEAT_MT5_PROBE_TIMEOUT_SEC = 5.0
+_positions_probe_thread = None
+_last_mt5_positions_probe = None
+
+
+def _positions_with_timeout(positions_get, timeout_sec: float | None = None):
+    """(positions or None, "ok" | "timeout" | "busy" | "error"); never blocks longer than the deadline."""
+    global _positions_probe_thread
+    import threading
+    if _positions_probe_thread is not None and _positions_probe_thread.is_alive():
+        return None, "busy"        # the previous probe is still stuck inside MT5: do not pile up threads
+    box = {}
+    def run():
+        try:
+            box["value"] = positions_get()
+        except Exception as exc:  # noqa: BLE001
+            box["error"] = exc
+    worker = threading.Thread(target=run, name="heartbeat-mt5-probe", daemon=True)
+    _positions_probe_thread = worker
+    worker.start()
+    worker.join(HEARTBEAT_MT5_PROBE_TIMEOUT_SEC if timeout_sec is None else timeout_sec)
+    if worker.is_alive():
+        return None, "timeout"
+    if "error" in box:
+        return None, "error"
+    return box.get("value"), "ok"
 
 
 def _runtime_exposure_snapshot(state_manager=None, positions_get=None) -> dict:
@@ -350,9 +386,12 @@ def _runtime_exposure_snapshot(state_manager=None, positions_get=None) -> dict:
             positions_get = None
 
     bot_position_count = None
+    mt5_probe = "ok"
     if positions_get is not None:
         try:
-            positions = positions_get()
+            positions, mt5_probe = _positions_with_timeout(positions_get)
+            global _last_mt5_positions_probe
+            _last_mt5_positions_probe = mt5_probe
             if positions is not None:
                 bot_magics = {
                     int(config.magic_for("canal1")),
@@ -436,9 +475,13 @@ async def _runtime_heartbeat(interval_sec: float | None = None):
         else float(config.BOT_RUNTIME_HEARTBEAT_SEC)
     )
     interval = max(1.0, interval)
+    from concurrent.futures import ThreadPoolExecutor
+    heartbeat_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="runtime-heartbeat")
+    loop = asyncio.get_running_loop()
     while True:
         try:
-            await asyncio.to_thread(_write_runtime_heartbeat)
+            # own thread: hung MT5 calls may exhaust the default executor used by asyncio.to_thread
+            await loop.run_in_executor(heartbeat_pool, _write_runtime_heartbeat)
             _arm_freeze_traceback_dump()
         except Exception as e:
             print(f"[Heartbeat] runtime heartbeat write failed: {e}")
