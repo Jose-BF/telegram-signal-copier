@@ -2123,6 +2123,37 @@ async def _run(fn, *args, **kwargs):
     )
 
 
+# 28/09/2026: a market order timed out in the bot (order_send hung ~3 min) while the broker executed it; the
+# bot logged market_fill_failed and the position stayed untracked. After every failed entry, look for a
+# position of that signal in MT5 and raise a critical alert; the startup resync adopts it on the next restart.
+UNTRACKED_POSITION_CHECK_DELAYS_SEC = (15.0, 60.0)
+
+
+async def _check_untracked_after_failed_fill(sig_id: str) -> bool:
+    for delay in UNTRACKED_POSITION_CHECK_DELAYS_SEC:
+        await asyncio.sleep(delay)
+        try:
+            groups = await _run(executor.list_open_positions_grouped)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[Fill check] {sig_id}: no pude consultar MT5 ({type(exc).__name__})")
+            continue
+        group = (groups or {}).get(sig_id)
+        if not group:
+            continue
+        journal.event(sig_id, "untracked_position_detected", after_failed_fill=True,
+                      delay_sec=delay, group_summary=str(group)[:500])
+        journal.anomaly(sig_id, "fill", "critical",
+                        "orden dada por fallida pero la posicion existe en MT5; "
+                        "se recupera en el proximo arranque", channel=sig_id.split("_")[0])
+        try:
+            await notify(f"⚠️ {sig_id}: el broker ejecutó una orden que el bot dio por fallida. "
+                         "La posición existe en MT5 con su stop del broker; el bot la recuperará al reiniciarse.")
+        except Exception:  # noqa: BLE001
+            pass
+        return True
+    return False
+
+
 def _schedule_detached(awaitable):
     """Schedule delayed bot work without retaining a Telegram decision."""
     with causal_trace.detached_context(), journal.detached_test_mode():
@@ -8870,6 +8901,7 @@ async def _open_canal2_intent(
             reason="executor.open_market returned None",
             entry_source_kind=intent.source_kind,
         )
+        _schedule_detached(_check_untracked_after_failed_fill(sig_id_pre))
         journal.anomaly(
             sig_id_pre,
             "fill",
@@ -10425,6 +10457,7 @@ async def _handle_canal1_sticker(msg):
         _entry_open_finished("canal1", msg.id)
         journal.event(sig_id_pre, "market_fill_failed",
                       reason="executor.open_market returned None")
+        _schedule_detached(_check_untracked_after_failed_fill(sig_id_pre))
         journal.anomaly(sig_id_pre, "fill", "critical",
                         "executor.open_market devolvió None — sticker "
                         "recibido pero el bot no abrió posición",
@@ -10667,6 +10700,7 @@ async def _open_canal1_from_text(msg, parsed: dict):
         _entry_open_finished("canal1", msg.id)
         journal.event(sig_id_pre, "market_fill_failed",
                       reason="executor.open_market returned None (text-only path)")
+        _schedule_detached(_check_untracked_after_failed_fill(sig_id_pre))
         journal.anomaly(sig_id_pre, "fill", "critical",
                         "executor.open_market devolvió None en path "
                         "text-only canal1",
