@@ -325,7 +325,15 @@ def _write_runtime_heartbeat(path: Path | None = None) -> None:
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps(payload, ensure_ascii=False) + "\n",
                    encoding="utf-8")
-    tmp.replace(path)
+    for attempt in range(5):   # the watcher may be reading the file (WinError 5 seen on 29/09)
+        try:
+            tmp.replace(path)
+            break
+        except PermissionError:
+            if attempt == 4:
+                raise
+            import time as _time
+            _time.sleep(0.1)
 
 
 # Heartbeat independence from MT5 (29/09/2026): a hung order_send blocked the MetaTrader5 library, the

@@ -166,6 +166,9 @@ WATCHER_SELF_UPDATE_PATHS = {
 }
 WATCHDOG_HEARTBEAT_TIMEOUT_SEC = float(os.getenv(
     "WATCHDOG_HEARTBEAT_TIMEOUT_SEC", "180"))
+# An MT5 order in flight stalls the whole bot process (executor._mark_mt5_request_in_flight). Killing it then
+# left broker-executed positions untracked (28/09, 29/09); wait up to this long for the broker to answer.
+MT5_IN_FLIGHT_GRACE_SEC = float(os.getenv("BOT_MT5_IN_FLIGHT_GRACE_SEC", "600"))
 WATCHDOG_STARTUP_TIMEOUT_SEC = float(os.getenv(
     "WATCHDOG_STARTUP_TIMEOUT_SEC", "600"))
 UPDATE_EXPOSURE_HEARTBEAT_MAX_AGE_SEC = float(os.getenv(
@@ -583,6 +586,25 @@ def _paths_changed_between(old_rev: str, new_rev: str,
                for line in (diff.stdout or "").splitlines()
                if line.strip()}
     return bool(changed.intersection(watched_paths))
+
+
+def _mt5_request_in_flight_age_s(child_pid, now=None, folder=None):
+    """Age in seconds of the oldest MT5 order the running bot (child_pid) has in flight, or None."""
+    folder = folder or RUNTIME_HEARTBEAT_FILE.parent
+    now = time.time() if now is None else now
+    ages = []
+    try:
+        for marker in folder.glob("mt5_request_in_flight.*.json"):
+            try:
+                payload = json.loads(marker.read_text(encoding="utf-8"))
+                if int(payload.get("pid", -1)) != int(child_pid):
+                    continue
+                ages.append(now - marker.stat().st_mtime)
+            except (OSError, ValueError, TypeError):
+                continue
+    except OSError:
+        return None
+    return max(ages) if ages else None
 
 
 def _clear_runtime_heartbeat(path: Path = RUNTIME_HEARTBEAT_FILE) -> None:
@@ -2762,6 +2784,13 @@ def _run_main() -> int:
             if _runtime_heartbeat_is_stale(
                     heartbeat_age_s, uptime_s, WATCHDOG_HEARTBEAT_TIMEOUT_SEC,
                     startup_timeout_s=WATCHDOG_STARTUP_TIMEOUT_SEC):
+                in_flight_s = _mt5_request_in_flight_age_s(proc.pid, now=now)
+                if in_flight_s is not None and in_flight_s < MT5_IN_FLIGHT_GRACE_SEC:
+                    if int(in_flight_s) // 30 != int(in_flight_s - 5) // 30:
+                        print(f"[Watch] Latido parado por una orden MT5 en curso ({in_flight_s:.0f}s): "
+                              "espero la respuesta del broker en vez de reiniciar.", flush=True)
+                    time.sleep(1)
+                    continue
                 if heartbeat_age_s is None:
                     detail = "no hay heartbeat runtime"
                 else:

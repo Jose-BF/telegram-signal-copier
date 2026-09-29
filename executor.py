@@ -4,6 +4,9 @@ El listener las ejecuta en un executor thread para no bloquear el loop async.
 """
 
 import math
+import os
+import json
+from pathlib import Path
 import re
 import time
 from dataclasses import dataclass
@@ -722,6 +725,40 @@ def current_tick_safe() -> Optional[dict]:
         return None
 
 
+# 29/09/2026: while mt5.order_send waits for a slow broker the whole bot process stalls (the MetaTrader5
+# library holds the interpreter), no heartbeat is written and the watcher killed the bot mid-order twice
+# (28/09 and 29/09), leaving positions the broker executed minutes later untracked. A marker file tells the
+# watcher that an order is in flight so it waits (bounded) instead of restarting.
+def _mt5_in_flight_dir():
+    try:
+        return Path(config.BOT_RUNTIME_HEARTBEAT_FILE).parent
+    except Exception:
+        return None
+
+
+def _mark_mt5_request_in_flight(label: str):
+    import threading
+    folder = _mt5_in_flight_dir()
+    if folder is None:
+        return None
+    marker = folder / f"mt5_request_in_flight.{os.getpid()}.{threading.get_ident()}.json"
+    try:
+        marker.write_text(json.dumps({"pid": os.getpid(), "label": str(label)[:80],
+                                      "started_utc": datetime.now(timezone.utc).isoformat()}), encoding="utf-8")
+        return marker
+    except Exception:
+        return None
+
+
+def _clear_mt5_request_in_flight(marker) -> None:
+    if marker is None:
+        return
+    try:
+        marker.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
 def _send_safe(
     req: dict,
     label: str,
@@ -744,9 +781,11 @@ def _send_safe(
     """
     if evidence is not None:
         evidence.mark_broker_request_started()
+    marker = _mark_mt5_request_in_flight(label)
     try:
         res = mt5.order_send(req)
     finally:
+        _clear_mt5_request_in_flight(marker)
         if evidence is not None:
             evidence.mark_broker_response_received()
     if res is None:

@@ -64,3 +64,19 @@ def test_exposure_is_unknown_not_flat_when_mt5_hangs(monkeypatch):
     snap = main._runtime_exposure_snapshot(state_manager=S(), positions_get=lambda: release.wait(5))
     release.set()
     assert snap["exposure_state"] == "unknown" and main._last_mt5_positions_probe == "timeout"
+
+
+def test_heartbeat_write_retries_a_locked_target(tmp_path, monkeypatch):
+    from pathlib import Path
+    calls = {"n": 0}
+    real_replace = Path.replace
+    def flaky(self, target):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise PermissionError("locked")
+        return real_replace(self, target)
+    monkeypatch.setattr(Path, "replace", flaky)
+    monkeypatch.setattr(main, "_runtime_exposure_snapshot", lambda: {"exposure_state": "flat"})
+    target = tmp_path / "runtime_heartbeat.json"
+    main._write_runtime_heartbeat(target)
+    assert target.exists() and calls["n"] == 3

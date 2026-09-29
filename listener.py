@@ -2126,7 +2126,7 @@ async def _run(fn, *args, **kwargs):
 # 28/09/2026: a market order timed out in the bot (order_send hung ~3 min) while the broker executed it; the
 # bot logged market_fill_failed and the position stayed untracked. After every failed entry, look for a
 # position of that signal in MT5 and raise a critical alert; the startup resync adopts it on the next restart.
-UNTRACKED_POSITION_CHECK_DELAYS_SEC = (15.0, 60.0)
+UNTRACKED_POSITION_CHECK_DELAYS_SEC = (15.0, 45.0, 120.0, 240.0)   # cumulative ~7 min: the broker executed 6 min late on 29/09
 
 
 async def _check_untracked_after_failed_fill(sig_id: str) -> bool:
