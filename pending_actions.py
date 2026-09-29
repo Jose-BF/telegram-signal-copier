@@ -1410,6 +1410,12 @@ class PendingQueue:
         if cls == "OK":
             return "DONE"
         if cls == "POSITION_GONE":
+            # 10011 (generic error) is also returned while the terminal is reconnecting; on 29/09 the position
+            # still existed, the action was marked done and the guard re-queued it every 5 s. Only treat it
+            # as gone when MT5 confirms the ticket is no longer open; otherwise back off and retry.
+            if retcode == 10011 and act.ticket is not None and _ticket_still_open(act.ticket):
+                act.retry_not_before = time.time() + min(300.0, 10.0 * 2 ** min(5, max(0, act.attempts - 1)))
+                return "RETRY"
             # La posición ya no existe → nada que hacer, éxito implícito
             return "DONE"
         if cls == "TRANSIENT":
@@ -1423,6 +1429,16 @@ class PendingQueue:
             act.retry_not_before = time.time() + BROKER_RETRY_COOLDOWN_S
             return "RETRY"
         return "DROP"
+
+
+def _ticket_still_open(ticket) -> bool:
+    try:
+        positions = executor.mt5.positions_get(ticket=int(ticket))
+    except Exception:
+        return True          # unknown: keep retrying rather than declaring the position gone
+    if positions is None:
+        return True
+    return len(positions) > 0
 
 
 def _runner_done_callback(task):

@@ -544,6 +544,31 @@ class TestModifyPreconditions:
         assert act.retry_not_before > time.time()
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("still_open,expected", [(True, "RETRY"), (False, "DONE")])
+    async def test_generic_error_10011_is_only_gone_when_the_ticket_is_closed(
+        self,
+        monkeypatch,
+        still_open,
+        expected,
+    ):
+        q = PendingQueue()
+        act = _make_action(new_sl=4059.61)
+        monkeypatch.setattr(
+            "pending_actions.executor.preflight_modify_sltp",
+            lambda *args, **kwargs: SimpleNamespace(
+                status="ready", effective_sl=4059.61, effective_tp=4052.0, deferred_sl=None, reason=None,
+            ),
+        )
+        monkeypatch.setattr("pending_actions.executor.modify_sltp_rc", lambda *args, **kwargs: 10011)
+        monkeypatch.setattr("pending_actions._ticket_still_open", lambda ticket: still_open)
+
+        result = await q._try_once(act)
+
+        assert result == expected
+        if still_open:
+            assert act.retry_not_before > time.time() + 5   # backs off instead of hammering the broker
+
+    @pytest.mark.asyncio
     async def test_retries_share_action_and_use_distinct_attempt_ids(
         self,
         monkeypatch,
