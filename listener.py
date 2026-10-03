@@ -33,6 +33,9 @@ import dubai_live_candidate
 import gold_555_entry_watch
 import gold_555_live_candidate
 import gold_live_candidate
+import gold_trail_live_candidate
+import gold_trail_market
+import broker_market_sessions
 import executor
 import journal
 import logger
@@ -932,6 +935,20 @@ async def _apply_interpreted_entry_levels(signal: Signal, parsed: dict,
         key for key in parsed
         if key in {"range", "tps", "sl", "final_target", "has_open_runner"}
     }
+    if signal.live_strategy_id == gold_trail_live_candidate.CANDIDATE_ID:
+        # The trail policy owns its stop and never uses the provider levels;
+        # a reversed trade even has the opposite direction to those levels.
+        journal.event(
+            _sig_id(signal),
+            "gold_trail_provider_levels_observed_not_applied",
+            strategy_id=signal.live_strategy_id,
+            strategy_fingerprint=signal.live_strategy_fingerprint,
+            provider_levels={key: parsed.get(key) for key in sorted(provider_fields)},
+            provider_direction=signal.candidate_provider_direction,
+            tg_ts=tg_ts,
+            reason="gold_trail_ignores_provider_levels",
+        )
+        return dict(parsed)
     interpreted = interpret_entry_levels(
         channel, signal.direction, parsed, reference_price=reference_price)
     _log_entry_level_interpretation(
@@ -1254,6 +1271,26 @@ def _log_strategy_snapshot(signal: Signal, *, num_entries: int | None = None,
                     policy.broker_loss_budget_per_leg
                 ),
             }
+        elif signal.live_strategy_id == gold_trail_live_candidate.CANDIDATE_ID:
+            policy = _gold_trail_policy()
+            num_entries = 1
+            time_stop_min = policy.life_minutes
+            candidate_fields = {
+                "live_strategy_id": signal.live_strategy_id,
+                "live_strategy_fingerprint": signal.live_strategy_fingerprint,
+                "gold_trail_mode": policy.mode,
+                "gold_trail_side": signal.candidate_trail_side,
+                "provider_direction": signal.candidate_provider_direction,
+                "volume": policy.live_volume,
+                "stop_distance": policy.stop_distance,
+                "trail_activation": policy.trail_activation,
+                "trail_distance": policy.trail_distance,
+                "trail_step": policy.trail_step,
+                "time_exit_at": (signal.candidate_time_exit_at.isoformat(timespec="seconds")
+                                 if signal.candidate_time_exit_at else None),
+                "day_rule": policy.day_rule,
+                "provider_management_mode": policy.provider_management_mode,
+            }
         elif signal.live_strategy_id == gold_555_live_candidate.CANDIDATE_ID:
             policy = gold_555_live_candidate.Gold555Policy()
             num_entries = len(policy.entry_volumes)
@@ -1560,6 +1597,21 @@ async def _handle_explicit_signal_retraction(msg, channel: str) -> bool:
             closed_tickets=list(candidate.all_filled_tickets),
             cancelled_tickets=list(candidate.pending_tickets),
             raw_text=text[:240],
+        )
+        return True
+
+    if candidate.live_strategy_id == gold_trail_live_candidate.CANDIDATE_ID:
+        journal.event(
+            _sig_id(candidate),
+            "gold_trail_provider_retraction_observed_not_applied",
+            strategy_id=candidate.live_strategy_id,
+            strategy_fingerprint=candidate.live_strategy_fingerprint,
+            retraction_message_id=getattr(msg, "id", None),
+            retracted_signal_id=_sig_id(candidate),
+            original_signal_id=_sig_id(original),
+            age_s=round(float(result.get("age_s", 0.0)), 3),
+            raw_text=text[:240],
+            reason="gold_trail_provider_management_mode_ignore",
         )
         return True
 
@@ -2085,6 +2137,10 @@ async def _finalize_signal(
             print(f"[Journal] pos_summary error (no critico): {e}")
 
         pnl = _realized_pl(signal)
+        try:
+            _gold_trail_record_close(signal, pnl)
+        except Exception as exc:
+            print(f"[Journal] gold trail day rule error: {exc}")
         account = await _run(executor.account_evidence)
         journal.finalize_trade(
             sig_id,
@@ -3365,6 +3421,7 @@ async def _place_dca(signal: Signal):
         dubai_candidate_active
         or signal.live_strategy_id == gold_live_candidate.CANDIDATE_ID
         or signal.live_strategy_id == gold_555_live_candidate.CANDIDATE_ID
+        or signal.live_strategy_id == gold_trail_live_candidate.CANDIDATE_ID
     )
 
     needs_monitor_anyway = (
@@ -3452,6 +3509,12 @@ async def _open_extra_legs_impl(sig: Signal, msg_id: int) -> None:
         print(
             f"[{channel}] {gold_555_live_candidate.CANDIDATE_ID}: "
             "scale-out inmediato omitido; escalera adversa activa"
+        )
+        return
+    if sig.live_strategy_id == gold_trail_live_candidate.CANDIDATE_ID:
+        print(
+            f"[{channel}] {gold_trail_live_candidate.CANDIDATE_ID}: "
+            "una sola entrada; sin legs adicionales"
         )
         return
     gold_candidate = (
@@ -3606,6 +3669,18 @@ async def _apply_sl_tp(signal: Signal):
             effective_sl=signal.sl,
             has_open_runner=bool(signal.has_open_runner),
             reason="frozen_candidate_target_and_be_modes_are_none",
+        )
+        return
+    if signal.live_strategy_id == gold_trail_live_candidate.CANDIDATE_ID:
+        journal.event(
+            _sig_id(signal),
+            "gold_trail_provider_levels_observed_not_applied",
+            strategy_id=signal.live_strategy_id,
+            strategy_fingerprint=signal.live_strategy_fingerprint,
+            provider_tps=list(signal.provider_tps),
+            provider_sl=(signal.sl if signal.provider_sl_received else None),
+            broker_hard_stops=dict(signal.candidate_hard_stops),
+            reason="gold_trail_owns_exit_management",
         )
         return
     if signal.live_strategy_id == gold_live_candidate.CANDIDATE_ID:
@@ -3906,6 +3981,19 @@ async def _handle_range_arrival_safety(signal: Signal, lo: float, hi: float) -> 
                 reason="frozen_candidate_uses_its_own_adverse_ladder",
             )
         return False
+    if signal.live_strategy_id == gold_trail_live_candidate.CANDIDATE_ID:
+        if not signal.range_safety_applied:
+            signal.range_safety_applied = True
+            journal.event(
+                _sig_id(signal),
+                "gold_trail_provider_range_observed_not_applied",
+                strategy_id=signal.live_strategy_id,
+                strategy_fingerprint=signal.live_strategy_fingerprint,
+                range_low=float(lo),
+                range_high=float(hi),
+                reason="gold_trail_single_market_entry",
+            )
+        return False
     if signal.live_strategy_id == gold_live_candidate.CANDIDATE_ID:
         if not signal.range_safety_applied:
             signal.range_safety_applied = True
@@ -4162,6 +4250,17 @@ async def _update_signal_from_parsed(
         signal: Signal, parsed: dict, tg_ts: str | None = None, *,
         provider_fields=None, provider_values: dict | None = None):
     parsed = dict(parsed or {})
+    if signal.live_strategy_id == gold_trail_live_candidate.CANDIDATE_ID:
+        journal.event(
+            _sig_id(signal),
+            "gold_trail_provider_levels_observed_not_applied",
+            strategy_id=signal.live_strategy_id,
+            strategy_fingerprint=signal.live_strategy_fingerprint,
+            provider_levels={key: parsed.get(key) for key in sorted(_PROVIDER_LEVEL_FIELDS.intersection(parsed))},
+            tg_ts=tg_ts,
+            reason="gold_trail_ignores_provider_levels",
+        )
+        return
     if provider_fields is None:
         provider_fields = _PROVIDER_LEVEL_FIELDS.intersection(parsed)
     else:
@@ -5642,6 +5741,21 @@ async def _execute_one_action(signal: Signal, classification: dict, raw_text: st
             confidence=conf,
             raw_snippet=(raw_text or "")[:200],
             reason="gold_555_owns_level_management",
+        )
+        return "ignored"
+
+    if signal.live_strategy_id == gold_trail_live_candidate.CANDIDATE_ID:
+        journal.event(
+            _sig_id(signal),
+            "gold_trail_provider_action_observed_not_applied",
+            strategy_id=signal.live_strategy_id,
+            strategy_fingerprint=signal.live_strategy_fingerprint,
+            action=action,
+            price=price,
+            provider_stated_be_price=classification.get("provider_stated_be_price"),
+            confidence=conf,
+            raw_snippet=(raw_text or "")[:200],
+            reason="gold_trail_provider_management_mode_ignore",
         )
         return "ignored"
 
@@ -8653,6 +8767,415 @@ async def gold_555_entry_watch_loop(interval_s: float = 0.01) -> None:
         await asyncio.sleep(max(0.01, float(interval_s)))
 
 
+# ─── Gold trail (frozen demo policy gold_now_trail_v1) ─────────────────────────
+# Messages already decided by the trail policy (opened or skipped) and losing
+# closes per (UTC day of the losing signal, side). Both are rebuilt from the
+# journal at startup (restore_gold_trail_state_from_journal).
+_gold_trail_decided: set[int] = set()
+_gold_trail_day_losses: set = set()
+_gold_trail_open_trades: dict[int, dict] = {}   # ticket -> {sig_id, side, loss_day}
+
+
+def _gold_trail_policy() -> gold_trail_live_candidate.GoldTrailPolicy:
+    return gold_trail_live_candidate.GoldTrailPolicy(mode=config.GOLD_TRAIL_MODE)
+
+
+def _gold_trail_utc_offset(tick: dict | None) -> int:
+    """Broker UTC offset proved from a fresh live tick (and the money contract when present)."""
+    raw_tick_msc = (tick or {}).get("time_msc")
+    if raw_tick_msc in (None, ""):
+        raise ValueError("Gold trail sin hora del tick para el reloj del broker")
+    contract = None
+    try:
+        contract = json.loads(Path(config.BOT_BROKER_MONEY_CONTRACT_FILE).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, AttributeError):
+        contract = None
+    return broker_tick_clock.resolve_utc_offset_seconds(
+        contract=contract,
+        raw_server_msc=int(raw_tick_msc),
+        observed_utc=broker_tick_clock.utc_now(),
+    )
+
+
+def _gold_trail_published_utc(intent: _Canal2EntryIntent) -> datetime:
+    published = intent.telegram_timestamp or intent.entry_timestamp
+    if published.tzinfo is None:
+        return published.replace(tzinfo=timezone.utc)
+    return published.astimezone(timezone.utc)
+
+
+def _gold_trail_state_path() -> Path:
+    """Small durable state of the trail policy, next to the journal (read at every startup)."""
+    return Path(journal.EVENTS_FILE).with_name("gold_trail_state.json")
+
+
+def _gold_trail_save_state() -> None:
+    target = _gold_trail_state_path()
+    payload = {
+        "strategy_id": gold_trail_live_candidate.CANDIDATE_ID,
+        "saved_at_utc": datetime.now(timezone.utc).isoformat(),
+        "decided": sorted(_gold_trail_decided)[-2000:],
+        "day_losses": sorted([d.isoformat(), side] for d, side in _gold_trail_day_losses),
+        "open_trades": {str(k): v for k, v in sorted(_gold_trail_open_trades.items())},
+    }
+    try:
+        tmp = target.with_suffix(".tmp")
+        tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        os.replace(tmp, target)
+    except OSError as exc:
+        journal.anomaly("bot", "mt5", "warning", "Gold trail no pudo guardar su estado", exc_msg=str(exc)[:200])
+
+
+def restore_gold_trail_state(path=None, *, now: datetime | None = None) -> tuple[int, int]:
+    """Rebuild decided messages, today's day-rule losses and the open-trade registry."""
+    source = Path(path) if path is not None else _gold_trail_state_path()
+    _gold_trail_decided.clear()
+    _gold_trail_day_losses.clear()
+    _gold_trail_open_trades.clear()
+    if not source.is_file():
+        return 0, 0
+    try:
+        payload = json.loads(source.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        journal.anomaly("bot", "mt5", "critical", "Gold trail: estado ilegible al arrancar; se empieza vacio")
+        return 0, 0
+    observed_now = now or datetime.now(timezone.utc)
+    if observed_now.tzinfo is None:
+        observed_now = observed_now.replace(tzinfo=timezone.utc)
+    today = observed_now.astimezone(timezone.utc).date()
+    for message_id in payload.get("decided") or []:
+        try:
+            _gold_trail_decided.add(int(message_id))
+        except (TypeError, ValueError):
+            continue
+    for row in payload.get("day_losses") or []:
+        try:
+            day = datetime.fromisoformat(str(row[0])).date()
+        except (TypeError, ValueError, IndexError):
+            continue
+        side = row[1] if len(row) > 1 else None
+        if day == today and side in (gold_trail_live_candidate.SIDE_FOLLOW, gold_trail_live_candidate.SIDE_REVERSE):
+            _gold_trail_day_losses.add((day, side))
+    for ticket, info in (payload.get("open_trades") or {}).items():
+        try:
+            _gold_trail_open_trades[int(ticket)] = dict(info)
+        except (TypeError, ValueError):
+            continue
+    return len(_gold_trail_decided), len(_gold_trail_day_losses)
+
+
+def reconcile_gold_trail_closed_while_down(open_tickets: set[int], deal_profit) -> int:
+    """Trades registered as open that are no longer open after a restart: take their result from MT5
+    deals (``deal_profit(ticket)`` -> float | None) and feed the day rule."""
+    recorded = 0
+    for ticket, info in list(_gold_trail_open_trades.items()):
+        if int(ticket) in open_tickets:
+            continue
+        pnl = None
+        try:
+            pnl = deal_profit(int(ticket))
+        except Exception:
+            pnl = None
+        side = info.get("side") or gold_trail_live_candidate.SIDE_FOLLOW
+        sig_id = str(info.get("sig_id") or f"canal2_{info.get('message_id')}")
+        journal.event(sig_id, "gold_trail_closed_while_down", strategy_id=gold_trail_live_candidate.CANDIDATE_ID,
+                      ticket=int(ticket), side=side, total_pnl=pnl, loss_day=info.get("loss_day"))
+        if pnl is None or float(pnl) < 0:
+            try:
+                day = datetime.fromisoformat(str(info.get("loss_day"))).date()
+                _gold_trail_day_losses.add((day, side))
+                journal.event(sig_id, "gold_trail_day_loss", strategy_id=gold_trail_live_candidate.CANDIDATE_ID,
+                              side=side, loss_day=day.isoformat(), total_pnl=pnl, result_known=pnl is not None)
+            except (TypeError, ValueError):
+                pass
+        _gold_trail_open_trades.pop(ticket, None)
+        recorded += 1
+    if recorded:
+        _gold_trail_save_state()
+    return recorded
+
+
+def _gold_trail_record_close(signal: Signal, pnl) -> None:
+    """Day rule input: a losing (or unknown-result) close blocks that side for the rest of its day."""
+    if signal.live_strategy_id != gold_trail_live_candidate.CANDIDATE_ID:
+        return
+    side = signal.candidate_trail_side or gold_trail_live_candidate.SIDE_FOLLOW
+    published = signal.telegram_entry_timestamp or signal.timestamp
+    if published.tzinfo is None:
+        published = published.replace(tzinfo=timezone.utc)
+    loss_day = published.astimezone(timezone.utc).date()
+    sig_id = _sig_id(signal)
+    journal.event(
+        sig_id,
+        "gold_trail_closed",
+        strategy_id=signal.live_strategy_id,
+        strategy_fingerprint=signal.live_strategy_fingerprint,
+        side=side,
+        provider_direction=signal.candidate_provider_direction,
+        direction=signal.direction,
+        total_pnl=pnl,
+        close_reason=signal.requested_close_reason,
+    )
+    for ticket in list(signal.all_filled_tickets):
+        _gold_trail_open_trades.pop(int(ticket), None)
+    if pnl is None or float(pnl) < 0:
+        _gold_trail_day_losses.add((loss_day, side))
+        journal.event(
+            sig_id,
+            "gold_trail_day_loss",
+            strategy_id=signal.live_strategy_id,
+            side=side,
+            loss_day=loss_day.isoformat(),
+            total_pnl=pnl,
+            result_known=pnl is not None,
+        )
+        if pnl is None:
+            journal.anomaly(
+                sig_id, "mt5", "warning",
+                "Gold trail sin resultado del cierre: se cuenta como perdida para la regla del dia",
+                strategy_id=signal.live_strategy_id, side=side,
+            )
+    _gold_trail_save_state()
+
+
+async def _open_gold_trail_intent(
+    intent: _Canal2EntryIntent,
+    *,
+    label: str = "Canal2",
+) -> Signal | None:
+    """Decide (momentum / round minute / day rule) and open one market leg."""
+    message_id = int(intent.message_id)
+    sig_id = f"canal2_{message_id}"
+    if state.get("canal2", message_id) is not None:
+        _canal2_open_committed(message_id)
+        return None
+    if message_id in _gold_trail_decided:
+        journal.event(sig_id, "canal2_entry_open_already_claimed", reason="gold_trail_already_decided",
+                      entry_source_kind=intent.source_kind)
+        return None
+    if not _canal2_open_claim(message_id):
+        journal.event(sig_id, "canal2_entry_open_already_claimed", reason="entry_identity_already_claimed",
+                      entry_source_kind=intent.source_kind)
+        return None
+
+    policy = _gold_trail_policy()
+    provider_direction = str(intent.direction).upper()
+    published_utc = _gold_trail_published_utc(intent)
+    signal_received_utc = datetime.now(timezone.utc)
+    direction = provider_direction
+    try:
+        if policy.max_signal_volume > float(config.STRATEGY_MAX_PLANNED_LOTS_PER_SIGNAL) + 1e-9:
+            raise RuntimeError("Gold trail volume exceeds STRATEGY_MAX_PLANNED_LOTS_PER_SIGNAL")
+        account_evidence = await _run(executor.account_evidence)
+        gold_trail_live_candidate.assert_demo_eur_account(
+            account_evidence,
+            demo_trade_mode=int(getattr(executor.mt5, "ACCOUNT_TRADE_MODE_DEMO", 0)),
+        )
+        tick = await _run(executor.current_tick_safe)
+        if not tick or not tick.get("bid") or not tick.get("ask"):
+            raise RuntimeError("Gold trail no pudo obtener precio actual")
+        offset_s = _gold_trail_utc_offset(tick)
+        t0_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        try:
+            momentum = await _run(
+                gold_trail_market.momentum_now,
+                executor.mt5,
+                config.MT5_SYMBOL,
+                provider_direction,
+                t0_ms,
+                offset_s,
+            )
+        except Exception as exc:
+            momentum = gold_trail_live_candidate.Momentum(status="error")
+            journal.anomaly(sig_id, "mt5", "warning", "Gold trail no pudo calcular el impulso; no opera",
+                            exc_type=type(exc).__name__, exc_msg=str(exc)[:300])
+        decision = gold_trail_live_candidate.decide(
+            policy,
+            provider_direction=provider_direction,
+            published_utc=published_utc,
+            momentum=momentum,
+            day_losses=set(_gold_trail_day_losses),
+        )
+        _gold_trail_decided.add(message_id)
+        _gold_trail_save_state()
+        journal.event(
+            sig_id,
+            "gold_trail_decision",
+            strategy_id=gold_trail_live_candidate.CANDIDATE_ID,
+            strategy_fingerprint=policy.fingerprint,
+            mode=policy.mode,
+            provider_direction=provider_direction,
+            published_utc=published_utc.isoformat(),
+            round_minute=gold_trail_live_candidate.is_round_minute(published_utc),
+            momentum=momentum.to_dict(),
+            decision=decision.to_dict(),
+            day_losses=sorted(f"{d.isoformat()}:{side}" for d, side in _gold_trail_day_losses),
+            t0_utc_ms=t0_ms,
+            utc_offset_seconds=offset_s,
+            bid=tick.get("bid"),
+            ask=tick.get("ask"),
+            tick_time_msc=tick.get("time_msc"),
+            raw_text=str(intent.raw_text or "")[:300],
+            entry_source_kind=intent.source_kind,
+        )
+        if decision.action != "open":
+            _canal2_open_finished(message_id)
+            print(f"[{label}] Gold trail msg={message_id}: no opera ({decision.reason}; impulso "
+                  f"{momentum.mi}/{momentum.mi_rev})")
+            return None
+        direction = str(decision.direction)
+        reference = float(tick["ask"] if direction == "BUY" else tick["bid"])
+        provisional_sl = policy.initial_stop(direction, reference)
+        telegram_ts = intent.telegram_timestamp
+        journal.event(
+            sig_id,
+            "signal_received",
+            channel="canal2",
+            direction=direction,
+            provider_direction=provider_direction,
+            raw_text=str(intent.raw_text or "")[:500],
+            effective_lot=policy.live_volume,
+            tg_ts=(telegram_ts.isoformat() if telegram_ts else None),
+            telegram_entry_command_key=intent.command_key,
+            telegram_entry_was_reply=(intent.reply_to_message_id is not None),
+            telegram_entry_reply_to_message_id=intent.reply_to_message_id,
+            entry_source_kind=intent.source_kind,
+            live_strategy_id=gold_trail_live_candidate.CANDIDATE_ID,
+            live_strategy_fingerprint=policy.fingerprint,
+            gold_trail_side=decision.side,
+            execution_state="market_now",
+        )
+        result = await _run(
+            executor.open_market_with_fill,
+            direction,
+            policy.live_volume,
+            provisional_sl,
+            None,
+            gold_trail_live_candidate.market_comment(message_id),
+            config.magic_for("canal2"),
+        )
+    except Exception:
+        _canal2_open_finished(message_id)
+        raise
+
+    if not result:
+        _canal2_open_finished(message_id)
+        journal.event(sig_id, "market_fill_failed", reason="Gold trail market order returned no fill",
+                      strategy_id=gold_trail_live_candidate.CANDIDATE_ID)
+        _schedule_detached(_check_untracked_after_failed_fill(sig_id))
+        journal.anomaly(sig_id, "fill", "critical",
+                        "Gold trail: executor.open_market_with_fill no devolvio fill; la senal no abrio posicion",
+                        channel="canal2", direction=direction)
+        return None
+
+    ticket, fill_price = int(result[0]), float(result[1])
+    _canal2_open_committed(message_id)
+    market_filled_utc = datetime.utcnow()
+    exact_sl = policy.initial_stop(direction, fill_price)
+    try:
+        session_close = broker_market_sessions.broker_session_close_utc(
+            datetime.now(timezone.utc), utc_offset_seconds=offset_s,
+        )
+    except Exception:
+        session_close = None
+    exit_at = policy.time_exit_at(datetime.now(timezone.utc), session_close)
+    entry_ts = intent.entry_timestamp
+    if entry_ts.tzinfo is not None:
+        entry_ts = entry_ts.astimezone(timezone.utc).replace(tzinfo=None)
+    sig = Signal(
+        channel="canal2",
+        message_id=message_id,
+        direction=direction,
+        timestamp=entry_ts,
+        telegram_entry_command_key=intent.command_key,
+        telegram_entry_was_reply=intent.reply_to_message_id is not None,
+        telegram_entry_reply_to_message_id=intent.reply_to_message_id,
+        telegram_entry_timestamp=(intent.telegram_timestamp or entry_ts),
+        market_ticket=ticket,
+        market_fill_price=fill_price,
+        lot_multiplier=round(policy.live_volume / max(0.01, float(config.LOT_SIZE)), 6),
+        max_tp_index=None,
+        is_high_risk=bool(intent.is_high_risk),
+        time_stop_at=None,
+        entry_mode="market_only",
+        target_tp_index=None,
+        be_at_tp_index=None,
+        adverse_action=config.STRATEGY_C2_ADVERSE_ACTION,
+        entry_source_kind=intent.source_kind,
+        source_message_revision_id=intent.source_message_revision_id,
+        source_decision_id=intent.source_decision_id,
+    )
+    sig.live_strategy_id = gold_trail_live_candidate.CANDIDATE_ID
+    sig.live_strategy_fingerprint = policy.fingerprint
+    sig.candidate_entry_anchor = fill_price
+    sig.candidate_first_fill_at = market_filled_utc
+    sig.candidate_entry_legs = []
+    sig.candidate_filled_leg_indexes = []
+    sig.candidate_provisional_sl = provisional_sl
+    sig.candidate_entry_prices_by_ticket[ticket] = fill_price
+    sig.candidate_hard_stops[ticket] = exact_sl
+    sig.candidate_trail_side = decision.side
+    sig.candidate_provider_direction = provider_direction
+    sig.candidate_time_exit_at = exit_at.astimezone(timezone.utc).replace(tzinfo=None)
+    sig.candidate_best_price = None
+    provider = dict(intent.parsed or {})
+    if provider.get("range"):
+        sig.range_low, sig.range_high = provider["range"]
+        sig.range_source = "provider"
+    state.add(sig)
+    _gold_trail_open_trades[ticket] = {
+        "sig_id": sig_id,
+        "message_id": message_id,
+        "side": decision.side,
+        "loss_day": published_utc.date().isoformat(),
+    }
+    _gold_trail_save_state()
+    await _place_dca(sig)
+    pending_actions.enqueue_modify_sl(
+        sig,
+        ticket,
+        exact_sl,
+        label=f"GOLD TRAIL SL #{ticket} -> {exact_sl:.2f}",
+        persist_until_signal_close=True,
+    )
+    journal.begin_trade(
+        sig_id,
+        channel="canal2",
+        direction=sig.direction,
+        signal_received_utc=signal_received_utc.isoformat(),
+        market_filled_utc=market_filled_utc.isoformat(timespec="milliseconds"),
+        market_entry_price=fill_price,
+        entry_source_kind=intent.source_kind,
+        live_strategy_id=sig.live_strategy_id,
+        live_strategy_fingerprint=sig.live_strategy_fingerprint,
+    )
+    journal.event(
+        sig_id,
+        "gold_trail_filled",
+        strategy_id=sig.live_strategy_id,
+        strategy_fingerprint=sig.live_strategy_fingerprint,
+        mode=policy.mode,
+        side=decision.side,
+        provider_direction=provider_direction,
+        direction=direction,
+        ticket=ticket,
+        volume=policy.live_volume,
+        reference_price=reference,
+        fill_price=fill_price,
+        requested_sl=provisional_sl,
+        exact_sl=exact_sl,
+        time_exit_at=sig.candidate_time_exit_at.isoformat(timespec="seconds"),
+        published_utc=published_utc.isoformat(),
+        utc_offset_seconds=offset_s,
+    )
+    _emit_same_direction_overlap_anomaly(sig)
+    _log_strategy_snapshot(sig, num_entries=1, time_stop_min=policy.life_minutes)
+    logger.log_signal(sig, provider)
+    print(f"[{label}] Gold trail msg={message_id}: {decision.side} {direction} {policy.live_volume} a {fill_price:.2f} "
+          f"(trader {provider_direction}), SL {exact_sl:.2f}, cierre como tarde {sig.candidate_time_exit_at:%H:%M} UTC")
+    return sig
+
+
 async def _open_canal2_intent(
     intent: _Canal2EntryIntent,
     *,
@@ -8664,6 +9187,19 @@ async def _open_canal2_intent(
         and config.STRATEGY_C2_GOLD_NOW_555_ENABLED
     ):
         return await _register_gold_555_entry_watch(intent, label=label)
+    if config.STRATEGY_C2_GOLD_NOW_TRAIL_ENABLED:
+        if intent.source_kind == "telegram_now":
+            return await _open_gold_trail_intent(intent, label=label)
+        # The trail policy was researched on NOW signals only: no other Canal 2
+        # entry path (zones, re-entries) may open legacy exposure beside it.
+        journal.event(
+            f"canal2_{int(intent.message_id)}",
+            "gold_trail_non_now_entry_refused",
+            strategy_id=gold_trail_live_candidate.CANDIDATE_ID,
+            entry_source_kind=intent.source_kind,
+            direction=str(intent.direction).upper(),
+        )
+        return None
 
     message_id = int(intent.message_id)
     direction = str(intent.direction).upper()

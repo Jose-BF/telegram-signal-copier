@@ -155,6 +155,15 @@ class Signal:
     candidate_be_tickets: list = field(default_factory=list)
     candidate_sl_confirmed_tickets: list = field(default_factory=list)
     candidate_sl_install_alerted: bool = False
+    # Gold trail (gold_now_trail_v1): side traded (follow / reverse), the
+    # provider's own direction, latest close time, best executable price
+    # since the fill (drives the following stop) and request throttling.
+    candidate_trail_side: Optional[str] = None
+    candidate_provider_direction: Optional[str] = None
+    candidate_time_exit_at: Optional[datetime] = None
+    candidate_best_price: Optional[float] = None
+    candidate_trail_last_request_monotonic: float = 0.0
+    candidate_time_exit_requested: bool = False
 
     # Generic strategy lifecycle evidence.  These fields are deliberately
     # strategy-neutral so new policies do not need core close exceptions.

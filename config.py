@@ -20,7 +20,7 @@ def _float(key: str, default: float) -> float:
 
 SUPPORTED_ENTRY_MODES = {"scale_out", "market_only"}
 DEPRECATED_ENTRY_MODES = {"intra_dca", "extremes"}
-SUPPORTED_GOLD_NOW_POLICIES = {"c490", "555", "legacy"}
+SUPPORTED_GOLD_NOW_POLICIES = {"c490", "555", "legacy", "desarrollada", "candidata"}
 
 
 def normalize_entry_mode(value: str | None, default: str = "scale_out") -> str:
@@ -293,6 +293,12 @@ GOLD_NOW_LIVE_POLICY = normalize_gold_now_policy(
 )
 STRATEGY_C2_GOLD_NOW_C490_ENABLED = GOLD_NOW_LIVE_POLICY == "c490"
 STRATEGY_C2_GOLD_NOW_555_ENABLED = GOLD_NOW_LIVE_POLICY == "555"
+# Gold trail (gold_trail_live_candidate.py, research of 02-03/10/2026): one
+# market leg, stop 20 $, following stop from +5 $ at 3 $, day rule per side.
+# "desarrollada" follows only with the day's momentum; "candidata" also
+# reverses signals against the momentum and skips round-minute signals.
+STRATEGY_C2_GOLD_NOW_TRAIL_ENABLED = GOLD_NOW_LIVE_POLICY in {"desarrollada", "candidata"}
+GOLD_TRAIL_MODE = GOLD_NOW_LIVE_POLICY if STRATEGY_C2_GOLD_NOW_TRAIL_ENABLED else "candidata"
 
 # Gold Signals zone plans are observed on first touch, but only an explicit
 # provider activation opens exposure by default. Set to 1 to restore the

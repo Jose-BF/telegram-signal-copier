@@ -75,6 +75,7 @@ import config
 import dubai_live_candidate
 import gold_555_live_candidate
 import gold_live_candidate
+import gold_trail_live_candidate
 import executor
 import journal
 import runtime_storage
@@ -102,6 +103,8 @@ from listener import (
     pending_entry_count,
     poll_loop_supervised,
     restore_gold_555_entry_watches_from_journal,
+    restore_gold_trail_state,
+    reconcile_gold_trail_closed_while_down,
     schedule_pending_media_recovery,
     restore_canal2_zone_plans_from_journal,
 )
@@ -827,7 +830,14 @@ def _candidate_owns_protection(sig) -> bool:
         and sig.live_strategy_fingerprint
         == dubai_live_candidate.CANDIDATE_FINGERPRINT
     )
-    return gold_owns_protection or dubai_owns_protection
+    trail_owns_protection = False
+    if sig.live_strategy_id == gold_trail_live_candidate.CANDIDATE_ID:
+        try:
+            gold_trail_live_candidate.policy_for_fingerprint(sig.live_strategy_fingerprint)
+            trail_owns_protection = True
+        except ValueError:
+            trail_owns_protection = False
+    return gold_owns_protection or dubai_owns_protection or trail_owns_protection
 
 
 def _is_naked_watchdog_candidate(sig) -> bool:
@@ -1666,6 +1676,84 @@ def _load_dubai_candidate_metadata(path, signal_ids) -> dict[str, dict]:
     return recovered
 
 
+def _load_gold_trail_candidate_metadata(path, signal_ids) -> dict[str, dict]:
+    """Last durable fill record of each Gold trail signal (side, provider direction, time exit)."""
+    targets = {str(signal_id) for signal_id in signal_ids if str(signal_id).startswith("canal2_")}
+    source = Path(path)
+    if not targets or not source.exists():
+        return {}
+    recovered: dict[str, dict] = {}
+    with source.open("r", encoding="utf-8", errors="replace") as handle:
+        for raw_line in handle:
+            if "gold_trail_filled" not in raw_line:
+                continue
+            try:
+                row = json.loads(raw_line)
+            except json.JSONDecodeError:
+                continue
+            sig = str(row.get("sig") or "")
+            if row.get("ev") == "gold_trail_filled" and sig in targets:
+                recovered[sig] = row
+    return recovered
+
+
+def _restore_gold_trail_signal(sig, group: dict, identity: dict, opened_at) -> list[str]:
+    """Rebuild a Gold trail signal from its MT5 position and journal fill record."""
+    errors: list[str] = []
+    fingerprint = identity.get("strategy_fingerprint")
+    try:
+        policy = gold_trail_live_candidate.policy_for_fingerprint(fingerprint)
+    except ValueError:
+        policy = gold_trail_live_candidate.GoldTrailPolicy(mode=config.GOLD_TRAIL_MODE)
+        errors.append("gold_trail_fill_record_missing_or_fingerprint_mismatch")
+    sig.live_strategy_id = gold_trail_live_candidate.CANDIDATE_ID
+    sig.live_strategy_fingerprint = policy.fingerprint
+    sig.entry_mode = "market_only"
+    sig.target_tp_index = None
+    sig.be_at_tp_index = None
+    sig.time_stop_at = None
+    sig.candidate_first_fill_at = opened_at
+    sig.candidate_entry_anchor = group.get("market_price")
+    sig.candidate_entry_prices_by_ticket = {
+        int(ticket): float(price) for ticket, price in (group.get("position_entries") or {}).items() if price is not None
+    }
+    sig.candidate_hard_stops = {
+        int(ticket): float(stop) for ticket, stop in (group.get("position_stops") or {}).items()
+        if stop is not None and float(stop) > 0.0
+    }
+    volume = sum(float(v or 0.0) for v in (group.get("position_volumes") or {}).values())
+    if volume > 0:
+        sig.lot_multiplier = round(volume / max(0.01, float(config.LOT_SIZE)), 6)
+    side = identity.get("side")
+    sig.candidate_trail_side = side if side in (gold_trail_live_candidate.SIDE_FOLLOW,
+                                                gold_trail_live_candidate.SIDE_REVERSE) else None
+    if sig.candidate_trail_side is None:
+        errors.append("gold_trail_side_unknown")
+    sig.candidate_provider_direction = identity.get("provider_direction")
+    exit_at = None
+    try:
+        exit_at = datetime.fromisoformat(str(identity.get("time_exit_at")))
+    except (TypeError, ValueError):
+        exit_at = None
+    if exit_at is None:
+        exit_at = opened_at + timedelta(minutes=int(policy.life_minutes))
+        errors.append("gold_trail_time_exit_rebuilt_from_mt5_open_time")
+    if exit_at.tzinfo is not None:
+        exit_at = exit_at.astimezone(timezone.utc).replace(tzinfo=None)
+    sig.candidate_time_exit_at = exit_at
+    # Best price since the fill is not durable: start from what the broker stop
+    # already locks (never loosens the stop; trailing resumes on new highs).
+    sign = gold_trail_live_candidate.direction_sign(sig.direction)
+    best = None
+    for ticket, entry in sig.candidate_entry_prices_by_ticket.items():
+        stop = sig.candidate_hard_stops.get(ticket)
+        if stop is not None and sign * (stop - entry) > 0:
+            implied = stop + sign * policy.trail_distance
+            best = implied if best is None or sign * (implied - best) > 0 else best
+    sig.candidate_best_price = best
+    return errors
+
+
 def _load_gold_555_candidate_metadata(path, signal_ids) -> dict[str, dict]:
     """Recover the frozen 555 identity and every leg ever filled."""
     from datetime import timezone
@@ -2007,6 +2095,7 @@ def _recover_requested_candidate_closes() -> int:
     candidate_ids = {
         dubai_live_candidate.CANDIDATE_ID,
         gold_555_live_candidate.CANDIDATE_ID,
+        gold_trail_live_candidate.CANDIDATE_ID,
     }
     for channel in ("canal1", "canal2"):
         for signal in runtime_state.open_signals(channel):
@@ -2090,6 +2179,10 @@ def _resync_orphan_positions():
         groups.keys(),
     )
     gold_555_candidate_metadata = _load_gold_555_candidate_metadata(
+        resync_source,
+        groups.keys(),
+    )
+    gold_trail_candidate_metadata = _load_gold_trail_candidate_metadata(
         resync_source,
         groups.keys(),
     )
@@ -2219,8 +2312,13 @@ def _resync_orphan_positions():
             g.get("live_strategy_marker")
             == gold_555_live_candidate.CANDIDATE_ID
         )
+        gold_trail_marker_active = bool(
+            g.get("live_strategy_marker")
+            == gold_trail_live_candidate.CANDIDATE_ID
+        )
         gold_marker_active = (
             gold_c490_marker_active or gold_555_marker_active
+            or gold_trail_marker_active
         )
 
         # Re-aplicar defensas según canal: time-stop notify y BE auto.
@@ -2342,6 +2440,27 @@ def _resync_orphan_positions():
                     "critical",
                     "La cesta Gold 555 se recupero sin permitir nuevas "
                     "entradas porque falta evidencia durable exacta",
+                    strategy_id=sig.live_strategy_id,
+                    strategy_fingerprint=sig.live_strategy_fingerprint,
+                    recovery_errors=candidate_recovery_errors,
+                )
+        elif gold_trail_marker_active:
+            _assert_dubai_candidate_demo_account(required=True)
+            candidate_recovery_errors = _restore_gold_trail_signal(
+                sig,
+                g,
+                gold_trail_candidate_metadata.get(sig_id, {}),
+                opened_at,
+            )
+            time_stop_at = None
+            be_at_tp_index = None
+            if candidate_recovery_errors:
+                journal.anomaly(
+                    sig_id,
+                    "mt5",
+                    "warning",
+                    "Gold trail recuperado con datos parciales; el stop del "
+                    "broker sigue puesto y la gestion continua",
                     strategy_id=sig.live_strategy_id,
                     strategy_fingerprint=sig.live_strategy_fingerprint,
                     recovery_errors=candidate_recovery_errors,
@@ -2922,6 +3041,7 @@ def _assert_dubai_candidate_demo_account(
         config.STRATEGY_C1_BALANCED_V1_ENABLED
         or config.STRATEGY_C2_GOLD_NOW_C490_ENABLED
         or config.STRATEGY_C2_GOLD_NOW_555_ENABLED
+        or config.STRATEGY_C2_GOLD_NOW_TRAIL_ENABLED
     ):
         return
     evidence = executor.account_evidence() if evidence is None else evidence
@@ -2958,6 +3078,7 @@ def _assert_dubai_candidate_broker_volume(symbol_info=None) -> None:
         config.STRATEGY_C1_BALANCED_V1_ENABLED
         or config.STRATEGY_C2_GOLD_NOW_C490_ENABLED
         or config.STRATEGY_C2_GOLD_NOW_555_ENABLED
+        or config.STRATEGY_C2_GOLD_NOW_TRAIL_ENABLED
     ):
         return
     if symbol_info is None:
@@ -2988,6 +3109,12 @@ def _assert_dubai_candidate_broker_volume(symbol_info=None) -> None:
     if config.STRATEGY_C2_GOLD_NOW_555_ENABLED:
         raw_volumes.extend(
             gold_555_live_candidate.Gold555Policy().entry_volumes
+        )
+    if config.STRATEGY_C2_GOLD_NOW_TRAIL_ENABLED:
+        raw_volumes.append(
+            gold_trail_live_candidate.GoldTrailPolicy(
+                mode=config.GOLD_TRAIL_MODE
+            ).live_volume
         )
     for raw_volume in raw_volumes:
         volume = Decimal(str(raw_volume))
@@ -3081,7 +3208,58 @@ def _live_strategy_contract() -> dict:
         }
         effective_max_lots = max_lots
 
-    if config.STRATEGY_C2_GOLD_NOW_555_ENABLED:
+    if config.STRATEGY_C2_GOLD_NOW_TRAIL_ENABLED:
+        trail_policy = gold_trail_live_candidate.GoldTrailPolicy(
+            mode=config.GOLD_TRAIL_MODE
+        )
+        if max_lots + 1e-9 < trail_policy.max_signal_volume:
+            raise ValueError(
+                "STRATEGY_MAX_PLANNED_LOTS_PER_SIGNAL no permite el lote "
+                "de la estrategia Gold trail"
+            )
+        gold = {
+            "strategy_id": gold_trail_live_candidate.CANDIDATE_ID,
+            "strategy_fingerprint": trail_policy.fingerprint,
+            "selector": config.GOLD_NOW_LIVE_POLICY,
+            "enabled": True,
+            "scope": "telegram_now_only",
+            "evidence_status": "historical_two_periods_paper_exam_from_2026_10_05",
+            "independent_forward_validation": False,
+            "account_gate": {
+                "trade_mode": "demo",
+                "currency": "EUR",
+                "revalidated_before_each_order": True,
+            },
+            "mode": trail_policy.mode,
+            "filters": {
+                "momentum_min": trail_policy.momentum_min,
+                "reverse_enabled": trail_policy.reverse_enabled,
+                "reverse_own_max": trail_policy.reverse_own_max,
+                "reverse_opposite_min": trail_policy.reverse_opposite_min,
+                "skip_round_minutes": trail_policy.skip_round_minutes,
+                "day_rule": trail_policy.day_rule,
+            },
+            "entry": {"mode": "market_now", "volume": trail_policy.live_volume},
+            "broker_sl": {
+                "initial_distance": trail_policy.stop_distance,
+                "following_activation": trail_policy.trail_activation,
+                "following_distance": trail_policy.trail_distance,
+                "following_step": trail_policy.trail_step,
+                "persistent_retry": True,
+            },
+            "time_exit": {
+                "life_minutes": trail_policy.life_minutes,
+                "session_close_margin_seconds": (
+                    trail_policy.session_close_margin_seconds
+                ),
+            },
+            "provider_management_mode": trail_policy.provider_management_mode,
+        }
+        effective_max_lots = max(
+            effective_max_lots,
+            trail_policy.max_signal_volume,
+        )
+    elif config.STRATEGY_C2_GOLD_NOW_555_ENABLED:
         gold_policy = gold_555_live_candidate.Gold555Policy()
         gold_555_max_lots = float(
             config.GOLD_555_MAX_PLANNED_LOTS_PER_SIGNAL
@@ -3338,6 +3516,15 @@ def _startup_status_message(
         lines.append("Gold estrategia: NOW c490 v1 (solo demo)")
     if config.STRATEGY_C2_GOLD_NOW_555_ENABLED:
         lines.append("Gold estrategia: 555 v1 (solo demo)")
+    if config.STRATEGY_C2_GOLD_NOW_TRAIL_ENABLED:
+        trail_policy = gold_trail_live_candidate.GoldTrailPolicy(
+            mode=config.GOLD_TRAIL_MODE
+        )
+        lines.append(
+            f"Gold estrategia: {trail_policy.mode} (impulso, stop 20 $, "
+            f"stop que sigue desde +5 $ a 3 $, {trail_policy.live_volume} "
+            "lotes, solo demo)"
+        )
     if money_capture_ready is True:
         lines.append("Registro simulacion: activo")
     elif money_capture_ready is False:
@@ -4776,6 +4963,34 @@ def _restore_flat_gold_555_entry_plans(
     return restored
 
 
+def _restore_gold_trail_runtime() -> int:
+    """Always run at startup (its state file is tiny, unlike the journal)."""
+    if not config.STRATEGY_C2_GOLD_NOW_TRAIL_ENABLED:
+        return 0
+    decided, losses = restore_gold_trail_state()
+    open_tickets = {
+        int(ticket)
+        for signal in state.open_signals("canal2")
+        if signal.live_strategy_id == gold_trail_live_candidate.CANDIDATE_ID
+        for ticket in signal.all_filled_tickets
+    }
+
+    def deal_profit(ticket: int):
+        deals = executor.mt5.history_deals_get(position=int(ticket))
+        if not deals:
+            return None
+        return float(sum(float(getattr(d, "profit", 0.0) or 0.0) + float(getattr(d, "swap", 0.0) or 0.0)
+                         + float(getattr(d, "commission", 0.0) or 0.0) for d in deals))
+
+    closed_while_down = reconcile_gold_trail_closed_while_down(open_tickets, deal_profit)
+    print(
+        f"[Resync] Gold trail recuperado: senales ya decididas={decided}, "
+        f"perdidas de hoy (regla del dia)={losses}, cerradas con el bot "
+        f"parado={closed_while_down}"
+    )
+    return decided
+
+
 def _restore_live_candidate_runtime(path) -> int:
     if not config.STRATEGY_C2_GOLD_NOW_555_ENABLED:
         return 0
@@ -4873,6 +5088,7 @@ async def main():
     # Resync posiciones huérfanas: si el bot reinició dejando posiciones
     # abiertas en MT5, las recoge para que auto-finalize las trackee.
     _resync_orphan_positions()
+    _restore_gold_trail_runtime()
     pending_actions.queue.restore_from_spool(state)
     recovered_closes = _recover_requested_candidate_closes()
     if recovered_closes:

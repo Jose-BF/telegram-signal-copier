@@ -2108,13 +2108,14 @@ import re as _re_resync
 #   "c2_2054_B1_gv1"         → extra Gold NOW candidate leg
 #   "c2_380_g55"             → market Gold 555 demo candidate
 #   "c2_380_B1_g55"          → extra Gold 555 ladder leg
+#   "c2_380_gtr"             → market Gold trail demo candidate (one leg)
 #   "DCA_c1_19236_4593.5"    → DCA nuevo (con signal_id) — formato actual
 #   "DCA_4593.5"             → DCA viejo (sin signal_id) — backward compat
 # _RX_MARKET acepta sufijo _rescue o _B/_BN. Sin _B el resync ignoraba el
 # Market B del doble market (canal2_12497 perdio +$6.05); _BN cubre las
 # legs del modo scale_out (una posicion market por TP).
 _RX_MARKET = _re_resync.compile(
-    r"^c([12])_(\d+)(?:_rescue|_B\d*)?(?:_dv1|_gv1|_g55)?$"
+    r"^c([12])_(\d+)(?:_rescue|_B\d*)?(?:_dv1|_gv1|_g55|_gtr)?$"
 )
 _RX_DCA_NEW = _re_resync.compile(r"^DCA_c([12])_(\d+)_")
 _RX_CANDIDATE_DCA = _re_resync.compile(r"^DCA_c1_(\d+)_D([12])$")
@@ -2179,7 +2180,7 @@ def list_open_positions_grouped() -> dict[str, dict]:
         # _B es el doble market legacy; _B1.._B4 son legs scale-out. Ambos
         # son posiciones extra, pero solo _B debe recuperar el override TP3.
         market_b_match = _re_resync.search(
-            r"_B(\d*)(?:_gv1|_g55)?$",
+            r"_B(\d*)(?:_gv1|_g55|_gtr)?$",
             comment,
         )
         is_market_b = bool(market_b_match)
@@ -2252,6 +2253,10 @@ def list_open_positions_grouped() -> dict[str, dict]:
             elif comment.endswith("_g55"):
                 groups[sig_id]["live_strategy_marker"] = (
                     "gold_now_555_v1"
+                )
+            elif comment.endswith("_gtr"):
+                groups[sig_id]["live_strategy_marker"] = (
+                    "gold_now_trail_v1"
                 )
         elif is_market_b:
             groups[sig_id]["extra_market_tickets"].append(p.ticket)

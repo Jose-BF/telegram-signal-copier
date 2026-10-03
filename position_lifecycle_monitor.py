@@ -39,6 +39,8 @@ import config
 import dubai_live_candidate
 import gold_555_live_candidate
 import gold_live_candidate
+import gold_trail_live_candidate
+import gold_trail_market
 import executor
 import live_basket_guard
 import pending_actions
@@ -58,6 +60,9 @@ NULL_TICK_STREAK_THRESHOLD = 3000   # ~30s a 10ms por ciclo
 CANDIDATE_ENTRY_RETRY_INITIAL_S = 1.0
 CANDIDATE_ENTRY_RETRY_MAX_S = 60.0
 GOLD_555_TRAILING_INTERVAL_S = 1.0
+GOLD_TRAIL_STOP_INTERVAL_S = 1.0        # at most one stop modification request per second
+GOLD_TRAIL_STOPS_LEVEL_TTL_S = 600.0
+_gold_trail_stops_level_cache: dict = {"value": None, "at": 0.0}
 
 
 def _basket_guard_policy() -> live_basket_guard.GuardPolicy:
@@ -2180,6 +2185,82 @@ async def _arm_be(signal: Signal):
         print(f"[Position Monitor] journal.event be_armed error: {e}")
 
 
+def _gold_trail_stops_level() -> float:
+    now = time.monotonic()
+    cached = _gold_trail_stops_level_cache
+    if cached["value"] is None or now - cached["at"] >= GOLD_TRAIL_STOPS_LEVEL_TTL_S:
+        cached["value"] = gold_trail_market.stops_level_price(mt5, config.MT5_SYMBOL)
+        cached["at"] = now
+    return float(cached["value"])
+
+
+def _apply_gold_trail(signal: Signal, tick, *, now_utc: datetime | None = None,
+                      now_monotonic: float | None = None) -> str:
+    """Best price, following stop and time exit of one Gold trail signal (one broker tick).
+
+    Returns "none", "stop" (a stop modification was queued) or "time_exit".
+    The stop and the close go through the persistent pending-action queue, so a
+    rejected MT5 request is retried until the position closes.
+    """
+    if signal.live_strategy_id != gold_trail_live_candidate.CANDIDATE_ID:
+        return "none"
+    if signal.requested_close_reason or signal.candidate_time_exit_requested:
+        return "none"
+    policy = gold_trail_live_candidate.policy_for_fingerprint(signal.live_strategy_fingerprint)
+    sig_id = f"{signal.channel}_{signal.message_id}"
+    observed_utc = datetime.utcnow() if now_utc is None else now_utc
+    if signal.candidate_time_exit_at is not None and observed_utc >= signal.candidate_time_exit_at:
+        signal.candidate_time_exit_requested = True
+        signal.requested_close_reason = "GOLD_TRAIL_TIME_EXIT"
+        tickets = list(signal.all_filled_tickets)
+        for ticket in tickets:
+            pending_actions.enqueue_close_position(
+                signal, int(ticket), label=f"GOLD_TRAIL_TIME_EXIT #{ticket}", persist_until_signal_close=True,
+            )
+        _journal_event(sig_id, "gold_trail_time_exit_requested", strategy_id=signal.live_strategy_id,
+                       strategy_fingerprint=signal.live_strategy_fingerprint, tickets=tickets,
+                       time_exit_at=signal.candidate_time_exit_at.isoformat(timespec="seconds"),
+                       bid=getattr(tick, "bid", None), ask=getattr(tick, "ask", None))
+        return "time_exit"
+    price = float(tick.bid if signal.direction == "BUY" else tick.ask)
+    if not math.isfinite(price) or price <= 0:
+        return "none"
+    sign = gold_trail_live_candidate.direction_sign(signal.direction)
+    if signal.candidate_best_price is None or sign * (price - float(signal.candidate_best_price)) > 0:
+        signal.candidate_best_price = price
+    mono = time.monotonic() if now_monotonic is None else now_monotonic
+    if mono - float(signal.candidate_trail_last_request_monotonic or 0.0) < GOLD_TRAIL_STOP_INTERVAL_S:
+        return "none"
+    requested = 0
+    for ticket in signal.all_filled_tickets:
+        ticket = int(ticket)
+        entry = signal.candidate_entry_prices_by_ticket.get(ticket)
+        if entry is None:
+            continue
+        current = signal.candidate_hard_stops.get(ticket)
+        new_stop = policy.following_stop(
+            signal.direction, entry=float(entry), best_price=float(signal.candidate_best_price),
+            executable_price=price, current_stop=current, stops_level=_gold_trail_stops_level(),
+        )
+        if new_stop is None:
+            continue
+        pending_actions.enqueue_modify_sl(
+            signal, ticket, new_stop, label=f"GOLD TRAIL STOP #{ticket} -> {new_stop:.2f}",
+            persist_until_signal_close=True,
+        )
+        signal.candidate_hard_stops[ticket] = new_stop
+        _journal_event(sig_id, "gold_trail_stop_requested", strategy_id=signal.live_strategy_id,
+                       strategy_fingerprint=signal.live_strategy_fingerprint, ticket=ticket, entry=float(entry),
+                       best_price=float(signal.candidate_best_price), executable_price=price,
+                       previous_stop=current, requested_stop=new_stop,
+                       tick_time_msc=getattr(tick, "time_msc", None))
+        requested += 1
+    if requested:
+        signal.candidate_trail_last_request_monotonic = mono
+        return "stop"
+    return "none"
+
+
 async def run(signal: Signal, levels: list[float]):
     """
     Lanza el monitor en background para una señal activa.
@@ -2198,6 +2279,7 @@ async def run(signal: Signal, levels: list[float]):
         and signal.time_stop_at is None
         and signal.be_at_tp_index is None
         and not _basket_guard_enabled_for(signal)
+        and signal.live_strategy_id != gold_trail_live_candidate.CANDIDATE_ID
     ):
         return
 
@@ -2210,8 +2292,13 @@ async def run(signal: Signal, levels: list[float]):
     gold_555_active = (
         signal.live_strategy_id == gold_555_live_candidate.CANDIDATE_ID
     )
+    gold_trail_active = (
+        signal.live_strategy_id == gold_trail_live_candidate.CANDIDATE_ID
+    )
     gold_candidate_active = gold_c490_active or gold_555_active
-    candidate_active = dubai_candidate_active or gold_candidate_active
+    candidate_active = (
+        dubai_candidate_active or gold_candidate_active or gold_trail_active
+    )
     pending = [] if candidate_active else list(levels)
     direction = signal.direction
     symbol = config.MT5_SYMBOL
@@ -2355,6 +2442,25 @@ async def run(signal: Signal, levels: list[float]):
             continue
 
         last_tick_ms = tick.time_msc
+
+        if gold_trail_active:
+            try:
+                _apply_gold_trail(signal, tick)
+                signal.candidate_trailing_error_alerted = False
+            except Exception as exc:
+                if not signal.candidate_trailing_error_alerted:
+                    signal.candidate_trailing_error_alerted = True
+                    _journal_anomaly(
+                        f"{signal.channel}_{signal.message_id}",
+                        "mt5",
+                        "critical",
+                        "Gold trail management blocked; the broker stop remains",
+                        exc_type=type(exc).__name__,
+                        exc_msg=str(exc)[:300],
+                        strategy_id=signal.live_strategy_id,
+                        strategy_fingerprint=signal.live_strategy_fingerprint,
+                        tick_time_msc=getattr(tick, "time_msc", None),
+                    )
 
         if dubai_candidate_active:
             try:

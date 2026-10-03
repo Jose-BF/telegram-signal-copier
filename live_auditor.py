@@ -20,6 +20,7 @@ import config
 import dubai_live_candidate
 import executor
 import gold_555_live_candidate
+import gold_trail_live_candidate
 import gold_live_candidate
 import journal as default_journal
 import pending_actions
@@ -460,6 +461,13 @@ class LiveAuditor:
             and sig.live_strategy_fingerprint
             == dubai_live_candidate.CANDIDATE_FINGERPRINT
         )
+        gold_trail_exact_policy = False
+        if sig.live_strategy_id == gold_trail_live_candidate.CANDIDATE_ID:
+            try:
+                gold_trail_live_candidate.policy_for_fingerprint(sig.live_strategy_fingerprint)
+                gold_trail_exact_policy = True
+            except ValueError:
+                gold_trail_exact_policy = False
         has_state_levels = bool(
             sig.tps
             or sig.sl is not None
@@ -467,6 +475,7 @@ class LiveAuditor:
             or sig.tp_by_ticket
             or gold_555_exact_policy
             or dubai_exact_policy
+            or gold_trail_exact_policy
         )
         if has_state_levels and sig_id not in self._levels_seen_at:
             self._levels_seen_at[sig_id] = now
@@ -513,6 +522,7 @@ class LiveAuditor:
         intentionally_unprotected = False
         tp_intentionally_absent = bool(
             dubai_exact_policy
+            or gold_trail_exact_policy
             or (
                 sig.live_strategy_id == gold_live_candidate.CANDIDATE_ID
                 and sig.live_strategy_fingerprint
