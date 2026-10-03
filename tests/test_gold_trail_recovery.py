@@ -81,6 +81,9 @@ def test_live_contract_and_startup_message(monkeypatch) -> None:
     assert gold["broker_sl"]["initial_distance"] == 20.0 and gold["broker_sl"]["following_step"] == 0.25
     assert gold["entry"] == {"mode": "market_now", "volume": 0.05}
     assert gold["provider_management_mode"] == "ignore"
+    # the startup summary printed by _publish_live_strategy_contract must accept the contract
+    summary = main._live_strategy_summary(contract)
+    assert "gold_now_trail_v1" in summary
     text = main._startup_status_message({"git_commit": "abc1234", "git_branch": "main", "git_dirty": False,
                                          "git_synced": True})
     assert "Gold estrategia: candidata" in text

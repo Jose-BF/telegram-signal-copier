@@ -3254,6 +3254,12 @@ def _live_strategy_contract() -> dict:
                 ),
             },
             "provider_management_mode": trail_policy.provider_management_mode,
+            # Other Canal 2 entry paths (zones) are refused while this policy
+            # is active; the flag is still reported like for every policy.
+            "zone_first_touch_execution": bool(
+                config.STRATEGY_C2_ZONE_FIRST_TOUCH_EXECUTION_ENABLED
+            ),
+            "zone_explicit_activation": True,
         }
         effective_max_lots = max(
             effective_max_lots,
